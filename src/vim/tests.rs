@@ -197,3 +197,20 @@ fn form_feed_and_lone_cr_lines() {
     assert_eq!(txt("a\x0cb\nc", "ccX<Esc>"), "X\nc");
     assert_eq!(txt("a\nhello\r", "yyGp"), "a\nhello\r\na");
 }
+
+fn bytes(t: &str, keys: &str) -> String {
+    String::from_utf8(ed(t, keys).buf.to_bytes()).unwrap()
+}
+
+#[test]
+fn missing_final_newline_is_kept() {
+    assert_eq!(bytes("abc", "ddu"), "abc");
+    assert_eq!(bytes("s3cr3t", "ccnew<Esc>"), "new");
+    assert_eq!(bytes("x", "rZ"), "Z");
+    assert_eq!(bytes("a\nb", "Gdd"), "a");
+    // A zero-byte file that gains text gets a final newline, like vim;
+    // undoing back to nothing writes nothing again.
+    assert_eq!(bytes("", "ihi<Esc>"), "hi\n");
+    assert_eq!(bytes("", "ihi<Esc>u"), "");
+    assert_eq!(bytes("", ""), "");
+}

@@ -79,8 +79,7 @@ struct Opened {
 
 fn open_file(path: Option<&Path>, cfg: &Config) -> Result<Opened, String> {
     let Some(p) = path else {
-        let mut buf = Buffer::from_text("");
-        buf.final_newline = true;
+        let buf = Buffer::from_text("");
         return Ok(Opened {
             ed: make_editor(buf, cfg),
             stamp: None,

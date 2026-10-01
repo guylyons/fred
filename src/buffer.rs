@@ -38,6 +38,8 @@ pub struct Buffer {
     pub edits_since_swap: usize,
     /// Increments on every edit.
     pub version: u64,
+    /// The file was zero bytes: it gains a final newline only while it has text.
+    zero_byte: bool,
     dirty_from: Option<usize>,
 }
 
@@ -78,6 +80,7 @@ impl Buffer {
             modified: false,
             edits_since_swap: 0,
             version: 0,
+            zero_byte: s.is_empty() && !bom,
             dirty_from: None,
         }
     }
@@ -103,13 +106,12 @@ impl Buffer {
 
     /// Apply an edit and return its inverse.
     pub fn apply(&mut self, e: Edit) -> Edit {
-        let was_empty = self.rope.len_chars() == 0;
         let removed = self.rope.slice(e.start..e.end).to_string();
         self.rope.remove(e.start..e.end);
         self.rope.insert(e.start, &e.text);
-        if was_empty && self.rope.len_chars() > 0 {
+        if self.zero_byte {
             // A zero-byte file that gains text gets a final newline, like vim.
-            self.final_newline = true;
+            self.final_newline = self.rope.len_chars() > 0;
         }
         let line = self.rope.char_to_line(e.start);
         self.dirty_from = Some(self.dirty_from.map_or(line, |d| d.min(line)));

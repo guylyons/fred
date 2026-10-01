@@ -64,8 +64,7 @@ fn stamp_of(path: &Path, data: &[u8]) -> Option<FileStamp> {
 pub fn load(path: &Path) -> Result<Loaded, String> {
     match fs::metadata(path) {
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
-            let mut buf = Buffer::from_text("");
-            buf.final_newline = true;
+            let buf = Buffer::from_text("");
             return Ok(Loaded {
                 buf,
                 stamp: None,
@@ -336,7 +335,7 @@ mod tests {
         let l = load(&d.path().join("nope")).unwrap();
         assert_eq!(l.notice.as_deref(), Some("[new]"));
         assert!(l.stamp.is_none());
-        assert!(l.buf.final_newline);
+        assert!(l.buf.to_bytes().is_empty(), "an untouched new file is written empty");
         assert_eq!(load(d.path()).unwrap_err(), "is a directory");
     }
 
