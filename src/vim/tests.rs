@@ -190,3 +190,10 @@ fn cmdline_ctrl_w_handles_multibyte() {
     assert_eq!(cmdline(&ed("a", ":a+-<C-w>")), "a");
     assert_eq!(txt("a →→", "A<C-w><Esc>"), "a ");
 }
+
+#[test]
+fn form_feed_and_lone_cr_lines() {
+    assert_eq!(txt("a\x0cb\nc\nd", ":2d<Enter>"), "a\x0cb\nd");
+    assert_eq!(txt("a\x0cb\nc", "ccX<Esc>"), "X\nc");
+    assert_eq!(txt("a\nhello\r", "yyGp"), "a\nhello\r\na");
+}
