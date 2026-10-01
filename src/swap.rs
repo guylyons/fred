@@ -43,9 +43,16 @@ pub fn swap_dir() -> PathBuf {
 
 /// The real absolute path a swap file is keyed on.
 pub fn canonical(file: &Path) -> PathBuf {
-    fs::canonicalize(file)
-        .or_else(|_| std::path::absolute(file))
-        .unwrap_or_else(|_| file.to_path_buf())
+    if let Ok(p) = fs::canonicalize(file) {
+        return p;
+    }
+    // Not created yet: resolve the directory so the name is the same as
+    // the one the file will have once it exists.
+    let abs = std::path::absolute(file).unwrap_or_else(|_| file.to_path_buf());
+    match (abs.parent().and_then(|d| fs::canonicalize(d).ok()), abs.file_name()) {
+        (Some(dir), Some(name)) => dir.join(name),
+        _ => abs,
+    }
 }
 
 pub fn swap_name(file: Option<&Path>) -> String {
@@ -180,6 +187,22 @@ mod tests {
         );
         remove(&sp);
         assert!(!sp.exists());
+    }
+
+    #[test]
+    fn new_file_keeps_its_swap_name_once_created() {
+        // macOS temp dirs live behind the /var -> /private/var symlink.
+        let d = tempfile::tempdir().unwrap();
+        let real = d.path().join("real");
+        std::fs::create_dir(&real).unwrap();
+        let link = d.path().join("link");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        let f = link.join("new.txt");
+        let swaps = d.path().join("swap");
+        let before = swap_path_in(&swaps, Some(&f));
+        std::fs::write(&f, "x").unwrap();
+        assert_eq!(swap_path_in(&swaps, Some(&f)), before);
+        assert_eq!(swap_path_in(&swaps, Some(&real.join("new.txt"))), before);
     }
 
     #[test]
