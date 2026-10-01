@@ -167,7 +167,12 @@ impl Session {
                 then_quit,
             } => {
                 if self.write(path, force, range) && then_quit {
-                    self.quit = true;
+                    if self.ed.buf.modified {
+                        // Wrote a copy; the buffer itself is still unsaved.
+                        self.ed.set_err("unsaved changes (q! to discard, wq to save)");
+                    } else {
+                        self.quit = true;
+                    }
                 }
             }
             ExEffect::WriteIfModifiedQuit => {
@@ -477,6 +482,23 @@ mod tests {
             t.s.written.is_none(),
             ":x on an unmodified buffer doesn't write"
         );
+    }
+
+    #[test]
+    fn wq_to_another_file_keeps_unsaved_work() {
+        let mut t = T::open(Some("f"), Some("one\ntwo\n"));
+        let part = t.dir.path().join("part");
+        let other = t.dir.path().join("other");
+        t.keys(&format!("GoNEW WORK<Esc>:1,2wq {}<Enter>", part.display()));
+        assert!(!t.s.quit, "the buffer still has unsaved changes");
+        assert!(t.msg().contains("unsaved changes"), "{}", t.msg());
+        assert_eq!(t.file("part"), "one\ntwo\n");
+        t.keys(&format!(":wq {}<Enter>", other.display()));
+        assert!(!t.s.quit);
+        assert_eq!(t.file("other"), "one\ntwo\nNEW WORK\n");
+        t.keys(":wq<Enter>");
+        assert!(t.s.quit);
+        assert_eq!(t.file("f"), "one\ntwo\nNEW WORK\n");
     }
 
     #[test]
