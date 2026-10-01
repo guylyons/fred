@@ -47,7 +47,7 @@ fred [--height N] [+LINE] [FILE]
 `f F t T ; ,`, `/` `?` `n N`, `'a` (go to mark), `Ctrl-D Ctrl-U` (half a window),
 `Ctrl-F Ctrl-B`, arrow keys, Home and End. Counts work: `3w`, `5j`.
 
-**Editing:** `d c y` combined with any motion, plus `dd cc yy D C Y`,
+**Editing:** `d c y` combined with any motion (including searches: `d/foo<Enter>`), plus `dd cc yy D C Y`,
 `x X s S r{c} J`, `p P`, `o O i a I A`, `u` (undo) and `Ctrl-R` (redo), `.`
 (repeat the last change), `m{a-z}` (set a mark), `V` (visual-line mode, then
 `d c y J :`).
@@ -59,20 +59,22 @@ closes the popup and leaves Insert mode. `Ctrl-W` deletes the word before the
 cursor and `Ctrl-U` deletes to the start of the line. Pasted text goes in
 exactly as pasted.
 
+`ZZ` saves (if there are changes) and quits; `ZQ` quits without saving.
 `Ctrl-Z` suspends fred; `fg` brings it back.
 
 ## `:` commands
 
-Addresses work as in ed: `N . $ +n -n /re/ ?re? 'a`, `,` (the whole file) and
-`;`. In visual-line mode, `:` starts with `'<,'>` filled in.
+Addresses work as in ed: `N . $ +n -n /re/ ?re? 'a`, `,` or `%` (the whole
+file) and `;`. In visual-line mode, `:` starts with `'<,'>` filled in. Marks
+follow their lines as you edit.
 
 | command | does |
 |---|---|
 | `w [file]`, `w!` | write (`w!` overrides change detection) |
 | `wq`, `x` | write and quit (`x` writes only if there are changes) |
 | `q`, `q!` | quit (`q!` discards changes) |
-| `e[!] file` | edit another file |
-| `[range]s/re/rep/[g]` | substitute; `&` and `\1`–`\9` in `rep`, `\n` splits the line |
+| `e[!] [file]` | edit another file; with no file, reload this one (`e!` discards changes) |
+| `[range]s/re/rep/[g]` | substitute; `&` and `\1`–`\9` in `rep`, `\n` or `\r` splits the line |
 | `[range]d` | delete lines |
 | `[range]j` | join lines |
 | `[range]m addr`, `[range]t addr` | move, copy (`0` means before the first line) |
@@ -81,8 +83,10 @@ Addresses work as in ed: `N . $ +n -n /re/ ?re? 'a`, `,` (the whole file) and
 | `[range]w file` | write just those lines to another file |
 
 Patterns use Rust's [`regex`](https://docs.rs/regex) syntax, which is like
-extended regular expressions (ERE). Searches ignore case unless the pattern
-has a capital letter. `Tab` completes command names and file paths, and
+extended regular expressions (ERE). `/` and `?` searches ignore case unless
+the pattern has a capital letter. `:` commands match case exactly, as in ed,
+so a substitution never changes text you didn't spell; add `(?i)` to ignore
+case. `Tab` completes command names and file paths, and
 `Up`/`Down` go through the command history.
 
 Each `:` command is a single undo step, even a `g` that changes 500 lines.
