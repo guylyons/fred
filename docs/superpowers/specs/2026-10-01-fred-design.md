@@ -277,3 +277,53 @@ Grammar `[addr[,|; addr]] cmd [args]`.
 `ropey`, `ratatui` (crossterm backend), `crossterm`, `syntect`, `two-face`,
 `regex`, `unicode-segmentation`, `unicode-width`, `ignore`, `serde` + `toml` +
 `serde_json`, `signal-hook`, `libc`, `anyhow`. Dev: `tempfile`, `portable-pty`.
+
+## As built: changes made during review (2026-10-01)
+
+A code review, a randomized test harness and real-terminal testing led to
+these deliberate changes from the design above:
+
+- **Swap file is a lock for the whole session.** It is created at open (a
+  "clean" marker while nothing is unsaved) and removed on normal exit, so a
+  second fred is always warned and offered read-only. fred only overwrites or
+  removes a swap file it wrote. `:e` into a file with a swap asks the same
+  recover / delete / read-only question as startup (`q` cancels the `:e`).
+  A clean lock or an identical copy left by a dead fred is removed silently.
+- **ex patterns match case exactly** (`:s`, `:g`, `:v`, `/re/` addresses), as
+  in ed, so a substitution never changes text you didn't spell; `(?i)`
+  ignores case. `/`, `?`, `n`, `N` keep smart case.
+- **Additions:** `%` range; `:e` / `:e!` with no file reloads the current
+  file; `ZZ` / `ZQ`; `\r` in a replacement splits the line (vim's idiom);
+  operators take search motions (`d/pat`); `:w` with another path to the
+  same file saves the buffer; bracketed paste inserts text verbatim.
+- **Marks follow their lines** through edits; deleting a marked line deletes
+  the mark. `:g/re/s/x/y/` substitutes where it can and errors only if
+  nothing matched. A failed ex command rolls back without touching redo.
+- **Tab** inserts a tab unless the file is space-indented; the space width
+  (2, 4, …) is detected.
+- **Window** starts as small as the file and grows as lines are added (up to
+  `height`); it never shrinks during a session.
+- **Input:** Alt+key is read as Esc then key (an Esc batched with the next
+  key over SSH/tmux arrives as Alt+key). Known limitation: `Esc O <letter>`
+  in one read is parsed by crossterm as a function-key sequence.
+- **Text model:** only `\n` splits lines (ropey's `unicode_lines` is off);
+  only a zero-byte file gains a final newline, and only while it has text.
+- **Writes keep the file's group** (or fall back to writing in place).
+- **Terminal:** Ctrl-Z stops the whole process group (fred as `$EDITOR`);
+  any panic in the event loop writes the swap, restores the terminal and
+  prints its message; a startup failure restores the terminal; windows
+  under 3 rows tall don't crash.
+- **Performance:** fred draws only when something changed (idle CPU ≈ 0,
+  nothing sent to the terminal); lines are laid out only where visible, and
+  printable-ASCII lines use column arithmetic, so a 1 MB one-line file stays
+  responsive. Wrap mode scrolls by screen rows within long lines.
+
+Deferred (known, minor): 2-row terminals show no text rows; the wrap-mode
+window is sized by logical lines; terminals disagree with fred on some
+ZWJ/skin-tone emoji widths; `.` doesn't repeat a bracketed paste; the
+read-only message on permission-denied files suggests `w!`; a dangling
+symlink is replaced by a regular file on write; `:w name` on an unnamed
+buffer doesn't re-detect the filetype until restart; Esc keeps an untouched
+auto-indent; a reused pid can hide [r]ecover; `//` lists `/` in completion;
+the cursor can sit on the second half of a wide char in wrap mode near a
+row end only if the terminal disagrees on its width.
