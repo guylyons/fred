@@ -65,7 +65,8 @@ impl Ui {
         let done = self
             .term
             .draw(|f| ui::draw(f, &s.ed, view, hl, cfg, HIGHLIGHT_BUDGET))?;
-        self.area = Some(done.area);
+        // `done.area` is the whole terminal; the buffer covers just the window.
+        self.area = Some(done.buffer.area);
         let bar = s.ed.mode == Mode::Insert;
         if bar != self.bar_cursor {
             self.bar_cursor = bar;
