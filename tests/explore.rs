@@ -1340,7 +1340,7 @@ fn cursor_cell_is_visible_when_scrolled_sideways() {
 }
 
 #[test]
-fn bug_wrap_wide_char_at_row_end_misplaces_the_cursor() {
+fn wrap_wide_char_at_row_end_keeps_the_cursor_on_it() {
     let env = Env::new();
     env.config("wrap = true\n");
     // 36 text columns: "a" + 17 漢 = 35 columns, so the 18th 漢 doesn't fit and
@@ -1378,7 +1378,7 @@ fn bug_wrap_wide_char_at_row_end_misplaces_the_cursor() {
 }
 
 #[test]
-fn bug_wrap_cursor_on_a_line_longer_than_the_window() {
+fn wrap_scrolls_within_a_line_longer_than_the_window() {
     let env = Env::new();
     env.config("wrap = true\n");
     let long = letters(300) + "Z";

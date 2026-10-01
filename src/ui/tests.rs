@@ -254,3 +254,61 @@ fn cursor_is_never_under_the_cut_marker() {
         );
     }
 }
+
+fn cell_at_cursor(s: &mut Screen) -> String {
+    let (x, y) = s.cursor();
+    s.term.backend().buffer()[(x, y)].symbol().to_string()
+}
+
+#[test]
+fn wrap_moves_a_wide_char_that_does_not_fit_and_the_cursor_follows() {
+    // 36 text columns: "a" + 17 漢 = 35, so the 18th 漢 starts row 2.
+    let text = format!("a{}\nend", "漢".repeat(30));
+    for (keys, want) in [
+        ("17l", (37, 0)),
+        ("18l", (4, 1)),
+        ("19l", (6, 1)),
+        ("$", (28, 1)),
+    ] {
+        let mut s = Screen::new(40, 8);
+        s.cfg.wrap = true;
+        let e = editor(&text, keys);
+        s.draw(&e);
+        assert_eq!(s.row(1), format!("    {}", "漢".repeat(13)));
+        assert_eq!(s.cursor(), want, "{keys}");
+        assert_eq!(cell_at_cursor(&mut s), "漢", "{keys}");
+    }
+}
+
+#[test]
+fn wrap_scrolls_inside_a_line_taller_than_the_window() {
+    let long: String = ('a'..='y').cycle().take(300).collect::<String>() + "Z";
+    let text = format!("{long}\nb\nc\nd");
+    let mut s = Screen::new(40, 6); // 4 text rows of 36 columns
+    s.cfg.wrap = true;
+    let e = editor(&text, "$");
+    s.draw(&e);
+    assert_eq!(cell_at_cursor(&mut s), "Z");
+    let e = editor(&text, "$0");
+    s.draw(&e);
+    assert_eq!(s.cursor(), (4, 0), "back at the start of the line");
+    assert_eq!(s.row(0), format!("  1 {}", &long[..36]));
+    let e = editor(&text, "$j");
+    s.draw(&e);
+    assert_eq!(cell_at_cursor(&mut s), "b");
+}
+
+#[test]
+fn sideways_scrolled_line_with_tabs_and_wide_chars() {
+    let text = format!("ab\t{}xyz", "漢".repeat(40));
+    let mut s = Screen::new(30, 3); // 26 text columns
+    let e = editor(&text, "$");
+    s.draw(&e);
+    assert_eq!(cell_at_cursor(&mut s), "z");
+    assert!(s.row(0).ends_with("xyz"), "{}", s.row(0));
+    let e = editor(&text, "$0");
+    s.draw(&e);
+    // 26 columns: "ab" + tab (8) + 8 漢 (16) = 24; a 9th would reach the
+    // last column, which belongs to the › marker.
+    assert_eq!(s.row(0), format!("  1 ab      {} ›", "漢".repeat(8)));
+}

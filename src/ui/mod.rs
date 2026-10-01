@@ -1,5 +1,6 @@
 //! Drawing the editor into an inline viewport.
 
+pub mod layout;
 pub mod render;
 pub mod view;
 
