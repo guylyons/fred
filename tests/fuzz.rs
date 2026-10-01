@@ -14,6 +14,7 @@
 //!      `from_text(to_bytes()).to_bytes() == to_bytes()`,
 //!   4. a `:`/`/`/`?` line that ends in an error leaves the text unchanged, and
 //!      so does any other key that reports an error (except `.`).
+//!
 //! Checked after the whole sequence:
 //!   5. two `<Esc>` get back to Normal mode,
 //!   6. `u` until "already at oldest change" restores the initial text exactly
@@ -1808,10 +1809,7 @@ fn shrink(seed: u64, case: &Case, sig: &str) -> (Case, Failure) {
         // Shrink pasted text.
         for si in 0..best.steps.len() {
             let mut ci = 0;
-            loop {
-                let Step::Paste(t) = &best.steps[si] else {
-                    break;
-                };
+            while let Step::Paste(t) = &best.steps[si] {
                 let chars: Vec<char> = t.chars().collect();
                 if ci >= chars.len() {
                     break;
