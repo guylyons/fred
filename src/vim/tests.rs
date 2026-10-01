@@ -173,3 +173,20 @@ fn paste_inserts_text_verbatim() {
         m => panic!("{m:?}"),
     }
 }
+
+fn cmdline(e: &crate::editor::Editor) -> String {
+    match &e.mode {
+        Mode::Command(cl) => cl.text.clone(),
+        m => panic!("not on the command line: {m:?}"),
+    }
+}
+
+#[test]
+fn cmdline_ctrl_w_handles_multibyte() {
+    assert_eq!(cmdline(&ed("a", ":s/a/→<C-w>")), "s/a", "a punctuation run is one word");
+    assert_eq!(cmdline(&ed("a", "/“<C-w>")), "");
+    assert_eq!(cmdline(&ed("a", ":foo bar<C-w>")), "foo ");
+    assert_eq!(cmdline(&ed("a", ":foo  <C-w>")), "");
+    assert_eq!(cmdline(&ed("a", ":a+-<C-w>")), "a");
+    assert_eq!(txt("a →→", "A<C-w><Esc>"), "a ");
+}

@@ -4,7 +4,7 @@ use super::ops::{delete_chars, indent_of, insert_text};
 use crate::complete::{self, Popup, index::is_word_char};
 use crate::editor::{Editor, Mode};
 use crate::key::{Key, KeyCode};
-use crate::text::{col_of_byte, next_grapheme, prev_grapheme};
+use crate::text::{col_of_byte, next_grapheme, prev_grapheme, word_start_before};
 
 pub fn insert_key(ed: &mut Editor, k: Key) {
     if let Some(r) = ed.vim.recording.as_mut() {
@@ -137,15 +137,8 @@ fn edit_key(ed: &mut Editor, k: Key) {
             }
         }
         KeyCode::Char('w') if k.ctrl => {
-            let before = &line[..b];
-            let trimmed = before.trim_end_matches([' ', '\t']);
-            let word = |c: char| c.is_alphanumeric() || c == '_';
-            let start = match trimmed.chars().last() {
-                None => 0,
-                Some(c) if word(c) => trimmed.trim_end_matches(word).len(),
-                Some(c) => trimmed.len() - c.len_utf8(),
-            };
             if b > 0 {
+                let start = word_start_before(&line, b);
                 delete_chars(ed, (l, start), (l, b));
                 ed.cur.byte = start;
             }

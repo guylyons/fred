@@ -36,6 +36,18 @@ pub fn floor_grapheme(s: &str, byte: usize) -> usize {
     start
 }
 
+/// Where Ctrl-W deletes back to from `end`: trailing blanks, then either a
+/// run of word characters or a run of other non-blank characters.
+pub fn word_start_before(s: &str, end: usize) -> usize {
+    let before = s[..end].trim_end_matches([' ', '\t']);
+    let word = |c: char| c.is_alphanumeric() || c == '_';
+    match before.chars().next_back() {
+        None => 0,
+        Some(c) if word(c) => before.trim_end_matches(word).len(),
+        Some(_) => before.trim_end_matches(|c: char| !word(c) && !c.is_whitespace()).len(),
+    }
+}
+
 /// Display width of one grapheme when it starts at column `col`.
 pub fn grapheme_width(g: &str, col: usize, tabstop: usize) -> usize {
     match g {

@@ -301,11 +301,7 @@ impl Editor {
                 cl.cursor = 0;
             }
             KeyCode::Char('w') if k.ctrl => {
-                let before = &cl.text[..cl.cursor];
-                let trimmed = before.trim_end();
-                let start = trimmed
-                    .rfind(|c: char| !(c.is_alphanumeric() || c == '_'))
-                    .map_or(0, |i| if i + 1 == trimmed.len() { i } else { i + 1 });
+                let start = text::word_start_before(&cl.text, cl.cursor);
                 cl.text.replace_range(start..cl.cursor, "");
                 cl.cursor = start;
             }
