@@ -9,7 +9,7 @@ pub fn compile(pat: &str) -> Result<Regex, String> {
     let src = if pat.chars().any(char::is_uppercase) { pat.to_string() } else { format!("(?i){pat}") };
     Regex::new(&src).map_err(|e| {
         let msg = e.to_string();
-        let last = msg.lines().filter(|l| !l.trim().is_empty()).next_back().unwrap_or("").trim();
+        let last = msg.lines().rfind(|l| !l.trim().is_empty()).unwrap_or("").trim();
         format!("bad pattern: {}", last.trim_start_matches("error: "))
     })
 }
