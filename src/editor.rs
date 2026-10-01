@@ -1,0 +1,449 @@
+//! Editor state and key routing.
+
+use crate::buffer::{Buffer, Edit};
+use crate::ex::{self, ExEffect, ExState};
+use crate::key::{Key, KeyCode};
+use crate::search;
+use crate::text;
+use crate::undo::Undo;
+use crate::vim;
+use std::collections::HashMap;
+use std::path::PathBuf;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Cursor {
+    pub line: usize,
+    /// Byte offset into the line, always on a grapheme boundary.
+    pub byte: usize,
+    /// Screen column that j/k try to keep (`usize::MAX` = end of line).
+    pub want_col: usize,
+}
+
+impl Cursor {
+    pub fn pos(&self) -> (usize, usize) {
+        (self.line, self.byte)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Mode {
+    Normal,
+    Insert,
+    VisualLine { anchor: usize },
+    Command(CmdLine),
+}
+
+/// The `:`, `/` or `?` line being typed.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct CmdLine {
+    pub kind: char,
+    pub text: String,
+    /// Byte offset of the cursor in `text`.
+    pub cursor: usize,
+    hist: Option<usize>,
+    stash: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Register {
+    pub text: String,
+    pub linewise: bool,
+}
+
+pub struct Editor {
+    pub buf: Buffer,
+    pub undo: Undo,
+    pub cur: Cursor,
+    pub mode: Mode,
+    pub reg: Register,
+    pub marks: HashMap<char, usize>,
+    pub last_pat: Option<String>,
+    pub last_search_fwd: bool,
+    /// Status-row message and whether it is an error.
+    pub msg: Option<(String, bool)>,
+    pub path: Option<PathBuf>,
+    pub readonly: bool,
+    /// File operation requested by an ex command, performed by the app.
+    pub pending_effect: Option<ExEffect>,
+    pub win_height: usize,
+    pub tabstop: usize,
+    /// Insert spaces for Tab, this many per indent level (0 = insert a tab).
+    pub indent_spaces: usize,
+    /// Undo state of the text as last saved; `u64::MAX` = never matches.
+    pub saved_state: u64,
+    pub(crate) vim: vim::State,
+    cmd_history: Vec<String>,
+    search_history: Vec<String>,
+}
+
+impl Editor {
+    pub fn new(buf: Buffer) -> Editor {
+        let indent_spaces = detect_indent(&buf);
+        Editor {
+            buf,
+            undo: Undo::default(),
+            cur: Cursor::default(),
+            mode: Mode::Normal,
+            reg: Register::default(),
+            marks: HashMap::new(),
+            last_pat: None,
+            last_search_fwd: true,
+            msg: None,
+            path: None,
+            readonly: false,
+            pending_effect: None,
+            win_height: 12,
+            tabstop: 8,
+            indent_spaces,
+            saved_state: 0,
+            vim: vim::State::default(),
+            cmd_history: vec![],
+            search_history: vec![],
+        }
+    }
+
+    pub fn handle_key(&mut self, k: Key) {
+        if !matches!(self.mode, Mode::Command(_)) {
+            self.msg = None;
+        }
+        match self.mode {
+            Mode::Normal | Mode::VisualLine { .. } => vim::normal_key(self, k),
+            Mode::Insert => vim::insert_key(self, k),
+            Mode::Command(_) => self.cmdline_key(k),
+        }
+        self.clamp_cursor();
+        if !self.undo.in_group() {
+            self.buf.modified = self.undo.state_id() != self.saved_state;
+        }
+    }
+
+    /// Mark the current text as saved.
+    pub fn mark_saved(&mut self) {
+        self.saved_state = self.undo.state_id();
+        self.buf.modified = false;
+    }
+
+    pub fn apply(&mut self, e: Edit) {
+        let inv = self.buf.apply(e);
+        self.undo.record(inv);
+    }
+
+    pub fn set_msg(&mut self, m: impl Into<String>) {
+        self.msg = Some((m.into(), false));
+    }
+
+    pub fn set_err(&mut self, m: impl Into<String>) {
+        self.msg = Some((format!("? {}", m.into()), true));
+    }
+
+    pub fn line_count(&self) -> usize {
+        self.buf.len_lines()
+    }
+
+    pub fn first_nonblank(&self, line: usize) -> usize {
+        let l = self.buf.line(line);
+        l.len() - l.trim_start_matches([' ', '\t']).len()
+    }
+
+    /// Byte of the last grapheme on the line (0 on an empty line).
+    pub fn last_grapheme(&self, line: usize) -> usize {
+        let l = self.buf.line(line);
+        text::prev_grapheme(&l, l.len())
+    }
+
+    /// Move the cursor and remember its screen column.
+    pub fn set_cursor(&mut self, line: usize, byte: usize) {
+        self.cur.line = line.min(self.line_count() - 1);
+        let l = self.buf.line(self.cur.line);
+        self.cur.byte = text::floor_grapheme(&l, byte);
+        self.cur.want_col = text::col_of_byte(&l, self.cur.byte, self.tabstop);
+    }
+
+    /// Move to `line`, keeping the remembered screen column.
+    pub fn set_line_keep_col(&mut self, line: usize) {
+        self.cur.line = line.min(self.line_count() - 1);
+        let l = self.buf.line(self.cur.line);
+        self.cur.byte = if self.cur.want_col == usize::MAX {
+            text::prev_grapheme(&l, l.len())
+        } else {
+            text::byte_of_col(&l, self.cur.want_col, self.tabstop)
+        };
+    }
+
+    pub fn clamp_cursor(&mut self) {
+        let n = self.line_count();
+        if self.cur.line >= n {
+            self.cur.line = n - 1;
+        }
+        let l = self.buf.line(self.cur.line);
+        let max = match self.mode {
+            Mode::Insert => l.len(),
+            _ => text::prev_grapheme(&l, l.len()),
+        };
+        self.cur.byte = text::floor_grapheme(&l, self.cur.byte.min(max));
+    }
+
+    // ---- command line ----
+
+    pub fn open_cmdline(&mut self, kind: char, text: &str) {
+        self.mode = Mode::Command(CmdLine { kind, text: text.into(), cursor: text.len(), hist: None, stash: String::new() });
+    }
+
+    fn cmdline_key(&mut self, k: Key) {
+        let Mode::Command(cl) = &mut self.mode else { return };
+        let hist = if cl.kind == ':' { &self.cmd_history } else { &self.search_history };
+        match k.code {
+            KeyCode::Esc => self.mode = Mode::Normal,
+            KeyCode::Char('c') if k.ctrl => self.mode = Mode::Normal,
+            KeyCode::Enter => {
+                let cl = std::mem::take(cl);
+                self.mode = Mode::Normal;
+                self.run_cmdline(cl.kind, &cl.text);
+            }
+            KeyCode::Backspace if cl.text.is_empty() => self.mode = Mode::Normal,
+            KeyCode::Backspace if cl.cursor > 0 => {
+                let p = prev_char(&cl.text, cl.cursor);
+                cl.text.replace_range(p..cl.cursor, "");
+                cl.cursor = p;
+            }
+            KeyCode::Delete if cl.cursor < cl.text.len() => {
+                let n = next_char(&cl.text, cl.cursor);
+                cl.text.replace_range(cl.cursor..n, "");
+            }
+            KeyCode::Left => cl.cursor = prev_char(&cl.text, cl.cursor),
+            KeyCode::Right => cl.cursor = next_char(&cl.text, cl.cursor),
+            KeyCode::Home => cl.cursor = 0,
+            KeyCode::End => cl.cursor = cl.text.len(),
+            KeyCode::Up | KeyCode::Down => {
+                let len = hist.len();
+                let next = match (k.code, cl.hist) {
+                    (KeyCode::Up, None) if len > 0 => Some(len - 1),
+                    (KeyCode::Up, Some(i)) => Some(i.saturating_sub(1)),
+                    (KeyCode::Down, Some(i)) if i + 1 < len => Some(i + 1),
+                    (KeyCode::Down, Some(_)) => None,
+                    (_, h) => h,
+                };
+                if cl.hist.is_none() {
+                    cl.stash = cl.text.clone();
+                }
+                if next != cl.hist || next.is_none() {
+                    cl.text = next.map_or_else(|| cl.stash.clone(), |i| hist[i].clone());
+                    cl.cursor = cl.text.len();
+                    cl.hist = next;
+                }
+            }
+            KeyCode::Char('u') if k.ctrl => {
+                cl.text.replace_range(..cl.cursor, "");
+                cl.cursor = 0;
+            }
+            KeyCode::Char('w') if k.ctrl => {
+                let before = &cl.text[..cl.cursor];
+                let trimmed = before.trim_end();
+                let start = trimmed.rfind(|c: char| !(c.is_alphanumeric() || c == '_')).map_or(0, |i| {
+                    if i + 1 == trimmed.len() { i } else { i + 1 }
+                });
+                cl.text.replace_range(start..cl.cursor, "");
+                cl.cursor = start;
+            }
+            KeyCode::Tab => self.complete_cmdline(),
+            KeyCode::Char(c) if !k.ctrl && !k.alt => {
+                cl.text.insert(cl.cursor, c);
+                cl.cursor += c.len_utf8();
+            }
+            _ => {}
+        }
+    }
+
+    /// Tab on the command line (filled in by completion).
+    fn complete_cmdline(&mut self) {}
+
+    fn run_cmdline(&mut self, kind: char, text: &str) {
+        let hist = if kind == ':' { &mut self.cmd_history } else { &mut self.search_history };
+        if !text.is_empty() && hist.last().map(String::as_str) != Some(text) {
+            hist.push(text.to_string());
+        }
+        match kind {
+            ':' => self.run_ex(text),
+            _ => {
+                if !text.is_empty() {
+                    self.last_pat = Some(text.to_string());
+                }
+                self.last_search_fwd = kind == '/';
+                self.search_next(false);
+            }
+        }
+    }
+
+    /// Run an ex command line.
+    pub fn run_ex(&mut self, text: &str) {
+        let line = self.cur.line;
+        let before = self.undo.state_id();
+        let mut st = ExState::new(&mut self.buf, &mut self.undo, line, &self.marks, &mut self.last_pat);
+        let r = ex::run(&mut st, text);
+        let new_cur = st.cur;
+        match r {
+            Ok(eff) => {
+                if new_cur != line || self.undo.state_id() != before {
+                    let b = self.first_nonblank(new_cur.min(self.line_count() - 1));
+                    self.set_cursor(new_cur, b);
+                }
+                if eff != ExEffect::None {
+                    self.pending_effect = Some(eff);
+                }
+            }
+            Err(e) => self.set_err(e),
+        }
+    }
+
+    /// Jump to the next match of the last pattern (`reverse` flips direction).
+    pub fn search_next(&mut self, reverse: bool) {
+        if let Some(p) = self.search_target(reverse) {
+            self.set_cursor(p.0, p.1);
+        }
+    }
+
+    pub fn search_target(&mut self, reverse: bool) -> Option<(usize, usize)> {
+        let Some(pat) = self.last_pat.clone() else {
+            self.set_err("no previous pattern");
+            return None;
+        };
+        let re = match search::compile(&pat) {
+            Ok(re) => re,
+            Err(e) => {
+                self.set_err(e);
+                return None;
+            }
+        };
+        let fwd = self.last_search_fwd != reverse;
+        let found = search::find(&self.buf, &re, self.cur.pos(), fwd, true);
+        match found {
+            Some(p) => {
+                let wrapped = if fwd { p <= self.cur.pos() } else { p >= self.cur.pos() };
+                if wrapped {
+                    self.set_msg(if fwd { "search wrapped to top" } else { "search wrapped to bottom" });
+                }
+                Some(p)
+            }
+            None => {
+                self.set_err(format!("pattern not found: {pat}"));
+                None
+            }
+        }
+    }
+}
+
+fn prev_char(s: &str, i: usize) -> usize {
+    s[..i].char_indices().last().map_or(0, |(j, _)| j)
+}
+
+fn next_char(s: &str, i: usize) -> usize {
+    s[i..].chars().next().map_or(i, |c| i + c.len_utf8())
+}
+
+/// Spaces per indent if the file indents with spaces (default 4), else 0.
+fn detect_indent(buf: &Buffer) -> usize {
+    let (mut tabs, mut spaces) = (0, 0);
+    for i in 0..buf.len_lines().min(1000) {
+        let l = buf.line(i);
+        if l.starts_with('\t') {
+            tabs += 1;
+        } else if l.starts_with("  ") {
+            spaces += 1;
+        }
+    }
+    if tabs > spaces { 0 } else { 4 }
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+    use crate::buffer::Buffer;
+    use crate::key::parse_keys;
+
+    pub(crate) fn ed(text: &str, keys: &str) -> Editor {
+        let mut e = Editor::new(Buffer::from_str(text));
+        for k in parse_keys(keys) {
+            e.handle_key(k);
+        }
+        e
+    }
+
+    #[test]
+    fn basic_motions() {
+        assert_eq!(ed("abc def", "w").cur.pos(), (0, 4));
+        assert_eq!(ed("abc def", "$").cur.pos(), (0, 6));
+        assert_eq!(ed("abc def\nx", "$j").cur.pos(), (1, 0));
+        assert_eq!(ed("abc def\nxyz", "$jk").cur.pos(), (0, 6));
+        assert_eq!(ed("a\nb\nc", "G").cur.pos(), (2, 0));
+        assert_eq!(ed("a\nb\nc", "G2G").cur.pos(), (1, 0));
+        assert_eq!(ed("a\nb\nc", "Ggg").cur.pos(), (0, 0));
+        assert_eq!(ed("foo.bar baz", "w").cur.pos(), (0, 3));
+        assert_eq!(ed("foo.bar baz", "W").cur.pos(), (0, 8));
+        assert_eq!(ed("foo bar", "e").cur.pos(), (0, 2));
+        assert_eq!(ed("foo bar", "ee").cur.pos(), (0, 6));
+        assert_eq!(ed("foo bar", "$b").cur.pos(), (0, 4));
+        assert_eq!(ed("foo\n  bar", "w").cur.pos(), (1, 2));
+        assert_eq!(ed("foo\n\nbar", "w").cur.pos(), (1, 0));
+        assert_eq!(ed("foo\nbar", "jb").cur.pos(), (0, 0));
+        assert_eq!(ed("a b c", "fc").cur.pos(), (0, 4));
+        assert_eq!(ed("a b c", "tc").cur.pos(), (0, 3));
+        assert_eq!(ed("a,b,c", "f,;").cur.pos(), (0, 3));
+        assert_eq!(ed("a,b,c", "$F,,").cur.pos(), (0, 3));
+        assert_eq!(ed("a,b,c", "2f,").cur.pos(), (0, 3));
+        assert_eq!(ed("ab\n\ncd", "}").cur.pos(), (1, 0));
+        assert_eq!(ed("ab\n\ncd", "G{").cur.pos(), (1, 0));
+        assert_eq!(ed("  x", "^").cur.pos(), (0, 2));
+        assert_eq!(ed("  x", "$0").cur.pos(), (0, 0));
+        assert_eq!(ed("abc", "lll").cur.pos(), (0, 2));
+        assert_eq!(ed("abc", "3lh").cur.pos(), (0, 1));
+        assert_eq!(ed("a\nb\nc", "2j").cur.pos(), (2, 0));
+        assert_eq!(ed("a\nb\nc", "9j").cur.pos(), (2, 0));
+        assert_eq!(ed("a\nb", "<Down><Right>").cur.pos(), (1, 0));
+    }
+
+    #[test]
+    fn search_motions() {
+        assert_eq!(ed("abc\nfoo\nabc", "/abc<Enter>").cur.pos(), (2, 0));
+        assert_eq!(ed("abc\nfoo\nabc", "/abc<Enter>n").cur.pos(), (0, 0));
+        assert_eq!(ed("abc\nfoo\nabc", "/abc<Enter>N").cur.pos(), (0, 0));
+        assert_eq!(ed("abc\nfoo\nabc", "?foo<Enter>").cur.pos(), (1, 0));
+        assert_eq!(ed("x abc", "/b<Enter>").cur.pos(), (0, 3));
+        let e = ed("abc", "/zzz<Enter>");
+        assert_eq!(e.cur.pos(), (0, 0));
+        assert!(e.msg.unwrap().1);
+    }
+
+    #[test]
+    fn marks_motion() {
+        assert_eq!(ed("a\n  b\nc", "jmaG'a").cur.pos(), (1, 2));
+    }
+
+    #[test]
+    fn grapheme_motion() {
+        assert_eq!(ed("e\u{301}漢x", "l").cur.pos(), (0, 3));
+        assert_eq!(ed("e\u{301}漢x", "ll").cur.pos(), (0, 6));
+        assert_eq!(ed("e\u{301}漢x", "$h").cur.pos(), (0, 3));
+        // j/k keep the screen column across wide chars
+        assert_eq!(ed("漢字x\nabcde", "$j").cur.pos(), (1, 4));
+        assert_eq!(ed("abcd\n漢字", "lllj").cur.pos(), (1, 3));
+    }
+
+    #[test]
+    fn half_page() {
+        let t = (0..30).map(|i| i.to_string()).collect::<Vec<_>>().join("\n");
+        let mut e = Editor::new(Buffer::from_str(&t));
+        e.win_height = 10;
+        e.handle_key(crate::key::Key::ctrl('d'));
+        assert_eq!(e.cur.line, 5);
+        e.handle_key(crate::key::Key::ctrl('u'));
+        assert_eq!(e.cur.line, 0);
+    }
+
+    #[test]
+    fn empty_buffer_motions_dont_panic() {
+        for k in ["j", "k", "G", "gg", "w", "b", "e", "W", "B", "E", "$", "0", "^", "}", "{", "n", "N", "x", "X", "dd", "p", "P", "J", "u", "<C-r>", "D", "C<Esc>", "fz", ";", "'a", "o<Esc>", "dw", "db", "de", "cw<Esc>", "yy", "Vd", "~", "r", "."] {
+            ed("", k);
+            ed("\n\n", k);
+        }
+    }
+}
