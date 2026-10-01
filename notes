@@ -1,1 +1,0 @@
-Okay, so we're going to work on a text editor. This is going to be loosely based on how ed works. The classic Linux editor, which I really like, with some added features. Think of it like Ed, but it's going to have the robustness of Neo Vim. But it's going to be auto-completion built in. syntax highlighting built in. And it's going to be written in Rust. 
