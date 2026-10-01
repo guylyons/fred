@@ -87,7 +87,7 @@ fn insert_and_undo() {
     assert_eq!(txt("  ab", "ox<Esc>"), "  ab\n  x");
     assert_eq!(txt("ab", "i<Del><Esc>"), "b");
     assert_eq!(txt("foo bar", "A<C-w><Esc>"), "foo ");
-    assert_eq!(txt("x", "i<Tab><Esc>"), "    x");
+    assert_eq!(txt("x", "i<Tab><Esc>"), "\tx", "unindented files get real tabs");
     assert_eq!(txt("\tx", "A<Enter><Tab>y<Esc>"), "\tx\n\t\ty");
     assert_eq!(txt("e\u{301}x", "A<BS><BS><Esc>"), "");
     // one undo step for a change with its insert session
@@ -233,4 +233,13 @@ fn marks_follow_their_lines() {
     assert_eq!(ed("a\nb\nc", "jmaggox<Esc>G'a").cur.line, 2);
     // ex commands move marks too.
     assert_eq!(ed("a\nb\nc\nd", "Gma:1d<Enter>gg'a").cur.line, 2);
+}
+
+#[test]
+fn tab_follows_the_file_indentation() {
+    assert_eq!(txt("all:\n", "o<Tab>echo<Esc>"), "all:\n\techo", "Makefiles need tabs");
+    assert_eq!(txt("\ta", "o<Tab>x<Esc>"), "\ta\n\t\tx");
+    assert_eq!(txt("a\n    b", "o<Tab>x<Esc>"), "a\n    x\n    b");
+    assert_eq!(txt("a\n  b\n    c", "o<Tab>x<Esc>"), "a\n  x\n  b\n    c", "2-space files indent by 2");
+    assert_eq!(txt("a\n  b", "A<Tab>x<Esc>"), "a x\n  b", "Tab mid-line pads to the next indent stop");
 }

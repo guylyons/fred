@@ -456,18 +456,31 @@ fn next_char(s: &str, i: usize) -> usize {
     s[i..].chars().next().map_or(i, |c| i + c.len_utf8())
 }
 
-/// Spaces per indent if the file indents with spaces (default 4), else 0.
+/// Spaces per indent level if the file indents with spaces, else 0 (tabs).
 fn detect_indent(buf: &Buffer) -> usize {
-    let (mut tabs, mut spaces) = (0, 0);
+    let (mut tabs, mut spaces, mut width) = (0, 0, 0usize);
     for i in 0..buf.len_lines().min(1000) {
         let l = buf.line(i);
         if l.starts_with('\t') {
             tabs += 1;
-        } else if l.starts_with("  ") {
-            spaces += 1;
+        } else {
+            let n = l.len() - l.trim_start_matches(' ').len();
+            // One leading space is alignment (e.g. ` * ` comments), not indent.
+            if n >= 2 && n < l.len() {
+                spaces += 1;
+                width = gcd(width, n);
+            }
         }
     }
-    if tabs > spaces { 0 } else { 4 }
+    match (spaces > tabs, width) {
+        (false, _) => 0,
+        (true, w @ 2..=8) => w,
+        (true, _) => 4,
+    }
+}
+
+fn gcd(a: usize, b: usize) -> usize {
+    if b == 0 { a } else { gcd(b, a % b) }
 }
 
 #[cfg(test)]
