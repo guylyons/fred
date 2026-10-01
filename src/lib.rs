@@ -7,3 +7,4 @@ pub mod editor;
 pub mod key;
 pub mod vim;
 pub mod fileio;
+pub mod swap;
