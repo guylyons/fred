@@ -191,6 +191,15 @@ fn write_replace(
         .mode(mode)
         .open(&tmp)
         .map_err(|_| None)?;
+    // Keep the original's group; if we may not, write in place instead.
+    if let Some(m) = meta {
+        let tmp_gid = f.metadata().map(|t| t.gid()).ok();
+        if tmp_gid != Some(m.gid()) && std::os::unix::fs::fchown(&f, None, Some(m.gid())).is_err() {
+            drop(f);
+            let _ = fs::remove_file(&tmp);
+            return Err(None);
+        }
+    }
     let res = (|| -> io::Result<()> {
         f.write_all(data)?;
         if meta.is_some() {
@@ -262,6 +271,32 @@ mod tests {
             .map(|e| e.unwrap().file_name())
             .collect();
         assert_eq!(leftovers.len(), 2, "temp file left behind: {leftovers:?}");
+    }
+
+    /// A group we belong to, other than `not`.
+    fn other_group(not: u32) -> Option<u32> {
+        let mut groups = [0 as libc::gid_t; 64];
+        // SAFETY: the buffer holds 64 gids.
+        let n = unsafe { libc::getgroups(64, groups.as_mut_ptr()) };
+        groups[..n.max(0) as usize].iter().copied().find(|&g| g != not)
+    }
+
+    #[test]
+    fn preserves_group() {
+        use std::os::unix::fs::MetadataExt;
+        let d = tempfile::tempdir().unwrap();
+        let p = d.path().join("f");
+        fs::write(&p, "old\n").unwrap();
+        let gid = fs::metadata(&p).unwrap().gid();
+        let Some(other) = other_group(gid) else {
+            eprintln!("skipping: no second group available");
+            return;
+        };
+        std::os::unix::fs::chown(&p, None, Some(other)).unwrap();
+        let l = load(&p).unwrap();
+        write(&p, b"new\n", l.stamp.as_ref(), false).unwrap();
+        assert_eq!(fs::read_to_string(&p).unwrap(), "new\n");
+        assert_eq!(fs::metadata(&p).unwrap().gid(), other, "group must survive a write");
     }
 
     #[test]
