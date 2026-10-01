@@ -67,8 +67,13 @@ impl View {
         if cc < self.left {
             self.left = cc;
         }
-        if cc + w > self.left + cols {
-            self.left = cc + w - cols.min(cc + w);
+        // When text continues past the right edge, the last column shows the
+        // `›` marker, so the cursor must stay left of it.
+        let line_w = display_width(&line, ed.tabstop, 0);
+        let room = |left: usize| if line_w > left + cols { cols.saturating_sub(1).max(1) } else { cols };
+        if cc + w > self.left + room(self.left) {
+            let full = (cc + w).saturating_sub(cols);
+            self.left = if line_w > full + cols { (cc + w).saturating_sub(room(full)) } else { full };
         }
     }
 }

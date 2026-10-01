@@ -1299,7 +1299,7 @@ fn cursor_lands_on_special_characters() {
 }
 
 #[test]
-fn bug_cursor_cell_hidden_by_the_cut_marker_when_scrolled_sideways() {
+fn cursor_cell_is_visible_when_scrolled_sideways() {
     let env = Env::new();
     env.write(
         "f.txt",

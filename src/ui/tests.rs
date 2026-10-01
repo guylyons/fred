@@ -237,3 +237,17 @@ fn tiny_windows_dont_panic() {
         s.draw(&e);
     }
 }
+
+#[test]
+fn cursor_is_never_under_the_cut_marker() {
+    let text: String = ('a'..='z').cycle().take(100).collect();
+    for keys in ["050l", "020l", "0fz", "016l", "015l"] {
+        let mut s = Screen::new(20, 3);
+        let e = editor(&text, keys);
+        s.draw(&e);
+        let (x, y) = s.cursor();
+        let under = s.term.backend().buffer()[(x, y)].symbol().to_string();
+        let want = text[e.cur.byte..].chars().next().unwrap().to_string();
+        assert_eq!(under, want, "keys {keys}: cursor at ({x},{y}) shows {under:?}");
+    }
+}
