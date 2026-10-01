@@ -283,9 +283,12 @@ fn step(s: &mut Session, hl: &mut Highlighter, ev: Event, resized: &mut bool) {
 fn suspend(ui: &mut Ui, s: &mut Session) -> Result<()> {
     s.write_swap();
     ui.close()?;
-    // SAFETY: raising a signal has no memory-safety preconditions.
+    // Stop the whole process group, as vim does: when fred runs under
+    // another program (git's $EDITOR), stopping only fred would leave that
+    // parent waiting and the terminal looking hung.
+    // SAFETY: sending a signal has no memory-safety preconditions.
     unsafe {
-        libc::raise(libc::SIGTSTP);
+        libc::kill(0, libc::SIGTSTP);
     }
     ui.reopen()?;
     if let Some(p) = &s.ed.path
