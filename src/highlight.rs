@@ -39,6 +39,8 @@ pub struct Highlighter {
     states: Vec<(ParseState, HighlightState)>,
     /// Why highlighting is off for this file, if it is.
     pub disabled: Option<String>,
+    /// The last `styles` call ran out of time before the visible lines.
+    incomplete: bool,
 }
 
 impl Highlighter {
@@ -50,7 +52,13 @@ impl Highlighter {
             syntax: "Plain Text".into(),
             states: vec![],
             disabled: None,
+            incomplete: false,
         })
+    }
+
+    /// Visible lines are still waiting to be highlighted: draw again soon.
+    pub fn incomplete(&self) -> bool {
+        self.incomplete
     }
 
     pub fn syntax_name(&self) -> &str {
@@ -141,6 +149,7 @@ impl Highlighter {
         budget: Duration,
     ) -> Vec<Option<LineStyles>> {
         let mut out = vec![None; lines.len()];
+        self.incomplete = false;
         if self.disabled.is_some() {
             return out;
         }
@@ -152,6 +161,7 @@ impl Highlighter {
         let want = lines.start.min(n);
         while self.states.len() <= want && self.states.len() < n {
             if started.elapsed() >= budget {
+                self.incomplete = true;
                 return out;
             }
             let i = self.states.len() - 1;

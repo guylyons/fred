@@ -880,7 +880,7 @@ fn perf_idle_cost_vs_line_length() {
 /// Not a perf measurement as such: fred keeps writing to the terminal every
 /// 50 ms even when nothing changes (constant traffic over SSH).
 #[test]
-fn bug_idle_window_keeps_redrawing() {
+fn idle_window_sends_nothing_to_the_terminal() {
     let env = Env::new();
     env.write("small.rs", "fn main() {\n    println!(\"hi\");\n}\n");
     let mut p = env.fred(&["small.rs"]);

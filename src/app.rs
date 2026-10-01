@@ -426,14 +426,22 @@ fn event_loop(
     }
     // The swap file marks the file as open for the whole session.
     s.lock();
+    // Draw only when something changed: an idle fred costs no CPU and sends
+    // nothing to the terminal (which matters over SSH).
+    let mut dirty = true;
     loop {
-        ui.draw(s, hl, cfg)?;
+        if dirty {
+            ui.draw(s, hl, cfg)?;
+            // Keep drawing while visible lines are still being highlighted.
+            dirty = hl.incomplete();
+        }
         if stop.load(Ordering::Relaxed) {
             s.write_swap();
             return Ok(1);
         }
         let mut resized = false;
         if event::poll(TICK)? {
+            dirty = true;
             loop {
                 let ev = event::read()?;
                 if let Event::Key(k) = ev
@@ -455,20 +463,25 @@ fn event_loop(
             let name = pe.path.display().to_string();
             let choice = ask_swap(ui, s, hl, cfg, &pe.info, Some(&name))?;
             s.resolve_edit(choice);
+            dirty = true;
         }
         if s.reloaded {
             s.reloaded = false;
             hl.set_file(s.ed.path.as_deref(), &s.ed.buf);
             s.ed.nearby = nearby::spawn(s.ed.path.clone());
             ui.view = View::default();
+            dirty = true;
         }
         let rows = terminal::size()?.1;
         let shown = (ui.height as usize).saturating_sub(2);
         let want = window_height(cfg.height, s.ed.line_count().max(shown), rows);
         if resized || want > ui.height {
             ui.rebuild(want)?;
+            dirty = true;
         }
+        let msg = s.ed.msg.clone();
         s.maybe_swap(Instant::now());
+        dirty |= s.ed.msg != msg;
     }
 }
 
