@@ -117,12 +117,13 @@ than 20,000 characters.
   someone else are written in place so the links and the owner are kept.
 - **Changes by others are detected.** If the file changed on disk since you
   opened it, `:w` refuses and asks you to use `:w!`.
-- **Crash recovery.** Unsaved changes go to a swap file in
-  `~/.local/state/fred/swap/` (or `$XDG_STATE_HOME/fred/swap/`) after you pause
-  for a second, or after 200 edits. They're also saved if the terminal closes,
-  fred is killed, or it crashes. The next time you open the file, fred offers
-  to **r**ecover or **d**elete them. If the file is already open in another
-  fred, it offers a read-only view instead.
+- **Crash recovery.** While a file is open, fred keeps a swap file for it in
+  `~/.local/state/fred/swap/` (or `$XDG_STATE_HOME/fred/swap/`). Unsaved changes
+  are written there after you pause for a second or after 200 edits, and also
+  if the terminal closes, fred is killed, or it crashes. The next time you
+  open the file (at startup or with `:e`), fred offers to **r**ecover or
+  **d**elete them. If the file is already open in another fred, it offers a
+  read-only view instead, and the two never touch each other's swap file.
 - **Formats are preserved.** CRLF line endings, a missing final newline, and a
   UTF-8 byte-order mark are all kept as they were. Files that aren't valid
   UTF-8 open read-only and fred never writes them.
@@ -145,8 +146,15 @@ autocomplete = true      # pop up completions while typing (Ctrl-N works either 
 ## Development
 
 ```
-cargo test            # unit tests + end-to-end tests in a pseudo-terminal
+cargo test            # unit, randomized (fuzz) and pseudo-terminal tests
 cargo test --test e2e show_screen -- --ignored --nocapture   # print real screens
+FRED_FUZZ_ITERS=400000 FRED_FUZZ_THREADS=8 cargo test --release --test fuzz
+cargo build --release && cargo test --test explore perf_ -- --ignored --nocapture --test-threads=1
 ```
+
+`tests/fuzz.rs` feeds generated buffers and key sequences to the editor and
+checks the cursor, undo/redo and file-format invariants after every key;
+`tests/explore.rs` drives the real binary in a pseudo-terminal (suspend,
+resizes, two freds on one file, long lines, wrap mode, performance).
 
 The design spec is in `docs/superpowers/specs/2026-10-01-fred-design.md`.
