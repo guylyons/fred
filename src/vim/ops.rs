@@ -28,7 +28,13 @@ pub fn insert_text(ed: &mut Editor, text: &str) {
         end: start,
         text: text.into(),
     });
-    let (l, b) = ed.buf.char_to_pos(start + text.chars().count());
+    let (l, mut b) = ed.buf.char_to_pos(start + text.chars().count());
+    // The new text may have merged with the grapheme after it (a letter
+    // before a combining mark): put the cursor after the whole cluster.
+    let line = ed.buf.line(l);
+    if floor_grapheme(&line, b) != b {
+        b = next_grapheme(&line, floor_grapheme(&line, b));
+    }
     ed.cur.line = l;
     ed.cur.byte = b;
 }

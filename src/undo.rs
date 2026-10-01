@@ -67,6 +67,20 @@ impl Undo {
         }
     }
 
+    /// Edits recorded so far in the open group.
+    pub fn open_len(&self) -> usize {
+        self.open.as_ref().map_or(0, |g| g.edits.len())
+    }
+
+    /// Undo the open group's edits after the first `mark`, forgetting them.
+    pub fn rollback_to(&mut self, buf: &mut Buffer, mark: usize) {
+        if let Some(g) = &mut self.open {
+            for e in g.edits.drain(mark.min(g.edits.len())..).rev() {
+                buf.apply(e);
+            }
+        }
+    }
+
     pub fn in_group(&self) -> bool {
         self.depth > 0
     }

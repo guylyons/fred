@@ -370,18 +370,7 @@ pub fn target(ed: &mut Editor, m: Motion, count: Option<usize>) -> Option<Target
             find_target(&line, l, b, kind, ch, n_count, true)?
         }
         Motion::SearchNext { reverse } => {
-            let mut p = None;
-            for _ in 0..n_count {
-                p = Some(ed.search_target(reverse)?);
-                if n_count > 1 {
-                    let (pl, pb) = p.unwrap_or((l, b));
-                    ed.cur.line = pl;
-                    ed.cur.byte = pb;
-                }
-            }
-            ed.cur.line = l;
-            ed.cur.byte = b;
-            let (pl, pb) = p?;
+            let (pl, pb) = ed.search_target_n(reverse, n_count)?;
             Target::at(pl, pb)
         }
         Motion::Mark(c) => match ed.marks.get(&c) {

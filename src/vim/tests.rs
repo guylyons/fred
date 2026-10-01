@@ -286,3 +286,34 @@ fn operators_with_search_motions() {
         "a cancelled operator leaves no state behind"
     );
 }
+
+#[test]
+fn counted_search_lands_on_the_right_match() {
+    // Matches on lines 0, 1, 2; after /a the cursor is on line 1, so the
+    // k-th next match is on line (1 + k) % 3.
+    for (count, line) in [(1, 2), (3, 1), (5, 0), (1_000_000, 2)] {
+        assert_eq!(
+            ed("a\na\na", &format!("/a<Enter>{count}n")).cur.line,
+            line,
+            "{count}n"
+        );
+    }
+    // G, then /a wraps to line 0; four matches back: 2, 1, 0, 2.
+    assert_eq!(
+        ed("a\na\na", "G/a<Enter>4N").cur.line,
+        2,
+        "N counts backwards"
+    );
+    assert_eq!(
+        txt("x a b a c a", "d2/a<Enter>"),
+        "a c a",
+        "operator with a counted search"
+    );
+}
+
+#[test]
+fn typing_before_a_combining_mark_keeps_the_cursor_on_a_boundary() {
+    // "e" typed before a lone combining accent becomes "é"; the next key
+    // goes after it instead of splitting it.
+    assert_eq!(txt("\u{301}", "iex<Esc>"), "e\u{301}x");
+}

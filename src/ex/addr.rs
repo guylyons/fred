@@ -53,12 +53,14 @@ pub fn use_pattern(pat: String, last: &mut Option<String>) -> Result<String, Str
     }
 }
 
-fn number(s: &str) -> (Option<i64>, &str) {
+/// Leading digits as a number; digits too large to use are an error.
+fn number(s: &str) -> Result<(Option<i64>, &str), String> {
     let end = s.find(|c: char| !c.is_ascii_digit()).unwrap_or(s.len());
     if end == 0 {
-        return (None, s);
+        return Ok((None, s));
     }
-    (s[..end].parse().ok(), &s[end..])
+    let n = s[..end].parse::<i64>().map_err(|_| "invalid address")?;
+    Ok((Some(n), &s[end..]))
 }
 
 /// Parse one address as a 1-based line number (0 allowed). `None` if absent.
@@ -68,7 +70,7 @@ pub fn parse_addr<'i>(input: &'i str, ctx: &mut AddrCtx) -> Result<(Option<i64>,
     let last = ctx.buf.len_lines() as i64;
     let (mut base, mut rest) = match s.chars().next() {
         Some(c) if c.is_ascii_digit() => {
-            let (n, r) = number(s);
+            let (n, r) = number(s)?;
             (n, r)
         }
         Some('.') => (Some(cur), &s[1..]),
@@ -96,8 +98,13 @@ pub fn parse_addr<'i>(input: &'i str, ctx: &mut AddrCtx) -> Result<(Option<i64>,
             Some('-' | '^') => -1,
             _ => break,
         };
-        let (n, r) = number(&t[1..]);
-        base = Some(base.unwrap_or(cur) + sign * n.unwrap_or(1));
+        let (n, r) = number(&t[1..])?;
+        let off = n.unwrap_or(1).checked_mul(sign).ok_or("invalid address")?;
+        base = Some(
+            base.unwrap_or(cur)
+                .checked_add(off)
+                .ok_or("invalid address")?,
+        );
         rest = r;
     }
     match base {

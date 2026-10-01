@@ -128,6 +128,10 @@ impl Editor {
             Mode::Command(_) => self.cmdline_key(k),
         }
         self.clamp_cursor();
+        // Undo/redo in Visual-line mode can delete the anchor's line.
+        if let Mode::VisualLine { anchor } = &mut self.mode {
+            *anchor = (*anchor).min(self.buf.len_lines() - 1);
+        }
         if self.mode == Mode::Insert && !was_insert && self.buf.len_bytes() <= 10 * 1024 * 1024 {
             self.word_index.ensure(&self.buf, true);
         }
@@ -421,6 +425,13 @@ impl Editor {
     }
 
     pub fn search_target(&mut self, reverse: bool) -> Option<(usize, usize)> {
+        self.search_target_n(reverse, 1)
+    }
+
+    /// The `count`-th match of the last pattern from the cursor. The regex is
+    /// compiled once, and once the matches start repeating (the search wraps
+    /// around the file) whole laps are skipped, so a huge count is cheap.
+    pub fn search_target_n(&mut self, reverse: bool, count: usize) -> Option<(usize, usize)> {
         let Some(pat) = self.last_pat.clone() else {
             self.set_err("no previous pattern");
             return None;
@@ -433,28 +444,37 @@ impl Editor {
             }
         };
         let fwd = self.last_search_fwd != reverse;
-        let found = search::find(&self.buf, &re, self.cur.pos(), fwd, true);
-        match found {
-            Some(p) => {
-                let wrapped = if fwd {
-                    p <= self.cur.pos()
-                } else {
-                    p >= self.cur.pos()
-                };
-                if wrapped {
-                    self.set_msg(if fwd {
-                        "search wrapped to top"
-                    } else {
-                        "search wrapped to bottom"
-                    });
-                }
-                Some(p)
-            }
-            None => {
+        let count = count.max(1);
+        let mut p = self.cur.pos();
+        let mut first = None;
+        let mut wrapped = false;
+        let mut i = 0;
+        while i < count {
+            let Some(q) = search::find(&self.buf, &re, p, fwd, true) else {
                 self.set_err(format!("pattern not found: {pat}"));
-                None
+                return None;
+            };
+            wrapped |= if fwd { q <= p } else { q >= p };
+            i += 1;
+            match first {
+                None => first = Some(q),
+                Some(f) if f == q => {
+                    // A full lap of `i - 1` matches: skip the remaining laps.
+                    let lap = i - 1;
+                    i = count - (count - i) % lap;
+                }
+                _ => {}
             }
+            p = q;
         }
+        if wrapped {
+            self.set_msg(if fwd {
+                "search wrapped to top"
+            } else {
+                "search wrapped to bottom"
+            });
+        }
+        Some(p)
     }
 }
 

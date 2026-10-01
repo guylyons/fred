@@ -419,18 +419,9 @@ pub(crate) fn execute(ed: &mut Editor, cmd: Cmd) {
 /// Finish `d/pat<Enter>`: apply the pending operator up to the match.
 pub(crate) fn finish_op_search(ed: &mut Editor, op: char, count: Option<usize>) {
     let start = ed.cur.pos();
-    let mut target = None;
-    for _ in 0..count.unwrap_or(1).max(1) {
-        let Some(p) = ed.search_target(false) else {
-            break;
-        };
-        ed.cur.line = p.0;
-        ed.cur.byte = p.1;
-        target = Some(p);
-    }
-    ed.cur.line = start.0;
-    ed.cur.byte = start.1;
-    let Some(t) = target else { return };
+    let Some(t) = ed.search_target_n(false, count.unwrap_or(1)) else {
+        return;
+    };
     let (from, to) = if t < start { (t, start) } else { (start, t) };
     ed.undo.begin(start);
     ops::apply_op(ed, op, ops::Span::Chars(from, to));

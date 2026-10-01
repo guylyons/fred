@@ -89,13 +89,13 @@ impl<'a> ExState<'a> {
 pub fn run(st: &mut ExState, line: &str) -> Result<ExEffect, String> {
     let pos = (st.cur, 0);
     st.undo.begin(pos);
+    let mark = st.undo.open_len();
     let r = run_one(st, line, false);
     if r.is_err() {
-        // Roll back anything a failing command (e.g. inside `g`) already did.
+        // Roll back anything a failing command (e.g. inside `g`) already
+        // did, leaving the redo history as it was.
+        st.undo.rollback_to(st.buf, mark);
         st.undo.end(pos);
-        if !st.log.is_empty() {
-            st.undo.undo(st.buf);
-        }
     } else {
         st.undo.end((st.cur, 0));
     }
