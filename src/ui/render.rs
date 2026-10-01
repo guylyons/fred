@@ -159,10 +159,11 @@ pub fn draw(
     if area.height == 0 || area.width == 0 {
         return;
     }
-    let rows = (area.height as usize).saturating_sub(2).max(1);
+    // Text rows; a terminal under 3 rows tall keeps only the bottom rows.
+    let rows = (area.height as usize).saturating_sub(2);
     let gutter = gutter_width(ed, cfg).min(area.width as usize / 2);
     let cols = (area.width as usize).saturating_sub(gutter).max(1);
-    view.scroll(ed, rows, cols, cfg.wrap);
+    view.scroll(ed, rows.max(1), cols, cfg.wrap);
     let n = ed.line_count();
     let last = (view.top + rows).min(n);
     let styles = hl.styles(&ed.buf, view.top..last, budget);
@@ -233,7 +234,9 @@ pub fn draw(
         buf.set_stringn(ox, oy + y as u16, "~", 1, num_style);
         y += 1;
     }
-    draw_status(buf, area, ed, hl);
+    if area.height >= 2 {
+        draw_status(buf, area, ed, hl);
+    }
     let cmd_cursor = draw_command_row(buf, area, ed);
     if let Some((cx, cy)) = cursor
         && cy < rows
@@ -242,7 +245,7 @@ pub fn draw(
     }
     match (cmd_cursor, cursor) {
         (Some(x), _) => f.set_cursor_position((ox + x as u16, oy + area.height - 1)),
-        (None, Some((x, y))) => {
+        (None, Some((x, y))) if rows > 0 => {
             let x = x.min(area.width as usize - 1) as u16;
             let y = y.min(rows - 1) as u16;
             f.set_cursor_position((ox + x, oy + y));
