@@ -2,15 +2,16 @@
 
 use std::path::PathBuf;
 
-pub const USAGE: &str = "usage: fred [--height N] [+LINE] [FILE]
+pub const USAGE: &str = "usage: fred [--inline] [--height N] [+LINE] [FILE]
 
   FILE          file to edit (created on first write if missing)
   +LINE         start on line LINE; + alone starts on the last line
-  --height N    show N lines of text, or `max` (default 12, or `height` in config)
+  --inline      edit in a window under the prompt instead of fullscreen
+  --height N    inline, showing N lines of text, or `max` (default 12)
   -h, --help    show this help
   -V, --version show the version
 
-Config: ~/.config/fred/config.toml (height, wrap, numbers,
+Config: ~/.config/fred/config.toml (fullscreen, height, wrap, numbers,
 relative_numbers, theme, tabstop, autocomplete)";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -21,6 +22,7 @@ pub enum LineArg {
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Args {
+    pub inline: bool,
     pub height: Option<usize>,
     pub line: Option<LineArg>,
     pub file: Option<PathBuf>,
@@ -55,6 +57,10 @@ pub fn parse(args: Vec<String>) -> Result<ArgsOrInfo, String> {
                 "-V" | "--version" => return Ok(ArgsOrInfo::Version),
                 "--" => {
                     only_files = true;
+                    continue;
+                }
+                "--inline" => {
+                    out.inline = true;
                     continue;
                 }
                 "--height" => {
@@ -104,6 +110,7 @@ mod tests {
         assert!(matches!(
             parse(v(&["--height", "5", "+3", "f"])),
             Ok(ArgsOrInfo::Run(Args {
+                inline: false,
                 height: Some(5),
                 line: Some(LineArg::N(3)),
                 file: Some(_)
@@ -120,6 +127,7 @@ mod tests {
         assert!(matches!(
             parse(v(&["--height=7"])),
             Ok(ArgsOrInfo::Run(Args {
+                inline: false,
                 height: Some(7),
                 ..
             }))
@@ -135,6 +143,9 @@ mod tests {
         assert!(parse(v(&["--height", "0"])).is_err());
         assert!(
             matches!(parse(v(&["--height", "max"])), Ok(ArgsOrInfo::Run(a)) if a.height == Some(usize::MAX))
+        );
+        assert!(
+            matches!(parse(v(&["--inline", "f"])), Ok(ArgsOrInfo::Run(a)) if a.inline && a.file.is_some())
         );
         assert!(parse(v(&["--bogus"])).is_err());
         assert!(parse(v(&["+x"])).is_err());

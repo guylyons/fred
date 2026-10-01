@@ -33,9 +33,16 @@ struct Env {
 impl Env {
     fn new() -> Env {
         let dir = tempfile::tempdir().unwrap();
-        for d in ["state", "config", "home"] {
-            fs::create_dir(dir.path().join(d)).unwrap();
+        for d in ["state", "config/fred", "home"] {
+            fs::create_dir_all(dir.path().join(d)).unwrap();
         }
+        // These explorations are about the inline window (fullscreen is
+        // covered in e2e.rs); `config` keeps this line too.
+        fs::write(
+            dir.path().join("config/fred/config.toml"),
+            "fullscreen = false\n",
+        )
+        .unwrap();
         Env { dir }
     }
     fn path(&self, name: &str) -> PathBuf {
@@ -59,7 +66,10 @@ impl Env {
         fs::read(self.path(name)).unwrap()
     }
     fn config(&self, text: &str) {
-        self.write("config/fred/config.toml", text);
+        self.write(
+            "config/fred/config.toml",
+            &format!("fullscreen = false\n{text}"),
+        );
     }
     fn swap_dir(&self) -> PathBuf {
         self.path("state/fred/swap")

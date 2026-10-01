@@ -163,3 +163,15 @@ Differences from the design above, found while building:
   `tests/explore.rs`): picker shows in ~2 ms, all files listed in ~55 ms,
   ranking after typing ~25 ms, a full grep scan for a rare word ~0.9 s,
   1000 hits for a common one ~0.16 s. Startup is unchanged (~15 ms).
+
+## Later additions
+
+- `Space k` (`Kind::Lines`, `src/pick/lines.rs`): swiper-style search of
+  the current buffer. Space-separated words, each a smart-case regex, must
+  all match; results in file order (shown top to bottom), selection starting
+  at the first match at or after the cursor. `Enter` moves the cursor (no
+  file is reopened) and makes the first word the last search. Rescans the
+  buffer per keystroke: ~30 ms at 100k lines.
+- fred now runs fullscreen (alternate screen) by default: `fullscreen = true`
+  in the config. `--inline`, `fullscreen = false`, or `--height N` give the
+  inline window. `tests/explore.rs` runs with `fullscreen = false`.

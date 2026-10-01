@@ -152,3 +152,26 @@ fn enter_with_nothing_does_nothing() {
     assert_eq!(picker(&ed).rows.len(), 0);
     assert_eq!(ed.pending_effect, None);
 }
+
+#[test]
+fn space_k_jumps_to_a_line_in_this_file() {
+    let mut ed = Editor::new(Buffer::from_text(
+        "alpha\n  fn draw()\nbeta\nlet draw = fn_x;",
+    ));
+    keys(&mut ed, "j k");
+    let p = picker(&ed);
+    assert_eq!((p.kind, p.rows.len()), (Kind::Lines, 4));
+    assert_eq!(p.rows[p.sel].line, 1, "starts on the cursor's line");
+    keys(&mut ed, "draw fn");
+    let p = picker(&ed);
+    assert_eq!(p.rows.iter().map(|r| r.line).collect::<Vec<_>>(), [3, 1]);
+    assert_eq!(p.status, "2/4 lines");
+    // Up goes to the earlier line (higher on screen).
+    keys(&mut ed, "<Up><Enter>");
+    assert_eq!((ed.mode.clone(), ed.cur.pos()), (Mode::Normal, (1, 2)));
+    assert_eq!(ed.last_pat.as_deref(), Some("draw"));
+    assert_eq!(ed.pending_effect, None);
+    // Esc leaves the cursor where it was.
+    keys(&mut ed, "gg kbeta<Esc>");
+    assert_eq!((ed.mode.clone(), ed.cur.line), (Mode::Normal, 0));
+}

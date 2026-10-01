@@ -1,9 +1,12 @@
 # fred
 
-A text editor for quick edits that lives in your shell prompt. Like `ed`, it
-doesn't take over the screen: it opens a small window right under the prompt.
-Inside that window you move and edit with vim keys, and `:` takes ed-style
-commands with full ed addresses. Completion and syntax highlighting are built in.
+A text editor for quick edits. You move and edit with vim keys, and `:` takes
+ed-style commands with full ed addresses. Completion, syntax highlighting, a
+fuzzy file finder and project grep are built in.
+
+fred runs fullscreen by default, like vim. Like `ed`, it can instead live in
+your shell prompt (`--inline`, or `fullscreen = false` in the config): a small
+window right under the prompt:
 
 ```
 $ fred main.rs
@@ -15,8 +18,8 @@ $ fred main.rs
  INSERT  main.rs [+]                                   rust  5:16
 ```
 
-When you quit, the window disappears and your scrollback is untouched. If you
-saved, fred leaves one line behind:
+When you quit, either way, the screen is back as it was and your scrollback is
+untouched. If you saved, fred leaves one line behind:
 
 ```
 $ fred main.rs
@@ -33,14 +36,15 @@ cargo install --path .
 ## Usage
 
 ```
-fred [--height N] [+LINE] [FILE]
+fred [--inline] [--height N] [+LINE] [FILE]
 ```
 
 - `FILE` doesn't have to exist; it's created on the first `:w`.
 - `+LINE` starts on that line; `+` alone starts on the last line.
-- `--height N` shows N lines of text (default 12); `--height max` uses the
-  whole terminal, leaving your prompt visible. The window starts as small
-  as the file and grows as the file gets longer.
+- `--inline` opens the window under your prompt instead of fullscreen.
+- `--height N` (inline) shows N lines of text (default 12); `--height max`
+  uses the whole terminal, leaving your prompt visible. The window starts as
+  small as the file and grows as the file gets longer.
 
 ## Keys
 
@@ -72,6 +76,10 @@ Space is the leader key (`l` still moves right).
   see the files you opened most recently first.
 - `Space g` greps the project as you type, with the same regex rules as `/`.
   `Enter` opens the file on the match, and `n` goes on to the next one.
+- `Space k` searches the lines of the file you're editing, like swiper:
+  every space-separated word must appear in the line, in any order (each is
+  a regex). Matches are listed in file order, starting at the cursor; `Enter`
+  jumps there and `n` finds the next line with the first word.
 
 In either picker, the best match is at the bottom next to the prompt;
 `Up`/`Ctrl-P` and `Down`/`Ctrl-N` move the selection, `Enter` opens it and
@@ -151,7 +159,8 @@ than 20,000 characters.
 key is optional:
 
 ```toml
-height = 12              # lines of text in the window, or "max"
+fullscreen = true        # false: inline window under the prompt
+height = 12              # inline: lines of text in the window, or "max"
 wrap = false             # wrap long lines (otherwise the view scrolls sideways)
 numbers = true           # line numbers
 relative_numbers = false

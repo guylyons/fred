@@ -1,4 +1,4 @@
-//! The terminal front end: inline viewport, event loop, signals.
+//! The terminal front end: fullscreen or inline viewport, event loop, signals.
 
 use crate::args::{Args, LineArg};
 use crate::complete::nearby;
@@ -17,7 +17,9 @@ use ratatui::crossterm::event::{
     self, DisableBracketedPaste, EnableBracketedPaste, Event, KeyEvent, KeyEventKind, KeyModifiers,
 };
 use ratatui::crossterm::execute;
-use ratatui::crossterm::terminal::{self, Clear, ClearType};
+use ratatui::crossterm::terminal::{
+    self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen,
+};
 use ratatui::layout::Rect;
 use ratatui::{Terminal, TerminalOptions, Viewport};
 use std::io::{self, IsTerminal, Stdout, Write};
@@ -31,18 +33,28 @@ const HIGHLIGHT_BUDGET: Duration = Duration::from_millis(20);
 
 type Term = Terminal<CrosstermBackend<Stdout>>;
 
-fn open_term(height: u16) -> io::Result<Term> {
+/// The whole terminal on the alternate screen (`full`), or an inline
+/// window `height` rows tall under the prompt.
+fn open_term(full: bool, height: u16) -> io::Result<Term> {
+    if full {
+        execute!(io::stdout(), EnterAlternateScreen)?;
+    }
     Terminal::with_options(
         CrosstermBackend::new(io::stdout()),
         TerminalOptions {
-            viewport: Viewport::Inline(height),
+            viewport: if full {
+                Viewport::Fullscreen
+            } else {
+                Viewport::Inline(height)
+            },
         },
     )
 }
 
-/// The inline window.
+/// The editor's window: the whole screen, or inline under the prompt.
 struct Ui {
     term: Term,
+    full: bool,
     area: Option<Rect>,
     height: u16,
     view: View,
@@ -50,9 +62,10 @@ struct Ui {
 }
 
 impl Ui {
-    fn new(height: u16) -> io::Result<Ui> {
+    fn new(full: bool, height: u16) -> io::Result<Ui> {
         Ok(Ui {
-            term: open_term(height)?,
+            term: open_term(full, height)?,
+            full,
             area: None,
             height,
             view: View::default(),
@@ -91,16 +104,24 @@ impl Ui {
         Ok(())
     }
 
-    /// Erase the window and leave the cursor where it started.
+    /// Erase the window and leave the cursor where it started (fullscreen:
+    /// back to the shell's screen, as it was).
     fn erase(&mut self) -> io::Result<()> {
+        if self.full {
+            return execute!(io::stdout(), LeaveAlternateScreen);
+        }
         let y = self.area.map_or(0, |a| a.y);
         execute!(io::stdout(), MoveTo(0, y), Clear(ClearType::FromCursorDown))
     }
 
-    /// Recreate the window (terminal resized, or the window needs to grow).
+    /// Recreate the inline window (terminal resized, or the window needs to
+    /// grow). Fullscreen follows the terminal's size by itself.
     fn rebuild(&mut self, height: u16) -> io::Result<()> {
+        if self.full {
+            return Ok(());
+        }
         self.erase()?;
-        self.term = open_term(height)?;
+        self.term = open_term(false, height)?;
         self.height = height;
         self.area = None;
         Ok(())
@@ -122,7 +143,7 @@ impl Ui {
     fn reopen(&mut self) -> io::Result<()> {
         terminal::enable_raw_mode()?;
         execute!(io::stdout(), EnableBracketedPaste)?;
-        self.term = open_term(self.height)?;
+        self.term = open_term(self.full, self.height)?;
         self.area = None;
         self.bar_cursor = false;
         Ok(())
@@ -174,6 +195,7 @@ pub fn map_key(k: KeyEvent) -> Option<Key> {
 fn restore_terminal() {
     let _ = execute!(
         io::stdout(),
+        LeaveAlternateScreen,
         cursor::Show,
         SetCursorStyle::DefaultUserShape,
         DisableBracketedPaste
@@ -351,7 +373,12 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
     let setup = (|| -> Result<Ui> {
         execute!(io::stdout(), EnableBracketedPaste)?;
         let rows = terminal::size()?.1;
-        Ok(Ui::new(window_height(cfg.height, s.ed.line_count(), rows))?)
+        // `--height` asks for an inline window of that size.
+        let full = cfg.fullscreen && !args.inline && args.height.is_none();
+        Ok(Ui::new(
+            full,
+            window_height(cfg.height, s.ed.line_count(), rows),
+        )?)
     })();
     let mut ui = match setup {
         Ok(ui) => ui,

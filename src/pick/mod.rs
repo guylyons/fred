@@ -1,10 +1,12 @@
-//! File and grep pickers (`Space p`, `Space g`).
+//! Pickers: files (`Space p`), grep (`Space g`), lines of this file (`Space k`).
 
 pub mod files;
 pub mod fuzzy;
 pub mod grep;
+pub mod lines;
 pub mod recent;
 
+use crate::buffer::Buffer;
 use crate::editor::{CmdLine, Editor, Mode};
 use crate::ex::ExEffect;
 use crate::key::{Key, KeyCode};
@@ -67,6 +69,7 @@ impl Project {
 pub enum Kind {
     Files,
     Grep,
+    Lines,
 }
 
 /// One result: what to show and where it leads.
@@ -98,10 +101,12 @@ pub struct Picker {
     /// Grep: the query being (or last) run, and when the query last changed.
     started: Option<String>,
     changed: Instant,
+    /// Lines: the cursor's line when the picker opened.
+    origin: usize,
 }
 
 impl Picker {
-    fn new(kind: Kind, project: &Project) -> Picker {
+    fn new(kind: Kind, project: &Project, origin: usize) -> Picker {
         Picker {
             kind,
             query: CmdLine::default(),
@@ -118,6 +123,7 @@ impl Picker {
             seen_grep: (0, 0, false),
             started: None,
             changed: Instant::now(),
+            origin,
         }
     }
 
@@ -125,14 +131,36 @@ impl Picker {
         match self.kind {
             Kind::Files => "find> ",
             Kind::Grep => "grep> ",
+            Kind::Lines => "lines> ",
         }
     }
 
     /// Bring `rows` up to date; true if anything shown changed.
-    fn update(&mut self, project: &Project, now: Instant) -> bool {
-        let files = project.files();
+    fn update(&mut self, project: &Project, buf: &Buffer, now: Instant) -> bool {
         match self.kind {
+            Kind::Lines => {
+                let q = &self.query.text;
+                if self.seen_files.as_ref().is_some_and(|s| s.0 == *q) {
+                    return false;
+                }
+                self.seen_files = Some((q.clone(), 0, true));
+                match lines::search(q, buf, self.origin) {
+                    Ok(f) => {
+                        self.status = format!("{}/{} lines", f.rows.len(), buf.len_lines());
+                        self.err = false;
+                        self.rows = f.rows;
+                        self.sel = f.sel;
+                    }
+                    // Keep the last results; say why they didn't change.
+                    Err(e) => {
+                        self.status = e;
+                        self.err = true;
+                    }
+                }
+                true
+            }
             Kind::Files => {
+                let files = project.files();
                 let n = files.len();
                 let q = &self.query.text;
                 let now = Some((q.clone(), n, files.done()));
@@ -172,6 +200,7 @@ impl Picker {
                 true
             }
             Kind::Grep => {
+                let files = project.files();
                 let q = self.query.text.clone();
                 let mut changed = false;
                 if self.started.as_deref() != Some(&q) && now >= self.changed + DEBOUNCE {
@@ -242,10 +271,10 @@ fn grep_row(h: &grep::Hit, root: &std::path::Path) -> Row {
     }
 }
 
-/// `Space p` / `Space g`.
+/// `Space p` / `Space g` / `Space k`.
 pub fn open(ed: &mut Editor, kind: Kind) {
-    let mut p = Picker::new(kind, &ed.project);
-    p.update(&ed.project, Instant::now());
+    let mut p = Picker::new(kind, &ed.project, ed.cur.line);
+    p.update(&ed.project, &ed.buf, Instant::now());
     ed.mode = Mode::Pick(Box::new(p));
 }
 
@@ -256,6 +285,18 @@ pub fn pick_key(ed: &mut Editor, k: Key) {
     match k.code {
         KeyCode::Esc => close(ed),
         KeyCode::Char('c') if k.ctrl => close(ed),
+        KeyCode::Enter if p.kind == Kind::Lines => {
+            if let Some(r) = p.rows.get(p.sel) {
+                let (line, col) = (r.line, r.col);
+                // The first word becomes the search, so `n` finds the next.
+                if let Some(w) = p.query.text.split_whitespace().next() {
+                    ed.last_pat = Some(w.to_string());
+                    ed.last_search_fwd = true;
+                }
+                ed.mode = Mode::Normal;
+                ed.set_cursor(line, col);
+            }
+        }
         KeyCode::Enter => {
             if let Some(r) = p.rows.get(p.sel) {
                 ed.pending_effect = Some(ExEffect::Open {
@@ -276,7 +317,7 @@ pub fn pick_key(ed: &mut Editor, k: Key) {
             p.query.edit(k);
             if p.query.text != before {
                 p.changed = Instant::now();
-                p.update(&ed.project, p.changed);
+                p.update(&ed.project, &ed.buf, p.changed);
             }
         }
     }
@@ -290,7 +331,7 @@ fn close(ed: &mut Editor) {
 /// Background results or the grep debounce: true if the picker changed.
 pub fn tick(ed: &mut Editor) -> bool {
     match &mut ed.mode {
-        Mode::Pick(p) => p.update(&ed.project, Instant::now()),
+        Mode::Pick(p) => p.update(&ed.project, &ed.buf, Instant::now()),
         _ => false,
     }
 }

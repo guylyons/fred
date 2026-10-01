@@ -213,11 +213,39 @@ fn edit_and_save() {
 }
 
 #[test]
-fn window_is_inline_and_erased_on_exit() {
+fn fullscreen_by_default_and_screen_restored_on_exit() {
     let env = Env::new();
     env.write("f.txt", "secret contents\n");
     let mut c = env.command("sh");
     c.args(["-c", "echo before-marker; exec \"$0\" \"$@\"", BIN, "f.txt"]);
+    let mut p = Pty::spawn(c);
+    p.wait_text("secret contents");
+    let s = p.screen();
+    assert!(!s.contains("before-marker"), "not fullscreen:\n{s}");
+    // The status line is on the terminal's last-but-one row.
+    let rows: Vec<&str> = s.lines().collect();
+    assert!(rows.len() >= ROWS as usize - 1, "{s}");
+    assert!(rows[ROWS as usize - 2].contains("NORMAL"), "{s}");
+    p.keys(&[":q\r"]);
+    assert_eq!(p.wait_exit(), 0);
+    let s = p.screen();
+    assert!(s.contains("before-marker"), "{s}");
+    assert!(!s.contains("secret contents"), "{s}");
+    assert!(p.raw().contains("<ESC>[?1049h") && p.raw().contains("<ESC>[?1049l"));
+}
+
+#[test]
+fn window_is_inline_and_erased_on_exit() {
+    let env = Env::new();
+    env.write("f.txt", "secret contents\n");
+    let mut c = env.command("sh");
+    c.args([
+        "-c",
+        "echo before-marker; exec \"$0\" \"$@\"",
+        BIN,
+        "--inline",
+        "f.txt",
+    ]);
     let mut p = Pty::spawn(c);
     p.wait_text("secret contents");
     assert!(p.screen().contains("before-marker"));
@@ -252,6 +280,7 @@ fn window_grows_with_the_file() {
         "-c",
         "echo before-marker; exec \"$0\" \"$@\"",
         BIN,
+        "--inline",
         "new.txt",
     ]);
     let mut p = Pty::spawn(c);
@@ -492,6 +521,22 @@ fn space_g_greps_and_lands_on_the_line() {
     assert_eq!(p.wait_exit(), 0);
 }
 
+#[test]
+fn space_k_finds_a_line_in_the_file() {
+    let env = Env::new();
+    let body: String = (1..=80).map(|i| format!("row {i}\n")).collect();
+    env.write("f.txt", &format!("{body}the target line\n"));
+    let mut p = env.fred(&["f.txt"]);
+    p.wait_text("NORMAL");
+    p.keys(&[" k", "targ line"]);
+    p.wait_text("81: the target line");
+    p.wait_text("1/81 lines");
+    p.keys(&["\r"]);
+    p.wait_text("81:5");
+    p.keys(&[":q\r"]);
+    assert_eq!(p.wait_exit(), 0);
+}
+
 /// Prints what the window looks like (run with `--ignored --nocapture`).
 #[test]
 #[ignore]
@@ -540,7 +585,12 @@ fn terminal_restored_when_startup_fails() {
     let env = Env::new();
     env.write("f.txt", "x\n");
     let mut c = env.command("sh");
-    c.args(["-c", "\"$0\" f.txt; echo \"exit=$?\"; stty -a", BIN]);
+    // Inline: a terminal that never reports the cursor fails at startup.
+    c.args([
+        "-c",
+        "\"$0\" --inline f.txt; echo \"exit=$?\"; stty -a",
+        BIN,
+    ]);
     let mut p = Pty::spawn_with(c, false);
     p.wait_text("exit=1");
     p.wait_text("icanon");

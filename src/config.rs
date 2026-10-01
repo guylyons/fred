@@ -6,6 +6,8 @@ use std::path::PathBuf;
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct Config {
+    /// Take over the terminal (alternate screen) instead of an inline window.
+    pub fullscreen: bool,
     #[serde(deserialize_with = "height")]
     pub height: usize,
     pub wrap: bool,
@@ -19,6 +21,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Config {
+            fullscreen: true,
             height: 12,
             wrap: false,
             numbers: true,
@@ -100,6 +103,8 @@ mod tests {
         assert!(err.is_none());
         assert_eq!(c, Config::default());
         assert_eq!(c.height, 12);
+        assert!(c.fullscreen);
+        assert!(!Config::parse("fullscreen = false").0.fullscreen);
         assert_eq!(c.tabstop, 8);
         assert_eq!(c.theme, "ansi");
         assert!(c.numbers && !c.relative_numbers && !c.wrap && c.autocomplete);

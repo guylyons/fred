@@ -556,10 +556,12 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
             ed.set_line_keep_col(ed.cur.line.saturating_sub(n));
         }
         (KeyCode::Char(':'), false) => ed.open_cmdline(':', ""),
-        // Space is the leader: `Space p` finds files, `Space g` greps.
+        // Space is the leader: `Space p` finds files, `Space g` greps,
+        // `Space k` searches this file's lines.
         (KeyCode::Char(' '), false) => match arg {
             Some('p') => crate::pick::open(ed, crate::pick::Kind::Files),
             Some('g') => crate::pick::open(ed, crate::pick::Kind::Grep),
+            Some('k') => crate::pick::open(ed, crate::pick::Kind::Lines),
             _ => {}
         },
         (KeyCode::Char(c @ ('/' | '?')), false) => ed.open_cmdline(c, ""),
