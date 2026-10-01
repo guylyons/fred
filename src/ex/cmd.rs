@@ -326,11 +326,23 @@ fn global(st: &mut ExState, r: Range, spec: &str, want: bool) -> Result<ExEffect
     if !marked.contains(&true) {
         return Err("no match".into());
     }
+    // A substitute that finds nothing on one marked line is not an error,
+    // as in ed; it is only an error if it found nothing on any line.
+    let mut any_ok = false;
+    let mut no_match = false;
+    let mut last_cur = st.cur;
     while let Some(l) = marked.iter().position(|&m| m) {
         marked[l] = false;
         st.cur = l;
         let before = st.log.len();
-        run_one(st, cmd, true)?;
+        match run_one(st, cmd, true) {
+            Ok(_) => {
+                any_ok = true;
+                last_cur = st.cur;
+            }
+            Err(e) if e == "no match" => no_match = true,
+            Err(e) => return Err(e),
+        }
         for &(at, removed, inserted) in &st.log[before..] {
             let end = (at + removed).min(marked.len());
             marked.splice(
@@ -339,6 +351,10 @@ fn global(st: &mut ExState, r: Range, spec: &str, want: bool) -> Result<ExEffect
             );
         }
     }
+    if no_match && !any_ok {
+        return Err("no match".into());
+    }
+    st.cur = last_cur.min(st.buf.len_lines() - 1);
     Ok(ExEffect::None)
 }
 
@@ -430,6 +446,13 @@ mod tests {
         }
         assert!(ex_err(t, 1, "j").is_err());
         assert_eq!(ex(t, 1, "$j"), (t.into(), 1));
+    }
+
+    #[test]
+    fn g_with_substitute_skips_lines_without_a_match() {
+        let t = "foo bar\nfoo baz\nqux";
+        assert_eq!(ex(t, 0, "g/foo/s/bar/X/"), ("foo X\nfoo baz\nqux".into(), 0));
+        assert!(ex_err(t, 0, "g/foo/s/zzz/X/").is_err(), "no substitution at all is still an error");
     }
 
     #[test]
