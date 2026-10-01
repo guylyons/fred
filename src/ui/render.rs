@@ -245,8 +245,12 @@ pub fn draw(
     if let Some((cx, cy)) = cursor
         && cy < rows
     {
-        let wrap_cols = if cfg.wrap { cols } else { 0 };
-        draw_popup(buf, area, ed, view, gutter, rows, (cx, cy), wrap_cols);
+        let geom = Geom {
+            gutter,
+            rows,
+            wrap_cols: if cfg.wrap { cols } else { 0 },
+        };
+        draw_popup(buf, area, ed, view, geom, (cx, cy));
     }
     match (cmd_cursor, cursor) {
         (Some(x), _) => f.set_cursor_position((ox + x as u16, oy + area.height - 1)),
@@ -319,16 +323,27 @@ fn draw_command_row(buf: &mut Screen, area: Rect, ed: &Editor) -> Option<usize> 
     }
 }
 
+/// Where the text area is: gutter width, text rows, wrap width (0 = off).
+#[derive(Clone, Copy)]
+struct Geom {
+    gutter: usize,
+    rows: usize,
+    wrap_cols: usize,
+}
+
 fn draw_popup(
     buf: &mut Screen,
     area: Rect,
     ed: &Editor,
     view: &View,
-    gutter: usize,
-    rows: usize,
+    geom: Geom,
     cursor: (usize, usize),
-    wrap_cols: usize,
 ) {
+    let Geom {
+        gutter,
+        rows,
+        wrap_cols,
+    } = geom;
     let Some(p) = &ed.popup else { return };
     if rows < 3 || p.items.is_empty() {
         return;
