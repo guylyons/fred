@@ -481,3 +481,32 @@ fn terminal_restored_when_startup_fails() {
     assert!(p.raw().contains("<ESC>[?2004l"), "bracketed paste left on");
     assert_eq!(p.wait_exit(), 0);
 }
+
+#[test]
+fn panic_keeps_unsaved_work_and_reports() {
+    let env = Env::new();
+    env.write("f.txt", "hello\n");
+    let mut c = env.command(BIN);
+    c.arg("f.txt");
+    c.env("FRED_DEBUG_PANIC", "1");
+    let mut p = Pty::spawn(c);
+    p.wait_text("hello");
+    // No pause: the regular swap timer hasn't fired when the panic hits.
+    p.keys(&["iPANIC "]);
+    assert_eq!(p.wait_exit(), 101);
+    assert_eq!(env.read("f.txt"), "hello\n");
+    let swaps = env.swap_files();
+    assert_eq!(swaps.len(), 1, "a panic must leave a swap file");
+    assert!(
+        fs::read_to_string(&swaps[0])
+            .unwrap()
+            .contains("PANIC hello")
+    );
+    let s = p.screen();
+    assert!(
+        s.contains("debug panic while drawing"),
+        "panic message lost:\n{s}"
+    );
+    assert!(s.contains("unsaved changes are in"), "{s}");
+    assert!(p.raw().contains("<ESC>[?2004l"), "terminal not restored");
+}

@@ -22,8 +22,8 @@ use ratatui::layout::Rect;
 use ratatui::{Terminal, TerminalOptions, Viewport};
 use std::io::{self, IsTerminal, Stdout, Write};
 use std::panic::{self, AssertUnwindSafe};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 const TICK: Duration = Duration::from_millis(50);
@@ -61,6 +61,14 @@ impl Ui {
     }
 
     fn draw(&mut self, s: &Session, hl: &mut Highlighter, cfg: &Config) -> io::Result<()> {
+        // Test hook: debug builds panic while drawing a line containing
+        // PANIC when FRED_DEBUG_PANIC is set (see tests/e2e.rs).
+        #[cfg(debug_assertions)]
+        if std::env::var_os("FRED_DEBUG_PANIC").is_some()
+            && s.ed.buf.line(s.ed.cur.line).contains("PANIC")
+        {
+            panic!("debug panic while drawing");
+        }
         let view = &mut self.view;
         let done = self
             .term
@@ -170,16 +178,22 @@ fn restore_terminal() {
     let _ = terminal::disable_raw_mode();
 }
 
+/// Set while the event loop runs under `catch_unwind`: the hook then only
+/// records the message, and `run` prints it after saving the swap and
+/// erasing the window (which would otherwise erase the message too).
+static CATCHING: AtomicBool = AtomicBool::new(false);
+static PANIC_NOTE: Mutex<Option<String>> = Mutex::new(None);
+
 fn install_panic_hook() {
     let prev = panic::take_hook();
     panic::set_hook(Box::new(move |info| {
-        let _ = terminal::disable_raw_mode();
-        let _ = execute!(
-            io::stdout(),
-            cursor::Show,
-            SetCursorStyle::DefaultUserShape,
-            DisableBracketedPaste
-        );
+        if CATCHING.load(Ordering::SeqCst) {
+            if let Ok(mut note) = PANIC_NOTE.lock() {
+                *note = Some(info.to_string());
+            }
+            return;
+        }
+        restore_terminal();
         println!();
         prev(info);
     }));
@@ -345,13 +359,30 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
     };
     install_panic_hook();
 
-    let result = event_loop(&mut ui, &mut s, &mut hl, &cfg, leftover, &stop);
+    CATCHING.store(true, Ordering::SeqCst);
+    let result = panic::catch_unwind(AssertUnwindSafe(|| {
+        event_loop(&mut ui, &mut s, &mut hl, &cfg, leftover, &stop)
+    }));
+    CATCHING.store(false, Ordering::SeqCst);
     let code = match result {
-        Ok(code) => code,
-        Err(e) => {
+        Ok(Ok(code)) => code,
+        Ok(Err(e)) => {
             s.write_swap();
             let _ = ui.close();
             return Err(e);
+        }
+        Err(_) => {
+            s.write_swap();
+            let _ = ui.close();
+            let note = PANIC_NOTE.lock().ok().and_then(|mut n| n.take());
+            eprintln!("fred: {}", note.as_deref().unwrap_or("panicked"));
+            if s.ed.buf.modified {
+                eprintln!(
+                    "fred: crashed; unsaved changes are in {} (open the file again to recover them)",
+                    s.swap_path.display()
+                );
+            }
+            return Ok(101);
         }
     };
     ui.close()?;
@@ -394,16 +425,7 @@ fn event_loop(
                     suspend(ui, s)?;
                     break;
                 }
-                let r = panic::catch_unwind(AssertUnwindSafe(|| step(s, hl, ev, &mut resized)));
-                if let Err(p) = r {
-                    s.write_swap();
-                    let _ = ui.close();
-                    eprintln!(
-                        "fred: crashed; unsaved changes are in {}",
-                        s.swap_path.display()
-                    );
-                    panic::resume_unwind(p);
-                }
+                step(s, hl, ev, &mut resized);
                 if s.quit || !event::poll(Duration::ZERO)? {
                     break;
                 }
