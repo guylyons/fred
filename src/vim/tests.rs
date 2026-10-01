@@ -143,3 +143,33 @@ fn counts_dont_hang() {
     assert_eq!(txt("a\nb", "99999dd"), "");
     assert_eq!(txt("ab", "99999p"), "ab");
 }
+
+#[test]
+fn paste_inserts_text_verbatim() {
+    // Insert mode: no autoindent, no completion popup, CRLF normalized.
+    let mut e = ed("  ab", "A");
+    e.paste("x\r\n  y");
+    assert_eq!(e.buf.text(), "  abx\n  y");
+    assert!(e.popup.is_none());
+    e.handle_key(crate::key::Key::new(crate::key::KeyCode::Esc));
+    e.handle_key(crate::key::Key::ch('u'));
+    assert_eq!(
+        e.buf.text(),
+        "  ab",
+        "the paste and the insert session are one undo step"
+    );
+    // Normal mode: inserted at the cursor as one undo step, stays in Normal.
+    let mut e = ed("ab", "l");
+    e.paste("XY");
+    assert_eq!(e.buf.text(), "aXYb");
+    assert_eq!(e.mode, Mode::Normal);
+    e.handle_key(crate::key::Key::ch('u'));
+    assert_eq!(e.buf.text(), "ab");
+    // Command line: first line only.
+    let mut e = ed("ab", ":");
+    e.paste("s/a/b/\nignored");
+    match &e.mode {
+        Mode::Command(cl) => assert_eq!(cl.text, "s/a/b/"),
+        m => panic!("{m:?}"),
+    }
+}

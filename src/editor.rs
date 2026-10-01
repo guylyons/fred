@@ -139,6 +139,32 @@ impl Editor {
         }
     }
 
+    /// Bracketed paste: insert text as-is (no autoindent or completion).
+    pub fn paste(&mut self, text: &str) {
+        let text = text.replace("\r\n", "\n").replace('\r', "\n");
+        match &mut self.mode {
+            Mode::Command(cl) => {
+                let first = text.lines().next().unwrap_or("");
+                cl.text.insert_str(cl.cursor, first);
+                cl.cursor += first.len();
+            }
+            Mode::Insert => {
+                vim::ops::insert_text(self, &text);
+                self.popup = None;
+            }
+            Mode::Normal => {
+                self.undo.begin(self.cur.pos());
+                vim::ops::insert_text(self, &text);
+                self.undo.end(self.cur.pos());
+                self.clamp_cursor();
+                if !self.undo.in_group() {
+                    self.buf.modified = self.undo.state_id() != self.saved_state;
+                }
+            }
+            Mode::VisualLine { .. } => {}
+        }
+    }
+
     /// Mark the current text as saved.
     pub fn mark_saved(&mut self) {
         self.saved_state = self.undo.state_id();
