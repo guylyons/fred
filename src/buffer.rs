@@ -170,6 +170,33 @@ impl Buffer {
         self.rope.slice(start..end).to_string()
     }
 
+    /// The edit replacing `remove` lines at `at` with `insert` lines, and the
+    /// number of lines that take their place (a buffer never has zero lines).
+    pub fn splice_edit(&self, at: usize, remove: usize, insert: &[String]) -> Option<(Edit, usize)> {
+        let n = self.len_lines();
+        let joined = insert.join("\n");
+        let edit = if remove > 0 && !insert.is_empty() {
+            Edit { start: self.line_to_char(at), end: self.line_end_char(at + remove - 1), text: joined }
+        } else if remove > 0 {
+            if at + remove < n {
+                Edit { start: self.line_to_char(at), end: self.line_to_char(at + remove), text: String::new() }
+            } else if at > 0 {
+                Edit { start: self.line_end_char(at - 1), end: self.len_chars(), text: String::new() }
+            } else {
+                Edit { start: 0, end: self.len_chars(), text: String::new() }
+            }
+        } else if insert.is_empty() {
+            return None;
+        } else if at < n {
+            Edit { start: self.line_to_char(at), end: self.line_to_char(at), text: joined + "\n" }
+        } else {
+            let end = self.len_chars();
+            Edit { start: end, end, text: format!("\n{joined}") }
+        };
+        let inserted = if remove == n && insert.is_empty() { 1 } else { insert.len() };
+        Some((edit, inserted))
+    }
+
     pub fn rope(&self) -> &Rope {
         &self.rope
     }

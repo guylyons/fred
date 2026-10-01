@@ -47,29 +47,10 @@ impl<'a> ExState<'a> {
 
     /// Replace `remove` lines starting at `at` with `insert` lines.
     fn splice(&mut self, at: usize, remove: usize, insert: Vec<String>) {
-        let n = self.buf.len_lines();
-        let joined = insert.join("\n");
-        let edit = if remove > 0 && !insert.is_empty() {
-            Edit { start: self.buf.line_to_char(at), end: self.buf.line_end_char(at + remove - 1), text: joined }
-        } else if remove > 0 {
-            if at + remove < n {
-                Edit { start: self.buf.line_to_char(at), end: self.buf.line_to_char(at + remove), text: String::new() }
-            } else if at > 0 {
-                Edit { start: self.buf.line_end_char(at - 1), end: self.buf.len_chars(), text: String::new() }
-            } else {
-                Edit { start: 0, end: self.buf.len_chars(), text: String::new() }
-            }
-        } else if insert.is_empty() {
-            return;
-        } else if at < n {
-            Edit { start: self.buf.line_to_char(at), end: self.buf.line_to_char(at), text: joined + "\n" }
-        } else {
-            let end = self.buf.len_chars();
-            Edit { start: end, end, text: format!("\n{joined}") }
-        };
-        let inserted = if remove == n && insert.is_empty() { 1 } else { insert.len() };
-        self.apply(edit);
-        self.log.push((at, remove, inserted));
+        if let Some((edit, inserted)) = self.buf.splice_edit(at, remove, &insert) {
+            self.apply(edit);
+            self.log.push((at, remove, inserted));
+        }
     }
 
     fn lines(&self, r: Range) -> Vec<String> {
