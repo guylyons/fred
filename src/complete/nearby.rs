@@ -10,6 +10,8 @@ const MAX_FILES: usize = 200;
 const MAX_TOTAL: usize = 2 * 1024 * 1024;
 const MAX_FILE: u64 = 256 * 1024;
 const MAX_WORDS: usize = 50_000;
+/// Directory entries the nearby-file search may look at.
+const MAX_VISIT: usize = 5_000;
 
 fn repo_root(dir: &Path) -> Option<PathBuf> {
     dir.ancestors()
@@ -35,6 +37,12 @@ fn read_text(path: &Path) -> Option<String> {
 
 /// Candidate files: siblings first, then same-extension files in the repo.
 fn files(file: Option<&Path>) -> Vec<PathBuf> {
+    files_limited(file, MAX_VISIT)
+}
+
+/// Like `files`, visiting at most `max_visit` directory entries in total
+/// (a git repo at `~` would otherwise mean walking the whole home directory).
+fn files_limited(file: Option<&Path>, max_visit: usize) -> Vec<PathBuf> {
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let abs = file.map(|f| {
         if f.is_absolute() {
@@ -53,11 +61,17 @@ fn files(file: Option<&Path>) -> Vec<PathBuf> {
         ignore::WalkBuilder::new(root)
             .max_depth(depth)
             .require_git(false)
+            .sort_by_file_name(|a, b| a.cmp(b))
             .build()
             .filter_map(Result::ok)
     };
     let mut out = vec![];
+    let mut visited = 0;
     for e in walk(&dir, Some(1)) {
+        visited += 1;
+        if visited > max_visit {
+            return out;
+        }
         if e.file_type().is_some_and(|t| t.is_file()) && not_me(e.path()) {
             out.push(e.into_path());
         }
@@ -68,7 +82,8 @@ fn files(file: Option<&Path>) -> Vec<PathBuf> {
         .map(|e| e.to_os_string());
     if let (Some(root), Some(ext)) = (repo_root(&dir), ext) {
         for e in walk(&root, None) {
-            if out.len() >= MAX_FILES * 4 {
+            visited += 1;
+            if out.len() >= MAX_FILES * 4 || visited > max_visit {
                 break;
             }
             let p = e.path();
@@ -121,6 +136,23 @@ pub fn spawn(file: Option<PathBuf>) -> Arc<Mutex<Vec<String>>> {
 mod tests {
     use super::*;
     use std::fs;
+
+    #[test]
+    fn repo_walk_is_bounded() {
+        let d = tempfile::tempdir().unwrap();
+        let root = d.path();
+        fs::create_dir(root.join(".git")).unwrap();
+        fs::create_dir(root.join("a")).unwrap();
+        for i in 0..50 {
+            fs::write(root.join(format!("a/f{i:02}.txt")), "x").unwrap();
+        }
+        fs::create_dir(root.join("z")).unwrap();
+        fs::write(root.join("z/deep.rs"), "deepword").unwrap();
+        let me = root.join("main.rs");
+        let found = |limit| files_limited(Some(&me), limit).iter().any(|p| p.ends_with("z/deep.rs"));
+        assert!(found(MAX_VISIT), "found within the normal limit");
+        assert!(!found(20), "the walk stops after the visit limit");
+    }
 
     #[test]
     fn collects_from_siblings_and_repo() {
