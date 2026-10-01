@@ -56,7 +56,7 @@ fred [--height N] [+LINE] [FILE]
 **In Insert mode:** completions pop up as you type. `Tab`/`Ctrl-N` selects the
 next suggestion and `Shift-Tab`/`Ctrl-P` the previous one. `Enter` accepts a
 selected suggestion, or starts a new line when nothing is selected. `Esc`
-closes the popup and leaves Insert mode. `Ctrl-W` deletes the word before the
+closes the popup and leaves Insert mode; so does typing `jj`. `Ctrl-W` deletes the word before the
 cursor and `Ctrl-U` deletes to the start of the line. Pasted text goes in
 exactly as pasted.
 

@@ -10,6 +10,18 @@ pub fn insert_key(ed: &mut Editor, k: Key) {
     if let Some(r) = ed.vim.recording.as_mut() {
         r.push(k);
     }
+    let is_j = k == Key::ch('j');
+    if std::mem::replace(&mut ed.vim.after_j, is_j) && is_j {
+        // `jj` = Esc: drop the first `j` (still just before the cursor).
+        let (l, b) = ed.cur.pos();
+        if ed.buf.line(l)[..b].ends_with('j') {
+            delete_chars(ed, (l, b - 1), (l, b));
+            ed.cur.byte = b - 1;
+            ed.popup = None;
+            leave(ed);
+            return;
+        }
+    }
     if popup_key(ed, k) {
         return;
     }
@@ -173,6 +185,7 @@ fn edit_key(ed: &mut Editor, k: Key) {
 /// Leave Insert mode: close the undo group and finish dot-repeat recording.
 pub fn leave(ed: &mut Editor) {
     ed.mode = Mode::Normal;
+    ed.vim.after_j = false;
     let line = ed.buf.line(ed.cur.line);
     ed.cur.byte = prev_grapheme(&line, ed.cur.byte);
     let b = ed.cur.byte;

@@ -25,6 +25,8 @@ pub struct State {
     replaying: bool,
     /// Operator waiting for the search line to finish (`d/pat<Enter>`).
     pub(crate) pending_op: Option<(char, Option<usize>)>,
+    /// The last Insert-mode key was a typed `j` (a second one leaves Insert).
+    pub(crate) after_j: bool,
 }
 
 impl State {

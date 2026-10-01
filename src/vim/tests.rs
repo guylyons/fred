@@ -317,3 +317,17 @@ fn typing_before_a_combining_mark_keeps_the_cursor_on_a_boundary() {
     // goes after it instead of splitting it.
     assert_eq!(txt("\u{301}", "iex<Esc>"), "e\u{301}x");
 }
+
+#[test]
+fn jj_leaves_insert() {
+    let e = ed("abc", "ifoojj");
+    assert_eq!(
+        (e.buf.text().as_str(), e.mode, e.cur.pos()),
+        ("fooabc", Mode::Normal, (0, 2))
+    );
+    assert_eq!(txt("abc", "ixjju"), "abc");
+    assert_eq!(txt("abc", "ixjj."), "xxabc");
+    assert_eq!(txt("abc", "ijkj<Esc>"), "jkjabc");
+    // A `j` from an earlier insert doesn't pair with the next one.
+    assert_eq!(ed("abc", "ij<Esc>ij").mode, Mode::Insert);
+}
