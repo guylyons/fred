@@ -69,6 +69,11 @@ struct Pty {
 
 impl Pty {
     fn spawn(cmd: CommandBuilder) -> Pty {
+        Pty::spawn_with(cmd, true)
+    }
+
+    /// `answer_dsr: false` plays a terminal that never reports the cursor.
+    fn spawn_with(cmd: CommandBuilder, answer_dsr: bool) -> Pty {
         let pair = native_pty_system()
             .openpty(PtySize {
                 rows: ROWS,
@@ -95,7 +100,7 @@ impl Pty {
                 let mut parser = p.lock().unwrap();
                 parser.process(chunk);
                 // Answer cursor position queries like a real terminal.
-                if chunk.windows(4).any(|x| x == b"\x1b[6n") {
+                if answer_dsr && chunk.windows(4).any(|x| x == b"\x1b[6n") {
                     let (r, c) = parser.screen().cursor_position();
                     let _ = write!(w.lock().unwrap(), "\x1b[{};{}R", r + 1, c + 1);
                 }
@@ -457,4 +462,22 @@ fn esc_batched_with_next_keys() {
     p.keys(&["ihello \x1b:wq\r"]);
     assert_eq!(p.wait_exit(), 0);
     assert_eq!(env.read("f.txt"), "hello x\n");
+}
+
+#[test]
+fn terminal_restored_when_startup_fails() {
+    let env = Env::new();
+    env.write("f.txt", "x\n");
+    let mut c = env.command("sh");
+    c.args(["-c", "\"$0\" f.txt; echo \"exit=$?\"; stty -a", BIN]);
+    let mut p = Pty::spawn_with(c, false);
+    p.wait_text("exit=1");
+    p.wait_text("icanon");
+    let s = p.screen();
+    assert!(
+        !s.contains("-icanon") && !s.contains("-echo "),
+        "terminal left in raw mode:\n{s}"
+    );
+    assert!(p.raw().contains("<ESC>[?2004l"), "bracketed paste left on");
+    assert_eq!(p.wait_exit(), 0);
 }

@@ -114,7 +114,13 @@ pub fn parse_range<'i>(
     let last = ctx.buf.len_lines() as i64;
     // `%` is vim's name for the whole file, like ed's `,`.
     if let Some(rest) = input.trim_start().strip_prefix('%') {
-        return Ok((Some(Range { start: 0, end: last as usize - 1 }), rest));
+        return Ok((
+            Some(Range {
+                start: 0,
+                end: last as usize - 1,
+            }),
+            rest,
+        ));
     }
     let (a1, rest) = parse_addr(input, ctx)?;
     let t = rest.trim_start();

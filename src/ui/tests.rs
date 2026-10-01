@@ -226,7 +226,12 @@ fn tiny_windows_dont_panic() {
     for (w, h) in [(20, 1), (20, 2), (1, 3), (2, 1), (5, 4), (1, 1)] {
         let mut s = Screen::new(w, h);
         let mut e = editor("hello world\nsecond line", "ohe");
-        e.popup = Some(Popup { items: vec!["hello".into()], sel: Some(0), start: 0, typed: "he".into() });
+        e.popup = Some(Popup {
+            items: vec!["hello".into()],
+            sel: Some(0),
+            start: 0,
+            typed: "he".into(),
+        });
         s.draw(&e);
         let e = editor("abc", ":w");
         s.draw(&e);

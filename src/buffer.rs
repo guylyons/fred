@@ -133,7 +133,11 @@ impl Buffer {
                 && (removed.is_empty() || removed.ends_with('\n'))
                 && (e.text.is_empty() || e.text.ends_with('\n'));
             let at = if whole { first } else { first + 1 };
-            self.line_changes.push(LineChange { at, removed: r, inserted: i });
+            self.line_changes.push(LineChange {
+                at,
+                removed: r,
+                inserted: i,
+            });
         }
         let line = self.rope.char_to_line(e.start);
         self.dirty_from = Some(self.dirty_from.map_or(line, |d| d.min(line)));

@@ -420,7 +420,9 @@ pub(crate) fn finish_op_search(ed: &mut Editor, op: char, count: Option<usize>) 
     let start = ed.cur.pos();
     let mut target = None;
     for _ in 0..count.unwrap_or(1).max(1) {
-        let Some(p) = ed.search_target(false) else { break };
+        let Some(p) = ed.search_target(false) else {
+            break;
+        };
         ed.cur.line = p.0;
         ed.cur.byte = p.1;
         target = Some(p);

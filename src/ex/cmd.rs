@@ -451,8 +451,14 @@ mod tests {
     #[test]
     fn g_with_substitute_skips_lines_without_a_match() {
         let t = "foo bar\nfoo baz\nqux";
-        assert_eq!(ex(t, 0, "g/foo/s/bar/X/"), ("foo X\nfoo baz\nqux".into(), 0));
-        assert!(ex_err(t, 0, "g/foo/s/zzz/X/").is_err(), "no substitution at all is still an error");
+        assert_eq!(
+            ex(t, 0, "g/foo/s/bar/X/"),
+            ("foo X\nfoo baz\nqux".into(), 0)
+        );
+        assert!(
+            ex_err(t, 0, "g/foo/s/zzz/X/").is_err(),
+            "no substitution at all is still an error"
+        );
     }
 
     #[test]

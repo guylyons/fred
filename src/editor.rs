@@ -170,7 +170,8 @@ impl Editor {
     /// Move marks with their lines; a deleted line loses its mark.
     fn sync_marks(&mut self) {
         for ch in self.buf.take_line_changes() {
-            self.marks.retain(|_, l| *l < ch.at || *l >= ch.at + ch.removed);
+            self.marks
+                .retain(|_, l| *l < ch.at || *l >= ch.at + ch.removed);
             for l in self.marks.values_mut() {
                 if *l >= ch.at + ch.removed {
                     *l = *l + ch.inserted - ch.removed;

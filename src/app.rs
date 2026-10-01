@@ -159,6 +159,17 @@ pub fn map_key(k: KeyEvent) -> Option<Key> {
     Some(Key { code, ctrl, alt })
 }
 
+/// Put the terminal back the way the shell expects it.
+fn restore_terminal() {
+    let _ = execute!(
+        io::stdout(),
+        cursor::Show,
+        SetCursorStyle::DefaultUserShape,
+        DisableBracketedPaste
+    );
+    let _ = terminal::disable_raw_mode();
+}
+
 fn install_panic_hook() {
     let prev = panic::take_hook();
     panic::set_hook(Box::new(move |info| {
@@ -320,10 +331,19 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
         signal_hook::flag::register(sig, Arc::clone(&stop))?;
     }
     terminal::enable_raw_mode()?;
-    execute!(io::stdout(), EnableBracketedPaste)?;
+    let setup = (|| -> Result<Ui> {
+        execute!(io::stdout(), EnableBracketedPaste)?;
+        let rows = terminal::size()?.1;
+        Ok(Ui::new(window_height(cfg.height, s.ed.line_count(), rows))?)
+    })();
+    let mut ui = match setup {
+        Ok(ui) => ui,
+        Err(e) => {
+            restore_terminal();
+            return Err(e.context("could not set up the terminal"));
+        }
+    };
     install_panic_hook();
-    let rows = terminal::size()?.1;
-    let mut ui = Ui::new(window_height(cfg.height, s.ed.line_count(), rows))?;
 
     let result = event_loop(&mut ui, &mut s, &mut hl, &cfg, leftover, &stop);
     let code = match result {
