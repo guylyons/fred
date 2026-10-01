@@ -324,6 +324,4 @@ ZWJ/skin-tone emoji widths; `.` doesn't repeat a bracketed paste; the
 read-only message on permission-denied files suggests `w!`; a dangling
 symlink is replaced by a regular file on write; `:w name` on an unnamed
 buffer doesn't re-detect the filetype until restart; Esc keeps an untouched
-auto-indent; a reused pid can hide [r]ecover; `//` lists `/` in completion;
-the cursor can sit on the second half of a wide char in wrap mode near a
-row end only if the terminal disagrees on its width.
+auto-indent; a reused pid can hide [r]ecover; `//` lists `/` in completion.
