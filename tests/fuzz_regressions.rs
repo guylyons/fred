@@ -161,3 +161,22 @@ fn paste_in_insert_mode_leaves_cursor_inside_grapheme() {
         );
     }
 }
+
+/// `.` replayed the recorded keys literally: when the repeated change's
+/// motion failed (`cff` with no `f` left), the change never entered Insert
+/// mode, so the recorded insert text ran as Normal-mode commands, including
+/// a `u` that undid inside the open undo group and later made ropey panic
+/// ("index out of bounds" at rope.rs:952).
+/// Fuzz signature: `panic ropey rope.rs:952`, seed 112461.
+#[test]
+fn dot_repeat_whose_motion_fails_runs_insert_text_as_commands() {
+    let e = ed("—f", "cffdwu<Esc>.");
+    assert_eq!(
+        e.buf.text(),
+        "dwu",
+        "a repeat whose motion fails does nothing"
+    );
+    assert_eq!(e.mode, Mode::Normal);
+    let e = ed("—f", "cffdwu<Esc>.uu");
+    assert_eq!(e.buf.text(), "—f");
+}

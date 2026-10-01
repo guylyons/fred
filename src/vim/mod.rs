@@ -17,9 +17,22 @@ pub struct State {
     pub last_change: Vec<Key>,
     /// Keys of a change still in its insert session.
     pub recording: Option<Vec<Key>>,
+    /// How many of the recorded keys are the command (the rest is the
+    /// text typed in Insert mode).
+    recording_split: usize,
+    /// `last_change` entered Insert mode after this many keys.
+    last_change_split: Option<usize>,
     replaying: bool,
     /// Operator waiting for the search line to finish (`d/pat<Enter>`).
     pub(crate) pending_op: Option<(char, Option<usize>)>,
+}
+
+impl State {
+    /// A change that went through Insert mode is complete.
+    pub(crate) fn finish_recording(&mut self, keys: Vec<Key>) {
+        self.last_change = keys;
+        self.last_change_split = Some(self.recording_split);
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -351,12 +364,14 @@ fn run_change(ed: &mut Editor, cmd: Cmd, keys: Vec<Key>) {
     execute(ed, cmd);
     if ed.mode == Mode::Insert {
         if !ed.vim.replaying {
+            ed.vim.recording_split = keys.len();
             ed.vim.recording = Some(keys);
         }
     } else {
         ed.undo.end(ed.cur.pos());
         if !ed.vim.replaying {
             ed.vim.last_change = keys;
+            ed.vim.last_change_split = None;
         }
     }
 }
@@ -367,16 +382,27 @@ fn repeat(ed: &mut Editor, count: Option<usize>) {
         return;
     }
     let mut keys = ed.vim.last_change.clone();
+    let mut split = ed.vim.last_change_split;
     if let Some(n) = count {
         let (_, used) = self::count(&keys);
         keys.drain(..used);
         let digits: Vec<Key> = n.to_string().chars().map(Key::ch).collect();
+        split = split.map(|sp| sp - used + digits.len());
         keys.splice(0..0, digits);
     }
     ed.vim.replaying = true;
     ed.undo.begin(ed.cur.pos());
-    for k in keys {
+    let (command, typed) = keys.split_at(split.unwrap_or(keys.len()).min(keys.len()));
+    for &k in command {
         ed.handle_key(k);
+    }
+    // The text typed in Insert mode is only replayed if the command got
+    // there again (its motion can fail, e.g. `cfx` with no `x` left);
+    // otherwise those keys would run as Normal-mode commands.
+    if split.is_some() && ed.mode == Mode::Insert {
+        for &k in typed {
+            ed.handle_key(k);
+        }
     }
     if ed.mode == Mode::Insert {
         insert::leave(ed);
@@ -438,6 +464,8 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
     let half = (ed.win_height / 2).max(1);
     let n = count.unwrap_or(1).max(1);
     match (key.code, key.ctrl) {
+        // Undo/redo would corrupt the history while a change is open.
+        (KeyCode::Char('r'), true) | (KeyCode::Char('u'), false) if ed.undo.in_group() => {}
         (KeyCode::Char('r'), true) => {
             for i in 0..n {
                 match ed.undo.redo(&mut ed.buf) {

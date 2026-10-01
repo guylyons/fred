@@ -179,6 +179,6 @@ pub fn leave(ed: &mut Editor) {
     ed.set_cursor(ed.cur.line, b);
     ed.undo.end(ed.cur.pos());
     if let Some(r) = ed.vim.recording.take() {
-        ed.vim.last_change = r;
+        ed.vim.finish_recording(r);
     }
 }
