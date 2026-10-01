@@ -357,10 +357,18 @@ fn deleting_a_swap() {
     p.wait_text("swap found");
     p.keys(&["d"]);
     p.wait_text("NORMAL");
-    assert!(env.swap_files().is_empty());
+    // The old swap is gone; the only swap now is this fred's clean lock.
+    let swaps = env.swap_files();
+    assert_eq!(swaps.len(), 1);
+    let text = fs::read_to_string(&swaps[0]).unwrap();
+    assert!(
+        text.contains("\"clean\":true") && !text.contains("ello"),
+        "{text}"
+    );
     p.keys(&[":q\r"]);
     assert_eq!(p.wait_exit(), 0);
     assert_eq!(env.read("f.txt"), "hello\n");
+    assert!(env.swap_files().is_empty());
 }
 
 #[test]

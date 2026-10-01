@@ -7,7 +7,7 @@ use crate::editor::Mode;
 use crate::fileio;
 use crate::highlight::Highlighter;
 use crate::key::{Key, KeyCode};
-use crate::session::Session;
+use crate::session::{Session, SwapChoice};
 use crate::swap::{self, SwapInfo};
 use crate::ui::{self, View, window_height};
 use anyhow::{Result, anyhow};
@@ -212,26 +212,34 @@ fn ago(saved_at: u64) -> String {
     }
 }
 
-/// Ask what to do with a leftover swap file. Returns false to quit.
-fn swap_prompt(
+/// Ask what to do with a file's existing swap file. `name` is set for `:e`
+/// (where `q` cancels the `:e` instead of quitting).
+fn ask_swap(
     ui: &mut Ui,
     s: &mut Session,
     hl: &mut Highlighter,
     cfg: &Config,
-    info: SwapInfo,
-) -> Result<bool> {
-    let alive = swap::owner_alive(&info);
+    info: &SwapInfo,
+    name: Option<&str>,
+) -> Result<SwapChoice> {
+    let alive = swap::owner_alive(info);
+    let what = match name {
+        Some(n) => format!("{n}: "),
+        None => "swap: ".into(),
+    };
     let prompt = if alive {
         format!(
-            "swap: file is open in fred (pid {}): [o]pen read-only, [q]uit",
+            "{what}file is open in fred (pid {}): [o]pen read-only, [q]uit",
             info.pid
         )
     } else {
+        let what = name.map_or(String::new(), |n| format!("{n}: "));
         format!(
-            "swap found (saved {}): [r]ecover, [d]elete, [q]uit",
+            "{what}swap found (saved {}): [r]ecover, [d]elete, [q]uit",
             ago(info.saved_at)
         )
     };
+    let saved_msg = s.ed.msg.take();
     loop {
         s.ed.msg = Some((prompt.clone(), false));
         ui.draw(s, hl, cfg)?;
@@ -241,26 +249,15 @@ fn swap_prompt(
         let Some(key) = map_keys(k).pop() else {
             continue;
         };
-        match (alive, key.char(), key.code) {
-            (true, Some('o'), _) => {
-                s.ed.readonly = true;
-                s.no_swap = true;
-                s.ed.set_msg("opened read-only");
-                return Ok(true);
-            }
-            (false, Some('r'), _) => {
-                s.recover(info);
-                hl.set_file(s.ed.path.as_deref(), &s.ed.buf);
-                return Ok(true);
-            }
-            (false, Some('d'), _) => {
-                s.discard_swap();
-                s.ed.msg = None;
-                return Ok(true);
-            }
-            (_, Some('q'), _) | (_, _, KeyCode::Esc) => return Ok(false),
-            _ => {}
-        }
+        let choice = match (alive, key.char(), key.code) {
+            (true, Some('o'), _) => SwapChoice::ReadOnly,
+            (false, Some('r'), _) => SwapChoice::Recover,
+            (false, Some('d'), _) => SwapChoice::Delete,
+            (_, Some('q'), _) | (_, _, KeyCode::Esc) => SwapChoice::Cancel,
+            _ => continue,
+        };
+        s.ed.msg = saved_msg;
+        return Ok(choice);
     }
 }
 
@@ -406,12 +403,29 @@ fn event_loop(
     leftover: Option<SwapInfo>,
     stop: &AtomicBool,
 ) -> Result<i32> {
-    if let Some(info) = leftover
-        && !swap_prompt(ui, s, hl, cfg, info)?
-    {
-        s.no_swap = true;
-        return Ok(0);
+    if let Some(info) = leftover {
+        match ask_swap(ui, s, hl, cfg, &info, None)? {
+            SwapChoice::Cancel => {
+                s.no_swap = true;
+                return Ok(0);
+            }
+            SwapChoice::ReadOnly => {
+                s.ed.readonly = true;
+                s.no_swap = true;
+                s.ed.set_msg("opened read-only");
+            }
+            SwapChoice::Recover => {
+                s.recover(info);
+                hl.set_file(s.ed.path.as_deref(), &s.ed.buf);
+            }
+            SwapChoice::Delete => {
+                s.discard_swap();
+                s.ed.msg = None;
+            }
+        }
     }
+    // The swap file marks the file as open for the whole session.
+    s.lock();
     loop {
         ui.draw(s, hl, cfg)?;
         if stop.load(Ordering::Relaxed) {
@@ -436,6 +450,11 @@ fn event_loop(
         }
         if s.quit {
             return Ok(0);
+        }
+        if let Some(pe) = s.pending_edit.clone() {
+            let name = pe.path.display().to_string();
+            let choice = ask_swap(ui, s, hl, cfg, &pe.info, Some(&name))?;
+            s.resolve_edit(choice);
         }
         if s.reloaded {
             s.reloaded = false;

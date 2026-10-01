@@ -248,6 +248,9 @@ fn cursor_is_never_under_the_cut_marker() {
         let (x, y) = s.cursor();
         let under = s.term.backend().buffer()[(x, y)].symbol().to_string();
         let want = text[e.cur.byte..].chars().next().unwrap().to_string();
-        assert_eq!(under, want, "keys {keys}: cursor at ({x},{y}) shows {under:?}");
+        assert_eq!(
+            under, want,
+            "keys {keys}: cursor at ({x},{y}) shows {under:?}"
+        );
     }
 }

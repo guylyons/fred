@@ -18,6 +18,9 @@ struct Header {
     host: String,
     path: Option<String>,
     saved_at: u64,
+    /// No unsaved changes: the file only marks that a fred has it open.
+    #[serde(default)]
+    clean: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -27,6 +30,8 @@ pub struct SwapInfo {
     pub path: Option<String>,
     /// Seconds since the Unix epoch.
     pub saved_at: u64,
+    /// A lock with no unsaved text.
+    pub clean: bool,
     pub text: String,
 }
 
@@ -87,8 +92,17 @@ pub fn hostname() -> String {
     String::from_utf8_lossy(&buf[..end]).into_owned()
 }
 
-/// Atomically write the swap file (mode 0600).
+/// Atomically write the swap file (mode 0600) holding unsaved `text`.
 pub fn write(swap: &Path, file: Option<&Path>, text: &str) -> Result<(), String> {
+    write_swap(swap, file, text, false)
+}
+
+/// Write a swap file that only marks the file as open (no unsaved text).
+pub fn write_clean(swap: &Path, file: Option<&Path>) -> Result<(), String> {
+    write_swap(swap, file, "", true)
+}
+
+fn write_swap(swap: &Path, file: Option<&Path>, text: &str, clean: bool) -> Result<(), String> {
     let dir = swap.parent().ok_or("bad swap path")?;
     DirBuilder::new()
         .recursive(true)
@@ -104,6 +118,7 @@ pub fn write(swap: &Path, file: Option<&Path>, text: &str) -> Result<(), String>
         saved_at: SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_or(0, |d| d.as_secs()),
+        clean,
     };
     let mut data = serde_json::to_string(&header).map_err(|e| e.to_string())?;
     data.push('\n');
@@ -139,8 +154,36 @@ pub fn read(swap: &Path) -> Result<SwapInfo, String> {
         host: h.host,
         path: h.path,
         saved_at: h.saved_at,
+        clean: h.clean,
         text: text.to_string(),
     })
+}
+
+/// Read only a swap file's header (`text` is left empty).
+pub fn read_head(swap: &Path) -> Result<SwapInfo, String> {
+    use std::io::BufRead;
+    let f = fs::File::open(swap).map_err(|e| e.to_string())?;
+    let mut head = String::new();
+    std::io::BufReader::new(f)
+        .read_line(&mut head)
+        .map_err(|e| e.to_string())?;
+    let h: Header = serde_json::from_str(head.trim_end()).map_err(|_| "not a swap file")?;
+    if h.magic != MAGIC || h.version != VERSION {
+        return Err("not a swap file".into());
+    }
+    Ok(SwapInfo {
+        pid: h.pid,
+        host: h.host,
+        path: h.path,
+        saved_at: h.saved_at,
+        clean: h.clean,
+        text: String::new(),
+    })
+}
+
+/// The swap file was written by this process.
+pub fn is_mine(info: &SwapInfo) -> bool {
+    info.pid == std::process::id() && info.host == hostname()
 }
 
 /// Another live process on this host owns the swap file.
@@ -227,6 +270,7 @@ mod tests {
             host: hostname(),
             path: None,
             saved_at: 0,
+            clean: false,
             text: String::new(),
         };
         assert!(owner_alive(&info));

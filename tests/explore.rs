@@ -1756,7 +1756,7 @@ fn second_fred_opens_read_only_and_keeps_the_first_freds_swap() {
 }
 
 #[test]
-fn bug_second_fred_is_not_warned_while_the_first_has_no_unsaved_changes() {
+fn second_fred_is_warned_even_when_the_first_has_no_changes() {
     let env = Env::new();
     env.write("f.txt", "shared\n");
     let mut a = env.fred(&["f.txt"]);
@@ -1779,43 +1779,45 @@ fn bug_second_fred_is_not_warned_while_the_first_has_no_unsaved_changes() {
 }
 
 #[test]
-fn bug_two_freds_on_one_file_clobber_each_others_swap() {
+fn a_read_only_second_fred_never_touches_the_first_freds_swap() {
     let env = Env::new();
     env.write("f.txt", "shared\n");
     let mut a = env.fred(&["f.txt"]);
     a.wait_text("NORMAL");
     let mut b = env.fred(&["f.txt"]);
-    b.wait_text("NORMAL");
+    b.wait_text(&format!("file is open in fred (pid {})", a.pid()));
+    b.keys(&["o"]);
+    b.wait_text("[RO]");
     a.keys(&["Afrom-a", "\x1b"]);
     wait_until("A's swap", Duration::from_secs(3), || {
         env.swap_texts().iter().any(|t| t.contains("sharedfrom-a"))
     });
     b.keys(&["Afrom-b", "\x1b"]);
     thread::sleep(Duration::from_millis(1500));
-    let mut problems = vec![];
-    if !env.swap_texts().iter().any(|t| t.contains("sharedfrom-a")) {
-        problems.push(format!(
-            "after B's first edit, A's unsaved text is in no swap file: B overwrote the shared \
-             swap (swap files: {:?})",
-            env.swap_texts()
-        ));
-    }
-    a.keys(&[":wq\r"]);
-    assert_eq!(a.wait_exit(), 0);
-    if !env.swap_texts().iter().any(|t| t.contains("sharedfrom-b")) {
-        problems.push(format!(
-            "after A's :wq, B still has unsaved edits but there is no swap file for them: A's \
-             exit deleted it ({} swap files)",
-            env.swap_files().len()
-        ));
-    }
+    let swaps = env.swap_files();
+    assert_eq!(swaps.len(), 1);
+    assert_eq!(
+        swap_pid(&swaps[0]),
+        Some(a.pid() as u32),
+        "B overwrote A's swap"
+    );
+    assert!(
+        fs::read_to_string(&swaps[0])
+            .unwrap()
+            .contains("sharedfrom-a")
+    );
     b.keys(&[":q!\r"]);
     assert_eq!(b.wait_exit(), 0);
     assert!(
-        problems.is_empty(),
-        "two freds editing one file (opened while neither had changes):\n  {}",
-        problems.join("\n  ")
+        fs::read_to_string(&swaps[0])
+            .unwrap()
+            .contains("sharedfrom-a"),
+        "B removed A's swap"
     );
+    a.keys(&[":wq\r"]);
+    assert_eq!(a.wait_exit(), 0);
+    assert!(env.swap_files().is_empty());
+    assert_eq!(env.read("f.txt"), "sharedfrom-a\n");
 }
 
 #[test]
@@ -1825,8 +1827,11 @@ fn stale_swap_quit_leaves_file_and_swap_untouched() {
     let mut a = env.fred(&["f.txt"]);
     a.wait_text("NORMAL");
     a.keys(&["Aunsaved", "\x1b"]);
-    wait_until("swap", Duration::from_secs(3), || {
-        env.swap_files().len() == 1
+    // The swap file exists from the start (a lock); wait for the text.
+    wait_until("swap with the unsaved text", Duration::from_secs(3), || {
+        env.swap_texts()
+            .iter()
+            .any(|t| t.contains("originalunsaved"))
     });
     a.signal(libc::SIGKILL);
     a.exit_status(Duration::from_secs(3));
@@ -1853,15 +1858,15 @@ fn stale_swap_quit_leaves_file_and_swap_untouched() {
 }
 
 #[test]
-fn bug_e_into_a_file_with_a_stale_swap_leaves_new_edits_unprotected() {
+fn e_into_a_file_with_a_stale_swap_offers_recovery_and_keeps_protecting() {
     let env = Env::new();
     env.write("f.txt", "orig\n");
     env.write("other.txt", "other\n");
     let mut a = env.fred(&["f.txt"]);
     a.wait_text("NORMAL");
     a.keys(&["Aold", "\x1b"]);
-    wait_until("swap", Duration::from_secs(3), || {
-        env.swap_files().len() == 1
+    wait_until("swap with the unsaved text", Duration::from_secs(3), || {
+        env.swap_texts().iter().any(|t| t.contains("origold"))
     });
     a.signal(libc::SIGKILL);
     a.exit_status(Duration::from_secs(3));
@@ -1869,45 +1874,71 @@ fn bug_e_into_a_file_with_a_stale_swap_leaves_new_edits_unprotected() {
     let mut b = env.fred(&["other.txt"]);
     b.wait_text("NORMAL");
     b.keys(&[":e f.txt\r"]);
-    b.wait_text("a swap file exists for this file");
+    b.wait_text("f.txt: swap found");
+    b.keys(&["r"]);
+    b.wait_text("recovered");
     b.keys(&["Anew-edit", "\x1b"]);
     thread::sleep(Duration::from_millis(1500));
     b.signal(libc::SIGHUP); // the terminal went away
     assert_eq!(b.wait_exit(), 1);
     assert!(
-        env.swap_texts().iter().any(|t| t.contains("orignew-edit")),
-        "after `:e` into a file that has a stale swap, fred stops writing swaps for the rest \
-         of the session (no_swap), so these edits are lost when the terminal closes. README: \
-         'They're also saved if the terminal closes, fred is killed, or it crashes.' Swaps: {:?}",
         env.swap_texts()
+            .iter()
+            .any(|t| t.contains("origoldnew-edit")),
+        "edits after recovering through :e must be in the swap: {:?}",
+        env.swap_texts()
+    );
+    assert_eq!(env.read("f.txt"), "orig\n");
+}
+
+#[test]
+fn e_into_a_file_with_a_stale_swap_can_be_cancelled() {
+    let env = Env::new();
+    env.write("f.txt", "orig\n");
+    env.write("other.txt", "other\n");
+    let mut a = env.fred(&["f.txt"]);
+    a.wait_text("NORMAL");
+    a.keys(&["Aold", "\x1b"]);
+    wait_until("swap with the unsaved text", Duration::from_secs(3), || {
+        env.swap_texts().iter().any(|t| t.contains("origold"))
+    });
+    a.signal(libc::SIGKILL);
+    a.exit_status(Duration::from_secs(3));
+    let mut b = env.fred(&["other.txt"]);
+    b.wait_text("NORMAL");
+    b.keys(&[":e f.txt\r"]);
+    b.wait_text("f.txt: swap found");
+    b.keys(&["q"]);
+    b.wait_text("still editing other.txt");
+    assert!(status_row(&b).contains("other.txt"));
+    b.keys(&[":q\r"]);
+    assert_eq!(b.wait_exit(), 0);
+    assert!(
+        env.swap_texts().iter().any(|t| t.contains("origold")),
+        "the stale swap is kept"
     );
 }
 
 #[test]
-fn bug_e_into_a_file_open_in_another_fred_is_not_read_only() {
+fn e_into_a_file_open_in_another_fred_opens_it_read_only() {
     let env = Env::new();
     env.write("f.txt", "shared\n");
     env.write("other.txt", "other\n");
     let mut a = env.fred(&["f.txt"]);
     a.wait_text("NORMAL");
-    a.keys(&["Afrom-a", "\x1b"]);
-    wait_until("A's swap", Duration::from_secs(3), || {
-        env.swap_files().len() == 1
-    });
     let mut b = env.fred(&["other.txt"]);
     b.wait_text("NORMAL");
     b.keys(&[":e f.txt\r"]);
-    b.wait_text("f.txt");
-    let status = status_row(&b);
+    b.wait_text(&format!("f.txt: file is open in fred (pid {})", a.pid()));
+    b.keys(&["o"]);
+    b.wait_text("[RO]");
+    assert!(status_row(&b).contains("f.txt"));
     b.keys(&[":q!\r"]);
-    a.keys(&[":q!\r"]);
     assert_eq!(b.wait_exit(), 0);
+    assert_eq!(env.swap_files().len(), 1, "A's lock is still there");
+    a.keys(&[":q!\r"]);
     assert_eq!(a.wait_exit(), 0);
-    assert!(
-        status.contains("[RO]"),
-        "at startup a file open in another fred is offered read-only, but `:e` into it only \
-         shows 'a swap file exists' and leaves it writable: {status:?}"
-    );
+    assert!(env.swap_files().is_empty());
 }
 
 // ======================================= 9. :e, unnamed buffers, arguments
@@ -1929,7 +1960,11 @@ fn edit_other_file_with_and_without_bang() {
     p.wait_text("fn b() {}");
     assert!(status_row(&p).contains("b.rs"));
     assert!(status_row(&p).contains("rust"), "{}", status_row(&p));
-    assert!(env.swap_files().is_empty(), "e! discards a.txt's swap");
+    let swaps = env.swap_texts();
+    assert!(
+        swaps.len() == 1 && !swaps[0].contains("aa"),
+        "e! discards a.txt's swap; only b.rs's lock is left: {swaps:?}"
+    );
     p.keys(&[":e nosuch.txt\r"]);
     p.wait_text("\"nosuch.txt\" [new]");
     p.keys(&[":q\r"]);

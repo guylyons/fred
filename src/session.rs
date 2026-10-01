@@ -14,6 +14,33 @@ use std::time::{Duration, Instant};
 const SWAP_IDLE: Duration = Duration::from_secs(1);
 const SWAP_EDITS: usize = 200;
 
+/// What our swap file holds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SwapState {
+    /// We have no swap file.
+    None,
+    /// A lock with no unsaved text: "a fred has this file open".
+    Clean,
+    /// Unsaved text as of this buffer version.
+    Dirty(u64),
+}
+
+/// What to do about a file's existing swap file.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SwapChoice {
+    Recover,
+    Delete,
+    ReadOnly,
+    Cancel,
+}
+
+/// `:e` waiting for the user to decide about the new file's swap file.
+#[derive(Clone, Debug)]
+pub struct PendingEdit {
+    pub path: PathBuf,
+    pub info: SwapInfo,
+}
+
 pub struct Session {
     pub ed: Editor,
     pub stamp: Option<FileStamp>,
@@ -26,12 +53,13 @@ pub struct Session {
     pub reloaded: bool,
     /// Another fred owns this file's swap; never write it.
     pub no_swap: bool,
+    /// `:e` into a file with a swap file: the caller asks what to do.
+    pub pending_edit: Option<PendingEdit>,
     lossy: bool,
     cfg: Config,
     seen_version: u64,
     last_change: Option<Instant>,
-    swapped_version: Option<u64>,
-    swap_on_disk: bool,
+    swap_state: SwapState,
     swap_error_shown: bool,
 }
 
@@ -105,6 +133,24 @@ fn open_file(path: Option<&Path>, cfg: &Config) -> Result<Opened, String> {
     })
 }
 
+/// A swap file at `swap` that the user should decide about: one held by a
+/// live fred, or one with unsaved text. A clean lock or a copy of the file
+/// left by a dead fred is removed instead.
+fn leftover(swap: &Path, buf: &Buffer) -> Option<SwapInfo> {
+    if !swap.exists() {
+        return None;
+    }
+    let info = swap::read(swap).ok()?;
+    if swap::is_mine(&info) {
+        return None;
+    }
+    if !swap::owner_alive(&info) && (info.clean || info.text.as_bytes() == buf.to_bytes()) {
+        swap::remove(swap);
+        return None;
+    }
+    Some(info)
+}
+
 impl Session {
     /// Open `path` (or an unnamed buffer). Returns a leftover swap file, if any.
     pub fn open(
@@ -124,11 +170,11 @@ impl Session {
             quit: false,
             reloaded: false,
             no_swap: false,
+            pending_edit: None,
             lossy: o.lossy,
             cfg: cfg.clone(),
             last_change: None,
-            swapped_version: None,
-            swap_on_disk: false,
+            swap_state: SwapState::None,
             swap_error_shown: false,
         };
         let info = s.leftover_swap();
@@ -136,18 +182,7 @@ impl Session {
     }
 
     fn leftover_swap(&mut self) -> Option<SwapInfo> {
-        if !self.swap_path.exists() {
-            return None;
-        }
-        let Ok(info) = swap::read(&self.swap_path) else {
-            return None;
-        };
-        // A swap identical to the file holds nothing to recover.
-        if !swap::owner_alive(&info) && info.text.as_bytes() == self.ed.buf.to_bytes() {
-            swap::remove(&self.swap_path);
-            return None;
-        }
-        Some(info)
+        leftover(&self.swap_path, &self.ed.buf)
     }
 
     pub fn handle_key(&mut self, k: Key) {
@@ -217,8 +252,13 @@ impl Session {
                 self.stamp = None;
                 let ok = self.write_own(&t, force);
                 if ok {
-                    swap::remove(&self.swap_path);
+                    // The lock moves from the unnamed swap to the file's.
+                    let locked = self.swap_state != SwapState::None;
+                    self.release_swap();
                     self.swap_path = swap::swap_path_in(&self.swap_dir, Some(&t));
+                    if locked {
+                        self.lock();
+                    }
                 } else {
                     self.ed.path = None;
                 }
@@ -278,7 +318,9 @@ impl Session {
                 let msg = summary(p, &data);
                 self.ed.set_msg(msg.clone());
                 self.written = Some(msg);
-                self.remove_swap();
+                if self.swap_state != SwapState::None {
+                    self.write_lock();
+                }
                 true
             }
             Err(e) => {
@@ -301,26 +343,80 @@ impl Session {
                 return;
             }
         };
-        match open_file(Some(&p), &self.cfg) {
-            Ok(o) => {
-                self.remove_swap();
-                self.ed = o.ed;
-                self.stamp = o.stamp;
-                self.lossy = o.lossy;
-                self.no_swap = false;
-                self.seen_version = self.ed.buf.version;
-                self.swapped_version = None;
-                self.swap_path = swap::swap_path_in(&self.swap_dir, Some(&p));
-                self.reloaded = true;
-                if self.swap_path.exists() {
-                    self.no_swap = true;
-                    self.ed.set_err(
-                        "a swap file exists for this file; reopen it with fred to recover",
-                    );
-                }
+        let o = match open_file(Some(&p), &self.cfg) {
+            Ok(o) => o,
+            Err(e) => {
+                self.ed.set_err(format!("{}: {e}", p.display()));
+                return;
             }
-            Err(e) => self.ed.set_err(format!("{}: {e}", p.display())),
+        };
+        let new_swap = swap::swap_path_in(&self.swap_dir, Some(&p));
+        if new_swap != self.swap_path
+            && let Some(info) = leftover(&new_swap, &o.ed.buf)
+        {
+            self.pending_edit = Some(PendingEdit { path: p, info });
+            return;
         }
+        self.switch_to(o, new_swap);
+        self.lock();
+    }
+
+    /// Make `o` the buffer being edited, with its swap file at `new_swap`.
+    fn switch_to(&mut self, o: Opened, new_swap: PathBuf) {
+        if new_swap != self.swap_path {
+            self.release_swap();
+        }
+        self.ed = o.ed;
+        self.stamp = o.stamp;
+        self.lossy = o.lossy;
+        self.no_swap = false;
+        self.seen_version = self.ed.buf.version;
+        self.last_change = None;
+        self.swap_path = new_swap;
+        self.reloaded = true;
+    }
+
+    /// Finish an `:e` that was waiting on [`SwapChoice`].
+    pub fn resolve_edit(&mut self, choice: SwapChoice) {
+        let Some(PendingEdit { path, info }) = self.pending_edit.take() else {
+            return;
+        };
+        if choice == SwapChoice::Cancel {
+            self.ed.set_msg(format!("still editing {}", self.name()));
+            return;
+        }
+        let o = match open_file(Some(&path), &self.cfg) {
+            Ok(o) => o,
+            Err(e) => {
+                self.ed.set_err(format!("{}: {e}", path.display()));
+                return;
+            }
+        };
+        let new_swap = swap::swap_path_in(&self.swap_dir, Some(&path));
+        self.switch_to(o, new_swap);
+        match choice {
+            SwapChoice::Recover => {
+                self.recover(info);
+                self.lock();
+            }
+            SwapChoice::Delete => {
+                swap::remove(&self.swap_path);
+                self.lock();
+            }
+            _ => {
+                self.ed.readonly = true;
+                self.no_swap = true;
+                self.ed
+                    .set_msg(format!("\"{}\" opened read-only", path.display()));
+            }
+        }
+    }
+
+    fn name(&self) -> String {
+        self.ed
+            .path
+            .as_ref()
+            .map_or_else(|| "[No Name]".into(), |p| p.display().to_string())
     }
 
     /// Replace the buffer with a swap file's text.
@@ -332,7 +428,7 @@ impl Session {
         ed.buf.modified = true;
         ed.set_msg("recovered unsaved changes; :w to save them");
         self.ed = ed;
-        self.swap_on_disk = true;
+        self.seen_version = self.ed.buf.version;
     }
 
     /// Delete a leftover swap file the user chose not to recover.
@@ -340,8 +436,18 @@ impl Session {
         swap::remove(&self.swap_path);
     }
 
-    /// Write the swap file when there are unsaved edits and the user paused
-    /// (or made many edits); remove it once the buffer is saved.
+    /// Take this file's swap file for the session: a clean lock, or the
+    /// unsaved text right away (after recovering it).
+    pub fn lock(&mut self) {
+        if self.ed.buf.modified {
+            self.write_swap();
+        } else {
+            self.write_lock();
+        }
+    }
+
+    /// Keep the swap file up to date: write unsaved text once the user
+    /// pauses (or after many edits), and go back to a clean lock on save.
     pub fn maybe_swap(&mut self, now: Instant) {
         let v = self.ed.buf.version;
         if v != self.seen_version {
@@ -352,10 +458,12 @@ impl Session {
             return;
         }
         if !self.ed.buf.modified {
-            self.remove_swap();
+            if matches!(self.swap_state, SwapState::Dirty(_)) {
+                self.write_lock();
+            }
             return;
         }
-        if self.swapped_version == Some(v) {
+        if self.swap_state == SwapState::Dirty(v) {
             return;
         }
         let idle = self
@@ -366,40 +474,75 @@ impl Session {
         }
     }
 
+    /// May we write this file's swap? Not if another live fred owns it.
+    fn may_write_swap(&mut self) -> bool {
+        if self.no_swap {
+            return false;
+        }
+        match swap::read_head(&self.swap_path) {
+            Ok(info) if !swap::is_mine(&info) && swap::owner_alive(&info) => {
+                self.no_swap = true;
+                self.ed.set_err(format!(
+                    "fred (pid {}) has this file open; not saving swap files",
+                    info.pid
+                ));
+                false
+            }
+            _ => true,
+        }
+    }
+
     /// Write the swap now if there is anything unsaved (crash, signal).
     pub fn write_swap(&mut self) {
-        if self.no_swap || !self.ed.buf.modified {
+        if !self.ed.buf.modified || !self.may_write_swap() {
             return;
         }
         let text = String::from_utf8_lossy(&self.ed.buf.to_bytes()).into_owned();
-        match swap::write(&self.swap_path, self.ed.path.as_deref(), &text) {
-            Ok(()) => {
-                self.swap_on_disk = true;
-                self.swapped_version = Some(self.ed.buf.version);
-                self.ed.buf.edits_since_swap = 0;
-            }
+        let r = swap::write(&self.swap_path, self.ed.path.as_deref(), &text);
+        if self.swap_written(r) {
+            self.swap_state = SwapState::Dirty(self.ed.buf.version);
+            self.ed.buf.edits_since_swap = 0;
+        }
+    }
+
+    /// Write a clean lock (no unsaved text).
+    fn write_lock(&mut self) {
+        if !self.may_write_swap() {
+            return;
+        }
+        let r = swap::write_clean(&self.swap_path, self.ed.path.as_deref());
+        if self.swap_written(r) {
+            self.swap_state = SwapState::Clean;
+        }
+    }
+
+    fn swap_written(&mut self, r: Result<(), String>) -> bool {
+        match r {
+            Ok(()) => true,
             Err(e) => {
                 if !self.swap_error_shown {
                     self.swap_error_shown = true;
                     self.ed.set_err(e);
                 }
+                false
             }
         }
     }
 
-    fn remove_swap(&mut self) {
-        if self.swap_on_disk {
+    /// Remove our swap file (never one another fred wrote).
+    fn release_swap(&mut self) {
+        if let Ok(info) = swap::read_head(&self.swap_path)
+            && swap::is_mine(&info)
+        {
             swap::remove(&self.swap_path);
-            self.swap_on_disk = false;
         }
-        self.swapped_version = None;
+        self.swap_state = SwapState::None;
     }
 
     /// Normal exit: the swap file is no longer needed.
     pub fn cleanup(&mut self) {
         if !self.no_swap {
-            self.remove_swap();
-            swap::remove(&self.swap_path);
+            self.release_swap();
         }
     }
 
@@ -619,19 +762,107 @@ mod tests {
     }
 
     #[test]
-    fn swap_written_after_idle_and_removed_on_save() {
+    fn swap_is_a_lock_that_holds_unsaved_text() {
         let mut t = T::open(Some("f"), Some("a\n"));
         let sp = t.s.swap_path.clone();
+        t.s.lock();
+        let info = crate::swap::read(&sp).unwrap();
+        assert!(info.clean, "the lock exists from the start, with no text");
         let now = Instant::now();
         t.keys("ixyz<Esc>");
         t.s.maybe_swap(now);
-        assert!(!sp.exists(), "not yet idle");
+        assert!(crate::swap::read(&sp).unwrap().clean, "not yet idle");
         t.s.maybe_swap(now + Duration::from_millis(1100));
         let info = crate::swap::read(&sp).unwrap();
+        assert!(!info.clean);
         assert_eq!(info.text, "xyza\n");
         t.keys(":w<Enter>");
         t.s.maybe_swap(now + Duration::from_secs(3));
+        assert!(
+            crate::swap::read(&sp).unwrap().clean,
+            "saved: back to a clean lock"
+        );
+        t.s.cleanup();
+        assert!(!sp.exists(), "a normal exit removes it");
+    }
+
+    #[test]
+    fn never_removes_or_overwrites_someone_elses_swap() {
+        let mut t = T::open(Some("f"), Some("a\n"));
+        let sp = t.s.swap_path.clone();
+        // Another (live) owner's swap appears for our file.
+        let mut child = std::process::Command::new("sleep")
+            .arg("5")
+            .spawn()
+            .unwrap();
+        crate::swap::write(&sp, Some(&t.dir.path().join("f")), "theirs").unwrap();
+        let text = fs::read_to_string(&sp).unwrap().replacen(
+            &format!("\"pid\":{}", std::process::id()),
+            &format!("\"pid\":{}", child.id()),
+            1,
+        );
+        fs::write(&sp, text).unwrap();
+        t.keys("ixyz<Esc>");
+        t.s.write_swap();
+        t.s.cleanup();
+        let info = crate::swap::read(&sp).unwrap();
+        assert_eq!(info.pid, child.id());
+        assert_eq!(info.text, "theirs");
+        child.kill().unwrap();
+        child.wait().unwrap();
+    }
+
+    #[test]
+    fn a_clean_lock_left_by_a_dead_fred_is_removed_silently() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("f");
+        fs::write(&p, "x\n").unwrap();
+        let swap_dir = dir.path().join("swap");
+        let sp = crate::swap::swap_path_in(&swap_dir, Some(&p));
+        crate::swap::write_clean(&sp, Some(&p)).unwrap();
+        let text = fs::read_to_string(&sp).unwrap().replacen(
+            &format!("\"pid\":{}", std::process::id()),
+            "\"pid\":999999",
+            1,
+        );
+        fs::write(&sp, text).unwrap();
+        let (_, info) = Session::open(Some(p), &Config::default(), &swap_dir).unwrap();
+        assert!(info.is_none());
         assert!(!sp.exists());
+    }
+
+    #[test]
+    fn edit_into_a_file_with_a_swap_asks_first() {
+        let mut t = T::open(Some("a"), Some("aaa\n"));
+        let b = t.dir.path().join("b");
+        fs::write(&b, "bbb\n").unwrap();
+        let sp = crate::swap::swap_path_in(&t.dir.path().join("swap"), Some(&b));
+        crate::swap::write(&sp, Some(&b), "bbb recovered\n").unwrap();
+        let text = fs::read_to_string(&sp).unwrap().replacen(
+            &format!("\"pid\":{}", std::process::id()),
+            "\"pid\":999999",
+            1,
+        );
+        fs::write(&sp, text).unwrap();
+        t.keys(&format!(":e {}<Enter>", b.display()));
+        assert!(t.s.pending_edit.is_some(), "the choice is the user's");
+        assert_eq!(
+            t.s.ed.buf.text(),
+            "aaa",
+            "nothing switches before the answer"
+        );
+        t.s.resolve_edit(SwapChoice::Cancel);
+        assert_eq!(t.s.ed.buf.text(), "aaa");
+        t.keys(&format!(":e {}<Enter>", b.display()));
+        t.s.resolve_edit(SwapChoice::Recover);
+        assert_eq!(t.s.ed.buf.text(), "bbb recovered");
+        assert!(t.s.ed.buf.modified);
+        assert!(!t.s.no_swap, "the recovered text stays protected");
+        let info = crate::swap::read(&sp).unwrap();
+        assert_eq!(
+            (info.pid, info.text.as_str()),
+            (std::process::id(), "bbb recovered\n")
+        );
     }
 
     #[test]
