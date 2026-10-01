@@ -64,7 +64,7 @@ fn visible(
     cols: usize,
 ) -> Vec<Span<'static>> {
     let mut styler = Styler::new(styles);
-    let mut lay = Layout::new(line, tabstop, None)
+    let mut lay = Layout::from_col(line, tabstop, left)
         .filter(|p| p.width > 0)
         .peekable();
     let mut spans = vec![];

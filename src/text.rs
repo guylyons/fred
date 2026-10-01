@@ -21,19 +21,27 @@ pub fn prev_grapheme(s: &str, byte: usize) -> usize {
     c.prev_boundary(s, 0).ok().flatten().unwrap_or(0)
 }
 
-/// Snap `byte` down to the nearest grapheme boundary.
+/// Snap `byte` down to the nearest grapheme boundary. Looks only at the
+/// text around `byte`, so it is cheap even on a very long line.
 pub fn floor_grapheme(s: &str, byte: usize) -> usize {
     if byte >= s.len() {
         return s.len();
     }
-    let mut start = 0;
-    for (i, _) in s.grapheme_indices(true) {
-        if i > byte {
-            break;
-        }
-        start = i;
+    let mut byte = byte;
+    while !s.is_char_boundary(byte) {
+        byte -= 1;
     }
-    start
+    let mut c = GraphemeCursor::new(byte, s.len(), true);
+    match c.is_boundary(s, 0) {
+        Ok(true) => byte,
+        _ => c.prev_boundary(s, 0).ok().flatten().unwrap_or(0),
+    }
+}
+
+/// Printable ASCII only: every byte is one grapheme one column wide, so
+/// columns are byte offsets (fast paths for very long lines).
+pub fn is_plain(s: &str) -> bool {
+    s.bytes().all(|b| (0x20..0x7f).contains(&b))
 }
 
 /// Where Ctrl-W deletes back to from `end`: trailing blanks, then either a
@@ -66,6 +74,9 @@ pub fn is_control(c: char) -> bool {
 
 /// Width of `s` on screen when it starts at column `start_col`.
 pub fn display_width(s: &str, tabstop: usize, start_col: usize) -> usize {
+    if is_plain(s) {
+        return s.len();
+    }
     let mut col = start_col;
     for g in s.graphemes(true) {
         col += grapheme_width(g, col, tabstop);
@@ -80,6 +91,9 @@ pub fn col_of_byte(line: &str, byte: usize, tabstop: usize) -> usize {
 
 /// Byte offset of the grapheme covering screen column `col` (or `line.len()`).
 pub fn byte_of_col(line: &str, col: usize, tabstop: usize) -> usize {
+    if is_plain(line) {
+        return col.min(line.len());
+    }
     let mut c = 0;
     for (i, g) in line.grapheme_indices(true) {
         let w = grapheme_width(g, c, tabstop);
@@ -103,6 +117,30 @@ mod tests {
         assert_eq!(prev_grapheme(s, 6), 3);
         assert_eq!(display_width(s, 8, 0), 4);
         assert_eq!(display_width("\tx", 8, 0), 9);
+    }
+
+    #[test]
+    fn plain_ascii_is_one_column_per_byte() {
+        assert!(is_plain("ab c{}[]~"));
+        assert!(!is_plain("a\tb") && !is_plain("é") && !is_plain("a\u{1}"));
+        let s = "x".repeat(50);
+        assert_eq!(display_width(&s, 8, 3), 50);
+        assert_eq!(byte_of_col(&s, 7, 8), 7);
+        assert_eq!(byte_of_col(&s, 70, 8), 50);
+        assert_eq!(col_of_byte(&s, 20, 8), 20);
+    }
+
+    #[test]
+    fn floor_grapheme_looks_only_nearby() {
+        let s = "ae\u{301}漢";
+        assert_eq!(floor_grapheme(s, 0), 0);
+        assert_eq!(floor_grapheme(s, 1), 1);
+        assert_eq!(floor_grapheme(s, 2), 1, "inside e + combining accent");
+        assert_eq!(floor_grapheme(s, 3), 1);
+        assert_eq!(floor_grapheme(s, 4), 4);
+        assert_eq!(floor_grapheme(s, 5), 4, "inside 漢");
+        assert_eq!(floor_grapheme(s, 7), 7);
+        assert_eq!(floor_grapheme(s, 99), 7);
     }
 
     #[test]
