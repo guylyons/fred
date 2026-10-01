@@ -6,6 +6,7 @@ use std::path::PathBuf;
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct Config {
+    #[serde(deserialize_with = "height")]
     pub height: usize,
     pub wrap: bool,
     pub numbers: bool,
@@ -26,6 +27,21 @@ impl Default for Config {
             tabstop: 8,
             autocomplete: true,
         }
+    }
+}
+
+/// `height` is a line count or "max" (as tall as the terminal allows).
+fn height<'de, D: serde::Deserializer<'de>>(d: D) -> Result<usize, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum H {
+        N(usize),
+        S(String),
+    }
+    match H::deserialize(d)? {
+        H::N(n) => Ok(n),
+        H::S(s) if s == "max" => Ok(usize::MAX),
+        H::S(s) => Err(serde::de::Error::custom(format!("invalid height: {s:?}"))),
     }
 }
 
@@ -106,6 +122,7 @@ mod tests {
     #[test]
     fn invalid_values_are_errors() {
         assert!(Config::parse("height = 0").1.is_some());
+        assert_eq!(Config::parse("height = \"max\"").0.height, usize::MAX);
         assert!(Config::parse("tabstop = 0").1.is_some());
         assert!(Config::parse("height = \"x\"").1.is_some());
     }

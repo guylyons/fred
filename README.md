@@ -38,7 +38,8 @@ fred [--height N] [+LINE] [FILE]
 
 - `FILE` doesn't have to exist; it's created on the first `:w`.
 - `+LINE` starts on that line; `+` alone starts on the last line.
-- `--height N` shows N lines of text (default 12). The window starts as small
+- `--height N` shows N lines of text (default 12); `--height max` uses the
+  whole terminal, leaving your prompt visible. The window starts as small
   as the file and grows as the file gets longer.
 
 ## Keys
@@ -134,7 +135,7 @@ than 20,000 characters.
 key is optional:
 
 ```toml
-height = 12              # lines of text in the window
+height = 12              # lines of text in the window, or "max"
 wrap = false             # wrap long lines (otherwise the view scrolls sideways)
 numbers = true           # line numbers
 relative_numbers = false

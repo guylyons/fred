@@ -6,7 +6,7 @@ pub const USAGE: &str = "usage: fred [--height N] [+LINE] [FILE]
 
   FILE          file to edit (created on first write if missing)
   +LINE         start on line LINE; + alone starts on the last line
-  --height N    show N lines of text (default 12, or `height` in config)
+  --height N    show N lines of text, or `max` (default 12, or `height` in config)
   -h, --help    show this help
   -V, --version show the version
 
@@ -34,6 +34,9 @@ pub enum ArgsOrInfo {
 }
 
 fn height(v: &str) -> Result<usize, String> {
+    if v == "max" {
+        return Ok(usize::MAX);
+    }
     match v.parse::<usize>() {
         Ok(n) if n > 0 => Ok(n),
         _ => Err(format!("invalid height: {v}")),
@@ -130,6 +133,7 @@ mod tests {
         assert!(parse(v(&["a", "b"])).is_err());
         assert!(parse(v(&["--height"])).is_err());
         assert!(parse(v(&["--height", "0"])).is_err());
+        assert!(matches!(parse(v(&["--height", "max"])), Ok(ArgsOrInfo::Run(a)) if a.height == Some(usize::MAX)));
         assert!(parse(v(&["--bogus"])).is_err());
         assert!(parse(v(&["+x"])).is_err());
     }
