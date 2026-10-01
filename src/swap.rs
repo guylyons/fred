@@ -35,13 +35,17 @@ pub fn swap_dir() -> PathBuf {
     let base = std::env::var_os("XDG_STATE_HOME")
         .filter(|v| !v.is_empty())
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".local/state"));
+        .unwrap_or_else(|| {
+            PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".local/state")
+        });
     base.join("fred/swap")
 }
 
 /// The real absolute path a swap file is keyed on.
 pub fn canonical(file: &Path) -> PathBuf {
-    fs::canonicalize(file).or_else(|_| std::path::absolute(file)).unwrap_or_else(|_| file.to_path_buf())
+    fs::canonicalize(file)
+        .or_else(|_| std::path::absolute(file))
+        .unwrap_or_else(|_| file.to_path_buf())
 }
 
 pub fn swap_name(file: Option<&Path>) -> String {
@@ -76,21 +80,32 @@ pub fn hostname() -> String {
 /// Atomically write the swap file (mode 0600).
 pub fn write(swap: &Path, file: Option<&Path>, text: &str) -> Result<(), String> {
     let dir = swap.parent().ok_or("bad swap path")?;
-    DirBuilder::new().recursive(true).mode(0o700).create(dir).map_err(|e| format!("swap: {e}"))?;
+    DirBuilder::new()
+        .recursive(true)
+        .mode(0o700)
+        .create(dir)
+        .map_err(|e| format!("swap: {e}"))?;
     let header = Header {
         magic: MAGIC.into(),
         version: VERSION,
         pid: std::process::id(),
         host: hostname(),
         path: file.map(|f| canonical(f).to_string_lossy().into_owned()),
-        saved_at: SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs()),
+        saved_at: SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs()),
     };
     let mut data = serde_json::to_string(&header).map_err(|e| e.to_string())?;
     data.push('\n');
     data.push_str(text);
     let tmp = swap.with_extension(format!("swp.tmp{}", std::process::id()));
     let res = (|| -> std::io::Result<()> {
-        let mut f = OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(&tmp)?;
+        let mut f = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(&tmp)?;
         f.write_all(data.as_bytes())?;
         f.sync_all()?;
         fs::rename(&tmp, swap)
@@ -109,7 +124,13 @@ pub fn read(swap: &Path) -> Result<SwapInfo, String> {
     if h.magic != MAGIC || h.version != VERSION {
         return Err("not a swap file".into());
     }
-    Ok(SwapInfo { pid: h.pid, host: h.host, path: h.path, saved_at: h.saved_at, text: text.to_string() })
+    Ok(SwapInfo {
+        pid: h.pid,
+        host: h.host,
+        path: h.path,
+        saved_at: h.saved_at,
+        text: text.to_string(),
+    })
 }
 
 /// Another live process on this host owns the swap file.
@@ -117,7 +138,9 @@ pub fn owner_alive(info: &SwapInfo) -> bool {
     if info.pid == std::process::id() || info.host != hostname() || info.pid == 0 {
         return false;
     }
-    let Ok(pid) = libc::pid_t::try_from(info.pid) else { return false };
+    let Ok(pid) = libc::pid_t::try_from(info.pid) else {
+        return false;
+    };
     // SAFETY: signal 0 only checks for existence.
     let r = unsafe { libc::kill(pid, 0) };
     r == 0 || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
@@ -135,7 +158,10 @@ mod tests {
     #[test]
     fn name_escapes_path() {
         assert_eq!(swap_name(Some(Path::new("/a/b%c"))), "%2Fa%2Fb%25c.swp");
-        assert_eq!(swap_name(None), format!("unnamed-{}.swp", std::process::id()));
+        assert_eq!(
+            swap_name(None),
+            format!("unnamed-{}.swp", std::process::id())
+        );
     }
 
     #[test]
@@ -148,7 +174,10 @@ mod tests {
         assert_eq!(info.pid, std::process::id());
         assert_eq!(info.path.as_deref(), Some("/x/y.txt"));
         assert_eq!(info.host, hostname());
-        assert_eq!(std::fs::metadata(&sp).unwrap().permissions().mode() & 0o777, 0o600);
+        assert_eq!(
+            std::fs::metadata(&sp).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
         remove(&sp);
         assert!(!sp.exists());
     }
@@ -163,8 +192,17 @@ mod tests {
 
     #[test]
     fn owner_liveness() {
-        let mut child = std::process::Command::new("sleep").arg("5").spawn().unwrap();
-        let mut info = SwapInfo { pid: child.id(), host: hostname(), path: None, saved_at: 0, text: String::new() };
+        let mut child = std::process::Command::new("sleep")
+            .arg("5")
+            .spawn()
+            .unwrap();
+        let mut info = SwapInfo {
+            pid: child.id(),
+            host: hostname(),
+            path: None,
+            saved_at: 0,
+            text: String::new(),
+        };
         assert!(owner_alive(&info));
         child.kill().unwrap();
         child.wait().unwrap();

@@ -68,11 +68,15 @@ pub fn parse(args: Vec<String>) -> Result<ArgsOrInfo, String> {
                     continue;
                 }
                 _ if a.starts_with('+') => {
-                    let n = a[1..].parse::<usize>().map_err(|_| format!("invalid line: {a}"))?;
+                    let n = a[1..]
+                        .parse::<usize>()
+                        .map_err(|_| format!("invalid line: {a}"))?;
                     out.line = Some(LineArg::N(n.max(1)));
                     continue;
                 }
-                _ if a.starts_with('-') && a.len() > 1 => return Err(format!("unknown option: {a}")),
+                _ if a.starts_with('-') && a.len() > 1 => {
+                    return Err(format!("unknown option: {a}"));
+                }
                 _ => {}
             }
         }
@@ -96,11 +100,31 @@ mod tests {
     fn parse_args() {
         assert!(matches!(
             parse(v(&["--height", "5", "+3", "f"])),
-            Ok(ArgsOrInfo::Run(Args { height: Some(5), line: Some(LineArg::N(3)), file: Some(_) }))
+            Ok(ArgsOrInfo::Run(Args {
+                height: Some(5),
+                line: Some(LineArg::N(3)),
+                file: Some(_)
+            }))
         ));
-        assert!(matches!(parse(v(&["+"])), Ok(ArgsOrInfo::Run(Args { line: Some(LineArg::Last), file: None, .. }))));
-        assert!(matches!(parse(v(&["--height=7"])), Ok(ArgsOrInfo::Run(Args { height: Some(7), .. }))));
-        assert!(matches!(parse(v(&["--", "-weird"])), Ok(ArgsOrInfo::Run(Args { file: Some(_), .. }))));
+        assert!(matches!(
+            parse(v(&["+"])),
+            Ok(ArgsOrInfo::Run(Args {
+                line: Some(LineArg::Last),
+                file: None,
+                ..
+            }))
+        ));
+        assert!(matches!(
+            parse(v(&["--height=7"])),
+            Ok(ArgsOrInfo::Run(Args {
+                height: Some(7),
+                ..
+            }))
+        ));
+        assert!(matches!(
+            parse(v(&["--", "-weird"])),
+            Ok(ArgsOrInfo::Run(Args { file: Some(_), .. }))
+        ));
         assert!(matches!(parse(v(&["--help"])), Ok(ArgsOrInfo::Help)));
         assert!(matches!(parse(v(&["-V"])), Ok(ArgsOrInfo::Version)));
         assert!(parse(v(&["a", "b"])).is_err());

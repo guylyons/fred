@@ -21,10 +21,21 @@ pub struct State {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Cmd {
-    Move { count: Option<usize>, motion: Motion },
+    Move {
+        count: Option<usize>,
+        motion: Motion,
+    },
     /// Operator `op` over a motion, or over whole lines when `motion` is None (`dd`).
-    Op { op: char, count: Option<usize>, motion: Option<Motion> },
-    Simple { count: Option<usize>, key: Key, arg: Option<char> },
+    Op {
+        op: char,
+        count: Option<usize>,
+        motion: Option<Motion>,
+    },
+    Simple {
+        count: Option<usize>,
+        key: Key,
+        arg: Option<char>,
+    },
 }
 
 enum Parse<T> {
@@ -41,7 +52,12 @@ fn count(keys: &[Key]) -> (Option<usize>, usize) {
         if d == 0 && n.is_none() {
             break;
         }
-        n = Some(n.unwrap_or(0).saturating_mul(10).saturating_add(d as usize).min(1_000_000));
+        n = Some(
+            n.unwrap_or(0)
+                .saturating_mul(10)
+                .saturating_add(d as usize)
+                .min(1_000_000),
+        );
         i += 1;
     }
     (n, i)
@@ -55,7 +71,9 @@ fn mul(a: Option<usize>, b: Option<usize>) -> Option<usize> {
 }
 
 fn parse_motion(keys: &[Key]) -> Parse<(Motion, usize)> {
-    let Some(k) = keys.first() else { return Parse::Incomplete };
+    let Some(k) = keys.first() else {
+        return Parse::Incomplete;
+    };
     let arg = |used: usize, f: &dyn Fn(char) -> Motion| match keys.get(1) {
         None => Parse::Incomplete,
         Some(a) => match a.char() {
@@ -116,22 +134,37 @@ fn parse_motion(keys: &[Key]) -> Parse<(Motion, usize)> {
 
 /// Commands that take one character argument.
 const ARG_CMDS: &[char] = &['r', 'm'];
-const SIMPLE: &[char] = &['x', 'X', 's', 'S', 'J', 'p', 'P', 'o', 'O', 'i', 'a', 'I', 'A', 'u', 'D', 'C', 'Y', 'V', ':', '/', '?', '.', 'r', 'm'];
+const SIMPLE: &[char] = &[
+    'x', 'X', 's', 'S', 'J', 'p', 'P', 'o', 'O', 'i', 'a', 'I', 'A', 'u', 'D', 'C', 'Y', 'V', ':',
+    '/', '?', '.', 'r', 'm',
+];
 
 fn parse(keys: &[Key]) -> Parse<Cmd> {
     let (c1, mut i) = count(keys);
-    let Some(k) = keys.get(i) else { return Parse::Incomplete };
+    let Some(k) = keys.get(i) else {
+        return Parse::Incomplete;
+    };
     if let Some(op @ ('d' | 'c' | 'y')) = k.char() {
         i += 1;
         let (c2, j) = count(&keys[i..]);
         i += j;
         let count = mul(c1, c2);
-        let Some(k2) = keys.get(i) else { return Parse::Incomplete };
+        let Some(k2) = keys.get(i) else {
+            return Parse::Incomplete;
+        };
         if k2.char() == Some(op) {
-            return Parse::Done(Cmd::Op { op, count, motion: None });
+            return Parse::Done(Cmd::Op {
+                op,
+                count,
+                motion: None,
+            });
         }
         return match parse_motion(&keys[i..]) {
-            Parse::Done((motion, _)) => Parse::Done(Cmd::Op { op, count, motion: Some(motion) }),
+            Parse::Done((motion, _)) => Parse::Done(Cmd::Op {
+                op,
+                count,
+                motion: Some(motion),
+            }),
             Parse::Incomplete => Parse::Incomplete,
             Parse::Invalid => Parse::Invalid,
         };
@@ -142,21 +175,36 @@ fn parse(keys: &[Key]) -> Parse<Cmd> {
         Parse::Invalid => {}
     }
     let simple_ctrl = k.ctrl && matches!(k.code, KeyCode::Char('r' | 'd' | 'u' | 'f' | 'b'));
-    let simple_key = matches!(k.code, KeyCode::PageUp | KeyCode::PageDown | KeyCode::Delete);
+    let simple_key = matches!(
+        k.code,
+        KeyCode::PageUp | KeyCode::PageDown | KeyCode::Delete
+    );
     match k.char() {
         Some(c) if SIMPLE.contains(&c) => {
             if ARG_CMDS.contains(&c) {
                 return match keys.get(i + 1) {
                     None => Parse::Incomplete,
                     Some(a) => match a.char() {
-                        Some(ch) => Parse::Done(Cmd::Simple { count: c1, key: *k, arg: Some(ch) }),
+                        Some(ch) => Parse::Done(Cmd::Simple {
+                            count: c1,
+                            key: *k,
+                            arg: Some(ch),
+                        }),
                         None => Parse::Invalid,
                     },
                 };
             }
-            Parse::Done(Cmd::Simple { count: c1, key: *k, arg: None })
+            Parse::Done(Cmd::Simple {
+                count: c1,
+                key: *k,
+                arg: None,
+            })
         }
-        _ if simple_ctrl || simple_key => Parse::Done(Cmd::Simple { count: c1, key: *k, arg: None }),
+        _ if simple_ctrl || simple_key => Parse::Done(Cmd::Simple {
+            count: c1,
+            key: *k,
+            arg: None,
+        }),
         _ => Parse::Invalid,
     }
 }
@@ -187,7 +235,9 @@ pub fn normal_key(ed: &mut Editor, k: Key) {
             if matches!(ed.mode, Mode::VisualLine { .. }) {
                 let allowed = match &cmd {
                     Cmd::Move { .. } => true,
-                    Cmd::Simple { key, .. } => key.ctrl || key.char() == Some('m') || !matches!(key.code, KeyCode::Char(_)),
+                    Cmd::Simple { key, .. } => {
+                        key.ctrl || key.char() == Some('m') || !matches!(key.code, KeyCode::Char(_))
+                    }
                     Cmd::Op { .. } => false,
                 };
                 if allowed {
@@ -203,7 +253,9 @@ pub fn normal_key(ed: &mut Editor, k: Key) {
 pub use insert::insert_key;
 
 /// Keys that act on the selection in Visual-line mode.
-const VISUAL: &[char] = &['d', 'x', 'X', 'D', 'y', 'Y', 'c', 's', 'S', 'C', 'J', ':', 'V', 'o'];
+const VISUAL: &[char] = &[
+    'd', 'x', 'X', 'D', 'y', 'Y', 'c', 's', 'S', 'C', 'J', ':', 'V', 'o',
+];
 
 fn visual(ed: &mut Editor, anchor: usize, c: char) {
     let (lo, hi) = (anchor.min(ed.cur.line), anchor.max(ed.cur.line));
@@ -211,7 +263,9 @@ fn visual(ed: &mut Editor, anchor: usize, c: char) {
     match c {
         'V' => {}
         'o' => {
-            ed.mode = Mode::VisualLine { anchor: ed.cur.line };
+            ed.mode = Mode::VisualLine {
+                anchor: ed.cur.line,
+            };
             ed.set_line_keep_col(anchor);
         }
         ':' => {
@@ -246,7 +300,29 @@ fn visual(ed: &mut Editor, anchor: usize, c: char) {
 fn is_change(cmd: &Cmd) -> bool {
     match cmd {
         Cmd::Op { op, .. } => *op != 'y',
-        Cmd::Simple { key, .. } => !key.ctrl && matches!(key.char(), Some('x' | 'X' | 's' | 'S' | 'J' | 'p' | 'P' | 'o' | 'O' | 'i' | 'a' | 'I' | 'A' | 'D' | 'C' | 'r')),
+        Cmd::Simple { key, .. } => {
+            !key.ctrl
+                && matches!(
+                    key.char(),
+                    Some(
+                        'x' | 'X'
+                            | 's'
+                            | 'S'
+                            | 'J'
+                            | 'p'
+                            | 'P'
+                            | 'o'
+                            | 'O'
+                            | 'i'
+                            | 'a'
+                            | 'I'
+                            | 'A'
+                            | 'D'
+                            | 'C'
+                            | 'r'
+                    )
+                )
+        }
         Cmd::Move { .. } => false,
     }
 }
@@ -357,7 +433,9 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
             }
         }
         (KeyCode::Char('.'), false) => repeat(ed, count),
-        (KeyCode::Char('x'), false) | (KeyCode::Delete, _) => op(ed, 'd', count, Some(Motion::Right)),
+        (KeyCode::Char('x'), false) | (KeyCode::Delete, _) => {
+            op(ed, 'd', count, Some(Motion::Right))
+        }
         (KeyCode::Char('X'), false) => op(ed, 'd', count, Some(Motion::Left)),
         (KeyCode::Char('D'), false) => op(ed, 'd', count, Some(Motion::LineEnd)),
         (KeyCode::Char('C'), false) => op(ed, 'c', count, Some(Motion::LineEnd)),
@@ -394,13 +472,25 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
             ed.mode = Mode::Insert;
             ed.cur.byte = b;
         }
-        (KeyCode::Char('V'), false) => ed.mode = Mode::VisualLine { anchor: ed.cur.line },
+        (KeyCode::Char('V'), false) => {
+            ed.mode = Mode::VisualLine {
+                anchor: ed.cur.line,
+            }
+        }
         (KeyCode::Char('d'), true) | (KeyCode::PageDown, _) | (KeyCode::Char('f'), true) => {
-            let n = count.unwrap_or(if matches!(key.code, KeyCode::Char('d')) { half } else { ed.win_height.max(1) });
+            let n = count.unwrap_or(if matches!(key.code, KeyCode::Char('d')) {
+                half
+            } else {
+                ed.win_height.max(1)
+            });
             ed.set_line_keep_col(ed.cur.line + n);
         }
         (KeyCode::Char('u'), true) | (KeyCode::PageUp, _) | (KeyCode::Char('b'), true) => {
-            let n = count.unwrap_or(if matches!(key.code, KeyCode::Char('u')) { half } else { ed.win_height.max(1) });
+            let n = count.unwrap_or(if matches!(key.code, KeyCode::Char('u')) {
+                half
+            } else {
+                ed.win_height.max(1)
+            });
             ed.set_line_keep_col(ed.cur.line.saturating_sub(n));
         }
         (KeyCode::Char(':'), false) => ed.open_cmdline(':', ""),

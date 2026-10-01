@@ -45,7 +45,8 @@ pub fn read_delimited(input: &str, delim: char) -> (String, &str) {
 /// Resolve an empty pattern to the last one, or remember a new one.
 pub fn use_pattern(pat: String, last: &mut Option<String>) -> Result<String, String> {
     if pat.is_empty() {
-        last.clone().ok_or_else(|| "no previous pattern".to_string())
+        last.clone()
+            .ok_or_else(|| "no previous pattern".to_string())
     } else {
         *last = Some(pat.clone());
         Ok(pat)
@@ -106,7 +107,10 @@ pub fn parse_addr<'i>(input: &'i str, ctx: &mut AddrCtx) -> Result<(Option<i64>,
 }
 
 /// Parse an optional `addr[,|;addr]` range; returns it and the rest of the input.
-pub fn parse_range<'i>(input: &'i str, ctx: &mut AddrCtx) -> Result<(Option<Range>, &'i str), String> {
+pub fn parse_range<'i>(
+    input: &'i str,
+    ctx: &mut AddrCtx,
+) -> Result<(Option<Range>, &'i str), String> {
     let last = ctx.buf.len_lines() as i64;
     let (a1, rest) = parse_addr(input, ctx)?;
     let t = rest.trim_start();
@@ -131,7 +135,13 @@ pub fn parse_range<'i>(input: &'i str, ctx: &mut AddrCtx) -> Result<(Option<Rang
     if a > b {
         return Err("invalid range".into());
     }
-    Ok((Some(Range { start: a as usize - 1, end: b as usize - 1 }), rest))
+    Ok((
+        Some(Range {
+            start: a as usize - 1,
+            end: b as usize - 1,
+        }),
+        rest,
+    ))
 }
 
 #[cfg(test)]
@@ -144,7 +154,12 @@ mod tests {
         let b = Buffer::from_text(buf);
         let marks = HashMap::from([('a', 1)]);
         let mut lp = None;
-        let mut ctx = AddrCtx { buf: &b, cur, marks: &marks, last_pat: &mut lp };
+        let mut ctx = AddrCtx {
+            buf: &b,
+            cur,
+            marks: &marks,
+            last_pat: &mut lp,
+        };
         parse_range(input, &mut ctx).map(|(r, _)| r.map(|r| (r.start, r.end)))
     }
 
@@ -175,7 +190,12 @@ mod tests {
         let b = Buffer::from_text("a\nb");
         let marks = HashMap::new();
         let mut lp = None;
-        let mut ctx = AddrCtx { buf: &b, cur: 0, marks: &marks, last_pat: &mut lp };
+        let mut ctx = AddrCtx {
+            buf: &b,
+            cur: 0,
+            marks: &marks,
+            last_pat: &mut lp,
+        };
         let (_, rest) = parse_range("1,2s/a/b/", &mut ctx).unwrap();
         assert_eq!(rest, "s/a/b/");
     }
@@ -185,7 +205,12 @@ mod tests {
         let b = Buffer::from_text("x\ny\nx");
         let marks = HashMap::new();
         let mut lp = Some("x".to_string());
-        let mut ctx = AddrCtx { buf: &b, cur: 0, marks: &marks, last_pat: &mut lp };
+        let mut ctx = AddrCtx {
+            buf: &b,
+            cur: 0,
+            marks: &marks,
+            last_pat: &mut lp,
+        };
         let (r, _) = parse_range("//d", &mut ctx).unwrap();
         assert_eq!(r, Some(Range { start: 2, end: 2 }));
     }
@@ -195,7 +220,12 @@ mod tests {
         let b = Buffer::from_text("a\nb");
         let marks = HashMap::new();
         let mut lp = None;
-        let mut ctx = AddrCtx { buf: &b, cur: 0, marks: &marks, last_pat: &mut lp };
+        let mut ctx = AddrCtx {
+            buf: &b,
+            cur: 0,
+            marks: &marks,
+            last_pat: &mut lp,
+        };
         assert_eq!(parse_addr("0", &mut ctx).unwrap().0, Some(0));
         assert_eq!(parse_addr("$", &mut ctx).unwrap().0, Some(2));
     }

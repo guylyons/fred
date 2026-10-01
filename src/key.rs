@@ -28,7 +28,11 @@ pub struct Key {
 
 impl Key {
     pub fn new(code: KeyCode) -> Key {
-        Key { code, ctrl: false, alt: false }
+        Key {
+            code,
+            ctrl: false,
+            alt: false,
+        }
     }
 
     pub fn ch(c: char) -> Key {
@@ -36,7 +40,11 @@ impl Key {
     }
 
     pub fn ctrl(c: char) -> Key {
-        Key { code: KeyCode::Char(c), ctrl: true, alt: false }
+        Key {
+            code: KeyCode::Char(c),
+            ctrl: true,
+            alt: false,
+        }
     }
 
     /// The plain character typed, if this is an unmodified char key.
@@ -75,7 +83,10 @@ fn named(name: &str) -> Option<Key> {
     if let Some(c) = name.strip_prefix("C-") {
         let mut it = c.chars();
         let ch = it.next()?;
-        return it.next().is_none().then(|| Key::ctrl(ch.to_ascii_lowercase()));
+        return it
+            .next()
+            .is_none()
+            .then(|| Key::ctrl(ch.to_ascii_lowercase()));
     }
     Some(Key::new(match name {
         "Esc" => KeyCode::Esc,

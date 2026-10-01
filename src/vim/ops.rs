@@ -23,7 +23,11 @@ pub fn indent_of(s: &str) -> &str {
 /// Insert `text` at the cursor and move the cursor after it.
 pub fn insert_text(ed: &mut Editor, text: &str) {
     let start = ed.buf.pos_to_char(ed.cur.line, ed.cur.byte);
-    ed.apply(Edit { start, end: start, text: text.into() });
+    ed.apply(Edit {
+        start,
+        end: start,
+        text: text.into(),
+    });
     let (l, b) = ed.buf.char_to_pos(start + text.chars().count());
     ed.cur.line = l;
     ed.cur.byte = b;
@@ -35,7 +39,11 @@ pub fn delete_chars(ed: &mut Editor, from: (usize, usize), to: (usize, usize)) -
     let e = ed.buf.pos_to_char(to.0, to.1);
     let removed = ed.buf.slice(s, e);
     if s < e {
-        ed.apply(Edit { start: s, end: e, text: String::new() });
+        ed.apply(Edit {
+            start: s,
+            end: e,
+            text: String::new(),
+        });
     }
     removed
 }
@@ -48,11 +56,19 @@ pub fn splice_lines(ed: &mut Editor, at: usize, remove: usize, with: &[String]) 
 }
 
 fn lines_text(ed: &Editor, lo: usize, hi: usize) -> String {
-    (lo..=hi).map(|l| ed.buf.line(l)).collect::<Vec<_>>().join("\n")
+    (lo..=hi)
+        .map(|l| ed.buf.line(l))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// The span `op` covers for `motion` (None = whole lines, `dd`).
-pub fn span(ed: &mut Editor, op: char, count: Option<usize>, motion: Option<Motion>) -> Option<Span> {
+pub fn span(
+    ed: &mut Editor,
+    op: char,
+    count: Option<usize>,
+    motion: Option<Motion>,
+) -> Option<Span> {
     let n = ed.line_count();
     let start = ed.cur.pos();
     let Some(motion) = motion else {
@@ -77,7 +93,14 @@ pub fn span(ed: &mut Editor, op: char, count: Option<usize>, motion: Option<Moti
                     p = word_end(&ed.buf, p, big);
                 }
             }
-            motion::Target { line: p.0, byte: p.1, linewise: false, inclusive: true, keep_col: false, eol: false }
+            motion::Target {
+                line: p.0,
+                byte: p.1,
+                linewise: false,
+                inclusive: true,
+                keep_col: false,
+                eol: false,
+            }
         }
         Motion::WordFwd(big) => {
             let mut p = start;
@@ -87,16 +110,31 @@ pub fn span(ed: &mut Editor, op: char, count: Option<usize>, motion: Option<Moti
             }
             let (q, crossed) = word_fwd(&ed.buf, p, big);
             // The last word moved over ends the span at its line's end.
-            let end = if crossed && q.0 > start.0 || crossed && p.0 == start.0 { (p.0, ed.buf.line_len(p.0)) } else { q };
+            let end = if crossed && q.0 > start.0 || crossed && p.0 == start.0 {
+                (p.0, ed.buf.line_len(p.0))
+            } else {
+                q
+            };
             let end = if end < start { start } else { end };
-            motion::Target { line: end.0, byte: end.1, linewise: false, inclusive: false, keep_col: false, eol: false }
+            motion::Target {
+                line: end.0,
+                byte: end.1,
+                linewise: false,
+                inclusive: false,
+                keep_col: false,
+                eol: false,
+            }
         }
         m => motion::target(ed, m, count)?,
     };
     if t.linewise {
         return Some(Span::Lines(start.0.min(t.line), start.0.max(t.line)));
     }
-    let (mut from, mut to) = if (t.line, t.byte) < start { ((t.line, t.byte), start) } else { (start, (t.line, t.byte)) };
+    let (mut from, mut to) = if (t.line, t.byte) < start {
+        ((t.line, t.byte), start)
+    } else {
+        (start, (t.line, t.byte))
+    };
     if t.inclusive {
         let l = ed.buf.line(to.0);
         to.1 = next_grapheme(&l, to.1);
@@ -124,7 +162,10 @@ fn word_class(g: &str, big: bool) -> u8 {
 pub fn apply_op(ed: &mut Editor, op: char, sp: Span) {
     match sp {
         Span::Lines(lo, hi) => {
-            ed.reg = Register { text: lines_text(ed, lo, hi), linewise: true };
+            ed.reg = Register {
+                text: lines_text(ed, lo, hi),
+                linewise: true,
+            };
             match op {
                 'y' => {
                     if lo < ed.cur.line {
@@ -148,12 +189,18 @@ pub fn apply_op(ed: &mut Editor, op: char, sp: Span) {
             if op == 'y' {
                 let s = ed.buf.pos_to_char(from.0, from.1);
                 let e = ed.buf.pos_to_char(to.0, to.1);
-                ed.reg = Register { text: ed.buf.slice(s, e), linewise: false };
+                ed.reg = Register {
+                    text: ed.buf.slice(s, e),
+                    linewise: false,
+                };
                 ed.set_cursor(from.0, from.1);
                 return;
             }
             let removed = delete_chars(ed, from, to);
-            ed.reg = Register { text: removed, linewise: false };
+            ed.reg = Register {
+                text: removed,
+                linewise: false,
+            };
             if op == 'c' {
                 ed.mode = Mode::Insert;
             }
@@ -181,7 +228,11 @@ pub fn put(ed: &mut Editor, count: usize, after: bool) {
     } else {
         let text = reg.text.repeat(count);
         let line = ed.buf.line(ed.cur.line);
-        let byte = if after && !line.is_empty() { next_grapheme(&line, ed.cur.byte) } else { ed.cur.byte };
+        let byte = if after && !line.is_empty() {
+            next_grapheme(&line, ed.cur.byte)
+        } else {
+            ed.cur.byte
+        };
         ed.cur.byte = byte;
         let start = ed.cur.pos();
         insert_text(ed, &text);
@@ -209,7 +260,15 @@ pub fn join(ed: &mut Editor, lo: usize, count: usize) -> bool {
         let cur = ed.buf.line(lo);
         let next = ed.buf.line(lo + 1);
         let next = next.trim_start();
-        let sep = if cur.is_empty() || next.is_empty() || cur.ends_with([' ', '\t']) || next.starts_with(')') { "" } else { " " };
+        let sep = if cur.is_empty()
+            || next.is_empty()
+            || cur.ends_with([' ', '\t'])
+            || next.starts_with(')')
+        {
+            ""
+        } else {
+            " "
+        };
         col = cur.len();
         let joined = format!("{cur}{sep}{next}");
         splice_lines(ed, lo, 2, &[joined]);

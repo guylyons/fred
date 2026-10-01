@@ -11,10 +11,20 @@ use std::collections::HashMap;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExEffect {
     None,
-    Write { path: Option<String>, force: bool, range: Option<Range>, then_quit: bool },
+    Write {
+        path: Option<String>,
+        force: bool,
+        range: Option<Range>,
+        then_quit: bool,
+    },
     WriteIfModifiedQuit,
-    Quit { force: bool },
-    Edit { path: String, force: bool },
+    Quit {
+        force: bool,
+    },
+    Edit {
+        path: String,
+        force: bool,
+    },
 }
 
 /// What ex commands operate on: borrowed pieces of the editor.
@@ -37,7 +47,14 @@ impl<'a> ExState<'a> {
         marks: &'a HashMap<char, usize>,
         last_pat: &'a mut Option<String>,
     ) -> Self {
-        ExState { buf, undo, cur, marks, last_pat, log: vec![] }
+        ExState {
+            buf,
+            undo,
+            cur,
+            marks,
+            last_pat,
+            log: vec![],
+        }
     }
 
     fn apply(&mut self, e: Edit) {
@@ -58,7 +75,12 @@ impl<'a> ExState<'a> {
     }
 
     fn addr_ctx(&mut self) -> AddrCtx<'_> {
-        AddrCtx { buf: &*self.buf, cur: self.cur, marks: self.marks, last_pat: &mut *self.last_pat }
+        AddrCtx {
+            buf: &*self.buf,
+            cur: self.cur,
+            marks: self.marks,
+            last_pat: &mut *self.last_pat,
+        }
     }
 }
 
@@ -89,7 +111,10 @@ fn run_one(st: &mut ExState, line: &str, in_global: bool) -> Result<ExEffect, St
     };
     let rest = rest.trim_start();
     let cur = st.cur;
-    let at_cur = Range { start: cur, end: cur };
+    let at_cur = Range {
+        start: cur,
+        end: cur,
+    };
     let mut chars = rest.chars();
     let Some(c) = chars.next() else {
         if let Some(r) = range {
@@ -98,14 +123,20 @@ fn run_one(st: &mut ExState, line: &str, in_global: bool) -> Result<ExEffect, St
         return Ok(ExEffect::None);
     };
     let after = &rest[c.len_utf8()..];
-    let delim_follows = after.chars().next().is_some_and(|d| !d.is_alphanumeric() && !d.is_whitespace() && d != '!');
+    let delim_follows = after
+        .chars()
+        .next()
+        .is_some_and(|d| !d.is_alphanumeric() && !d.is_whitespace() && d != '!');
     match c {
         's' if delim_follows => substitute(st, range.unwrap_or(at_cur), after),
         'g' | 'v' if delim_follows => {
             if in_global {
                 return Err("nested global".into());
             }
-            let all = Range { start: 0, end: st.buf.len_lines() - 1 };
+            let all = Range {
+                start: 0,
+                end: st.buf.len_lines() - 1,
+            };
             global(st, range.unwrap_or(all), after, c == 'g')
         }
         'd' if after.trim().is_empty() => {
@@ -117,7 +148,10 @@ fn run_one(st: &mut ExState, line: &str, in_global: bool) -> Result<ExEffect, St
         'j' if after.trim().is_empty() => {
             let r = match range {
                 Some(r) => r,
-                None if cur + 1 < st.buf.len_lines() => Range { start: cur, end: cur + 1 },
+                None if cur + 1 < st.buf.len_lines() => Range {
+                    start: cur,
+                    end: cur + 1,
+                },
                 None => return Err("invalid address".into()),
             };
             if r.start < r.end {
@@ -163,7 +197,9 @@ fn run_one(st: &mut ExState, line: &str, in_global: bool) -> Result<ExEffect, St
 }
 
 fn file_command(rest: &str, range: Option<Range>) -> Result<ExEffect, String> {
-    let name_end = rest.find(|c: char| !c.is_ascii_alphabetic()).unwrap_or(rest.len());
+    let name_end = rest
+        .find(|c: char| !c.is_ascii_alphabetic())
+        .unwrap_or(rest.len());
     let name = &rest[..name_end];
     let mut tail = &rest[name_end..];
     let force = tail.starts_with('!');
@@ -178,10 +214,26 @@ fn file_command(rest: &str, range: Option<Range>) -> Result<ExEffect, String> {
         return Err("shell commands are not supported".into());
     }
     let path = (!arg.is_empty()).then(|| arg.to_string());
-    let no_arg = |e: ExEffect| if path.is_some() { Err(format!("unexpected argument: {arg}")) } else { Ok(e) };
+    let no_arg = |e: ExEffect| {
+        if path.is_some() {
+            Err(format!("unexpected argument: {arg}"))
+        } else {
+            Ok(e)
+        }
+    };
     match name {
-        "w" | "write" => Ok(ExEffect::Write { path, force, range, then_quit: false }),
-        "wq" => Ok(ExEffect::Write { path, force, range, then_quit: true }),
+        "w" | "write" => Ok(ExEffect::Write {
+            path,
+            force,
+            range,
+            then_quit: false,
+        }),
+        "wq" => Ok(ExEffect::Write {
+            path,
+            force,
+            range,
+            then_quit: true,
+        }),
         "x" | "xit" => no_arg(ExEffect::WriteIfModifiedQuit),
         "q" | "quit" => no_arg(ExEffect::Quit { force }),
         "e" | "edit" => match path {
@@ -281,7 +333,10 @@ fn global(st: &mut ExState, r: Range, spec: &str, want: bool) -> Result<ExEffect
         run_one(st, cmd, true)?;
         for &(at, removed, inserted) in &st.log[before..] {
             let end = (at + removed).min(marked.len());
-            marked.splice(at.min(marked.len())..end, std::iter::repeat_n(false, inserted));
+            marked.splice(
+                at.min(marked.len())..end,
+                std::iter::repeat_n(false, inserted),
+            );
         }
     }
     Ok(ExEffect::None)
@@ -302,7 +357,12 @@ mod tests {
     }
 
     fn run_on(t: &str, cur: usize, cmd: &str) -> (T, usize, Result<ExEffect, String>) {
-        let mut x = T { buf: Buffer::from_text(t), undo: Undo::default(), marks: HashMap::new(), last_pat: None };
+        let mut x = T {
+            buf: Buffer::from_text(t),
+            undo: Undo::default(),
+            marks: HashMap::new(),
+            last_pat: None,
+        };
         let mut st = ExState::new(&mut x.buf, &mut x.undo, cur, &x.marks, &mut x.last_pat);
         let r = run(&mut st, cmd);
         let cur = st.cur;
@@ -327,7 +387,10 @@ mod tests {
         assert_eq!(ex(t, 0, "2d"), ("one\nthree\nfour".into(), 1));
         assert_eq!(ex(t, 0, "$d"), ("one\ntwo\nthree".into(), 2));
         assert_eq!(ex(t, 0, ",s/o/0/g"), ("0ne\ntw0\nthree\nf0ur".into(), 3));
-        assert_eq!(ex(t, 0, "s/(o)(n)/\\2\\1&/"), ("noone\ntwo\nthree\nfour".into(), 0));
+        assert_eq!(
+            ex(t, 0, "s/(o)(n)/\\2\\1&/"),
+            ("noone\ntwo\nthree\nfour".into(), 0)
+        );
         assert_eq!(ex(t, 0, "s/o/\\&/"), ("&ne\ntwo\nthree\nfour".into(), 0));
         assert_eq!(ex(t, 0, "s#o#/#"), ("/ne\ntwo\nthree\nfour".into(), 0));
         assert_eq!(ex(t, 0, "1,2j"), ("onetwo\nthree\nfour".into(), 0));
@@ -336,19 +399,33 @@ mod tests {
         assert_eq!(ex(t, 3, "4m0"), ("four\none\ntwo\nthree".into(), 0));
         assert_eq!(ex(t, 0, "1,2m3"), ("three\none\ntwo\nfour".into(), 2));
         assert_eq!(ex(t, 0, "1t2"), ("one\ntwo\none\nthree\nfour".into(), 2));
-        assert_eq!(ex(t, 0, "1,2t$"), ("one\ntwo\nthree\nfour\none\ntwo".into(), 5));
+        assert_eq!(
+            ex(t, 0, "1,2t$"),
+            ("one\ntwo\nthree\nfour\none\ntwo".into(), 5)
+        );
         assert_eq!(ex(t, 0, "g/o/d"), ("three".into(), 0));
         assert_eq!(ex(t, 0, "v/o/d"), ("one\ntwo\nfour".into(), 2));
-        assert_eq!(ex(t, 0, "g/o/s/$/!/"), ("one!\ntwo!\nthree\nfour!".into(), 3));
-        assert_eq!(ex(t, 0, "g/o/t$"), ("one\ntwo\nthree\nfour\none\ntwo\nfour".into(), 6));
+        assert_eq!(
+            ex(t, 0, "g/o/s/$/!/"),
+            ("one!\ntwo!\nthree\nfour!".into(), 3)
+        );
+        assert_eq!(
+            ex(t, 0, "g/o/t$"),
+            ("one\ntwo\nthree\nfour\none\ntwo\nfour".into(), 6)
+        );
         assert_eq!(ex(t, 0, "3"), (t.into(), 2));
-        assert_eq!(ex(t, 0, "s/e/x\\ny/"), ("onx\ny\ntwo\nthree\nfour".into(), 1));
+        assert_eq!(
+            ex(t, 0, "s/e/x\\ny/"),
+            ("onx\ny\ntwo\nthree\nfour".into(), 1)
+        );
     }
 
     #[test]
     fn errors_leave_buffer() {
         let t = "a\nb";
-        for c in ["100d", "2,1d", "/zz/d", "s/zz/y/", "k", "g//d", "g/a/", "1,2m1", "s/(/x/", "d x"] {
+        for c in [
+            "100d", "2,1d", "/zz/d", "s/zz/y/", "k", "g//d", "g/a/", "1,2m1", "s/(/x/", "d x",
+        ] {
             assert!(ex_err(t, 0, c).is_err(), "{c}");
         }
         assert!(ex_err(t, 1, "j").is_err());
@@ -372,13 +449,43 @@ mod tests {
     #[test]
     fn file_effects() {
         let e = |c: &str| run_on("a", 0, c).2.unwrap();
-        assert_eq!(e("w"), ExEffect::Write { path: None, force: false, range: None, then_quit: false });
-        assert_eq!(e("w! out.txt"), ExEffect::Write { path: Some("out.txt".into()), force: true, range: None, then_quit: false });
-        assert_eq!(e("wq"), ExEffect::Write { path: None, force: false, range: None, then_quit: true });
+        assert_eq!(
+            e("w"),
+            ExEffect::Write {
+                path: None,
+                force: false,
+                range: None,
+                then_quit: false
+            }
+        );
+        assert_eq!(
+            e("w! out.txt"),
+            ExEffect::Write {
+                path: Some("out.txt".into()),
+                force: true,
+                range: None,
+                then_quit: false
+            }
+        );
+        assert_eq!(
+            e("wq"),
+            ExEffect::Write {
+                path: None,
+                force: false,
+                range: None,
+                then_quit: true
+            }
+        );
         assert_eq!(e("x"), ExEffect::WriteIfModifiedQuit);
         assert_eq!(e("q"), ExEffect::Quit { force: false });
         assert_eq!(e("q!"), ExEffect::Quit { force: true });
-        assert_eq!(e("e! f"), ExEffect::Edit { path: "f".into(), force: true });
+        assert_eq!(
+            e("e! f"),
+            ExEffect::Edit {
+                path: "f".into(),
+                force: true
+            }
+        );
         assert!(run_on("a", 0, "e").2.is_err());
     }
 }

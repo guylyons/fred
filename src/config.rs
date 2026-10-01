@@ -33,7 +33,9 @@ pub fn config_path() -> PathBuf {
     let base = std::env::var_os("XDG_CONFIG_HOME")
         .filter(|v| !v.is_empty())
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".config"));
+        .unwrap_or_else(|| {
+            PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".config")
+        });
     base.join("fred/config.toml")
 }
 
@@ -41,11 +43,22 @@ impl Config {
     /// Parse config text; on any error, return defaults and the message.
     pub fn parse(text: &str) -> (Config, Option<String>) {
         match toml::from_str::<Config>(text) {
-            Ok(c) if c.height == 0 => (Config::default(), Some("config: height must be at least 1".into())),
-            Ok(c) if c.tabstop == 0 || c.tabstop > 32 => (Config::default(), Some("config: tabstop must be 1-32".into())),
+            Ok(c) if c.height == 0 => (
+                Config::default(),
+                Some("config: height must be at least 1".into()),
+            ),
+            Ok(c) if c.tabstop == 0 || c.tabstop > 32 => (
+                Config::default(),
+                Some("config: tabstop must be 1-32".into()),
+            ),
             Ok(c) => (c, None),
             Err(e) => {
-                let msg = e.message().lines().next().unwrap_or("invalid config").to_string();
+                let msg = e
+                    .message()
+                    .lines()
+                    .next()
+                    .unwrap_or("invalid config")
+                    .to_string();
                 (Config::default(), Some(format!("config: {msg}")))
             }
         }

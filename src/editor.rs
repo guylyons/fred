@@ -186,12 +186,24 @@ impl Editor {
     // ---- command line ----
 
     pub fn open_cmdline(&mut self, kind: char, text: &str) {
-        self.mode = Mode::Command(CmdLine { kind, text: text.into(), cursor: text.len(), hist: None, stash: String::new() });
+        self.mode = Mode::Command(CmdLine {
+            kind,
+            text: text.into(),
+            cursor: text.len(),
+            hist: None,
+            stash: String::new(),
+        });
     }
 
     fn cmdline_key(&mut self, k: Key) {
-        let Mode::Command(cl) = &mut self.mode else { return };
-        let hist = if cl.kind == ':' { &self.cmd_history } else { &self.search_history };
+        let Mode::Command(cl) = &mut self.mode else {
+            return;
+        };
+        let hist = if cl.kind == ':' {
+            &self.cmd_history
+        } else {
+            &self.search_history
+        };
         match k.code {
             KeyCode::Esc => self.mode = Mode::Normal,
             KeyCode::Char('c') if k.ctrl => self.mode = Mode::Normal,
@@ -239,9 +251,9 @@ impl Editor {
             KeyCode::Char('w') if k.ctrl => {
                 let before = &cl.text[..cl.cursor];
                 let trimmed = before.trim_end();
-                let start = trimmed.rfind(|c: char| !(c.is_alphanumeric() || c == '_')).map_or(0, |i| {
-                    if i + 1 == trimmed.len() { i } else { i + 1 }
-                });
+                let start = trimmed
+                    .rfind(|c: char| !(c.is_alphanumeric() || c == '_'))
+                    .map_or(0, |i| if i + 1 == trimmed.len() { i } else { i + 1 });
                 cl.text.replace_range(start..cl.cursor, "");
                 cl.cursor = start;
             }
@@ -258,7 +270,11 @@ impl Editor {
     fn complete_cmdline(&mut self) {}
 
     fn run_cmdline(&mut self, kind: char, text: &str) {
-        let hist = if kind == ':' { &mut self.cmd_history } else { &mut self.search_history };
+        let hist = if kind == ':' {
+            &mut self.cmd_history
+        } else {
+            &mut self.search_history
+        };
         if !text.is_empty() && hist.last().map(String::as_str) != Some(text) {
             hist.push(text.to_string());
         }
@@ -278,7 +294,13 @@ impl Editor {
     pub fn run_ex(&mut self, text: &str) {
         let line = self.cur.line;
         let before = self.undo.state_id();
-        let mut st = ExState::new(&mut self.buf, &mut self.undo, line, &self.marks, &mut self.last_pat);
+        let mut st = ExState::new(
+            &mut self.buf,
+            &mut self.undo,
+            line,
+            &self.marks,
+            &mut self.last_pat,
+        );
         let r = ex::run(&mut st, text);
         let new_cur = st.cur;
         match r {
@@ -318,9 +340,17 @@ impl Editor {
         let found = search::find(&self.buf, &re, self.cur.pos(), fwd, true);
         match found {
             Some(p) => {
-                let wrapped = if fwd { p <= self.cur.pos() } else { p >= self.cur.pos() };
+                let wrapped = if fwd {
+                    p <= self.cur.pos()
+                } else {
+                    p >= self.cur.pos()
+                };
                 if wrapped {
-                    self.set_msg(if fwd { "search wrapped to top" } else { "search wrapped to bottom" });
+                    self.set_msg(if fwd {
+                        "search wrapped to top"
+                    } else {
+                        "search wrapped to bottom"
+                    });
                 }
                 Some(p)
             }
@@ -430,7 +460,10 @@ pub(crate) mod tests {
 
     #[test]
     fn half_page() {
-        let t = (0..30).map(|i| i.to_string()).collect::<Vec<_>>().join("\n");
+        let t = (0..30)
+            .map(|i| i.to_string())
+            .collect::<Vec<_>>()
+            .join("\n");
         let mut e = Editor::new(Buffer::from_text(&t));
         e.win_height = 10;
         e.handle_key(crate::key::Key::ctrl('d'));
@@ -441,7 +474,11 @@ pub(crate) mod tests {
 
     #[test]
     fn empty_buffer_motions_dont_panic() {
-        for k in ["j", "k", "G", "gg", "w", "b", "e", "W", "B", "E", "$", "0", "^", "}", "{", "n", "N", "x", "X", "dd", "p", "P", "J", "u", "<C-r>", "D", "C<Esc>", "fz", ";", "'a", "o<Esc>", "dw", "db", "de", "cw<Esc>", "yy", "Vd", "~", "r", "."] {
+        for k in [
+            "j", "k", "G", "gg", "w", "b", "e", "W", "B", "E", "$", "0", "^", "}", "{", "n", "N",
+            "x", "X", "dd", "p", "P", "J", "u", "<C-r>", "D", "C<Esc>", "fz", ";", "'a", "o<Esc>",
+            "dw", "db", "de", "cw<Esc>", "yy", "Vd", "~", "r", ".",
+        ] {
             ed("", k);
             ed("\n\n", k);
         }

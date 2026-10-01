@@ -6,10 +6,18 @@ use regex::Regex;
 
 /// Compile a pattern; case-insensitive unless it contains an uppercase letter.
 pub fn compile(pat: &str) -> Result<Regex, String> {
-    let src = if pat.chars().any(char::is_uppercase) { pat.to_string() } else { format!("(?i){pat}") };
+    let src = if pat.chars().any(char::is_uppercase) {
+        pat.to_string()
+    } else {
+        format!("(?i){pat}")
+    };
     Regex::new(&src).map_err(|e| {
         let msg = e.to_string();
-        let last = msg.lines().rfind(|l| !l.trim().is_empty()).unwrap_or("").trim();
+        let last = msg
+            .lines()
+            .rfind(|l| !l.trim().is_empty())
+            .unwrap_or("")
+            .trim();
         format!("bad pattern: {}", last.trim_start_matches("error: "))
     })
 }
@@ -22,16 +30,29 @@ fn first_from(line: &str, re: &Regex, from: usize) -> Option<usize> {
 }
 
 fn last_before(line: &str, re: &Regex, before: usize) -> Option<usize> {
-    re.find_iter(line).map(|m| m.start()).take_while(|&s| s < before).last()
+    re.find_iter(line)
+        .map(|m| m.start())
+        .take_while(|&s| s < before)
+        .last()
 }
 
 /// Next match start strictly after (forward) or before (backward) `from`.
-pub fn find(buf: &Buffer, re: &Regex, from: (usize, usize), forward: bool, wrap: bool) -> Option<(usize, usize)> {
+pub fn find(
+    buf: &Buffer,
+    re: &Regex,
+    from: (usize, usize),
+    forward: bool,
+    wrap: bool,
+) -> Option<(usize, usize)> {
     let n = buf.len_lines();
     let (l0, b0) = from;
     if forward {
         let line = buf.line(l0);
-        let start = if b0 < line.len() { next_grapheme(&line, b0) } else { line.len() + 1 };
+        let start = if b0 < line.len() {
+            next_grapheme(&line, b0)
+        } else {
+            line.len() + 1
+        };
         if let Some(s) = first_from(&line, re, start) {
             return Some((l0, s));
         }
@@ -59,7 +80,9 @@ pub fn find(buf: &Buffer, re: &Regex, from: (usize, usize), forward: bool, wrap:
         }
         if wrap {
             for l in (l0..n).rev() {
-                if let Some(s) = last_before(&buf.line(l), re, usize::MAX).filter(|&s| l > l0 || s >= b0) {
+                if let Some(s) =
+                    last_before(&buf.line(l), re, usize::MAX).filter(|&s| l > l0 || s >= b0)
+                {
                     return Some((l, s));
                 }
             }
@@ -72,7 +95,13 @@ pub fn find(buf: &Buffer, re: &Regex, from: (usize, usize), forward: bool, wrap:
 pub fn find_line(buf: &Buffer, re: &Regex, cur: usize, forward: bool) -> Option<usize> {
     let n = buf.len_lines();
     (1..=n)
-        .map(|i| if forward { (cur + i) % n } else { (cur + n * 2 - i) % n })
+        .map(|i| {
+            if forward {
+                (cur + i) % n
+            } else {
+                (cur + n * 2 - i) % n
+            }
+        })
         .find(|&l| re.is_match(&buf.line(l)))
 }
 

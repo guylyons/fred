@@ -45,14 +45,20 @@ pub fn err_msg(e: &io::Error) -> String {
 }
 
 fn writable(path: &Path) -> bool {
-    let Ok(c) = CString::new(path.as_os_str().as_bytes()) else { return false };
+    let Ok(c) = CString::new(path.as_os_str().as_bytes()) else {
+        return false;
+    };
     // SAFETY: `c` is a valid NUL-terminated path for the duration of the call.
     unsafe { libc::access(c.as_ptr(), libc::W_OK) == 0 }
 }
 
 fn stamp_of(path: &Path, data: &[u8]) -> Option<FileStamp> {
     let m = fs::metadata(path).ok()?;
-    Some(FileStamp { mtime: m.modified().ok()?, size: m.len(), hash: hash(data) })
+    Some(FileStamp {
+        mtime: m.modified().ok()?,
+        size: m.len(),
+        hash: hash(data),
+    })
 }
 
 pub fn load(path: &Path) -> Result<Loaded, String> {
@@ -60,7 +66,12 @@ pub fn load(path: &Path) -> Result<Loaded, String> {
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
             let mut buf = Buffer::from_text("");
             buf.final_newline = true;
-            return Ok(Loaded { buf, stamp: None, readonly: false, notice: Some("[new]".into()) });
+            return Ok(Loaded {
+                buf,
+                stamp: None,
+                readonly: false,
+                notice: Some("[new]".into()),
+            });
         }
         Err(e) => return Err(err_msg(&e)),
         Ok(m) if m.is_dir() => return Err("is a directory".into()),
@@ -70,13 +81,26 @@ pub fn load(path: &Path) -> Result<Loaded, String> {
     let stamp = stamp_of(path, &bytes);
     let (buf, readonly, mut notice) = match std::str::from_utf8(&bytes) {
         Ok(s) => (Buffer::from_text(s), !writable(path), None),
-        Err(_) => (Buffer::from_text(&String::from_utf8_lossy(&bytes)), true, Some("not valid UTF-8".to_string())),
+        Err(_) => (
+            Buffer::from_text(&String::from_utf8_lossy(&bytes)),
+            true,
+            Some("not valid UTF-8".to_string()),
+        ),
     };
     if buf.mixed_endings && notice.is_none() {
-        let as_ = if buf.line_ending == crate::buffer::LineEnding::CrLf { "CRLF" } else { "LF" };
+        let as_ = if buf.line_ending == crate::buffer::LineEnding::CrLf {
+            "CRLF"
+        } else {
+            "LF"
+        };
         notice = Some(format!("mixed line endings; writing as {as_}"));
     }
-    Ok(Loaded { buf, stamp, readonly, notice })
+    Ok(Loaded {
+        buf,
+        stamp,
+        readonly,
+        notice,
+    })
 }
 
 /// Whether the file no longer matches `stamp` (content compared by hash).
@@ -100,7 +124,12 @@ fn differs(real: &Path, st: &FileStamp, m: &fs::Metadata) -> bool {
 }
 
 /// Write `data` to `path` without ever leaving a half-written file behind.
-pub fn write(path: &Path, data: &[u8], expected: Option<&FileStamp>, force: bool) -> Result<FileStamp, String> {
+pub fn write(
+    path: &Path,
+    data: &[u8],
+    expected: Option<&FileStamp>,
+    force: bool,
+) -> Result<FileStamp, String> {
     let real: PathBuf = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
     let meta = fs::metadata(&real).ok();
     if let Some(m) = &meta {
@@ -109,7 +138,9 @@ pub fn write(path: &Path, data: &[u8], expected: Option<&FileStamp>, force: bool
         }
         if !force {
             match expected {
-                Some(st) if differs(&real, st, m) => return Err("file changed on disk (w! to overwrite)".into()),
+                Some(st) if differs(&real, st, m) => {
+                    return Err("file changed on disk (w! to overwrite)".into());
+                }
                 None => return Err("file exists (w! to overwrite)".into()),
                 _ => {}
             }
@@ -120,8 +151,14 @@ pub fn write(path: &Path, data: &[u8], expected: Option<&FileStamp>, force: bool
     }
     // SAFETY: getuid has no preconditions.
     let uid = unsafe { libc::getuid() };
-    let replaceable = meta.as_ref().is_none_or(|m| m.nlink() <= 1 && m.uid() == uid);
-    let written = if replaceable { write_replace(&real, data, meta.as_ref()) } else { Err(None) };
+    let replaceable = meta
+        .as_ref()
+        .is_none_or(|m| m.nlink() <= 1 && m.uid() == uid);
+    let written = if replaceable {
+        write_replace(&real, data, meta.as_ref())
+    } else {
+        Err(None)
+    };
     match written {
         Ok(()) => {}
         Err(Some(e)) => return Err(e),
@@ -137,7 +174,11 @@ pub fn write(path: &Path, data: &[u8], expected: Option<&FileStamp>, force: bool
 }
 
 /// Temp file + rename. `Err(None)` = can't create the temp file; try in place.
-fn write_replace(real: &Path, data: &[u8], meta: Option<&fs::Metadata>) -> Result<(), Option<String>> {
+fn write_replace(
+    real: &Path,
+    data: &[u8],
+    meta: Option<&fs::Metadata>,
+) -> Result<(), Option<String>> {
     let dir = match real.parent() {
         Some(d) if !d.as_os_str().is_empty() => d.to_path_buf(),
         _ => PathBuf::from("."),
@@ -145,7 +186,12 @@ fn write_replace(real: &Path, data: &[u8], meta: Option<&fs::Metadata>) -> Resul
     let name = real.file_name().ok_or(None)?.to_string_lossy().into_owned();
     let tmp = dir.join(format!(".{name}.fred~{}", std::process::id()));
     let mode = meta.map_or(0o666, |m| m.permissions().mode() & 0o7777);
-    let mut f = OpenOptions::new().write(true).create_new(true).mode(mode).open(&tmp).map_err(|_| None)?;
+    let mut f = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(mode)
+        .open(&tmp)
+        .map_err(|_| None)?;
     let res = (|| -> io::Result<()> {
         f.write_all(data)?;
         if meta.is_some() {
@@ -179,7 +225,10 @@ mod tests {
     #[test]
     fn roundtrip_byte_identical() {
         let d = tempfile::tempdir().unwrap();
-        for (i, s) in ["a\r\nb", "\u{feff}a\n", "x\ny\n", "", "\n\n"].iter().enumerate() {
+        for (i, s) in ["a\r\nb", "\u{feff}a\n", "x\ny\n", "", "\n\n"]
+            .iter()
+            .enumerate()
+        {
             let p = d.path().join(format!("f{i}"));
             fs::write(&p, s).unwrap();
             let l = load(&p).unwrap();
@@ -198,10 +247,21 @@ mod tests {
         std::os::unix::fs::symlink(&real, &link).unwrap();
         let l = load(&link).unwrap();
         write(&link, b"new\n", l.stamp.as_ref(), false).unwrap();
-        assert!(fs::symlink_metadata(&link).unwrap().file_type().is_symlink());
+        assert!(
+            fs::symlink_metadata(&link)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
         assert_eq!(fs::read_to_string(&real).unwrap(), "new\n");
-        assert_eq!(fs::metadata(&real).unwrap().permissions().mode() & 0o777, 0o640);
-        let leftovers: Vec<_> = fs::read_dir(d.path()).unwrap().map(|e| e.unwrap().file_name()).collect();
+        assert_eq!(
+            fs::metadata(&real).unwrap().permissions().mode() & 0o777,
+            0o640
+        );
+        let leftovers: Vec<_> = fs::read_dir(d.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
         assert_eq!(leftovers.len(), 2, "temp file left behind: {leftovers:?}");
     }
 

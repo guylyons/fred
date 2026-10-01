@@ -3,4 +3,4 @@
 pub mod addr;
 pub mod cmd;
 
-pub use cmd::{run, ExEffect, ExState};
+pub use cmd::{ExEffect, ExState, run};

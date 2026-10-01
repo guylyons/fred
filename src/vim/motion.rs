@@ -24,9 +24,16 @@ pub enum Motion {
     PrevLine,
     ParaFwd,
     ParaBack,
-    Find { kind: char, ch: char },
-    RepeatFind { reverse: bool },
-    SearchNext { reverse: bool },
+    Find {
+        kind: char,
+        ch: char,
+    },
+    RepeatFind {
+        reverse: bool,
+    },
+    SearchNext {
+        reverse: bool,
+    },
     Mark(char),
 }
 
@@ -45,7 +52,14 @@ pub struct Target {
 
 impl Target {
     fn at(line: usize, byte: usize) -> Target {
-        Target { line, byte, linewise: false, inclusive: false, keep_col: false, eol: false }
+        Target {
+            line,
+            byte,
+            linewise: false,
+            inclusive: false,
+            keep_col: false,
+            eol: false,
+        }
     }
     fn inclusive(mut self) -> Target {
         self.inclusive = true;
@@ -162,7 +176,14 @@ pub fn word_end(buf: &Buffer, pos: (usize, usize), big: bool) -> (usize, usize) 
     }
 }
 
-fn find_in_line(line: &str, b: usize, kind: char, ch: char, count: usize, repeat: bool) -> Option<usize> {
+fn find_in_line(
+    line: &str,
+    b: usize,
+    kind: char,
+    ch: char,
+    count: usize,
+    repeat: bool,
+) -> Option<usize> {
     let target = ch.to_string();
     let mut found = 0;
     match kind {
@@ -175,7 +196,11 @@ fn find_in_line(line: &str, b: usize, kind: char, ch: char, count: usize, repeat
                 if grapheme_at(line, p) == target {
                     found += 1;
                     if found == count {
-                        return Some(if kind == 't' { prev_grapheme(line, p) } else { p });
+                        return Some(if kind == 't' {
+                            prev_grapheme(line, p)
+                        } else {
+                            p
+                        });
                     }
                 }
                 p = next_grapheme(line, p);
@@ -184,7 +209,8 @@ fn find_in_line(line: &str, b: usize, kind: char, ch: char, count: usize, repeat
         }
         _ => {
             let mut p = b;
-            if repeat && kind == 'T' && p > 0 && grapheme_at(line, prev_grapheme(line, p)) == target {
+            if repeat && kind == 'T' && p > 0 && grapheme_at(line, prev_grapheme(line, p)) == target
+            {
                 p = prev_grapheme(line, p);
             }
             while p > 0 {
@@ -192,7 +218,11 @@ fn find_in_line(line: &str, b: usize, kind: char, ch: char, count: usize, repeat
                 if grapheme_at(line, p) == target {
                     found += 1;
                     if found == count {
-                        return Some(if kind == 'T' { next_grapheme(line, p) } else { p });
+                        return Some(if kind == 'T' {
+                            next_grapheme(line, p)
+                        } else {
+                            p
+                        });
                     }
                 }
             }
@@ -374,8 +404,20 @@ impl Target {
     }
 }
 
-fn find_target(line: &str, l: usize, b: usize, kind: char, ch: char, count: usize, repeat: bool) -> Option<Target> {
+fn find_target(
+    line: &str,
+    l: usize,
+    b: usize,
+    kind: char,
+    ch: char,
+    count: usize,
+    repeat: bool,
+) -> Option<Target> {
     let p = find_in_line(line, b, kind, ch, count, repeat)?;
     let t = Target::at(l, p);
-    Some(if matches!(kind, 'f' | 't') { t.inclusive() } else { t })
+    Some(if matches!(kind, 'f' | 't') {
+        t.inclusive()
+    } else {
+        t
+    })
 }

@@ -27,7 +27,12 @@ impl Undo {
     pub fn begin(&mut self, cursor: Pos) {
         if self.depth == 0 {
             self.next_id += 1;
-            self.open = Some(Group { id: self.next_id, edits: vec![], before: cursor, after: cursor });
+            self.open = Some(Group {
+                id: self.next_id,
+                edits: vec![],
+                before: cursor,
+                after: cursor,
+            });
         }
         self.depth += 1;
     }
@@ -71,7 +76,12 @@ impl Undo {
         let g = self.undo.pop()?;
         let redo = Self::replay(buf, &g.edits);
         let before = g.before;
-        self.redo.push(Group { id: g.id, edits: redo, before: g.before, after: g.after });
+        self.redo.push(Group {
+            id: g.id,
+            edits: redo,
+            before: g.before,
+            after: g.after,
+        });
         Some(before)
     }
 
@@ -79,7 +89,12 @@ impl Undo {
         let g = self.redo.pop()?;
         let undo = Self::replay(buf, &g.edits);
         let after = g.after;
-        self.undo.push(Group { id: g.id, edits: undo, before: g.before, after: g.after });
+        self.undo.push(Group {
+            id: g.id,
+            edits: undo,
+            before: g.before,
+            after: g.after,
+        });
         Some(after)
     }
 
@@ -100,7 +115,11 @@ mod tests {
     use crate::buffer::{Buffer, Edit};
 
     fn ed(start: usize, end: usize, t: &str) -> Edit {
-        Edit { start, end, text: t.into() }
+        Edit {
+            start,
+            end,
+            text: t.into(),
+        }
     }
 
     #[test]
