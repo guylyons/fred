@@ -243,3 +243,17 @@ fn tab_follows_the_file_indentation() {
     assert_eq!(txt("a\n  b\n    c", "o<Tab>x<Esc>"), "a\n  x\n  b\n    c", "2-space files indent by 2");
     assert_eq!(txt("a\n  b", "A<Tab>x<Esc>"), "a x\n  b", "Tab mid-line pads to the next indent stop");
 }
+
+#[test]
+fn operators_with_search_motions() {
+    assert_eq!(txt("abc foo bar\nx", "d/foo<Enter>"), "foo bar\nx");
+    assert_eq!(txt("abc foo bar", "c/bar<Enter>X<Esc>"), "Xbar");
+    assert_eq!(txt("one two three", "$d?two<Enter>"), "one e");
+    assert_eq!(txt("abc foo", "y/foo<Enter>P"), "abc abc foo");
+    assert_eq!(txt("abc foo", "d/foo<Enter>u"), "abc foo");
+    let e = ed("abc foo", "d/foo<Esc>");
+    assert_eq!(e.buf.text(), "abc foo");
+    assert_eq!(e.mode, Mode::Normal);
+    assert_eq!(txt("abc foo", "d/zzz<Enter>"), "abc foo");
+    assert_eq!(txt("abc foo", "x"), "bc foo", "a cancelled operator leaves no state behind");
+}

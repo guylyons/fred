@@ -17,6 +17,8 @@ pub struct State {
     /// Keys of a change still in its insert session.
     pub recording: Option<Vec<Key>>,
     replaying: bool,
+    /// Operator waiting for the search line to finish (`d/pat<Enter>`).
+    pub(crate) pending_op: Option<(char, Option<usize>)>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -35,6 +37,12 @@ pub(crate) enum Cmd {
         count: Option<usize>,
         key: Key,
         arg: Option<char>,
+    },
+    /// Operator over a `/` or `?` search: opens the search line.
+    OpSearch {
+        op: char,
+        count: Option<usize>,
+        kind: char,
     },
 }
 
@@ -152,6 +160,9 @@ fn parse(keys: &[Key]) -> Parse<Cmd> {
         let Some(k2) = keys.get(i) else {
             return Parse::Incomplete;
         };
+        if let Some(kind @ ('/' | '?')) = k2.char() {
+            return Parse::Done(Cmd::OpSearch { op, count, kind });
+        }
         if k2.char() == Some(op) {
             return Parse::Done(Cmd::Op {
                 op,
@@ -238,7 +249,7 @@ pub fn normal_key(ed: &mut Editor, k: Key) {
                     Cmd::Simple { key, .. } => {
                         key.ctrl || key.char() == Some('m') || !matches!(key.code, KeyCode::Char(_))
                     }
-                    Cmd::Op { .. } => false,
+                    Cmd::Op { .. } | Cmd::OpSearch { .. } => false,
                 };
                 if allowed {
                     execute(ed, cmd);
@@ -300,6 +311,8 @@ fn visual(ed: &mut Editor, anchor: usize, c: char) {
 fn is_change(cmd: &Cmd) -> bool {
     match cmd {
         Cmd::Op { op, .. } => *op != 'y',
+        // Applied when the search line finishes; not repeatable with `.`.
+        Cmd::OpSearch { .. } => false,
         Cmd::Simple { key, .. } => {
             !key.ctrl
                 && matches!(
@@ -395,6 +408,31 @@ pub(crate) fn execute(ed: &mut Editor, cmd: Cmd) {
             }
         }
         Cmd::Simple { count, key, arg } => simple(ed, count, key, arg),
+        Cmd::OpSearch { op, count, kind } => {
+            ed.vim.pending_op = Some((op, count));
+            ed.open_cmdline(kind, "");
+        }
+    }
+}
+
+/// Finish `d/pat<Enter>`: apply the pending operator up to the match.
+pub(crate) fn finish_op_search(ed: &mut Editor, op: char, count: Option<usize>) {
+    let start = ed.cur.pos();
+    let mut target = None;
+    for _ in 0..count.unwrap_or(1).max(1) {
+        let Some(p) = ed.search_target(false) else { break };
+        ed.cur.line = p.0;
+        ed.cur.byte = p.1;
+        target = Some(p);
+    }
+    ed.cur.line = start.0;
+    ed.cur.byte = start.1;
+    let Some(t) = target else { return };
+    let (from, to) = if t < start { (t, start) } else { (start, t) };
+    ed.undo.begin(start);
+    ops::apply_op(ed, op, ops::Span::Chars(from, to));
+    if ed.mode != Mode::Insert {
+        ed.undo.end(ed.cur.pos());
     }
 }
 

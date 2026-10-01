@@ -265,6 +265,12 @@ impl Editor {
         if k.code != KeyCode::Tab {
             cl.comp = None;
         }
+        let leaving = matches!(k.code, KeyCode::Esc)
+            || k == Key::ctrl('c')
+            || (k.code == KeyCode::Backspace && cl.text.is_empty());
+        if leaving {
+            self.vim.pending_op = None;
+        }
         let hist = if cl.kind == ':' {
             &self.cmd_history
         } else {
@@ -371,7 +377,10 @@ impl Editor {
                     self.last_pat = Some(text.to_string());
                 }
                 self.last_search_fwd = kind == '/';
-                self.search_next(false);
+                match self.vim.pending_op.take() {
+                    Some((op, count)) => vim::finish_op_search(self, op, count),
+                    None => self.search_next(false),
+                }
             }
         }
     }
