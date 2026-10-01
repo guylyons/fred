@@ -429,6 +429,25 @@ fn start_line_argument() {
     assert_eq!(env.read("f.txt"), "a\nc\n");
 }
 
+#[test]
+fn paging_with_height_max_moves_one_screen() {
+    let env = Env::new();
+    let text: String = (1..=64000).map(|i| format!("{i}\n")).collect();
+    env.write("f.txt", &text);
+    let mut p = env.fred(&["--height", "max", "f.txt"]);
+    p.wait_text("NORMAL");
+    // The window is ROWS - 2 tall: ROWS - 4 text rows plus status and command.
+    let page = ROWS as usize - 4;
+    p.keys(&["\x06"]);
+    p.wait_text(&format!("{}:1", 1 + page));
+    p.keys(&["\x06"]);
+    p.wait_text(&format!("{}:1", 1 + 2 * page));
+    p.keys(&["\x02"]);
+    p.wait_text(&format!("{}:1", 1 + page));
+    p.keys(&[":q\r"]);
+    assert_eq!(p.wait_exit(), 0);
+}
+
 /// Prints what the window looks like (run with `--ignored --nocapture`).
 #[test]
 #[ignore]

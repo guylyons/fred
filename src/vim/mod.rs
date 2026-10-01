@@ -543,7 +543,7 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
             } else {
                 ed.win_height.max(1)
             });
-            ed.set_line_keep_col(ed.cur.line + n);
+            ed.set_line_keep_col(ed.cur.line.saturating_add(n));
         }
         (KeyCode::Char('u'), true) | (KeyCode::PageUp, _) | (KeyCode::Char('b'), true) => {
             let n = count.unwrap_or(if matches!(key.code, KeyCode::Char('u')) {

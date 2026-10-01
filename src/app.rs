@@ -60,7 +60,7 @@ impl Ui {
         })
     }
 
-    fn draw(&mut self, s: &Session, hl: &mut Highlighter, cfg: &Config) -> io::Result<()> {
+    fn draw(&mut self, s: &mut Session, hl: &mut Highlighter, cfg: &Config) -> io::Result<()> {
         // Test hook: debug builds panic while drawing a line containing
         // PANIC when FRED_DEBUG_PANIC is set (see tests/e2e.rs).
         #[cfg(debug_assertions)]
@@ -75,6 +75,9 @@ impl Ui {
             .draw(|f| ui::draw(f, &s.ed, view, hl, cfg, HIGHLIGHT_BUDGET))?;
         // `done.area` is the whole terminal; the buffer covers just the window.
         self.area = Some(done.buffer.area);
+        // Paging scrolls by the text rows actually on screen (minus status
+        // and command lines), not the configured height, which may be "max".
+        s.ed.win_height = (done.buffer.area.height as usize).saturating_sub(2).max(1);
         let bar = s.ed.mode == Mode::Insert;
         if bar != self.bar_cursor {
             self.bar_cursor = bar;

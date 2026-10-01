@@ -133,7 +133,9 @@ mod tests {
         assert!(parse(v(&["a", "b"])).is_err());
         assert!(parse(v(&["--height"])).is_err());
         assert!(parse(v(&["--height", "0"])).is_err());
-        assert!(matches!(parse(v(&["--height", "max"])), Ok(ArgsOrInfo::Run(a)) if a.height == Some(usize::MAX)));
+        assert!(
+            matches!(parse(v(&["--height", "max"])), Ok(ArgsOrInfo::Run(a)) if a.height == Some(usize::MAX))
+        );
         assert!(parse(v(&["--bogus"])).is_err());
         assert!(parse(v(&["+x"])).is_err());
     }
