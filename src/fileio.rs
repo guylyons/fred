@@ -278,7 +278,10 @@ mod tests {
         let mut groups = [0 as libc::gid_t; 64];
         // SAFETY: the buffer holds 64 gids.
         let n = unsafe { libc::getgroups(64, groups.as_mut_ptr()) };
-        groups[..n.max(0) as usize].iter().copied().find(|&g| g != not)
+        groups[..n.max(0) as usize]
+            .iter()
+            .copied()
+            .find(|&g| g != not)
     }
 
     #[test]
@@ -296,7 +299,11 @@ mod tests {
         let l = load(&p).unwrap();
         write(&p, b"new\n", l.stamp.as_ref(), false).unwrap();
         assert_eq!(fs::read_to_string(&p).unwrap(), "new\n");
-        assert_eq!(fs::metadata(&p).unwrap().gid(), other, "group must survive a write");
+        assert_eq!(
+            fs::metadata(&p).unwrap().gid(),
+            other,
+            "group must survive a write"
+        );
     }
 
     #[test]
@@ -370,7 +377,10 @@ mod tests {
         let l = load(&d.path().join("nope")).unwrap();
         assert_eq!(l.notice.as_deref(), Some("[new]"));
         assert!(l.stamp.is_none());
-        assert!(l.buf.to_bytes().is_empty(), "an untouched new file is written empty");
+        assert!(
+            l.buf.to_bytes().is_empty(),
+            "an untouched new file is written empty"
+        );
         assert_eq!(load(d.path()).unwrap_err(), "is a directory");
     }
 

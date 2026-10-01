@@ -169,7 +169,8 @@ impl Session {
                 if self.write(path, force, range) && then_quit {
                     if self.ed.buf.modified {
                         // Wrote a copy; the buffer itself is still unsaved.
-                        self.ed.set_err("unsaved changes (q! to discard, wq to save)");
+                        self.ed
+                            .set_err("unsaved changes (q! to discard, wq to save)");
                     } else {
                         self.quit = true;
                     }

@@ -44,7 +44,9 @@ pub fn word_start_before(s: &str, end: usize) -> usize {
     match before.chars().next_back() {
         None => 0,
         Some(c) if word(c) => before.trim_end_matches(word).len(),
-        Some(_) => before.trim_end_matches(|c: char| !word(c) && !c.is_whitespace()).len(),
+        Some(_) => before
+            .trim_end_matches(|c: char| !word(c) && !c.is_whitespace())
+            .len(),
     }
 }
 

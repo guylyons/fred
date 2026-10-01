@@ -446,3 +446,15 @@ fn show_screen() {
     p.wait_exit();
     println!("--- after :wq ---\n{}", p.screen().trim_end());
 }
+
+#[test]
+fn esc_batched_with_next_keys() {
+    // Over SSH or in tmux, Esc and the keys after it arrive in one read.
+    let env = Env::new();
+    env.write("f.txt", "x\n");
+    let mut p = env.fred(&["f.txt"]);
+    p.wait_text("NORMAL");
+    p.keys(&["ihello \x1b:wq\r"]);
+    assert_eq!(p.wait_exit(), 0);
+    assert_eq!(env.read("f.txt"), "hello x\n");
+}

@@ -310,7 +310,14 @@ mod tests {
     #[test]
     fn only_newline_splits_lines() {
         // Form feed, lone CR, VT, NEL and U+2028/9 are ordinary characters.
-        for s in ["a\x0cb\nc", "a\rb\nc", "a\x0bb\nc", "a\u{85}b\nc", "a\u{2028}b\nc", "a\u{2029}b\nc"] {
+        for s in [
+            "a\x0cb\nc",
+            "a\rb\nc",
+            "a\x0bb\nc",
+            "a\u{85}b\nc",
+            "a\u{2028}b\nc",
+            "a\u{2029}b\nc",
+        ] {
             let b = Buffer::from_text(s);
             assert_eq!(b.len_lines(), 2, "{s:?}");
             assert_eq!(b.line(1), "c", "{s:?}");

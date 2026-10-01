@@ -183,7 +183,11 @@ fn cmdline(e: &crate::editor::Editor) -> String {
 
 #[test]
 fn cmdline_ctrl_w_handles_multibyte() {
-    assert_eq!(cmdline(&ed("a", ":s/a/→<C-w>")), "s/a", "a punctuation run is one word");
+    assert_eq!(
+        cmdline(&ed("a", ":s/a/→<C-w>")),
+        "s/a",
+        "a punctuation run is one word"
+    );
     assert_eq!(cmdline(&ed("a", "/“<C-w>")), "");
     assert_eq!(cmdline(&ed("a", ":foo bar<C-w>")), "foo ");
     assert_eq!(cmdline(&ed("a", ":foo  <C-w>")), "");

@@ -118,6 +118,17 @@ impl Ui {
     }
 }
 
+/// crossterm key → fred keys. Alt+X becomes Esc, X: fred binds no Alt keys,
+/// and an Esc that arrives together with the next key (SSH, tmux) is
+/// reported as Alt+key.
+pub fn map_keys(k: KeyEvent) -> Vec<Key> {
+    match map_key(k) {
+        Some(key) if key.alt => vec![Key::new(KeyCode::Esc), Key { alt: false, ..key }],
+        Some(key) => vec![key],
+        None => vec![],
+    }
+}
+
 /// crossterm key → fred key.
 pub fn map_key(k: KeyEvent) -> Option<Key> {
     use event::KeyCode as C;
@@ -202,7 +213,9 @@ fn swap_prompt(
         let Event::Key(k) = event::read()? else {
             continue;
         };
-        let Some(key) = map_key(k) else { continue };
+        let Some(key) = map_keys(k).pop() else {
+            continue;
+        };
         match (alive, key.char(), key.code) {
             (true, Some('o'), _) => {
                 s.ed.readonly = true;
@@ -229,7 +242,7 @@ fn swap_prompt(
 fn step(s: &mut Session, hl: &mut Highlighter, ev: Event, resized: &mut bool) {
     match ev {
         Event::Key(k) => {
-            if let Some(key) = map_key(k) {
+            for key in map_keys(k) {
                 s.handle_key(key);
             }
         }
@@ -426,6 +439,23 @@ mod tests {
         release.kind = KeyEventKind::Release;
         assert_eq!(map_key(release), None);
         assert_eq!(map_key(ev(C::F(1), KeyModifiers::NONE)), None);
+    }
+
+    #[test]
+    fn alt_key_is_esc_then_key() {
+        // Esc batched with the next key (SSH, tmux) arrives as Alt+key.
+        assert_eq!(
+            map_keys(ev(C::Char(':'), KeyModifiers::ALT)),
+            vec![Key::new(KeyCode::Esc), Key::ch(':')]
+        );
+        assert_eq!(
+            map_keys(ev(C::Char('d'), KeyModifiers::ALT | KeyModifiers::CONTROL)),
+            vec![Key::new(KeyCode::Esc), Key::ctrl('d')]
+        );
+        assert_eq!(
+            map_keys(ev(C::Char('x'), KeyModifiers::NONE)),
+            vec![Key::ch('x')]
+        );
     }
 
     #[test]

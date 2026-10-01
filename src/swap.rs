@@ -49,7 +49,10 @@ pub fn canonical(file: &Path) -> PathBuf {
     // Not created yet: resolve the directory so the name is the same as
     // the one the file will have once it exists.
     let abs = std::path::absolute(file).unwrap_or_else(|_| file.to_path_buf());
-    match (abs.parent().and_then(|d| fs::canonicalize(d).ok()), abs.file_name()) {
+    match (
+        abs.parent().and_then(|d| fs::canonicalize(d).ok()),
+        abs.file_name(),
+    ) {
         (Some(dir), Some(name)) => dir.join(name),
         _ => abs,
     }
