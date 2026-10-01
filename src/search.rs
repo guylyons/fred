@@ -9,7 +9,7 @@ pub fn compile(pat: &str) -> Result<Regex, String> {
     let src = if pat.chars().any(char::is_uppercase) { pat.to_string() } else { format!("(?i){pat}") };
     Regex::new(&src).map_err(|e| {
         let msg = e.to_string();
-        let last = msg.lines().filter(|l| !l.trim().is_empty()).last().unwrap_or("").trim();
+        let last = msg.lines().filter(|l| !l.trim().is_empty()).next_back().unwrap_or("").trim();
         format!("bad pattern: {}", last.trim_start_matches("error: "))
     })
 }
@@ -90,7 +90,7 @@ mod tests {
 
     #[test]
     fn find_forward_backward_wrap() {
-        let b = Buffer::from_str("foo x\nbar\nfoo y");
+        let b = Buffer::from_text("foo x\nbar\nfoo y");
         let re = compile("foo").unwrap();
         assert_eq!(find(&b, &re, (0, 0), true, true), Some((2, 0)));
         assert_eq!(find(&b, &re, (2, 0), true, true), Some((0, 0)));
@@ -102,7 +102,7 @@ mod tests {
 
     #[test]
     fn find_line_wraps() {
-        let b = Buffer::from_str("a\nb\na");
+        let b = Buffer::from_text("a\nb\na");
         let re = compile("a").unwrap();
         assert_eq!(find_line(&b, &re, 0, true), Some(2));
         assert_eq!(find_line(&b, &re, 2, true), Some(0));

@@ -302,7 +302,7 @@ mod tests {
     }
 
     fn run_on(t: &str, cur: usize, cmd: &str) -> (T, usize, Result<ExEffect, String>) {
-        let mut x = T { buf: Buffer::from_str(t), undo: Undo::default(), marks: HashMap::new(), last_pat: None };
+        let mut x = T { buf: Buffer::from_text(t), undo: Undo::default(), marks: HashMap::new(), last_pat: None };
         let mut st = ExState::new(&mut x.buf, &mut x.undo, cur, &x.marks, &mut x.last_pat);
         let r = run(&mut st, cmd);
         let cur = st.cur;

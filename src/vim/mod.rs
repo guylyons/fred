@@ -1,6 +1,8 @@
 //! vim key handling: Normal and Visual-line mode parsing and dispatch.
 
+pub mod insert;
 pub mod motion;
+pub mod ops;
 
 use crate::editor::{Editor, Mode};
 use crate::key::{Key, KeyCode};
@@ -10,6 +12,11 @@ use motion::{Motion, Target};
 pub struct State {
     pending: Vec<Key>,
     pub last_find: Option<(char, char)>,
+    /// Keys of the last change, replayed by `.`.
+    pub last_change: Vec<Key>,
+    /// Keys of a change still in its insert session.
+    pub recording: Option<Vec<Key>>,
+    replaying: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -163,19 +170,130 @@ pub fn normal_key(ed: &mut Editor, k: Key) {
         }
         return;
     }
+    if let Mode::VisualLine { anchor } = ed.mode
+        && ed.vim.pending.is_empty()
+        && let Some(c) = k.char()
+        && VISUAL.contains(&c)
+    {
+        visual(ed, anchor, c);
+        return;
+    }
     ed.vim.pending.push(k);
     match parse(&ed.vim.pending) {
         Parse::Incomplete => {}
         Parse::Invalid => ed.vim.pending.clear(),
         Parse::Done(cmd) => {
-            ed.vim.pending.clear();
-            execute(ed, cmd);
+            let keys = std::mem::take(&mut ed.vim.pending);
+            if matches!(ed.mode, Mode::VisualLine { .. }) {
+                let allowed = match &cmd {
+                    Cmd::Move { .. } => true,
+                    Cmd::Simple { key, .. } => key.ctrl || key.char() == Some('m') || !matches!(key.code, KeyCode::Char(_)),
+                    Cmd::Op { .. } => false,
+                };
+                if allowed {
+                    execute(ed, cmd);
+                }
+                return;
+            }
+            run_change(ed, cmd, keys);
         }
     }
 }
 
-/// Handle a key in Insert mode.
-pub fn insert_key(_ed: &mut Editor, _k: Key) {}
+pub use insert::insert_key;
+
+/// Keys that act on the selection in Visual-line mode.
+const VISUAL: &[char] = &['d', 'x', 'X', 'D', 'y', 'Y', 'c', 's', 'S', 'C', 'J', ':', 'V', 'o'];
+
+fn visual(ed: &mut Editor, anchor: usize, c: char) {
+    let (lo, hi) = (anchor.min(ed.cur.line), anchor.max(ed.cur.line));
+    ed.mode = Mode::Normal;
+    match c {
+        'V' => {}
+        'o' => {
+            ed.mode = Mode::VisualLine { anchor: ed.cur.line };
+            ed.set_line_keep_col(anchor);
+        }
+        ':' => {
+            ed.marks.insert('<', lo);
+            ed.marks.insert('>', hi);
+            ed.open_cmdline(':', "'<,'>");
+        }
+        'J' => {
+            ed.undo.begin(ed.cur.pos());
+            ops::join(ed, lo, (hi - lo + 1).max(2));
+            ed.undo.end(ed.cur.pos());
+        }
+        _ => {
+            let op = match c {
+                'y' | 'Y' => 'y',
+                'c' | 's' | 'S' | 'C' => 'c',
+                _ => 'd',
+            };
+            ed.undo.begin(ed.cur.pos());
+            if op == 'y' {
+                ed.set_cursor(lo, 0);
+            }
+            ops::apply_op(ed, op, ops::Span::Lines(lo, hi));
+            if ed.mode != Mode::Insert {
+                ed.undo.end(ed.cur.pos());
+            }
+        }
+    }
+}
+
+/// Commands that change text (and so are repeated by `.`).
+fn is_change(cmd: &Cmd) -> bool {
+    match cmd {
+        Cmd::Op { op, .. } => *op != 'y',
+        Cmd::Simple { key, .. } => !key.ctrl && matches!(key.char(), Some('x' | 'X' | 's' | 'S' | 'J' | 'p' | 'P' | 'o' | 'O' | 'i' | 'a' | 'I' | 'A' | 'D' | 'C' | 'r')),
+        Cmd::Move { .. } => false,
+    }
+}
+
+/// Run a command as one undo step, recording it for `.` if it changes text.
+fn run_change(ed: &mut Editor, cmd: Cmd, keys: Vec<Key>) {
+    if !is_change(&cmd) {
+        execute(ed, cmd);
+        return;
+    }
+    ed.undo.begin(ed.cur.pos());
+    execute(ed, cmd);
+    if ed.mode == Mode::Insert {
+        if !ed.vim.replaying {
+            ed.vim.recording = Some(keys);
+        }
+    } else {
+        ed.undo.end(ed.cur.pos());
+        if !ed.vim.replaying {
+            ed.vim.last_change = keys;
+        }
+    }
+}
+
+/// `.`: replay the last change, with `count` replacing its own count.
+fn repeat(ed: &mut Editor, count: Option<usize>) {
+    if ed.vim.last_change.is_empty() || ed.vim.replaying {
+        return;
+    }
+    let mut keys = ed.vim.last_change.clone();
+    if let Some(n) = count {
+        let (_, used) = self::count(&keys);
+        keys.drain(..used);
+        let digits: Vec<Key> = n.to_string().chars().map(Key::ch).collect();
+        keys.splice(0..0, digits);
+    }
+    ed.vim.replaying = true;
+    ed.undo.begin(ed.cur.pos());
+    for k in keys {
+        ed.handle_key(k);
+    }
+    if ed.mode == Mode::Insert {
+        insert::leave(ed);
+    }
+    ed.undo.end(ed.cur.pos());
+    ed.vim.replaying = false;
+}
 
 fn move_to(ed: &mut Editor, t: Target) {
     if t.keep_col {
@@ -195,14 +313,88 @@ pub(crate) fn execute(ed: &mut Editor, cmd: Cmd) {
                 move_to(ed, t);
             }
         }
-        Cmd::Op { .. } => {}
+        Cmd::Op { op, count, motion } => {
+            if let Some(sp) = ops::span(ed, op, count, motion) {
+                ops::apply_op(ed, op, sp);
+            }
+        }
         Cmd::Simple { count, key, arg } => simple(ed, count, key, arg),
     }
 }
 
-fn simple(ed: &mut Editor, count: Option<usize>, key: Key, _arg: Option<char>) {
+fn op(ed: &mut Editor, op: char, count: Option<usize>, motion: Option<Motion>) {
+    execute(ed, Cmd::Op { op, count, motion });
+}
+
+fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
     let half = (ed.win_height / 2).max(1);
+    let n = count.unwrap_or(1).max(1);
     match (key.code, key.ctrl) {
+        (KeyCode::Char('r'), true) => {
+            for i in 0..n {
+                match ed.undo.redo(&mut ed.buf) {
+                    Some(p) => ed.set_cursor(p.0, p.1),
+                    None => {
+                        if i == 0 {
+                            ed.set_err("already at newest change");
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+        (KeyCode::Char('u'), false) => {
+            for i in 0..n {
+                match ed.undo.undo(&mut ed.buf) {
+                    Some(p) => ed.set_cursor(p.0, p.1),
+                    None => {
+                        if i == 0 {
+                            ed.set_err("already at oldest change");
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+        (KeyCode::Char('.'), false) => repeat(ed, count),
+        (KeyCode::Char('x'), false) | (KeyCode::Delete, _) => op(ed, 'd', count, Some(Motion::Right)),
+        (KeyCode::Char('X'), false) => op(ed, 'd', count, Some(Motion::Left)),
+        (KeyCode::Char('D'), false) => op(ed, 'd', count, Some(Motion::LineEnd)),
+        (KeyCode::Char('C'), false) => op(ed, 'c', count, Some(Motion::LineEnd)),
+        (KeyCode::Char('Y'), false) => op(ed, 'y', count, None),
+        (KeyCode::Char('S'), false) => op(ed, 'c', count, None),
+        (KeyCode::Char('s'), false) => {
+            if ed.buf.line_len(ed.cur.line) == 0 {
+                ed.mode = Mode::Insert;
+            } else {
+                op(ed, 'c', count, Some(Motion::Right));
+            }
+        }
+        (KeyCode::Char('p'), false) => ops::put(ed, n, true),
+        (KeyCode::Char('P'), false) => ops::put(ed, n, false),
+        (KeyCode::Char('J'), false) => {
+            ops::join(ed, ed.cur.line, n);
+        }
+        (KeyCode::Char('r'), false) => {
+            if let Some(c) = arg {
+                ops::replace_chars(ed, n, c);
+            }
+        }
+        (KeyCode::Char('o'), false) => ops::open_line(ed, true),
+        (KeyCode::Char('O'), false) => ops::open_line(ed, false),
+        (KeyCode::Char(c @ ('i' | 'a' | 'I' | 'A')), false) => {
+            let line = ed.buf.line(ed.cur.line);
+            let b = match c {
+                'i' => ed.cur.byte,
+                'a' if line.is_empty() => 0,
+                'a' => crate::text::next_grapheme(&line, ed.cur.byte),
+                'I' => ed.first_nonblank(ed.cur.line),
+                _ => line.len(),
+            };
+            ed.mode = Mode::Insert;
+            ed.cur.byte = b;
+        }
+        (KeyCode::Char('V'), false) => ed.mode = Mode::VisualLine { anchor: ed.cur.line },
         (KeyCode::Char('d'), true) | (KeyCode::PageDown, _) | (KeyCode::Char('f'), true) => {
             let n = count.unwrap_or(if matches!(key.code, KeyCode::Char('d')) { half } else { ed.win_height.max(1) });
             ed.set_line_keep_col(ed.cur.line + n);
@@ -214,10 +406,13 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, _arg: Option<char>) {
         (KeyCode::Char(':'), false) => ed.open_cmdline(':', ""),
         (KeyCode::Char(c @ ('/' | '?')), false) => ed.open_cmdline(c, ""),
         (KeyCode::Char('m'), false) => {
-            if let Some(c) = _arg.filter(char::is_ascii_lowercase) {
+            if let Some(c) = arg.filter(char::is_ascii_lowercase) {
                 ed.marks.insert(c, ed.cur.line);
             }
         }
         _ => {}
     }
 }
+
+#[cfg(test)]
+mod tests;

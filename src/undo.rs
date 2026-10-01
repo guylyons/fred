@@ -105,7 +105,7 @@ mod tests {
 
     #[test]
     fn undo_redo_group() {
-        let mut b = Buffer::from_str("abc");
+        let mut b = Buffer::from_text("abc");
         let mut u = Undo::default();
         u.begin((0, 0));
         u.record(b.apply(ed(0, 1, "X")));
@@ -121,7 +121,7 @@ mod tests {
 
     #[test]
     fn empty_group_dropped() {
-        let mut b = Buffer::from_str("a");
+        let mut b = Buffer::from_text("a");
         let mut u = Undo::default();
         u.begin((0, 0));
         u.end((0, 0));
@@ -130,7 +130,7 @@ mod tests {
 
     #[test]
     fn nested_begin_is_one_group() {
-        let mut b = Buffer::from_str("abc");
+        let mut b = Buffer::from_text("abc");
         let mut u = Undo::default();
         u.begin((0, 0));
         u.begin((0, 0));
@@ -144,7 +144,7 @@ mod tests {
 
     #[test]
     fn new_edit_clears_redo() {
-        let mut b = Buffer::from_str("abc");
+        let mut b = Buffer::from_text("abc");
         let mut u = Undo::default();
         u.begin((0, 0));
         u.record(b.apply(ed(0, 1, "X")));
@@ -159,7 +159,7 @@ mod tests {
 
     #[test]
     fn state_id_returns_after_undo_redo() {
-        let mut b = Buffer::from_str("abc");
+        let mut b = Buffer::from_text("abc");
         let mut u = Undo::default();
         let saved = u.state_id();
         u.begin((0, 0));

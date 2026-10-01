@@ -41,12 +41,12 @@ pub struct Buffer {
 
 impl Default for Buffer {
     fn default() -> Self {
-        Buffer::from_str("")
+        Buffer::from_text("")
     }
 }
 
 impl Buffer {
-    pub fn from_str(s: &str) -> Buffer {
+    pub fn from_text(s: &str) -> Buffer {
         let (bom, s) = match s.strip_prefix('\u{feff}') {
             Some(rest) => (true, rest),
             None => (false, s),
@@ -209,13 +209,13 @@ mod tests {
     #[test]
     fn crlf_and_final_newline_roundtrip() {
         for s in ["a\r\nb\r\n", "a\nb", "\u{feff}x\n", "", "\n", "a\r\nb", "x\n\n"] {
-            assert_eq!(Buffer::from_str(s).to_bytes(), s.as_bytes(), "{s:?}");
+            assert_eq!(Buffer::from_text(s).to_bytes(), s.as_bytes(), "{s:?}");
         }
     }
 
     #[test]
     fn apply_returns_inverse() {
-        let mut b = Buffer::from_str("hello\nworld\n");
+        let mut b = Buffer::from_text("hello\nworld\n");
         let inv = b.apply(Edit { start: 0, end: 5, text: "bye".into() });
         assert_eq!(b.line(0), "bye");
         assert!(b.modified);
@@ -225,13 +225,13 @@ mod tests {
 
     #[test]
     fn empty_buffer_has_one_line() {
-        assert_eq!(Buffer::from_str("").len_lines(), 1);
-        assert_eq!(Buffer::from_str("a\nb\n").len_lines(), 2);
+        assert_eq!(Buffer::from_text("").len_lines(), 1);
+        assert_eq!(Buffer::from_text("a\nb\n").len_lines(), 2);
     }
 
     #[test]
     fn positions() {
-        let b = Buffer::from_str("ab\n漢x");
+        let b = Buffer::from_text("ab\n漢x");
         assert_eq!(b.pos_to_char(1, 3), 4);
         assert_eq!(b.char_to_pos(4), (1, 3));
         assert_eq!(b.line_len(1), 4);
@@ -239,7 +239,7 @@ mod tests {
 
     #[test]
     fn dirty_from_tracks_first_changed_line() {
-        let mut b = Buffer::from_str("a\nb\nc");
+        let mut b = Buffer::from_text("a\nb\nc");
         b.apply(Edit { start: 4, end: 4, text: "x".into() });
         b.apply(Edit { start: 2, end: 2, text: "y".into() });
         assert_eq!(b.take_dirty_from(), Some(1));

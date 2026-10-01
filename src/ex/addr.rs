@@ -141,7 +141,7 @@ mod tests {
     use std::collections::HashMap;
 
     fn r(buf: &str, input: &str, cur: usize) -> Result<Option<(usize, usize)>, String> {
-        let b = Buffer::from_str(buf);
+        let b = Buffer::from_text(buf);
         let marks = HashMap::from([('a', 1)]);
         let mut lp = None;
         let mut ctx = AddrCtx { buf: &b, cur, marks: &marks, last_pat: &mut lp };
@@ -172,7 +172,7 @@ mod tests {
 
     #[test]
     fn rest_is_returned() {
-        let b = Buffer::from_str("a\nb");
+        let b = Buffer::from_text("a\nb");
         let marks = HashMap::new();
         let mut lp = None;
         let mut ctx = AddrCtx { buf: &b, cur: 0, marks: &marks, last_pat: &mut lp };
@@ -182,7 +182,7 @@ mod tests {
 
     #[test]
     fn empty_pattern_reuses_last() {
-        let b = Buffer::from_str("x\ny\nx");
+        let b = Buffer::from_text("x\ny\nx");
         let marks = HashMap::new();
         let mut lp = Some("x".to_string());
         let mut ctx = AddrCtx { buf: &b, cur: 0, marks: &marks, last_pat: &mut lp };
@@ -192,7 +192,7 @@ mod tests {
 
     #[test]
     fn single_address_allows_zero() {
-        let b = Buffer::from_str("a\nb");
+        let b = Buffer::from_text("a\nb");
         let marks = HashMap::new();
         let mut lp = None;
         let mut ctx = AddrCtx { buf: &b, cur: 0, marks: &marks, last_pat: &mut lp };

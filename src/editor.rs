@@ -361,7 +361,7 @@ pub(crate) mod tests {
     use crate::key::parse_keys;
 
     pub(crate) fn ed(text: &str, keys: &str) -> Editor {
-        let mut e = Editor::new(Buffer::from_str(text));
+        let mut e = Editor::new(Buffer::from_text(text));
         for k in parse_keys(keys) {
             e.handle_key(k);
         }
@@ -431,7 +431,7 @@ pub(crate) mod tests {
     #[test]
     fn half_page() {
         let t = (0..30).map(|i| i.to_string()).collect::<Vec<_>>().join("\n");
-        let mut e = Editor::new(Buffer::from_str(&t));
+        let mut e = Editor::new(Buffer::from_text(&t));
         e.win_height = 10;
         e.handle_key(crate::key::Key::ctrl('d'));
         assert_eq!(e.cur.line, 5);
