@@ -255,7 +255,8 @@ fn expand(rep: &str, caps: &Captures) -> String {
                     let i = d as usize - '0' as usize;
                     out.push_str(caps.get(i).map_or("", |m| m.as_str()));
                 }
-                Some('n') => out.push('\n'),
+                // `\r` is vim's way to split a line; `\n` is ed's.
+                Some('n' | 'r') => out.push('\n'),
                 Some('t') => out.push('\t'),
                 Some(o) => out.push(o),
                 None => out.push('\\'),
@@ -446,6 +447,11 @@ mod tests {
         }
         assert!(ex_err(t, 1, "j").is_err());
         assert_eq!(ex(t, 1, "$j"), (t.into(), 1));
+    }
+
+    #[test]
+    fn backslash_r_in_replacement_splits_like_vim() {
+        assert_eq!(ex("a,b,c", 0, "s/,/\\r/g"), ("a\nb\nc".into(), 2));
     }
 
     #[test]
