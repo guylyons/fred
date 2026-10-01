@@ -1,6 +1,8 @@
 //! Editor state and key routing.
 
 use crate::buffer::{Buffer, Edit};
+use crate::complete::index::WordIndex;
+use crate::complete::{self, Popup};
 use crate::ex::{self, ExEffect, ExState};
 use crate::key::{Key, KeyCode};
 use crate::search;
@@ -9,6 +11,7 @@ use crate::undo::Undo;
 use crate::vim;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Cursor {
@@ -42,6 +45,8 @@ pub struct CmdLine {
     pub cursor: usize,
     hist: Option<usize>,
     stash: String,
+    /// Tab completion in progress: candidates, current index, text before Tab.
+    comp: Option<(Vec<String>, usize, String)>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -72,6 +77,12 @@ pub struct Editor {
     /// Undo state of the text as last saved; `u64::MAX` = never matches.
     pub saved_state: u64,
     pub(crate) vim: vim::State,
+    /// Completion menu (Insert mode).
+    pub popup: Option<Popup>,
+    pub autocomplete: bool,
+    /// Words from nearby files, filled in by a background thread.
+    pub nearby: Arc<Mutex<Vec<String>>>,
+    pub(crate) word_index: WordIndex,
     cmd_history: Vec<String>,
     search_history: Vec<String>,
 }
@@ -97,6 +108,10 @@ impl Editor {
             indent_spaces,
             saved_state: 0,
             vim: vim::State::default(),
+            popup: None,
+            autocomplete: true,
+            nearby: Arc::default(),
+            word_index: WordIndex::default(),
             cmd_history: vec![],
             search_history: vec![],
         }
@@ -106,12 +121,19 @@ impl Editor {
         if !matches!(self.mode, Mode::Command(_)) {
             self.msg = None;
         }
+        let was_insert = self.mode == Mode::Insert;
         match self.mode {
             Mode::Normal | Mode::VisualLine { .. } => vim::normal_key(self, k),
             Mode::Insert => vim::insert_key(self, k),
             Mode::Command(_) => self.cmdline_key(k),
         }
         self.clamp_cursor();
+        if self.mode == Mode::Insert && !was_insert && self.buf.len_bytes() <= 10 * 1024 * 1024 {
+            self.word_index.ensure(&self.buf, true);
+        }
+        if self.mode != Mode::Insert {
+            self.popup = None;
+        }
         if !self.undo.in_group() {
             self.buf.modified = self.undo.state_id() != self.saved_state;
         }
@@ -192,6 +214,7 @@ impl Editor {
             cursor: text.len(),
             hist: None,
             stash: String::new(),
+            comp: None,
         });
     }
 
@@ -199,6 +222,9 @@ impl Editor {
         let Mode::Command(cl) = &mut self.mode else {
             return;
         };
+        if k.code != KeyCode::Tab {
+            cl.comp = None;
+        }
         let hist = if cl.kind == ':' {
             &self.cmd_history
         } else {
@@ -267,7 +293,31 @@ impl Editor {
     }
 
     /// Tab on the command line (filled in by completion).
-    fn complete_cmdline(&mut self) {}
+    fn complete_cmdline(&mut self) {
+        let Mode::Command(cl) = &mut self.mode else {
+            return;
+        };
+        if cl.kind != ':' {
+            return;
+        }
+        let (items, i, base) = match cl.comp.take() {
+            Some((items, i, base)) => {
+                let next = (i + 1) % (items.len() + 1);
+                (items, next, base)
+            }
+            None => {
+                let cwd = std::env::current_dir().unwrap_or_default();
+                let items = complete::cmdline_candidates(&cl.text, &cwd);
+                if items.is_empty() {
+                    return;
+                }
+                (items, 0, cl.text.clone())
+            }
+        };
+        cl.text = items.get(i).cloned().unwrap_or_else(|| base.clone());
+        cl.cursor = cl.text.len();
+        cl.comp = Some((items, i, base));
+    }
 
     fn run_cmdline(&mut self, kind: char, text: &str) {
         let hist = if kind == ':' {

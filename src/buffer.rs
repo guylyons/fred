@@ -36,6 +36,8 @@ pub struct Buffer {
     pub bom: bool,
     pub modified: bool,
     pub edits_since_swap: usize,
+    /// Increments on every edit.
+    pub version: u64,
     dirty_from: Option<usize>,
 }
 
@@ -75,6 +77,7 @@ impl Buffer {
             bom,
             modified: false,
             edits_since_swap: 0,
+            version: 0,
             dirty_from: None,
         }
     }
@@ -112,6 +115,7 @@ impl Buffer {
         self.dirty_from = Some(self.dirty_from.map_or(line, |d| d.min(line)));
         self.modified = true;
         self.edits_since_swap += 1;
+        self.version += 1;
         Edit {
             start: e.start,
             end: e.start + e.text.chars().count(),

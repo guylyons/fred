@@ -1,5 +1,6 @@
 pub mod args;
 pub mod buffer;
+pub mod complete;
 pub mod config;
 pub mod editor;
 pub mod ex;
