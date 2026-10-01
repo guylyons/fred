@@ -1,0 +1,366 @@
+//! Rendering the editor into a ratatui frame.
+
+use super::view::{View, line_rows};
+use crate::config::Config;
+use crate::editor::{Editor, Mode};
+use crate::highlight::{Highlighter, LineStyles};
+use crate::text::{col_of_byte, display_width, grapheme_width, is_control};
+use ratatui::Frame;
+use ratatui::buffer::Buffer as Screen;
+use ratatui::layout::Rect;
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span};
+use std::time::Duration;
+use unicode_segmentation::UnicodeSegmentation;
+
+/// One screen cell group: what to draw, its width, and its style.
+struct Cell {
+    sym: String,
+    width: usize,
+    style: Style,
+}
+
+fn style_at(styles: &Option<LineStyles>, byte: usize) -> Style {
+    styles
+        .as_ref()
+        .and_then(|s| s.iter().find(|(_, r)| r.contains(&byte)).map(|(st, _)| *st))
+        .unwrap_or_default()
+}
+
+/// Lay out a line as display cells (tabs expanded, control chars as `^X`).
+fn layout(line: &str, styles: &Option<LineStyles>, tabstop: usize) -> Vec<Cell> {
+    let special = Style::default().fg(Color::Blue);
+    let mut col = 0;
+    let mut out = vec![];
+    for (b, g) in line.grapheme_indices(true) {
+        let w = grapheme_width(g, col, tabstop);
+        let style = style_at(styles, b);
+        if g == "\t" {
+            out.extend((0..w).map(|_| Cell {
+                sym: " ".into(),
+                width: 1,
+                style,
+            }));
+        } else if g.chars().next().is_some_and(is_control) {
+            let c = g.chars().next().unwrap_or('?');
+            let shown = char::from_u32((c as u32 + 64) & 0x7f).unwrap_or('?');
+            out.push(Cell {
+                sym: "^".into(),
+                width: 1,
+                style: special,
+            });
+            out.push(Cell {
+                sym: shown.to_string(),
+                width: 1,
+                style: special,
+            });
+        } else if w > 0 {
+            out.push(Cell {
+                sym: g.into(),
+                width: w,
+                style,
+            });
+        }
+        col += w;
+    }
+    out
+}
+
+/// Cells covering columns `from..from+cols`; returns spans and whether text was cut.
+fn slice(cells: &[Cell], from: usize, cols: usize) -> (Vec<Span<'static>>, bool) {
+    let mut spans = vec![];
+    let mut col = 0;
+    let mut used = 0;
+    for (i, c) in cells.iter().enumerate() {
+        let start = col;
+        col += c.width;
+        if col <= from {
+            continue;
+        }
+        if start < from {
+            // A wide char cut by the left edge: show its visible half as blank.
+            let n = col - from;
+            spans.push(Span::styled(" ".repeat(n), c.style));
+            used += n;
+            continue;
+        }
+        if used + c.width > cols || (used + c.width == cols && i + 1 < cells.len()) {
+            // Leave the last column for the cut marker.
+            while used + 1 < cols {
+                spans.push(Span::raw(" "));
+                used += 1;
+            }
+            spans.push(Span::styled("›", Style::default().fg(Color::DarkGray)));
+            return (spans, true);
+        }
+        spans.push(Span::styled(c.sym.clone(), c.style));
+        used += c.width;
+    }
+    (spans, false)
+}
+
+/// Split cells into rows of at most `cols` columns (wrap mode).
+fn wrap_rows(cells: &[Cell], cols: usize) -> Vec<Vec<Span<'static>>> {
+    let mut rows = vec![vec![]];
+    let mut used = 0;
+    for c in cells {
+        if used + c.width > cols && used > 0 {
+            rows.push(vec![]);
+            used = 0;
+        }
+        if let Some(r) = rows.last_mut() {
+            r.push(Span::styled(c.sym.clone(), c.style));
+        }
+        used += c.width;
+    }
+    rows
+}
+
+fn reversed(spans: &mut Vec<Span<'static>>) {
+    if spans.is_empty() {
+        spans.push(Span::raw(" "));
+    }
+    for s in spans.iter_mut() {
+        s.style = s.style.add_modifier(Modifier::REVERSED);
+    }
+}
+
+fn digits(n: usize) -> usize {
+    n.to_string().len()
+}
+
+pub fn gutter_width(ed: &Editor, cfg: &Config) -> usize {
+    if cfg.numbers || cfg.relative_numbers {
+        digits(ed.line_count()).max(3) + 1
+    } else {
+        0
+    }
+}
+
+fn mode_name(m: &Mode) -> &'static str {
+    match m {
+        Mode::Normal => "NORMAL",
+        Mode::Insert => "INSERT",
+        Mode::VisualLine { .. } => "V-LINE",
+        Mode::Command(_) => "COMMAND",
+    }
+}
+
+/// Draw the editor; the frame area is the whole inline window.
+pub fn draw(
+    f: &mut Frame,
+    ed: &Editor,
+    view: &mut View,
+    hl: &mut Highlighter,
+    cfg: &Config,
+    budget: Duration,
+) {
+    let area = f.area();
+    if area.height == 0 || area.width == 0 {
+        return;
+    }
+    let rows = (area.height as usize).saturating_sub(2).max(1);
+    let gutter = gutter_width(ed, cfg).min(area.width as usize / 2);
+    let cols = (area.width as usize).saturating_sub(gutter).max(1);
+    view.scroll(ed, rows, cols, cfg.wrap);
+    let n = ed.line_count();
+    let last = (view.top + rows).min(n);
+    let styles = hl.styles(&ed.buf, view.top..last, budget);
+    let sel = match ed.mode {
+        Mode::VisualLine { anchor } => Some((anchor.min(ed.cur.line), anchor.max(ed.cur.line))),
+        _ => None,
+    };
+    let num_style = Style::default().fg(Color::DarkGray);
+    let cur_num_style = Style::default().add_modifier(Modifier::BOLD);
+    let buf = f.buffer_mut();
+    let (ox, oy) = (area.x, area.y);
+    let mut cursor = None;
+    let mut y = 0usize;
+    let mut l = view.top;
+    while y < rows && l < n {
+        let line = ed.buf.line(l);
+        let st = styles.get(l - view.top).cloned().flatten();
+        let cells = layout(&line, &st, ed.tabstop);
+        let mut screen_rows = if cfg.wrap {
+            wrap_rows(&cells, cols)
+        } else {
+            vec![slice(&cells, view.left, cols).0]
+        };
+        if sel.is_some_and(|(a, b)| l >= a && l <= b) {
+            for r in screen_rows.iter_mut() {
+                reversed(r);
+            }
+        }
+        if gutter > 0 {
+            let num = if cfg.relative_numbers && l != ed.cur.line {
+                l.abs_diff(ed.cur.line)
+            } else {
+                l + 1
+            };
+            let style = if l == ed.cur.line {
+                cur_num_style
+            } else {
+                num_style
+            };
+            let text = format!("{num:>w$} ", w = gutter - 1);
+            buf.set_stringn(ox, oy + y as u16, text, gutter, style);
+        }
+        if l == ed.cur.line {
+            let cc = col_of_byte(&line, ed.cur.byte, ed.tabstop);
+            cursor = Some(if cfg.wrap {
+                let total = line_rows(display_width(&line, ed.tabstop, 0), cols);
+                let r = (cc / cols).min(total);
+                (gutter + cc % cols, y + r)
+            } else {
+                (gutter + cc.saturating_sub(view.left), y)
+            });
+        }
+        for spans in screen_rows.drain(..) {
+            if y >= rows {
+                break;
+            }
+            buf.set_line(
+                ox + gutter as u16,
+                oy + y as u16,
+                &Line::from(spans),
+                cols as u16,
+            );
+            y += 1;
+        }
+        l += 1;
+    }
+    while y < rows {
+        buf.set_stringn(ox, oy + y as u16, "~", 1, num_style);
+        y += 1;
+    }
+    draw_status(buf, area, ed, hl);
+    let cmd_cursor = draw_command_row(buf, area, ed);
+    if let Some((cx, cy)) = cursor
+        && cy < rows
+    {
+        draw_popup(buf, area, ed, view, gutter, rows, (cx, cy));
+    }
+    match (cmd_cursor, cursor) {
+        (Some(x), _) => f.set_cursor_position((ox + x as u16, oy + area.height - 1)),
+        (None, Some((x, y))) => {
+            let x = x.min(area.width as usize - 1) as u16;
+            let y = y.min(rows - 1) as u16;
+            f.set_cursor_position((ox + x, oy + y));
+        }
+        _ => {}
+    }
+}
+
+fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter) {
+    let y = area.y + area.height - 2;
+    let bar = Style::default().add_modifier(Modifier::REVERSED);
+    let name = ed
+        .path
+        .as_ref()
+        .map_or_else(|| "[No Name]".to_string(), |p| p.display().to_string());
+    let modified = if ed.buf.modified { " [+]" } else { "" };
+    let ro = if ed.readonly { " [RO]" } else { "" };
+    let left = format!(" {}  {name}{modified}{ro}", mode_name(&ed.mode));
+    let line = ed.buf.line(ed.cur.line);
+    let col = col_of_byte(&line, ed.cur.byte, ed.tabstop) + 1;
+    let ft = match hl.syntax_name() {
+        "Plain Text" => String::new(),
+        s => format!("{}  ", s.to_lowercase()),
+    };
+    let right = format!("{ft}{}:{col} ", ed.cur.line + 1);
+    let w = area.width as usize;
+    let rw = display_width(&right, 1, 0);
+    buf.set_stringn(area.x, y, " ".repeat(w), w, bar);
+    buf.set_stringn(area.x, y, &left, w.saturating_sub(rw + 1).max(1), bar);
+    if rw < w {
+        buf.set_stringn(area.x + (w - rw) as u16, y, &right, rw, bar);
+    }
+}
+
+/// Draws the bottom row; returns the cursor column when typing a command.
+fn draw_command_row(buf: &mut Screen, area: Rect, ed: &Editor) -> Option<usize> {
+    let y = area.y + area.height - 1;
+    let w = area.width as usize;
+    match &ed.mode {
+        Mode::Command(cl) => {
+            let full = format!("{}{}", cl.kind, cl.text);
+            let ccol = 1 + display_width(&cl.text[..cl.cursor], 1, 0);
+            let skip = (ccol + 1).saturating_sub(w);
+            let mut col = 0;
+            let mut shown = String::new();
+            for g in full.graphemes(true) {
+                if col >= skip {
+                    shown.push_str(g);
+                }
+                col += display_width(g, 1, 0);
+            }
+            buf.set_stringn(area.x, y, shown, w, Style::default());
+            Some(ccol - skip)
+        }
+        _ => {
+            if let Some((m, err)) = &ed.msg {
+                let style = if *err {
+                    Style::default().fg(Color::Red)
+                } else {
+                    Style::default()
+                };
+                buf.set_stringn(area.x, y, m, w, style);
+            }
+            None
+        }
+    }
+}
+
+fn draw_popup(
+    buf: &mut Screen,
+    area: Rect,
+    ed: &Editor,
+    view: &View,
+    gutter: usize,
+    rows: usize,
+    cursor: (usize, usize),
+) {
+    let Some(p) = &ed.popup else { return };
+    if rows < 3 || p.items.is_empty() {
+        return;
+    }
+    let (_, cy) = cursor;
+    let below = rows - cy - 1;
+    let above = cy;
+    let want = p.items.len();
+    let (y0, h) = if below >= want || below >= above {
+        (cy + 1, want.min(below))
+    } else {
+        (cy - want.min(above), want.min(above))
+    };
+    if h == 0 {
+        return;
+    }
+    let width = p
+        .items
+        .iter()
+        .map(|s| display_width(s, 1, 0))
+        .max()
+        .unwrap_or(0)
+        + 2;
+    let width = width.min(area.width as usize);
+    let line = ed.buf.line(ed.cur.line);
+    let start_col =
+        gutter + col_of_byte(&line, p.start.min(line.len()), ed.tabstop).saturating_sub(view.left);
+    let x0 = start_col.saturating_sub(1).min(area.width as usize - width);
+    let normal = Style::default().bg(Color::DarkGray).fg(Color::White);
+    let selected = Style::default().bg(Color::White).fg(Color::Black);
+    // Keep the selected item visible when the list is taller than the space.
+    let first = p.sel.map_or(0, |s| (s + 1).saturating_sub(h));
+    for (i, item) in p.items.iter().enumerate().skip(first).take(h) {
+        let style = if p.sel == Some(i) { selected } else { normal };
+        let text = format!(" {item:<w$}", w = width - 1);
+        buf.set_stringn(
+            area.x + x0 as u16,
+            area.y + (y0 + i - first) as u16,
+            text,
+            width,
+            style,
+        );
+    }
+}

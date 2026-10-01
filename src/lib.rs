@@ -10,5 +10,6 @@ pub mod key;
 pub mod search;
 pub mod swap;
 pub mod text;
+pub mod ui;
 pub mod undo;
 pub mod vim;
