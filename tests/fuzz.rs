@@ -1413,7 +1413,7 @@ impl Runner {
                 }
                 None
             }
-            Mode::Insert => {
+            Mode::Insert | Mode::Pick(_) => {
                 self.count = CountGuess::default();
                 None
             }
@@ -1584,10 +1584,23 @@ impl Runner {
     }
 }
 
+/// `Space p` / `Space g` search an empty repo: nothing to walk, and the
+/// results are the same every run.
+fn empty_project() -> std::sync::Arc<fred::pick::Project> {
+    static DIR: OnceLock<std::path::PathBuf> = OnceLock::new();
+    let dir = DIR.get_or_init(|| {
+        let d = std::env::temp_dir().join(format!("fred-fuzz-{}", std::process::id()));
+        std::fs::create_dir_all(d.join(".git")).unwrap();
+        d
+    });
+    std::sync::Arc::new(fred::pick::Project::new(Some(dir.clone()), None))
+}
+
 fn exec(case: &Case) -> Result<(), Failure> {
     let buf = Buffer::from_text(&case.text);
     let initial = buf.text();
-    let ed = Editor::new(buf);
+    let mut ed = Editor::new(buf);
+    ed.project = empty_project();
     let mut r = Runner {
         text: initial.clone(),
         version: ed.buf.version,

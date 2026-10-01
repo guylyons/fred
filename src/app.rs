@@ -477,11 +477,18 @@ fn event_loop(
         }
         let rows = terminal::size()?.1;
         let shown = (ui.height as usize).saturating_sub(2);
-        let want = window_height(cfg.height, s.ed.line_count().max(shown), rows);
+        // A picker gets the full configured height, whatever the file's size.
+        let lines = match s.ed.mode {
+            Mode::Pick(_) => usize::MAX,
+            _ => s.ed.line_count().max(shown),
+        };
+        let want = window_height(cfg.height, lines, rows);
         if resized || want > ui.height {
             ui.rebuild(want)?;
             dirty = true;
         }
+        // Picker results from background threads, or a grep due to start.
+        dirty |= crate::pick::tick(&mut s.ed);
         let msg = s.ed.msg.clone();
         s.maybe_swap(Instant::now());
         dirty |= s.ed.msg != msg;

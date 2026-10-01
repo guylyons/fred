@@ -2,7 +2,7 @@
 
 use crate::buffer::{Buffer, LineEnding};
 use crate::config::Config;
-use crate::editor::Editor;
+use crate::editor::{Editor, Mode};
 use crate::ex::ExEffect;
 use crate::ex::addr::Range;
 use crate::fileio::{self, FileStamp};
@@ -39,6 +39,15 @@ pub enum SwapChoice {
 pub struct PendingEdit {
     pub path: PathBuf,
     pub info: SwapInfo,
+    pub then: Option<Goto>,
+}
+
+/// Where a picker result lands once its file is open.
+#[derive(Clone, Debug)]
+pub struct Goto {
+    pub line: usize,
+    pub col: usize,
+    pub pattern: Option<String>,
 }
 
 pub struct Session {
@@ -177,8 +186,26 @@ impl Session {
             swap_state: SwapState::None,
             swap_error_shown: false,
         };
+        let dir =
+            s.ed.path
+                .as_deref()
+                .and_then(|p| std::path::absolute(p).ok())
+                .and_then(|p| p.parent().map(Path::to_path_buf));
+        s.ed.project = std::sync::Arc::new(crate::pick::Project::new(dir, Some(s.recent_file())));
+        s.note_recent();
         let info = s.leftover_swap();
         Ok((s, info))
+    }
+
+    /// `~/.local/state/fred/recent`, beside the swap directory.
+    fn recent_file(&self) -> PathBuf {
+        self.swap_dir.with_file_name("recent")
+    }
+
+    fn note_recent(&self) {
+        if let Some(p) = &self.ed.path {
+            crate::pick::recent::record(&self.recent_file(), p);
+        }
     }
 
     fn leftover_swap(&mut self) -> Option<SwapInfo> {
@@ -225,6 +252,12 @@ impl Session {
                 }
             }
             ExEffect::Edit { path, force } => self.edit(path.as_deref(), force),
+            ExEffect::Open {
+                path,
+                line,
+                col,
+                pattern,
+            } => self.open_pick(path, Goto { line, col, pattern }),
         }
     }
 
@@ -343,6 +376,29 @@ impl Session {
                 return;
             }
         };
+        self.edit_path(p, None);
+    }
+
+    /// Open a picker result. With unsaved changes the picker stays open.
+    fn open_pick(&mut self, path: PathBuf, then: Goto) {
+        if self.ed.buf.modified {
+            self.ed.set_err("unsaved changes (:w first)");
+            return;
+        }
+        self.ed.project.grep.cancel();
+        // Shown on the status line: relative to where fred runs, if inside it.
+        let path = std::env::current_dir()
+            .ok()
+            .and_then(|c| path.strip_prefix(c).ok().map(Path::to_path_buf))
+            .unwrap_or(path);
+        self.edit_path(path, Some(then));
+        // Still here: the open failed or waits on a swap question.
+        if matches!(self.ed.mode, Mode::Pick(_)) {
+            self.ed.mode = Mode::Normal;
+        }
+    }
+
+    fn edit_path(&mut self, p: PathBuf, then: Option<Goto>) {
         let o = match open_file(Some(&p), &self.cfg) {
             Ok(o) => o,
             Err(e) => {
@@ -354,11 +410,25 @@ impl Session {
         if new_swap != self.swap_path
             && let Some(info) = leftover(&new_swap, &o.ed.buf)
         {
-            self.pending_edit = Some(PendingEdit { path: p, info });
+            self.pending_edit = Some(PendingEdit {
+                path: p,
+                info,
+                then,
+            });
             return;
         }
         self.switch_to(o, new_swap);
         self.lock();
+        self.go(then);
+    }
+
+    fn go(&mut self, then: Option<Goto>) {
+        let Some(g) = then else { return };
+        self.ed.set_cursor(g.line, g.col);
+        if let Some(p) = g.pattern {
+            self.ed.last_pat = Some(p);
+            self.ed.last_search_fwd = true;
+        }
     }
 
     /// Make `o` the buffer being edited, with its swap file at `new_swap`.
@@ -366,7 +436,10 @@ impl Session {
         if new_swap != self.swap_path {
             self.release_swap();
         }
+        let project = std::sync::Arc::clone(&self.ed.project);
         self.ed = o.ed;
+        self.ed.project = project;
+        self.note_recent();
         self.stamp = o.stamp;
         self.lossy = o.lossy;
         self.no_swap = false;
@@ -378,7 +451,7 @@ impl Session {
 
     /// Finish an `:e` that was waiting on [`SwapChoice`].
     pub fn resolve_edit(&mut self, choice: SwapChoice) {
-        let Some(PendingEdit { path, info }) = self.pending_edit.take() else {
+        let Some(PendingEdit { path, info, then }) = self.pending_edit.take() else {
             return;
         };
         if choice == SwapChoice::Cancel {
@@ -394,6 +467,7 @@ impl Session {
         };
         let new_swap = swap::swap_path_in(&self.swap_dir, Some(&path));
         self.switch_to(o, new_swap);
+        self.go(then);
         match choice {
             SwapChoice::Recover => {
                 self.recover(info);
@@ -897,5 +971,61 @@ mod tests {
             s.handle_key(k);
         }
         assert_eq!(fs::read_to_string(&p).unwrap(), "recovered\r\n");
+    }
+
+    #[test]
+    fn opening_a_pick_goes_to_the_match() {
+        let mut t = T::open(Some("a"), Some("one\n"));
+        let b = t.dir.path().join("b");
+        fs::write(&b, "x\n  needle here\n").unwrap();
+        let project = std::sync::Arc::clone(&t.s.ed.project);
+        t.s.perform(ExEffect::Open {
+            path: b.clone(),
+            line: 1,
+            col: 2,
+            pattern: Some("needle".into()),
+        });
+        assert_eq!(t.s.ed.path.as_ref(), Some(&b));
+        assert_eq!(t.s.ed.cur.pos(), (1, 2));
+        assert_eq!(t.s.ed.last_pat.as_deref(), Some("needle"));
+        assert!(std::sync::Arc::ptr_eq(&project, &t.s.ed.project));
+        let recent = crate::pick::recent::load(&t.dir.path().join("recent"));
+        assert_eq!(recent, [b, t.dir.path().join("a")]);
+    }
+
+    #[test]
+    fn unsaved_changes_keep_the_picker_open() {
+        let mut t = T::open(Some("a"), Some("one\n"));
+        fs::create_dir(t.dir.path().join(".git")).unwrap();
+        fs::write(t.dir.path().join("b"), "two\n").unwrap();
+        t.keys("x p");
+        let ready = Instant::now();
+        while crate::pick::tick(&mut t.s.ed) || ready.elapsed() < Duration::from_millis(200) {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        t.keys("b<Enter>");
+        assert!(t.msg().contains("unsaved changes"), "{}", t.msg());
+        assert!(matches!(t.s.ed.mode, Mode::Pick(_)));
+        assert_eq!(t.s.ed.path, Some(t.dir.path().join("a")));
+        t.keys("<Esc>:w<Enter> pb<Enter>");
+        assert_eq!(t.s.ed.path, Some(t.dir.path().join("b")));
+        assert_eq!(t.s.ed.mode, Mode::Normal);
+    }
+
+    #[test]
+    fn a_pick_that_cannot_open_closes_the_picker() {
+        let mut t = T::open(Some("a"), Some("one\n"));
+        fs::create_dir(t.dir.path().join(".git")).unwrap();
+        t.keys(" g");
+        assert!(matches!(t.s.ed.mode, Mode::Pick(_)));
+        t.s.perform(ExEffect::Open {
+            path: t.dir.path().to_path_buf(),
+            line: 0,
+            col: 0,
+            pattern: None,
+        });
+        assert_eq!(t.s.ed.mode, Mode::Normal);
+        assert!(t.s.ed.msg.as_ref().is_some_and(|m| m.1), "{:?}", t.s.ed.msg);
+        assert_eq!(t.s.ed.path, Some(t.dir.path().join("a")));
     }
 }

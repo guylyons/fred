@@ -32,8 +32,12 @@ impl Cursor {
 pub enum Mode {
     Normal,
     Insert,
-    VisualLine { anchor: usize },
+    VisualLine {
+        anchor: usize,
+    },
     Command(CmdLine),
+    /// File or grep picker (`Space p`, `Space g`).
+    Pick(Box<crate::pick::Picker>),
 }
 
 /// The `:`, `/` or `?` line being typed.
@@ -47,6 +51,42 @@ pub struct CmdLine {
     stash: String,
     /// Tab completion in progress: candidates, current index, text before Tab.
     comp: Option<(Vec<String>, usize, String)>,
+}
+
+impl CmdLine {
+    /// Keys that edit the text: typing, Backspace, Delete, Ctrl-W, Ctrl-U,
+    /// and cursor movement.
+    pub fn edit(&mut self, k: Key) {
+        match k.code {
+            KeyCode::Backspace if self.cursor > 0 => {
+                let p = prev_char(&self.text, self.cursor);
+                self.text.replace_range(p..self.cursor, "");
+                self.cursor = p;
+            }
+            KeyCode::Delete if self.cursor < self.text.len() => {
+                let n = next_char(&self.text, self.cursor);
+                self.text.replace_range(self.cursor..n, "");
+            }
+            KeyCode::Left => self.cursor = prev_char(&self.text, self.cursor),
+            KeyCode::Right => self.cursor = next_char(&self.text, self.cursor),
+            KeyCode::Home => self.cursor = 0,
+            KeyCode::End => self.cursor = self.text.len(),
+            KeyCode::Char('u') if k.ctrl => {
+                self.text.replace_range(..self.cursor, "");
+                self.cursor = 0;
+            }
+            KeyCode::Char('w') if k.ctrl => {
+                let start = text::word_start_before(&self.text, self.cursor);
+                self.text.replace_range(start..self.cursor, "");
+                self.cursor = start;
+            }
+            KeyCode::Char(c) if !k.ctrl && !k.alt => {
+                self.text.insert(self.cursor, c);
+                self.cursor += c.len_utf8();
+            }
+            _ => {}
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -83,6 +123,8 @@ pub struct Editor {
     /// Words from nearby files, filled in by a background thread.
     pub nearby: Arc<Mutex<Vec<String>>>,
     pub(crate) word_index: WordIndex,
+    /// The project the pickers search; outlives `:e`.
+    pub project: Arc<crate::pick::Project>,
     cmd_history: Vec<String>,
     search_history: Vec<String>,
 }
@@ -112,6 +154,7 @@ impl Editor {
             autocomplete: true,
             nearby: Arc::default(),
             word_index: WordIndex::default(),
+            project: Arc::default(),
             cmd_history: vec![],
             search_history: vec![],
         }
@@ -126,6 +169,7 @@ impl Editor {
             Mode::Normal | Mode::VisualLine { .. } => vim::normal_key(self, k),
             Mode::Insert => vim::insert_key(self, k),
             Mode::Command(_) => self.cmdline_key(k),
+            Mode::Pick(_) => crate::pick::pick_key(self, k),
         }
         self.clamp_cursor();
         // Undo/redo in Visual-line mode can delete the anchor's line.
@@ -152,6 +196,11 @@ impl Editor {
                 let first = text.lines().next().unwrap_or("");
                 cl.text.insert_str(cl.cursor, first);
                 cl.cursor += first.len();
+            }
+            Mode::Pick(_) => {
+                for c in text.lines().next().unwrap_or("").chars() {
+                    crate::pick::pick_key(self, Key::ch(c));
+                }
             }
             Mode::Insert => {
                 vim::ops::insert_text(self, &text);
@@ -290,19 +339,6 @@ impl Editor {
                 self.run_cmdline(cl.kind, &cl.text);
             }
             KeyCode::Backspace if cl.text.is_empty() => self.mode = Mode::Normal,
-            KeyCode::Backspace if cl.cursor > 0 => {
-                let p = prev_char(&cl.text, cl.cursor);
-                cl.text.replace_range(p..cl.cursor, "");
-                cl.cursor = p;
-            }
-            KeyCode::Delete if cl.cursor < cl.text.len() => {
-                let n = next_char(&cl.text, cl.cursor);
-                cl.text.replace_range(cl.cursor..n, "");
-            }
-            KeyCode::Left => cl.cursor = prev_char(&cl.text, cl.cursor),
-            KeyCode::Right => cl.cursor = next_char(&cl.text, cl.cursor),
-            KeyCode::Home => cl.cursor = 0,
-            KeyCode::End => cl.cursor = cl.text.len(),
             KeyCode::Up | KeyCode::Down => {
                 let len = hist.len();
                 let next = match (k.code, cl.hist) {
@@ -321,21 +357,8 @@ impl Editor {
                     cl.hist = next;
                 }
             }
-            KeyCode::Char('u') if k.ctrl => {
-                cl.text.replace_range(..cl.cursor, "");
-                cl.cursor = 0;
-            }
-            KeyCode::Char('w') if k.ctrl => {
-                let start = text::word_start_before(&cl.text, cl.cursor);
-                cl.text.replace_range(start..cl.cursor, "");
-                cl.cursor = start;
-            }
             KeyCode::Tab => self.complete_cmdline(),
-            KeyCode::Char(c) if !k.ctrl && !k.alt => {
-                cl.text.insert(cl.cursor, c);
-                cl.cursor += c.len_utf8();
-            }
-            _ => {}
+            _ => cl.edit(k),
         }
     }
 

@@ -8,6 +8,7 @@ pub mod ex;
 pub mod fileio;
 pub mod highlight;
 pub mod key;
+pub mod pick;
 pub mod search;
 pub mod session;
 pub mod swap;

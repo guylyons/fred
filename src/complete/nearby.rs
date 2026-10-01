@@ -13,15 +13,17 @@ const MAX_WORDS: usize = 50_000;
 /// Directory entries the nearby-file search may look at.
 const MAX_VISIT: usize = 5_000;
 
-fn repo_root(dir: &Path) -> Option<PathBuf> {
+pub(crate) fn repo_root(dir: &Path) -> Option<PathBuf> {
     dir.ancestors()
         .find(|d| d.join(".git").exists())
         .map(Path::to_path_buf)
 }
 
-fn read_text(path: &Path) -> Option<String> {
+/// A text file's contents: None if it is not a file, over `max` bytes,
+/// binary (a NUL in the first 8 KB) or not UTF-8.
+pub(crate) fn read_text(path: &Path, max: u64) -> Option<String> {
     let meta = std::fs::metadata(path).ok()?;
-    if !meta.is_file() || meta.len() > MAX_FILE {
+    if !meta.is_file() || meta.len() > max {
         return None;
     }
     let mut data = Vec::new();
@@ -105,7 +107,9 @@ pub fn collect(file: Option<&Path>) -> Vec<String> {
     let mut out = vec![];
     let mut total = 0;
     for p in files(file).into_iter().take(MAX_FILES) {
-        let Some(text) = read_text(&p) else { continue };
+        let Some(text) = read_text(&p, MAX_FILE) else {
+            continue;
+        };
         total += text.len();
         for w in words(&text) {
             if seen.insert(w.to_string()) {

@@ -448,6 +448,50 @@ fn paging_with_height_max_moves_one_screen() {
     assert_eq!(p.wait_exit(), 0);
 }
 
+#[test]
+fn space_p_finds_and_opens_a_file() {
+    let env = Env::new();
+    env.write("a.txt", "first\n");
+    fs::create_dir_all(env.path("src/deep")).unwrap();
+    env.write("src/deep/target.rs", "fn found() {}\n");
+    let mut p = env.fred(&["a.txt"]);
+    p.wait_text("NORMAL");
+    p.keys(&[" p", "trgrs"]);
+    p.wait_text("src/deep/target.rs");
+    p.wait_text("find> trgrs");
+    // Unsaved changes: the picker stays and says why.
+    p.keys(&["\x1b", "x", " p", "trgrs", "\r"]);
+    p.wait_text("unsaved changes (:w first)");
+    p.wait_text("find> trgrs");
+    p.keys(&["\x1b", "u", " p", "trgrs", "\r"]);
+    p.wait_text("fn found() {}");
+    p.wait_text("\"src/deep/target.rs\" 1L");
+    p.keys(&[":q\r"]);
+    assert_eq!(p.wait_exit(), 0);
+}
+
+#[test]
+fn space_g_greps_and_lands_on_the_line() {
+    let env = Env::new();
+    env.write("a.txt", "first\n");
+    let body: String = (1..=50).map(|i| format!("line {i}\n")).collect();
+    env.write("b.txt", &format!("{body}    let needle = 1;\n"));
+    let mut p = env.fred(&["a.txt"]);
+    p.wait_text("NORMAL");
+    p.keys(&[" g", "need.e"]);
+    p.wait_text("b.txt:51: let needle = 1;");
+    p.wait_text("1 matches");
+    p.keys(&["\r"]);
+    p.wait_text("51:9");
+    // The pattern is the last search: n finds it again (wrapping around).
+    p.keys(&["gg"]);
+    p.wait_text(" 1:1 ");
+    p.keys(&["n"]);
+    p.wait_text("51:9");
+    p.keys(&[":q\r"]);
+    assert_eq!(p.wait_exit(), 0);
+}
+
 /// Prints what the window looks like (run with `--ignored --nocapture`).
 #[test]
 #[ignore]

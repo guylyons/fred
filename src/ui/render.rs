@@ -3,8 +3,9 @@
 use super::layout::{Layout, Placed, wrap_cursor};
 use super::view::View;
 use crate::config::Config;
-use crate::editor::{Editor, Mode};
+use crate::editor::{CmdLine, Editor, Mode};
 use crate::highlight::{Highlighter, LineStyles};
+use crate::pick::{Kind, Picker};
 use crate::text::{col_of_byte, display_width, is_control};
 use ratatui::Frame;
 use ratatui::buffer::Buffer as Screen;
@@ -124,6 +125,10 @@ fn mode_name(m: &Mode) -> &'static str {
         Mode::Insert => "INSERT",
         Mode::VisualLine { .. } => "V-LINE",
         Mode::Command(_) => "COMMAND",
+        Mode::Pick(p) => match p.kind {
+            Kind::Files => "FIND",
+            Kind::Grep => "GREP",
+        },
     }
 }
 
@@ -138,6 +143,16 @@ pub fn draw(
 ) {
     let area = f.area();
     if area.height == 0 || area.width == 0 {
+        return;
+    }
+    if let Mode::Pick(p) = &ed.mode {
+        let buf = f.buffer_mut();
+        draw_picker(buf, area, p);
+        if area.height >= 2 {
+            draw_status(buf, area, ed, hl);
+        }
+        let x = draw_input(buf, area, p.prompt(), &p.query);
+        f.set_cursor_position((area.x + x as u16, area.y + area.height - 1));
         return;
     }
     // Text rows; a terminal under 3 rows tall keeps only the bottom rows.
@@ -272,7 +287,14 @@ fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter) {
         .map_or_else(|| "[No Name]".to_string(), |p| p.display().to_string());
     let modified = if ed.buf.modified { " [+]" } else { "" };
     let ro = if ed.readonly { " [RO]" } else { "" };
-    let left = format!(" {}  {name}{modified}{ro}", mode_name(&ed.mode));
+    let left = match &ed.mode {
+        // An error from opening the pick (unsaved changes) replaces the count.
+        Mode::Pick(p) => match &ed.msg {
+            Some((m, true)) => format!(" {}  {m}", mode_name(&ed.mode)),
+            _ => format!(" {}  {}", mode_name(&ed.mode), p.status),
+        },
+        _ => format!(" {}  {name}{modified}{ro}", mode_name(&ed.mode)),
+    };
     let line = ed.buf.line(ed.cur.line);
     let col = col_of_byte(&line, ed.cur.byte, ed.tabstop) + 1;
     let ft = match hl.syntax_name() {
@@ -294,21 +316,7 @@ fn draw_command_row(buf: &mut Screen, area: Rect, ed: &Editor) -> Option<usize> 
     let y = area.y + area.height - 1;
     let w = area.width as usize;
     match &ed.mode {
-        Mode::Command(cl) => {
-            let full = format!("{}{}", cl.kind, cl.text);
-            let ccol = 1 + display_width(&cl.text[..cl.cursor], 1, 0);
-            let skip = (ccol + 1).saturating_sub(w);
-            let mut col = 0;
-            let mut shown = String::new();
-            for g in full.graphemes(true) {
-                if col >= skip {
-                    shown.push_str(g);
-                }
-                col += display_width(g, 1, 0);
-            }
-            buf.set_stringn(area.x, y, shown, w, Style::default());
-            Some(ccol - skip)
-        }
+        Mode::Command(cl) => Some(draw_input(buf, area, cl.kind.encode_utf8(&mut [0; 4]), cl)),
         _ => {
             if let Some((m, err)) = &ed.msg {
                 let style = if *err {
@@ -320,6 +328,60 @@ fn draw_command_row(buf: &mut Screen, area: Rect, ed: &Editor) -> Option<usize> 
             }
             None
         }
+    }
+}
+
+/// Draws `prompt` and the line being typed on the bottom row, scrolled so
+/// the cursor shows; returns the cursor column.
+fn draw_input(buf: &mut Screen, area: Rect, prompt: &str, cl: &CmdLine) -> usize {
+    let y = area.y + area.height - 1;
+    let w = area.width as usize;
+    let full = format!("{prompt}{}", cl.text);
+    let ccol = display_width(prompt, 1, 0) + display_width(&cl.text[..cl.cursor], 1, 0);
+    let skip = (ccol + 1).saturating_sub(w);
+    let mut col = 0;
+    let mut shown = String::new();
+    for g in full.graphemes(true) {
+        if col >= skip {
+            shown.push_str(g);
+        }
+        col += display_width(g, 1, 0);
+    }
+    buf.set_stringn(area.x, y, shown, w, Style::default());
+    ccol - skip
+}
+
+/// Picker results in the text rows, best at the bottom.
+fn draw_picker(buf: &mut Screen, area: Rect, p: &Picker) {
+    let rows = (area.height as usize).saturating_sub(2);
+    let off = (p.sel + 1).saturating_sub(rows);
+    let matched = Style::default()
+        .fg(Color::Yellow)
+        .add_modifier(Modifier::BOLD);
+    // Control characters (tabs in grep lines) would upset the layout.
+    let clean = |s: &str| s.replace(|c: char| c.is_control(), " ");
+    for (i, r) in p.rows.iter().enumerate().skip(off).take(rows) {
+        let y = area.y + (rows - 1 - (i - off)) as u16;
+        let selected = i == p.sel;
+        let mut spans = vec![Span::raw(if selected { "> " } else { "  " })];
+        let mut at = 0;
+        for &(a, b) in &r.hl {
+            if a < at
+                || b > r.text.len()
+                || !r.text.is_char_boundary(a)
+                || !r.text.is_char_boundary(b)
+            {
+                continue;
+            }
+            spans.push(Span::raw(clean(&r.text[at..a])));
+            spans.push(Span::styled(clean(&r.text[a..b]), matched));
+            at = b;
+        }
+        spans.push(Span::raw(clean(&r.text[at..])));
+        if selected {
+            reversed(&mut spans);
+        }
+        buf.set_line(area.x, y, &Line::from(spans), area.width);
     }
 }
 

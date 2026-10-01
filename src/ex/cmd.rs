@@ -26,6 +26,14 @@ pub enum ExEffect {
         path: Option<String>,
         force: bool,
     },
+    /// Open a picker result: `path` at `line`/`col` (0-based; `col` in
+    /// bytes), searching for `pattern` next.
+    Open {
+        path: std::path::PathBuf,
+        line: usize,
+        col: usize,
+        pattern: Option<String>,
+    },
 }
 
 /// What ex commands operate on: borrowed pieces of the editor.

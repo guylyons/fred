@@ -63,6 +63,22 @@ exactly as pasted.
 `ZZ` saves (if there are changes) and quits; `ZQ` quits without saving.
 `Ctrl-Z` suspends fred; `fg` brings it back.
 
+## Finding files and grepping
+
+Space is the leader key (`l` still moves right).
+
+- `Space p` finds a file. Type a few letters of its path in any order that
+  follows the path: `sesrs` finds `src/session.rs`. With nothing typed you
+  see the files you opened most recently first.
+- `Space g` greps the project as you type, with the same regex rules as `/`.
+  `Enter` opens the file on the match, and `n` goes on to the next one.
+
+In either picker, the best match is at the bottom next to the prompt;
+`Up`/`Ctrl-P` and `Down`/`Ctrl-N` move the selection, `Enter` opens it and
+`Esc` goes back. The project is the enclosing git repo (or the current
+directory), `.gitignore` is respected, and grep skips binary files and files
+over 1 MB. With unsaved changes fred won't switch files: `:w` first.
+
 ## `:` commands
 
 Addresses work as in ed: `N . $ +n -n /re/ ?re? 'a`, `,` or `%` (the whole

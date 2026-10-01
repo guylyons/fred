@@ -8,6 +8,7 @@ anyhow = "1"
 crossterm = "0.29"
 ignore = "0.4"
 libc = "0.2"
+nucleo-matcher = "0.3"
 ratatui = "0.30"
 regex = "1"
 ropey = { version = "1", default-features = false, features = ["simd"] }

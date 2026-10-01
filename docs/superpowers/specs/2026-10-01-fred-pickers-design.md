@@ -146,3 +146,20 @@ buffer), user-configurable leader or bindings.
   `Enter` opens it on the right line.
 - Perf: the existing perf suite shows no startup change; time to first
   `Space p` list and first grep results on this repo and a large one.
+
+## As built
+
+Differences from the design above, found while building:
+
+- While a picker is open the window grows to the configured height (it
+  would otherwise be as short as the file: one result for a one-line file).
+  Like any growth, it does not shrink back.
+- A picked file is opened by its path relative to the current directory
+  when it is inside it, so the status line shows `src/app.rs`, not an
+  absolute path.
+- Errors from opening a pick (unsaved changes) show on the picker's status
+  line in place of the count, until the next key.
+- Measured (release, 20,000-file project, `perf_pickers` in
+  `tests/explore.rs`): picker shows in ~2 ms, all files listed in ~55 ms,
+  ranking after typing ~25 ms, a full grep scan for a rare word ~0.9 s,
+  1000 hits for a common one ~0.16 s. Startup is unchanged (~15 ms).

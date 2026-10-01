@@ -119,7 +119,7 @@ fn parse_motion(keys: &[Key]) -> Parse<(Motion, usize)> {
         _ if k.ctrl => return Parse::Invalid,
         KeyCode::Char(c) => match c {
             'h' => Motion::Left,
-            'l' | ' ' => Motion::Right,
+            'l' => Motion::Right,
             'j' => Motion::Down,
             'k' => Motion::Up,
             'w' => Motion::WordFwd(false),
@@ -157,10 +157,10 @@ fn parse_motion(keys: &[Key]) -> Parse<(Motion, usize)> {
 }
 
 /// Commands that take one character argument.
-const ARG_CMDS: &[char] = &['r', 'm', 'Z'];
+const ARG_CMDS: &[char] = &['r', 'm', 'Z', ' '];
 const SIMPLE: &[char] = &[
     'x', 'X', 's', 'S', 'J', 'p', 'P', 'o', 'O', 'i', 'a', 'I', 'A', 'u', 'D', 'C', 'Y', 'V', ':',
-    '/', '?', '.', 'r', 'm', 'Z',
+    '/', '?', '.', 'r', 'm', 'Z', ' ',
 ];
 
 fn parse(keys: &[Key]) -> Parse<Cmd> {
@@ -556,6 +556,12 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
             ed.set_line_keep_col(ed.cur.line.saturating_sub(n));
         }
         (KeyCode::Char(':'), false) => ed.open_cmdline(':', ""),
+        // Space is the leader: `Space p` finds files, `Space g` greps.
+        (KeyCode::Char(' '), false) => match arg {
+            Some('p') => crate::pick::open(ed, crate::pick::Kind::Files),
+            Some('g') => crate::pick::open(ed, crate::pick::Kind::Grep),
+            _ => {}
+        },
         (KeyCode::Char(c @ ('/' | '?')), false) => ed.open_cmdline(c, ""),
         // ZZ writes if modified and quits; ZQ quits without writing.
         (KeyCode::Char('Z'), false) => match arg {

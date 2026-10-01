@@ -583,6 +583,75 @@ impl Report {
 
 const TYPED: &str = "let sum = value_12 + function_3;";
 
+/// `Space p` and `Space g` over a 20,000-file project.
+#[test]
+#[ignore]
+fn perf_pickers() {
+    let bin = release_bin();
+    let env = Env::new();
+    let body = rust_like(40);
+    for d in 0..200 {
+        fs::create_dir_all(env.path(&format!("d{d}"))).unwrap();
+        for f in 0..100 {
+            env.write(&format!("d{d}/f{f}.rs"), &body);
+        }
+    }
+    env.write("d150/f50.rs", &format!("{body}// needle_xyz\n"));
+    env.write("main.rs", "fn main() {}\n");
+    let total = 20_000;
+    let mut r = Report::default();
+    println!(
+        "== pickers: {total} files, {:.0} MB (release build, 40x120 pty)",
+        (body.len() * 20_000) as f64 / 1e6
+    );
+    let t = Instant::now();
+    let mut p = env.spawn_bin(&bin, &["--height", "max", "main.rs"], 40, 120);
+    p.wait_for_within("first paint", Duration::from_secs(60), |s| {
+        s.contains("NORMAL")
+    });
+    r.action("startup to first paint", t.elapsed(), 1000.0);
+
+    let d = timed(&p, " p", "picker", |s| s.contains("find>"));
+    r.action("Space p until the picker shows", d, 100.0);
+    // The env's own state and config files are in the tree too.
+    let listed = |s: &str| {
+        s.lines().any(|l| {
+            l.contains(" FIND ") && !l.contains('…') && {
+                let w = l.split_whitespace().nth(1).unwrap_or("");
+                w.split_once('/')
+                    .is_some_and(|(a, b)| a == b && a.len() >= 5)
+            }
+        })
+    };
+    let d = d + timed(&p, "", "walk done", listed);
+    r.action("Space p until all files are listed", d, 2000.0);
+    let d = timed(&p, "d15f5", "ranked", |s| {
+        s.contains("find> d15f5") && s.contains("> d15") && !listed(s)
+    });
+    r.action("typing 5 chars until ranked (all keys)", d, 500.0);
+    p.keys(&["\x1b"]);
+    p.wait_for("normal", |s| s.contains("NORMAL"));
+
+    p.keys(&[" g"]);
+    p.wait_for("grep", |s| s.contains("grep>"));
+    let d = timed(&p, "needle_xyz", "rare match", |s| {
+        s.contains("d150/f50.rs:") && s.contains(" 1 matches ")
+    });
+    r.action(
+        "grep a rare word: typed until whole tree scanned",
+        d,
+        3000.0,
+    );
+    for _ in 0.."needle_xyz".len() {
+        p.send("\x7f");
+    }
+    let d = timed(&p, "fn ", "common match", |s| s.contains("1000+ matches"));
+    r.action("grep a common word: typed until 1000+ matches", d, 1000.0);
+    p.keys(&["\x1b", ":q\r"]);
+    p.wait_exit();
+    r.finish();
+}
+
 /// ~4.8 MB / 100k lines of Rust.
 #[test]
 #[ignore]
