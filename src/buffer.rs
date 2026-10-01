@@ -25,6 +25,14 @@ pub struct Edit {
     pub text: String,
 }
 
+/// Lines `at..at + removed` were replaced by `inserted` lines.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LineChange {
+    pub at: usize,
+    pub removed: usize,
+    pub inserted: usize,
+}
+
 /// Text stored with `\n` line endings and no trailing terminator; the file's
 /// own line ending, final newline and BOM are remembered and restored on write.
 #[derive(Clone, Debug)]
@@ -41,6 +49,7 @@ pub struct Buffer {
     /// The file was zero bytes: it gains a final newline only while it has text.
     zero_byte: bool,
     dirty_from: Option<usize>,
+    line_changes: Vec<LineChange>,
 }
 
 impl Default for Buffer {
@@ -82,6 +91,7 @@ impl Buffer {
             version: 0,
             zero_byte: s.is_empty() && !bom,
             dirty_from: None,
+            line_changes: vec![],
         }
     }
 
@@ -107,11 +117,23 @@ impl Buffer {
     /// Apply an edit and return its inverse.
     pub fn apply(&mut self, e: Edit) -> Edit {
         let removed = self.rope.slice(e.start..e.end).to_string();
+        let first = self.rope.char_to_line(e.start);
+        let at_line_start = e.start == self.rope.line_to_char(first);
         self.rope.remove(e.start..e.end);
         self.rope.insert(e.start, &e.text);
         if self.zero_byte {
             // A zero-byte file that gains text gets a final newline, like vim.
             self.final_newline = self.rope.len_chars() > 0;
+        }
+        let (r, i) = (removed.matches('\n').count(), e.text.matches('\n').count());
+        if r > 0 || i > 0 {
+            // Whole lines removed/inserted at a line start move the line
+            // there; otherwise that line survives and later ones change.
+            let whole = at_line_start
+                && (removed.is_empty() || removed.ends_with('\n'))
+                && (e.text.is_empty() || e.text.ends_with('\n'));
+            let at = if whole { first } else { first + 1 };
+            self.line_changes.push(LineChange { at, removed: r, inserted: i });
         }
         let line = self.rope.char_to_line(e.start);
         self.dirty_from = Some(self.dirty_from.map_or(line, |d| d.min(line)));
@@ -123,6 +145,11 @@ impl Buffer {
             end: e.start + e.text.chars().count(),
             text: removed,
         }
+    }
+
+    /// Line structure changes since the last call, oldest first.
+    pub fn take_line_changes(&mut self) -> Vec<LineChange> {
+        std::mem::take(&mut self.line_changes)
     }
 
     /// First line changed since the last call, if any.

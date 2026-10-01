@@ -218,3 +218,19 @@ fn missing_final_newline_is_kept() {
     assert_eq!(bytes("", "ihi<Esc>u"), "");
     assert_eq!(bytes("", ""), "");
 }
+
+#[test]
+fn marks_follow_their_lines() {
+    // A line inserted above shifts the mark down.
+    assert_eq!(txt("a\nb\nc\nd\ne", "jjjmaggOnew<Esc>:'a,$d<Enter>"), "new\na\nb\nc");
+    // A line deleted above shifts it up.
+    assert_eq!(ed("a\nb\nc\nd", "GmaggddG'a").cur.line, 2);
+    // Deleting the marked line deletes the mark.
+    let e = ed("a\nb\nc", "jmadd:'a<Enter>");
+    assert!(e.msg.as_ref().is_some_and(|m| m.1 && m.0.contains("mark not set")), "{:?}", e.msg);
+    // Splitting a line below the mark doesn't move it; o above it does.
+    assert_eq!(ed("a\nb\nc", "jmaggA<Enter>x<Esc>G'a").cur.line, 2);
+    assert_eq!(ed("a\nb\nc", "jmaggox<Esc>G'a").cur.line, 2);
+    // ex commands move marks too.
+    assert_eq!(ed("a\nb\nc\nd", "Gma:1d<Enter>gg'a").cur.line, 2);
+}
