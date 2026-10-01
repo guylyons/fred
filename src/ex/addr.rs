@@ -82,7 +82,7 @@ pub fn parse_addr<'i>(input: &'i str, ctx: &mut AddrCtx) -> Result<(Option<i64>,
         Some(d @ ('/' | '?')) => {
             let (pat, r) = read_delimited(&s[1..], d);
             let pat = use_pattern(pat, ctx.last_pat)?;
-            let re = search::compile(&pat)?;
+            let re = search::compile_exact(&pat)?;
             let line = search::find_line(ctx.buf, &re, ctx.cur, d == '/').ok_or("no match")?;
             (Some(line as i64 + 1), r)
         }
@@ -186,6 +186,11 @@ mod tests {
         assert_eq!(r(t, ".+1,+2d", 0), Ok(Some((1, 2))));
         assert_eq!(r(t, "$-1d", 0), Ok(Some((3, 3))));
         assert_eq!(r(t, "/d/d", 0), Ok(Some((3, 3))));
+        assert_eq!(
+            r("a\nFoo\nfoo", "/foo/d", 0),
+            Ok(Some((2, 2))),
+            "ex searches are case-sensitive"
+        );
         assert_eq!(r(t, "/d/+1d", 0), Ok(Some((4, 4))));
         assert_eq!(r(t, "?b?d", 3), Ok(Some((1, 1))));
         assert_eq!(r(t, "'a,$d", 0), Ok(Some((1, 4))));

@@ -4,6 +4,21 @@ use crate::buffer::Buffer;
 use crate::text::next_grapheme;
 use regex::Regex;
 
+/// Compile a pattern exactly as written (ex commands, like ed).
+pub fn compile_exact(pat: &str) -> Result<Regex, String> {
+    Regex::new(pat).map_err(|e| regex_error(&e))
+}
+
+fn regex_error(e: &regex::Error) -> String {
+    let msg = e.to_string();
+    let last = msg
+        .lines()
+        .rfind(|l| !l.trim().is_empty())
+        .unwrap_or("")
+        .trim();
+    format!("bad pattern: {}", last.trim_start_matches("error: "))
+}
+
 /// Compile a pattern; case-insensitive unless it contains an uppercase letter.
 pub fn compile(pat: &str) -> Result<Regex, String> {
     let src = if pat.chars().any(char::is_uppercase) {

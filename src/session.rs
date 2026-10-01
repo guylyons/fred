@@ -189,7 +189,7 @@ impl Session {
                     self.quit = true;
                 }
             }
-            ExEffect::Edit { path, force } => self.edit(&path, force),
+            ExEffect::Edit { path, force } => self.edit(path.as_deref(), force),
         }
     }
 
@@ -224,8 +224,9 @@ impl Session {
                 }
                 ok
             }
-            (Some(t), None) if self.ed.path.as_deref() == Some(t.as_path()) => {
-                self.write_own(&t, force)
+            (Some(t), None) if self.is_own_file(&t) => {
+                let own = self.ed.path.clone().unwrap_or(t);
+                self.write_own(&own, force)
             }
             (Some(t), range) => {
                 let data = match range {
@@ -244,6 +245,14 @@ impl Session {
                 }
             }
         }
+    }
+
+    /// `t` names the buffer's own file, perhaps by another path.
+    fn is_own_file(&self, t: &Path) -> bool {
+        self.ed
+            .path
+            .as_deref()
+            .is_some_and(|own| swap::canonical(own) == swap::canonical(t))
     }
 
     fn range_bytes(&self, r: Range) -> Vec<u8> {
@@ -279,12 +288,19 @@ impl Session {
         }
     }
 
-    fn edit(&mut self, path: &str, force: bool) {
+    fn edit(&mut self, path: Option<&str>, force: bool) {
         if self.ed.buf.modified && !force {
             self.ed.set_err("unsaved changes (e! to discard)");
             return;
         }
-        let p = expand_tilde(path);
+        let p = match (path, &self.ed.path) {
+            (Some(path), _) => expand_tilde(path),
+            (None, Some(own)) => own.clone(),
+            (None, None) => {
+                self.ed.set_err("no file name");
+                return;
+            }
+        };
         match open_file(Some(&p), &self.cfg) {
             Ok(o) => {
                 self.remove_swap();
@@ -531,6 +547,44 @@ mod tests {
         assert_eq!(fs::read_to_string(&p).unwrap(), "hello\n");
         assert_eq!(t.s.ed.path.as_deref(), Some(p.as_path()));
         assert!(!t.s.ed.buf.modified);
+    }
+
+    #[test]
+    fn edit_bang_reloads_the_current_file() {
+        let mut t = T::open(Some("f"), Some("one\n"));
+        t.keys("x:e<Enter>");
+        assert!(t.msg().contains("unsaved changes"), "{}", t.msg());
+        t.keys(":e!<Enter>");
+        assert_eq!(t.s.ed.buf.text(), "one");
+        assert!(!t.s.ed.buf.modified);
+        // The usual answer to "file changed on disk": reload it.
+        fs::write(t.dir.path().join("f"), "theirs\n").unwrap();
+        t.keys(":e<Enter>");
+        assert_eq!(t.s.ed.buf.text(), "theirs");
+        let mut u = T::open(None, None);
+        u.keys(":e!<Enter>");
+        assert!(u.msg().contains("no file name"), "{}", u.msg());
+    }
+
+    #[test]
+    fn zz_and_zq() {
+        let mut t = T::open(Some("f"), Some("abc\n"));
+        t.keys("xZZ");
+        assert!(t.s.quit);
+        assert_eq!(t.file("f"), "bc\n");
+        let mut t = T::open(Some("f"), Some("abc\n"));
+        t.keys("xZQ");
+        assert!(t.s.quit);
+        assert_eq!(t.file("f"), "abc\n");
+    }
+
+    #[test]
+    fn writing_the_same_file_by_another_name_saves_it() {
+        let mut t = T::open(Some("f"), Some("abc\n"));
+        let same = t.dir.path().join(".").join("f");
+        t.keys(&format!("x:w {}<Enter>", same.display()));
+        assert!(!t.s.ed.buf.modified, "{}", t.msg());
+        assert_eq!(t.file("f"), "bc\n");
     }
 
     #[test]

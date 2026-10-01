@@ -5,6 +5,7 @@ pub mod motion;
 pub mod ops;
 
 use crate::editor::{Editor, Mode};
+use crate::ex::ExEffect;
 use crate::key::{Key, KeyCode};
 use motion::{Motion, Target};
 
@@ -141,10 +142,10 @@ fn parse_motion(keys: &[Key]) -> Parse<(Motion, usize)> {
 }
 
 /// Commands that take one character argument.
-const ARG_CMDS: &[char] = &['r', 'm'];
+const ARG_CMDS: &[char] = &['r', 'm', 'Z'];
 const SIMPLE: &[char] = &[
     'x', 'X', 's', 'S', 'J', 'p', 'P', 'o', 'O', 'i', 'a', 'I', 'A', 'u', 'D', 'C', 'Y', 'V', ':',
-    '/', '?', '.', 'r', 'm',
+    '/', '?', '.', 'r', 'm', 'Z',
 ];
 
 fn parse(keys: &[Key]) -> Parse<Cmd> {
@@ -535,6 +536,12 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
         }
         (KeyCode::Char(':'), false) => ed.open_cmdline(':', ""),
         (KeyCode::Char(c @ ('/' | '?')), false) => ed.open_cmdline(c, ""),
+        // ZZ writes if modified and quits; ZQ quits without writing.
+        (KeyCode::Char('Z'), false) => match arg {
+            Some('Z') => ed.pending_effect = Some(ExEffect::WriteIfModifiedQuit),
+            Some('Q') => ed.pending_effect = Some(ExEffect::Quit { force: true }),
+            _ => {}
+        },
         (KeyCode::Char('m'), false) => {
             if let Some(c) = arg.filter(char::is_ascii_lowercase) {
                 ed.marks.insert(c, ed.cur.line);

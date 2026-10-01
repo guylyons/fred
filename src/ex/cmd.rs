@@ -21,8 +21,9 @@ pub enum ExEffect {
     Quit {
         force: bool,
     },
+    /// Edit `path`, or reload the current file when `path` is None.
     Edit {
-        path: String,
+        path: Option<String>,
         force: bool,
     },
 }
@@ -236,10 +237,7 @@ fn file_command(rest: &str, range: Option<Range>) -> Result<ExEffect, String> {
         }),
         "x" | "xit" => no_arg(ExEffect::WriteIfModifiedQuit),
         "q" | "quit" => no_arg(ExEffect::Quit { force }),
-        "e" | "edit" => match path {
-            Some(path) => Ok(ExEffect::Edit { path, force }),
-            None => Err("file name expected".into()),
-        },
+        "e" | "edit" => Ok(ExEffect::Edit { path, force }),
         _ => Err(format!("unknown command: {name}")),
     }
 }
@@ -279,7 +277,7 @@ fn substitute(st: &mut ExState, r: Range, spec: &str) -> Result<ExEffect, String
         }
     }
     let pat = use_pattern(pat, st.last_pat)?;
-    let re = search::compile(&pat)?;
+    let re = search::compile_exact(&pat)?;
     let mut last = None;
     for l in (r.start..=r.end).rev() {
         let line = st.buf.line(l);
@@ -320,7 +318,7 @@ fn global(st: &mut ExState, r: Range, spec: &str, want: bool) -> Result<ExEffect
         return Err("command expected".into());
     }
     let pat = use_pattern(pat, st.last_pat)?;
-    let re = search::compile(&pat)?;
+    let re = search::compile_exact(&pat)?;
     let mut marked: Vec<bool> = (0..st.buf.len_lines())
         .map(|l| l >= r.start && l <= r.end && re.is_match(&st.buf.line(l)) == want)
         .collect();
@@ -450,6 +448,13 @@ mod tests {
     }
 
     #[test]
+    fn ex_patterns_are_case_sensitive() {
+        assert_eq!(ex("Foo foo", 0, "s/foo/x/g"), ("Foo x".into(), 0));
+        assert_eq!(ex("Foo\nfoo", 0, "g/foo/d"), ("Foo".into(), 0));
+        assert_eq!(ex("Foo foo", 0, "s/(?i)foo/x/g"), ("x x".into(), 0));
+    }
+
+    #[test]
     fn backslash_r_in_replacement_splits_like_vim() {
         assert_eq!(ex("a,b,c", 0, "s/,/\\r/g"), ("a\nb\nc".into(), 2));
     }
@@ -517,10 +522,23 @@ mod tests {
         assert_eq!(
             e("e! f"),
             ExEffect::Edit {
-                path: "f".into(),
+                path: Some("f".into()),
                 force: true
             }
         );
-        assert!(run_on("a", 0, "e").2.is_err());
+        assert_eq!(
+            e("e"),
+            ExEffect::Edit {
+                path: None,
+                force: false
+            }
+        );
+        assert_eq!(
+            e("e!"),
+            ExEffect::Edit {
+                path: None,
+                force: true
+            }
+        );
     }
 }

@@ -149,7 +149,11 @@ mod tests {
         fs::create_dir(root.join("z")).unwrap();
         fs::write(root.join("z/deep.rs"), "deepword").unwrap();
         let me = root.join("main.rs");
-        let found = |limit| files_limited(Some(&me), limit).iter().any(|p| p.ends_with("z/deep.rs"));
+        let found = |limit| {
+            files_limited(Some(&me), limit)
+                .iter()
+                .any(|p| p.ends_with("z/deep.rs"))
+        };
         assert!(found(MAX_VISIT), "found within the normal limit");
         assert!(!found(20), "the walk stops after the visit limit");
     }
