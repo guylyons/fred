@@ -194,7 +194,7 @@ impl Editor {
         if let Mode::VisualLine { anchor } = &mut self.mode {
             *anchor = (*anchor).min(self.buf.len_lines() - 1);
         }
-        if self.mode == Mode::Insert && !was_insert && self.buf.len_bytes() <= 10 * 1024 * 1024 {
+        if self.mode == Mode::Insert && !was_insert {
             self.word_index.ensure(&self.buf, true);
         }
         if self.mode != Mode::Insert {

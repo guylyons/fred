@@ -27,8 +27,25 @@ pub struct Loaded {
 }
 
 fn hash(data: &[u8]) -> u64 {
+    // SipHash runs ~1.3 GB/s: a big file is hashed in pieces on all cores.
+    const PIECE: usize = 64 << 20;
+    let sip = |d: &[u8]| {
+        let mut h = DefaultHasher::new();
+        h.write(d);
+        h.finish()
+    };
+    if data.len() <= PIECE {
+        return sip(data);
+    }
+    let pieces: Vec<u64> = std::thread::scope(|s| {
+        let jobs: Vec<_> = data
+            .chunks(PIECE)
+            .map(|c| s.spawn(move || sip(c)))
+            .collect();
+        jobs.into_iter().map(|j| j.join().unwrap()).collect()
+    });
     let mut h = DefaultHasher::new();
-    h.write(data);
+    pieces.iter().for_each(|&p| h.write_u64(p));
     h.finish()
 }
 

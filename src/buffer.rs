@@ -17,6 +17,39 @@ impl LineEnding {
     }
 }
 
+/// A buffer's text as it goes to disk (see `Buffer::snapshot`).
+pub struct Snapshot {
+    rope: Rope,
+    bom: bool,
+    nl: &'static str,
+    final_newline: bool,
+}
+
+impl Snapshot {
+    /// Stream the file contents to `w`, chunk by chunk (no full copy).
+    pub fn write_to(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+        if self.bom {
+            w.write_all("\u{feff}".as_bytes())?;
+        }
+        for chunk in self.rope.chunks() {
+            if self.nl == "\n" {
+                w.write_all(chunk.as_bytes())?;
+                continue;
+            }
+            for (i, part) in chunk.split('\n').enumerate() {
+                if i > 0 {
+                    w.write_all(self.nl.as_bytes())?;
+                }
+                w.write_all(part.as_bytes())?;
+            }
+        }
+        if self.final_newline {
+            w.write_all(self.nl.as_bytes())?;
+        }
+        Ok(())
+    }
+}
+
 /// Replace chars `start..end` with `text`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Edit {
@@ -71,17 +104,16 @@ impl Buffer {
         } else {
             LineEnding::Lf
         };
-        let mut text = if crlf > 0 {
-            s.replace("\r\n", "\n")
+        // Borrowed unless there are CRLFs to convert: no copy of a big file.
+        let text: std::borrow::Cow<str> = if crlf > 0 {
+            s.replace("\r\n", "\n").into()
         } else {
-            s.to_string()
+            s.into()
         };
         let final_newline = text.ends_with('\n');
-        if final_newline {
-            text.pop();
-        }
+        let body = &text[..text.len() - usize::from(final_newline)];
         Buffer {
-            rope: Rope::from_str(&text),
+            rope: Rope::from_str(body),
             line_ending,
             mixed_endings: crlf > 0 && bare > 0,
             final_newline,
@@ -97,21 +129,22 @@ impl Buffer {
 
     /// The file contents as they should be written to disk.
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut out = String::with_capacity(self.rope.len_bytes() + 16);
-        if self.bom {
-            out.push('\u{feff}');
+        let mut out = Vec::with_capacity(self.rope.len_bytes() + 16);
+        self.snapshot()
+            .write_to(&mut out)
+            .expect("writing to a Vec");
+        out
+    }
+
+    /// The text as it goes to disk, detached from the buffer. Cloning a
+    /// rope is O(1), so a thread can write it while editing goes on.
+    pub fn snapshot(&self) -> Snapshot {
+        Snapshot {
+            rope: self.rope.clone(),
+            bom: self.bom,
+            nl: self.line_ending.as_str(),
+            final_newline: self.final_newline,
         }
-        let nl = self.line_ending.as_str();
-        for (i, chunk) in self.text().split('\n').enumerate() {
-            if i > 0 {
-                out.push_str(nl);
-            }
-            out.push_str(chunk);
-        }
-        if self.final_newline {
-            out.push_str(nl);
-        }
-        out.into_bytes()
     }
 
     /// Apply an edit and return its inverse.

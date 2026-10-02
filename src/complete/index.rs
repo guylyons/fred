@@ -4,6 +4,9 @@ use crate::buffer::Buffer;
 
 /// Buffers larger than this are only re-indexed when forced (entering Insert).
 const AUTO_REBUILD_MAX: usize = 1024 * 1024;
+/// Buffers larger than this are never indexed: a 2 GB dump took a minute,
+/// on the first key typed. Completion still offers nearby files' words.
+const INDEX_MAX: usize = 10 * 1024 * 1024;
 
 pub fn is_word_char(c: char) -> bool {
     c.is_alphanumeric() || c == '_'
@@ -22,11 +25,16 @@ pub struct WordIndex {
 }
 
 impl WordIndex {
-    /// Re-index if the buffer changed (big buffers only when `force`).
+    /// Re-index if the buffer changed (big buffers only when `force`,
+    /// huge ones never).
     pub fn ensure(&mut self, buf: &Buffer, force: bool) {
         if self.built == Some(buf.version)
             || (!force && self.built.is_some() && buf.len_bytes() > AUTO_REBUILD_MAX)
         {
+            return;
+        }
+        if buf.len_bytes() > INDEX_MAX {
+            *self = WordIndex::default();
             return;
         }
         self.lines = (0..buf.len_lines())
@@ -63,6 +71,10 @@ mod tests {
         });
         i.ensure(&b, false);
         assert_eq!(i.line_words(0), ["zebra", "foo", "bar_baz"]);
+        // Huge buffers are never indexed, forced or not.
+        let huge = Buffer::from_text(&"word ".repeat(INDEX_MAX / 4));
+        i.ensure(&huge, true);
+        assert_eq!(i.len_lines(), 0);
     }
 
     #[test]

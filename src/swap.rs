@@ -1,5 +1,6 @@
 //! Swap files: unsaved text kept on disk so a crash or kill loses nothing.
 
+use crate::buffer::Snapshot;
 use serde::{Deserialize, Serialize};
 use std::fs::{self, DirBuilder, OpenOptions};
 use std::io::Write;
@@ -93,16 +94,16 @@ pub fn hostname() -> String {
 }
 
 /// Atomically write the swap file (mode 0600) holding unsaved `text`.
-pub fn write(swap: &Path, file: Option<&Path>, text: &str) -> Result<(), String> {
-    write_swap(swap, file, text, false)
+pub fn write(swap: &Path, file: Option<&Path>, text: &Snapshot) -> Result<(), String> {
+    write_swap(swap, file, Some(text))
 }
 
 /// Write a swap file that only marks the file as open (no unsaved text).
 pub fn write_clean(swap: &Path, file: Option<&Path>) -> Result<(), String> {
-    write_swap(swap, file, "", true)
+    write_swap(swap, file, None)
 }
 
-fn write_swap(swap: &Path, file: Option<&Path>, text: &str, clean: bool) -> Result<(), String> {
+fn write_swap(swap: &Path, file: Option<&Path>, text: Option<&Snapshot>) -> Result<(), String> {
     let dir = swap.parent().ok_or("bad swap path")?;
     DirBuilder::new()
         .recursive(true)
@@ -118,21 +119,24 @@ fn write_swap(swap: &Path, file: Option<&Path>, text: &str, clean: bool) -> Resu
         saved_at: SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_or(0, |d| d.as_secs()),
-        clean,
+        clean: text.is_none(),
     };
-    let mut data = serde_json::to_string(&header).map_err(|e| e.to_string())?;
-    data.push('\n');
-    data.push_str(text);
+    let mut head = serde_json::to_string(&header).map_err(|e| e.to_string())?;
+    head.push('\n');
     let tmp = swap.with_extension(format!("swp.tmp{}", std::process::id()));
     let res = (|| -> std::io::Result<()> {
-        let mut f = OpenOptions::new()
+        let f = OpenOptions::new()
             .write(true)
             .create(true)
             .truncate(true)
             .mode(0o600)
             .open(&tmp)?;
-        f.write_all(data.as_bytes())?;
-        f.sync_all()?;
+        let mut w = std::io::BufWriter::with_capacity(1 << 20, f);
+        w.write_all(head.as_bytes())?;
+        if let Some(t) = text {
+            t.write_to(&mut w)?;
+        }
+        w.into_inner().map_err(|e| e.into_error())?.sync_all()?;
         fs::rename(&tmp, swap)
     })();
     res.map_err(|e| {
@@ -221,7 +225,12 @@ mod tests {
     fn roundtrip() {
         let d = tempfile::tempdir().unwrap();
         let sp = swap_path_in(&d.path().join("swap"), Some(Path::new("/x/y.txt")));
-        write(&sp, Some(Path::new("/x/y.txt")), "hello\nworld").unwrap();
+        write(
+            &sp,
+            Some(Path::new("/x/y.txt")),
+            &crate::buffer::Buffer::from_text("hello\nworld").snapshot(),
+        )
+        .unwrap();
         let info = read(&sp).unwrap();
         assert_eq!(info.text, "hello\nworld");
         assert_eq!(info.pid, std::process::id());

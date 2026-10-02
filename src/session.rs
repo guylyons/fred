@@ -78,6 +78,8 @@ pub struct Session {
     pub pending_edit: Option<PendingEdit>,
     /// `:!cmd` waiting for the app to hand it the terminal.
     pub pending_shell: Option<String>,
+    /// A swap write running in the background, and the version it holds.
+    swap_job: Option<(u64, std::thread::JoinHandle<Result<(), String>>)>,
     /// `:ai`: the lines and the prompt, for the app to ask Claude.
     pub pending_ai: Option<(crate::ex::addr::Range, String)>,
     lossy: bool,
@@ -120,7 +122,8 @@ fn human_size(n: usize) -> String {
 
 /// `"name" 12L, 340B written`
 pub fn summary(name: &Path, data: &[u8]) -> String {
-    let mut lines = data.iter().filter(|&&b| b == b'\n').count();
+    // A sum of 0/1 vectorizes; `filter(..).count()` crawled on a 2 GB file.
+    let mut lines: usize = data.iter().map(|&b| usize::from(b == b'\n')).sum();
     if !data.is_empty() && !data.ends_with(b"\n") {
         lines += 1;
     }
@@ -222,6 +225,7 @@ impl Session {
             no_swap: false,
             pending_edit: None,
             pending_shell: None,
+            swap_job: None,
             pending_ai: None,
             lossy: o.lossy,
             cfg: cfg.clone(),
@@ -587,6 +591,7 @@ impl Session {
 
     /// Put `o` in place of the buffer being edited.
     fn replace(&mut self, o: Opened, new_swap: PathBuf) {
+        self.wait_swap();
         if new_swap != self.swap_path {
             self.release_swap();
         }
@@ -848,6 +853,7 @@ impl Session {
 
     /// Delete a leftover swap file the user chose not to recover.
     pub fn discard_swap(&mut self) {
+        self.wait_swap();
         swap::remove(&self.swap_path);
     }
 
@@ -864,6 +870,9 @@ impl Session {
     /// Keep the swap file up to date: write unsaved text once the user
     /// pauses (or after many edits), and go back to a clean lock on save.
     pub fn maybe_swap(&mut self, now: Instant) {
+        if self.swap_job.as_ref().is_some_and(|j| j.1.is_finished()) {
+            self.wait_swap();
+        }
         let v = self.ed.buf.version;
         if v != self.seen_version {
             self.seen_version = v;
@@ -885,7 +894,33 @@ impl Session {
             .last_change
             .is_some_and(|t| now.duration_since(t) >= SWAP_IDLE);
         if idle || self.ed.buf.edits_since_swap >= SWAP_EDITS || self.last_change.is_none() {
-            self.write_swap();
+            self.start_swap();
+        }
+    }
+
+    /// Write the swap in the background: for a big file that takes
+    /// seconds, and typing shouldn't wait. One write at a time.
+    fn start_swap(&mut self) {
+        if self.swap_job.is_some() || !self.may_write_swap() {
+            return;
+        }
+        let text = self.ed.buf.snapshot();
+        let (swap, file) = (self.swap_path.clone(), self.ed.path.clone());
+        let job = std::thread::spawn(move || swap::write(&swap, file.as_deref(), &text));
+        self.swap_job = Some((self.ed.buf.version, job));
+    }
+
+    /// Wait for the background swap write, if one is running.
+    pub fn wait_swap(&mut self) {
+        let Some((v, job)) = self.swap_job.take() else {
+            return;
+        };
+        let r = job
+            .join()
+            .unwrap_or_else(|_| Err("swap: write failed".into()));
+        if self.swap_written(r) {
+            self.swap_state = SwapState::Dirty(v);
+            self.ed.buf.edits_since_swap = 0;
         }
     }
 
@@ -909,11 +944,15 @@ impl Session {
 
     /// Write the swap now if there is anything unsaved (crash, signal).
     pub fn write_swap(&mut self) {
+        self.wait_swap();
         if !self.ed.buf.modified || !self.may_write_swap() {
             return;
         }
-        let text = String::from_utf8_lossy(&self.ed.buf.to_bytes()).into_owned();
-        let r = swap::write(&self.swap_path, self.ed.path.as_deref(), &text);
+        let r = swap::write(
+            &self.swap_path,
+            self.ed.path.as_deref(),
+            &self.ed.buf.snapshot(),
+        );
         if self.swap_written(r) {
             self.swap_state = SwapState::Dirty(self.ed.buf.version);
             self.ed.buf.edits_since_swap = 0;
@@ -922,6 +961,8 @@ impl Session {
 
     /// Write a clean lock (no unsaved text).
     fn write_lock(&mut self) {
+        // A dirty write still running would land on top of the lock.
+        self.wait_swap();
         if !self.may_write_swap() {
             return;
         }
@@ -946,6 +987,7 @@ impl Session {
 
     /// Remove our swap file (never one another fred wrote).
     fn release_swap(&mut self) {
+        self.wait_swap();
         release(&self.swap_path);
         self.swap_state = SwapState::None;
     }
@@ -1241,6 +1283,8 @@ mod tests {
         t.s.maybe_swap(now);
         assert!(crate::swap::read(&sp).unwrap().clean, "not yet idle");
         t.s.maybe_swap(now + Duration::from_millis(1100));
+        // Written in the background.
+        t.s.wait_swap();
         let info = crate::swap::read(&sp).unwrap();
         assert!(!info.clean);
         assert_eq!(info.text, "xyza\n");
@@ -1263,7 +1307,12 @@ mod tests {
             .arg("5")
             .spawn()
             .unwrap();
-        crate::swap::write(&sp, Some(&t.dir.path().join("f")), "theirs").unwrap();
+        crate::swap::write(
+            &sp,
+            Some(&t.dir.path().join("f")),
+            &crate::buffer::Buffer::from_text("theirs").snapshot(),
+        )
+        .unwrap();
         let text = fs::read_to_string(&sp).unwrap().replacen(
             &format!("\"pid\":{}", std::process::id()),
             &format!("\"pid\":{}", child.id()),
@@ -1305,7 +1354,12 @@ mod tests {
         let b = t.dir.path().join("b");
         fs::write(&b, "bbb\n").unwrap();
         let sp = crate::swap::swap_path_in(&t.dir.path().join("swap"), Some(&b));
-        crate::swap::write(&sp, Some(&b), "bbb recovered\n").unwrap();
+        crate::swap::write(
+            &sp,
+            Some(&b),
+            &crate::buffer::Buffer::from_text("bbb recovered\n").snapshot(),
+        )
+        .unwrap();
         let text = fs::read_to_string(&sp).unwrap().replacen(
             &format!("\"pid\":{}", std::process::id()),
             "\"pid\":999999",
@@ -1338,6 +1392,7 @@ mod tests {
         let mut t = T::open(Some("f"), Some("a\n"));
         t.keys(&"ix<Esc>".repeat(200));
         t.s.maybe_swap(Instant::now());
+        t.s.wait_swap();
         assert!(t.s.swap_path.exists());
     }
 
@@ -1348,7 +1403,12 @@ mod tests {
         fs::write(&p, "old\n").unwrap();
         let swap_dir = dir.path().join("swap");
         let sp = crate::swap::swap_path_in(&swap_dir, Some(&p));
-        crate::swap::write(&sp, Some(&p), "recovered\r\n").unwrap();
+        crate::swap::write(
+            &sp,
+            Some(&p),
+            &crate::buffer::Buffer::from_text("recovered\r\n").snapshot(),
+        )
+        .unwrap();
         // Pretend the owner was a dead process.
         let text = fs::read_to_string(&sp).unwrap().replacen(
             &format!("\"pid\":{}", std::process::id()),
