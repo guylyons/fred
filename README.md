@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/dr-fred-glow.png" alt="Dr. Fred" width="360"></p>
+<p align="center"><img src="docs/dr-fred-head.png" alt="Dr. Fred" width="160"></p>
 <p align="center">
   <img src="https://img.shields.io/badge/Rust-2024_edition-b7410e?logo=rust&logoColor=white" alt="Rust 2024 edition">
   <a href="https://ratatui.rs"><img src="https://img.shields.io/badge/Built_With_Ratatui-000?logo=ratatui&logoColor=fff" alt="Built with Ratatui"></a>
