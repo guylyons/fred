@@ -2,14 +2,17 @@
 
 use std::path::PathBuf;
 
-pub const USAGE: &str = "usage: fred [--inline] [--height N] [+LINE] [FILE]
+pub const USAGE: &str = "usage: fred [-i | -f] [--height N] [+LINE] [FILE | DIR]
 
-  FILE          file to edit (created on first write if missing)
-  +LINE         start on line LINE; + alone starts on the last line
-  -i, --inline  edit in a window under the prompt instead of fullscreen
-  --height N    inline, showing N lines of text, or `max` (default 12)
-  -h, --help    show this help
-  -V, --version show the version
+  FILE              file to edit (created on first write if missing)
+  DIR               browse files there
+  +LINE             start on line LINE; + alone starts on the last line
+  -i, --inline      edit in a window under the prompt
+  -f, --fullscreen  take over the terminal (default: when the file has
+                    more lines than the inline window shows)
+  --height N        inline, showing N lines of text, or `max` (default 12)
+  -h, --help        show this help
+  -V, --version     show the version
 
 Config: ~/.config/fred/config.toml (fullscreen, height, wrap, numbers,
 relative_numbers, theme, tabstop, autocomplete)";
@@ -23,6 +26,7 @@ pub enum LineArg {
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Args {
     pub inline: bool,
+    pub fullscreen: bool,
     pub height: Option<usize>,
     pub line: Option<LineArg>,
     pub file: Option<PathBuf>,
@@ -61,6 +65,10 @@ pub fn parse(args: Vec<String>) -> Result<ArgsOrInfo, String> {
                 }
                 "-i" | "--inline" => {
                     out.inline = true;
+                    continue;
+                }
+                "-f" | "--fullscreen" => {
+                    out.fullscreen = true;
                     continue;
                 }
                 "--height" => {
@@ -111,6 +119,7 @@ mod tests {
             parse(v(&["--height", "5", "+3", "f"])),
             Ok(ArgsOrInfo::Run(Args {
                 inline: false,
+                fullscreen: false,
                 height: Some(5),
                 line: Some(LineArg::N(3)),
                 file: Some(_)
@@ -128,6 +137,7 @@ mod tests {
             parse(v(&["--height=7"])),
             Ok(ArgsOrInfo::Run(Args {
                 inline: false,
+                fullscreen: false,
                 height: Some(7),
                 ..
             }))
@@ -147,6 +157,7 @@ mod tests {
         assert!(
             matches!(parse(v(&["-i", "f"])), Ok(ArgsOrInfo::Run(a)) if a.inline && a.file.is_some())
         );
+        assert!(matches!(parse(v(&["-f"])), Ok(ArgsOrInfo::Run(a)) if a.fullscreen));
         assert!(parse(v(&["--bogus"])).is_err());
         assert!(parse(v(&["+x"])).is_err());
     }

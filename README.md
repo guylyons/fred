@@ -4,9 +4,10 @@ A text editor for quick edits. You move and edit with vim keys, and `:` takes
 ed-style commands with full ed addresses. Completion, syntax highlighting, a
 fuzzy file finder and project grep are built in.
 
-fred runs fullscreen by default, like vim. Like `ed`, it can instead live in
-your shell prompt (`--inline`, or `fullscreen = false` in the config): a small
-window right under the prompt:
+A small file opens like `ed`, in a window right under your shell prompt; a
+file with more lines than that window shows (12 by default) opens fullscreen,
+like vim. `-i` and `-f` force one or the other, and so does `fullscreen` in
+the config:
 
 ```
 $ fred main.rs
@@ -36,13 +37,14 @@ cargo install --path .
 ## Usage
 
 ```
-fred [-i | --inline] [--height N] [+LINE] [FILE | DIR]
+fred [-i | -f] [--height N] [+LINE] [FILE | DIR]
 ```
 
 - `FILE` doesn't have to exist; it's created on the first `:w`.
 - `+LINE` starts on that line; `+` alone starts on the last line.
 - `DIR` (say `fred .`) opens the file browser there instead of a file.
-- `-i`/`--inline` opens the window under your prompt instead of fullscreen.
+- `-i`/`--inline` opens the window under your prompt; `-f`/`--fullscreen`
+  takes over the terminal. Without either, the file's size decides.
 - `--height N` (inline) shows N lines of text (default 12); `--height max`
   uses the whole terminal, leaving your prompt visible. The window starts as
   small as the file and grows as the file gets longer.
@@ -86,6 +88,8 @@ Space is the leader key (`l` still moves right).
   directory, `~/` jumps home, and `Enter` on a name that doesn't exist
   starts a new file. It starts in the current file's directory; `fred DIR`
   and `:e DIR` open it too. Dotfiles show once you type a `.`.
+- `Space r` lists recently opened files (any project), newest first;
+  type to filter.
 - `Space k` searches the lines of the file you're editing, like swiper:
   every space-separated word must appear in the line, in any order (each is
   a regex). Matches are listed in file order, starting at the cursor; `Enter`
@@ -169,7 +173,7 @@ than 20,000 characters.
 key is optional:
 
 ```toml
-fullscreen = true        # false: inline window under the prompt
+fullscreen = "auto"      # true: always fullscreen; false: always inline
 height = 12              # inline: lines of text in the window, or "max"
 wrap = false             # wrap long lines (otherwise the view scrolls sideways)
 numbers = true           # line numbers

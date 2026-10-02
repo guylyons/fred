@@ -130,6 +130,7 @@ fn mode_name(m: &Mode) -> &'static str {
             Kind::Grep => "GREP",
             Kind::Lines => "LINES",
             Kind::Browse => "FILES",
+            Kind::Recent => "RECENT",
         },
     }
 }

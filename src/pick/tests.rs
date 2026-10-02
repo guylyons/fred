@@ -278,3 +278,35 @@ fn enter_waits_for_the_search_before_making_a_new_file() {
     pick_key(&mut ed, crate::key::Key::new(KeyCode::Enter));
     assert_eq!(ed.pending_effect, None);
 }
+
+#[test]
+fn space_r_lists_recent_files() {
+    let (d, mut ed) = setup(&[
+        ("a.rs", ""),
+        ("b.rs", ""),
+        ("notes/todo.md", ""),
+        ("gone.txt", ""),
+    ]);
+    let rf = d.path().join("state/recent");
+    for f in ["gone.txt", "notes/todo.md", "b.rs", "a.rs"] {
+        recent::record(&rf, &d.path().join(f));
+    }
+    fs::remove_file(d.path().join("gone.txt")).unwrap();
+    ed.project = Arc::new(Project::new(Some(d.path().to_path_buf()), Some(rf)));
+    ed.path = Some(d.path().join("a.rs"));
+    keys(&mut ed, " r");
+    let p = picker(&ed);
+    assert_eq!(p.kind, Kind::Recent);
+    // Newest first; not the file being edited, not a deleted one.
+    let paths: Vec<PathBuf> = p.rows.iter().map(|r| r.path.clone()).collect();
+    assert_eq!(
+        paths,
+        [d.path().join("b.rs"), d.path().join("notes/todo.md")]
+    );
+    assert_eq!(p.rows[0].text, browse::tilde(&d.path().join("b.rs")));
+    keys(&mut ed, "todo<Enter>");
+    assert!(matches!(
+        ed.pending_effect.take(),
+        Some(ExEffect::Open { path, .. }) if path == d.path().join("notes/todo.md")
+    ));
+}

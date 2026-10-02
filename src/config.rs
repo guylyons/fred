@@ -6,8 +6,11 @@ use std::path::PathBuf;
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct Config {
-    /// Take over the terminal (alternate screen) instead of an inline window.
-    pub fullscreen: bool,
+    /// Take over the terminal (alternate screen) instead of an inline
+    /// window: always, never, or `None` = "auto" (when the file has more
+    /// lines than the inline window shows).
+    #[serde(deserialize_with = "fullscreen")]
+    pub fullscreen: Option<bool>,
     #[serde(deserialize_with = "height")]
     pub height: usize,
     pub wrap: bool,
@@ -21,7 +24,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Config {
-            fullscreen: true,
+            fullscreen: None,
             height: 12,
             wrap: false,
             numbers: true,
@@ -30,6 +33,23 @@ impl Default for Config {
             tabstop: 8,
             autocomplete: true,
         }
+    }
+}
+
+/// `fullscreen` is true, false or "auto".
+fn fullscreen<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<bool>, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum F {
+        B(bool),
+        S(String),
+    }
+    match F::deserialize(d)? {
+        F::B(b) => Ok(Some(b)),
+        F::S(s) if s == "auto" => Ok(None),
+        F::S(s) => Err(serde::de::Error::custom(format!(
+            "invalid fullscreen: {s:?}"
+        ))),
     }
 }
 
@@ -103,8 +123,14 @@ mod tests {
         assert!(err.is_none());
         assert_eq!(c, Config::default());
         assert_eq!(c.height, 12);
-        assert!(c.fullscreen);
-        assert!(!Config::parse("fullscreen = false").0.fullscreen);
+        assert_eq!(c.fullscreen, None);
+        assert_eq!(
+            Config::parse("fullscreen = false").0.fullscreen,
+            Some(false)
+        );
+        assert_eq!(Config::parse("fullscreen = true").0.fullscreen, Some(true));
+        assert_eq!(Config::parse("fullscreen = \"auto\"").0.fullscreen, None);
+        assert!(Config::parse("fullscreen = \"big\"").1.is_some());
         assert_eq!(c.tabstop, 8);
         assert_eq!(c.theme, "ansi");
         assert!(c.numbers && !c.relative_numbers && !c.wrap && c.autocomplete);

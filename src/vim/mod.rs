@@ -562,12 +562,14 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
         (KeyCode::Char(':'), false) => ed.open_cmdline(':', ""),
         // Space is the leader: `Space p` finds files, `Space g` greps,
         // `Space k` searches this file's lines, `Space j` browses files,
+        // `Space r` lists recent files,
         // `Space Enter` saves,
         // `Space ;` closes.
         (KeyCode::Char(' '), false) => match arg {
             Some('p') => crate::pick::open(ed, crate::pick::Kind::Files),
             Some('g') => crate::pick::open(ed, crate::pick::Kind::Grep),
             Some('k') => crate::pick::open(ed, crate::pick::Kind::Lines),
+            Some('r') => crate::pick::open(ed, crate::pick::Kind::Recent),
             // Find-file from the current file's directory (else the cwd).
             Some('j') => {
                 let dir = ed

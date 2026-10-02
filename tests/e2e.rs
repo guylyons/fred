@@ -213,9 +213,10 @@ fn edit_and_save() {
 }
 
 #[test]
-fn fullscreen_by_default_and_screen_restored_on_exit() {
+fn fullscreen_for_a_big_file_and_screen_restored_on_exit() {
     let env = Env::new();
-    env.write("f.txt", "secret contents\n");
+    let filler: String = (1..=30).map(|i| format!("filler {i}\n")).collect();
+    env.write("f.txt", &format!("secret contents\n{filler}"));
     let mut c = env.command("sh");
     c.args(["-c", "echo before-marker; exec \"$0\" \"$@\"", BIN, "f.txt"]);
     let mut p = Pty::spawn(c);
@@ -232,6 +233,29 @@ fn fullscreen_by_default_and_screen_restored_on_exit() {
     assert!(s.contains("before-marker"), "{s}");
     assert!(!s.contains("secret contents"), "{s}");
     assert!(p.raw().contains("<ESC>[?1049h") && p.raw().contains("<ESC>[?1049l"));
+}
+
+#[test]
+fn small_file_opens_inline_by_default() {
+    let env = Env::new();
+    env.write("small.txt", "one\ntwo\nthree\n");
+    let mut c = env.command("sh");
+    c.args([
+        "-c",
+        "echo before-marker; exec \"$0\" \"$@\"",
+        BIN,
+        "small.txt",
+    ]);
+    let mut p = Pty::spawn(c);
+    p.wait_text("three");
+    p.wait_text("NORMAL");
+    assert!(
+        p.screen().contains("before-marker"),
+        "not inline:\n{}",
+        p.screen()
+    );
+    p.keys(&[":q\r"]);
+    assert_eq!(p.wait_exit(), 0);
 }
 
 #[test]
@@ -589,7 +613,8 @@ fn exits_when_the_terminal_goes_away() {
     unsafe { libc::fcntl(m, libc::F_SETFD, libc::FD_CLOEXEC) };
     let (master, slave) = unsafe { (fs::File::from_raw_fd(m), OwnedFd::from_raw_fd(s)) };
     let mut cmd = std::process::Command::new(BIN);
-    cmd.arg("f.txt")
+    // Fullscreen: inline would wait on a cursor report this pty never sends.
+    cmd.args(["-f", "f.txt"])
         .current_dir(env.dir.path())
         .env_clear()
         .env("TERM", "xterm-256color")

@@ -1,5 +1,6 @@
 //! Pickers: files (`Space p`), grep (`Space g`), lines of this file
-//! (`Space k`), and find-file browsing (`Space j`, `fred DIR`).
+//! (`Space k`), find-file browsing (`Space j`, `fred DIR`), and recent
+//! files (`Space r`).
 
 pub mod browse;
 pub mod files;
@@ -73,6 +74,7 @@ pub enum Kind {
     Grep,
     Lines,
     Browse,
+    Recent,
 }
 
 /// One result: what to show and where it leads.
@@ -112,6 +114,8 @@ pub struct Picker {
     /// and every file below it once a name is being typed.
     listing: Option<(PathBuf, bool, Result<Vec<browse::Entry>, String>)>,
     walk: Option<Arc<Files>>,
+    /// Recent: the files, newest first, as shown (`~/…`) and where they are.
+    recent_files: Vec<(String, PathBuf)>,
 }
 
 impl Picker {
@@ -136,6 +140,7 @@ impl Picker {
             origin,
             listing: None,
             walk: None,
+            recent_files: vec![],
         }
     }
 
@@ -145,12 +150,45 @@ impl Picker {
             Kind::Grep => "grep> ",
             Kind::Lines => "lines> ",
             Kind::Browse => "find file: ",
+            Kind::Recent => "recent> ",
         }
     }
 
     /// Bring `rows` up to date; true if anything shown changed.
     fn update(&mut self, project: &Project, buf: &Buffer, now: Instant) -> bool {
         match self.kind {
+            Kind::Recent => {
+                let q = &self.query.text;
+                if self.seen_files.as_ref().is_some_and(|s| s.0 == *q) {
+                    return false;
+                }
+                self.seen_files = Some((q.clone(), 0, true));
+                self.sel = 0;
+                let names: Vec<String> = self.recent_files.iter().map(|f| f.0.clone()).collect();
+                let rank: HashMap<String, usize> = names
+                    .iter()
+                    .enumerate()
+                    .map(|(i, n)| (n.clone(), i))
+                    .collect();
+                let (idx, matched) = fuzzy::rank(q, &names, &rank, LIMIT);
+                let mut fz = fuzzy::Fuzzy::new(q);
+                self.rows = idx
+                    .iter()
+                    .map(|&i| Row {
+                        hl: if q.is_empty() {
+                            vec![]
+                        } else {
+                            fz.ranges(&names[i])
+                        },
+                        text: names[i].clone(),
+                        path: self.recent_files[i].1.clone(),
+                        line: 0,
+                        col: 0,
+                    })
+                    .collect();
+                self.status = format!("{matched}/{}", names.len());
+                true
+            }
             Kind::Browse => {
                 let q = self.query.text.clone();
                 let (d, name) = browse::split(&q);
@@ -391,6 +429,21 @@ fn set_query(p: &mut Picker, q: String) {
 /// `Space p` / `Space g` / `Space k`.
 pub fn open(ed: &mut Editor, kind: Kind) {
     let mut p = Picker::new(kind, &ed.project, ed.cur.line);
+    if kind == Kind::Recent {
+        // Not the file being edited, and not files since deleted.
+        let me = ed.path.as_deref().and_then(|p| std::path::absolute(p).ok());
+        let list = ed
+            .project
+            .recent_file
+            .as_deref()
+            .map(recent::load)
+            .unwrap_or_default();
+        p.recent_files = list
+            .into_iter()
+            .filter(|f| Some(f) != me.as_ref() && f.is_file())
+            .map(|f| (browse::tilde(&f), f))
+            .collect();
+    }
     p.update(&ed.project, &ed.buf, Instant::now());
     ed.mode = Mode::Pick(Box::new(p));
 }

@@ -194,6 +194,22 @@ pub fn map_key(k: KeyEvent) -> Option<Key> {
     Some(Key { code, ctrl, alt })
 }
 
+/// `-i`/`--height` mean inline and `-f` fullscreen; otherwise the config
+/// decides, and "auto" goes fullscreen for a file with more lines than the
+/// inline window shows, or to browse a directory.
+fn use_fullscreen(args: &Args, cfg: &Config, ed: &crate::editor::Editor, rows: u16) -> bool {
+    if args.inline || args.height.is_some() {
+        return false;
+    }
+    if args.fullscreen {
+        return true;
+    }
+    cfg.fullscreen.unwrap_or_else(|| {
+        let inline_rows = (window_height(cfg.height, usize::MAX, rows) as usize).saturating_sub(2);
+        matches!(ed.mode, Mode::Pick(_)) || ed.line_count() > inline_rows
+    })
+}
+
 /// The terminal is gone: its window closed, or the other end of the pty.
 fn tty_hung_up() -> bool {
     let mut p = libc::pollfd {
@@ -398,8 +414,7 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
     let setup = (|| -> Result<Ui> {
         execute!(io::stdout(), EnableBracketedPaste)?;
         let rows = terminal::size()?.1;
-        // `--height` asks for an inline window of that size.
-        let full = cfg.fullscreen && !args.inline && args.height.is_none();
+        let full = use_fullscreen(&args, &cfg, &s.ed, rows);
         Ok(Ui::new(
             full,
             window_height(cfg.height, s.ed.line_count(), rows),
@@ -556,6 +571,45 @@ fn event_loop(
 mod tests {
     use super::*;
     use event::KeyCode as C;
+
+    #[test]
+    fn fullscreen_when_the_file_outgrows_the_inline_window() {
+        use crate::buffer::Buffer;
+        use crate::editor::Editor;
+        let lines = |n: usize| Editor::new(Buffer::from_text(&"x\n".repeat(n)));
+        let (args, cfg) = (Args::default(), Config::default());
+        // Default height 12: 12 lines fit inline, 13 don't.
+        assert!(!use_fullscreen(&args, &cfg, &lines(12), 40));
+        assert!(use_fullscreen(&args, &cfg, &lines(13), 40));
+        // A short terminal shows fewer lines inline.
+        assert!(use_fullscreen(&args, &cfg, &lines(8), 10));
+        let inline = Args {
+            inline: true,
+            ..Args::default()
+        };
+        assert!(!use_fullscreen(&inline, &cfg, &lines(500), 40));
+        let full = Args {
+            fullscreen: true,
+            ..Args::default()
+        };
+        assert!(use_fullscreen(&full, &cfg, &lines(1), 40));
+        let never = Config {
+            fullscreen: Some(false),
+            ..Config::default()
+        };
+        assert!(!use_fullscreen(&args, &never, &lines(500), 40));
+        let always = Config {
+            fullscreen: Some(true),
+            ..Config::default()
+        };
+        assert!(use_fullscreen(&args, &always, &lines(1), 40));
+        let max = Config {
+            height: usize::MAX,
+            ..Config::default()
+        };
+        assert!(!use_fullscreen(&args, &max, &lines(30), 40));
+        assert!(use_fullscreen(&args, &max, &lines(37), 40));
+    }
 
     fn ev(code: C, m: KeyModifiers) -> KeyEvent {
         KeyEvent::new(code, m)

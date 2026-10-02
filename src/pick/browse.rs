@@ -15,14 +15,19 @@ fn home() -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
-/// `dir` as the query starts: `~/…/` under the home directory, ending in `/`.
-pub fn show(dir: &Path) -> String {
-    let dir = std::path::absolute(dir).unwrap_or_else(|_| dir.to_path_buf());
-    let s = match home().and_then(|h| dir.strip_prefix(h).ok().map(Path::to_path_buf)) {
+/// `path` written with `~` for the home directory.
+pub fn tilde(path: &Path) -> String {
+    let path = std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf());
+    match home().and_then(|h| path.strip_prefix(h).ok().map(Path::to_path_buf)) {
         Some(rel) if rel.as_os_str().is_empty() => "~".to_string(),
         Some(rel) => format!("~/{}", rel.display()),
-        None => dir.display().to_string(),
-    };
+        None => path.display().to_string(),
+    }
+}
+
+/// `dir` as the query starts: `~/…/` under the home directory, ending in `/`.
+pub fn show(dir: &Path) -> String {
+    let s = tilde(dir);
     if s.ends_with('/') { s } else { format!("{s}/") }
 }
 
