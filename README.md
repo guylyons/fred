@@ -9,6 +9,11 @@
 
 # fred
 
+`fred` started from wanting to make my own verson of `ed`.
+
+Use `fred -i README.md` to quickly inline edit in place. Think of it as the `ed` that
+Dr. Fred himself would have wanted.
+
 A text editor for quick edits. You move and edit with vim keys, and `:` takes
 ed-style commands with full ed addresses. Completion, syntax highlighting, a
 fuzzy file finder and project grep are built in.
