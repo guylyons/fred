@@ -283,6 +283,13 @@ pub fn draw(
         buf.set_stringn(ox, oy + y as u16, "~", 1, num_style);
         y += 1;
     }
+    // `fred` with no file: the start screen, until there's text.
+    if ed.path.is_none()
+        && ed.buf.len_bytes() == 0
+        && matches!(ed.mode, Mode::Normal | Mode::Command(_))
+    {
+        super::splash::draw(buf, Rect::new(ox, oy, area.width, rows as u16));
+    }
     if let Mode::Pick(p) = &ed.mode {
         let list = Rect::new(ox, oy + rows as u16, area.width, panel as u16);
         draw_picker(buf, list, p, ed, hl, cfg, budget);

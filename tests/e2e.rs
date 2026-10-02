@@ -952,3 +952,17 @@ ai_command = '''p=$(cat); printf %s "$p" | grep -q 'Rules: be terse' || exit 1; 
     assert_eq!(p.wait_exit(), 0);
     assert_eq!(env.read("f.txt"), "a\nBEE\nc\n");
 }
+
+#[test]
+fn splash_until_there_is_text() {
+    let env = Env::new();
+    let mut p = env.fred(&[]);
+    p.wait_text("Dr. Fred");
+    assert!(p.screen().contains('▀'), "{}", p.screen());
+    p.keys(&["ihello", "\x1b"]);
+    p.wait_for("splash gone", |s| {
+        s.contains("hello") && !s.contains("Dr. Fred")
+    });
+    p.keys(&[":q!\r"]);
+    assert_eq!(p.wait_exit(), 0);
+}
