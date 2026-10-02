@@ -96,6 +96,8 @@ pub struct Picker {
     /// Status line text: counts, or why grep can't run.
     pub status: String,
     pub err: bool,
+    /// Browse: files below are still being listed (no match isn't final).
+    pub searching: bool,
     recent: HashMap<String, usize>,
     /// What `rows` were built from. Files: query, file count, walk done.
     seen_files: Option<(String, usize, bool)>,
@@ -106,8 +108,10 @@ pub struct Picker {
     changed: Instant,
     /// Lines: the cursor's line when the picker opened.
     origin: usize,
-    /// Browse: the directory listed last, and its entries.
-    listing: Option<(PathBuf, Result<Vec<browse::Entry>, String>)>,
+    /// Browse: the directory listed last (with dotfiles?) and its entries,
+    /// and every file below it once a name is being typed.
+    listing: Option<(PathBuf, bool, Result<Vec<browse::Entry>, String>)>,
+    walk: Option<Arc<Files>>,
 }
 
 impl Picker {
@@ -119,6 +123,7 @@ impl Picker {
             sel: 0,
             status: String::new(),
             err: false,
+            searching: false,
             recent: if kind == Kind::Files {
                 project.recent()
             } else {
@@ -130,6 +135,7 @@ impl Picker {
             changed: Instant::now(),
             origin,
             listing: None,
+            walk: None,
         }
     }
 
@@ -147,17 +153,36 @@ impl Picker {
         match self.kind {
             Kind::Browse => {
                 let q = self.query.text.clone();
-                if self.seen_files.as_ref().is_some_and(|s| s.0 == q) {
-                    return false;
-                }
-                self.seen_files = Some((q.clone(), 0, true));
-                self.sel = 0;
                 let (d, name) = browse::split(&q);
                 let dir = browse::resolve(d);
-                if self.listing.as_ref().is_none_or(|l| l.0 != dir) {
-                    self.listing = Some((dir.clone(), browse::list(&dir)));
+                let hidden = name.starts_with('.');
+                if self
+                    .listing
+                    .as_ref()
+                    .is_none_or(|l| (&l.0, l.1) != (&dir, hidden))
+                {
+                    self.listing = Some((dir.clone(), hidden, browse::list(&dir, hidden)));
                 }
-                let entries = match &self.listing.as_ref().unwrap().1 {
+                // Typing a name searches every file below, as consult does.
+                let walk = (!name.is_empty()).then(|| {
+                    if self.walk.as_ref().is_none_or(|w| w.root != dir) {
+                        self.walk = Some(Files::spawn(dir.clone()));
+                    }
+                    Arc::clone(self.walk.as_ref().unwrap())
+                });
+                let now = Some((
+                    q.clone(),
+                    walk.as_ref().map_or(0, |w| w.len()),
+                    walk.as_ref().is_none_or(|w| w.done()),
+                ));
+                if now == self.seen_files {
+                    return false;
+                }
+                if self.seen_files.as_ref().is_none_or(|s| s.0 != q) {
+                    self.sel = 0;
+                }
+                self.seen_files = now;
+                let entries = match &self.listing.as_ref().unwrap().2 {
                     Ok(e) => e,
                     Err(e) => {
                         self.rows.clear();
@@ -166,41 +191,53 @@ impl Picker {
                         return true;
                     }
                 };
-                // Dotfiles only once the name being typed starts with a dot.
-                let shown: Vec<&browse::Entry> = entries
+                // Directories here (to go into), then files: all of them
+                // below when searching, else just this directory's.
+                let mut cands: Vec<String> = entries
                     .iter()
-                    .filter(|e| name.starts_with('.') || !e.name.starts_with('.'))
+                    .filter(|e| e.dir)
+                    .map(|e| format!("{}/", e.name))
                     .collect();
+                match &walk {
+                    Some(w) if !hidden => w.with(|l| cands.extend(l.iter().cloned())),
+                    _ => cands.extend(entries.iter().filter(|e| !e.dir).map(|e| e.name.clone())),
+                }
                 let mut fz = fuzzy::Fuzzy::new(name);
-                let mut hits: Vec<(u32, &browse::Entry)> = shown
+                let mut hits: Vec<(u32, usize)> = cands
                     .iter()
-                    .filter_map(|e| fz.score(&e.name).map(|s| (s, *e)))
+                    .enumerate()
+                    .filter_map(|(i, c)| fz.score(c).map(|s| (s, i)))
                     .collect();
-                // Stable: equal scores keep directories first, then by name.
-                hits.sort_by_key(|&(s, _)| std::cmp::Reverse(s));
+                let matched = hits.len();
+                // Ties: shorter paths (nearer this directory) first.
+                hits.sort_by_key(|&(s, i)| (std::cmp::Reverse(s), cands[i].len(), i));
                 self.rows = hits
                     .iter()
-                    .map(|(_, e)| Row {
+                    .take(LIMIT)
+                    .map(|&(_, i)| Row {
                         hl: if name.is_empty() {
                             vec![]
                         } else {
-                            fz.ranges(&e.name)
+                            fz.ranges(&cands[i])
                         },
-                        text: if e.dir {
-                            format!("{}/", e.name)
-                        } else {
-                            e.name.clone()
-                        },
-                        path: dir.join(&e.name),
+                        path: dir.join(cands[i].trim_end_matches('/')),
+                        text: cands[i].clone(),
                         line: 0,
                         col: 0,
                     })
                     .collect();
+                self.sel = self.sel.min(self.rows.len().saturating_sub(1));
                 self.err = false;
-                self.status = if self.rows.is_empty() && !name.is_empty() {
+                self.searching = walk.as_ref().is_some_and(|w| !w.done());
+                let more = match &walk {
+                    Some(w) if w.truncated() => "+",
+                    Some(w) if !w.done() => "…",
+                    _ => "",
+                };
+                self.status = if self.rows.is_empty() && !name.is_empty() && more.is_empty() {
                     format!("new file: {name}")
                 } else {
-                    format!("{}/{}", self.rows.len(), shown.len())
+                    format!("{matched}/{}{more}", cands.len())
                 };
                 true
             }
@@ -394,8 +431,8 @@ pub fn pick_key(ed: &mut Editor, k: Key) {
                     return;
                 }
                 Some(r) => r.path.clone(),
-                // Nothing matches: a new file of that name.
-                None if !name.is_empty() && k.code == KeyCode::Enter => {
+                // Nothing matches (and the search is done): a new file.
+                None if !name.is_empty() && k.code == KeyCode::Enter && !p.searching => {
                     browse::resolve(&d).join(name)
                 }
                 None => return,

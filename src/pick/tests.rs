@@ -33,6 +33,15 @@ fn picker(ed: &Editor) -> &Picker {
     }
 }
 
+/// Set the picker's query outright (typing a long temp path key by key
+/// would walk big system directories along the way).
+fn query(ed: &mut Editor, q: &str) {
+    if let Mode::Pick(p) = &mut ed.mode {
+        set_query(p, q.to_string());
+    }
+    tick(ed);
+}
+
 /// Tick until `done` holds (grep runs in the background).
 fn settle(ed: &mut Editor, done: impl Fn(&Picker) -> bool) {
     for _ in 0..500 {
@@ -197,7 +206,9 @@ fn browse_like_find_file() {
     // Into a directory with Enter; Tab completes a file's name.
     keys(&mut ed, "sr<Enter>");
     assert_eq!(picker(&ed).query.text, format!("{start}src/"));
-    keys(&mut ed, "ma<Tab>");
+    keys(&mut ed, "ma");
+    settle(&mut ed, |p| !p.searching);
+    keys(&mut ed, "<Tab>");
     assert_eq!(picker(&ed).query.text, format!("{start}src/main.rs"));
     keys(&mut ed, "<Enter>");
     assert_eq!(
@@ -210,22 +221,60 @@ fn browse_like_find_file() {
         })
     );
     // Backspace after a `/` goes up a directory.
-    keys(&mut ed, "<C-u>");
-    keys(&mut ed, &format!("{start}src/<BS>"));
+    query(&mut ed, &format!("{start}src/"));
+    keys(&mut ed, "<BS>");
     assert_eq!(picker(&ed).query.text, start);
     // Dotfiles once the name starts with a dot.
     keys(&mut ed, ".h");
     assert_eq!(picker(&ed).rows[0].text, ".hidden");
     // No match: Enter opens a new file of that name.
-    keys(&mut ed, "<C-u>");
-    keys(&mut ed, &format!("{start}brand-new.txt<Enter>"));
+    query(&mut ed, &start);
+    keys(&mut ed, "brand-new.txt");
+    settle(&mut ed, |p| !p.searching);
+    keys(&mut ed, "<Enter>");
     assert!(picker(&ed).status.starts_with("new file"));
     assert!(matches!(
         ed.pending_effect.take(),
         Some(ExEffect::Open { path, .. }) if path == browse::resolve(&start).join("brand-new.txt")
     ));
     // `~/` starts over at home.
-    keys(&mut ed, "<C-u>");
-    keys(&mut ed, &format!("{start}~/"));
+    query(&mut ed, &start);
+    keys(&mut ed, "~/");
     assert_eq!(picker(&ed).query.text, "~/");
+}
+
+#[test]
+fn browse_searches_below_and_honors_gitignore() {
+    let (d, mut ed) = setup(&[
+        (".gitignore", "target/\n*.log\n"),
+        ("src/pick/browse.rs", ""),
+        ("src/main.rs", ""),
+        ("target/debug/browse_build.rs", ""),
+        ("notes.log", ""),
+        ("top.txt", ""),
+    ]);
+    browse(&mut ed, d.path());
+    // The listing itself hides ignored entries.
+    let names: Vec<String> = picker(&ed).rows.iter().map(|r| r.text.clone()).collect();
+    assert_eq!(names, ["src/", "top.txt"]);
+    keys(&mut ed, "brows");
+    settle(&mut ed, |p| !p.searching);
+    let p = picker(&ed);
+    let names: Vec<&str> = p.rows.iter().map(|r| r.text.as_str()).collect();
+    assert_eq!(names, ["src/pick/browse.rs"]);
+    let root = browse::resolve(&browse::show(d.path()));
+    assert_eq!(p.rows[0].path, root.join("src/pick/browse.rs"));
+}
+
+#[test]
+fn enter_waits_for_the_search_before_making_a_new_file() {
+    let (_d, mut ed) = setup(&[("a", "")]);
+    browse(&mut ed, _d.path());
+    if let Mode::Pick(p) = &mut ed.mode {
+        p.searching = true;
+        p.rows.clear();
+        set_query(p, format!("{}zzz", p.query.text));
+    }
+    pick_key(&mut ed, crate::key::Key::new(KeyCode::Enter));
+    assert_eq!(ed.pending_effect, None);
 }

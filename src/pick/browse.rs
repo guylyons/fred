@@ -75,17 +75,24 @@ pub fn up(query: &str) -> Option<String> {
     }
 }
 
-/// Directories first, then files, each by name. Unreadable = empty.
-pub fn list(dir: &Path) -> Result<Vec<Entry>, String> {
-    let rd = std::fs::read_dir(dir).map_err(|e| crate::fileio::err_msg(&e))?;
-    let mut out: Vec<Entry> = rd
+/// This directory's entries, directories first, each by name. Honors
+/// `.gitignore` and the like; dotfiles only if `hidden`.
+pub fn list(dir: &Path, hidden: bool) -> Result<Vec<Entry>, String> {
+    std::fs::read_dir(dir).map_err(|e| crate::fileio::err_msg(&e))?;
+    let mut out: Vec<Entry> = ignore::WalkBuilder::new(dir)
+        .max_depth(Some(1))
+        .hidden(!hidden)
+        .require_git(false)
+        .build()
         .filter_map(Result::ok)
+        .filter(|e| e.depth() == 1)
         .filter_map(|e| {
-            let name = e.file_name().into_string().ok()?;
+            let name = e.file_name().to_str()?.to_string();
             // Follow symlinks: a link to a directory opens like one.
             let dir = std::fs::metadata(e.path()).is_ok_and(|m| m.is_dir());
             Some(Entry { name, dir })
         })
+        .filter(|e| e.name != ".git")
         .collect();
     out.sort_by(|a, b| b.dir.cmp(&a.dir).then_with(|| a.name.cmp(&b.name)));
     Ok(out)
@@ -128,19 +135,28 @@ mod tests {
         std::fs::create_dir(d.path().join("zdir")).unwrap();
         std::fs::write(d.path().join("a.txt"), "").unwrap();
         std::fs::write(d.path().join(".hidden"), "").unwrap();
-        let names: Vec<_> = list(d.path())
-            .unwrap()
-            .into_iter()
-            .map(|e| (e.name, e.dir))
-            .collect();
+        std::fs::write(d.path().join(".gitignore"), "skipped.log\n").unwrap();
+        std::fs::write(d.path().join("skipped.log"), "").unwrap();
+        let names = |hidden| -> Vec<(String, bool)> {
+            list(d.path(), hidden)
+                .unwrap()
+                .into_iter()
+                .map(|e| (e.name, e.dir))
+                .collect()
+        };
         assert_eq!(
-            names,
+            names(false),
+            [("zdir".into(), true), ("a.txt".into(), false)]
+        );
+        assert_eq!(
+            names(true),
             [
                 ("zdir".into(), true),
+                (".gitignore".into(), false),
                 (".hidden".into(), false),
                 ("a.txt".into(), false)
             ]
         );
-        assert!(list(&d.path().join("missing")).is_err());
+        assert!(list(&d.path().join("missing"), false).is_err());
     }
 }

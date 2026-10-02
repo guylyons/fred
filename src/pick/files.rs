@@ -20,6 +20,15 @@ pub struct Files {
     truncated: AtomicBool,
 }
 
+/// The same list, not equal contents (a picker holding one is compared).
+impl PartialEq for Files {
+    fn eq(&self, other: &Files) -> bool {
+        std::ptr::eq(self, other)
+    }
+}
+
+impl Eq for Files {}
+
 impl Files {
     pub fn spawn(root: PathBuf) -> Arc<Files> {
         let files = Arc::new(Files {
@@ -29,11 +38,12 @@ impl Files {
             truncated: AtomicBool::new(false),
         });
         let f = Arc::clone(&files);
-        std::thread::spawn(move || f.walk());
+        std::thread::spawn(move || Files::walk(&f));
         files
     }
 
-    fn walk(&self) {
+    /// Stops early once nobody else holds the list (the picker moved on).
+    fn walk(self: &Arc<Self>) {
         let mut batch = vec![];
         let mut total = 0;
         let walk = ignore::WalkBuilder::new(&self.root)
@@ -41,6 +51,9 @@ impl Files {
             .sort_by_file_name(|a, b| a.cmp(b))
             .build();
         for e in walk.filter_map(Result::ok) {
+            if Arc::strong_count(self) == 1 {
+                return;
+            }
             if !e.file_type().is_some_and(|t| t.is_file()) {
                 continue;
             }
@@ -114,6 +127,23 @@ mod tests {
         f.wait();
         assert_eq!(f.with(<[String]>::to_vec), ["b.txt", "src/main.rs"]);
         assert!(!f.truncated());
+    }
+
+    #[test]
+    fn stops_when_dropped() {
+        let dir = tempfile::tempdir().unwrap();
+        for i in 0..2000 {
+            fs::write(dir.path().join(format!("f{i}")), "").unwrap();
+        }
+        let f = Files::spawn(dir.path().to_path_buf());
+        let weak = Arc::downgrade(&f);
+        drop(f);
+        // The walker notices it is alone and lets the list go.
+        let t = std::time::Instant::now();
+        while weak.strong_count() > 0 {
+            assert!(t.elapsed() < std::time::Duration::from_secs(5));
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
     }
 
     #[test]

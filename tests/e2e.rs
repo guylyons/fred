@@ -428,7 +428,13 @@ fn fred_dir_browses_and_opens_a_file() {
     p.wait_text(" FILES ");
     p.wait_text("sub/");
     p.wait_text("top.txt");
-    p.keys(&["su", "\r", "de", "\r"]);
+    // Typing a name searches below: no need to go into sub/ first.
+    env.write(".gitignore", "*.log\n");
+    env.write("adir/sub/deep.log", "ignored\n");
+    p.keys(&["deep"]);
+    p.wait_text("sub/deep.txt");
+    assert!(!p.screen().contains("deep.log"), "{}", p.screen());
+    p.keys(&["\r"]);
     p.wait_text("found it");
     p.wait_text("adir/sub/deep.txt\" 1L");
     // Space j browses again, from this file's directory.

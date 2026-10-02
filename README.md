@@ -78,8 +78,10 @@ Space is the leader key (`l` still moves right).
   see the files you opened most recently first.
 - `Space g` greps the project as you type, with the same regex rules as `/`.
   `Enter` opens the file on the match, and `n` goes on to the next one.
-- `Space j` browses files like Emacs's find-file with vertico: the prompt
-  is a path, and what you type after the last `/` filters that directory.
+- `Space j` browses files like Emacs's find-file with vertico and consult:
+  the prompt is a path, and what you type after the last `/` fuzzy-matches
+  every file below that directory (plus its subdirectories, to go into),
+  honoring `.gitignore`. With nothing typed you see the directory itself.
   `Enter` or `Tab` on a directory goes in, `Backspace` after a `/` goes up a
   directory, `~/` jumps home, and `Enter` on a name that doesn't exist
   starts a new file. It starts in the current file's directory; `fred DIR`
