@@ -283,7 +283,7 @@ pub fn draw(
     }
     if let Mode::Pick(p) = &ed.mode {
         let list = Rect::new(ox, oy + rows as u16, area.width, panel as u16);
-        draw_picker(buf, list, p, ed, hl, budget);
+        draw_picker(buf, list, p, ed, hl, cfg, budget);
     }
     if area.height >= 2 {
         draw_status(buf, area, ed, hl);
@@ -421,13 +421,14 @@ fn panel_rows(text_rows: usize, results: usize) -> usize {
 
 /// Picker results in `area` (the panel), best at the bottom: code in its
 /// syntax colors, matches in bold underline, and for files a dot when git
-/// has them changed (yellow) or new (green).
+/// has them changed (yellow) or new (green), then its type's icon.
 fn draw_picker(
     buf: &mut Screen,
     area: Rect,
     p: &Picker,
     ed: &Editor,
     hl: &mut Highlighter,
+    cfg: &Config,
     budget: Duration,
 ) {
     let rows = area.height as usize;
@@ -447,6 +448,11 @@ fn draw_picker(
                 Some(FileState::New) => Span::styled("●", Style::default().fg(Color::Green)),
                 None => Span::raw(" "),
             });
+            if cfg.icons {
+                let (icon, color) = file_icon(&r.text);
+                spans.push(Span::raw(" "));
+                spans.push(Span::styled(icon.to_string(), Style::default().fg(color)));
+            }
         }
         spans.push(Span::raw(" "));
         let code = r.code.map(|at| {
@@ -469,6 +475,67 @@ fn draw_picker(
     }
     if incomplete {
         hl.set_incomplete();
+    }
+}
+
+/// A Material Design icon (Nerd Font `nf-md-*`) and color for a file
+/// picker row, by name: directories end in `/`.
+fn file_icon(name: &str) -> (char, Color) {
+    if name.ends_with('/') {
+        return ('\u{f024b}', Color::Blue);
+    }
+    let base = name.rsplit('/').next().unwrap_or(name);
+    let ext = base
+        .rsplit_once('.')
+        .map_or("", |(_, e)| e)
+        .to_ascii_lowercase();
+    match base {
+        "Dockerfile" | "Containerfile" => return ('\u{f0868}', Color::Blue),
+        "Makefile" | "justfile" => return ('\u{f0493}', Color::DarkGray),
+        "LICENSE" | "LICENSE.md" | "COPYING" => return ('\u{f0fc3}', Color::Yellow),
+        ".gitignore" | ".gitattributes" | ".gitmodules" => return ('\u{f02a2}', Color::Red),
+        _ => {}
+    }
+    match ext.as_str() {
+        "rs" => ('\u{f1617}', Color::Red),
+        "py" | "pyi" => ('\u{f0320}', Color::Yellow),
+        "js" | "mjs" | "cjs" => ('\u{f031e}', Color::Yellow),
+        "ts" | "mts" | "cts" => ('\u{f06e6}', Color::Blue),
+        "jsx" | "tsx" => ('\u{f0708}', Color::Cyan),
+        "vue" => ('\u{f0844}', Color::Green),
+        "html" | "htm" | "twig" => ('\u{f031d}', Color::Red),
+        "css" => ('\u{f031c}', Color::Blue),
+        "scss" | "sass" => ('\u{f07ec}', Color::Magenta),
+        "md" | "markdown" => ('\u{f0354}', Color::White),
+        "go" => ('\u{f07d3}', Color::Cyan),
+        "c" | "h" => ('\u{f0671}', Color::Blue),
+        "cc" | "cpp" | "cxx" | "hpp" | "hh" => ('\u{f0672}', Color::Blue),
+        "java" => ('\u{f0b37}', Color::Red),
+        "kt" | "kts" => ('\u{f1219}', Color::Magenta),
+        "rb" => ('\u{f0d2d}', Color::Red),
+        "php" | "module" | "theme" | "inc" | "install" => ('\u{f031f}', Color::Magenta),
+        "swift" => ('\u{f06e5}', Color::Red),
+        "lua" => ('\u{f08b1}', Color::Blue),
+        "cs" => ('\u{f031b}', Color::Magenta),
+        "hs" => ('\u{f0c92}', Color::Magenta),
+        "r" => ('\u{f07d4}', Color::Blue),
+        "nix" => ('\u{f1105}', Color::Blue),
+        "json" | "jsonc" => ('\u{f0626}', Color::Yellow),
+        "toml" | "yaml" | "yml" | "ini" | "conf" | "cfg" | "env" => ('\u{f0493}', Color::DarkGray),
+        "xml" | "svg" => ('\u{f05c0}', Color::Yellow),
+        "sh" | "bash" | "zsh" | "fish" => ('\u{f018d}', Color::Green),
+        "sql" | "db" | "sqlite" => ('\u{f01bc}', Color::Cyan),
+        "lock" => ('\u{f033e}', Color::DarkGray),
+        "csv" | "tsv" => ('\u{f0c7e}', Color::Green),
+        "png" | "jpg" | "jpeg" | "gif" | "webp" | "ico" | "bmp" | "avif" => {
+            ('\u{f021f}', Color::Magenta)
+        }
+        "pdf" => ('\u{f0226}', Color::Red),
+        "mp3" | "wav" | "flac" | "ogg" | "m4a" => ('\u{f0223}', Color::Cyan),
+        "mp4" | "mov" | "mkv" | "webm" | "avi" => ('\u{f022b}', Color::Magenta),
+        "zip" | "tar" | "gz" | "tgz" | "bz2" | "xz" | "zst" | "7z" => ('\u{f05c4}', Color::Yellow),
+        "txt" | "log" => ('\u{f0219}', Color::White),
+        _ => ('\u{f0214}', Color::DarkGray),
     }
 }
 

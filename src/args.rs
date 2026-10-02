@@ -15,7 +15,7 @@ pub const USAGE: &str = "usage: fred [-i | -f] [--height N] [+LINE] [FILE | DIR]
   -V, --version     show the version
 
 Config: ~/.config/fred/config.toml (fullscreen, height, wrap, numbers,
-relative_numbers, theme, tabstop, autocomplete)";
+relative_numbers, theme, tabstop, autocomplete, icons)";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LineArg {

@@ -203,6 +203,7 @@ relative_numbers = false
 theme = "ansi"           # any bat theme name, e.g. "Nord", "Dracula", "gruvbox-dark"
 tabstop = 8
 autocomplete = true      # pop up completions while typing (Ctrl-N works either way)
+icons = false            # file-type icons in the file pickers (needs a Nerd Font)
 ```
 
 ## Development

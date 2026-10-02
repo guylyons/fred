@@ -19,6 +19,8 @@ pub struct Config {
     pub theme: String,
     pub tabstop: usize,
     pub autocomplete: bool,
+    /// File-type icons in the file pickers (needs a Nerd Font).
+    pub icons: bool,
 }
 
 impl Default for Config {
@@ -32,6 +34,7 @@ impl Default for Config {
             theme: "ansi".into(),
             tabstop: 8,
             autocomplete: true,
+            icons: false,
         }
     }
 }
@@ -133,7 +136,7 @@ mod tests {
         assert!(Config::parse("fullscreen = \"big\"").1.is_some());
         assert_eq!(c.tabstop, 8);
         assert_eq!(c.theme, "ansi");
-        assert!(c.numbers && !c.relative_numbers && !c.wrap && c.autocomplete);
+        assert!(c.numbers && !c.relative_numbers && !c.wrap && c.autocomplete && !c.icons);
     }
 
     #[test]

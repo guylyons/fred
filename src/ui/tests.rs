@@ -392,3 +392,23 @@ fn line_picker_rows_are_syntax_highlighted() {
         "picker `fn`: {cell:?}, editor: {kw:?}"
     );
 }
+
+#[test]
+fn file_pickers_show_type_icons_when_configured() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir(dir.path().join("src")).unwrap();
+    std::fs::write(dir.path().join("main.rs"), "").unwrap();
+    std::fs::write(dir.path().join("notes.zzz"), "").unwrap();
+    let mut e = editor("", "");
+    crate::pick::browse(&mut e, dir.path());
+    let mut s = Screen::new(40, 12);
+    let rows = |s: &Screen| (0..10).map(|y| s.row(y)).collect::<Vec<_>>().join("\n");
+    s.draw(&e);
+    assert!(!rows(&s).contains('\u{f1617}'), "{}", rows(&s));
+    s.cfg.icons = true;
+    s.draw(&e);
+    let all = rows(&s);
+    for want in ["\u{f024b} src/", "\u{f1617} main.rs", "\u{f0214} notes.zzz"] {
+        assert!(all.contains(want), "{want:?} in\n{all}");
+    }
+}
