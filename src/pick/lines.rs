@@ -55,6 +55,7 @@ pub fn search(query: &str, buf: &Buffer, from: usize) -> Result<Found, String> {
             path: PathBuf::new(),
             line: l,
             col: col.unwrap_or(0),
+            code: Some(head.len()),
         });
     }
     let sel = rows

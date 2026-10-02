@@ -193,6 +193,42 @@ impl Highlighter {
         out
     }
 
+    /// Some visible lines are waiting to be highlighted: draw again soon
+    /// (for callers that ask for several separate ranges in one frame).
+    pub fn set_incomplete(&mut self) {
+        self.incomplete = true;
+    }
+
+    /// Styles for one line of another file (a grep hit), parsed on its own
+    /// with the language its name suggests. A line inside a multi-line
+    /// comment or string can come out wrong.
+    pub fn one_line(&self, path: &Path, text: &str) -> Option<LineStyles> {
+        if text.len() > MAX_LINE {
+            return None;
+        }
+        let ss = syntaxes();
+        let ext = path.extension().and_then(|e| e.to_str());
+        let name = path.file_name().and_then(|n| n.to_str());
+        let syn = ext
+            .and_then(|e| ss.find_syntax_by_extension(e))
+            .or_else(|| name.and_then(|n| ss.find_syntax_by_extension(n)))?;
+        let theme = Arc::clone(&self.theme);
+        let hl = sh::Highlighter::new(&theme);
+        let mut ps = ParseState::new(syn);
+        let mut hs = HighlightState::new(&hl, ScopeStack::new());
+        let line = format!("{text}\n");
+        let ops = ps.parse_line(&line, ss).ok()?;
+        let end = text.len();
+        Some(
+            RangedHighlightIterator::new(&mut hs, &ops, &line, &hl)
+                .filter_map(|(st, _, r)| {
+                    let r = r.start.min(end)..r.end.min(end);
+                    (!r.is_empty()).then(|| (self.convert(st), r))
+                })
+                .collect(),
+        )
+    }
+
     fn convert(&self, st: sh::Style) -> Style {
         let mut s = Style::default();
         if let Some(c) = to_color(st.foreground, self.truecolor) {
@@ -241,6 +277,20 @@ mod tests {
     use crate::buffer::{Buffer, Edit};
     use std::path::Path;
     use std::time::Duration;
+
+    #[test]
+    fn one_line_uses_the_file_names_language() {
+        let h = Highlighter::new("ansi", false).unwrap();
+        let st = h.one_line(Path::new("src/x.rs"), "fn main() {}").unwrap();
+        assert!(
+            st.iter().any(|(s, r)| r.start == 0 && s.fg.is_some()),
+            "{st:?}"
+        );
+        assert!(
+            h.one_line(Path::new("notes.zzz-unknown"), "fn main")
+                .is_none()
+        );
+    }
 
     const LONG: Duration = Duration::from_secs(5);
 

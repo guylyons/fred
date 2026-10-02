@@ -4,9 +4,10 @@ use super::layout::{Layout, Placed, wrap_cursor};
 use super::view::View;
 use crate::config::Config;
 use crate::editor::{CmdLine, Editor, Mode};
+use crate::git::FileState;
 use crate::git::Mark;
 use crate::highlight::{Highlighter, LineStyles};
-use crate::pick::{Kind, Picker};
+use crate::pick::{Kind, Picker, Row};
 use crate::text::{col_of_byte, display_width, is_control};
 use ratatui::Frame;
 use ratatui::buffer::Buffer as Screen;
@@ -282,7 +283,7 @@ pub fn draw(
     }
     if let Mode::Pick(p) = &ed.mode {
         let list = Rect::new(ox, oy + rows as u16, area.width, panel as u16);
-        draw_picker(buf, list, p);
+        draw_picker(buf, list, p, ed, hl, budget);
     }
     if area.height >= 2 {
         draw_status(buf, area, ed, hl);
@@ -418,38 +419,90 @@ fn panel_rows(text_rows: usize, results: usize) -> usize {
     results.clamp(1, (text_rows / 2).max(1)).min(text_rows)
 }
 
-/// Picker results in `area` (the panel), best at the bottom.
-fn draw_picker(buf: &mut Screen, area: Rect, p: &Picker) {
+/// Picker results in `area` (the panel), best at the bottom: code in its
+/// syntax colors, matches in bold underline, and for files a dot when git
+/// has them changed (yellow) or new (green).
+fn draw_picker(
+    buf: &mut Screen,
+    area: Rect,
+    p: &Picker,
+    ed: &Editor,
+    hl: &mut Highlighter,
+    budget: Duration,
+) {
     let rows = area.height as usize;
     let off = (p.sel + 1).saturating_sub(rows);
-    let matched = Style::default()
-        .fg(Color::Yellow)
-        .add_modifier(Modifier::BOLD);
-    // Control characters (tabs in grep lines) would upset the layout.
-    let clean = |s: &str| s.replace(|c: char| c.is_control(), " ");
+    let files = matches!(p.kind, Kind::Files | Kind::Browse | Kind::Recent);
+    // The text area's highlighting ran first; don't lose its "not done".
+    let mut incomplete = hl.incomplete();
+    let started = std::time::Instant::now();
     for (i, r) in p.rows.iter().enumerate().skip(off).take(rows) {
         let y = area.y + (rows - 1 - (i - off)) as u16;
         let selected = i == p.sel;
-        let mut spans = vec![Span::raw(if selected { "> " } else { "  " })];
-        let mut at = 0;
-        for &(a, b) in &r.hl {
-            if a < at
-                || b > r.text.len()
-                || !r.text.is_char_boundary(a)
-                || !r.text.is_char_boundary(b)
-            {
-                continue;
-            }
-            spans.push(Span::raw(clean(&r.text[at..a])));
-            spans.push(Span::styled(clean(&r.text[a..b]), matched));
-            at = b;
+        let mut spans = vec![Span::raw(if selected { ">" } else { " " })];
+        if files {
+            let state = ed.project.file_state(&r.path, r.text.ends_with('/'));
+            spans.push(match state {
+                Some(FileState::Modified) => Span::styled("●", Style::default().fg(Color::Yellow)),
+                Some(FileState::New) => Span::styled("●", Style::default().fg(Color::Green)),
+                None => Span::raw(" "),
+            });
         }
-        spans.push(Span::raw(clean(&r.text[at..])));
+        spans.push(Span::raw(" "));
+        let code = r.code.map(|at| {
+            let styles = if p.kind == Kind::Lines {
+                // This file's own highlighting, exactly as in the editor.
+                let left = budget.saturating_sub(started.elapsed());
+                let st = hl.styles(&ed.buf, r.line..r.line + 1, left);
+                incomplete |= hl.incomplete();
+                st.into_iter().next().flatten()
+            } else {
+                hl.one_line(&r.path, &r.text[at..])
+            };
+            (at, styles)
+        });
+        spans.extend(row_spans(r, code.as_ref()));
         if selected {
             reversed(&mut spans);
         }
         buf.set_line(area.x, y, &Line::from(spans), area.width);
     }
+    if incomplete {
+        hl.set_incomplete();
+    }
+}
+
+/// A picker row's text: the head (`12: `) dim, code in `code`'s styles
+/// (from byte `at`), matched ranges bold and underlined.
+fn row_spans(r: &Row, code: Option<&(usize, Option<LineStyles>)>) -> Vec<Span<'static>> {
+    let mut styler = code.map(|(at, st)| (*at, Styler::new(st)));
+    let matched = Modifier::BOLD | Modifier::UNDERLINED;
+    let mut out = vec![];
+    let mut run = String::new();
+    let mut style = Style::default();
+    for (b, ch) in r.text.char_indices() {
+        let mut st = match &mut styler {
+            Some((at, s)) if b >= *at => s.at(b - *at),
+            Some(_) => Style::default().fg(Color::DarkGray),
+            None => Style::default(),
+        };
+        if r.hl.iter().any(|&(a, e)| (a..e).contains(&b)) {
+            st = st.add_modifier(matched);
+            if code.is_none() {
+                st = st.fg(Color::Yellow);
+            }
+        }
+        if st != style && !run.is_empty() {
+            out.push(Span::styled(std::mem::take(&mut run), style));
+        }
+        style = st;
+        // Control characters (tabs in grep lines) would upset the layout.
+        run.push(if ch.is_control() { ' ' } else { ch });
+    }
+    if !run.is_empty() {
+        out.push(Span::styled(run, style));
+    }
+    out
 }
 
 /// Where the text area is: gutter width, text rows, wrap width (0 = off).

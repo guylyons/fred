@@ -737,6 +737,55 @@ fn git_marks_show_as_you_type() {
     assert_eq!(p.wait_exit(), 0);
 }
 
+#[test]
+fn file_pickers_dot_changed_files() {
+    let env = Env::new();
+    let git = |args: &[&str]| {
+        std::process::Command::new("git")
+            .arg("-C")
+            .arg(env.dir.path())
+            .args(["-c", "user.name=t", "-c", "user.email=t@t"])
+            .args(args)
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .output()
+            .is_ok_and(|o| o.status.success())
+    };
+    if !git(&["init", "-q"]) {
+        return; // no git on this machine
+    }
+    // Keep the env's own files out of `git status`.
+    env.write(".gitignore", "state/\nconfig/\nhome/\n");
+    env.write("changed.txt", "one\n");
+    env.write("same.txt", "one\n");
+    assert!(git(&["add", "."]) && git(&["commit", "-qm", "x"]));
+    env.write("changed.txt", "two\n");
+    env.write("fresh.txt", "new\n");
+    let mut p = env.fred(&["same.txt"]);
+    p.wait_text("NORMAL");
+    p.keys(&[" p"]);
+    // The dot sits in the column before the name: green new, yellow changed.
+    let dot = |p: &Pty, name: &str| -> Option<vt100::Color> {
+        let parser = p.parser.lock().unwrap();
+        let screen = parser.screen();
+        let (rows, _) = screen.size();
+        (0..rows).find_map(|y| {
+            let row = screen.contents_between(y, 0, y, 60);
+            // A column, not a byte offset: `●` is 3 bytes wide.
+            let x = row[..row.find(name)?].chars().count() as u16;
+            let cell = screen.cell(y, x.checked_sub(2)?)?;
+            (cell.contents() == "●").then(|| cell.fgcolor())
+        })
+    };
+    p.wait_for("dots", |_| {
+        dot(&p, "changed.txt").is_some() && dot(&p, "fresh.txt").is_some()
+    });
+    assert_eq!(dot(&p, "changed.txt"), Some(vt100::Color::Idx(3)));
+    assert_eq!(dot(&p, "fresh.txt"), Some(vt100::Color::Idx(2)));
+    assert_eq!(dot(&p, "same.txt"), None);
+    p.keys(&["\x1b", ":q\r"]);
+    assert_eq!(p.wait_exit(), 0);
+}
+
 /// Prints what the window looks like (run with `--ignored --nocapture`).
 #[test]
 #[ignore]

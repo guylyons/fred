@@ -363,3 +363,32 @@ fn picker_is_a_panel_under_the_file() {
         [">  1: line 1", "  11: line 11", "  21: line 21"]
     );
 }
+
+#[test]
+fn line_picker_rows_are_syntax_highlighted() {
+    let mut s = Screen::new(40, 12);
+    let text = "fn main() {\n    let x = 1;\n}\n";
+    let mut e = editor(text, "");
+    e.path = Some("main.rs".into());
+    s.hl.set_file(e.path.as_deref(), &e.buf);
+    s.draw(&e);
+    // `fn` on the file's first row, after the gutter.
+    let fg = |s: &Screen, x: u16, y: u16| s.term.backend().buffer()[(x, y)].fg;
+    let kw = fg(&s, 4, 0);
+    assert_ne!(kw, ratatui::style::Color::Reset, "editor highlights `fn`");
+    for k in parse_keys(" kmain") {
+        e.handle_key(k);
+    }
+    s.draw(&e);
+    let row = (0..10)
+        .find(|&y| s.row(y).contains("1: fn main"))
+        .expect("picker row");
+    let x = s.row(row).find("fn").unwrap() as u16;
+    // Unselected rows aren't reversed; this one is selected, so compare
+    // the color whichever way it's applied.
+    let cell = s.term.backend().buffer()[(x, row)].clone();
+    assert!(
+        cell.fg == kw || cell.bg == kw,
+        "picker `fn`: {cell:?}, editor: {kw:?}"
+    );
+}

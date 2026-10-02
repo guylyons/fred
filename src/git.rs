@@ -4,6 +4,7 @@
 use crate::buffer::Buffer;
 use similar::{Algorithm, DiffOp};
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
@@ -122,6 +123,54 @@ fn staged(path: &Path) -> Option<Vec<String>> {
     )
 }
 
+/// A file's state in `git status`, for the dots in the file pickers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FileState {
+    /// Changed, staged or not.
+    Modified,
+    /// Untracked, or newly added.
+    New,
+}
+
+/// `git status` for the repository at `root`: paths relative to the
+/// repository's top level → state. None if git fails.
+pub fn status(root: &Path) -> Option<HashMap<String, FileState>> {
+    let out = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["status", "--porcelain=v1", "-z", "--untracked-files=all"])
+        .env("GIT_OPTIONAL_LOCKS", "0")
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .ok()?;
+    out.status.success().then(|| parse_status(&out.stdout))
+}
+
+/// `XY path\0` entries; a rename or copy is followed by its old path.
+fn parse_status(out: &[u8]) -> HashMap<String, FileState> {
+    let mut map = HashMap::new();
+    let mut fields = out.split(|&b| b == 0).filter(|f| f.len() > 3);
+    while let Some(f) = fields.next() {
+        let (x, y) = (f[0], f[1]);
+        let Ok(path) = std::str::from_utf8(&f[3..]) else {
+            continue;
+        };
+        if matches!(x, b'R' | b'C') {
+            fields.next();
+        }
+        let state = if x == b'?' || x == b'A' {
+            FileState::New
+        } else if x == b'D' || y == b'D' {
+            continue; // gone from the working tree: never listed
+        } else {
+            FileState::Modified
+        };
+        map.insert(path.to_string(), state);
+    }
+    map
+}
+
 /// A mark for each line of `cur` that differs from `base`.
 pub fn marks<S: AsRef<str>>(base: &[S], cur: &[S]) -> Vec<Option<Mark>> {
     let old: Vec<&str> = base.iter().map(AsRef::as_ref).collect();
@@ -190,6 +239,20 @@ mod tests {
         assert_eq!(m("a\nb\nc", "a\nb"), [None, Some(RemovedBelow)]);
         assert_eq!(m("", "x\ny"), [Some(Added), Some(Added)]);
         assert_eq!(m("a", ""), Vec::<Option<Mark>>::new());
+    }
+
+    #[test]
+    fn parses_status() {
+        let out =
+            b" M src/app.rs\0?? new.txt\0A  added.rs\0R  to.rs\0from.rs\0 D gone.rs\0MM both.rs\0";
+        let m = parse_status(out);
+        assert_eq!(m.get("src/app.rs"), Some(&FileState::Modified));
+        assert_eq!(m.get("new.txt"), Some(&FileState::New));
+        assert_eq!(m.get("added.rs"), Some(&FileState::New));
+        assert_eq!(m.get("to.rs"), Some(&FileState::Modified));
+        assert_eq!(m.get("from.rs"), None);
+        assert_eq!(m.get("gone.rs"), None);
+        assert_eq!(m.get("both.rs"), Some(&FileState::Modified));
     }
 
     #[test]

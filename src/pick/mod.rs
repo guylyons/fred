@@ -16,8 +16,9 @@ use crate::key::{Key, KeyCode};
 use files::Files;
 use grep::Grep;
 use std::collections::HashMap;
-use std::path::PathBuf;
-use std::sync::{Arc, OnceLock};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 /// Grep starts this long after the last keystroke.
@@ -33,7 +34,13 @@ pub struct Project {
     pub recent_file: Option<PathBuf>,
     files: OnceLock<Arc<Files>>,
     pub grep: Arc<Grep>,
+    /// `git status` per repository root, loading in the background (for
+    /// the dots in the file pickers), and "one has just loaded".
+    status: Mutex<HashMap<PathBuf, Arc<Mutex<Option<Status>>>>>,
+    status_loaded: Arc<AtomicBool>,
 }
+
+type Status = HashMap<String, crate::git::FileState>;
 
 impl Project {
     pub fn new(dir: Option<PathBuf>, recent_file: Option<PathBuf>) -> Project {
@@ -51,6 +58,59 @@ impl Project {
             let dir = self.dir.clone().unwrap_or_else(|| cwd.clone());
             Files::spawn(files::project_root(&dir, &cwd))
         })
+    }
+
+    /// `path`'s state in `git status` (for a directory: of anything inside
+    /// it, modified first). None outside git, unchanged, or still loading.
+    pub fn file_state(&self, path: &Path, dir: bool) -> Option<crate::git::FileState> {
+        use crate::git::FileState;
+        let root = crate::complete::nearby::repo_root(if dir { path } else { path.parent()? })?;
+        let rel = path.strip_prefix(&root).ok()?.to_str()?.to_string();
+        let slot = {
+            let mut m = self.status.lock().ok()?;
+            let slot = m.entry(root.clone()).or_insert_with(|| {
+                let slot: Arc<Mutex<Option<Status>>> = Arc::default();
+                let (out, loaded) = (Arc::clone(&slot), Arc::clone(&self.status_loaded));
+                std::thread::spawn(move || {
+                    let st = crate::git::status(&root).unwrap_or_default();
+                    if let Ok(mut o) = out.lock() {
+                        *o = Some(st);
+                    }
+                    loaded.store(true, Ordering::Release);
+                });
+                slot
+            });
+            Arc::clone(slot)
+        };
+        let st = slot.lock().ok()?;
+        let st = st.as_ref()?;
+        if !dir {
+            return st.get(&rel).copied();
+        }
+        let prefix = if rel.is_empty() {
+            String::new()
+        } else {
+            format!("{rel}/")
+        };
+        let mut inside = st
+            .iter()
+            .filter(|(p, _)| p.starts_with(&prefix))
+            .map(|(_, s)| *s);
+        let first = inside.next()?;
+        Some(
+            if first == FileState::Modified || inside.any(|s| s == FileState::Modified) {
+                FileState::Modified
+            } else {
+                FileState::New
+            },
+        )
+    }
+
+    /// Forget `git status`: a file picker opening reads it fresh.
+    fn reset_status(&self) {
+        if let Ok(mut m) = self.status.lock() {
+            m.clear();
+        }
     }
 
     /// Recent files in this project: relative path → rank (0 = newest).
@@ -86,6 +146,9 @@ pub struct Row {
     pub path: PathBuf,
     pub line: usize,
     pub col: usize,
+    /// Where the code starts in `text` (after `12: ` or `path:12: `), for
+    /// syntax highlighting; None for rows that are just paths.
+    pub code: Option<usize>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -184,6 +247,7 @@ impl Picker {
                         path: self.recent_files[i].1.clone(),
                         line: 0,
                         col: 0,
+                        code: None,
                     })
                     .collect();
                 self.status = format!("{matched}/{}", names.len());
@@ -262,6 +326,7 @@ impl Picker {
                         text: cands[i].clone(),
                         line: 0,
                         col: 0,
+                        code: None,
                     })
                     .collect();
                 self.sel = self.sel.min(self.rows.len().saturating_sub(1));
@@ -326,6 +391,7 @@ impl Picker {
                             path: files.root.join(&l[i]),
                             line: 0,
                             col: 0,
+                            code: None,
                         })
                         .collect()
                 });
@@ -409,6 +475,7 @@ fn grep_row(h: &grep::Hit, root: &std::path::Path) -> Row {
         path: root.join(&h.path),
         line: h.line,
         col: h.col,
+        code: Some(head.len()),
     }
 }
 
@@ -428,6 +495,9 @@ fn set_query(p: &mut Picker, q: String) {
 
 /// `Space p` / `Space g` / `Space k`.
 pub fn open(ed: &mut Editor, kind: Kind) {
+    if matches!(kind, Kind::Files | Kind::Browse | Kind::Recent) {
+        ed.project.reset_status();
+    }
     let mut p = Picker::new(kind, &ed.project, ed.cur.line);
     if kind == Kind::Recent {
         // Not the file being edited, and not files since deleted.
@@ -541,7 +611,11 @@ fn close(ed: &mut Editor) {
 /// Background results or the grep debounce: true if the picker changed.
 pub fn tick(ed: &mut Editor) -> bool {
     match &mut ed.mode {
-        Mode::Pick(p) => p.update(&ed.project, &ed.buf, Instant::now()),
+        Mode::Pick(p) => {
+            // `git status` arriving brings the dots.
+            let loaded = ed.project.status_loaded.swap(false, Ordering::AcqRel);
+            p.update(&ed.project, &ed.buf, Instant::now()) || loaded
+        }
         _ => false,
     }
 }
