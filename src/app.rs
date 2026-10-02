@@ -555,7 +555,9 @@ fn event_loop(
             _ => s.ed.line_count().max(shown),
         };
         let want = window_height(cfg.height, lines, rows);
-        if resized || want > ui.height {
+        // Fullscreen never grows (its height isn't tracked): without the
+        // `!ui.full`, an open picker redrew every tick.
+        if resized || (!ui.full && want > ui.height) {
             ui.rebuild(want)?;
             dirty = true;
         }

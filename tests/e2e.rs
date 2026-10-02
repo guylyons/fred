@@ -659,6 +659,25 @@ fn exits_when_the_terminal_goes_away() {
     assert_eq!(status.code(), Some(1), "{status:?}");
 }
 
+/// Idle means idle: no redraws (each would write at least the cursor).
+#[test]
+fn idle_picker_draws_nothing() {
+    let env = Env::new();
+    env.write("f.txt", "x\n");
+    for args in [&["-f", "f.txt"][..], &["-i", "f.txt"][..]] {
+        let mut p = env.fred(args);
+        p.wait_text("NORMAL");
+        p.keys(&[" k"]);
+        p.wait_text("lines>");
+        thread::sleep(Duration::from_millis(300));
+        let before = p.raw().len();
+        thread::sleep(Duration::from_millis(1000));
+        assert_eq!(p.raw().len(), before, "{args:?}: redrawing while idle");
+        p.keys(&["\x1b", ":q\r"]);
+        assert_eq!(p.wait_exit(), 0);
+    }
+}
+
 /// Prints what the window looks like (run with `--ignored --nocapture`).
 #[test]
 #[ignore]
