@@ -3,6 +3,7 @@
 //! files (`Space r`).
 
 pub mod browse;
+pub mod def;
 pub mod files;
 pub mod fuzzy;
 pub mod grep;
@@ -138,6 +139,8 @@ pub enum Kind {
     Buffers,
     /// Lines of every buffer (`Space B`).
     AllLines,
+    /// Definitions of the word at the cursor (`Space d`, `gd`).
+    Def,
 }
 
 /// One result: what to show and where it leads.
@@ -185,6 +188,12 @@ pub struct Picker {
     recent_files: Vec<(String, PathBuf, usize)>,
     /// AllLines: each buffer's name, path and text, this one first.
     buf_texts: Vec<(String, PathBuf, ropey::Rope)>,
+    /// Def: the file searched from (its definitions rank first), and
+    /// whether to jump straight to a clear winner (until a key is typed).
+    from: Option<PathBuf>,
+    jump: bool,
+    /// Def: each row's tier and "in `from`", for the jump.
+    ranks: Vec<(u8, bool)>,
 }
 
 impl Picker {
@@ -211,6 +220,9 @@ impl Picker {
             walk: None,
             recent_files: vec![],
             buf_texts: vec![],
+            from: None,
+            jump: false,
+            ranks: vec![],
         }
     }
 
@@ -223,6 +235,7 @@ impl Picker {
             Kind::Recent => "recent> ",
             Kind::Buffers => "buffer> ",
             Kind::AllLines => "all lines> ",
+            Kind::Def => "definition> ",
         }
     }
 
@@ -421,7 +434,7 @@ impl Picker {
                 self.sel = self.sel.min(self.rows.len().saturating_sub(1));
                 true
             }
-            Kind::Grep => {
+            Kind::Grep | Kind::Def => {
                 let files = project.files();
                 let q = self.query.text.clone();
                 let mut changed = false;
@@ -435,7 +448,12 @@ impl Picker {
                         self.seen_grep = (0, 0, false);
                         return true;
                     }
-                    match crate::search::compile(&q) {
+                    let re = if self.kind == Kind::Def {
+                        def::regex(&q)
+                    } else {
+                        crate::search::compile(&q)
+                    };
+                    match re {
                         Ok(re) => {
                             self.err = false;
                             project.grep.start(re, Arc::clone(files));
@@ -461,17 +479,44 @@ impl Picker {
                     self.sel = 0;
                 }
                 self.seen_grep = now;
-                self.rows = r
-                    .hits
-                    .iter()
-                    .take(LIMIT)
-                    .map(|h| grep_row(h, &files.root))
-                    .collect();
-                let n = r.hits.len();
+                if self.kind == Kind::Def {
+                    // Best tier, then this file, then files of its type.
+                    let res = def::tier_regexes(&q);
+                    let from = self.from.as_deref();
+                    let ext = from.and_then(Path::extension);
+                    let mut hits: Vec<_> = r
+                        .hits
+                        .iter()
+                        .filter_map(|h| {
+                            let row = grep_row(h, &files.root);
+                            let t = def::tier(&h.text, &res)?;
+                            let here = from == Some(row.path.as_path());
+                            let other_type = row.path.extension() != ext;
+                            Some(((t, !here, other_type), row))
+                        })
+                        .collect();
+                    hits.sort_by_key(|h| h.0);
+                    hits.truncate(LIMIT);
+                    self.ranks = hits.iter().map(|((t, away, _), _)| (*t, !away)).collect();
+                    self.rows = hits.into_iter().map(|(_, row)| row).collect();
+                } else {
+                    self.rows = r
+                        .hits
+                        .iter()
+                        .take(LIMIT)
+                        .map(|h| grep_row(h, &files.root))
+                        .collect();
+                }
+                let n = self.rows.len();
+                let what = if self.kind == Kind::Def {
+                    "definitions"
+                } else {
+                    "matches"
+                };
                 self.status = match (r.capped, r.done) {
-                    (true, _) => format!("{n}+ matches"),
-                    (_, true) => format!("{n} matches"),
-                    _ => format!("{n} matches…"),
+                    (true, _) => format!("{n}+ {what}"),
+                    (_, true) => format!("{n} {what}"),
+                    _ => format!("{n} {what}…"),
                 };
                 self.sel = self.sel.min(self.rows.len().saturating_sub(1));
                 true
@@ -500,6 +545,57 @@ pub fn browse(ed: &mut Editor, dir: &std::path::Path) {
     if let Mode::Pick(p) = &mut ed.mode {
         set_query(p, browse::show(dir));
         p.update(&ed.project, &ed.buf, Instant::now());
+    }
+}
+
+/// `Space d` / `gd`: find the definition of the word at the cursor,
+/// jumping straight there when one stands out.
+pub fn definition(ed: &mut Editor) {
+    let line = ed.buf.line(ed.cur.line);
+    let Some(w) = def::word_at(&line, ed.cur.byte).map(str::to_string) else {
+        return ed.set_err("no name under the cursor".to_string());
+    };
+    let from = ed.path.as_deref().and_then(|p| std::path::absolute(p).ok());
+    open(ed, Kind::Def);
+    if let Mode::Pick(p) = &mut ed.mode {
+        set_query(p, w);
+        p.from = from;
+        p.jump = true;
+        // No debounce: the word is already typed.
+        p.changed = Instant::now() - DEBOUNCE;
+        p.update(&ed.project, &ed.buf, Instant::now());
+    }
+}
+
+/// Def, when the grep is done: jump to a clear winner, or say there is
+/// nothing; else leave the list up.
+fn auto_jump(ed: &mut Editor) {
+    let Mode::Pick(p) = &mut ed.mode else {
+        return;
+    };
+    let r = ed.project.grep.results();
+    if p.kind != Kind::Def || !p.jump || p.err || !r.done || r.generation != p.seen_grep.0 {
+        return;
+    }
+    drop(r);
+    p.jump = false;
+    let clear = match p.ranks.as_slice() {
+        [] => {
+            let msg = format!("no definition of {} found", p.query.text);
+            ed.mode = Mode::Normal;
+            return ed.set_err(msg);
+        }
+        [_] => true,
+        [a, b, ..] => a != b,
+    };
+    if clear {
+        let r = &p.rows[0];
+        ed.pending_effect = Some(ExEffect::Open {
+            path: r.path.clone(),
+            line: r.line,
+            col: r.col,
+            pattern: Some(format!(r"\b{}\b", p.query.text)),
+        });
     }
 }
 
@@ -651,7 +747,11 @@ pub fn pick_key(ed: &mut Editor, k: Key) {
                     path: r.path.clone(),
                     line: r.line,
                     col: r.col,
-                    pattern: (p.kind == Kind::Grep).then(|| p.query.text.clone()),
+                    pattern: match p.kind {
+                        Kind::Grep => Some(p.query.text.clone()),
+                        Kind::Def => Some(format!(r"\b{}\b", p.query.text)),
+                        _ => None,
+                    },
                 });
             }
         }
@@ -669,6 +769,7 @@ pub fn pick_key(ed: &mut Editor, k: Key) {
                 set_query(p, q);
             }
             if p.query.text != before {
+                p.jump = false;
                 p.changed = Instant::now();
                 p.update(&ed.project, &ed.buf, p.changed);
             }
@@ -687,7 +788,9 @@ pub fn tick(ed: &mut Editor) -> bool {
         Mode::Pick(p) => {
             // `git status` arriving brings the dots.
             let loaded = ed.project.status_loaded.swap(false, Ordering::AcqRel);
-            p.update(&ed.project, &ed.buf, Instant::now()) || loaded
+            let changed = p.update(&ed.project, &ed.buf, Instant::now()) || loaded;
+            auto_jump(ed);
+            changed
         }
         _ => false,
     }

@@ -87,6 +87,14 @@ Space is the leader key (`l` still moves right).
   see the files you opened most recently first.
 - `Space g` greps the project as you type, with the same regex rules as `/`.
   `Enter` opens the file on the match, and `n` goes on to the next one.
+- `Space d` (or `gd`) goes to the definition of the word under the cursor,
+  in any language, without a language server: it greps the project for
+  lines that define it (`fn`, `def`, `class`, `func`, `const`, `let`, JS
+  arrow functions, C-style declarations, `#define`, shell functions,
+  Makefile targets, CSS selectors, …). Keyword definitions rank above
+  variables, this file above others, and files of the same type above the
+  rest. When one stands out it jumps straight there; otherwise pick from the
+  list (edit the name to search for another).
 - `Space j` browses files like Emacs's find-file with vertico and consult:
   the prompt is a path, and what you type after the last `/` fuzzy-matches
   every file below that directory (plus its subdirectories, to go into),

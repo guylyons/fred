@@ -157,10 +157,10 @@ fn parse_motion(keys: &[Key]) -> Parse<(Motion, usize)> {
 }
 
 /// Commands that take one character argument.
-const ARG_CMDS: &[char] = &['r', 'm', 'Z', ' '];
+const ARG_CMDS: &[char] = &['r', 'm', 'Z', ' ', 'g'];
 const SIMPLE: &[char] = &[
     'x', 'X', 's', 'S', 'J', 'p', 'P', 'o', 'O', 'i', 'a', 'I', 'A', 'u', 'D', 'C', 'Y', 'V', ':',
-    '/', '?', '.', 'r', 'm', 'Z', ' ',
+    '/', '?', '.', 'r', 'm', 'Z', ' ', 'g',
 ];
 
 fn parse(keys: &[Key]) -> Parse<Cmd> {
@@ -575,7 +575,7 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
         // Space is the leader: `Space p` finds files, `Space g` greps,
         // `Space k` searches this file's lines, `Space j` browses files,
         // `Space r` lists recent files, `Space b` lists open buffers,
-        // `Space B` searches their lines,
+        // `Space B` searches their lines, `Space d` goes to a definition,
         // `Space Enter` saves,
         // `Space ;` closes.
         (KeyCode::Char(' '), false) => match arg {
@@ -583,6 +583,7 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
             Some('g') => crate::pick::open(ed, crate::pick::Kind::Grep),
             Some('k') => crate::pick::open(ed, crate::pick::Kind::Lines),
             Some('r') => crate::pick::open(ed, crate::pick::Kind::Recent),
+            Some('d') => crate::pick::definition(ed),
             Some(c @ ('b' | 'B')) => {
                 ed.pending_effect = Some(ExEffect::Buffer {
                     cmd: if c == 'b' {
@@ -616,6 +617,8 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
             _ => {}
         },
         (KeyCode::Char(c @ ('/' | '?')), false) => ed.open_cmdline(c, ""),
+        // `gd`, as in vim (`gg` is a motion).
+        (KeyCode::Char('g'), false) if arg == Some('d') => crate::pick::definition(ed),
         // ZZ writes if modified and quits; ZQ quits without writing.
         (KeyCode::Char('Z'), false) => match arg {
             Some('Z') => ed.pending_effect = Some(ExEffect::WriteIfModifiedQuit),

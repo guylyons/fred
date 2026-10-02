@@ -310,3 +310,88 @@ fn space_r_lists_recent_files() {
         Some(ExEffect::Open { path, .. }) if path == d.path().join("notes/todo.md")
     ));
 }
+
+/// Tick until the definition search jumps, lists, or gives up.
+fn find_def(ed: &mut Editor) {
+    for _ in 0..500 {
+        tick(ed);
+        match &ed.mode {
+            Mode::Pick(p) if !p.jump => return,
+            Mode::Pick(_) => {}
+            _ => return,
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    panic!("definition search never finished");
+}
+
+#[test]
+fn space_d_jumps_to_the_one_definition() {
+    let (d, mut ed) = setup(&[
+        ("main.py", "from util import helper\nhelper(3)\n"),
+        (
+            "util.py",
+            "import os\n\ndef helper(x):\n    return helper2(x)\n",
+        ),
+        ("notes.md", "call helper(1) here\n"),
+    ]);
+    ed.buf = Buffer::from_text("x = helper(3)\n");
+    keys(&mut ed, "fh d");
+    find_def(&mut ed);
+    assert_eq!(
+        ed.pending_effect,
+        Some(ExEffect::Open {
+            path: d.path().join("util.py"),
+            line: 2,
+            col: 0,
+            pattern: Some(r"\bhelper\b".into()),
+        })
+    );
+}
+
+#[test]
+fn gd_lists_equal_definitions_or_takes_this_files() {
+    let (d, mut ed) = setup(&[
+        ("a.rs", "fn run() {}\n"),
+        ("b.rs", "fn run() {}\nlet run = 1;\n"),
+        ("c.go", "func run() {}\n"),
+    ]);
+    ed.path = Some(d.path().join("main.rs"));
+    ed.buf = Buffer::from_text("run();\n");
+    keys(&mut ed, "gd");
+    find_def(&mut ed);
+    let p = picker(&ed);
+    assert_eq!(p.kind, Kind::Def);
+    let rows: Vec<&str> = p.rows.iter().map(|r| r.text.as_str()).collect();
+    // Same kind of file first; a variable after the functions.
+    let want = [
+        "a.rs:1: fn run() {}",
+        "b.rs:1: fn run() {}",
+        "c.go:1: func run() {}",
+        "b.rs:2: let run = 1;",
+    ];
+    assert_eq!(rows, want);
+    assert_eq!(p.status, "4 definitions");
+    assert_eq!(ed.pending_effect, None);
+    // From b.rs, its own definition wins.
+    keys(&mut ed, "<Esc>");
+    ed.path = Some(d.path().join("b.rs"));
+    keys(&mut ed, "gd");
+    find_def(&mut ed);
+    let to = ed.pending_effect.as_ref().map(|e| match e {
+        ExEffect::Open { path, line, .. } => (path.clone(), *line),
+        _ => panic!("{e:?}"),
+    });
+    assert_eq!(to, Some((d.path().join("b.rs"), 0)));
+}
+
+#[test]
+fn no_definition_says_so() {
+    let (_d, mut ed) = setup(&[("a.rs", "nothing(1)\n")]);
+    ed.buf = Buffer::from_text("nothing(1)\n");
+    keys(&mut ed, " d");
+    find_def(&mut ed);
+    assert_eq!(ed.mode, Mode::Normal);
+    let msg = ed.msg.as_ref().map_or("", |m| m.0.as_str());
+    assert!(msg.ends_with("no definition of nothing found"), "{msg}");
+}

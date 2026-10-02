@@ -651,6 +651,11 @@ fn event_loop(
         }
         // Picker results from background threads, or a grep due to start.
         dirty |= crate::pick::tick(&mut s.ed);
+        // A definition search may have found where to jump.
+        if let Some(eff) = s.ed.pending_effect.take() {
+            s.perform(eff);
+            dirty = true;
+        }
         // Git marks after an edit (or once the staged text has loaded).
         dirty |= s.ed.git.refresh(&s.ed.buf);
         let msg = s.ed.msg.clone();

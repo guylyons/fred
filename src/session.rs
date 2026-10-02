@@ -1424,9 +1424,15 @@ mod tests {
         // Enter picks the previous buffer; picking the one shown closes the list.
         let a = t.dir.path().join("a");
         t.keys("<Enter>");
-        assert_eq!((t.s.ed.path.as_ref(), &t.s.ed.mode), (Some(&a), &Mode::Normal));
+        assert_eq!(
+            (t.s.ed.path.as_ref(), &t.s.ed.mode),
+            (Some(&a), &Mode::Normal)
+        );
         t.keys(":ls<Enter><Up><Enter>");
-        assert_eq!((t.s.ed.path.as_ref(), &t.s.ed.mode), (Some(&a), &Mode::Normal));
+        assert_eq!(
+            (t.s.ed.path.as_ref(), &t.s.ed.mode),
+            (Some(&a), &Mode::Normal)
+        );
     }
 
     #[test]

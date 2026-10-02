@@ -150,6 +150,7 @@ fn mode_name(m: &Mode) -> &'static str {
             Kind::Browse => "FILES",
             Kind::Recent => "RECENT",
             Kind::Buffers => "BUFFERS",
+            Kind::Def => "DEFINITION",
         },
     }
 }
