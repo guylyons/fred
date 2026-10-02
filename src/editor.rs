@@ -123,6 +123,8 @@ pub struct Editor {
     /// Words from nearby files, filled in by a background thread.
     pub nearby: Arc<Mutex<Vec<String>>>,
     pub(crate) word_index: WordIndex,
+    /// Lines changed against git's staging area.
+    pub git: crate::git::Gutter,
     /// The project the pickers search; outlives `:e`.
     pub project: Arc<crate::pick::Project>,
     cmd_history: Vec<String>,
@@ -154,6 +156,7 @@ impl Editor {
             autocomplete: true,
             nearby: Arc::default(),
             word_index: WordIndex::default(),
+            git: crate::git::Gutter::default(),
             project: Arc::default(),
             cmd_history: vec![],
             search_history: vec![],

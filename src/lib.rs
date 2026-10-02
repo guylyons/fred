@@ -6,6 +6,7 @@ pub mod config;
 pub mod editor;
 pub mod ex;
 pub mod fileio;
+pub mod git;
 pub mod highlight;
 pub mod key;
 pub mod pick;

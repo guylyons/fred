@@ -706,6 +706,37 @@ fn idle_picker_draws_nothing() {
     }
 }
 
+#[test]
+fn git_marks_show_as_you_type() {
+    let env = Env::new();
+    let git = |args: &[&str]| {
+        std::process::Command::new("git")
+            .arg("-C")
+            .arg(env.dir.path())
+            .args(args)
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .output()
+            .is_ok_and(|o| o.status.success())
+    };
+    if !git(&["init", "-q"]) {
+        return; // no git on this machine
+    }
+    env.write("f.txt", "one\ntwo\nthree\n");
+    assert!(git(&["add", "f.txt"]));
+    let mut p = env.fred(&["f.txt"]);
+    p.wait_text("three");
+    // Staged and unchanged: a column for marks, but none shown.
+    let marked = |s: &str, text: &str| s.lines().any(|l| l.starts_with('▎') && l.contains(text));
+    assert!(!p.screen().contains('▎'), "{}", p.screen());
+    p.keys(&["o", "added line", "\x1b"]);
+    p.wait_for("added mark", |s| marked(s, "added line"));
+    p.keys(&["ggcw", "ONE", "\x1b"]);
+    p.wait_for("changed mark", |s| marked(s, "ONE"));
+    assert!(!marked(&p.screen(), "three"));
+    p.keys(&[":q!\r"]);
+    assert_eq!(p.wait_exit(), 0);
+}
+
 /// Prints what the window looks like (run with `--ignored --nocapture`).
 #[test]
 #[ignore]

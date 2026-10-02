@@ -68,6 +68,8 @@ closes the popup and leaves Insert mode; so does typing `jj`. `Ctrl-W` deletes t
 cursor and `Ctrl-U` deletes to the start of the line. Pasted text goes in
 exactly as pasted.
 
+`Ctrl-G` cancels, like `Esc`: a picker, the `:` line, a half-typed command.
+
 `ZZ` saves (if there are changes) and quits; `ZQ` quits without saving.
 `Space Enter` saves (`:w`) and `Space ;` closes (`:q`).
 `Ctrl-Z` suspends fred; `fg` brings it back.
@@ -96,7 +98,9 @@ Space is the leader key (`l` still moves right).
   a regex). Matches are listed in file order, starting at the cursor; `Enter`
   jumps there and `n` finds the next line with the first word.
 
-In either picker, the best match is at the bottom next to the prompt;
+Pickers open as a panel at the bottom, only as tall as their results (up
+to half the screen); the file stays where it was above. The best match is
+at the bottom next to the prompt;
 `Up`/`Ctrl-P` and `Down`/`Ctrl-N` move the selection, `Enter` opens it and
 `Esc` goes back. The project is the enclosing git repo (or the current
 directory), `.gitignore` is respected, and grep skips binary files and files
@@ -140,6 +144,14 @@ Suggestions come from three places:
    extension in the git repo. `.gitignore` is respected, and binary or large
    files are skipped. This runs in the background, so start-up never waits for it.
 3. File paths, once the text before the cursor contains `/` or starts with `~`.
+
+## Git
+
+In a git repository, lines that differ from the staging area (what `git
+diff` shows) are marked in the gutter as you type: a green bar for added
+lines, yellow for changed ones, and a red mark where lines were removed.
+The line number takes the same color. Staging a file elsewhere (`git add`)
+shows up the next time you open it.
 
 ## Highlighting
 

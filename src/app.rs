@@ -173,6 +173,8 @@ pub fn map_key(k: KeyEvent) -> Option<Key> {
     let ctrl = k.modifiers.contains(KeyModifiers::CONTROL);
     let alt = k.modifiers.contains(KeyModifiers::ALT);
     let code = match k.code {
+        // Ctrl-G cancels, as in Emacs: it is Esc everywhere.
+        C::Char('g' | 'G') if ctrl && !alt => return Some(Key::new(KeyCode::Esc)),
         C::Char(c) => KeyCode::Char(if ctrl { c.to_ascii_lowercase() } else { c }),
         C::Esc => KeyCode::Esc,
         C::Enter => KeyCode::Enter,
@@ -564,6 +566,8 @@ fn event_loop(
         }
         // Picker results from background threads, or a grep due to start.
         dirty |= crate::pick::tick(&mut s.ed);
+        // Git marks after an edit (or once the staged text has loaded).
+        dirty |= s.ed.git.refresh(&s.ed.buf);
         let msg = s.ed.msg.clone();
         s.maybe_swap(Instant::now());
         dirty |= s.ed.msg != msg;
@@ -641,6 +645,10 @@ mod tests {
         );
         assert_eq!(
             map_key(ev(C::Esc, KeyModifiers::NONE)),
+            Some(Key::new(KeyCode::Esc))
+        );
+        assert_eq!(
+            map_key(ev(C::Char('g'), KeyModifiers::CONTROL)),
             Some(Key::new(KeyCode::Esc))
         );
         let mut release = ev(C::Char('a'), KeyModifiers::NONE);

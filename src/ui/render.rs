@@ -4,6 +4,7 @@ use super::layout::{Layout, Placed, wrap_cursor};
 use super::view::View;
 use crate::config::Config;
 use crate::editor::{CmdLine, Editor, Mode};
+use crate::git::Mark;
 use crate::highlight::{Highlighter, LineStyles};
 use crate::pick::{Kind, Picker};
 use crate::text::{col_of_byte, display_width, is_control};
@@ -112,10 +113,26 @@ fn digits(n: usize) -> usize {
 }
 
 pub fn gutter_width(ed: &Editor, cfg: &Config) -> usize {
-    if cfg.numbers || cfg.relative_numbers {
+    let numbers = if cfg.numbers || cfg.relative_numbers {
         digits(ed.line_count()).max(3) + 1
     } else {
         0
+    };
+    numbers + git_column(ed)
+}
+
+/// One column for git marks, if the file is in git.
+fn git_column(ed: &Editor) -> usize {
+    usize::from(ed.git.active())
+}
+
+/// A git mark's bar and color.
+fn git_sign(m: Mark) -> (&'static str, Color) {
+    match m {
+        Mark::Added => ("▎", Color::Green),
+        Mark::Changed => ("▎", Color::Yellow),
+        Mark::RemovedAbove => ("▔", Color::Red),
+        Mark::RemovedBelow => ("▁", Color::Red),
     }
 }
 
@@ -152,11 +169,12 @@ pub fn draw(
     let text_rows = (area.height as usize).saturating_sub(2);
     // A picker takes a panel at the bottom; the file stays as it was above.
     let panel = match ed.mode {
-        Mode::Pick(_) => panel_rows(text_rows),
+        Mode::Pick(ref p) => panel_rows(text_rows, p.rows.len()),
         _ => 0,
     };
     let rows = text_rows - panel;
     let gutter = gutter_width(ed, cfg).min(area.width as usize / 2);
+    let sign = git_column(ed).min(gutter);
     let cols = (area.width as usize).saturating_sub(gutter).max(1);
     if panel == 0 {
         view.scroll(ed, rows.max(1), cols, cfg.wrap);
@@ -187,18 +205,26 @@ pub fn draw(
                 reversed(&mut spans);
             }
             if gutter > 0 && row == 0 {
+                let mark = ed.git.mark(l).map(git_sign);
                 let num = if cfg.relative_numbers && l != ed.cur.line {
                     l.abs_diff(ed.cur.line)
                 } else {
                     l + 1
                 };
-                let style = if l == ed.cur.line {
+                let mut style = if l == ed.cur.line {
                     cur_num_style
                 } else {
                     num_style
                 };
-                let text = format!("{num:>w$} ", w = gutter - 1);
-                buf.set_stringn(ox, oy + *y as u16, text, gutter, style);
+                if let Some((bar, color)) = mark {
+                    buf.set_stringn(ox, oy + *y as u16, bar, 1, Style::default().fg(color));
+                    style = style.fg(color);
+                }
+                let numbers = gutter - sign;
+                if numbers > 0 {
+                    let text = format!("{num:>w$} ", w = numbers - 1);
+                    buf.set_stringn(ox + sign as u16, oy + *y as u16, text, numbers, style);
+                }
             }
             buf.set_line(
                 ox + gutter as u16,
@@ -386,9 +412,10 @@ fn draw_input(buf: &mut Screen, area: Rect, prompt: &str, cl: &CmdLine) -> usize
     ccol - skip
 }
 
-/// Picker rows: up to 10, leaving at least 3 rows of the file when there's room.
-fn panel_rows(text_rows: usize) -> usize {
-    text_rows.saturating_sub(3).max(text_rows.min(3)).min(10)
+/// Picker rows: as many as there are results (at least one), up to half
+/// the text rows.
+fn panel_rows(text_rows: usize, results: usize) -> usize {
+    results.clamp(1, (text_rows / 2).max(1)).min(text_rows)
 }
 
 /// Picker results in `area` (the panel), best at the bottom.

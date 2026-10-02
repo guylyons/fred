@@ -343,13 +343,23 @@ fn picker_is_a_panel_under_the_file() {
         e.handle_key(k);
     }
     s.draw(&e);
-    // 18 text rows: the top 8 still show the file exactly as before,
-    // the bottom 10 are the picker: lines in file order from the cursor's.
-    for y in 0..8 {
+    // 18 text rows, 30 results: the panel stops at half (9 rows); the top
+    // 9 still show the file exactly as before.
+    for y in 0..9 {
         assert_eq!(s.row(y), before[y as usize], "row {y}");
     }
-    assert!(s.row(8).starts_with(">  1: line 1"), "{}", s.row(8));
-    assert!(s.row(17).starts_with("  10: line 10"), "{}", s.row(17));
+    assert!(s.row(9).starts_with(">  1: line 1"), "{}", s.row(9));
+    assert!(s.row(17).starts_with("   9: line 9"), "{}", s.row(17));
     assert!(s.row(18).contains("LINES"), "{}", s.row(18));
     assert!(s.row(19).starts_with("lines>"), "{}", s.row(19));
+    // Fewer results: only as tall as needed (3 rows), the file above.
+    for k in parse_keys("<C-u>1$") {
+        e.handle_key(k);
+    }
+    s.draw(&e);
+    assert_eq!(s.row(14), before[14]);
+    assert_eq!(
+        (15..18).map(|y| s.row(y)).collect::<Vec<_>>(),
+        [">  1: line 1", "  11: line 11", "  21: line 21"]
+    );
 }

@@ -196,7 +196,7 @@ impl Session {
                 .and_then(|p| p.parent().map(Path::to_path_buf))
         });
         s.ed.project = std::sync::Arc::new(crate::pick::Project::new(dir, Some(s.recent_file())));
-        s.note_recent();
+        s.arrived();
         if let Some(d) = &browse {
             crate::pick::browse(&mut s.ed, d);
         }
@@ -209,12 +209,14 @@ impl Session {
         self.swap_dir.with_file_name("recent")
     }
 
-    /// A file was opened: put it first among recent files, and go back to
-    /// where the cursor was when it was last left.
-    fn note_recent(&mut self) {
+    /// A file was opened: put it first among recent files, go back to
+    /// where the cursor was when it was last left, and fetch its staged
+    /// version for the git marks.
+    fn arrived(&mut self) {
         let Some(p) = self.ed.path.clone() else {
             return;
         };
+        self.ed.git = crate::git::Gutter::load(&p);
         let rf = self.recent_file();
         if let Some((line, col)) = crate::pick::recent::position(&rf, &p) {
             self.ed.set_cursor(line, col);
@@ -476,7 +478,7 @@ impl Session {
         let project = std::sync::Arc::clone(&self.ed.project);
         self.ed = o.ed;
         self.ed.project = project;
-        self.note_recent();
+        self.arrived();
         self.stamp = o.stamp;
         self.lossy = o.lossy;
         self.no_swap = false;
