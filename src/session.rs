@@ -649,6 +649,8 @@ impl Session {
     /// text in its swap file).
     fn show(&mut self, i: usize) {
         if i == self.cur {
+            // Picked from the buffer list: still close it.
+            self.ed.mode = Mode::Normal;
             return;
         }
         self.remember_place();
@@ -1419,6 +1421,12 @@ mod tests {
             panic!("no :ls list")
         };
         assert_eq!(q.rows.len(), 2);
+        // Enter picks the previous buffer; picking the one shown closes the list.
+        let a = t.dir.path().join("a");
+        t.keys("<Enter>");
+        assert_eq!((t.s.ed.path.as_ref(), &t.s.ed.mode), (Some(&a), &Mode::Normal));
+        t.keys(":ls<Enter><Up><Enter>");
+        assert_eq!((t.s.ed.path.as_ref(), &t.s.ed.mode), (Some(&a), &Mode::Normal));
     }
 
     #[test]
