@@ -374,7 +374,7 @@ fn suspend(ui: &mut Ui, s: &mut Session) -> Result<()> {
 }
 
 /// `:!cmd`: run it on the real terminal, then wait for Enter, as vim does.
-/// `:ai`: Claude (`$FRED_AI`, default `claude -p`) answers in the
+/// `:ai`: Claude (`cfg.ai_command`, plus `cfg.ai_rules`) answers in the
 /// background while a spinner holds the editor; keys typed meanwhile are
 /// dropped, so the lines can't change under the reply.
 // ponytail: no cancel; kill the child on Esc if a stuck claude bites.
@@ -387,7 +387,11 @@ fn ask_claude(
     prompt: String,
 ) -> Result<()> {
     const SPIN: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-    let cmd = std::env::var("FRED_AI").unwrap_or_else(|_| "claude -p --tools ''".into());
+    let cmd = cfg.ai_command.clone();
+    let prompt = match cfg.ai_rules.trim() {
+        "" => prompt,
+        rules => format!("{prompt}\nRules: {rules}\n"),
+    };
     let job = std::thread::spawn(move || crate::shell::capture(&cmd, Some(prompt)));
     let what = match r.end - r.start {
         0 => format!("line {}", r.start + 1),

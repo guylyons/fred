@@ -141,7 +141,7 @@ follow their lines as you edit.
 | `[range]w file` | write just those lines to another file |
 | `!cmd` | run a shell command (`$SHELL`), then press Enter to come back |
 | `[range]!cmd` | filter lines through a command: `%!sort`, `'<,'>!column -t` |
-| `[range]ai ask` | have Claude rewrite the lines (it sees the whole file): `'<,'>ai make this async`. A spinner holds the editor until it answers. Runs `claude -p --tools ''`, or `$FRED_AI` |
+| `[range]ai ask` | have Claude rewrite the lines (it sees the whole file): `'<,'>ai make this async`. A spinner holds the editor until it answers. See `ai_command` and `ai_rules` below |
 | `r file`, `r !cmd` | insert a file, or a command's output, below the line |
 | `pwd`, `cd [dir]` | show or change the directory (`cd` alone goes home); `Space p` and `Space g` follow it |
 
@@ -218,6 +218,11 @@ tabstop = 8
 autocomplete = true      # pop up completions while typing (Ctrl-N works either way)
 icons = false            # file-type icons in the file pickers (needs a Nerd Font)
 clipboard = true         # yank, delete and put use the system clipboard
+ai_command = "claude -p --tools '' --safe-mode"  # what :ai runs (prompt on stdin);
+                         # --safe-mode skips your Claude plugins, hooks and
+                         # CLAUDE.md: faster, and far fewer tokens
+ai_rules = ""            # extra instructions for every :ai, e.g.
+                         # "Smallest change that works. No new abstractions."
 ```
 
 ## Development

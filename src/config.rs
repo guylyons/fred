@@ -23,6 +23,10 @@ pub struct Config {
     pub icons: bool,
     /// Share yanks and puts with the system clipboard.
     pub clipboard: bool,
+    /// What `:ai` runs, prompt on stdin.
+    pub ai_command: String,
+    /// Extra instructions added to every `:ai` prompt.
+    pub ai_rules: String,
 }
 
 impl Default for Config {
@@ -38,6 +42,10 @@ impl Default for Config {
             autocomplete: true,
             icons: false,
             clipboard: true,
+            // --safe-mode skips your plugins, hooks, MCP servers and
+            // CLAUDE.md: much faster, ~100x fewer tokens per call.
+            ai_command: "claude -p --tools '' --safe-mode".into(),
+            ai_rules: String::new(),
         }
     }
 }
@@ -154,6 +162,11 @@ mod tests {
         let (c, err) = Config::parse("height = 20\nwrap = true\ntheme = \"Nord\"\n");
         assert!(err.is_none());
         assert_eq!((c.height, c.wrap, c.theme.as_str()), (20, true, "Nord"));
+        let c = Config::parse("ai_command = \"cat\"\nai_rules = \"terse\"").0;
+        assert_eq!(
+            (c.ai_command.as_str(), c.ai_rules.as_str()),
+            ("cat", "terse")
+        );
     }
 
     #[test]
