@@ -482,28 +482,29 @@ fn survives_resize() {
 }
 
 #[test]
-fn fred_dir_browses_and_opens_a_file() {
+fn fred_dir_opens_dired() {
     let env = Env::new();
     fs::create_dir_all(env.path("adir/sub")).unwrap();
     env.write("adir/sub/deep.txt", "found it\n");
     env.write("adir/top.txt", "top\n");
     let mut p = env.fred(&["adir"]);
-    // (The prompt scrolls: a temp dir's path is wider than the terminal.)
-    p.wait_text(" FILES ");
+    p.wait_text(" DIRED ");
     p.wait_text("sub/");
     p.wait_text("top.txt");
-    // Typing a name searches below: no need to go into sub/ first.
-    env.write(".gitignore", "*.log\n");
-    env.write("adir/sub/deep.log", "ignored\n");
-    p.keys(&["deep"]);
-    p.wait_text("sub/deep.txt");
-    assert!(!p.screen().contains("deep.log"), "{}", p.screen());
-    p.keys(&["\r"]);
-    p.wait_text("found it");
-    p.wait_text("adir/sub/deep.txt\" 1L");
-    // Space j browses again, from this file's directory.
-    p.keys(&[" j"]);
+    // Vim search moves to an entry; Enter goes into a directory...
+    p.keys(&["/sub\r", "\r"]);
     p.wait_text("deep.txt");
+    // ...and opens a file.
+    p.keys(&["/deep\r", "\r"]);
+    p.wait_text("found it");
+    // Space - lists the file's directory again, `-` goes up.
+    p.keys(&[" -"]);
+    p.wait_text("deep.txt");
+    p.keys(&["-"]);
+    p.wait_text("top.txt");
+    // Space j still browses, vertico style.
+    p.keys(&[" j"]);
+    p.wait_text(" FILES ");
     p.keys(&["\x1b", ":q\r"]);
     assert_eq!(p.wait_exit(), 0);
 }

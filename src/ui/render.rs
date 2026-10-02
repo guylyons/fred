@@ -332,7 +332,13 @@ fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter) {
         .fg(Color::Black)
         .add_modifier(Modifier::BOLD);
     let mut left = vec![
-        Span::styled(format!(" {} ", mode_name(&ed.mode)), mode),
+        Span::styled(
+            match (&ed.mode, &ed.dired) {
+                (Mode::Normal, Some(d)) if !d.editing => " DIRED ".to_string(),
+                (m, _) => format!(" {} ", mode_name(m)),
+            },
+            mode,
+        ),
         Span::styled(" ", bar),
     ];
     let mut right = vec![];
@@ -380,6 +386,7 @@ fn draw_command_row(buf: &mut Screen, area: Rect, ed: &Editor) -> Option<usize> 
     let w = area.width as usize;
     match &ed.mode {
         Mode::Pick(p) => Some(draw_input(buf, area, p.prompt(), &p.query)),
+        Mode::Command(cl) if !cl.prompt.is_empty() => Some(draw_input(buf, area, &cl.prompt, cl)),
         Mode::Command(cl) => Some(draw_input(buf, area, cl.kind.encode_utf8(&mut [0; 4]), cl)),
         _ => {
             if let Some((m, err)) = &ed.msg {

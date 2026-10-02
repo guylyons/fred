@@ -68,7 +68,7 @@ pub fn expand(cmd: &str, file: Option<&Path>) -> Result<String, String> {
     Ok(out)
 }
 
-fn quote(s: &str) -> String {
+pub fn quote(s: &str) -> String {
     let safe = |c: char| c.is_ascii_alphanumeric() || "/._-+,:@".contains(c);
     if !s.is_empty() && s.chars().all(safe) {
         s.to_string()

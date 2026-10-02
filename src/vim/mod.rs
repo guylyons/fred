@@ -11,7 +11,7 @@ use motion::{Motion, Target};
 
 #[derive(Debug, Default)]
 pub struct State {
-    pending: Vec<Key>,
+    pub(crate) pending: Vec<Key>,
     pub last_find: Option<(char, char)>,
     /// Keys of the last change, replayed by `.`.
     pub last_change: Vec<Key>,
@@ -576,7 +576,7 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
         // `Space k` searches this file's lines, `Space j` browses files,
         // `Space r` lists recent files, `Space b` lists open buffers,
         // `Space B` searches their lines, `Space d` goes to a definition,
-        // `Space Enter` saves,
+        // `Space -` lists the file's directory (dired), `Space Enter` saves,
         // `Space ;` closes.
         (KeyCode::Char(' '), false) => match arg {
             Some('p') => crate::pick::open(ed, crate::pick::Kind::Files),
@@ -594,6 +594,23 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
                     arg: String::new(),
                     force: false,
                 })
+            }
+            // Dired on the file's directory, the cursor on the file.
+            Some('-') => {
+                let me = ed.path.as_deref().and_then(|p| std::path::absolute(p).ok());
+                let dir = me.as_deref().and_then(std::path::Path::parent).map_or_else(
+                    || std::path::PathBuf::from("."),
+                    std::path::Path::to_path_buf,
+                );
+                ed.pending_effect = Some(ExEffect::Open {
+                    path: dir,
+                    line: 0,
+                    col: 0,
+                    pattern: me
+                        .as_deref()
+                        .and_then(std::path::Path::file_name)
+                        .map(|n| n.to_string_lossy().into_owned()),
+                });
             }
             // Find-file from the current file's directory (else the cwd).
             Some('j') => {

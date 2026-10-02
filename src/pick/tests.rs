@@ -220,8 +220,19 @@ fn browse_like_find_file() {
     let names: Vec<&str> = p.rows.iter().map(|r| r.text.as_str()).collect();
     // Directories first; dotfiles (`.git/`, `.hidden`) hidden.
     assert_eq!(names, ["src/", "README.md"]);
-    // Into a directory with Enter; Tab completes a file's name.
+    // Enter on a directory lists it (dired)...
     keys(&mut ed, "sr<Enter>");
+    assert_eq!(
+        ed.pending_effect.take(),
+        Some(ExEffect::Open {
+            path: browse::resolve(&start).join("src"),
+            line: 0,
+            col: 0,
+            pattern: None
+        })
+    );
+    // ...Tab goes in; Tab also completes a file's name.
+    keys(&mut ed, "<Tab>");
     assert_eq!(picker(&ed).query.text, format!("{start}src/"));
     keys(&mut ed, "ma");
     settle(&mut ed, |p| !p.searching);

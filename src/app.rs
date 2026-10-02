@@ -616,6 +616,8 @@ fn event_loop(
         }
         if let Some(cmd) = s.pending_shell.take() {
             run_shell(ui, s, &cmd)?;
+            // Dired's `!` may have changed the directory.
+            crate::dired::refresh(&mut s.ed);
             dirty = true;
         }
         if let Some((r, prompt)) = s.pending_ai.take() {

@@ -43,7 +43,7 @@ fred [-i | -f] [--height N] [+LINE] [FILE | DIR]
 
 - `FILE` doesn't have to exist; it's created on the first `:w`.
 - `+LINE` starts on that line; `+` alone starts on the last line.
-- `DIR` (say `fred .`) opens the file browser there instead of a file.
+- `DIR` (say `fred .`) lists that directory (dired) instead of a file.
 - `-i`/`--inline` opens the window under your prompt; `-f`/`--fullscreen`
   takes over the terminal even if the config says otherwise.
 - A file you've opened before opens where you left the cursor (unless you
@@ -102,10 +102,10 @@ Space is the leader key (`l` still moves right).
   the prompt is a path, and what you type after the last `/` fuzzy-matches
   every file below that directory (plus its subdirectories, to go into),
   honoring `.gitignore`. With nothing typed you see the directory itself.
-  `Enter` or `Tab` on a directory goes in, `Backspace` after a `/` goes up a
-  directory, `~/` jumps home, and `Enter` on a name that doesn't exist
-  starts a new file. It starts in the current file's directory; `fred DIR`
-  and `:e DIR` open it too. Dotfiles show once you type a `.`.
+  `Tab` on a directory goes in and `Enter` lists it (dired), `Backspace`
+  after a `/` goes up a directory, `~/` jumps home, and `Enter` on a name
+  that doesn't exist starts a new file. It starts in the current file's
+  directory. Dotfiles show once you type a `.`.
 - `Space b` lists the open buffers (like `:ls`); type to filter. `Ctrl-^`
   (`Ctrl-6`) goes straight back to the one you were in before.
 - `Space B` searches the lines of every open buffer, like `Space k`: this
@@ -126,6 +126,30 @@ at the bottom next to the prompt;
 directory), `.gitignore` is respected, and grep skips binary files and files
 over 1 MB. Opening another file keeps this one open as a buffer, unsaved
 changes and all.
+
+## Dired
+
+A directory opens as a listing, as in Emacs's dired: `fred DIR`, `:e DIR`,
+`Enter` on a directory in `Space j`, or `Space -` for the current file's
+directory (cursor on the file). It's a read-only buffer, so every vim motion,
+count and search moves around it; these keys act on the entry under the
+cursor, on a `V` range, or on the `*` marked entries:
+
+| Key | |
+|---|---|
+| `Enter` | open a file (as a buffer) or go into a directory |
+| `-`, `^` | up to the parent directory |
+| `m`, `u`, `U`, `t` | mark, unmark, unmark all, toggle marks |
+| `%` | mark names matching a regexp |
+| `d`, `x` | flag for deletion; delete the flagged (asks first) |
+| `D` | delete (asks first; directories recursively) |
+| `R`, `C` | rename/move, copy (`cp -R`); several marked go into a directory. Never over an existing file |
+| `+` | create a directory (`a/b/c` makes them all) |
+| `M`, `T` | chmod (octal), touch |
+| `!` | run a shell command on the files, in the directory (`*` stands for them) |
+| `s`, `(`, `gh` | sort by name/time, hide details, hide dotfiles |
+| `gr` | re-read the directory |
+| `i` | edit the names in place (wdired); `:w` renames them all, `gr` discards |
 
 ## `:` commands
 

@@ -44,6 +44,8 @@ pub enum Mode {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CmdLine {
     pub kind: char,
+    /// Shown before the text in place of `kind` (dired's questions).
+    pub prompt: String,
     pub text: String,
     /// Byte offset of the cursor in `text`.
     pub cursor: usize,
@@ -108,6 +110,8 @@ pub struct Editor {
     pub msg: Option<(String, bool)>,
     pub path: Option<PathBuf>,
     pub readonly: bool,
+    /// This buffer lists a directory (see `dired`).
+    pub dired: Option<Box<crate::dired::Dired>>,
     /// File operation requested by an ex command, performed by the app.
     pub pending_effect: Option<ExEffect>,
     pub win_height: usize,
@@ -148,6 +152,7 @@ impl Editor {
             msg: None,
             path: None,
             readonly: false,
+            dired: None,
             pending_effect: None,
             win_height: 12,
             tabstop: 8,
@@ -184,7 +189,11 @@ impl Editor {
         }
         let was_insert = self.mode == Mode::Insert;
         match self.mode {
-            Mode::Normal | Mode::VisualLine { .. } => vim::normal_key(self, k),
+            Mode::Normal | Mode::VisualLine { .. } => {
+                if !crate::dired::key(self, k) {
+                    vim::normal_key(self, k)
+                }
+            }
             Mode::Insert => vim::insert_key(self, k),
             Mode::Command(_) => self.cmdline_key(k),
             Mode::Pick(_) => crate::pick::pick_key(self, k),
@@ -332,12 +341,21 @@ impl Editor {
     pub fn open_cmdline(&mut self, kind: char, text: &str) {
         self.mode = Mode::Command(CmdLine {
             kind,
+            prompt: String::new(),
             text: text.into(),
             cursor: text.len(),
             hist: None,
             stash: String::new(),
             comp: None,
         });
+    }
+
+    /// Ask a question on the command line; the answer goes to dired.
+    pub fn open_prompt(&mut self, prompt: &str, text: &str) {
+        self.open_cmdline('@', text);
+        if let Mode::Command(cl) = &mut self.mode {
+            cl.prompt = prompt.into();
+        }
     }
 
     fn cmdline_key(&mut self, k: Key) {
@@ -418,6 +436,9 @@ impl Editor {
     }
 
     fn run_cmdline(&mut self, kind: char, text: &str) {
+        if kind == '@' {
+            return crate::dired::answer(self, text);
+        }
         let hist = if kind == ':' {
             &mut self.cmd_history
         } else {

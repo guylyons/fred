@@ -713,7 +713,9 @@ pub fn pick_key(ed: &mut Editor, k: Key) {
             let (d, name) = browse::split(&p.query.text);
             let (d, name) = (d.to_string(), name.to_string());
             let target = match p.rows.get(p.sel) {
-                // A directory: go in.
+                // Enter on a directory lists it (dired), as in Emacs.
+                Some(r) if r.text.ends_with('/') && k.code == KeyCode::Enter => r.path.clone(),
+                // Tab on a directory goes in.
                 Some(r) if r.text.ends_with('/') => {
                     set_query(p, format!("{d}{}", r.text));
                     p.update(&ed.project, &ed.buf, Instant::now());

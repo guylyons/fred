@@ -245,7 +245,7 @@ impl Session {
         s.ed.project = std::sync::Arc::new(crate::pick::Project::new(dir, Some(s.recent_file())));
         s.arrived();
         if let Some(d) = &browse {
-            crate::pick::browse(&mut s.ed, d);
+            s.open_dired(d, None);
         }
         let info = s.leftover_swap();
         Ok((s, info))
@@ -294,6 +294,7 @@ impl Session {
     pub fn perform(&mut self, eff: ExEffect) {
         match eff {
             ExEffect::None => {}
+            ExEffect::Write { .. } if self.ed.dired.is_some() => crate::dired::save(&mut self.ed),
             ExEffect::Write {
                 path,
                 force,
@@ -527,8 +528,8 @@ impl Session {
 
     fn edit_path(&mut self, p: PathBuf, then: Option<Goto>) {
         if p.is_dir() {
-            crate::pick::browse(&mut self.ed, &p);
-            return;
+            // A directory's target is the name to put the cursor on.
+            return self.open_dired(&p, then.and_then(|g| g.pattern).as_deref());
         }
         if let Some(i) = self.find(&p) {
             self.show(i);
@@ -564,6 +565,35 @@ impl Session {
         if let Some(p) = g.pattern.filter(|p| !p.is_empty()) {
             self.ed.last_pat = Some(p);
             self.ed.last_search_fwd = true;
+        }
+    }
+
+    /// A dired buffer for `dir` (the one already open, if any), the cursor
+    /// on the entry named `focus`.
+    fn open_dired(&mut self, dir: &Path, focus: Option<&str>) {
+        if let Some(i) = self.find(dir) {
+            self.show(i);
+            if let Err(e) = crate::dired::visit(&mut self.ed, dir, focus) {
+                self.ed.set_err(e);
+            }
+            return;
+        }
+        let mut ed = make_editor(Buffer::from_text(""), &self.cfg);
+        if let Err(e) = crate::dired::visit(&mut ed, dir, focus) {
+            return self.ed.set_err(e);
+        }
+        let swap = swap::swap_path_in(&self.swap_dir, ed.path.as_deref());
+        let o = Opened {
+            ed,
+            stamp: None,
+            lossy: false,
+        };
+        self.switch_to(o, swap);
+        // A listing: no swap file, no git marks, not a remembered place.
+        self.no_swap = true;
+        self.ed.git = crate::git::Gutter::default();
+        if let Err(e) = crate::dired::visit(&mut self.ed, dir, focus) {
+            self.ed.set_err(e);
         }
     }
 
@@ -1384,6 +1414,36 @@ mod tests {
         assert_eq!(
             (info.pid, info.text.as_str()),
             (std::process::id(), "bbb recovered\n")
+        );
+    }
+
+    #[test]
+    fn dired_buffers() {
+        let mut t = T::open(Some("f.txt"), Some("hi\n"));
+        let d = t.dir.path().join("d");
+        fs::create_dir(&d).unwrap();
+        fs::write(d.join("old.txt"), "x").unwrap();
+        // Space - lists the file's directory, cursor on the file.
+        t.keys(" -");
+        assert!(t.s.ed.dired.is_some());
+        assert!(t.s.ed.buf.line(t.s.ed.cur.line).ends_with("f.txt"));
+        // :e on a directory too; wdired renames on :w.
+        t.keys(&format!(":e {}<Enter>", d.display()));
+        assert!(t.s.ed.buf.line(t.s.ed.cur.line).ends_with("old.txt"));
+        t.keys("icwnew<Esc>:w<Enter>");
+        assert!(d.join("new.txt").exists(), "{:?}", t.s.ed.msg);
+        assert!(!t.s.ed.buf.modified);
+        // A listing has no swap file, even while names are edited.
+        t.keys("icwzzz<Esc>");
+        t.s.maybe_swap(Instant::now() + Duration::from_secs(5));
+        t.s.wait_swap();
+        assert!(!t.s.swap_path.exists());
+        t.keys("gr");
+        // Enter on a file opens it as a buffer.
+        t.keys("<Enter>");
+        assert_eq!(
+            t.s.ed.path.as_deref().and_then(Path::file_name).unwrap(),
+            "new.txt"
         );
     }
 
