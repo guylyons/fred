@@ -146,7 +146,7 @@ fn mode_name(m: &Mode) -> &'static str {
         Mode::Pick(p) => match p.kind {
             Kind::Files => "FIND",
             Kind::Grep => "GREP",
-            Kind::Lines => "LINES",
+            Kind::Lines | Kind::AllLines => "LINES",
             Kind::Browse => "FILES",
             Kind::Recent => "RECENT",
             Kind::Buffers => "BUFFERS",

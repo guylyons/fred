@@ -4,6 +4,7 @@ use crate::args::{Args, LineArg};
 use crate::complete::nearby;
 use crate::config::Config;
 use crate::editor::Mode;
+use crate::ex::addr::Range;
 use crate::fileio;
 use crate::highlight::Highlighter;
 use crate::key::{Key, KeyCode};
@@ -373,6 +374,52 @@ fn suspend(ui: &mut Ui, s: &mut Session) -> Result<()> {
 }
 
 /// `:!cmd`: run it on the real terminal, then wait for Enter, as vim does.
+/// `:ai`: Claude (`$FRED_AI`, default `claude -p`) answers in the
+/// background while a spinner holds the editor; keys typed meanwhile are
+/// dropped, so the lines can't change under the reply.
+// ponytail: no cancel; kill the child on Esc if a stuck claude bites.
+fn ask_claude(
+    ui: &mut Ui,
+    s: &mut Session,
+    hl: &mut Highlighter,
+    cfg: &Config,
+    r: Range,
+    prompt: String,
+) -> Result<()> {
+    const SPIN: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+    let cmd = std::env::var("FRED_AI").unwrap_or_else(|_| "claude -p --tools ''".into());
+    let job = std::thread::spawn(move || crate::shell::capture(&cmd, Some(prompt)));
+    let what = match r.end - r.start {
+        0 => format!("line {}", r.start + 1),
+        _ => format!("lines {}-{}", r.start + 1, r.end + 1),
+    };
+    let start = Instant::now();
+    while !job.is_finished() {
+        let t = start.elapsed();
+        let spin = SPIN[(t.as_millis() / 100) as usize % SPIN.len()];
+        s.ed.set_msg(format!(
+            "{spin} Claude is rewriting {what}… {}s",
+            t.as_secs()
+        ));
+        ui.draw(s, hl, cfg)?;
+        if event::poll(TICK)? {
+            event::read()?;
+        }
+        if tty_hung_up() {
+            return Ok(());
+        }
+    }
+    match job.join() {
+        Ok(Ok(out)) => {
+            s.ed.ai_reply(r, &out);
+            s.ed.set_msg(format!("Claude rewrote {what}"));
+        }
+        Ok(Err(e)) => s.ed.set_err(e),
+        Err(_) => s.ed.set_err("claude: crashed"),
+    }
+    Ok(())
+}
+
 fn run_shell(ui: &mut Ui, s: &mut Session, cmd: &str) -> Result<()> {
     hand_over(ui, s, || {
         let mut out = io::stdout();
@@ -565,6 +612,10 @@ fn event_loop(
         }
         if let Some(cmd) = s.pending_shell.take() {
             run_shell(ui, s, &cmd)?;
+            dirty = true;
+        }
+        if let Some((r, prompt)) = s.pending_ai.take() {
+            ask_claude(ui, s, hl, cfg, r, prompt)?;
             dirty = true;
         }
         if let Some(pe) = s.pending_edit.clone() {

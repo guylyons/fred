@@ -1,9 +1,10 @@
-//! `Space k`: lines of the current buffer, swiper-style.
+//! `Space k`: lines of the current buffer, swiper-style; `Space b`: of
+//! every buffer.
 
 use super::Row;
-use crate::buffer::Buffer;
 use regex::Regex;
-use std::path::PathBuf;
+use ropey::Rope;
+use std::path::{Path, PathBuf};
 
 /// Longest part of a line shown, in bytes.
 const MAX_TEXT: usize = 400;
@@ -17,16 +18,46 @@ pub struct Found {
 
 /// Lines matching every space-separated word of `query` (each a regex with
 /// `/`'s smart case), in any order. An empty query lists every line.
-pub fn search(query: &str, buf: &Buffer, from: usize) -> Result<Found, String> {
-    let terms = query
+pub fn search(query: &str, text: &Rope, from: usize) -> Result<Found, String> {
+    Ok(search_in(&terms(query)?, text, from, None, Path::new("")))
+}
+
+/// [`search`] in every buffer of `bufs` (name, path, text), the first one
+/// (the cursor's, `from` applying to it) nearest the prompt; rows are
+/// `name:12: line`.
+pub fn search_all(
+    query: &str,
+    bufs: &[(String, PathBuf, Rope)],
+    from: usize,
+) -> Result<Found, String> {
+    let terms = terms(query)?;
+    let mut all = Found {
+        rows: vec![],
+        sel: 0,
+    };
+    for (i, (name, path, text)) in bufs.iter().enumerate() {
+        let f = search_in(&terms, text, from, Some(name), path);
+        if i == 0 {
+            all.sel = f.sel;
+        }
+        all.rows.extend(f.rows);
+    }
+    Ok(all)
+}
+
+fn terms(query: &str) -> Result<Vec<Regex>, String> {
+    query
         .split_whitespace()
         .map(crate::search::compile)
-        .collect::<Result<Vec<Regex>, String>>()?;
-    let n = buf.len_lines();
+        .collect()
+}
+
+fn search_in(terms: &[Regex], text: &Rope, from: usize, name: Option<&str>, path: &Path) -> Found {
+    let n = text.len_lines();
     let width = n.to_string().len();
     let mut rows = vec![];
     // ponytail: rescans the whole buffer per keystroke; fine to ~100k lines.
-    for (l, line) in buf.rope().lines().enumerate().take(n) {
+    for (l, line) in text.lines().enumerate().take(n) {
         let line = line.to_string();
         let line = line.trim_end_matches(['\n', '\r']);
         let mut hl = vec![];
@@ -43,7 +74,10 @@ pub fn search(query: &str, buf: &Buffer, from: usize) -> Result<Found, String> {
             continue;
         }
         let shown = &line[..line.floor_char_boundary(MAX_TEXT)];
-        let head = format!("{:>width$}: ", l + 1);
+        let head = match name {
+            Some(name) => format!("{name}:{}: ", l + 1),
+            None => format!("{:>width$}: ", l + 1),
+        };
         hl.sort_unstable();
         rows.push(Row {
             hl: hl
@@ -52,7 +86,7 @@ pub fn search(query: &str, buf: &Buffer, from: usize) -> Result<Found, String> {
                 .map(|(a, b)| (head.len() + a, head.len() + b))
                 .collect(),
             text: format!("{head}{shown}"),
-            path: PathBuf::new(),
+            path: path.to_path_buf(),
             line: l,
             col: col.unwrap_or(0),
             code: Some(head.len()),
@@ -64,7 +98,7 @@ pub fn search(query: &str, buf: &Buffer, from: usize) -> Result<Found, String> {
         .unwrap_or(rows.len().saturating_sub(1));
     rows.reverse();
     let sel = rows.len().saturating_sub(1 + sel);
-    Ok(Found { rows, sel })
+    Found { rows, sel }
 }
 
 #[cfg(test)]
@@ -72,7 +106,7 @@ mod tests {
     use super::*;
 
     fn lines(q: &str, text: &str, from: usize) -> (Vec<usize>, usize) {
-        let f = search(q, &Buffer::from_text(text), from).unwrap();
+        let f = search(q, &Rope::from_str(text), from).unwrap();
         (f.rows.iter().map(|r| r.line).collect(), f.sel)
     }
 
@@ -98,12 +132,25 @@ mod tests {
 
     #[test]
     fn rows_show_numbers_and_highlight_matches() {
-        let f = search("b.r foo", &Buffer::from_text("x\nfoo bar\n"), 0).unwrap();
+        let f = search("b.r foo", &Rope::from_str("x\nfoo bar\n"), 0).unwrap();
         let r = &f.rows[0];
         assert_eq!(r.text, "2: foo bar");
         let hl: Vec<&str> = r.hl.iter().map(|&(a, b)| &r.text[a..b]).collect();
         assert_eq!(hl, ["foo", "bar"]);
         assert_eq!((r.line, r.col), (1, 0));
-        assert!(search("(", &Buffer::from_text("x"), 0).is_err());
+        assert!(search("(", &Rope::from_str("x"), 0).is_err());
+    }
+
+    #[test]
+    fn every_buffer_this_one_nearest_the_prompt() {
+        let buf =
+            |name: &str, text: &str| (name.to_string(), PathBuf::from(name), Rope::from_str(text));
+        let bufs = [buf("a.rs", "x\nfoo 1\nfoo 2"), buf("b.rs", "foo 3\ny")];
+        let f = search_all("foo", &bufs, 2).unwrap();
+        let texts: Vec<&str> = f.rows.iter().map(|r| r.text.as_str()).collect();
+        assert_eq!(texts, ["a.rs:3: foo 2", "a.rs:2: foo 1", "b.rs:1: foo 3"]);
+        assert_eq!(f.sel, 0);
+        assert_eq!(f.rows[2].path, PathBuf::from("b.rs"));
+        assert!(search_all("(", &bufs, 0).is_err());
     }
 }

@@ -95,8 +95,10 @@ Space is the leader key (`l` still moves right).
   directory, `~/` jumps home, and `Enter` on a name that doesn't exist
   starts a new file. It starts in the current file's directory; `fred DIR`
   and `:e DIR` open it too. Dotfiles show once you type a `.`.
-- `Space b` lists the open buffers, the one you were in last first;
-  type to filter. `Ctrl-^` (`Ctrl-6`) goes straight back to that one.
+- `Space b` searches the lines of every open buffer, like `Space k`: this
+  buffer's matches nearest the prompt, then the others'. `Enter` goes to
+  that buffer and line. `:ls` lists the buffers themselves, and `Ctrl-^`
+  (`Ctrl-6`) goes straight back to the one you were in before.
 - `Space r` lists recently opened files (any project), newest first;
   type to filter.
 - `Space k` searches the lines of the file you're editing, like swiper:
@@ -128,7 +130,7 @@ follow their lines as you edit.
 | `b N`, `b name`, `b#` | go to buffer N, the one whose name contains `name`, or the one before (`b2` works too) |
 | `bn`, `bp` | next, previous buffer |
 | `bd[!] [N]` | close a buffer (`bd!` discards its changes) |
-| `ls` | pick a buffer (like `Space b`) |
+| `ls` | pick a buffer, the one you were in last first |
 | `[range]s/re/rep/[g]` | substitute; `&` and `\1`–`\9` in `rep`, `\n` or `\r` splits the line |
 | `[range]d` | delete lines |
 | `[range]j` | join lines |
@@ -138,7 +140,7 @@ follow their lines as you edit.
 | `[range]w file` | write just those lines to another file |
 | `!cmd` | run a shell command (`$SHELL`), then press Enter to come back |
 | `[range]!cmd` | filter lines through a command: `%!sort`, `'<,'>!column -t` |
-| `[range]ai ask` | have Claude rewrite the lines (it sees the whole file): `'<,'>ai make this async`. Runs `claude -p --tools ''`, or `$FRED_AI` |
+| `[range]ai ask` | have Claude rewrite the lines (it sees the whole file): `'<,'>ai make this async`. A spinner holds the editor until it answers. Runs `claude -p --tools ''`, or `$FRED_AI` |
 | `r file`, `r !cmd` | insert a file, or a command's output, below the line |
 | `pwd`, `cd [dir]` | show or change the directory (`cd` alone goes home); `Space p` and `Space g` follow it |
 

@@ -78,6 +78,8 @@ pub struct Session {
     pub pending_edit: Option<PendingEdit>,
     /// `:!cmd` waiting for the app to hand it the terminal.
     pub pending_shell: Option<String>,
+    /// `:ai`: the lines and the prompt, for the app to ask Claude.
+    pub pending_ai: Option<(crate::ex::addr::Range, String)>,
     lossy: bool,
     cfg: Config,
     seen_version: u64,
@@ -220,6 +222,7 @@ impl Session {
             no_swap: false,
             pending_edit: None,
             pending_shell: None,
+            pending_ai: None,
             lossy: o.lossy,
             cfg: cfg.clone(),
             last_change: None,
@@ -321,6 +324,7 @@ impl Session {
             ExEffect::Buffer { cmd, arg, force } => self.buffer(cmd, &arg, force),
             ExEffect::Edit { path, force } => self.edit(path.as_deref(), force),
             ExEffect::Shell(cmd) => self.pending_shell = Some(cmd),
+            ExEffect::Ai { range, prompt } => self.pending_ai = Some((range, prompt)),
             ExEffect::Pwd => match std::env::current_dir() {
                 Ok(d) => self.ed.set_msg(d.display().to_string()),
                 Err(e) => self.ed.set_err(fileio::err_msg(&e)),
@@ -553,7 +557,7 @@ impl Session {
     fn go(&mut self, then: Option<Goto>) {
         let Some(g) = then else { return };
         self.ed.set_cursor(g.line, g.col);
-        if let Some(p) = g.pattern {
+        if let Some(p) = g.pattern.filter(|p| !p.is_empty()) {
             self.ed.last_pat = Some(p);
             self.ed.last_search_fwd = true;
         }
@@ -749,6 +753,7 @@ impl Session {
             BufCmd::Next => (self.cur + 1) % n,
             BufCmd::Prev => (self.cur + n - 1) % n,
             BufCmd::List => return self.list_buffers(),
+            BufCmd::Search => return self.search_buffers(),
         };
         if cmd != BufCmd::Delete {
             return self.show(target);
@@ -780,7 +785,31 @@ impl Session {
         }
     }
 
-    /// `Space b` / `:ls`: a picker of the buffers, most recently used first.
+    /// `Space b`: search the lines of every buffer, this one first, then
+    /// the others by last use (unnamed ones but this one left out).
+    fn search_buffers(&mut self) {
+        let abs = |ed: &Editor| ed.path.as_deref().and_then(|p| std::path::absolute(p).ok());
+        let mut parked: Vec<&Parked> = self
+            .bufs
+            .iter()
+            .flatten()
+            .filter(|b| b.ed.path.is_some())
+            .collect();
+        parked.sort_by_key(|b| std::cmp::Reverse(b.used));
+        let list = std::iter::once(&self.ed)
+            .chain(parked.into_iter().map(|b| &b.ed))
+            .map(|ed| {
+                (
+                    buf_name(ed),
+                    abs(ed).unwrap_or_default(),
+                    ed.buf.rope().clone(),
+                )
+            })
+            .collect();
+        crate::pick::all_lines(&mut self.ed, list);
+    }
+
+    /// `:ls`: a picker of the buffers, most recently used first.
     fn list_buffers(&mut self) {
         let mut list: Vec<(u64, String, PathBuf, usize)> = (0..self.bufs.len())
             .map(|i| {
@@ -1164,8 +1193,8 @@ mod tests {
         assert_eq!(text(&t), "c");
         t.keys(":bn<Enter>");
         assert_eq!(text(&t), "aaa");
-        // Space b lists them, the one used last first; Enter goes there.
-        t.keys(" b");
+        // :ls lists them, the one used last first; Enter goes there.
+        t.keys(":ls<Enter>");
         let Mode::Pick(p) = &t.s.ed.mode else {
             panic!("no picker")
         };
@@ -1354,6 +1383,30 @@ mod tests {
         assert!(std::sync::Arc::ptr_eq(&project, &t.s.ed.project));
         let recent = crate::pick::recent::load(&t.dir.path().join("recent"));
         assert_eq!(recent, [b, t.dir.path().join("a")]);
+    }
+
+    #[test]
+    fn space_b_searches_every_buffer() {
+        let mut t = T::open(Some("a"), Some("one\nneedle a\n"));
+        let b = t.dir.path().join("b");
+        fs::write(&b, "x\ny\nneedle b\n").unwrap();
+        t.keys(&format!(":e {}<Enter>:b1<Enter>", b.display()));
+        t.keys(" bneedle");
+        let Mode::Pick(p) = &t.s.ed.mode else {
+            panic!("no picker")
+        };
+        let rows: Vec<&str> = p.rows.iter().map(|r| r.text.as_str()).collect();
+        assert_eq!(rows.len(), 2, "{rows:?}");
+        assert!(rows[0].ends_with("a:2: needle a") && rows[1].ends_with("b:3: needle b"));
+        // Up to b's match: Enter goes to that buffer and line.
+        t.keys("<Up><Enter>");
+        assert_eq!((t.s.ed.path.as_ref(), t.s.ed.cur.pos()), (Some(&b), (2, 0)));
+        assert_eq!(t.s.ed.last_pat.as_deref(), Some("needle"));
+        // This buffer's line, with nothing typed: the cursor just moves.
+        t.keys(" b<Enter>");
+        assert_eq!((t.s.ed.path.as_ref(), t.s.ed.cur.pos()), (Some(&b), (2, 0)));
+        t.keys("gg b<Down><Down><Enter>");
+        assert_eq!(t.s.ed.cur.pos(), (2, 0));
     }
 
     #[test]

@@ -927,3 +927,22 @@ fn panic_keeps_unsaved_work_and_reports() {
     assert!(s.contains("unsaved changes are in"), "{s}");
     assert!(p.raw().contains("<ESC>[?2004l"), "terminal not restored");
 }
+
+#[test]
+fn ai_spins_while_waiting_then_replaces_the_lines() {
+    let env = Env::new();
+    env.write("f.txt", "a\nb\nc\n");
+    let mut c = env.command(BIN);
+    c.arg("f.txt");
+    c.env("FRED_AI", "cat >/dev/null; sleep 1; echo BEE");
+    let mut p = Pty::spawn(c);
+    p.wait_text("NORMAL");
+    p.keys(&["j", ":ai shout\r"]);
+    p.wait_text("Claude is rewriting line 2");
+    // Held: keys typed while waiting are dropped.
+    p.keys(&["dd"]);
+    p.wait_text("Claude rewrote line 2");
+    p.keys(&[":wq\r"]);
+    assert_eq!(p.wait_exit(), 0);
+    assert_eq!(env.read("f.txt"), "a\nBEE\nc\n");
+}

@@ -262,6 +262,16 @@ impl Editor {
         self.undo.record(inv);
     }
 
+    /// Claude's reply to `:ai` in place of lines `r`, as one undo step.
+    pub fn ai_reply(&mut self, r: ex::addr::Range, out: &str) {
+        let lines: Vec<String> = ex::unfence(out).lines().map(String::from).collect();
+        self.undo.begin((self.cur.line, self.cur.byte));
+        vim::ops::splice_lines(self, r.start, r.end - r.start + 1, &lines);
+        let last = (r.start + lines.len().saturating_sub(1)).min(self.line_count() - 1);
+        self.undo.end((last, 0));
+        self.set_cursor(last, self.first_nonblank(last));
+    }
+
     pub fn set_msg(&mut self, m: impl Into<String>) {
         self.msg = Some((m.into(), false));
     }

@@ -136,6 +136,8 @@ pub enum Kind {
     Browse,
     Recent,
     Buffers,
+    /// Lines of every buffer (`Space b`).
+    AllLines,
 }
 
 /// One result: what to show and where it leads.
@@ -181,6 +183,8 @@ pub struct Picker {
     /// Recent: the files, newest first, as shown (`~/…`) and where they
     /// are. Buffers: the same, by last use, and each one's number.
     recent_files: Vec<(String, PathBuf, usize)>,
+    /// AllLines: each buffer's name, path and text, this one first.
+    buf_texts: Vec<(String, PathBuf, ropey::Rope)>,
 }
 
 impl Picker {
@@ -206,6 +210,7 @@ impl Picker {
             listing: None,
             walk: None,
             recent_files: vec![],
+            buf_texts: vec![],
         }
     }
 
@@ -217,6 +222,7 @@ impl Picker {
             Kind::Browse => "find file: ",
             Kind::Recent => "recent> ",
             Kind::Buffers => "buffer> ",
+            Kind::AllLines => "all lines> ",
         }
     }
 
@@ -347,15 +353,21 @@ impl Picker {
                 };
                 true
             }
-            Kind::Lines => {
+            Kind::Lines | Kind::AllLines => {
                 let q = &self.query.text;
                 if self.seen_files.as_ref().is_some_and(|s| s.0 == *q) {
                     return false;
                 }
                 self.seen_files = Some((q.clone(), 0, true));
-                match lines::search(q, buf, self.origin) {
+                let (found, total) = if self.kind == Kind::Lines {
+                    (lines::search(q, buf.rope(), self.origin), buf.len_lines())
+                } else {
+                    let total = self.buf_texts.iter().map(|b| b.2.len_lines()).sum();
+                    (lines::search_all(q, &self.buf_texts, self.origin), total)
+                };
+                match found {
                     Ok(f) => {
-                        self.status = format!("{}/{} lines", f.rows.len(), buf.len_lines());
+                        self.status = format!("{}/{total} lines", f.rows.len());
                         self.err = false;
                         self.rows = f.rows;
                         self.sel = f.sel;
@@ -502,6 +514,16 @@ pub fn buffers(ed: &mut Editor, list: Vec<(String, PathBuf, usize)>) {
     }
 }
 
+/// `Space b`: search the lines of `bufs` (name, path, text), this one first.
+pub fn all_lines(ed: &mut Editor, bufs: Vec<(String, PathBuf, ropey::Rope)>) {
+    open(ed, Kind::AllLines);
+    if let Mode::Pick(p) = &mut ed.mode {
+        p.buf_texts = bufs;
+        p.seen_files = None;
+        p.update(&ed.project, &ed.buf, Instant::now());
+    }
+}
+
 fn set_query(p: &mut Picker, q: String) {
     p.query.cursor = q.len();
     p.query.text = q;
@@ -539,7 +561,35 @@ pub fn pick_key(ed: &mut Editor, k: Key) {
     match k.code {
         KeyCode::Esc => close(ed),
         KeyCode::Char('c') if k.ctrl => close(ed),
-        KeyCode::Enter if p.kind == Kind::Lines => {
+        KeyCode::Enter
+            if p.kind == Kind::AllLines
+                && p.rows.get(p.sel).is_some_and(|r| {
+                    !r.path.as_os_str().is_empty()
+                        && ed
+                            .path
+                            .as_deref()
+                            .and_then(|e| std::path::absolute(e).ok())
+                            .as_ref()
+                            != Some(&r.path)
+                }) =>
+        {
+            let r = &p.rows[p.sel];
+            ed.pending_effect = Some(ExEffect::Open {
+                path: r.path.clone(),
+                line: r.line,
+                col: r.col,
+                // Always a target (even line 1); an empty pattern isn't a search.
+                pattern: Some(
+                    p.query
+                        .text
+                        .split_whitespace()
+                        .next()
+                        .unwrap_or_default()
+                        .to_string(),
+                ),
+            });
+        }
+        KeyCode::Enter if matches!(p.kind, Kind::Lines | Kind::AllLines) => {
             if let Some(r) = p.rows.get(p.sel) {
                 let (line, col) = (r.line, r.col);
                 // The first word becomes the search, so `n` finds the next.

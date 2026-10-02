@@ -40,6 +40,11 @@ pub enum ExEffect {
     Pwd,
     /// `:cd [dir]` (home without one).
     Cd(Option<String>),
+    /// `:[range]ai ask`: send `prompt` to Claude; its reply replaces `range`.
+    Ai {
+        range: Range,
+        prompt: String,
+    },
     /// `:b [N|name|#]`, `:bn`, `:bp`, `:bd[!] [N|name]`, `:ls`.
     Buffer {
         cmd: BufCmd,
@@ -56,6 +61,8 @@ pub enum BufCmd {
     Prev,
     Delete,
     List,
+    /// Search the lines of every buffer (`Space b`).
+    Search,
 }
 
 /// What ex commands operate on: borrowed pieces of the editor.
@@ -280,8 +287,7 @@ fn file_command(st: &mut ExState, rest: &str, range: Option<Range>) -> Result<Ex
             start: st.cur,
             end: st.cur,
         });
-        let cmd = std::env::var("FRED_AI").unwrap_or_else(|_| "claude -p --tools ''".into());
-        return ai(st, r, arg, &cmd);
+        return ai(st, r, arg);
     }
     if arg.starts_with('!') {
         return Err("shell commands are not supported here".into());
@@ -323,11 +329,9 @@ fn filter(st: &mut ExState, r: Range, cmd: &str) -> Result<ExEffect, String> {
     replace(st, r, &out)
 }
 
-/// `:[range]ai what to do`: Claude (`cmd`, prompt on stdin) rewrites the
-/// lines, seeing the whole file for context.
-// ponytail: blocks the UI until the answer comes, like `:!` filters; run it
-// in the background if that grates.
-fn ai(st: &mut ExState, r: Range, ask: &str, cmd: &str) -> Result<ExEffect, String> {
+/// `:[range]ai what to do`: the prompt asking Claude to rewrite the lines,
+/// with the whole file for context. The caller runs it (see `app::ask_claude`).
+fn ai(st: &mut ExState, r: Range, ask: &str) -> Result<ExEffect, String> {
     if ask.is_empty() {
         return Err("say what to change: :ai make this async".into());
     }
@@ -346,12 +350,11 @@ fn ai(st: &mut ExState, r: Range, ask: &str, cmd: &str) -> Result<ExEffect, Stri
          <selection lines=\"{a}-{b}\">\n{sel}</selection>\n",
         st.buf.text()
     );
-    let out = crate::shell::capture(cmd, Some(prompt))?;
-    replace(st, r, unfence(&out))
+    Ok(ExEffect::Ai { range: r, prompt })
 }
 
 /// The reply without a ```lang … ``` wrapper, if it added one anyway.
-fn unfence(s: &str) -> &str {
+pub fn unfence(s: &str) -> &str {
     s.trim()
         .strip_prefix("```")
         .and_then(|t| t.strip_suffix("```"))
@@ -729,7 +732,7 @@ mod tests {
     }
 
     #[test]
-    fn ai_sees_the_file_and_replaces_the_lines() {
+    fn ai_asks_with_the_whole_file() {
         let mut x = T {
             buf: Buffer::from_text("fn a() {}\nfn b() {}\nfn c() {}"),
             undo: Undo::default(),
@@ -738,17 +741,21 @@ mod tests {
         };
         let mut st = ExState::new(&mut x.buf, &mut x.undo, 0, &x.marks, &mut x.last_pat);
         st.file = Some("src/x.rs".into());
-        let r = Range { start: 1, end: 1 };
-        // The prompt carries the file, the selection and the ask; a fenced
-        // reply is unwrapped.
-        let cmd = r#"p=$(cat); for w in src/x.rs 'fn c()' 'Asked: rename' 'lines="2-2"'; do
-                       printf %s "$p" | grep -qF "$w" || exit 1; done
-                     printf '```rust\nfn bee() {}\n```\n'"#;
-        assert_eq!(ai(&mut st, r, "rename", cmd), Ok(ExEffect::None));
-        assert_eq!(st.buf.text(), "fn a() {}\nfn bee() {}\nfn c() {}");
-        assert!(ai(&mut st, r, "", "cat").is_err());
+        let Ok(ExEffect::Ai { range, prompt }) = run(&mut st, "2ai rename") else {
+            panic!("no ai effect");
+        };
+        assert_eq!(range, Range { start: 1, end: 1 });
+        for w in [
+            "src/x.rs",
+            "fn c()",
+            "Asked: rename",
+            "lines=\"2-2\">\nfn b() {}\n",
+        ] {
+            assert!(prompt.contains(w), "{w} not in {prompt}");
+        }
+        assert!(run(&mut st, "ai").is_err());
         assert_eq!(unfence("  x\n"), "  x\n");
-        assert_eq!(unfence("```\n  x\n```\n"), "  x\n");
+        assert_eq!(unfence("```rust\n  x\n```\n"), "  x\n");
     }
 
     #[test]
