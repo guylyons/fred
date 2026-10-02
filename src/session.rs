@@ -3,8 +3,8 @@
 use crate::buffer::{Buffer, LineEnding};
 use crate::config::Config;
 use crate::editor::{Editor, Mode};
-use crate::ex::ExEffect;
 use crate::ex::addr::Range;
+use crate::ex::{BufCmd, ExEffect};
 use crate::fileio::{self, FileStamp};
 use crate::key::Key;
 use crate::swap::{self, SwapInfo};
@@ -50,6 +50,18 @@ pub struct Goto {
     pub pattern: Option<String>,
 }
 
+/// A buffer not being shown: its editor and file state.
+struct Parked {
+    ed: Editor,
+    stamp: Option<FileStamp>,
+    swap_path: PathBuf,
+    lossy: bool,
+    no_swap: bool,
+    swap_state: SwapState,
+    /// When it was last left ([`Session::clock`]).
+    used: u64,
+}
+
 pub struct Session {
     pub ed: Editor,
     pub stamp: Option<FileStamp>,
@@ -72,12 +84,19 @@ pub struct Session {
     last_change: Option<Instant>,
     swap_state: SwapState,
     swap_error_shown: bool,
+    /// Every open buffer, numbered from 1. The one being edited lives in
+    /// the fields above; its slot (`cur`) is None.
+    bufs: Vec<Option<Parked>>,
+    cur: usize,
+    /// Counts buffer switches, to order buffers by last use.
+    clock: u64,
 }
 
 fn make_editor(buf: Buffer, cfg: &Config) -> Editor {
     let mut ed = Editor::new(buf);
     ed.tabstop = cfg.tabstop;
     ed.autocomplete = cfg.autocomplete;
+    ed.clipboard = cfg.clipboard;
     ed.win_height = cfg.height;
     ed
 }
@@ -162,6 +181,21 @@ fn leftover(swap: &Path, buf: &Buffer) -> Option<SwapInfo> {
     Some(info)
 }
 
+/// Remove the swap file at `swap` if it is ours.
+fn release(swap: &Path) {
+    if let Ok(info) = swap::read_head(swap)
+        && swap::is_mine(&info)
+    {
+        swap::remove(swap);
+    }
+}
+
+fn buf_name(ed: &Editor) -> String {
+    ed.path
+        .as_ref()
+        .map_or_else(|| "[No Name]".into(), |p| p.display().to_string())
+}
+
 impl Session {
     /// Open `path` (or an unnamed buffer). Returns a leftover swap file, if any.
     pub fn open(
@@ -191,6 +225,9 @@ impl Session {
             last_change: None,
             swap_state: SwapState::None,
             swap_error_shown: false,
+            bufs: vec![None],
+            cur: 0,
+            clock: 0,
         };
         let dir = browse.clone().or_else(|| {
             s.ed.path
@@ -262,23 +299,26 @@ impl Session {
                         self.ed
                             .set_err("unsaved changes (q! to discard, wq to save)");
                     } else {
-                        self.quit = true;
+                        self.quit_if_all_saved();
                     }
                 }
             }
             ExEffect::WriteIfModifiedQuit => {
                 if !self.ed.buf.modified || self.write(None, false, None) {
-                    self.quit = true;
+                    self.quit_if_all_saved();
                 }
             }
             ExEffect::Quit { force } => {
-                if self.ed.buf.modified && !force {
+                if force {
+                    self.quit = true;
+                } else if self.ed.buf.modified {
                     self.ed
                         .set_err("unsaved changes (q! to discard, wq to save)");
                 } else {
-                    self.quit = true;
+                    self.quit_if_all_saved();
                 }
             }
+            ExEffect::Buffer { cmd, arg, force } => self.buffer(cmd, &arg, force),
             ExEffect::Edit { path, force } => self.edit(path.as_deref(), force),
             ExEffect::Shell(cmd) => self.pending_shell = Some(cmd),
             ExEffect::Pwd => match std::env::current_dir() {
@@ -406,11 +446,9 @@ impl Session {
         }
     }
 
+    /// `:e`: reload this file, or open (or go to) another one; this one
+    /// stays open as a buffer (unless `:e!` discards its changes).
     fn edit(&mut self, path: Option<&str>, force: bool) {
-        if self.ed.buf.modified && !force {
-            self.ed.set_err("unsaved changes (e! to discard)");
-            return;
-        }
         let p = match (path, &self.ed.path) {
             (Some(path), _) => expand_tilde(path),
             (None, Some(own)) => own.clone(),
@@ -419,28 +457,38 @@ impl Session {
                 return;
             }
         };
+        if self.ed.buf.modified && !force && self.is_own_file(&p) {
+            self.ed.set_err("unsaved changes (e! to discard)");
+            return;
+        }
+        let before = self.cur;
         self.edit_path(p, None);
+        // `:e! other` discards this buffer's changes, as in vim: close it.
+        if force && self.cur != before && self.ed_at(before).buf.modified {
+            self.buffer(BufCmd::Delete, &(before + 1).to_string(), true);
+        }
     }
 
     /// `:cd [dir]`: change directory (home without one). Relative paths,
     /// `Space p` and `Space g` follow.
     fn cd(&mut self, dir: Option<&str>) {
         let to = dir.map_or_else(|| expand_tilde("~/"), expand_tilde);
-        // Pin the file's path first: `src/x.rs` must not come to mean a
+        // Pin the files' paths first: `src/x.rs` must not come to mean a
         // file in the new directory.
-        let file = self
-            .ed
-            .path
-            .as_deref()
-            .and_then(|p| std::path::absolute(p).ok());
+        let files: Vec<Option<PathBuf>> = self
+            .editors_mut()
+            .map(|ed| ed.path.as_deref().and_then(|p| std::path::absolute(p).ok()))
+            .collect();
         if let Err(e) = std::env::set_current_dir(&to) {
             self.ed
                 .set_err(format!("{}: {}", to.display(), fileio::err_msg(&e)));
             return;
         }
         let cwd = std::env::current_dir().unwrap_or(to);
-        if let Some(f) = file {
-            self.ed.path = Some(f.strip_prefix(&cwd).map(Path::to_path_buf).unwrap_or(f));
+        for (ed, f) in self.editors_mut().zip(files) {
+            if let Some(f) = f {
+                ed.path = Some(f.strip_prefix(&cwd).map(Path::to_path_buf).unwrap_or(f));
+            }
         }
         self.ed.project = std::sync::Arc::new(crate::pick::Project::new(
             Some(cwd.clone()),
@@ -449,13 +497,14 @@ impl Session {
         self.ed.set_msg(cwd.display().to_string());
     }
 
-    /// Open a picker result. With unsaved changes the picker stays open.
+    /// Open a picker result (this file stays open as a buffer).
     fn open_pick(&mut self, path: PathBuf, then: Option<Goto>) {
-        if self.ed.buf.modified {
-            self.ed.set_err("unsaved changes (:w first)");
+        self.ed.project.grep.cancel();
+        if self.is_own_file(&path) {
+            self.ed.mode = Mode::Normal;
+            self.go(then);
             return;
         }
-        self.ed.project.grep.cancel();
         // Shown on the status line: relative to where fred runs, if inside it.
         let path = std::env::current_dir()
             .ok()
@@ -471,6 +520,11 @@ impl Session {
     fn edit_path(&mut self, p: PathBuf, then: Option<Goto>) {
         if p.is_dir() {
             crate::pick::browse(&mut self.ed, &p);
+            return;
+        }
+        if let Some(i) = self.find(&p) {
+            self.show(i);
+            self.go(then);
             return;
         }
         let o = match open_file(Some(&p), &self.cfg) {
@@ -505,15 +559,37 @@ impl Session {
         }
     }
 
-    /// Make `o` the buffer being edited, with its swap file at `new_swap`.
+    /// Make `o` the buffer being edited, with its swap file at `new_swap`:
+    /// a new buffer, or in place of this one when reloading it (or when
+    /// this one is an empty unnamed one).
     fn switch_to(&mut self, o: Opened, new_swap: PathBuf) {
+        let blank = self.ed.path.is_none() && !self.ed.buf.modified && self.ed.buf.len_bytes() == 0;
+        if new_swap == self.swap_path || blank {
+            self.replace(o, new_swap);
+            return;
+        }
+        self.bufs.push(Some(Parked {
+            ed: o.ed,
+            stamp: o.stamp,
+            swap_path: new_swap,
+            lossy: o.lossy,
+            no_swap: false,
+            swap_state: SwapState::None,
+            used: 0,
+        }));
+        self.show(self.bufs.len() - 1);
+        self.arrived();
+    }
+
+    /// Put `o` in place of the buffer being edited.
+    fn replace(&mut self, o: Opened, new_swap: PathBuf) {
         if new_swap != self.swap_path {
             self.release_swap();
         }
         self.remember_place();
-        let project = std::sync::Arc::clone(&self.ed.project);
-        self.ed = o.ed;
-        self.ed.project = project;
+        let mut ed = o.ed;
+        ed.inherit(&mut self.ed);
+        self.ed = ed;
         self.arrived();
         self.stamp = o.stamp;
         self.lossy = o.lossy;
@@ -562,15 +638,174 @@ impl Session {
     }
 
     fn name(&self) -> String {
-        self.ed
-            .path
-            .as_ref()
-            .map_or_else(|| "[No Name]".into(), |p| p.display().to_string())
+        buf_name(&self.ed)
+    }
+
+    /// Show buffer `i`, leaving the current one open (and its unsaved
+    /// text in its swap file).
+    fn show(&mut self, i: usize) {
+        if i == self.cur {
+            return;
+        }
+        self.remember_place();
+        self.write_swap();
+        let mut p = self.bufs[i].take().expect("a parked buffer");
+        p.ed.inherit(&mut self.ed);
+        self.ed.mode = Mode::Normal;
+        std::mem::swap(&mut self.ed, &mut p.ed);
+        std::mem::swap(&mut self.stamp, &mut p.stamp);
+        std::mem::swap(&mut self.swap_path, &mut p.swap_path);
+        std::mem::swap(&mut self.lossy, &mut p.lossy);
+        std::mem::swap(&mut self.no_swap, &mut p.no_swap);
+        std::mem::swap(&mut self.swap_state, &mut p.swap_state);
+        self.clock += 1;
+        p.used = self.clock;
+        self.bufs[self.cur] = Some(p);
+        self.cur = i;
+        self.seen_version = self.ed.buf.version;
+        self.last_change = None;
+        self.reloaded = true;
+    }
+
+    /// The other buffer open on `path`.
+    fn find(&self, path: &Path) -> Option<usize> {
+        let want = swap::canonical(path);
+        self.bufs.iter().position(|b| {
+            b.as_ref()
+                .and_then(|b| b.ed.path.as_deref())
+                .is_some_and(|p| swap::canonical(p) == want)
+        })
+    }
+
+    fn ed_at(&self, i: usize) -> &Editor {
+        self.bufs[i].as_ref().map_or(&self.ed, |b| &b.ed)
+    }
+
+    fn editors_mut(&mut self) -> impl Iterator<Item = &mut Editor> {
+        let parked = self.bufs.iter_mut().flatten().map(|b| &mut b.ed);
+        std::iter::once(&mut self.ed).chain(parked)
+    }
+
+    /// Quit, unless another buffer has unsaved changes.
+    fn quit_if_all_saved(&mut self) {
+        let unsaved = (0..self.bufs.len()).find(|&i| self.ed_at(i).buf.modified);
+        match unsaved {
+            Some(i) => self.ed.set_err(format!(
+                "buffer {} ({}) has unsaved changes (:b{0} to see it, q! to discard)",
+                i + 1,
+                buf_name(self.ed_at(i))
+            )),
+            None => self.quit = true,
+        }
+    }
+
+    /// A buffer by `:b` argument: a number, `#` (the one used before this
+    /// one), its file name or part of its path, or nothing (this one).
+    fn buffer_arg(&self, arg: &str) -> Result<usize, String> {
+        if arg.is_empty() {
+            return Ok(self.cur);
+        }
+        if arg == "#" {
+            return self
+                .bufs
+                .iter()
+                .enumerate()
+                .filter_map(|(i, b)| Some((b.as_ref()?.used, i)))
+                .max()
+                .map(|(_, i)| i)
+                .ok_or_else(|| "no other buffer".into());
+        }
+        if let Ok(n) = arg.parse::<usize>() {
+            return match n {
+                1.. if n <= self.bufs.len() => Ok(n - 1),
+                _ => Err(format!("no buffer {n}")),
+            };
+        }
+        let mut hits: Vec<usize> = (0..self.bufs.len())
+            .filter(|&i| buf_name(self.ed_at(i)).contains(arg))
+            .collect();
+        // `:b main.rs` means main.rs, not also src/domain.rs.
+        let exact = |i: &usize| {
+            let p = self.ed_at(*i).path.as_deref();
+            p.and_then(Path::file_name).is_some_and(|n| n == arg)
+        };
+        if hits.len() > 1 && hits.iter().any(exact) {
+            hits.retain(exact);
+        }
+        match hits[..] {
+            [i] => Ok(i),
+            [] => Err(format!("no buffer matches {arg}")),
+            _ => Err(format!("more than one buffer matches {arg}")),
+        }
+    }
+
+    fn buffer(&mut self, cmd: BufCmd, arg: &str, force: bool) {
+        let n = self.bufs.len();
+        let target = match cmd {
+            BufCmd::Go | BufCmd::Delete => match self.buffer_arg(arg) {
+                Ok(i) => i,
+                Err(e) => return self.ed.set_err(e),
+            },
+            BufCmd::Next => (self.cur + 1) % n,
+            BufCmd::Prev => (self.cur + n - 1) % n,
+            BufCmd::List => return self.list_buffers(),
+        };
+        if cmd != BufCmd::Delete {
+            return self.show(target);
+        }
+        if self.ed_at(target).buf.modified && !force {
+            return self.ed.set_err(format!(
+                "buffer {} has unsaved changes (bd! to discard)",
+                target + 1
+            ));
+        }
+        if n == 1 {
+            // The last buffer: an empty one takes its place.
+            let o = open_file(None, &self.cfg).expect("an empty buffer");
+            self.replace(o, swap::swap_path_in(&self.swap_dir, None));
+            self.lock();
+            return;
+        }
+        if target == self.cur {
+            let to = self.buffer_arg("#").unwrap_or((target + 1) % n);
+            self.show(to);
+        }
+        if let Some(b) = self.bufs.remove(target)
+            && !b.no_swap
+        {
+            release(&b.swap_path);
+        }
+        if target < self.cur {
+            self.cur -= 1;
+        }
+    }
+
+    /// `Space b` / `:ls`: a picker of the buffers, most recently used first.
+    fn list_buffers(&mut self) {
+        let mut list: Vec<(u64, String, PathBuf, usize)> = (0..self.bufs.len())
+            .map(|i| {
+                let ed = self.ed_at(i);
+                let used = self.bufs[i].as_ref().map_or(0, |b| b.used);
+                let plus = if ed.buf.modified { " [+]" } else { "" };
+                let path = ed.path.clone().unwrap_or_default();
+                let path = std::path::absolute(&path).unwrap_or(path);
+                (
+                    used,
+                    format!("{} {}{plus}", i + 1, buf_name(ed)),
+                    path,
+                    i + 1,
+                )
+            })
+            .collect();
+        list.sort_by_key(|b| std::cmp::Reverse(b.0));
+        let list = list.into_iter().map(|(_, t, p, n)| (t, p, n)).collect();
+        crate::pick::buffers(&mut self.ed, list);
     }
 
     /// Replace the buffer with a swap file's text.
     pub fn recover(&mut self, info: SwapInfo) {
         let mut ed = make_editor(Buffer::from_text(&info.text), &self.cfg);
+        ed.inherit(&mut self.ed);
         ed.path = self.ed.path.clone();
         ed.readonly = self.ed.readonly;
         ed.saved_state = u64::MAX;
@@ -680,18 +915,17 @@ impl Session {
 
     /// Remove our swap file (never one another fred wrote).
     fn release_swap(&mut self) {
-        if let Ok(info) = swap::read_head(&self.swap_path)
-            && swap::is_mine(&info)
-        {
-            swap::remove(&self.swap_path);
-        }
+        release(&self.swap_path);
         self.swap_state = SwapState::None;
     }
 
-    /// Normal exit: the swap file is no longer needed.
+    /// Normal exit: the swap files are no longer needed.
     pub fn cleanup(&mut self) {
         if !self.no_swap {
             self.release_swap();
+        }
+        for b in self.bufs.iter().flatten().filter(|b| !b.no_swap) {
+            release(&b.swap_path);
         }
     }
 
@@ -880,15 +1114,69 @@ mod tests {
     }
 
     #[test]
-    fn edit_other_file() {
+    fn edit_other_file_keeps_this_one_as_a_buffer() {
         let mut t = T::open(Some("a"), Some("aaa\n"));
         fs::write(t.dir.path().join("b"), "bbb\n").unwrap();
         let b = t.dir.path().join("b");
         t.keys(&format!("x:e {}<Enter>", b.display()));
-        assert!(t.msg().contains("unsaved changes"), "{}", t.msg());
-        t.keys(&format!(":e! {}<Enter>", b.display()));
         assert_eq!(t.s.ed.buf.text(), "bbb");
         assert!(t.s.reloaded);
+        // a's unsaved text is safe in its swap file while it's hidden.
+        let a_swap = swap::swap_path_in(&t.dir.path().join("swap"), Some(&t.dir.path().join("a")));
+        assert_eq!(swap::read(&a_swap).unwrap().text, "aa\n");
+        // Quitting asks about it; Ctrl-^ goes back to it, unsaved text and all.
+        t.keys(":q<Enter>");
+        assert!(!t.s.quit);
+        assert!(t.msg().contains("buffer 1"), "{}", t.msg());
+        t.keys("<C-^>");
+        assert_eq!(t.s.ed.buf.text(), "aa");
+        assert!(t.s.ed.buf.modified);
+        // :e of an open file goes to that buffer (no reload).
+        t.keys(&format!("x:e {}<Enter>", b.display()));
+        assert_eq!(t.s.ed.buf.text(), "bbb");
+        t.keys(":b1<Enter>");
+        assert_eq!(t.s.ed.buf.text(), "a");
+    }
+
+    #[test]
+    fn buffer_commands() {
+        let mut t = T::open(Some("a"), Some("aaa\n"));
+        for n in ["b", "c"] {
+            fs::write(t.dir.path().join(n), format!("{n}\n")).unwrap();
+            t.keys(&format!(":e {}<Enter>", t.dir.path().join(n).display()));
+        }
+        let text = |t: &T| t.s.ed.buf.text();
+        assert_eq!(text(&t), "c");
+        t.keys(":bn<Enter>");
+        assert_eq!(text(&t), "aaa");
+        t.keys(":bp<Enter>:bp<Enter>");
+        assert_eq!(text(&t), "b");
+        t.keys(":b c<Enter>");
+        assert_eq!(text(&t), "c");
+        t.keys(":b#<Enter>");
+        assert_eq!(text(&t), "b");
+        t.keys(":b9<Enter>");
+        assert!(t.msg().contains("no buffer 9"), "{}", t.msg());
+        // Deleting this buffer goes to the one used before it.
+        t.keys("x:bd<Enter>");
+        assert!(t.msg().contains("unsaved"), "{}", t.msg());
+        t.keys(":bd!<Enter>");
+        assert_eq!(text(&t), "c");
+        t.keys(":bn<Enter>");
+        assert_eq!(text(&t), "aaa");
+        // Space b lists them, the one used last first; Enter goes there.
+        t.keys(" b");
+        let Mode::Pick(p) = &t.s.ed.mode else {
+            panic!("no picker")
+        };
+        assert!(p.rows[0].text.starts_with("2 ") && p.rows[0].text.ends_with("/c"));
+        t.keys("<Enter>");
+        assert_eq!((text(&t), &t.s.ed.mode), ("c".into(), &Mode::Normal));
+        // Deleting the last buffer leaves an empty one.
+        t.keys(":bd<Enter>:bd<Enter>");
+        assert_eq!((text(&t), t.s.ed.path.clone()), ("".into(), None));
+        t.keys(":q<Enter>");
+        assert!(t.s.quit);
     }
 
     #[test]
@@ -1069,7 +1357,7 @@ mod tests {
     }
 
     #[test]
-    fn unsaved_changes_keep_the_picker_open() {
+    fn a_pick_keeps_unsaved_changes_in_their_buffer() {
         let mut t = T::open(Some("a"), Some("one\n"));
         fs::create_dir(t.dir.path().join(".git")).unwrap();
         fs::write(t.dir.path().join("b"), "two\n").unwrap();
@@ -1079,12 +1367,11 @@ mod tests {
             std::thread::sleep(Duration::from_millis(5));
         }
         t.keys("b<Enter>");
-        assert!(t.msg().contains("unsaved changes"), "{}", t.msg());
-        assert!(matches!(t.s.ed.mode, Mode::Pick(_)));
-        assert_eq!(t.s.ed.path, Some(t.dir.path().join("a")));
-        t.keys("<Esc>:w<Enter> pb<Enter>");
         assert_eq!(t.s.ed.path, Some(t.dir.path().join("b")));
         assert_eq!(t.s.ed.mode, Mode::Normal);
+        t.keys("<C-^>");
+        assert_eq!(t.s.ed.path, Some(t.dir.path().join("a")));
+        assert_eq!(t.s.ed.buf.text(), "ne");
     }
 
     #[test]

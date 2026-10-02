@@ -19,9 +19,15 @@ struct Env {
 impl Env {
     fn new() -> Env {
         let dir = tempfile::tempdir().unwrap();
-        for d in ["state", "config", "home"] {
-            fs::create_dir(dir.path().join(d)).unwrap();
+        for d in ["state", "config/fred", "home"] {
+            fs::create_dir_all(dir.path().join(d)).unwrap();
         }
+        // Tests mustn't touch the real clipboard.
+        fs::write(
+            dir.path().join("config/fred/config.toml"),
+            "clipboard = false\n",
+        )
+        .unwrap();
         Env { dir }
     }
     fn path(&self, name: &str) -> PathBuf {
@@ -256,11 +262,17 @@ fn fullscreen_unless_inline_is_asked_for() {
     assert!(!run(&env, &["small.txt"]));
     assert!(run(&env, &["-i", "small.txt"]));
     fs::create_dir_all(env.path("config/fred")).unwrap();
-    env.write("config/fred/config.toml", "fullscreen = false\n");
+    env.write(
+        "config/fred/config.toml",
+        "fullscreen = false\nclipboard = false\n",
+    );
     assert!(run(&env, &["small.txt"]));
     assert!(!run(&env, &["-f", "small.txt"]));
     // "auto" is still there: small files inline.
-    env.write("config/fred/config.toml", "fullscreen = \"auto\"\n");
+    env.write(
+        "config/fred/config.toml",
+        "fullscreen = \"auto\"\nclipboard = false\n",
+    );
     assert!(run(&env, &["small.txt"]));
 }
 
@@ -561,15 +573,17 @@ fn space_p_finds_and_opens_a_file() {
     p.keys(&[" p", "trgrs"]);
     p.wait_text("src/deep/target.rs");
     p.wait_text("find> trgrs");
-    // Unsaved changes: the picker stays and says why.
+    // Unsaved changes stay in a.txt's buffer; Ctrl-^ goes back to them.
     p.keys(&["\x1b", "x", " p", "trgrs", "\r"]);
-    p.wait_text("unsaved changes (:w first)");
-    p.wait_text("find> trgrs");
-    p.keys(&["\x1b", "u", " p", "trgrs", "\r"]);
     p.wait_text("fn found() {}");
     p.wait_text("\"src/deep/target.rs\" 1L");
+    p.keys(&["\x1e"]);
+    p.wait_text("irst");
     p.keys(&[":q\r"]);
+    p.wait_text("unsaved changes (q! to discard");
+    p.keys(&[":q!\r"]);
     assert_eq!(p.wait_exit(), 0);
+    assert_eq!(env.read("a.txt"), "first\n");
 }
 
 #[test]

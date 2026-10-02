@@ -149,6 +149,7 @@ fn mode_name(m: &Mode) -> &'static str {
             Kind::Lines => "LINES",
             Kind::Browse => "FILES",
             Kind::Recent => "RECENT",
+            Kind::Buffers => "BUFFERS",
         },
     }
 }
@@ -433,7 +434,10 @@ fn draw_picker(
 ) {
     let rows = area.height as usize;
     let off = (p.sel + 1).saturating_sub(rows);
-    let files = matches!(p.kind, Kind::Files | Kind::Browse | Kind::Recent);
+    let files = matches!(
+        p.kind,
+        Kind::Files | Kind::Browse | Kind::Recent | Kind::Buffers
+    );
     // The text area's highlighting ran first; don't lose its "not done".
     let mut incomplete = hl.incomplete();
     let started = std::time::Instant::now();
@@ -449,7 +453,12 @@ fn draw_picker(
                 None => Span::raw(" "),
             });
             if cfg.icons {
-                let (icon, color) = file_icon(&r.text);
+                // By path: a buffer row's text has its number in front.
+                let name = match r.path.file_name() {
+                    Some(n) if !r.text.ends_with('/') => n.to_string_lossy(),
+                    _ => r.text.as_str().into(),
+                };
+                let (icon, color) = file_icon(&name);
                 spans.push(Span::raw(" "));
                 spans.push(Span::styled(icon.to_string(), Style::default().fg(color)));
             }

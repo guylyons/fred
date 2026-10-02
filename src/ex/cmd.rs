@@ -40,6 +40,22 @@ pub enum ExEffect {
     Pwd,
     /// `:cd [dir]` (home without one).
     Cd(Option<String>),
+    /// `:b [N|name|#]`, `:bn`, `:bp`, `:bd[!] [N|name]`, `:ls`.
+    Buffer {
+        cmd: BufCmd,
+        arg: String,
+        force: bool,
+    },
+}
+
+/// Which buffer command.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BufCmd {
+    Go,
+    Next,
+    Prev,
+    Delete,
+    List,
 }
 
 /// What ex commands operate on: borrowed pieces of the editor.
@@ -234,6 +250,22 @@ fn file_command(st: &mut ExState, rest: &str, range: Option<Range>) -> Result<Ex
     let force = tail.starts_with('!');
     if force {
         tail = &tail[1..];
+    }
+    let buf_cmd = match name {
+        "b" | "buffer" => Some(BufCmd::Go),
+        "bn" | "bnext" => Some(BufCmd::Next),
+        "bp" | "bprevious" | "bN" | "bNext" => Some(BufCmd::Prev),
+        "bd" | "bdelete" => Some(BufCmd::Delete),
+        "ls" | "buffers" | "files" => Some(BufCmd::List),
+        _ => None,
+    };
+    // `:b2` and `:b#` need no space.
+    if let Some(cmd) = buf_cmd {
+        return Ok(ExEffect::Buffer {
+            cmd,
+            arg: tail.trim().to_string(),
+            force,
+        });
     }
     if !tail.is_empty() && !tail.starts_with(char::is_whitespace) {
         return Err(format!("unknown command: {rest}"));
@@ -653,6 +685,27 @@ mod tests {
                 force: true
             }
         );
+    }
+
+    #[test]
+    fn buffer_commands() {
+        let b = |cmd, arg: &str, force| {
+            Ok(ExEffect::Buffer {
+                cmd,
+                arg: arg.into(),
+                force,
+            })
+        };
+        assert_eq!(run_on("a", 0, "b2").2, b(BufCmd::Go, "2", false));
+        assert_eq!(run_on("a", 0, "b #").2, b(BufCmd::Go, "#", false));
+        assert_eq!(
+            run_on("a", 0, "buffer main").2,
+            b(BufCmd::Go, "main", false)
+        );
+        assert_eq!(run_on("a", 0, "bn").2, b(BufCmd::Next, "", false));
+        assert_eq!(run_on("a", 0, "bp").2, b(BufCmd::Prev, "", false));
+        assert_eq!(run_on("a", 0, "bd!").2, b(BufCmd::Delete, "", true));
+        assert_eq!(run_on("a", 0, "ls").2, b(BufCmd::List, "", false));
     }
 
     #[test]

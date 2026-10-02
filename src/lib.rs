@@ -1,6 +1,7 @@
 pub mod app;
 pub mod args;
 pub mod buffer;
+pub mod clipboard;
 pub mod complete;
 pub mod config;
 pub mod editor;

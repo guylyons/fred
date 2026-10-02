@@ -135,6 +135,7 @@ pub enum Kind {
     Lines,
     Browse,
     Recent,
+    Buffers,
 }
 
 /// One result: what to show and where it leads.
@@ -177,8 +178,9 @@ pub struct Picker {
     /// and every file below it once a name is being typed.
     listing: Option<(PathBuf, bool, Result<Vec<browse::Entry>, String>)>,
     walk: Option<Arc<Files>>,
-    /// Recent: the files, newest first, as shown (`~/…`) and where they are.
-    recent_files: Vec<(String, PathBuf)>,
+    /// Recent: the files, newest first, as shown (`~/…`) and where they
+    /// are. Buffers: the same, by last use, and each one's number.
+    recent_files: Vec<(String, PathBuf, usize)>,
 }
 
 impl Picker {
@@ -214,13 +216,14 @@ impl Picker {
             Kind::Lines => "lines> ",
             Kind::Browse => "find file: ",
             Kind::Recent => "recent> ",
+            Kind::Buffers => "buffer> ",
         }
     }
 
     /// Bring `rows` up to date; true if anything shown changed.
     fn update(&mut self, project: &Project, buf: &Buffer, now: Instant) -> bool {
         match self.kind {
-            Kind::Recent => {
+            Kind::Recent | Kind::Buffers => {
                 let q = &self.query.text;
                 if self.seen_files.as_ref().is_some_and(|s| s.0 == *q) {
                     return false;
@@ -245,7 +248,7 @@ impl Picker {
                         },
                         text: names[i].clone(),
                         path: self.recent_files[i].1.clone(),
-                        line: 0,
+                        line: self.recent_files[i].2,
                         col: 0,
                         code: None,
                     })
@@ -488,6 +491,17 @@ pub fn browse(ed: &mut Editor, dir: &std::path::Path) {
     }
 }
 
+/// `Space b` / `:ls`: pick from `list` (name, path, buffer number), most
+/// recently used first.
+pub fn buffers(ed: &mut Editor, list: Vec<(String, PathBuf, usize)>) {
+    open(ed, Kind::Buffers);
+    if let Mode::Pick(p) = &mut ed.mode {
+        p.recent_files = list;
+        p.seen_files = None;
+        p.update(&ed.project, &ed.buf, Instant::now());
+    }
+}
+
 fn set_query(p: &mut Picker, q: String) {
     p.query.cursor = q.len();
     p.query.text = q;
@@ -511,7 +525,7 @@ pub fn open(ed: &mut Editor, kind: Kind) {
         p.recent_files = list
             .into_iter()
             .filter(|f| Some(f) != me.as_ref() && f.is_file())
-            .map(|f| (browse::tilde(&f), f))
+            .map(|f| (browse::tilde(&f), f, 0))
             .collect();
     }
     p.update(&ed.project, &ed.buf, Instant::now());
@@ -571,6 +585,15 @@ pub fn pick_key(ed: &mut Editor, k: Key) {
             let q = browse::up(&p.query.text).unwrap();
             set_query(p, q);
             p.update(&ed.project, &ed.buf, Instant::now());
+        }
+        KeyCode::Enter if p.kind == Kind::Buffers => {
+            if let Some(r) = p.rows.get(p.sel) {
+                ed.pending_effect = Some(ExEffect::Buffer {
+                    cmd: crate::ex::BufCmd::Go,
+                    arg: r.line.to_string(),
+                    force: false,
+                });
+            }
         }
         KeyCode::Enter => {
             if let Some(r) = p.rows.get(p.sel) {

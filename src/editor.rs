@@ -120,6 +120,8 @@ pub struct Editor {
     /// Completion menu (Insert mode).
     pub popup: Option<Popup>,
     pub autocomplete: bool,
+    /// Share yanks and puts with the system clipboard.
+    pub clipboard: bool,
     /// Words from nearby files, filled in by a background thread.
     pub nearby: Arc<Mutex<Vec<String>>>,
     pub(crate) word_index: WordIndex,
@@ -154,6 +156,7 @@ impl Editor {
             vim: vim::State::default(),
             popup: None,
             autocomplete: true,
+            clipboard: false,
             nearby: Arc::default(),
             word_index: WordIndex::default(),
             git: crate::git::Gutter::default(),
@@ -161,6 +164,18 @@ impl Editor {
             cmd_history: vec![],
             search_history: vec![],
         }
+    }
+
+    /// Take over from `old` what belongs to the session rather than one
+    /// file: the register, last search, histories and project.
+    pub fn inherit(&mut self, old: &mut Editor) {
+        self.reg = std::mem::take(&mut old.reg);
+        self.last_pat = old.last_pat.take();
+        self.last_search_fwd = old.last_search_fwd;
+        self.project = Arc::clone(&old.project);
+        self.cmd_history = std::mem::take(&mut old.cmd_history);
+        self.search_history = std::mem::take(&mut old.search_history);
+        self.win_height = old.win_height;
     }
 
     pub fn handle_key(&mut self, k: Key) {

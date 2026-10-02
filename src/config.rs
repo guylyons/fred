@@ -21,6 +21,8 @@ pub struct Config {
     pub autocomplete: bool,
     /// File-type icons in the file pickers (needs a Nerd Font).
     pub icons: bool,
+    /// Share yanks and puts with the system clipboard.
+    pub clipboard: bool,
 }
 
 impl Default for Config {
@@ -35,6 +37,7 @@ impl Default for Config {
             tabstop: 8,
             autocomplete: true,
             icons: false,
+            clipboard: true,
         }
     }
 }
@@ -136,7 +139,14 @@ mod tests {
         assert!(Config::parse("fullscreen = \"big\"").1.is_some());
         assert_eq!(c.tabstop, 8);
         assert_eq!(c.theme, "ansi");
-        assert!(c.numbers && !c.relative_numbers && !c.wrap && c.autocomplete && !c.icons);
+        assert!(
+            c.numbers
+                && !c.relative_numbers
+                && !c.wrap
+                && c.autocomplete
+                && !c.icons
+                && c.clipboard
+        );
     }
 
     #[test]

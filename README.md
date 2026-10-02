@@ -62,6 +62,8 @@ fred [-i | -f] [--height N] [+LINE] [FILE | DIR]
 `x X s S r{c} J`, `p P`, `o O i a I A`, `u` (undo) and `Ctrl-R` (redo), `.`
 (repeat the last change), `m{a-z}` (set a mark), `V` (visual-line mode, then
 `d c y J :`).
+Yanks and deletes go to the system clipboard too, and `p`/`P` put what
+another app copied since (`clipboard = false` keeps them to fred).
 
 **In Insert mode:** completions pop up as you type. `Tab`/`Ctrl-N` selects the
 next suggestion and `Shift-Tab`/`Ctrl-P` the previous one. `Enter` accepts a
@@ -93,6 +95,8 @@ Space is the leader key (`l` still moves right).
   directory, `~/` jumps home, and `Enter` on a name that doesn't exist
   starts a new file. It starts in the current file's directory; `fred DIR`
   and `:e DIR` open it too. Dotfiles show once you type a `.`.
+- `Space b` lists the open buffers, the one you were in last first;
+  type to filter. `Ctrl-^` (`Ctrl-6`) goes straight back to that one.
 - `Space r` lists recently opened files (any project), newest first;
   type to filter.
 - `Space k` searches the lines of the file you're editing, like swiper:
@@ -106,7 +110,8 @@ at the bottom next to the prompt;
 `Up`/`Ctrl-P` and `Down`/`Ctrl-N` move the selection, `Enter` opens it and
 `Esc` goes back. The project is the enclosing git repo (or the current
 directory), `.gitignore` is respected, and grep skips binary files and files
-over 1 MB. With unsaved changes fred won't switch files: `:w` first.
+over 1 MB. Opening another file keeps this one open as a buffer, unsaved
+changes and all.
 
 ## `:` commands
 
@@ -118,8 +123,12 @@ follow their lines as you edit.
 |---|---|
 | `w [file]`, `w!` | write (`w!` overrides change detection) |
 | `wq`, `x` | write and quit (`x` writes only if there are changes) |
-| `q`, `q!` | quit (`q!` discards changes) |
-| `e[!] [file]` | edit another file; with no file, reload this one (`e!` discards changes) |
+| `q`, `q!` | quit; `q` refuses while any buffer has unsaved changes, `q!` discards them |
+| `e[!] [file]` | edit another file (this one stays open as a buffer); with no file, reload this one. `e!` discards this file's changes |
+| `b N`, `b name`, `b#` | go to buffer N, the one whose name contains `name`, or the one before (`b2` works too) |
+| `bn`, `bp` | next, previous buffer |
+| `bd[!] [N]` | close a buffer (`bd!` discards its changes) |
+| `ls` | pick a buffer (like `Space b`) |
 | `[range]s/re/rep/[g]` | substitute; `&` and `\1`–`\9` in `rep`, `\n` or `\r` splits the line |
 | `[range]d` | delete lines |
 | `[range]j` | join lines |
@@ -205,6 +214,7 @@ theme = "ansi"           # any bat theme name, e.g. "Nord", "Dracula", "gruvbox-
 tabstop = 8
 autocomplete = true      # pop up completions while typing (Ctrl-N works either way)
 icons = false            # file-type icons in the file pickers (needs a Nerd Font)
+clipboard = true         # yank, delete and put use the system clipboard
 ```
 
 ## Development

@@ -40,7 +40,7 @@ impl Env {
         // covered in e2e.rs); `config` keeps this line too.
         fs::write(
             dir.path().join("config/fred/config.toml"),
-            "fullscreen = false\n",
+            "fullscreen = false\nclipboard = false\n",
         )
         .unwrap();
         Env { dir }
@@ -2029,9 +2029,7 @@ fn edit_other_file_with_and_without_bang() {
     env.write("b.rs", "fn b() {}\n");
     let mut p = env.fred(&["a.txt"]);
     p.wait_text("NORMAL");
-    p.keys(&["x", ":e b.rs\r"]);
-    assert_eq!(cmd_row(&p), "? unsaved changes (e! to discard)");
-    assert!(status_row(&p).contains("a.txt [+]"));
+    p.keys(&["x"]);
     wait_until("swap", Duration::from_secs(3), || {
         env.swap_files().len() == 1
     });

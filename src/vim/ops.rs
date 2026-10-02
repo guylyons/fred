@@ -168,10 +168,13 @@ fn word_class(g: &str, big: bool) -> u8 {
 pub fn apply_op(ed: &mut Editor, op: char, sp: Span) {
     match sp {
         Span::Lines(lo, hi) => {
-            ed.reg = Register {
-                text: lines_text(ed, lo, hi),
-                linewise: true,
-            };
+            set_reg(
+                ed,
+                Register {
+                    text: lines_text(ed, lo, hi),
+                    linewise: true,
+                },
+            );
             match op {
                 'y' => {
                     if lo < ed.cur.line {
@@ -195,18 +198,24 @@ pub fn apply_op(ed: &mut Editor, op: char, sp: Span) {
             if op == 'y' {
                 let s = ed.buf.pos_to_char(from.0, from.1);
                 let e = ed.buf.pos_to_char(to.0, to.1);
-                ed.reg = Register {
-                    text: ed.buf.slice(s, e),
-                    linewise: false,
-                };
+                set_reg(
+                    ed,
+                    Register {
+                        text: ed.buf.slice(s, e),
+                        linewise: false,
+                    },
+                );
                 ed.set_cursor(from.0, from.1);
                 return;
             }
             let removed = delete_chars(ed, from, to);
-            ed.reg = Register {
-                text: removed,
-                linewise: false,
-            };
+            set_reg(
+                ed,
+                Register {
+                    text: removed,
+                    linewise: false,
+                },
+            );
             if op == 'c' {
                 ed.mode = Mode::Insert;
             }
@@ -219,7 +228,22 @@ pub fn apply_op(ed: &mut Editor, op: char, sp: Span) {
     }
 }
 
+/// Set the register, and the system clipboard with it.
+fn set_reg(ed: &mut Editor, reg: Register) {
+    if ed.clipboard {
+        crate::clipboard::set(&reg);
+    }
+    ed.reg = reg;
+}
+
 pub fn put(ed: &mut Editor, count: usize, after: bool) {
+    // Something copied in another app since our last yank wins.
+    if ed.clipboard
+        && let Some(c) = crate::clipboard::get()
+        && c != crate::clipboard::to_clip(&ed.reg)
+    {
+        ed.reg = crate::clipboard::from_clip(&c);
+    }
     let reg = ed.reg.clone();
     if reg.text.is_empty() && !reg.linewise {
         return;

@@ -201,7 +201,11 @@ fn parse(keys: &[Key]) -> Parse<Cmd> {
         Parse::Incomplete => return Parse::Incomplete,
         Parse::Invalid => {}
     }
-    let simple_ctrl = k.ctrl && matches!(k.code, KeyCode::Char('r' | 'd' | 'u' | 'f' | 'b'));
+    let simple_ctrl = k.ctrl
+        && matches!(
+            k.code,
+            KeyCode::Char('r' | 'd' | 'u' | 'f' | 'b' | '^' | '6')
+        );
     let simple_key = matches!(
         k.code,
         KeyCode::PageUp | KeyCode::PageDown | KeyCode::Delete
@@ -472,6 +476,14 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
     match (key.code, key.ctrl) {
         // Undo/redo would corrupt the history while a change is open.
         (KeyCode::Char('r'), true) | (KeyCode::Char('u'), false) if ed.undo.in_group() => {}
+        // Ctrl-^ (Ctrl-6 on most terminals): the buffer before this one.
+        (KeyCode::Char('^' | '6'), true) => {
+            ed.pending_effect = Some(ExEffect::Buffer {
+                cmd: crate::ex::BufCmd::Go,
+                arg: "#".into(),
+                force: false,
+            })
+        }
         (KeyCode::Char('r'), true) => {
             for i in 0..n {
                 match ed.undo.redo(&mut ed.buf) {
@@ -562,7 +574,7 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
         (KeyCode::Char(':'), false) => ed.open_cmdline(':', ""),
         // Space is the leader: `Space p` finds files, `Space g` greps,
         // `Space k` searches this file's lines, `Space j` browses files,
-        // `Space r` lists recent files,
+        // `Space r` lists recent files, `Space b` open buffers,
         // `Space Enter` saves,
         // `Space ;` closes.
         (KeyCode::Char(' '), false) => match arg {
@@ -570,6 +582,13 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
             Some('g') => crate::pick::open(ed, crate::pick::Kind::Grep),
             Some('k') => crate::pick::open(ed, crate::pick::Kind::Lines),
             Some('r') => crate::pick::open(ed, crate::pick::Kind::Recent),
+            Some('b') => {
+                ed.pending_effect = Some(ExEffect::Buffer {
+                    cmd: crate::ex::BufCmd::List,
+                    arg: String::new(),
+                    force: false,
+                })
+            }
             // Find-file from the current file's directory (else the cwd).
             Some('j') => {
                 let dir = ed
