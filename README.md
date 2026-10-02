@@ -129,6 +129,7 @@ follow their lines as you edit.
 | `[range]w file` | write just those lines to another file |
 | `!cmd` | run a shell command (`$SHELL`), then press Enter to come back |
 | `[range]!cmd` | filter lines through a command: `%!sort`, `'<,'>!column -t` |
+| `[range]ai ask` | have Claude rewrite the lines (it sees the whole file): `'<,'>ai make this async`. Runs `claude -p --tools ''`, or `$FRED_AI` |
 | `r file`, `r !cmd` | insert a file, or a command's output, below the line |
 | `pwd`, `cd [dir]` | show or change the directory (`cd` alone goes home); `Space p` and `Space g` follow it |
 

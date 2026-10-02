@@ -243,6 +243,14 @@ fn file_command(st: &mut ExState, rest: &str, range: Option<Range>) -> Result<Ex
         let at = range.map_or(st.cur, |r| r.end);
         return read(st, at, arg);
     }
+    if name == "ai" {
+        let r = range.unwrap_or(Range {
+            start: st.cur,
+            end: st.cur,
+        });
+        let cmd = std::env::var("FRED_AI").unwrap_or_else(|_| "claude -p --tools ''".into());
+        return ai(st, r, arg, &cmd);
+    }
     if arg.starts_with('!') {
         return Err("shell commands are not supported here".into());
     }
@@ -280,6 +288,46 @@ fn file_command(st: &mut ExState, rest: &str, range: Option<Range>) -> Result<Ex
 fn filter(st: &mut ExState, r: Range, cmd: &str) -> Result<ExEffect, String> {
     let input: String = st.lines(r).iter().map(|l| format!("{l}\n")).collect();
     let out = crate::shell::capture(cmd, Some(input))?;
+    replace(st, r, &out)
+}
+
+/// `:[range]ai what to do`: Claude (`cmd`, prompt on stdin) rewrites the
+/// lines, seeing the whole file for context.
+// ponytail: blocks the UI until the answer comes, like `:!` filters; run it
+// in the background if that grates.
+fn ai(st: &mut ExState, r: Range, ask: &str, cmd: &str) -> Result<ExEffect, String> {
+    if ask.is_empty() {
+        return Err("say what to change: :ai make this async".into());
+    }
+    let name = st
+        .file
+        .as_ref()
+        .map_or("an unnamed file".into(), |p| p.display().to_string());
+    let (a, b) = (r.start + 1, r.end + 1);
+    let sel: String = st.lines(r).iter().map(|l| format!("{l}\n")).collect();
+    let prompt = format!(
+        "You are editing {name} in a text editor. The whole file is below for \
+         context, then the selected lines {a}-{b}. Rewrite only the selected \
+         lines as asked, matching the file's style and indentation. Reply with \
+         just the new text for those lines: no explanation, no code fences, no \
+         line numbers.\n\nAsked: {ask}\n\n<file>\n{}\n</file>\n\n\
+         <selection lines=\"{a}-{b}\">\n{sel}</selection>\n",
+        st.buf.text()
+    );
+    let out = crate::shell::capture(cmd, Some(prompt))?;
+    replace(st, r, unfence(&out))
+}
+
+/// The reply without a ```lang … ``` wrapper, if it added one anyway.
+fn unfence(s: &str) -> &str {
+    s.trim()
+        .strip_prefix("```")
+        .and_then(|t| t.strip_suffix("```"))
+        .map_or(s, |t| t.split_once('\n').map_or("", |(_, body)| body))
+}
+
+/// Replace the lines with `out`'s, cursor on the last new one.
+fn replace(st: &mut ExState, r: Range, out: &str) -> Result<ExEffect, String> {
     let lines: Vec<String> = out.lines().map(String::from).collect();
     let n = lines.len();
     st.splice(r.start, r.end - r.start + 1, lines);
@@ -625,6 +673,29 @@ mod tests {
         r.unwrap();
         assert!(x.undo.undo(&mut x.buf).is_some());
         assert_eq!(x.buf.text(), "c\nb\na");
+    }
+
+    #[test]
+    fn ai_sees_the_file_and_replaces_the_lines() {
+        let mut x = T {
+            buf: Buffer::from_text("fn a() {}\nfn b() {}\nfn c() {}"),
+            undo: Undo::default(),
+            marks: HashMap::new(),
+            last_pat: None,
+        };
+        let mut st = ExState::new(&mut x.buf, &mut x.undo, 0, &x.marks, &mut x.last_pat);
+        st.file = Some("src/x.rs".into());
+        let r = Range { start: 1, end: 1 };
+        // The prompt carries the file, the selection and the ask; a fenced
+        // reply is unwrapped.
+        let cmd = r#"p=$(cat); for w in src/x.rs 'fn c()' 'Asked: rename' 'lines="2-2"'; do
+                       printf %s "$p" | grep -qF "$w" || exit 1; done
+                     printf '```rust\nfn bee() {}\n```\n'"#;
+        assert_eq!(ai(&mut st, r, "rename", cmd), Ok(ExEffect::None));
+        assert_eq!(st.buf.text(), "fn a() {}\nfn bee() {}\nfn c() {}");
+        assert!(ai(&mut st, r, "", "cat").is_err());
+        assert_eq!(unfence("  x\n"), "  x\n");
+        assert_eq!(unfence("```\n  x\n```\n"), "  x\n");
     }
 
     #[test]
