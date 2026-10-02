@@ -1,5 +1,6 @@
 use fred::args::{self, ArgsOrInfo};
 use fred::config::Config;
+use std::io::Write;
 
 fn main() {
     let argv: Vec<String> = std::env::args_os()
@@ -23,7 +24,8 @@ fn main() {
             match fred::app::run(a, cfg, err) {
                 Ok(c) => c,
                 Err(e) => {
-                    eprintln!("fred: {e}");
+                    // Not eprintln!: with the terminal gone it would panic.
+                    let _ = writeln!(std::io::stderr(), "fred: {e}");
                     1
                 }
             }

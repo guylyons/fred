@@ -30,6 +30,9 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 const TICK: Duration = Duration::from_millis(50);
 const HIGHLIGHT_BUDGET: Duration = Duration::from_millis(20);
+/// How long to wait for more pending input before drawing. Not zero: with
+/// `use-dev-tty`, crossterm's poll reads nothing when given no time.
+const BATCH: Duration = Duration::from_millis(1);
 
 type Term = Terminal<CrosstermBackend<Stdout>>;
 
@@ -191,6 +194,17 @@ pub fn map_key(k: KeyEvent) -> Option<Key> {
     Some(Key { code, ctrl, alt })
 }
 
+/// The terminal is gone: its window closed, or the other end of the pty.
+fn tty_hung_up() -> bool {
+    let mut p = libc::pollfd {
+        fd: libc::STDIN_FILENO,
+        events: libc::POLLIN,
+        revents: 0,
+    };
+    // SAFETY: one valid pollfd and a zero timeout.
+    unsafe { libc::poll(&mut p, 1, 0) == 1 && p.revents & libc::POLLHUP != 0 }
+}
+
 /// Put the terminal back the way the shell expects it.
 fn restore_terminal() {
     let _ = execute!(
@@ -219,7 +233,7 @@ fn install_panic_hook() {
             return;
         }
         restore_terminal();
-        println!();
+        let _ = writeln!(io::stdout());
         prev(info);
     }));
 }
@@ -265,9 +279,20 @@ fn ask_swap(
         )
     };
     let saved_msg = s.ed.msg.take();
+    let mut redraw = true;
     loop {
-        s.ed.msg = Some((prompt.clone(), false));
-        ui.draw(s, hl, cfg)?;
+        if redraw {
+            s.ed.msg = Some((prompt.clone(), false));
+            ui.draw(s, hl, cfg)?;
+        }
+        // Poll rather than block, to notice a terminal that went away.
+        redraw = event::poll(TICK)?;
+        if !redraw {
+            if tty_hung_up() {
+                return Ok(SwapChoice::Cancel);
+            }
+            continue;
+        }
         let Event::Key(k) = event::read()? else {
             continue;
         };
@@ -405,9 +430,12 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
             s.write_swap();
             let _ = ui.close();
             let note = PANIC_NOTE.lock().ok().and_then(|mut n| n.take());
-            eprintln!("fred: {}", note.as_deref().unwrap_or("panicked"));
+            // The terminal may be gone: a failed print must not panic again.
+            let mut err = io::stderr();
+            let _ = writeln!(err, "fred: {}", note.as_deref().unwrap_or("panicked"));
             if s.ed.buf.modified {
-                eprintln!(
+                let _ = writeln!(
+                    err,
                     "fred: crashed; unsaved changes are in {} (open the file again to recover them)",
                     s.swap_path.display()
                 );
@@ -419,7 +447,7 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
     if code == 0 {
         s.cleanup();
         if let Some(w) = &s.written {
-            println!("{w}");
+            let _ = writeln!(io::stdout(), "{w}");
         }
     }
     Ok(code)
@@ -465,7 +493,9 @@ fn event_loop(
             // Keep drawing while visible lines are still being highlighted.
             dirty = hl.incomplete();
         }
-        if stop.load(Ordering::Relaxed) {
+        // SIGTERM/SIGHUP, or a terminal that went away without a SIGHUP
+        // (crossterm then spins reading end-of-file at 100% CPU).
+        if stop.load(Ordering::Relaxed) || tty_hung_up() {
             s.write_swap();
             return Ok(1);
         }
@@ -481,7 +511,7 @@ fn event_loop(
                     break;
                 }
                 step(s, hl, ev, &mut resized);
-                if s.quit || !event::poll(Duration::ZERO)? {
+                if s.quit || !event::poll(BATCH)? {
                     break;
                 }
             }
