@@ -3,6 +3,7 @@
   <img src="https://img.shields.io/badge/Rust-2024_edition-b7410e?logo=rust&logoColor=white" alt="Rust 2024 edition">
   <a href="https://ratatui.rs"><img src="https://img.shields.io/badge/Built_With_Ratatui-000?logo=ratatui&logoColor=fff" alt="Built with Ratatui"></a>
   <img src="https://img.shields.io/badge/platform-macOS_%7C_Linux-555" alt="macOS | Linux">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
   <a href="https://github.com/guylyons/fred/commits/main"><img src="https://img.shields.io/github/last-commit/guylyons/fred" alt="Last commit"></a>
 </p>
 
@@ -281,3 +282,7 @@ checks the cursor, undo/redo and file-format invariants after every key;
 resizes, two freds on one file, long lines, wrap mode, performance).
 
 The design spec is in `docs/superpowers/specs/2026-10-01-fred-design.md`.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
