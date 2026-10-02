@@ -136,7 +136,7 @@ pub enum Kind {
     Browse,
     Recent,
     Buffers,
-    /// Lines of every buffer (`Space b`).
+    /// Lines of every buffer (`Space B`).
     AllLines,
 }
 
@@ -514,7 +514,7 @@ pub fn buffers(ed: &mut Editor, list: Vec<(String, PathBuf, usize)>) {
     }
 }
 
-/// `Space b`: search the lines of `bufs` (name, path, text), this one first.
+/// `Space B`: search the lines of `bufs` (name, path, text), this one first.
 pub fn all_lines(ed: &mut Editor, bufs: Vec<(String, PathBuf, ropey::Rope)>) {
     open(ed, Kind::AllLines);
     if let Mode::Pick(p) = &mut ed.mode {

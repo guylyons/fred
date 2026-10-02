@@ -785,7 +785,7 @@ impl Session {
         }
     }
 
-    /// `Space b`: search the lines of every buffer, this one first, then
+    /// `Space B`: search the lines of every buffer, this one first, then
     /// the others by last use (unnamed ones but this one left out).
     fn search_buffers(&mut self) {
         let abs = |ed: &Editor| ed.path.as_deref().and_then(|p| std::path::absolute(p).ok());
@@ -1386,12 +1386,12 @@ mod tests {
     }
 
     #[test]
-    fn space_b_searches_every_buffer() {
+    fn space_shift_b_searches_every_buffer() {
         let mut t = T::open(Some("a"), Some("one\nneedle a\n"));
         let b = t.dir.path().join("b");
         fs::write(&b, "x\ny\nneedle b\n").unwrap();
         t.keys(&format!(":e {}<Enter>:b1<Enter>", b.display()));
-        t.keys(" bneedle");
+        t.keys(" Bneedle");
         let Mode::Pick(p) = &t.s.ed.mode else {
             panic!("no picker")
         };
@@ -1403,10 +1403,22 @@ mod tests {
         assert_eq!((t.s.ed.path.as_ref(), t.s.ed.cur.pos()), (Some(&b), (2, 0)));
         assert_eq!(t.s.ed.last_pat.as_deref(), Some("needle"));
         // This buffer's line, with nothing typed: the cursor just moves.
-        t.keys(" b<Enter>");
+        t.keys(" B<Enter>");
         assert_eq!((t.s.ed.path.as_ref(), t.s.ed.cur.pos()), (Some(&b), (2, 0)));
-        t.keys("gg b<Down><Down><Enter>");
+        t.keys("gg B<Down><Down><Enter>");
         assert_eq!(t.s.ed.cur.pos(), (2, 0));
+        // Space b lists the buffers themselves, like :ls.
+        t.keys(" b");
+        let Mode::Pick(p) = &t.s.ed.mode else {
+            panic!("no buffer list")
+        };
+        let rows: Vec<&str> = p.rows.iter().map(|r| r.text.as_str()).collect();
+        assert_eq!(rows.len(), 2, "{rows:?}");
+        t.keys("<Esc>:ls<Enter>");
+        let Mode::Pick(q) = &t.s.ed.mode else {
+            panic!("no :ls list")
+        };
+        assert_eq!(q.rows.len(), 2);
     }
 
     #[test]

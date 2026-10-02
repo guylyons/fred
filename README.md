@@ -95,10 +95,11 @@ Space is the leader key (`l` still moves right).
   directory, `~/` jumps home, and `Enter` on a name that doesn't exist
   starts a new file. It starts in the current file's directory; `fred DIR`
   and `:e DIR` open it too. Dotfiles show once you type a `.`.
-- `Space b` searches the lines of every open buffer, like `Space k`: this
-  buffer's matches nearest the prompt, then the others'. `Enter` goes to
-  that buffer and line. `:ls` lists the buffers themselves, and `Ctrl-^`
+- `Space b` lists the open buffers (like `:ls`); type to filter. `Ctrl-^`
   (`Ctrl-6`) goes straight back to the one you were in before.
+- `Space B` searches the lines of every open buffer, like `Space k`: this
+  buffer's matches nearest the prompt, then the others'. `Enter` goes to
+  that buffer and line.
 - `Space r` lists recently opened files (any project), newest first;
   type to filter.
 - `Space k` searches the lines of the file you're editing, like swiper:

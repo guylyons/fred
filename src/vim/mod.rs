@@ -574,7 +574,8 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
         (KeyCode::Char(':'), false) => ed.open_cmdline(':', ""),
         // Space is the leader: `Space p` finds files, `Space g` greps,
         // `Space k` searches this file's lines, `Space j` browses files,
-        // `Space r` lists recent files, `Space b` searches open buffers,
+        // `Space r` lists recent files, `Space b` lists open buffers,
+        // `Space B` searches their lines,
         // `Space Enter` saves,
         // `Space ;` closes.
         (KeyCode::Char(' '), false) => match arg {
@@ -582,9 +583,13 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
             Some('g') => crate::pick::open(ed, crate::pick::Kind::Grep),
             Some('k') => crate::pick::open(ed, crate::pick::Kind::Lines),
             Some('r') => crate::pick::open(ed, crate::pick::Kind::Recent),
-            Some('b') => {
+            Some(c @ ('b' | 'B')) => {
                 ed.pending_effect = Some(ExEffect::Buffer {
-                    cmd: crate::ex::BufCmd::Search,
+                    cmd: if c == 'b' {
+                        crate::ex::BufCmd::List
+                    } else {
+                        crate::ex::BufCmd::Search
+                    },
                     arg: String::new(),
                     force: false,
                 })

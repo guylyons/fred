@@ -1,4 +1,4 @@
-//! `Space k`: lines of the current buffer, swiper-style; `Space b`: of
+//! `Space k`: lines of the current buffer, swiper-style; `Space B`: of
 //! every buffer.
 
 use super::Row;
