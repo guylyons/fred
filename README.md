@@ -4,7 +4,7 @@ A text editor for quick edits. You move and edit with vim keys, and `:` takes
 ed-style commands with full ed addresses. Completion, syntax highlighting, a
 fuzzy file finder and project grep are built in.
 
-![fred editing a Rust file](docs/screenshot.png)
+![Dr. Fred](docs/dr-fred.png)
 
 fred runs fullscreen, like vim. Like `ed`, it can instead live in your shell
 prompt (`-i`, or `fullscreen = false` in the config): a small window right
