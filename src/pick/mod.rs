@@ -1,5 +1,7 @@
-//! Pickers: files (`Space p`), grep (`Space g`), lines of this file (`Space k`).
+//! Pickers: files (`Space p`), grep (`Space g`), lines of this file
+//! (`Space k`), and find-file browsing (`Space j`, `fred DIR`).
 
+pub mod browse;
 pub mod files;
 pub mod fuzzy;
 pub mod grep;
@@ -70,6 +72,7 @@ pub enum Kind {
     Files,
     Grep,
     Lines,
+    Browse,
 }
 
 /// One result: what to show and where it leads.
@@ -103,6 +106,8 @@ pub struct Picker {
     changed: Instant,
     /// Lines: the cursor's line when the picker opened.
     origin: usize,
+    /// Browse: the directory listed last, and its entries.
+    listing: Option<(PathBuf, Result<Vec<browse::Entry>, String>)>,
 }
 
 impl Picker {
@@ -124,6 +129,7 @@ impl Picker {
             started: None,
             changed: Instant::now(),
             origin,
+            listing: None,
         }
     }
 
@@ -132,12 +138,72 @@ impl Picker {
             Kind::Files => "find> ",
             Kind::Grep => "grep> ",
             Kind::Lines => "lines> ",
+            Kind::Browse => "find file: ",
         }
     }
 
     /// Bring `rows` up to date; true if anything shown changed.
     fn update(&mut self, project: &Project, buf: &Buffer, now: Instant) -> bool {
         match self.kind {
+            Kind::Browse => {
+                let q = self.query.text.clone();
+                if self.seen_files.as_ref().is_some_and(|s| s.0 == q) {
+                    return false;
+                }
+                self.seen_files = Some((q.clone(), 0, true));
+                self.sel = 0;
+                let (d, name) = browse::split(&q);
+                let dir = browse::resolve(d);
+                if self.listing.as_ref().is_none_or(|l| l.0 != dir) {
+                    self.listing = Some((dir.clone(), browse::list(&dir)));
+                }
+                let entries = match &self.listing.as_ref().unwrap().1 {
+                    Ok(e) => e,
+                    Err(e) => {
+                        self.rows.clear();
+                        self.status = e.clone();
+                        self.err = true;
+                        return true;
+                    }
+                };
+                // Dotfiles only once the name being typed starts with a dot.
+                let shown: Vec<&browse::Entry> = entries
+                    .iter()
+                    .filter(|e| name.starts_with('.') || !e.name.starts_with('.'))
+                    .collect();
+                let mut fz = fuzzy::Fuzzy::new(name);
+                let mut hits: Vec<(u32, &browse::Entry)> = shown
+                    .iter()
+                    .filter_map(|e| fz.score(&e.name).map(|s| (s, *e)))
+                    .collect();
+                // Stable: equal scores keep directories first, then by name.
+                hits.sort_by_key(|&(s, _)| std::cmp::Reverse(s));
+                self.rows = hits
+                    .iter()
+                    .map(|(_, e)| Row {
+                        hl: if name.is_empty() {
+                            vec![]
+                        } else {
+                            fz.ranges(&e.name)
+                        },
+                        text: if e.dir {
+                            format!("{}/", e.name)
+                        } else {
+                            e.name.clone()
+                        },
+                        path: dir.join(&e.name),
+                        line: 0,
+                        col: 0,
+                    })
+                    .collect();
+                self.err = false;
+                self.status = if self.rows.is_empty() && !name.is_empty() {
+                    format!("new file: {name}")
+                } else {
+                    format!("{}/{}", self.rows.len(), shown.len())
+                };
+                true
+            }
             Kind::Lines => {
                 let q = &self.query.text;
                 if self.seen_files.as_ref().is_some_and(|s| s.0 == *q) {
@@ -271,6 +337,20 @@ fn grep_row(h: &grep::Hit, root: &std::path::Path) -> Row {
     }
 }
 
+/// Find-file starting in `dir` (`Space j`, `fred DIR`, `:e DIR`).
+pub fn browse(ed: &mut Editor, dir: &std::path::Path) {
+    open(ed, Kind::Browse);
+    if let Mode::Pick(p) = &mut ed.mode {
+        set_query(p, browse::show(dir));
+        p.update(&ed.project, &ed.buf, Instant::now());
+    }
+}
+
+fn set_query(p: &mut Picker, q: String) {
+    p.query.cursor = q.len();
+    p.query.text = q;
+}
+
 /// `Space p` / `Space g` / `Space k`.
 pub fn open(ed: &mut Editor, kind: Kind) {
     let mut p = Picker::new(kind, &ed.project, ed.cur.line);
@@ -297,6 +377,41 @@ pub fn pick_key(ed: &mut Editor, k: Key) {
                 ed.set_cursor(line, col);
             }
         }
+        KeyCode::Enter | KeyCode::Tab if p.kind == Kind::Browse => {
+            let (d, name) = browse::split(&p.query.text);
+            let (d, name) = (d.to_string(), name.to_string());
+            let target = match p.rows.get(p.sel) {
+                // A directory: go in.
+                Some(r) if r.text.ends_with('/') => {
+                    set_query(p, format!("{d}{}", r.text));
+                    p.update(&ed.project, &ed.buf, Instant::now());
+                    return;
+                }
+                // Tab on a file completes its name.
+                Some(r) if k.code == KeyCode::Tab => {
+                    set_query(p, format!("{d}{}", r.text));
+                    p.update(&ed.project, &ed.buf, Instant::now());
+                    return;
+                }
+                Some(r) => r.path.clone(),
+                // Nothing matches: a new file of that name.
+                None if !name.is_empty() && k.code == KeyCode::Enter => {
+                    browse::resolve(&d).join(name)
+                }
+                None => return,
+            };
+            ed.pending_effect = Some(ExEffect::Open {
+                path: target,
+                line: 0,
+                col: 0,
+                pattern: None,
+            });
+        }
+        KeyCode::Backspace if p.kind == Kind::Browse && browse::up(&p.query.text).is_some() => {
+            let q = browse::up(&p.query.text).unwrap();
+            set_query(p, q);
+            p.update(&ed.project, &ed.buf, Instant::now());
+        }
         KeyCode::Enter => {
             if let Some(r) = p.rows.get(p.sel) {
                 ed.pending_effect = Some(ExEffect::Open {
@@ -315,6 +430,11 @@ pub fn pick_key(ed: &mut Editor, k: Key) {
         _ => {
             let before = p.query.text.clone();
             p.query.edit(k);
+            if p.kind == Kind::Browse
+                && let Some(q) = browse::restart(&p.query.text)
+            {
+                set_query(p, q);
+            }
             if p.query.text != before {
                 p.changed = Instant::now();
                 p.update(&ed.project, &ed.buf, p.changed);

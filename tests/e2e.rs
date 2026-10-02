@@ -418,13 +418,28 @@ fn survives_resize() {
 }
 
 #[test]
-fn startup_errors() {
+fn fred_dir_browses_and_opens_a_file() {
     let env = Env::new();
-    fs::create_dir(env.path("adir")).unwrap();
+    fs::create_dir_all(env.path("adir/sub")).unwrap();
+    env.write("adir/sub/deep.txt", "found it\n");
+    env.write("adir/top.txt", "top\n");
     let mut p = env.fred(&["adir"]);
-    assert_eq!(p.wait_exit(), 1);
-    assert!(p.screen().contains("is a directory"), "{}", p.screen());
+    // (The prompt scrolls: a temp dir's path is wider than the terminal.)
+    p.wait_text(" FILES ");
+    p.wait_text("sub/");
+    p.wait_text("top.txt");
+    p.keys(&["su", "\r", "de", "\r"]);
+    p.wait_text("found it");
+    p.wait_text("adir/sub/deep.txt\" 1L");
+    // Space j browses again, from this file's directory.
+    p.keys(&[" j"]);
+    p.wait_text("deep.txt");
+    p.keys(&["\x1b", ":q\r"]);
+    assert_eq!(p.wait_exit(), 0);
+}
 
+#[test]
+fn startup_errors() {
     let out = std::process::Command::new(BIN)
         .arg("f")
         .stdin(std::process::Stdio::piped())
@@ -535,6 +550,82 @@ fn space_k_finds_a_line_in_the_file() {
     p.wait_text("81:5");
     p.keys(&[":q\r"]);
     assert_eq!(p.wait_exit(), 0);
+}
+
+/// Closing the terminal (a killed parent, a crashed test harness) without
+/// a SIGHUP used to leave fred spinning at 100% CPU forever.
+#[test]
+fn exits_when_the_terminal_goes_away() {
+    use std::os::fd::{FromRawFd, OwnedFd};
+    use std::os::unix::process::CommandExt;
+    let env = Env::new();
+    env.write("f.txt", "keep me\n");
+    let (mut m, mut s) = (0, 0);
+    let ws = libc::winsize {
+        ws_row: ROWS,
+        ws_col: COLS,
+        ws_xpixel: 0,
+        ws_ypixel: 0,
+    };
+    // SAFETY: openpty fills in two new descriptors, owned below.
+    let r = unsafe {
+        libc::openpty(
+            &mut m,
+            &mut s,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            &ws as *const _ as *mut _,
+        )
+    };
+    assert_eq!(r, 0);
+    // fred must not inherit our end, or it would keep its own terminal open.
+    // SAFETY: setting a flag on a descriptor we own.
+    unsafe { libc::fcntl(m, libc::F_SETFD, libc::FD_CLOEXEC) };
+    let (master, slave) = unsafe { (fs::File::from_raw_fd(m), OwnedFd::from_raw_fd(s)) };
+    let mut cmd = std::process::Command::new(BIN);
+    cmd.arg("f.txt")
+        .current_dir(env.dir.path())
+        .env_clear()
+        .env("TERM", "xterm-256color")
+        .env("HOME", env.path("home"))
+        .env("XDG_STATE_HOME", env.path("state"))
+        .env("XDG_CONFIG_HOME", env.path("config"))
+        .stdin(slave.try_clone().unwrap())
+        .stdout(slave.try_clone().unwrap())
+        .stderr(slave);
+    // SAFETY: only async-signal-safe calls between fork and exec.
+    unsafe {
+        cmd.pre_exec(|| {
+            libc::setsid();
+            libc::ioctl(0, libc::TIOCSCTTY as _, 0);
+            Ok(())
+        });
+    }
+    let mut child = cmd.spawn().unwrap();
+    // Wait for the first frame, then close our end of the terminal.
+    let mut seen = Vec::new();
+    let mut reader = master.try_clone().unwrap();
+    let start = Instant::now();
+    while !String::from_utf8_lossy(&seen).contains("NORMAL") {
+        assert!(start.elapsed() < Duration::from_secs(10), "no first frame");
+        let mut b = [0u8; 4096];
+        let n = reader.read(&mut b).unwrap();
+        seen.extend_from_slice(&b[..n]);
+    }
+    drop(reader);
+    drop(master);
+    let start = Instant::now();
+    let status = loop {
+        if let Some(st) = child.try_wait().unwrap() {
+            break st;
+        }
+        if start.elapsed() > Duration::from_secs(5) {
+            let _ = child.kill();
+            panic!("fred kept running after its terminal closed");
+        }
+        thread::sleep(Duration::from_millis(20));
+    };
+    assert_eq!(status.code(), Some(1), "{status:?}");
 }
 
 /// Prints what the window looks like (run with `--ignored --nocapture`).

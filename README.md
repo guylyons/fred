@@ -36,12 +36,13 @@ cargo install --path .
 ## Usage
 
 ```
-fred [--inline] [--height N] [+LINE] [FILE]
+fred [-i | --inline] [--height N] [+LINE] [FILE | DIR]
 ```
 
 - `FILE` doesn't have to exist; it's created on the first `:w`.
 - `+LINE` starts on that line; `+` alone starts on the last line.
-- `--inline` opens the window under your prompt instead of fullscreen.
+- `DIR` (say `fred .`) opens the file browser there instead of a file.
+- `-i`/`--inline` opens the window under your prompt instead of fullscreen.
 - `--height N` (inline) shows N lines of text (default 12); `--height max`
   uses the whole terminal, leaving your prompt visible. The window starts as
   small as the file and grows as the file gets longer.
@@ -65,6 +66,7 @@ cursor and `Ctrl-U` deletes to the start of the line. Pasted text goes in
 exactly as pasted.
 
 `ZZ` saves (if there are changes) and quits; `ZQ` quits without saving.
+`Space Enter` saves (`:w`) and `Space ;` closes (`:q`).
 `Ctrl-Z` suspends fred; `fg` brings it back.
 
 ## Finding files and grepping
@@ -76,6 +78,12 @@ Space is the leader key (`l` still moves right).
   see the files you opened most recently first.
 - `Space g` greps the project as you type, with the same regex rules as `/`.
   `Enter` opens the file on the match, and `n` goes on to the next one.
+- `Space j` browses files like Emacs's find-file with vertico: the prompt
+  is a path, and what you type after the last `/` filters that directory.
+  `Enter` or `Tab` on a directory goes in, `Backspace` after a `/` goes up a
+  directory, `~/` jumps home, and `Enter` on a name that doesn't exist
+  starts a new file. It starts in the current file's directory; `fred DIR`
+  and `:e DIR` open it too. Dotfiles show once you type a `.`.
 - `Space k` searches the lines of the file you're editing, like swiper:
   every space-separated word must appear in the line, in any order (each is
   a regex). Matches are listed in file order, starting at the cursor; `Enter`

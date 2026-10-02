@@ -331,3 +331,27 @@ fn jj_leaves_insert() {
     // A `j` from an earlier insert doesn't pair with the next one.
     assert_eq!(ed("abc", "ij<Esc>ij").mode, Mode::Insert);
 }
+
+#[test]
+fn space_enter_saves_and_space_semicolon_closes() {
+    use crate::ex::ExEffect;
+    let e = ed("abc", " <Enter>");
+    assert!(
+        matches!(
+            e.pending_effect,
+            Some(ExEffect::Write {
+                path: None,
+                force: false,
+                range: None,
+                then_quit: false
+            })
+        ),
+        "{:?}",
+        e.pending_effect
+    );
+    assert_eq!(
+        ed("abc", " ;").pending_effect,
+        Some(ExEffect::Quit { force: false })
+    );
+    assert_eq!(ed("abc", " x").pending_effect, None);
+}

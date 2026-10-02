@@ -167,6 +167,9 @@ impl Session {
         cfg: &Config,
         swap_dir: &Path,
     ) -> Result<(Session, Option<SwapInfo>), String> {
+        // `fred DIR`: an empty buffer, browsing DIR.
+        let browse = path.clone().filter(|p| p.is_dir());
+        let path = if browse.is_some() { None } else { path };
         let o = open_file(path.as_deref(), cfg)?;
         let swap_path = swap::swap_path_in(swap_dir, path.as_deref());
         let mut s = Session {
@@ -186,13 +189,17 @@ impl Session {
             swap_state: SwapState::None,
             swap_error_shown: false,
         };
-        let dir =
+        let dir = browse.clone().or_else(|| {
             s.ed.path
                 .as_deref()
                 .and_then(|p| std::path::absolute(p).ok())
-                .and_then(|p| p.parent().map(Path::to_path_buf));
+                .and_then(|p| p.parent().map(Path::to_path_buf))
+        });
         s.ed.project = std::sync::Arc::new(crate::pick::Project::new(dir, Some(s.recent_file())));
         s.note_recent();
+        if let Some(d) = &browse {
+            crate::pick::browse(&mut s.ed, d);
+        }
         let info = s.leftover_swap();
         Ok((s, info))
     }
@@ -399,6 +406,10 @@ impl Session {
     }
 
     fn edit_path(&mut self, p: PathBuf, then: Option<Goto>) {
+        if p.is_dir() {
+            crate::pick::browse(&mut self.ed, &p);
+            return;
+        }
         let o = match open_file(Some(&p), &self.cfg) {
             Ok(o) => o,
             Err(e) => {
@@ -1019,7 +1030,7 @@ mod tests {
         t.keys(" g");
         assert!(matches!(t.s.ed.mode, Mode::Pick(_)));
         t.s.perform(ExEffect::Open {
-            path: t.dir.path().to_path_buf(),
+            path: t.dir.path().join("a/x"),
             line: 0,
             col: 0,
             pattern: None,

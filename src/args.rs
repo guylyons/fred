@@ -6,7 +6,7 @@ pub const USAGE: &str = "usage: fred [--inline] [--height N] [+LINE] [FILE]
 
   FILE          file to edit (created on first write if missing)
   +LINE         start on line LINE; + alone starts on the last line
-  --inline      edit in a window under the prompt instead of fullscreen
+  -i, --inline  edit in a window under the prompt instead of fullscreen
   --height N    inline, showing N lines of text, or `max` (default 12)
   -h, --help    show this help
   -V, --version show the version
@@ -59,7 +59,7 @@ pub fn parse(args: Vec<String>) -> Result<ArgsOrInfo, String> {
                     only_files = true;
                     continue;
                 }
-                "--inline" => {
+                "-i" | "--inline" => {
                     out.inline = true;
                     continue;
                 }
@@ -145,7 +145,7 @@ mod tests {
             matches!(parse(v(&["--height", "max"])), Ok(ArgsOrInfo::Run(a)) if a.height == Some(usize::MAX))
         );
         assert!(
-            matches!(parse(v(&["--inline", "f"])), Ok(ArgsOrInfo::Run(a)) if a.inline && a.file.is_some())
+            matches!(parse(v(&["-i", "f"])), Ok(ArgsOrInfo::Run(a)) if a.inline && a.file.is_some())
         );
         assert!(parse(v(&["--bogus"])).is_err());
         assert!(parse(v(&["+x"])).is_err());

@@ -312,3 +312,22 @@ fn sideways_scrolled_line_with_tabs_and_wide_chars() {
     // last column, which belongs to the › marker.
     assert_eq!(s.row(0), format!("  1 ab      {} ›", "漢".repeat(8)));
 }
+
+#[test]
+fn status_line_colors_the_mode() {
+    use ratatui::style::Color;
+    let mut s = Screen::new(40, 5);
+    let cell = |s: &Screen, x: u16| s.term.backend().buffer()[(x, 3)].clone();
+    let mut e = editor("a\nb", "");
+    s.draw(&e);
+    assert_eq!(cell(&s, 1).bg, Color::Blue);
+    assert_eq!(cell(&s, 30).bg, Color::DarkGray);
+    e.handle_key(crate::key::Key::ch('i'));
+    s.draw(&e);
+    assert_eq!(cell(&s, 1).bg, Color::Green);
+    e.handle_key(crate::key::Key::ch('x'));
+    s.draw(&e);
+    let row = s.row(3);
+    let plus = row.find("[+]").unwrap() as u16;
+    assert_eq!(cell(&s, plus).fg, Color::LightYellow, "{row}");
+}

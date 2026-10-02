@@ -129,6 +129,7 @@ fn mode_name(m: &Mode) -> &'static str {
             Kind::Files => "FIND",
             Kind::Grep => "GREP",
             Kind::Lines => "LINES",
+            Kind::Browse => "FILES",
         },
     }
 }
@@ -279,36 +280,65 @@ pub fn draw(
     }
 }
 
+/// The mode's colour on the status line (the terminal's own palette).
+fn mode_color(m: &Mode) -> Color {
+    match m {
+        Mode::Normal => Color::Blue,
+        Mode::Insert => Color::Green,
+        Mode::VisualLine { .. } => Color::Magenta,
+        Mode::Command(_) => Color::Yellow,
+        Mode::Pick(_) => Color::Cyan,
+    }
+}
+
 fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter) {
     let y = area.y + area.height - 2;
-    let bar = Style::default().add_modifier(Modifier::REVERSED);
-    let name = ed
-        .path
-        .as_ref()
-        .map_or_else(|| "[No Name]".to_string(), |p| p.display().to_string());
-    let modified = if ed.buf.modified { " [+]" } else { "" };
-    let ro = if ed.readonly { " [RO]" } else { "" };
-    let left = match &ed.mode {
+    let bar = Style::default().bg(Color::DarkGray).fg(Color::White);
+    let bold = bar.add_modifier(Modifier::BOLD);
+    let mode = Style::default()
+        .bg(mode_color(&ed.mode))
+        .fg(Color::Black)
+        .add_modifier(Modifier::BOLD);
+    let mut left = vec![
+        Span::styled(format!(" {} ", mode_name(&ed.mode)), mode),
+        Span::styled(" ", bar),
+    ];
+    let mut right = vec![];
+    match &ed.mode {
         // An error from opening the pick (unsaved changes) replaces the count.
         Mode::Pick(p) => match &ed.msg {
-            Some((m, true)) => format!(" {}  {m}", mode_name(&ed.mode)),
-            _ => format!(" {}  {}", mode_name(&ed.mode), p.status),
+            Some((m, true)) => left.push(Span::styled(m.clone(), bar.fg(Color::LightRed))),
+            _ if p.err => left.push(Span::styled(p.status.clone(), bar.fg(Color::LightRed))),
+            _ => left.push(Span::styled(p.status.clone(), bar)),
         },
-        _ => format!(" {}  {name}{modified}{ro}", mode_name(&ed.mode)),
-    };
-    let line = ed.buf.line(ed.cur.line);
-    let col = col_of_byte(&line, ed.cur.byte, ed.tabstop) + 1;
-    let ft = match hl.syntax_name() {
-        "Plain Text" => String::new(),
-        s => format!("{}  ", s.to_lowercase()),
-    };
-    let right = format!("{ft}{}:{col} ", ed.cur.line + 1);
+        _ => {
+            let name = ed
+                .path
+                .as_ref()
+                .map_or_else(|| "[No Name]".to_string(), |p| p.display().to_string());
+            left.push(Span::styled(name, bold));
+            if ed.buf.modified {
+                left.push(Span::styled(" [+]", bar.fg(Color::LightYellow)));
+            }
+            if ed.readonly {
+                left.push(Span::styled(" [RO]", bar.fg(Color::LightRed)));
+            }
+            let line = ed.buf.line(ed.cur.line);
+            let col = col_of_byte(&line, ed.cur.byte, ed.tabstop) + 1;
+            if hl.syntax_name() != "Plain Text" {
+                let ft = format!("{}  ", hl.syntax_name().to_lowercase());
+                right.push(Span::styled(ft, bar.fg(Color::Gray)));
+            }
+            right.push(Span::styled(format!("{}:{col} ", ed.cur.line + 1), bold));
+        }
+    }
     let w = area.width as usize;
-    let rw = display_width(&right, 1, 0);
+    let rw: usize = right.iter().map(|s| display_width(&s.content, 1, 0)).sum();
     buf.set_stringn(area.x, y, " ".repeat(w), w, bar);
-    buf.set_stringn(area.x, y, &left, w.saturating_sub(rw + 1).max(1), bar);
+    let lw = w.saturating_sub(rw + 1).max(1);
+    buf.set_line(area.x, y, &Line::from(left), lw as u16);
     if rw < w {
-        buf.set_stringn(area.x + (w - rw) as u16, y, &right, rw, bar);
+        buf.set_line(area.x + (w - rw) as u16, y, &Line::from(right), rw as u16);
     }
 }
 

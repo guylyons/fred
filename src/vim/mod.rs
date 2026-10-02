@@ -211,7 +211,11 @@ fn parse(keys: &[Key]) -> Parse<Cmd> {
             if ARG_CMDS.contains(&c) {
                 return match keys.get(i + 1) {
                     None => Parse::Incomplete,
-                    Some(a) => match a.char() {
+                    // `Space Enter` saves: Enter is the leader's one non-char key.
+                    Some(a) => match a
+                        .char()
+                        .or((c == ' ' && a.is(KeyCode::Enter)).then_some('\n'))
+                    {
                         Some(ch) => Parse::Done(Cmd::Simple {
                             count: c1,
                             key: *k,
@@ -557,11 +561,32 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
         }
         (KeyCode::Char(':'), false) => ed.open_cmdline(':', ""),
         // Space is the leader: `Space p` finds files, `Space g` greps,
-        // `Space k` searches this file's lines.
+        // `Space k` searches this file's lines, `Space j` browses files,
+        // `Space Enter` saves,
+        // `Space ;` closes.
         (KeyCode::Char(' '), false) => match arg {
             Some('p') => crate::pick::open(ed, crate::pick::Kind::Files),
             Some('g') => crate::pick::open(ed, crate::pick::Kind::Grep),
             Some('k') => crate::pick::open(ed, crate::pick::Kind::Lines),
+            // Find-file from the current file's directory (else the cwd).
+            Some('j') => {
+                let dir = ed
+                    .path
+                    .as_deref()
+                    .and_then(|p| std::path::absolute(p).ok())
+                    .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
+                    .unwrap_or_else(|| std::path::PathBuf::from("."));
+                crate::pick::browse(ed, &dir);
+            }
+            Some('\n') => {
+                ed.pending_effect = Some(ExEffect::Write {
+                    path: None,
+                    force: false,
+                    range: None,
+                    then_quit: false,
+                })
+            }
+            Some(';') => ed.pending_effect = Some(ExEffect::Quit { force: false }),
             _ => {}
         },
         (KeyCode::Char(c @ ('/' | '?')), false) => ed.open_cmdline(c, ""),

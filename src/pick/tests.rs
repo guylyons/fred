@@ -175,3 +175,57 @@ fn space_k_jumps_to_a_line_in_this_file() {
     keys(&mut ed, "gg kbeta<Esc>");
     assert_eq!((ed.mode.clone(), ed.cur.line), (Mode::Normal, 0));
 }
+
+#[test]
+fn browse_like_find_file() {
+    let (d, mut ed) = setup(&[
+        ("src/main.rs", ""),
+        ("src/lib.rs", ""),
+        ("README.md", ""),
+        (".hidden", ""),
+    ]);
+    browse(&mut ed, d.path());
+    let start = browse::show(d.path());
+    let p = picker(&ed);
+    assert_eq!(
+        (p.kind, p.query.text.clone()),
+        (Kind::Browse, start.clone())
+    );
+    let names: Vec<&str> = p.rows.iter().map(|r| r.text.as_str()).collect();
+    // Directories first; dotfiles (`.git/`, `.hidden`) hidden.
+    assert_eq!(names, ["src/", "README.md"]);
+    // Into a directory with Enter; Tab completes a file's name.
+    keys(&mut ed, "sr<Enter>");
+    assert_eq!(picker(&ed).query.text, format!("{start}src/"));
+    keys(&mut ed, "ma<Tab>");
+    assert_eq!(picker(&ed).query.text, format!("{start}src/main.rs"));
+    keys(&mut ed, "<Enter>");
+    assert_eq!(
+        ed.pending_effect.take(),
+        Some(ExEffect::Open {
+            path: browse::resolve(&start).join("src/main.rs"),
+            line: 0,
+            col: 0,
+            pattern: None
+        })
+    );
+    // Backspace after a `/` goes up a directory.
+    keys(&mut ed, "<C-u>");
+    keys(&mut ed, &format!("{start}src/<BS>"));
+    assert_eq!(picker(&ed).query.text, start);
+    // Dotfiles once the name starts with a dot.
+    keys(&mut ed, ".h");
+    assert_eq!(picker(&ed).rows[0].text, ".hidden");
+    // No match: Enter opens a new file of that name.
+    keys(&mut ed, "<C-u>");
+    keys(&mut ed, &format!("{start}brand-new.txt<Enter>"));
+    assert!(picker(&ed).status.starts_with("new file"));
+    assert!(matches!(
+        ed.pending_effect.take(),
+        Some(ExEffect::Open { path, .. }) if path == browse::resolve(&start).join("brand-new.txt")
+    ));
+    // `~/` starts over at home.
+    keys(&mut ed, "<C-u>");
+    keys(&mut ed, &format!("{start}~/"));
+    assert_eq!(picker(&ed).query.text, "~/");
+}
