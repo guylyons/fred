@@ -142,7 +142,7 @@ mod tests {
             fs::create_dir_all(p.parent().unwrap()).unwrap();
             fs::write(p, t).unwrap();
         }
-        let f = Files::spawn(dir.path().to_path_buf());
+        let f = Files::spawn(dir.path().to_path_buf(), false);
         (dir, f)
     }
 

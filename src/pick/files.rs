@@ -15,6 +15,8 @@ pub fn project_root(dir: &Path, cwd: &Path) -> PathBuf {
 #[derive(Debug)]
 pub struct Files {
     pub root: PathBuf,
+    /// Ignore files (`.gitignore` and the like) are not honored.
+    pub all: bool,
     list: Mutex<Vec<String>>,
     done: AtomicBool,
     truncated: AtomicBool,
@@ -30,9 +32,10 @@ impl PartialEq for Files {
 impl Eq for Files {}
 
 impl Files {
-    pub fn spawn(root: PathBuf) -> Arc<Files> {
+    pub fn spawn(root: PathBuf, all: bool) -> Arc<Files> {
         let files = Arc::new(Files {
             root,
+            all,
             list: Mutex::default(),
             done: AtomicBool::new(false),
             truncated: AtomicBool::new(false),
@@ -48,6 +51,8 @@ impl Files {
         let mut total = 0;
         let walk = ignore::WalkBuilder::new(&self.root)
             .require_git(false)
+            .standard_filters(!self.all)
+            .hidden(true)
             .sort_by_file_name(|a, b| a.cmp(b))
             .build();
         for e in walk.filter_map(Result::ok) {
@@ -123,10 +128,16 @@ mod tests {
         fs::write(r.join("src/main.rs"), "").unwrap();
         fs::write(r.join("target/out"), "").unwrap();
         fs::write(r.join("b.txt"), "").unwrap();
-        let f = Files::spawn(r.to_path_buf());
+        let f = Files::spawn(r.to_path_buf(), false);
         f.wait();
         assert_eq!(f.with(<[String]>::to_vec), ["b.txt", "src/main.rs"]);
         assert!(!f.truncated());
+        let f = Files::spawn(r.to_path_buf(), true);
+        f.wait();
+        assert_eq!(
+            f.with(<[String]>::to_vec),
+            ["b.txt", "src/main.rs", "target/out"]
+        );
     }
 
     #[test]
@@ -135,7 +146,7 @@ mod tests {
         for i in 0..2000 {
             fs::write(dir.path().join(format!("f{i}")), "").unwrap();
         }
-        let f = Files::spawn(dir.path().to_path_buf());
+        let f = Files::spawn(dir.path().to_path_buf(), false);
         let weak = Arc::downgrade(&f);
         drop(f);
         // The walker notices it is alone and lets the list go.

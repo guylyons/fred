@@ -141,6 +141,23 @@ fn grep_a_pattern() {
 }
 
 #[test]
+fn ctrl_o_searches_ignored_files_too() {
+    let (_d, mut ed) = setup(&[
+        (".gitignore", "/core\n"),
+        ("core/lib.php", "function boot() {}\n"),
+        ("index.php", "boot();\n"),
+    ]);
+    keys(&mut ed, " gboot");
+    settle(&mut ed, |p| p.status == "1 matches");
+    keys(&mut ed, "<C-o>");
+    settle(&mut ed, |p| p.status == "2 matches [all]");
+    keys(&mut ed, "<Esc> p");
+    settle(&mut ed, |p| p.status == "2/2 [all]");
+    keys(&mut ed, "<C-o>");
+    settle(&mut ed, |p| p.status == "1/1");
+}
+
+#[test]
 fn bad_pattern_keeps_results() {
     let (_d, mut ed) = setup(&[("a", "foo(\n")]);
     keys(&mut ed, " gfoo");

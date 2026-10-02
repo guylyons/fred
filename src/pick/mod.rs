@@ -19,7 +19,7 @@ use grep::Grep;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 /// Grep starts this long after the last keystroke.
@@ -33,7 +33,7 @@ pub struct Project {
     /// Where to look for the repo: the edited file's directory.
     dir: Option<PathBuf>,
     pub recent_file: Option<PathBuf>,
-    files: OnceLock<Arc<Files>>,
+    files: Mutex<Option<Arc<Files>>>,
     pub grep: Arc<Grep>,
     /// `git status` per repository root, loading in the background (for
     /// the dots in the file pickers), and "one has just loaded".
@@ -53,12 +53,19 @@ impl Project {
     }
 
     /// The file list, walked on first use.
-    pub fn files(&self) -> &Arc<Files> {
-        self.files.get_or_init(|| {
+    pub fn files(&self) -> Arc<Files> {
+        let mut f = self.files.lock().unwrap();
+        Arc::clone(f.get_or_insert_with(|| {
             let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
             let dir = self.dir.clone().unwrap_or_else(|| cwd.clone());
-            Files::spawn(files::project_root(&dir, &cwd))
-        })
+            Files::spawn(files::project_root(&dir, &cwd), false)
+        }))
+    }
+
+    /// Walk again, honoring ignore files or (`all`) not.
+    fn set_all(&self, all: bool) {
+        let root = self.files().root.clone();
+        *self.files.lock().unwrap() = Some(Files::spawn(root, all));
     }
 
     /// `path`'s state in `git status` (for a directory: of anything inside
@@ -119,7 +126,7 @@ impl Project {
         let Some(f) = &self.recent_file else {
             return HashMap::new();
         };
-        let root = &self.files().root;
+        let root = &self.files().root.clone();
         recent::load(f)
             .iter()
             .filter_map(|p| p.strip_prefix(root).ok()?.to_str().map(str::to_string))
@@ -290,7 +297,7 @@ impl Picker {
                 // Typing a name searches every file below, as consult does.
                 let walk = (!name.is_empty()).then(|| {
                     if self.walk.as_ref().is_none_or(|w| w.root != dir) {
-                        self.walk = Some(Files::spawn(dir.clone()));
+                        self.walk = Some(Files::spawn(dir.clone(), false));
                     }
                     Arc::clone(self.walk.as_ref().unwrap())
                 });
@@ -430,7 +437,7 @@ impl Picker {
                 } else {
                     "…"
                 };
-                self.status = format!("{matched}/{n}{more}");
+                self.status = format!("{matched}/{n}{more}{}", all_tag(&files));
                 self.sel = self.sel.min(self.rows.len().saturating_sub(1));
                 true
             }
@@ -456,7 +463,7 @@ impl Picker {
                     match re {
                         Ok(re) => {
                             self.err = false;
-                            project.grep.start(re, Arc::clone(files));
+                            project.grep.start(re, Arc::clone(&files));
                         }
                         Err(e) => {
                             // Keep the last results; say why they didn't change.
@@ -517,12 +524,17 @@ impl Picker {
                     (true, _) => format!("{n}+ {what}"),
                     (_, true) => format!("{n} {what}"),
                     _ => format!("{n} {what}…"),
-                };
+                } + all_tag(&files);
                 self.sel = self.sel.min(self.rows.len().saturating_sub(1));
                 true
             }
         }
     }
+}
+
+/// Marks a list that ignores `.gitignore` (`Ctrl-o`).
+fn all_tag(files: &Files) -> &'static str {
+    if files.all { " [all]" } else { "" }
 }
 
 fn grep_row(h: &grep::Hit, root: &std::path::Path) -> Row {
@@ -754,6 +766,12 @@ pub fn pick_key(ed: &mut Editor, k: Key) {
                     },
                 });
             }
+        }
+        // Search ignored files too (or stop): Drupal core, vendor/, ….
+        KeyCode::Char('o') if k.ctrl && matches!(p.kind, Kind::Files | Kind::Grep | Kind::Def) => {
+            ed.project.set_all(!ed.project.files().all);
+            p.started = None;
+            p.update(&ed.project, &ed.buf, Instant::now());
         }
         // Best is at the bottom: Up goes to worse matches.
         KeyCode::Up => p.sel = (p.sel + 1).min(p.rows.len().saturating_sub(1)),

@@ -87,6 +87,9 @@ Space is the leader key (`l` still moves right).
   see the files you opened most recently first.
 - `Space g` greps the project as you type, with the same regex rules as `/`.
   `Enter` opens the file on the match, and `n` goes on to the next one.
+- Both skip what `.gitignore` ignores. `Ctrl-o` in either one also searches
+  ignored files (Drupal core, `vendor/`), marked `[all]`, until you press it
+  again.
 - `Space d` (or `gd`) goes to the definition of the word under the cursor,
   in any language, without a language server: it greps the project for
   lines that define it (`fn`, `def`, `class`, `func`, `const`, `let`, JS
