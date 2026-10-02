@@ -427,6 +427,7 @@ impl Editor {
             &self.marks,
             &mut self.last_pat,
         );
+        st.file = self.path.clone();
         let r = ex::run(&mut st, text);
         let new_cur = st.cur;
         match r {

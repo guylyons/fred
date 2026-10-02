@@ -786,6 +786,39 @@ fn file_pickers_dot_changed_files() {
     assert_eq!(p.wait_exit(), 0);
 }
 
+#[test]
+fn shell_pwd_and_cd() {
+    let env = Env::new();
+    env.write("f.txt", "abc\n");
+    fs::create_dir(env.path("sub")).unwrap();
+    let mut p = env.fred(&["f.txt"]);
+    p.wait_text("NORMAL");
+    // :! hands over the terminal, then waits for Enter.
+    p.keys(&[":!echo hello-from-shell\r"]);
+    p.wait_text("hello-from-shell");
+    p.wait_text("Press Enter to continue");
+    p.keys(&["\r"]);
+    p.wait_text("NORMAL");
+    // :cd and :pwd; the file keeps its own path.
+    p.keys(&[":cd sub\r"]);
+    p.wait_for("cd", |s| s.lines().any(|l| l.trim_end().ends_with("/sub")));
+    p.keys(&[":pwd\r"]);
+    p.wait_for("pwd", |s| s.lines().any(|l| l.trim_end().ends_with("/sub")));
+    p.keys(&["x", ":w\r"]);
+    // (The file's path is absolute now: `written` is past the edge.)
+    p.wait_text("f.txt\" 1L");
+    assert_eq!(env.read("f.txt"), "bc\n");
+    assert!(
+        !env.path("sub/f.txt").exists(),
+        "wrote into the new directory"
+    );
+    // A filter, from the editor.
+    p.keys(&["ofoo bar", "\x1b", ":.!tr a-z A-Z\r"]);
+    p.wait_text("FOO BAR");
+    p.keys(&[":q!\r"]);
+    assert_eq!(p.wait_exit(), 0);
+}
+
 /// Prints what the window looks like (run with `--ignored --nocapture`).
 #[test]
 #[ignore]

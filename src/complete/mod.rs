@@ -91,7 +91,7 @@ pub fn token_before(line: &str, byte: usize) -> Option<(usize, String, bool)> {
     (!w.is_empty()).then(|| (wstart, w.to_string(), false))
 }
 
-const COMMANDS: &[&str] = &["edit", "quit", "write", "wq", "xit"];
+const COMMANDS: &[&str] = &["cd", "edit", "pwd", "quit", "read", "write", "wq", "xit"];
 
 /// Full `:` lines that Tab can complete `text` to.
 pub fn cmdline_candidates(text: &str, cwd: &Path) -> Vec<String> {
@@ -106,7 +106,10 @@ pub fn cmdline_candidates(text: &str, cwd: &Path) -> Vec<String> {
         return vec![];
     };
     let name = cmd.trim_end_matches('!');
-    if !matches!(name, "w" | "write" | "wq" | "e" | "edit") {
+    if !matches!(
+        name,
+        "w" | "write" | "wq" | "e" | "edit" | "r" | "read" | "cd"
+    ) {
         return vec![];
     }
     let arg = arg.trim_start();

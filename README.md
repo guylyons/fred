@@ -125,6 +125,10 @@ follow their lines as you edit.
 | `[range]g/re/cmd`, `v/re/cmd` | run `cmd` on matching / non-matching lines |
 | `N` | go to line N |
 | `[range]w file` | write just those lines to another file |
+| `!cmd` | run a shell command (`$SHELL`), then press Enter to come back |
+| `[range]!cmd` | filter lines through a command: `%!sort`, `'<,'>!column -t` |
+| `r file`, `r !cmd` | insert a file, or a command's output, below the line |
+| `pwd`, `cd [dir]` | show or change the directory (`cd` alone goes home); `Space p` and `Space g` follow it |
 
 Patterns use Rust's [`regex`](https://docs.rs/regex) syntax, which is like
 extended regular expressions (ERE). `/` and `?` searches ignore case unless
@@ -132,6 +136,8 @@ the pattern has a capital letter. `:` commands match case exactly, as in ed,
 so a substitution never changes text you didn't spell; add `(?i)` to ignore
 case. `Tab` completes command names and file paths, and
 `Up`/`Down` go through the command history.
+
+In shell commands `%` is the current file's name (`\%` for a literal `%`).
 
 Each `:` command is a single undo step, even a `g` that changes 500 lines.
 

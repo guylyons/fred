@@ -345,16 +345,12 @@ fn step(s: &mut Session, hl: &mut Highlighter, ev: Event, resized: &mut bool) {
     }
 }
 
-fn suspend(ui: &mut Ui, s: &mut Session) -> Result<()> {
+/// Give the terminal to something else (`away`), then take it back. The
+/// swap is saved first, and the file checked for changes after.
+fn hand_over(ui: &mut Ui, s: &mut Session, away: impl FnOnce()) -> Result<()> {
     s.write_swap();
     ui.close()?;
-    // Stop the whole process group, as vim does: when fred runs under
-    // another program (git's $EDITOR), stopping only fred would leave that
-    // parent waiting and the terminal looking hung.
-    // SAFETY: sending a signal has no memory-safety preconditions.
-    unsafe {
-        libc::kill(0, libc::SIGTSTP);
-    }
+    away();
     ui.reopen()?;
     if let Some(p) = &s.ed.path
         && fileio::changed_on_disk(p, s.stamp.as_ref())
@@ -362,6 +358,36 @@ fn suspend(ui: &mut Ui, s: &mut Session) -> Result<()> {
         s.ed.set_err("file changed on disk since it was read");
     }
     Ok(())
+}
+
+fn suspend(ui: &mut Ui, s: &mut Session) -> Result<()> {
+    hand_over(ui, s, || {
+        // Stop the whole process group, as vim does: when fred runs under
+        // another program (git's $EDITOR), stopping only fred would leave
+        // that parent waiting and the terminal looking hung.
+        // SAFETY: sending a signal has no memory-safety preconditions.
+        unsafe {
+            libc::kill(0, libc::SIGTSTP);
+        }
+    })
+}
+
+/// `:!cmd`: run it on the real terminal, then wait for Enter, as vim does.
+fn run_shell(ui: &mut Ui, s: &mut Session, cmd: &str) -> Result<()> {
+    hand_over(ui, s, || {
+        let mut out = io::stdout();
+        let _ = writeln!(out, ":!{cmd}");
+        let note = match crate::shell::command(cmd).status() {
+            Ok(st) if st.success() => String::new(),
+            Ok(st) => st
+                .code()
+                .map_or("[killed] ".into(), |c| format!("[exit {c}] ")),
+            Err(e) => format!("[{e}] "),
+        };
+        let _ = write!(out, "\n{note}Press Enter to continue");
+        let _ = out.flush();
+        let _ = io::stdin().read_line(&mut String::new());
+    })
 }
 
 pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> {
@@ -536,6 +562,10 @@ fn event_loop(
         }
         if s.quit {
             return Ok(0);
+        }
+        if let Some(cmd) = s.pending_shell.take() {
+            run_shell(ui, s, &cmd)?;
+            dirty = true;
         }
         if let Some(pe) = s.pending_edit.clone() {
             let name = pe.path.display().to_string();

@@ -64,6 +64,8 @@ pub struct Session {
     pub no_swap: bool,
     /// `:e` into a file with a swap file: the caller asks what to do.
     pub pending_edit: Option<PendingEdit>,
+    /// `:!cmd` waiting for the app to hand it the terminal.
+    pub pending_shell: Option<String>,
     lossy: bool,
     cfg: Config,
     seen_version: u64,
@@ -183,6 +185,7 @@ impl Session {
             reloaded: false,
             no_swap: false,
             pending_edit: None,
+            pending_shell: None,
             lossy: o.lossy,
             cfg: cfg.clone(),
             last_change: None,
@@ -277,6 +280,12 @@ impl Session {
                 }
             }
             ExEffect::Edit { path, force } => self.edit(path.as_deref(), force),
+            ExEffect::Shell(cmd) => self.pending_shell = Some(cmd),
+            ExEffect::Pwd => match std::env::current_dir() {
+                Ok(d) => self.ed.set_msg(d.display().to_string()),
+                Err(e) => self.ed.set_err(fileio::err_msg(&e)),
+            },
+            ExEffect::Cd(dir) => self.cd(dir.as_deref()),
             ExEffect::Open {
                 path,
                 line,
@@ -411,6 +420,33 @@ impl Session {
             }
         };
         self.edit_path(p, None);
+    }
+
+    /// `:cd [dir]`: change directory (home without one). Relative paths,
+    /// `Space p` and `Space g` follow.
+    fn cd(&mut self, dir: Option<&str>) {
+        let to = dir.map_or_else(|| expand_tilde("~/"), expand_tilde);
+        // Pin the file's path first: `src/x.rs` must not come to mean a
+        // file in the new directory.
+        let file = self
+            .ed
+            .path
+            .as_deref()
+            .and_then(|p| std::path::absolute(p).ok());
+        if let Err(e) = std::env::set_current_dir(&to) {
+            self.ed
+                .set_err(format!("{}: {}", to.display(), fileio::err_msg(&e)));
+            return;
+        }
+        let cwd = std::env::current_dir().unwrap_or(to);
+        if let Some(f) = file {
+            self.ed.path = Some(f.strip_prefix(&cwd).map(Path::to_path_buf).unwrap_or(f));
+        }
+        self.ed.project = std::sync::Arc::new(crate::pick::Project::new(
+            Some(cwd.clone()),
+            Some(self.recent_file()),
+        ));
+        self.ed.set_msg(cwd.display().to_string());
     }
 
     /// Open a picker result. With unsaved changes the picker stays open.

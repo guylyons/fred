@@ -12,6 +12,7 @@ pub mod key;
 pub mod pick;
 pub mod search;
 pub mod session;
+pub mod shell;
 pub mod swap;
 pub mod text;
 pub mod ui;

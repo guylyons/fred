@@ -34,6 +34,12 @@ pub enum ExEffect {
         col: usize,
         pattern: Option<String>,
     },
+    /// `:!cmd`: run it with the terminal handed over.
+    Shell(String),
+    /// `:pwd`.
+    Pwd,
+    /// `:cd [dir]` (home without one).
+    Cd(Option<String>),
 }
 
 /// What ex commands operate on: borrowed pieces of the editor.
@@ -44,6 +50,8 @@ pub struct ExState<'a> {
     pub cur: usize,
     pub marks: &'a HashMap<char, usize>,
     pub last_pat: &'a mut Option<String>,
+    /// The file being edited, for `%` in shell commands.
+    pub file: Option<std::path::PathBuf>,
     /// Line splices applied by the running command: (at, removed, inserted).
     log: Vec<(usize, usize, usize)>,
 }
@@ -62,6 +70,7 @@ impl<'a> ExState<'a> {
             cur,
             marks,
             last_pat,
+            file: None,
             log: vec![],
         }
     }
@@ -137,6 +146,17 @@ fn run_one(st: &mut ExState, line: &str, in_global: bool) -> Result<ExEffect, St
         .next()
         .is_some_and(|d| !d.is_alphanumeric() && !d.is_whitespace() && d != '!');
     match c {
+        // `:!cmd` runs it; `:[range]!cmd` filters those lines through it.
+        '!' => {
+            let cmd = crate::shell::expand(after.trim(), st.file.as_deref())?;
+            if cmd.is_empty() {
+                return Err("command expected".into());
+            }
+            match range {
+                Some(r) => filter(st, r, &cmd),
+                None => Ok(ExEffect::Shell(cmd)),
+            }
+        }
         's' if delim_follows => substitute(st, range.unwrap_or(at_cur), after),
         'g' | 'v' if delim_follows => {
             if in_global {
@@ -200,12 +220,12 @@ fn run_one(st: &mut ExState, line: &str, in_global: bool) -> Result<ExEffect, St
             }
             Ok(ExEffect::None)
         }
-        _ if c.is_ascii_alphabetic() => file_command(rest, range),
+        _ if c.is_ascii_alphabetic() => file_command(st, rest, range),
         _ => Err(format!("unknown command: {c}")),
     }
 }
 
-fn file_command(rest: &str, range: Option<Range>) -> Result<ExEffect, String> {
+fn file_command(st: &mut ExState, rest: &str, range: Option<Range>) -> Result<ExEffect, String> {
     let name_end = rest
         .find(|c: char| !c.is_ascii_alphabetic())
         .unwrap_or(rest.len());
@@ -219,8 +239,12 @@ fn file_command(rest: &str, range: Option<Range>) -> Result<ExEffect, String> {
         return Err(format!("unknown command: {rest}"));
     }
     let arg = tail.trim();
+    if matches!(name, "r" | "read") {
+        let at = range.map_or(st.cur, |r| r.end);
+        return read(st, at, arg);
+    }
     if arg.starts_with('!') {
-        return Err("shell commands are not supported".into());
+        return Err("shell commands are not supported here".into());
     }
     let path = (!arg.is_empty()).then(|| arg.to_string());
     let no_arg = |e: ExEffect| {
@@ -246,8 +270,41 @@ fn file_command(rest: &str, range: Option<Range>) -> Result<ExEffect, String> {
         "x" | "xit" => no_arg(ExEffect::WriteIfModifiedQuit),
         "q" | "quit" => no_arg(ExEffect::Quit { force }),
         "e" | "edit" => Ok(ExEffect::Edit { path, force }),
+        "pwd" => no_arg(ExEffect::Pwd),
+        "cd" => Ok(ExEffect::Cd(path)),
         _ => Err(format!("unknown command: {name}")),
     }
+}
+
+/// `:[range]!cmd`: replace the lines with what `cmd` prints for them.
+fn filter(st: &mut ExState, r: Range, cmd: &str) -> Result<ExEffect, String> {
+    let input: String = st.lines(r).iter().map(|l| format!("{l}\n")).collect();
+    let out = crate::shell::capture(cmd, Some(input))?;
+    let lines: Vec<String> = out.lines().map(String::from).collect();
+    let n = lines.len();
+    st.splice(r.start, r.end - r.start + 1, lines);
+    st.cur = (r.start + n.saturating_sub(1)).min(st.buf.len_lines() - 1);
+    Ok(ExEffect::None)
+}
+
+/// `:r file` / `:r !cmd`: its lines, below line `at`.
+fn read(st: &mut ExState, at: usize, arg: &str) -> Result<ExEffect, String> {
+    let text = match arg.strip_prefix('!') {
+        Some(cmd) => {
+            let cmd = crate::shell::expand(cmd.trim(), st.file.as_deref())?;
+            crate::shell::capture(&cmd, None)?
+        }
+        None if arg.is_empty() => return Err("file name expected".into()),
+        None => std::fs::read_to_string(arg)
+            .map_err(|e| format!("{arg}: {}", crate::fileio::err_msg(&e)))?,
+    };
+    let lines: Vec<String> = text.lines().map(String::from).collect();
+    if lines.is_empty() {
+        return Ok(ExEffect::None);
+    }
+    st.splice(at + 1, 0, lines);
+    st.cur = at + 1;
+    Ok(ExEffect::None)
 }
 
 fn expand(rep: &str, caps: &Captures) -> String {
@@ -547,6 +604,75 @@ mod tests {
                 path: None,
                 force: true
             }
+        );
+    }
+
+    #[test]
+    fn filters_lines_through_a_command() {
+        assert_eq!(ex("c\nb\na", 0, "%!sort"), ("a\nb\nc".into(), 2));
+        assert_eq!(ex("x\nc\nb\ny", 0, "2,3!sort"), ("x\nb\nc\ny".into(), 2));
+        // Output can be longer or shorter.
+        assert_eq!(ex("a b", 0, ".!tr ' ' '\\n'").0, "a\nb");
+        assert_eq!(ex("a\nb\nc", 0, "%!head -1").0, "a");
+        // A failing command leaves the text alone and says why.
+        assert_eq!(
+            ex_err("a\nb", 0, "%!echo nope >&2; exit 1"),
+            Err("nope".into())
+        );
+        assert!(ex_err("a", 0, "%!").is_err());
+        // One undo step.
+        let (mut x, _, r) = run_on("c\nb\na", 0, "%!sort");
+        r.unwrap();
+        assert!(x.undo.undo(&mut x.buf).is_some());
+        assert_eq!(x.buf.text(), "c\nb\na");
+    }
+
+    #[test]
+    fn read_a_file_or_command() {
+        let d = tempfile::tempdir().unwrap();
+        let f = d.path().join("in.txt");
+        std::fs::write(&f, "one\ntwo\n").unwrap();
+        let cmd = format!("r {}", f.display());
+        assert_eq!(ex("a\nb", 0, &cmd), ("a\none\ntwo\nb".into(), 1));
+        assert_eq!(
+            ex("a\nb", 0, &format!("$r {}", f.display())).0,
+            "a\nb\none\ntwo"
+        );
+        assert_eq!(ex("a", 0, "r !printf 'x\\ny'").0, "a\nx\ny");
+        assert!(
+            ex_err("a", 0, "r /no/such/file")
+                .unwrap_err()
+                .contains("no such file")
+        );
+        assert!(ex_err("a", 0, "r").is_err());
+    }
+
+    #[test]
+    fn shell_pwd_and_cd_are_effects() {
+        assert_eq!(
+            run_on("a", 0, "!ls -l").2,
+            Ok(ExEffect::Shell("ls -l".into()))
+        );
+        assert_eq!(run_on("a", 0, "pwd").2, Ok(ExEffect::Pwd));
+        assert_eq!(run_on("a", 0, "cd").2, Ok(ExEffect::Cd(None)));
+        assert_eq!(
+            run_on("a", 0, "cd ~/x").2,
+            Ok(ExEffect::Cd(Some("~/x".into())))
+        );
+        assert!(run_on("a", 0, "!").2.is_err());
+        // `%` needs a file name.
+        assert!(run_on("a", 0, "!wc %").2.is_err());
+        let mut x = T {
+            buf: Buffer::from_text("a"),
+            undo: Undo::default(),
+            marks: HashMap::new(),
+            last_pat: None,
+        };
+        let mut st = ExState::new(&mut x.buf, &mut x.undo, 0, &x.marks, &mut x.last_pat);
+        st.file = Some("src/my file.rs".into());
+        assert_eq!(
+            run(&mut st, "!wc -l %"),
+            Ok(ExEffect::Shell("wc -l 'src/my file.rs'".into()))
         );
     }
 }
