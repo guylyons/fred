@@ -148,21 +148,19 @@ pub fn draw(
     if area.height == 0 || area.width == 0 {
         return;
     }
-    if let Mode::Pick(p) = &ed.mode {
-        let buf = f.buffer_mut();
-        draw_picker(buf, area, p);
-        if area.height >= 2 {
-            draw_status(buf, area, ed, hl);
-        }
-        let x = draw_input(buf, area, p.prompt(), &p.query);
-        f.set_cursor_position((area.x + x as u16, area.y + area.height - 1));
-        return;
-    }
     // Text rows; a terminal under 3 rows tall keeps only the bottom rows.
-    let rows = (area.height as usize).saturating_sub(2);
+    let text_rows = (area.height as usize).saturating_sub(2);
+    // A picker takes a panel at the bottom; the file stays as it was above.
+    let panel = match ed.mode {
+        Mode::Pick(_) => panel_rows(text_rows),
+        _ => 0,
+    };
+    let rows = text_rows - panel;
     let gutter = gutter_width(ed, cfg).min(area.width as usize / 2);
     let cols = (area.width as usize).saturating_sub(gutter).max(1);
-    view.scroll(ed, rows.max(1), cols, cfg.wrap);
+    if panel == 0 {
+        view.scroll(ed, rows.max(1), cols, cfg.wrap);
+    }
     let n = ed.line_count();
     let last = (view.top + rows).min(n);
     let styles = hl.styles(&ed.buf, view.top..last, budget);
@@ -256,6 +254,10 @@ pub fn draw(
         buf.set_stringn(ox, oy + y as u16, "~", 1, num_style);
         y += 1;
     }
+    if let Mode::Pick(p) = &ed.mode {
+        let list = Rect::new(ox, oy + rows as u16, area.width, panel as u16);
+        draw_picker(buf, list, p);
+    }
     if area.height >= 2 {
         draw_status(buf, area, ed, hl);
     }
@@ -348,6 +350,7 @@ fn draw_command_row(buf: &mut Screen, area: Rect, ed: &Editor) -> Option<usize> 
     let y = area.y + area.height - 1;
     let w = area.width as usize;
     match &ed.mode {
+        Mode::Pick(p) => Some(draw_input(buf, area, p.prompt(), &p.query)),
         Mode::Command(cl) => Some(draw_input(buf, area, cl.kind.encode_utf8(&mut [0; 4]), cl)),
         _ => {
             if let Some((m, err)) = &ed.msg {
@@ -383,9 +386,14 @@ fn draw_input(buf: &mut Screen, area: Rect, prompt: &str, cl: &CmdLine) -> usize
     ccol - skip
 }
 
-/// Picker results in the text rows, best at the bottom.
+/// Picker rows: up to 10, leaving at least 3 rows of the file when there's room.
+fn panel_rows(text_rows: usize) -> usize {
+    text_rows.saturating_sub(3).max(text_rows.min(3)).min(10)
+}
+
+/// Picker results in `area` (the panel), best at the bottom.
 fn draw_picker(buf: &mut Screen, area: Rect, p: &Picker) {
-    let rows = (area.height as usize).saturating_sub(2);
+    let rows = area.height as usize;
     let off = (p.sel + 1).saturating_sub(rows);
     let matched = Style::default()
         .fg(Color::Yellow)

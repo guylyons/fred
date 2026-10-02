@@ -331,3 +331,25 @@ fn status_line_colors_the_mode() {
     let plus = row.find("[+]").unwrap() as u16;
     assert_eq!(cell(&s, plus).fg, Color::LightYellow, "{row}");
 }
+
+#[test]
+fn picker_is_a_panel_under_the_file() {
+    let mut s = Screen::new(40, 20);
+    let text: String = (1..=30).map(|i| format!("line {i}\n")).collect();
+    let mut e = editor(&text, "");
+    s.draw(&e);
+    let before: Vec<String> = (0..18).map(|y| s.row(y)).collect();
+    for k in parse_keys(" k") {
+        e.handle_key(k);
+    }
+    s.draw(&e);
+    // 18 text rows: the top 8 still show the file exactly as before,
+    // the bottom 10 are the picker: lines in file order from the cursor's.
+    for y in 0..8 {
+        assert_eq!(s.row(y), before[y as usize], "row {y}");
+    }
+    assert!(s.row(8).starts_with(">  1: line 1"), "{}", s.row(8));
+    assert!(s.row(17).starts_with("  10: line 10"), "{}", s.row(17));
+    assert!(s.row(18).contains("LINES"), "{}", s.row(18));
+    assert!(s.row(19).starts_with("lines>"), "{}", s.row(19));
+}
