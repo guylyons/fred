@@ -2108,6 +2108,8 @@ fn start_line_and_height_arguments() {
         (&["--height", "3", "n.txt"][..], 1, 1, 3),
         (&["--height", "3", "+25", "n.txt"][..], 24, 25, 3),
     ] {
+        // Each case starts fresh: fred remembers where the last one left off.
+        let _ = fs::remove_file(env.path("state/fred/recent"));
         let mut p = env.fred(args);
         p.wait_text("NORMAL");
         let rows: Vec<String> = p.rows().into_iter().filter(|r| !r.is_empty()).collect();

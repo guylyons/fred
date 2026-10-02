@@ -4,10 +4,9 @@ A text editor for quick edits. You move and edit with vim keys, and `:` takes
 ed-style commands with full ed addresses. Completion, syntax highlighting, a
 fuzzy file finder and project grep are built in.
 
-A small file opens like `ed`, in a window right under your shell prompt; a
-file with more lines than that window shows (12 by default) opens fullscreen,
-like vim. `-i` and `-f` force one or the other, and so does `fullscreen` in
-the config:
+fred runs fullscreen, like vim. Like `ed`, it can instead live in your shell
+prompt (`-i`, or `fullscreen = false` in the config): a small window right
+under the prompt:
 
 ```
 $ fred main.rs
@@ -44,7 +43,9 @@ fred [-i | -f] [--height N] [+LINE] [FILE | DIR]
 - `+LINE` starts on that line; `+` alone starts on the last line.
 - `DIR` (say `fred .`) opens the file browser there instead of a file.
 - `-i`/`--inline` opens the window under your prompt; `-f`/`--fullscreen`
-  takes over the terminal. Without either, the file's size decides.
+  takes over the terminal even if the config says otherwise.
+- A file you've opened before opens where you left the cursor (unless you
+  give `+LINE`), as do files picked with `Space p`, `Space r` or `Space j`.
 - `--height N` (inline) shows N lines of text (default 12); `--height max`
   uses the whole terminal, leaving your prompt visible. The window starts as
   small as the file and grows as the file gets longer.
@@ -173,7 +174,8 @@ than 20,000 characters.
 key is optional:
 
 ```toml
-fullscreen = "auto"      # true: always fullscreen; false: always inline
+fullscreen = true        # false: inline; "auto": inline unless the file is
+                         # longer than the inline window
 height = 12              # inline: lines of text in the window, or "max"
 wrap = false             # wrap long lines (otherwise the view scrolls sideways)
 numbers = true           # line numbers

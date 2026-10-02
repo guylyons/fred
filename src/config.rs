@@ -7,8 +7,8 @@ use std::path::PathBuf;
 #[serde(deny_unknown_fields, default)]
 pub struct Config {
     /// Take over the terminal (alternate screen) instead of an inline
-    /// window: always, never, or `None` = "auto" (when the file has more
-    /// lines than the inline window shows).
+    /// window: true (the default), false, or `None` = "auto" (only when
+    /// the file has more lines than the inline window shows).
     #[serde(deserialize_with = "fullscreen")]
     pub fullscreen: Option<bool>,
     #[serde(deserialize_with = "height")]
@@ -24,7 +24,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Config {
-            fullscreen: None,
+            fullscreen: Some(true),
             height: 12,
             wrap: false,
             numbers: true,
@@ -123,7 +123,7 @@ mod tests {
         assert!(err.is_none());
         assert_eq!(c, Config::default());
         assert_eq!(c.height, 12);
-        assert_eq!(c.fullscreen, None);
+        assert_eq!(c.fullscreen, Some(true));
         assert_eq!(
             Config::parse("fullscreen = false").0.fullscreen,
             Some(false)

@@ -8,8 +8,8 @@ pub const USAGE: &str = "usage: fred [-i | -f] [--height N] [+LINE] [FILE | DIR]
   DIR               browse files there
   +LINE             start on line LINE; + alone starts on the last line
   -i, --inline      edit in a window under the prompt
-  -f, --fullscreen  take over the terminal (default: when the file has
-                    more lines than the inline window shows)
+  -f, --fullscreen  take over the terminal (the default, unless the
+                    config says otherwise)
   --height N        inline, showing N lines of text, or `max` (default 12)
   -h, --help        show this help
   -V, --version     show the version

@@ -195,8 +195,8 @@ pub fn map_key(k: KeyEvent) -> Option<Key> {
 }
 
 /// `-i`/`--height` mean inline and `-f` fullscreen; otherwise the config
-/// decides, and "auto" goes fullscreen for a file with more lines than the
-/// inline window shows, or to browse a directory.
+/// decides (fullscreen by default). "auto" goes fullscreen for a file with
+/// more lines than the inline window shows, or to browse a directory.
 fn use_fullscreen(args: &Args, cfg: &Config, ed: &crate::editor::Editor, rows: u16) -> bool {
     if args.inline || args.height.is_some() {
         return false;
@@ -458,6 +458,7 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
             return Ok(101);
         }
     };
+    s.remember_place();
     ui.close()?;
     if code == 0 {
         s.cleanup();
@@ -579,8 +580,14 @@ mod tests {
         use crate::buffer::Buffer;
         use crate::editor::Editor;
         let lines = |n: usize| Editor::new(Buffer::from_text(&"x\n".repeat(n)));
-        let (args, cfg) = (Args::default(), Config::default());
-        // Default height 12: 12 lines fit inline, 13 don't.
+        let args = Args::default();
+        // Fullscreen by default, whatever the size.
+        assert!(use_fullscreen(&args, &Config::default(), &lines(1), 40));
+        let cfg = Config {
+            fullscreen: None,
+            ..Config::default()
+        };
+        // "auto", default height 12: 12 lines fit inline, 13 don't.
         assert!(!use_fullscreen(&args, &cfg, &lines(12), 40));
         assert!(use_fullscreen(&args, &cfg, &lines(13), 40));
         // A short terminal shows fewer lines inline.
@@ -607,6 +614,7 @@ mod tests {
         assert!(use_fullscreen(&args, &always, &lines(1), 40));
         let max = Config {
             height: usize::MAX,
+            fullscreen: None,
             ..Config::default()
         };
         assert!(!use_fullscreen(&args, &max, &lines(30), 40));

@@ -209,9 +209,25 @@ impl Session {
         self.swap_dir.with_file_name("recent")
     }
 
-    fn note_recent(&self) {
+    /// A file was opened: put it first among recent files, and go back to
+    /// where the cursor was when it was last left.
+    fn note_recent(&mut self) {
+        let Some(p) = self.ed.path.clone() else {
+            return;
+        };
+        let rf = self.recent_file();
+        if let Some((line, col)) = crate::pick::recent::position(&rf, &p) {
+            self.ed.set_cursor(line, col);
+            self.ed.clamp_cursor();
+        }
+        crate::pick::recent::record(&rf, &p, None);
+    }
+
+    /// Remember where the cursor is in this file, for next time.
+    pub fn remember_place(&self) {
         if let Some(p) = &self.ed.path {
-            crate::pick::recent::record(&self.recent_file(), p);
+            let pos = (self.ed.cur.line, self.ed.cur.byte);
+            crate::pick::recent::record(&self.recent_file(), p, Some(pos));
         }
     }
 
@@ -264,7 +280,16 @@ impl Session {
                 line,
                 col,
                 pattern,
-            } => self.open_pick(path, Goto { line, col, pattern }),
+            } => {
+                // A file from Space p/r/j has no target: the remembered
+                // position applies. A grep match does.
+                let then = (pattern.is_some() || line > 0 || col > 0).then_some(Goto {
+                    line,
+                    col,
+                    pattern,
+                });
+                self.open_pick(path, then)
+            }
         }
     }
 
@@ -387,7 +412,7 @@ impl Session {
     }
 
     /// Open a picker result. With unsaved changes the picker stays open.
-    fn open_pick(&mut self, path: PathBuf, then: Goto) {
+    fn open_pick(&mut self, path: PathBuf, then: Option<Goto>) {
         if self.ed.buf.modified {
             self.ed.set_err("unsaved changes (:w first)");
             return;
@@ -398,7 +423,7 @@ impl Session {
             .ok()
             .and_then(|c| path.strip_prefix(c).ok().map(Path::to_path_buf))
             .unwrap_or(path);
-        self.edit_path(path, Some(then));
+        self.edit_path(path, then);
         // Still here: the open failed or waits on a swap question.
         if matches!(self.ed.mode, Mode::Pick(_)) {
             self.ed.mode = Mode::Normal;
@@ -447,6 +472,7 @@ impl Session {
         if new_swap != self.swap_path {
             self.release_swap();
         }
+        self.remember_place();
         let project = std::sync::Arc::clone(&self.ed.project);
         self.ed = o.ed;
         self.ed.project = project;
@@ -1038,5 +1064,48 @@ mod tests {
         assert_eq!(t.s.ed.mode, Mode::Normal);
         assert!(t.s.ed.msg.as_ref().is_some_and(|m| m.1), "{:?}", t.s.ed.msg);
         assert_eq!(t.s.ed.path, Some(t.dir.path().join("a")));
+    }
+
+    #[test]
+    fn remembers_where_you_were_in_each_file() {
+        let mut t = T::open(Some("a"), Some("one\ntwo\nthree\nfour line\n"));
+        let b = t.dir.path().join("b");
+        fs::write(&b, "x\ny\n").unwrap();
+        let open = |t: &mut T, p: PathBuf, line, col, pattern: Option<&str>| {
+            t.s.perform(ExEffect::Open {
+                path: p,
+                line,
+                col,
+                pattern: pattern.map(str::to_string),
+            })
+        };
+        t.keys("3jw");
+        assert_eq!(t.s.ed.cur.pos(), (3, 5));
+        open(&mut t, b.clone(), 0, 0, None);
+        assert_eq!(t.s.ed.cur.pos(), (0, 0));
+        t.keys("j");
+        // Back to a (a file pick: no target), where we left it.
+        let a = t.dir.path().join("a");
+        open(&mut t, a, 0, 0, None);
+        assert_eq!(t.s.ed.cur.pos(), (3, 5));
+        // A grep match is a target: it wins over the remembered place.
+        open(&mut t, b.clone(), 0, 0, Some("x"));
+        assert_eq!(t.s.ed.cur.pos(), (0, 0));
+        // A new session (quit and reopen) starts where this one left off.
+        t.keys("j");
+        t.s.remember_place();
+        let (s2, _) =
+            Session::open(Some(b), &Config::default(), &t.dir.path().join("swap")).unwrap();
+        assert_eq!(s2.ed.cur.pos(), (1, 0));
+    }
+
+    #[test]
+    fn a_remembered_place_past_the_end_is_clamped() {
+        let t = T::open(Some("a"), Some("one\ntwo\n"));
+        let a = t.dir.path().join("a");
+        crate::pick::recent::record(&t.dir.path().join("recent"), &a, Some((40, 99)));
+        let (s2, _) =
+            Session::open(Some(a), &Config::default(), &t.dir.path().join("swap")).unwrap();
+        assert_eq!(s2.ed.cur.pos(), (1, 2));
     }
 }

@@ -236,24 +236,52 @@ fn fullscreen_for_a_big_file_and_screen_restored_on_exit() {
 }
 
 #[test]
-fn small_file_opens_inline_by_default() {
+fn fullscreen_unless_inline_is_asked_for() {
     let env = Env::new();
     env.write("small.txt", "one\ntwo\nthree\n");
-    let mut c = env.command("sh");
-    c.args([
-        "-c",
-        "echo before-marker; exec \"$0\" \"$@\"",
-        BIN,
-        "small.txt",
-    ]);
-    let mut p = Pty::spawn(c);
-    p.wait_text("three");
+    let run = |env: &Env, args: &[&str]| -> bool {
+        let mut c = env.command("sh");
+        c.args(["-c", "echo before-marker; exec \"$0\" \"$@\""]);
+        c.arg(BIN);
+        c.args(args);
+        let mut p = Pty::spawn(c);
+        p.wait_text("three");
+        p.wait_text("NORMAL");
+        let inline = p.screen().contains("before-marker");
+        p.keys(&[":q\r"]);
+        assert_eq!(p.wait_exit(), 0);
+        inline
+    };
+    // Even a 3-line file: fullscreen is the default.
+    assert!(!run(&env, &["small.txt"]));
+    assert!(run(&env, &["-i", "small.txt"]));
+    fs::create_dir_all(env.path("config/fred")).unwrap();
+    env.write("config/fred/config.toml", "fullscreen = false\n");
+    assert!(run(&env, &["small.txt"]));
+    assert!(!run(&env, &["-f", "small.txt"]));
+    // "auto" is still there: small files inline.
+    env.write("config/fred/config.toml", "fullscreen = \"auto\"\n");
+    assert!(run(&env, &["small.txt"]));
+}
+
+#[test]
+fn reopening_a_file_returns_to_the_last_position() {
+    let env = Env::new();
+    let text: String = (1..=60).map(|i| format!("line {i}\n")).collect();
+    env.write("f.txt", &text);
+    let mut p = env.fred(&["f.txt"]);
     p.wait_text("NORMAL");
-    assert!(
-        p.screen().contains("before-marker"),
-        "not inline:\n{}",
-        p.screen()
-    );
+    p.keys(&["41G", "w"]);
+    p.wait_text("41:6");
+    p.keys(&[":q\r"]);
+    assert_eq!(p.wait_exit(), 0);
+    let mut p = env.fred(&["f.txt"]);
+    p.wait_text("41:6");
+    p.keys(&[":q\r"]);
+    assert_eq!(p.wait_exit(), 0);
+    // +LINE still wins.
+    let mut p = env.fred(&["+5", "f.txt"]);
+    p.wait_text("5:1");
     p.keys(&[":q\r"]);
     assert_eq!(p.wait_exit(), 0);
 }

@@ -289,7 +289,7 @@ fn space_r_lists_recent_files() {
     ]);
     let rf = d.path().join("state/recent");
     for f in ["gone.txt", "notes/todo.md", "b.rs", "a.rs"] {
-        recent::record(&rf, &d.path().join(f));
+        recent::record(&rf, &d.path().join(f), None);
     }
     fs::remove_file(d.path().join("gone.txt")).unwrap();
     ed.project = Arc::new(Project::new(Some(d.path().to_path_buf()), Some(rf)));
