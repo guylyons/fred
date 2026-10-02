@@ -1,10 +1,10 @@
+<p align="center"><img src="docs/dr-fred.png" alt="Dr. Fred" width="288"></p>
+
 # fred
 
 A text editor for quick edits. You move and edit with vim keys, and `:` takes
 ed-style commands with full ed addresses. Completion, syntax highlighting, a
 fuzzy file finder and project grep are built in.
-
-![Dr. Fred](docs/dr-fred.png)
 
 fred runs fullscreen, like vim. Like `ed`, it can instead live in your shell
 prompt (`-i`, or `fullscreen = false` in the config): a small window right
