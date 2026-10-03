@@ -293,6 +293,11 @@ const VISUAL: &[char] = &[
 ];
 
 fn visual(ed: &mut Editor, anchor: usize, c: char) {
+    if ed.magit.is_some() && !matches!(c, 'y' | 'Y' | ':' | 'V' | 'o') {
+        ed.mode = Mode::Normal;
+        ed.set_err("generated Git buffer is read-only");
+        return;
+    }
     let (lo, hi) = (anchor.min(ed.cur.line), anchor.max(ed.cur.line));
     ed.mode = Mode::Normal;
     match c {
@@ -366,6 +371,11 @@ fn is_change(cmd: &Cmd) -> bool {
 
 /// Run a command as one undo step, recording it for `.` if it changes text.
 fn run_change(ed: &mut Editor, cmd: Cmd, keys: Vec<Key>) {
+    if ed.magit.is_some() && (is_change(&cmd) || matches!(cmd, Cmd::OpSearch { op: 'd' | 'c', .. }))
+    {
+        ed.set_err("generated Git buffer is read-only");
+        return;
+    }
     if !is_change(&cmd) {
         execute(ed, cmd);
         return;

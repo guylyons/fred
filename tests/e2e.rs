@@ -1086,3 +1086,104 @@ fn mouse_wheel_keeps_edit_position_and_click_moves_it() {
         "mouse capture must be restored on exit"
     );
 }
+
+fn magit_init(env: &Env) {
+    let o = std::process::Command::new("git")
+        .arg("-C")
+        .arg(env.dir.path())
+        .args(["init", "-q", "-b", "main"])
+        .output()
+        .unwrap();
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+}
+#[test]
+fn magit_status_stage_and_return_in_both_modes() {
+    for mode in ["-f", "-i"] {
+        let env = Env::new();
+        env.write("f.txt", "original\n");
+        magit_init(&env);
+        let mut p = env.fred(&[mode, "f.txt"]);
+        p.wait_for("editor", |s| s.contains("NORMAL"));
+        p.keys(&["iunsaved \x1b", " ms"]);
+        p.wait_for("Git status", |s| {
+            s.contains("Head: main") && s.contains("Untracked")
+        });
+        p.keys(&["/f.txt\r", "s"]);
+        p.wait_for("staged file", |s| s.contains("Staged (1)"));
+        p.keys(&["q"]);
+        p.wait_for("original buffer", |s| s.contains("unsaved original"));
+        p.keys(&[":q!\r"]);
+        assert_eq!(p.wait_exit(), 0);
+        assert_eq!(env.read("f.txt"), "original\n");
+        let staged = std::process::Command::new("git")
+            .arg("-C")
+            .arg(env.dir.path())
+            .args(["show", ":f.txt"])
+            .output()
+            .unwrap();
+        assert_eq!(staged.stdout, b"original\n");
+    }
+}
+#[test]
+fn magit_failed_fetch_restores_terminal() {
+    let env = Env::new();
+    env.write("f.txt", "original\n");
+    magit_init(&env);
+    let mut p = env.fred(&["-f", "f.txt"]);
+    p.wait_for("editor", |s| s.contains("NORMAL"));
+    p.keys(&[" mf"]);
+    p.wait_for("Git terminal", |s| s.contains("Press Enter to continue"));
+    p.keys(&["\r"]);
+    p.wait_for("returned editor", |s| {
+        s.contains("NORMAL") && s.contains("original")
+    });
+    p.keys(&[":q\r"]);
+    assert_eq!(p.wait_exit(), 0);
+}
+
+#[test]
+fn magit_commit_hook_interruption_restores_editor_and_draft() {
+    use std::os::unix::fs::PermissionsExt;
+    let env = Env::new();
+    env.write("f.txt", "original\n");
+    magit_init(&env);
+    for args in [
+        ["config", "user.name", "Fred"],
+        ["config", "user.email", "fred@example.test"],
+    ] {
+        assert!(
+            std::process::Command::new("git")
+                .arg("-C")
+                .arg(env.dir.path())
+                .args(args)
+                .status()
+                .unwrap()
+                .success()
+        );
+    }
+    assert!(
+        std::process::Command::new("git")
+            .arg("-C")
+            .arg(env.dir.path())
+            .args(["add", "f.txt"])
+            .status()
+            .unwrap()
+            .success()
+    );
+    let hook = env.path(".git/hooks/pre-commit");
+    fs::write(&hook, "#!/bin/sh\necho hook-waiting\nsleep 10\n").unwrap();
+    fs::set_permissions(&hook, fs::Permissions::from_mode(0o755)).unwrap();
+    let mut p = env.fred(&["-f", "f.txt"]);
+    p.wait_for("editor", |s| s.contains("NORMAL"));
+    p.keys(&[" mc"]);
+    p.wait_for("draft", |s| s.contains("COMMIT_EDITMSG"));
+    p.keys(&["ikeep this message\x1b", " mc"]);
+    p.wait_for("hook", |s| s.contains("hook-waiting"));
+    p.keys(&["\x03"]);
+    p.wait_for("restored draft", |s| {
+        s.contains("NORMAL") && s.contains("keep this message")
+    });
+    assert!(p.running());
+    p.keys(&[":q!\r"]);
+    assert_eq!(p.wait_exit(), 0);
+}

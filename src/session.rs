@@ -11,6 +11,8 @@ use crate::swap::{self, SwapInfo};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
+mod magit;
+
 const SWAP_IDLE: Duration = Duration::from_secs(1);
 const SWAP_EDITS: usize = 200;
 
@@ -78,6 +80,11 @@ pub struct Session {
     pub pending_edit: Option<PendingEdit>,
     /// `:!cmd` waiting for the app to hand it the terminal.
     pub pending_shell: Option<String>,
+    pub pending_git: Option<crate::magit::repo::GitInvocation>,
+    pub git_busy: bool,
+    magit_job: Option<magit::Job>,
+    magit_picker_repo: Option<crate::magit::repo::Repo>,
+    magit_drafts: std::collections::HashMap<PathBuf, crate::magit::repo::Repo>,
     /// A swap write running in the background, and the version it holds.
     swap_job: Option<(u64, std::thread::JoinHandle<Result<(), String>>)>,
     /// `:ai`: the lines and the prompt, for the app to ask Claude.
@@ -196,6 +203,9 @@ fn release(swap: &Path) {
 }
 
 fn buf_name(ed: &Editor) -> String {
+    if let Some(v) = &ed.magit {
+        return format!("[{}]", v.title());
+    }
     ed.path
         .as_ref()
         .map_or_else(|| "[No Name]".into(), |p| p.display().to_string())
@@ -225,6 +235,11 @@ impl Session {
             no_swap: false,
             pending_edit: None,
             pending_shell: None,
+            pending_git: None,
+            git_busy: false,
+            magit_job: None,
+            magit_picker_repo: None,
+            magit_drafts: std::collections::HashMap::new(),
             swap_job: None,
             pending_ai: None,
             lossy: o.lossy,
@@ -260,6 +275,9 @@ impl Session {
     /// where the cursor was when it was last left, and fetch its staged
     /// version for the git marks.
     fn arrived(&mut self) {
+        if self.ed.magit.is_some() {
+            return;
+        }
         let Some(p) = self.ed.path.clone() else {
             return;
         };
@@ -274,6 +292,9 @@ impl Session {
 
     /// Remember where the cursor is in this file, for next time.
     pub fn remember_place(&self) {
+        if self.ed.magit.is_some() {
+            return;
+        }
         if let Some(p) = &self.ed.path {
             let pos = (self.ed.cur.line, self.ed.cur.byte);
             crate::pick::recent::record(&self.recent_file(), p, Some(pos));
@@ -294,6 +315,7 @@ impl Session {
     pub fn perform(&mut self, eff: ExEffect) {
         match eff {
             ExEffect::None => {}
+            ExEffect::Magit(a) => self.magit_action(a),
             ExEffect::Write { .. } if self.ed.dired.is_some() => crate::dired::save(&mut self.ed),
             ExEffect::Write {
                 path,
@@ -354,6 +376,10 @@ impl Session {
     }
 
     fn write(&mut self, path: Option<String>, force: bool, range: Option<Range>) -> bool {
+        if self.ed.magit.is_some() {
+            self.ed.set_err("generated Git buffer is read-only");
+            return false;
+        }
         if self.lossy {
             self.ed
                 .set_err("file is not valid UTF-8; writing it would change it");
@@ -601,7 +627,10 @@ impl Session {
     /// a new buffer, or in place of this one when reloading it (or when
     /// this one is an empty unnamed one).
     fn switch_to(&mut self, o: Opened, new_swap: PathBuf) {
-        let blank = self.ed.path.is_none() && !self.ed.buf.modified && self.ed.buf.len_bytes() == 0;
+        let blank = o.ed.magit.is_none()
+            && self.ed.path.is_none()
+            && !self.ed.buf.modified
+            && self.ed.buf.len_bytes() == 0;
         if new_swap == self.swap_path || blank {
             self.replace(o, new_swap);
             return;
@@ -621,6 +650,7 @@ impl Session {
 
     /// Put `o` in place of the buffer being edited.
     fn replace(&mut self, o: Opened, new_swap: PathBuf) {
+        self.clock += 1; // Invalidate reads started for the buffer being replaced.
         self.wait_swap();
         if new_swap != self.swap_path {
             self.release_swap();
@@ -658,6 +688,7 @@ impl Session {
         let new_swap = swap::swap_path_in(&self.swap_dir, Some(&path));
         self.switch_to(o, new_swap);
         self.go(then);
+        self.attach_commit_repo();
         match choice {
             SwapChoice::Recover => {
                 self.recover(info);
@@ -820,6 +851,16 @@ impl Session {
         if target < self.cur {
             self.cur -= 1;
         }
+        self.clock += 1;
+        for ed in self.editors_mut() {
+            if let Some(view) = &mut ed.magit {
+                if view.return_to == target {
+                    view.return_to = usize::MAX;
+                } else if view.return_to > target && view.return_to != usize::MAX {
+                    view.return_to -= 1;
+                }
+            }
+        }
     }
 
     /// `Space B`: search the lines of every buffer, this one first, then
@@ -874,6 +915,7 @@ impl Session {
         ed.inherit(&mut self.ed);
         ed.path = self.ed.path.clone();
         ed.readonly = self.ed.readonly;
+        ed.commit_repo = self.ed.commit_repo.clone();
         ed.saved_state = u64::MAX;
         ed.buf.modified = true;
         ed.set_msg("recovered unsaved changes; :w to save them");
@@ -908,7 +950,7 @@ impl Session {
             self.seen_version = v;
             self.last_change = Some(now);
         }
-        if self.no_swap {
+        if self.no_swap || self.ed.magit.is_some() {
             return;
         }
         if !self.ed.buf.modified {
@@ -1631,5 +1673,324 @@ mod tests {
         let (s2, _) =
             Session::open(Some(a), &Config::default(), &t.dir.path().join("swap")).unwrap();
         assert_eq!(s2.ed.cur.pos(), (1, 2));
+    }
+    fn magit_repo(t: &T) {
+        let st = std::process::Command::new("git")
+            .arg("-C")
+            .arg(t.dir.path())
+            .args(["init", "-q", "-b", "main"])
+            .status()
+            .unwrap();
+        assert!(st.success());
+    }
+    fn magit_wait(t: &mut T) {
+        for _ in 0..500 {
+            t.s.tick_magit();
+            if t.s.ed.magit.is_some() {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        panic!("status did not open: {:?}", t.s.ed.msg);
+    }
+    #[test]
+    fn magit_preserves_unsaved_source_buffer() {
+        let mut t = T::open(Some("f.txt"), Some("original\n"));
+        magit_repo(&t);
+        t.keys("iunsaved <Esc> ms");
+        magit_wait(&mut t);
+        assert!(t.s.no_swap);
+        assert!(!t.s.ed.buf.modified);
+        t.keys("q");
+        assert_eq!(t.s.ed.buf.line(0), "unsaved original");
+        assert!(t.s.ed.buf.modified);
+        assert_eq!(t.file("f.txt"), "original\n");
+    }
+    #[test]
+    fn magit_views_are_readonly_and_have_no_swap() {
+        let mut t = T::open(Some("f.txt"), Some("original\n"));
+        magit_repo(&t);
+        t.keys(" ms");
+        magit_wait(&mut t);
+        let before = t.s.ed.buf.to_bytes();
+        t.keys("idd<Esc>:s/Head/Broken/<Enter>:w<Enter>");
+        assert_eq!(t.s.ed.buf.to_bytes(), before);
+        assert!(!t.s.swap_path.exists());
+    }
+    #[test]
+    fn late_magit_result_does_not_replace_another_buffer() {
+        let mut t = T::open(Some("f.txt"), Some("original\n"));
+        magit_repo(&t);
+        t.keys(" ms");
+        t.keys(":e another<Enter>");
+        for _ in 0..100 {
+            t.s.tick_magit();
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert!(t.s.ed.magit.is_none());
+        assert!(t.s.ed.path.as_ref().unwrap().ends_with("another"));
+    }
+
+    #[test]
+    fn magit_visual_edits_are_blocked() {
+        let mut t = T::open(Some("f.txt"), Some("original\n"));
+        magit_repo(&t);
+        t.keys(" ms");
+        magit_wait(&mut t);
+        let before = t.s.ed.buf.to_bytes();
+        t.keys("Vd");
+        assert_eq!(t.s.ed.buf.to_bytes(), before);
+    }
+    #[test]
+    fn magit_refresh_retains_expansion_and_selection() {
+        let mut t = T::open(Some("f.txt"), Some("original\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        t.keys(" ms");
+        magit_wait(&mut t);
+        let row = t.s.ed.magit.as_ref().unwrap().rows.iter().position(|r| matches!(&r.action,Some(crate::magit::RowAction::File(path,..)) if path == Path::new("f.txt"))).unwrap();
+        t.s.ed.set_cursor(row, 0);
+        t.keys("<Tab>");
+        for _ in 0..100 {
+            t.s.tick_magit();
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert!(t.s.ed.buf.to_bytes().windows(9).any(|w| w == b"+original"));
+        let selected = t.s.ed.magit.as_ref().unwrap().action_at(t.s.ed.cur.line);
+        t.keys(" ms");
+        for _ in 0..100 {
+            t.s.tick_magit();
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert!(t.s.ed.buf.to_bytes().windows(9).any(|w| w == b"+original"));
+        assert_eq!(
+            t.s.ed.magit.as_ref().unwrap().action_at(t.s.ed.cur.line),
+            selected
+        );
+    }
+
+    fn magit_settle(t: &mut T) {
+        for _ in 0..500 {
+            t.s.tick_magit();
+            if t.s.magit_job.is_none() {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        panic!("Git job did not finish");
+    }
+    #[test]
+    fn magit_commit_draft_survives_failed_hook_and_resumes() {
+        use std::os::unix::fs::PermissionsExt;
+        let mut t = T::open(Some("f.txt"), Some("original\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        t.keys(" mc");
+        magit_settle(&mut t);
+        assert!(t.s.ed.commit_repo.is_some());
+        let path = t.s.ed.path.clone().unwrap();
+        t.keys("ifirst message<Esc>:w<Enter>");
+        assert_eq!(fs::read_to_string(&path).unwrap(), "first message\n");
+        let hook = t.dir.path().join(".git/hooks/pre-commit");
+        fs::write(&hook, "#!/bin/sh\nexit 1\n").unwrap();
+        fs::set_permissions(&hook, fs::Permissions::from_mode(0o755)).unwrap();
+        t.keys(" mc");
+        let inv = t.s.pending_git.take().unwrap();
+        let result = inv.repo.run(&inv.args, inv.input.as_deref()).map(|_| ());
+        assert!(result.is_err());
+        t.s.finish_git(inv, result);
+        assert_eq!(t.s.ed.buf.line(0), "first message");
+        assert_eq!(fs::read_to_string(&path).unwrap(), "first message\n");
+        fs::remove_file(hook).unwrap();
+        t.keys(" mc");
+        let inv = t.s.pending_git.take().unwrap();
+        let result = inv.repo.run(&inv.args, inv.input.as_deref()).map(|_| ());
+        assert!(result.is_ok());
+        t.s.finish_git(inv, result);
+        magit_settle(&mut t);
+        assert!(t.s.ed.magit.is_some());
+        assert_eq!(fs::read(&path).unwrap(), b"");
+        t.keys(" mc");
+        magit_settle(&mut t);
+        t.keys("inext message<Esc>:w<Enter>");
+        assert_eq!(fs::read_to_string(&path).unwrap(), "next message\n");
+    }
+    #[test]
+    fn magit_returns_from_commit_patch_to_history() {
+        let mut t = T::open(Some("f.txt"), Some("original\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "initial"]).unwrap();
+        t.keys(" ml");
+        magit_settle(&mut t);
+        assert!(t.s.ed.magit.is_some());
+        t.keys("j<Enter>");
+        magit_settle(&mut t);
+        assert!(t.s.ed.buf.line(0).starts_with("commit "));
+        t.keys("q");
+        assert!(matches!(
+            t.s.ed.magit.as_ref().unwrap().kind,
+            crate::magit::Kind::Log
+        ));
+    }
+    #[test]
+    fn magit_late_result_after_unnamed_buffer_replacement_is_ignored() {
+        let mut t = T::open(None, None);
+        magit_repo(&t);
+        // A synthetic view supplies repository context without changing the slot.
+        let view = crate::magit::View::status(
+            crate::magit::repo::Repo::discover(t.dir.path()).unwrap(),
+            Default::default(),
+        );
+        t.s.ed.magit = Some(Box::new(view));
+        t.s.magit_action(crate::magit::Action::Status);
+        t.s.ed.magit = None;
+        t.keys(":e new-file<Enter>");
+        magit_settle(&mut t);
+        assert!(t.s.ed.magit.is_none());
+        assert!(t.s.ed.path.as_ref().unwrap().ends_with("new-file"));
+    }
+    #[test]
+    fn magit_return_survives_buffer_deletion() {
+        let mut t = T::open(Some("a.txt"), Some("a\n"));
+        magit_repo(&t);
+        t.keys(":e b.txt<Enter> ms");
+        magit_wait(&mut t);
+        t.keys(":bd1<Enter>q");
+        assert!(t.s.ed.magit.is_none());
+        assert!(t.s.ed.path.as_ref().unwrap().ends_with("b.txt"));
+    }
+    #[test]
+    fn magit_commit_rejects_externally_changed_draft() {
+        let mut t = T::open(Some("f.txt"), Some("original\n"));
+        magit_repo(&t);
+        t.keys(" mc");
+        magit_settle(&mut t);
+        t.keys("imy draft<Esc>:w<Enter>");
+        let path = t.s.ed.path.clone().unwrap();
+        fs::write(&path, "external draft\n").unwrap();
+        t.keys(" mc");
+        assert!(t.s.pending_git.is_none());
+        assert!(t.msg().contains("changed"));
+        assert_eq!(fs::read_to_string(path).unwrap(), "external draft\n");
+    }
+
+    #[test]
+    fn magit_recovered_commit_draft_keeps_submission_routing() {
+        let mut t = T::open(Some("f.txt"), Some("original\n"));
+        magit_repo(&t);
+        t.keys(" mc");
+        magit_settle(&mut t);
+        t.keys("irecovered message<Esc>");
+        t.s.write_swap();
+        let info = swap::read(&t.s.swap_path).unwrap();
+        t.s.recover(info);
+        assert!(t.s.ed.commit_repo.is_some());
+        t.keys(" mc");
+        assert!(t.s.pending_git.is_some());
+        assert_eq!(t.s.ed.buf.line(0), "recovered message");
+    }
+    #[test]
+    fn magit_warns_for_relative_unsaved_source_paths() {
+        let mut t = T::open(Some("f.txt"), Some("original\n"));
+        magit_repo(&t);
+        let absolute = t.s.ed.path.clone().unwrap();
+        let cwd = std::env::current_dir().unwrap();
+        let mut relative = PathBuf::new();
+        for _ in cwd.components().skip(1) {
+            relative.push("..");
+        }
+        relative.push(absolute.strip_prefix("/").unwrap());
+        t.s.ed.path = Some(relative);
+        t.keys("iunsaved <Esc> ms");
+        magit_wait(&mut t);
+        assert!(t.msg().contains("unsaved source"), "{}", t.msg());
+    }
+    #[test]
+    fn magit_branch_picker_switches_and_preserves_unsaved_buffer() {
+        let mut t = T::open(Some("f.txt"), Some("original\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "initial"]).unwrap();
+        repo.read(&["branch", "other"]).unwrap();
+        t.keys("iunsaved <Esc> mb");
+        magit_settle(&mut t);
+        t.keys("other<Enter>");
+        let inv = t.s.pending_git.take().unwrap();
+        let result = inv.repo.run(&inv.args, inv.input.as_deref()).map(|_| ());
+        assert!(result.is_ok(), "{result:?}");
+        t.s.finish_git(inv, result);
+        assert_eq!(repo.status().unwrap().branch, "other");
+        assert_eq!(t.s.ed.buf.line(0), "unsaved original");
+    }
+
+    #[test]
+    fn magit_successful_commit_preserves_draft_changed_during_hook() {
+        let mut t = T::open(Some("f.txt"), Some("original\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        t.keys(" mc");
+        magit_settle(&mut t);
+        t.keys("imy draft<Esc>:w<Enter> mc");
+        let path = t.s.ed.path.clone().unwrap();
+        let inv = t.s.pending_git.take().unwrap();
+        let result = inv.repo.run(&inv.args, inv.input.as_deref()).map(|_| ());
+        assert!(result.is_ok());
+        fs::write(&path, "external next draft\n").unwrap();
+        t.s.finish_git(inv, result);
+        assert_eq!(fs::read_to_string(path).unwrap(), "external next draft\n");
+    }
+    #[test]
+    fn magit_visits_hunk_line() {
+        let base = (0..30).map(|i| format!("line{i}\n")).collect::<String>();
+        let mut t = T::open(Some("f.txt"), Some(&base));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "initial"]).unwrap();
+        fs::write(
+            t.dir.path().join("f.txt"),
+            base.replace("line15\n", "changed\n"),
+        )
+        .unwrap();
+        t.keys(" ms");
+        magit_settle(&mut t);
+        let row = t.s.ed.magit.as_ref().unwrap().rows.iter().position(|r| matches!(&r.action,Some(crate::magit::RowAction::File(p,crate::magit::Section::Unstaged)) if p == Path::new("f.txt"))).unwrap();
+        t.s.ed.set_cursor(row, 0);
+        t.keys("<Tab>");
+        magit_settle(&mut t);
+        let row =
+            t.s.ed
+                .magit
+                .as_ref()
+                .unwrap()
+                .rows
+                .iter()
+                .position(|r| r.text.contains("+changed"))
+                .unwrap();
+        t.s.ed.set_cursor(row, 0);
+        t.keys("<Enter>");
+        assert!(t.s.ed.magit.is_none());
+        assert_eq!(t.s.ed.cur.line, 15);
     }
 }

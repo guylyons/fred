@@ -112,6 +112,8 @@ pub struct Editor {
     pub readonly: bool,
     /// This buffer lists a directory (see `dired`).
     pub dired: Option<Box<crate::dired::Dired>>,
+    pub magit: Option<Box<crate::magit::View>>,
+    pub commit_repo: Option<crate::magit::repo::Repo>,
     /// File operation requested by an ex command, performed by the app.
     pub pending_effect: Option<ExEffect>,
     pub win_height: usize,
@@ -155,6 +157,8 @@ impl Editor {
             path: None,
             readonly: false,
             dired: None,
+            magit: None,
+            commit_repo: None,
             pending_effect: None,
             win_height: 12,
             viewport: None,
@@ -188,6 +192,9 @@ impl Editor {
     }
 
     pub fn handle_key(&mut self, k: Key) {
+        if crate::magit::key(self, k) {
+            return;
+        }
         if self.zap.is_some() {
             crate::zap::key(self, k);
             return;
@@ -285,6 +292,15 @@ impl Editor {
 
     /// Bracketed paste: insert text as-is (no autoindent or completion).
     pub fn paste(&mut self, text: &str) {
+        if self.magit.is_some()
+            && matches!(
+                self.mode,
+                Mode::Normal | Mode::Insert | Mode::VisualLine { .. }
+            )
+        {
+            self.set_err("generated Git buffer is read-only");
+            return;
+        }
         if self.zap.is_some() {
             crate::zap::paste(self, text);
             return;
@@ -545,6 +561,33 @@ impl Editor {
 
     /// Run an ex command line.
     pub fn run_ex(&mut self, text: &str) {
+        if self.magit.is_some() {
+            let mut buf = self.buf.clone();
+            let mut undo = Undo::default();
+            let mut st = ExState::new(
+                &mut buf,
+                &mut undo,
+                self.cur.line,
+                &self.marks,
+                &mut self.last_pat,
+            );
+            let result = ex::run(&mut st, text);
+            let line = st.cur;
+            if buf.version != self.buf.version {
+                self.set_err("generated Git buffer is read-only");
+                return;
+            }
+            match result {
+                Ok(eff) => {
+                    self.set_cursor(line.min(self.line_count() - 1), 0);
+                    if eff != ExEffect::None {
+                        self.pending_effect = Some(eff);
+                    }
+                }
+                Err(e) => self.set_err(e),
+            }
+            return;
+        }
         let line = self.cur.line;
         let before = self.undo.state_id();
         let mut st = ExState::new(

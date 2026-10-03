@@ -1243,3 +1243,37 @@ fn splash_reflows_in_small_windows() {
         assert!(s.row(h - 2).contains("NORMAL"));
     }
 }
+
+#[test]
+fn magit_status_uses_title_and_diff_colors() {
+    use crate::magit::repo::{Repo, Snapshot};
+    use crate::magit::{Kind, Row, View};
+    use ratatui::style::Color;
+    let mut e = editor("Head: main\n+added\n-removed\n@@ hunk", "");
+    let mut v = View::status(
+        Repo {
+            root: "/repo".into(),
+        },
+        Snapshot::default(),
+    );
+    v.kind = Kind::Patch("123abc".into());
+    v.rows = e
+        .buf
+        .to_bytes()
+        .split(|b| *b == b'\n')
+        .map(|b| Row {
+            text: String::from_utf8_lossy(b).into(),
+            action: None,
+        })
+        .collect();
+    e.path = Some("/state/magit-views/opaque-hash".into());
+    e.magit = Some(Box::new(v));
+    e.readonly = true;
+    let mut screen = Screen::new(70, 6);
+    screen.cfg.numbers = false;
+    screen.draw(&e);
+    assert_eq!(screen.term.backend().buffer()[(0, 1)].fg, Color::Green);
+    assert_eq!(screen.term.backend().buffer()[(0, 2)].fg, Color::Red);
+    assert!(screen.row(4).contains("Magit 123abc"), "{}", screen.row(4));
+    assert!(!screen.row(4).contains("opaque-hash"));
+}

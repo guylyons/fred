@@ -10,6 +10,7 @@ use std::collections::HashMap;
 /// File-level actions a command asks the caller to perform.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExEffect {
+    Magit(crate::magit::Action),
     None,
     Write {
         path: Option<String>,

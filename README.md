@@ -241,6 +241,38 @@ lines, yellow for changed ones, and a red mark where lines were removed.
 The line number takes the same color. Staging a file elsewhere (`git add`)
 shows up the next time you open it.
 
+`Space m` opens the Magit command prefix:
+
+| Keys | Action |
+|---|---|
+| `Space m s` | repository status |
+| `Space m p` | push to the configured upstream |
+| `Space m P` | pull, fast-forward only |
+| `Space m f` | fetch |
+| `Space m c` | edit a commit message; press again in the draft to commit |
+| `Space m l` | recent commits; `Enter` opens a commit's patch |
+| `Space m b` | pick a local branch to switch to |
+
+Status is a read-only buffer with separate untracked, unstaged, staged, and
+conflict sections. `Tab` collapses a section or expands a tracked file's diff.
+On a file or hunk, `s` stages it and `u` unstages it; use the unstaged side
+for staging and the staged side for unstaging. Binary changes, renames, and
+conflicts use whole-file operations. `gr` refreshes, `Enter` visits a file or
+diff location, and `q` returns to the previous buffer. Vim movement and search
+work in these views, and your other buffers keep their unsaved edits.
+
+Git operations use **saved files and the index**; they do not automatically
+save source buffers. In a commit draft, `:w` saves the message for later and
+`Space m c` commits exactly the staged changes. Drafts are stored in Fred's
+state directory and support swap recovery; a failed commit keeps the message.
+Push, pull, fetch, branch switches, and commits hand the terminal to Git for
+credentials or hooks, then return to Fred. Push never forces or automatically
+creates an upstream, and pull refuses divergent history.
+
+This first slice covers the status/stage/commit workflow, history, local branch
+switching, and remotes. Rebase, stash, merge resolution, and line-level staging
+are not included.
+
 ## Highlighting
 
 Highlighting uses [syntect](https://github.com/trishume/syntect) with

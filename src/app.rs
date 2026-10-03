@@ -455,6 +455,64 @@ fn run_shell(ui: &mut Ui, s: &mut Session, cmd: &str) -> Result<()> {
     })
 }
 
+fn run_git(ui: &mut Ui, s: &mut Session, inv: crate::magit::repo::GitInvocation) -> Result<()> {
+    // Catch SIGINT in Fred while exec resets the child's handler to the default.
+    // Ctrl-C interrupts Git/hooks without killing the editor and its draft.
+    let interrupted = Arc::new(AtomicBool::new(false));
+    let interrupt_handler =
+        signal_hook::flag::register(signal_hook::consts::SIGINT, Arc::clone(&interrupted))?;
+    s.git_busy = true;
+    let mut result = Err("Git command did not run".into());
+    let handoff = hand_over(ui, s, || {
+        let mut out = io::stdout();
+        let _ = writeln!(
+            out,
+            "Git: {}",
+            inv.args
+                .iter()
+                .map(|a| a.to_string_lossy())
+                .collect::<Vec<_>>()
+                .join(" ")
+        );
+        let mut cmd = inv.repo.command();
+        cmd.args(&inv.args);
+        cmd.stdin(if inv.input.is_some() {
+            std::process::Stdio::piped()
+        } else {
+            std::process::Stdio::inherit()
+        });
+        result = (|| {
+            let mut child = cmd.spawn().map_err(|e| format!("git: {e}"))?;
+            let writer = inv.input.as_ref().map(|bytes| {
+                let data = bytes.clone();
+                let mut input = child.stdin.take().expect("piped Git input");
+                std::thread::spawn(move || input.write_all(&data))
+            });
+            let status = child.wait().map_err(|e| e.to_string())?;
+            if let Some(writer) = writer {
+                let _ = writer.join();
+            }
+            if status.success() {
+                Ok(())
+            } else {
+                Err(format!("Git failed ({status}); see command output"))
+            }
+        })();
+        let note = result
+            .as_ref()
+            .err()
+            .map_or("Git completed", String::as_str);
+        let _ = write!(out, "\n{note}\nPress Enter to continue");
+        let _ = out.flush();
+        if !interrupted.load(Ordering::Relaxed) {
+            let _ = io::stdin().read_line(&mut String::new());
+        }
+    });
+    signal_hook::low_level::unregister(interrupt_handler);
+    s.finish_git(inv, result);
+    handoff
+}
+
 pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> {
     if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
         eprintln!("fred: not a terminal");
@@ -600,7 +658,7 @@ fn event_loop(
         if dirty {
             ui.draw(s, hl, cfg)?;
             // Keep drawing while visible lines are still being highlighted.
-            dirty = hl.incomplete();
+            dirty = s.ed.magit.is_none() && hl.incomplete();
         }
         // SIGTERM/SIGHUP, or a terminal that went away without a SIGHUP
         // (crossterm then spins reading end-of-file at 100% CPU).
@@ -652,6 +710,13 @@ fn event_loop(
         }
         if s.quit {
             return Ok(0);
+        }
+        if s.tick_magit() {
+            dirty = true;
+        }
+        if let Some(inv) = s.pending_git.take() {
+            run_git(ui, s, inv)?;
+            dirty = true;
         }
         if let Some(cmd) = s.pending_shell.take() {
             run_shell(ui, s, &cmd)?;

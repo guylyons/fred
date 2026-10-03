@@ -144,6 +144,7 @@ pub enum Kind {
     Browse,
     Recent,
     Buffers,
+    Branches,
     /// Lines of every buffer (`Space B`).
     AllLines,
     /// Definitions of the word at the cursor (`Space d`, `gd`).
@@ -241,6 +242,7 @@ impl Picker {
             Kind::Browse => "find file: ",
             Kind::Recent => "recent> ",
             Kind::Buffers => "buffer> ",
+            Kind::Branches => "branch> ",
             Kind::AllLines => "all lines> ",
             Kind::Def => "definition> ",
         }
@@ -249,7 +251,7 @@ impl Picker {
     /// Bring `rows` up to date; true if anything shown changed.
     fn update(&mut self, project: &Project, buf: &Buffer, now: Instant) -> bool {
         match self.kind {
-            Kind::Recent | Kind::Buffers => {
+            Kind::Recent | Kind::Buffers | Kind::Branches => {
                 let q = &self.query.text;
                 if self.seen_files.as_ref().is_some_and(|s| s.0 == *q) {
                     return false;
@@ -613,6 +615,16 @@ fn auto_jump(ed: &mut Editor) {
 
 /// `Space b` / `:ls`: pick from `list` (name, path, buffer number), most
 /// recently used first.
+pub fn branches(ed: &mut Editor, names: Vec<String>) {
+    let mut p = Picker::new(Kind::Branches, &ed.project, ed.cur.line);
+    p.recent_files = names
+        .into_iter()
+        .map(|name| (name, PathBuf::new(), 0))
+        .collect();
+    p.update(&ed.project, &ed.buf, Instant::now());
+    ed.mode = Mode::Pick(Box::new(p));
+}
+
 pub fn buffers(ed: &mut Editor, list: Vec<(String, PathBuf, usize)>) {
     open(ed, Kind::Buffers);
     if let Mode::Pick(p) = &mut ed.mode {
@@ -745,6 +757,13 @@ pub fn pick_key(ed: &mut Editor, k: Key) {
             let q = browse::up(&p.query.text).unwrap();
             set_query(p, q);
             p.update(&ed.project, &ed.buf, Instant::now());
+        }
+        KeyCode::Enter if p.kind == Kind::Branches => {
+            if let Some(r) = p.rows.get(p.sel) {
+                ed.pending_effect = Some(ExEffect::Magit(crate::magit::Action::Switch(
+                    r.text.clone(),
+                )));
+            }
         }
         KeyCode::Enter if p.kind == Kind::Buffers => {
             if let Some(r) = p.rows.get(p.sel) {

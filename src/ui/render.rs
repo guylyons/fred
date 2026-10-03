@@ -151,6 +151,7 @@ fn mode_name(m: &Mode) -> &'static str {
             Kind::Recent => "RECENT",
             Kind::Buffers => "BUFFERS",
             Kind::Def => "DEFINITION",
+            Kind::Branches => "BRANCHES",
         },
     }
 }
@@ -307,7 +308,11 @@ pub fn draw(
     }
     let n = ed.line_count();
     let last = (view.top + rows).min(n);
-    let styles = hl.styles(&ed.buf, view.top..last, budget);
+    let styles = if ed.magit.is_some() {
+        vec![]
+    } else {
+        hl.styles(&ed.buf, view.top..last, budget)
+    };
     let sel = match ed.mode {
         Mode::VisualLine { anchor } => Some((anchor.min(ed.cur.line), anchor.max(ed.cur.line))),
         Mode::Command(ref cl) if cl.kind == ':' && cl.text.starts_with("'<,'>") => ed
@@ -329,7 +334,22 @@ pub fn draw(
     let mut l = view.top;
     while y < rows && l < n {
         let line = ed.buf.line(l);
-        let st = if ed.dired.is_some() {
+        let st = if ed.magit.is_some() {
+            let text = line.trim_start();
+            let color = if text.starts_with('+') {
+                Color::Green
+            } else if text.starts_with('-') {
+                Color::Red
+            } else if text.starts_with("@@") {
+                Color::Cyan
+            } else if text.starts_with("Head:") || text.starts_with("v ") || text.starts_with("> ")
+            {
+                Color::Yellow
+            } else {
+                Color::Reset
+            };
+            Some(vec![(Style::default().fg(color), 0..line.len())])
+        } else if ed.dired.is_some() {
             Some(crate::dired::styles(ed, l))
         } else {
             styles.get(l - view.top).cloned().flatten()
@@ -553,6 +573,7 @@ fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter) {
     let mode = bar.fg(mode_color(&ed.mode)).add_modifier(Modifier::BOLD);
     let label = match (&ed.mode, &ed.dired) {
         _ if ed.zap.is_some() => "ZAP".to_string(),
+        _ if ed.magit.is_some() => "MAGIT".to_string(),
         (Mode::Normal, Some(d)) if !d.editing => "DIRED".to_string(),
         (m, _) => mode_name(m).to_string(),
     };
@@ -604,9 +625,14 @@ fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter) {
             bold.fg(Color::LightGreen),
         ));
     }
-    let filename = ed.path.as_ref().and_then(|p| p.file_name()).map_or_else(
-        || "[No Name]".to_string(),
-        |s| s.to_string_lossy().into_owned(),
+    let filename = ed.magit.as_ref().map_or_else(
+        || {
+            ed.path.as_ref().and_then(|p| p.file_name()).map_or_else(
+                || "[No Name]".to_string(),
+                |s| s.to_string_lossy().into_owned(),
+            )
+        },
+        |v| v.title(),
     );
     let flags_width = usize::from(ed.buf.modified) * 4 + usize::from(ed.readonly) * 5;
     let core_width =
@@ -637,9 +663,14 @@ fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter) {
             left.push(Span::styled(detail, bar));
         }
     }
-    let name = ed.path.as_ref().map_or_else(
-        || "[No Name]".to_string(),
-        |p| crate::pick::browse::tilde(p),
+    let name = ed.magit.as_ref().map_or_else(
+        || {
+            ed.path.as_ref().map_or_else(
+                || "[No Name]".to_string(),
+                |p| crate::pick::browse::tilde(p),
+            )
+        },
+        |v| v.title(),
     );
     let flags = format!(
         "{}{}",
