@@ -16,6 +16,8 @@ pub struct Config {
     pub wrap: bool,
     pub numbers: bool,
     pub relative_numbers: bool,
+    /// Highlight the current buffer line across the text area.
+    pub hl_line: bool,
     pub theme: String,
     pub tabstop: usize,
     pub autocomplete: bool,
@@ -37,6 +39,7 @@ impl Default for Config {
             wrap: false,
             numbers: true,
             relative_numbers: false,
+            hl_line: false,
             theme: "ansi".into(),
             tabstop: 8,
             autocomplete: true,
@@ -150,11 +153,23 @@ mod tests {
         assert!(
             c.numbers
                 && !c.relative_numbers
+                && !c.hl_line
                 && !c.wrap
                 && c.autocomplete
                 && !c.icons
                 && c.clipboard
         );
+    }
+
+    #[test]
+    fn hl_line_accepts_boolean_config() {
+        let (c, err) = Config::parse("hl_line = true");
+        assert!(err.is_none());
+        assert!(c.hl_line);
+        let (c, err) = Config::parse("hl_line = false");
+        assert!(err.is_none());
+        assert!(!c.hl_line);
+        assert!(Config::parse("hl_line = \"yes\"").1.is_some());
     }
 
     #[test]

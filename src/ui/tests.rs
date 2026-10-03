@@ -823,3 +823,78 @@ fn splash_new_file_ai_config_and_quit_shortcuts() {
         Some(crate::ex::ExEffect::Quit { force: false })
     ));
 }
+
+#[test]
+fn hl_line_follows_cursor_and_preserves_syntax() {
+    let mut s = Screen::new(30, 6);
+    let mut e = editor("fn main() {}\nlet x = 1;\n", "");
+    e.path = Some("main.rs".into());
+    s.hl.set_file(e.path.as_deref(), &e.buf);
+    s.draw(&e);
+    let plain = s.term.backend().buffer().clone();
+    s.cfg = Config::parse("hl_line = true").0;
+    s.draw(&e);
+    let highlighted = s.term.backend().buffer();
+    let bg = highlighted[(29, 0)].bg;
+    assert_ne!(bg, plain[(29, 0)].bg);
+    for x in 4..30 {
+        assert_eq!(highlighted[(x, 0)].bg, bg);
+        assert_eq!(highlighted[(x, 0)].fg, plain[(x, 0)].fg);
+        assert_eq!(highlighted[(x, 0)].modifier, plain[(x, 0)].modifier);
+    }
+    assert_eq!(highlighted[(0, 0)], plain[(0, 0)], "gutter unchanged");
+    assert_eq!(highlighted[(4, 1)], plain[(4, 1)]);
+    e.handle_key(crate::key::Key::ch('j'));
+    s.draw(&e);
+    let moved = s.term.backend().buffer();
+    assert_eq!(moved[(29, 0)].bg, plain[(29, 0)].bg);
+    assert_eq!(moved[(29, 1)].bg, bg);
+}
+
+#[test]
+fn hl_line_covers_wrapped_rows_and_empty_lines() {
+    let mut s = Screen::new(8, 6);
+    s.cfg = Config::parse("hl_line = true\nwrap = true\nnumbers = false").0;
+    let mut e = editor("漢字abcde\n\nlast", "");
+    s.draw(&e);
+    let b = s.term.backend().buffer();
+    let bg = b[(7, 1)].bg;
+    assert_ne!(bg, b[(7, 2)].bg);
+    for y in 0..2 {
+        let mut x = 0;
+        while x < 8 {
+            assert_eq!(b[(x, y)].bg, bg, "wrapped cell {x},{y}");
+            // The backend skips hidden continuation cells of wide glyphs.
+            x += unicode_width::UnicodeWidthStr::width(b[(x, y)].symbol()).max(1) as u16;
+        }
+    }
+    e.handle_key(crate::key::Key::ch('j'));
+    s.draw(&e);
+    let b = s.term.backend().buffer();
+    for x in 0..8 {
+        assert_eq!(b[(x, 2)].bg, bg, "empty line cell {x}");
+    }
+    assert_ne!(b[(7, 0)].bg, bg);
+}
+
+#[test]
+fn hl_line_defers_to_visual_selection() {
+    let e = editor("one\ntwo\nthree", "Vj");
+    let mut s = Screen::new(20, 5);
+    s.draw(&e);
+    let selection = s.term.backend().buffer().clone();
+    s.cfg = Config::parse("hl_line = true").0;
+    s.draw(&e);
+    assert_eq!(s.term.backend().buffer(), &selection);
+}
+
+#[test]
+fn hl_line_does_not_change_splash() {
+    let e = editor("", "");
+    let mut s = Screen::new(60, 20);
+    s.draw(&e);
+    let splash = s.term.backend().buffer().clone();
+    s.cfg = Config::parse("hl_line = true").0;
+    s.draw(&e);
+    assert_eq!(s.term.backend().buffer(), &splash);
+}
