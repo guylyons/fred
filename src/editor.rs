@@ -52,7 +52,7 @@ pub struct CmdLine {
     hist: Option<usize>,
     stash: String,
     /// Tab completion in progress: candidates, current index, text before Tab.
-    comp: Option<(Vec<String>, usize, String)>,
+    pub(crate) comp: Option<(Vec<String>, usize, String)>,
 }
 
 impl CmdLine {
@@ -292,6 +292,7 @@ impl Editor {
         let text = text.replace("\r\n", "\n").replace('\r', "\n");
         match &mut self.mode {
             Mode::Command(cl) => {
+                cl.comp = None;
                 let first = text.lines().next().unwrap_or("");
                 cl.text.insert_str(cl.cursor, first);
                 cl.cursor += first.len();
@@ -434,7 +435,10 @@ impl Editor {
         let Mode::Command(cl) = &mut self.mode else {
             return;
         };
-        if k.code != KeyCode::Tab {
+        if k.is(KeyCode::Esc) && cl.comp.take().is_some() {
+            return;
+        }
+        if !matches!(k.code, KeyCode::Tab | KeyCode::BackTab) {
             cl.comp = None;
         }
         let leaving = matches!(k.code, KeyCode::Esc)
@@ -475,13 +479,13 @@ impl Editor {
                     cl.hist = next;
                 }
             }
-            KeyCode::Tab => self.complete_cmdline(),
+            KeyCode::Tab | KeyCode::BackTab => self.complete_cmdline(k.code == KeyCode::BackTab),
             _ => cl.edit(k),
         }
     }
 
     /// Tab on the command line (filled in by completion).
-    fn complete_cmdline(&mut self) {
+    fn complete_cmdline(&mut self, back: bool) {
         let Mode::Command(cl) = &mut self.mode else {
             return;
         };
@@ -490,7 +494,11 @@ impl Editor {
         }
         let (items, i, base) = match cl.comp.take() {
             Some((items, i, base)) => {
-                let next = (i + 1) % (items.len() + 1);
+                let next = if back {
+                    (i + items.len()) % (items.len() + 1)
+                } else {
+                    (i + 1) % (items.len() + 1)
+                };
                 (items, next, base)
             }
             None => {
@@ -499,7 +507,8 @@ impl Editor {
                 if items.is_empty() {
                     return;
                 }
-                (items, 0, cl.text.clone())
+                let i = if back { items.len() - 1 } else { 0 };
+                (items, i, cl.text.clone())
             }
         };
         cl.text = items.get(i).cloned().unwrap_or_else(|| base.clone());

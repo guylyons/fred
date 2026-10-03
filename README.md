@@ -204,8 +204,10 @@ Patterns use Rust's [`regex`](https://docs.rs/regex) syntax, which is like
 extended regular expressions (ERE). `/` and `?` searches ignore case unless
 the pattern has a capital letter. `:` commands match case exactly, as in ed,
 so a substitution never changes text you didn't spell; add `(?i)` to ignore
-case. `Tab` completes command names and file paths, and
-`Up`/`Down` go through the command history.
+case. `Tab` shows command-name and file-path candidates above the command
+line and cycles forward; `Shift-Tab` cycles backward. `Enter` runs the completed
+command. The first `Esc` dismisses the candidate menu; a second leaves the command
+line. `Up`/`Down` go through the command history.
 
 In shell commands `%` is the current file's name (`\%` for a literal `%`).
 

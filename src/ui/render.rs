@@ -426,6 +426,9 @@ pub fn draw(
         };
         draw_popup(buf, area, ed, view, geom, (cx, cy));
     }
+    if let Mode::Command(cl) = &ed.mode {
+        draw_ex_completion(buf, input_area, cl);
+    }
     match (cmd_cursor, cursor) {
         (Some(x), _) => f.set_cursor_position((ox + x as u16, oy + input_area.height - 1)),
         (None, Some((x, y))) if rows > 0 => {
@@ -434,6 +437,40 @@ pub fn draw(
             f.set_cursor_position((ox + x, oy + y));
         }
         _ => {}
+    }
+}
+
+/// Ex candidates grow upward from the command line, best first.
+fn draw_ex_completion(buf: &mut Screen, area: Rect, cl: &CmdLine) {
+    let Some((items, selected, _)) = &cl.comp else {
+        return;
+    };
+    let height = items.len().min(area.height.saturating_sub(1) as usize);
+    if height == 0 || area.width == 0 {
+        return;
+    }
+    let width = (items
+        .iter()
+        .map(|s| display_width(s, 1, 0))
+        .max()
+        .unwrap_or(0)
+        + 2)
+    .min(area.width as usize);
+    let off = (selected + 1)
+        .saturating_sub(height)
+        .min(items.len() - height);
+    let top = area.bottom() - 1 - height as u16;
+    for (row, item) in items.iter().skip(off).take(height).enumerate() {
+        let style = if row + off == *selected {
+            Style::default().bg(Color::Cyan).fg(Color::Black)
+        } else {
+            Style::default()
+                .bg(Color::Indexed(235))
+                .fg(Color::Indexed(250))
+        };
+        let y = top + row as u16;
+        buf.set_stringn(area.x, y, " ".repeat(width), width, style);
+        buf.set_stringn(area.x + 1, y, item, width.saturating_sub(2), style);
     }
 }
 

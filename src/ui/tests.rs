@@ -190,6 +190,44 @@ fn modeline_metadata_yields_to_filename_and_unsaved_flags() {
 }
 
 #[test]
+fn ex_completion_popup_cycles_and_esc_dismisses_it() {
+    let mut s = Screen::new(40, 12);
+    let mut e = editor("text", ":<Tab>");
+    s.draw(&e);
+    let rows: Vec<_> = (0..11).map(|y| s.row(y)).collect();
+    assert!(rows.iter().any(|r| r.trim() == "ai"), "{rows:?}");
+    assert!(rows.iter().any(|r| r.trim() == "buffer"), "{rows:?}");
+    let ai_y = (0..11).find(|&y| s.row(y).trim() == "ai").unwrap();
+    assert_eq!(
+        s.term.backend().buffer()[(0, ai_y)].bg,
+        ratatui::style::Color::Cyan
+    );
+    assert_eq!(s.cursor(), (3, 11));
+    e.handle_key(crate::key::Key::new(crate::key::KeyCode::Tab));
+    assert!(matches!(&e.mode, Mode::Command(cl) if cl.text == "bdelete"));
+    e.handle_key(crate::key::Key::new(crate::key::KeyCode::BackTab));
+    assert!(matches!(&e.mode, Mode::Command(cl) if cl.text == "ai"));
+    e.handle_key(crate::key::Key::new(crate::key::KeyCode::Esc));
+    assert!(
+        matches!(&e.mode, Mode::Command(_)),
+        "first Esc only closes completion"
+    );
+    s.draw(&e);
+    assert!(!(0..11).any(|y| s.row(y).trim() == "buffer"));
+    e.handle_key(crate::key::Key::new(crate::key::KeyCode::Esc));
+    assert_eq!(e.mode, Mode::Normal);
+}
+
+#[test]
+fn pasting_into_ex_dismisses_old_completion_candidates() {
+    let mut e = editor("text", ":wr<Tab>");
+    e.paste(" notes.txt");
+    assert!(
+        matches!(&e.mode, Mode::Command(cl) if cl.text == "write notes.txt" && cl.comp.is_none())
+    );
+}
+
+#[test]
 fn modified_and_mode_in_status() {
     let mut s = Screen::new(40, 5);
     let mut e = editor("a\nb\nc", "xi");

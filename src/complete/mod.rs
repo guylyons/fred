@@ -91,11 +91,35 @@ pub fn token_before(line: &str, byte: usize) -> Option<(usize, String, bool)> {
     (!w.is_empty()).then(|| (wstart, w.to_string(), false))
 }
 
-const COMMANDS: &[&str] = &["cd", "edit", "pwd", "quit", "read", "write", "wq", "xit"];
+const COMMANDS: &[&str] = &[
+    "ai",
+    "bdelete",
+    "bnext",
+    "bprevious",
+    "buffer",
+    "buffers",
+    "cd",
+    "d",
+    "edit",
+    "files",
+    "g",
+    "j",
+    "ls",
+    "m",
+    "pwd",
+    "quit",
+    "read",
+    "s",
+    "t",
+    "v",
+    "write",
+    "wq",
+    "xit",
+];
 
 /// Full `:` lines that Tab can complete `text` to.
 pub fn cmdline_candidates(text: &str, cwd: &Path) -> Vec<String> {
-    if !text.is_empty() && text.chars().all(|c| c.is_ascii_alphabetic()) {
+    if text.chars().all(|c| c.is_ascii_alphabetic()) {
         return COMMANDS
             .iter()
             .filter(|c| c.starts_with(text) && **c != text)
