@@ -94,6 +94,14 @@ exactly as pasted.
 
 Space is the leader key (`l` still moves right).
 
+- `Space s` zaps to a visible word. Type its prefix to highlight matches;
+  a unique exact word jumps straight to its start. Otherwise type the letter
+  label shown at the word. Labels avoid letters that can continue your search;
+  `Enter` switches to label selection if all letters are needed for searching.
+  Larger sets use multiple letters, showing the remaining keys as you select.
+  `Backspace` shortens the search and `Esc`/`Ctrl-G` cancels. Like `/`, matching
+  ignores case unless you type a capital. Only whole words visible in the text
+  area participate, including wrapped rows and horizontally scrolled text.
 - `Space p` finds a file. Type a few letters of its path in any order that
   follows the path: `sesrs` finds `src/session.rs`. With nothing typed you
   see the files you opened most recently first.

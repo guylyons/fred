@@ -77,6 +77,64 @@ fn renders_gutter_status_and_cursor() {
 }
 
 #[test]
+fn zap_highlights_only_the_typed_prefix() {
+    for (text, query, last_match, prefix_width) in [
+        ("reload", "re", 1, 2),
+        ("漢字語", "漢字", 2, 4),
+        ("e\u{301}lan", "e\u{301}l", 1, 2),
+    ] {
+        let mut s = Screen::new(20, 3);
+        s.cfg.numbers = false;
+        let mut e = editor(text, "");
+        s.draw(&e);
+        e.viewport = Some(crate::zap::Viewport {
+            view: s.view,
+            rows: 1,
+            cols: 20,
+            wrap: false,
+        });
+        for k in parse_keys(&format!(" s{query}")) {
+            e.handle_key(k);
+        }
+        s.draw(&e);
+        let b = s.term.backend().buffer();
+        assert_eq!(b[(0, 0)].bg, ratatui::style::Color::Magenta);
+        assert_eq!(b[(last_match, 0)].bg, ratatui::style::Color::Yellow);
+        assert_ne!(
+            b[(prefix_width, 0)].bg,
+            ratatui::style::Color::Yellow,
+            "{text}"
+        );
+    }
+}
+
+#[test]
+fn zap_labels_at_a_narrow_edge_reveal_the_next_selection_key() {
+    let mut s = Screen::new(8, 62);
+    s.cfg.numbers = false;
+    let mut e = editor(&vec!["       x"; 60].join("\n"), "");
+    s.draw(&e);
+    e.viewport = Some(crate::zap::Viewport {
+        view: s.view,
+        rows: 60,
+        cols: 8,
+        wrap: false,
+    });
+    for k in parse_keys(" sx") {
+        e.handle_key(k);
+    }
+    s.draw(&e);
+    assert_eq!(&s.row(0)[7..], "a");
+    e.handle_key(crate::key::Key::ch('a'));
+    s.draw(&e);
+    assert_eq!(
+        &s.row(1)[7..],
+        "s",
+        "the remaining label key must be visible"
+    );
+}
+
+#[test]
 fn modified_and_mode_in_status() {
     let mut s = Screen::new(40, 5);
     let mut e = editor("a\nb\nc", "xi");

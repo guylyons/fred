@@ -93,6 +93,14 @@ impl Ui {
             .draw(|f| ui::draw(f, &s.ed, view, hl, cfg, HIGHLIGHT_BUDGET))?;
         // `done.area` is the whole terminal; the buffer covers just the window.
         self.area = Some(done.buffer.area);
+        let area = done.buffer.area;
+        let gutter = ui::render::gutter_width(&s.ed, cfg).min(area.width as usize / 2);
+        s.ed.viewport = Some(crate::zap::Viewport {
+            view: self.view,
+            rows: (area.height as usize).saturating_sub(2),
+            cols: (area.width as usize).saturating_sub(gutter).max(1),
+            wrap: cfg.wrap,
+        });
         // Paging scrolls by the text rows actually on screen (minus status
         // and command lines), not the configured height, which may be "max".
         s.ed.win_height = (done.buffer.area.height as usize).saturating_sub(2).max(1);
@@ -341,7 +349,10 @@ fn step(s: &mut Session, hl: &mut Highlighter, ev: Event, resized: &mut bool) {
             }
         }
         Event::Paste(text) => s.ed.paste(&text),
-        Event::Resize(..) => *resized = true,
+        Event::Resize(..) => {
+            s.ed.zap = None;
+            *resized = true;
+        }
         _ => {}
     }
     if let Some(d) = s.ed.buf.take_dirty_from() {
@@ -602,6 +613,7 @@ fn event_loop(
             dirty = true;
             loop {
                 let ev = event::read()?;
+                let redraw_view = matches!(ev, Event::Mouse(_) | Event::Resize(..));
                 if let Event::Key(k) = ev
                     && map_key(k) == Some(Key::ctrl('z'))
                 {
@@ -615,13 +627,22 @@ fn event_loop(
                         }
                     }
                     ev => {
-                        if matches!(ev, Event::Key(_) | Event::Paste(_) | Event::Resize(..)) {
+                        let keep_view = s.ed.zap.is_some();
+                        let keyboard =
+                            matches!(ev, Event::Key(_) | Event::Paste(_) | Event::Resize(..));
+                        step(s, hl, ev, &mut resized);
+                        if keyboard
+                            && !keep_view
+                            && s.ed.zap.is_none()
+                            && s.ed.vim.pending != [Key::ch(' ')]
+                        {
                             ui.view.detached = false;
                         }
-                        step(s, hl, ev, &mut resized);
                     }
                 }
-                if s.quit || !event::poll(BATCH)? {
+                // Synchronize the viewport snapshot before handling keys that
+                // follow mouse scrolling or a terminal resize in the same batch.
+                if s.quit || redraw_view || !event::poll(BATCH)? {
                     break;
                 }
             }

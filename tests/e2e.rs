@@ -12,6 +12,91 @@ const BIN: &str = env!("CARGO_BIN_EXE_fred");
 const ROWS: u16 = 24;
 const COLS: u16 = 80;
 
+#[test]
+fn zap_exact_visible_word_moves_without_editing() {
+    let env = Env::new();
+    env.write("zap.txt", "first zebra zebras\n");
+    let mut p = env.fred(&["-f", "zap.txt"]);
+    p.wait_for("editor", |s| s.contains("NORMAL"));
+    p.keys(&[" s"]);
+    p.wait_for("zap prompt", |s| s.contains("zap>"));
+    p.keys(&["zebra"]);
+    p.wait_for("exact word jump", |s| {
+        s.contains("NORMAL") && s.contains("1:7")
+    });
+    p.keys(&[":q\r"]);
+    assert_eq!(p.wait_exit(), 0);
+    assert_eq!(env.read("zap.txt"), "first zebra zebras\n");
+}
+
+#[test]
+fn zap_labels_select_duplicate_words_in_fullscreen_and_inline() {
+    for mode in ["-f", "-i"] {
+        let env = Env::new();
+        env.write("zap.txt", "first zebra zebras\nzebra\n");
+        let mut p = env.fred(&[mode, "zap.txt"]);
+        p.wait_for("editor", |s| s.contains("NORMAL"));
+        p.keys(&[" s", "zebr"]);
+        p.wait_for("word labels", |s| {
+            s.contains("ZAP") && s.contains("sebra debras")
+        });
+        p.keys(&["a", "f"]);
+        p.wait_for("duplicate word jump", |s| {
+            s.contains("NORMAL") && s.contains("2:1")
+        });
+        p.keys(&[":q\r"]);
+        assert_eq!(p.wait_exit(), 0);
+        assert_eq!(env.read("zap.txt"), "first zebra zebras\nzebra\n");
+    }
+}
+
+#[test]
+fn zap_keeps_the_wheel_scrolled_view_while_typing_the_leader() {
+    for batched in [false, true] {
+        let env = Env::new();
+        let text = (0..40)
+            .map(|i| {
+                if i == 3 {
+                    "zebra".to_string()
+                } else {
+                    format!("line{i}")
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        env.write("zap.txt", &text);
+        let mut p = env.fred(&["-f", "zap.txt"]);
+        p.wait_for("editor", |s| s.contains("NORMAL"));
+        if batched {
+            p.keys(&["\x1b[<65;6;1M s"]);
+            p.wait_for("zap in wheel view", |s| s.contains("ZAP"));
+        } else {
+            p.keys(&["\x1b[<65;6;1M"]);
+            p.wait_for("wheel view", |s| {
+                s.lines().next().is_some_and(|l| l.contains("zebra"))
+            });
+            p.keys(&[" "]);
+            assert!(
+                p.screen().lines().next().unwrap().contains("zebra"),
+                "{}",
+                p.screen()
+            );
+            p.keys(&["s"]);
+        }
+        assert!(
+            p.screen().lines().next().unwrap().contains("zebra"),
+            "{}",
+            p.screen()
+        );
+        p.keys(&["zebra"]);
+        p.wait_for("jump in wheel view", |s| {
+            s.contains("NORMAL") && s.contains("4:1")
+        });
+        p.keys(&[":q\r"]);
+        assert_eq!(p.wait_exit(), 0);
+    }
+}
+
 struct Env {
     dir: tempfile::TempDir,
 }

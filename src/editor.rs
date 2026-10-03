@@ -115,6 +115,8 @@ pub struct Editor {
     /// File operation requested by an ex command, performed by the app.
     pub pending_effect: Option<ExEffect>,
     pub win_height: usize,
+    pub(crate) viewport: Option<crate::zap::Viewport>,
+    pub(crate) zap: Option<crate::zap::Zap>,
     pub tabstop: usize,
     /// Insert spaces for Tab, this many per indent level (0 = insert a tab).
     pub indent_spaces: usize,
@@ -155,6 +157,8 @@ impl Editor {
             dired: None,
             pending_effect: None,
             win_height: 12,
+            viewport: None,
+            zap: None,
             tabstop: 8,
             indent_spaces,
             saved_state: 0,
@@ -184,6 +188,10 @@ impl Editor {
     }
 
     pub fn handle_key(&mut self, k: Key) {
+        if self.zap.is_some() {
+            crate::zap::key(self, k);
+            return;
+        }
         if self.mode == Mode::Normal
             && self.vim.pending.is_empty()
             && crate::ui::splash::active(self)
@@ -256,6 +264,10 @@ impl Editor {
 
     /// Bracketed paste: insert text as-is (no autoindent or completion).
     pub fn paste(&mut self, text: &str) {
+        if self.zap.is_some() {
+            crate::zap::paste(self, text);
+            return;
+        }
         let text = text.replace("\r\n", "\n").replace('\r', "\n");
         match &mut self.mode {
             Mode::Command(cl) => {

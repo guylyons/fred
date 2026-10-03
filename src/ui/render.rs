@@ -170,6 +170,7 @@ pub fn mouse(
     {
         return;
     }
+    ed.zap = None;
     let gutter = gutter_width(ed, cfg).min(area.width as usize / 2);
     let cols = (area.width as usize).saturating_sub(gutter).max(1);
     let rows = (area.height as usize).saturating_sub(2).max(1);
@@ -249,7 +250,7 @@ pub fn draw(
     let gutter = gutter_width(ed, cfg).min(area.width as usize / 2);
     let sign = git_column(ed).min(gutter);
     let cols = (area.width as usize).saturating_sub(gutter).max(1);
-    if panel == 0 {
+    if panel == 0 && ed.zap.is_none() {
         view.scroll(ed, rows.max(1), cols, cfg.wrap);
     }
     let n = ed.line_count();
@@ -355,6 +356,36 @@ pub fn draw(
         buf.set_stringn(ox, oy + y as u16, "~", 1, num_style);
         y += 1;
     }
+    if let Some(zap) = &ed.zap {
+        for (word, label) in zap.choices() {
+            if !label.starts_with(&zap.label_prefix) {
+                continue;
+            }
+            let highlight = Style::default().bg(Color::Yellow).fg(Color::Black);
+            for &(x, y, width) in word.cells.iter().take(zap.query.graphemes(true).count()) {
+                for dx in 0..width {
+                    if x + dx < cols && y < rows {
+                        buf[(ox + (gutter + x + dx) as u16, oy + y as u16)].set_style(highlight);
+                    }
+                }
+            }
+            if let Some(&(x, y, _)) = word.cells.first()
+                && x < cols
+                && y < rows
+            {
+                buf.set_stringn(
+                    ox + (gutter + x) as u16,
+                    oy + y as u16,
+                    &label[zap.label_prefix.len()..],
+                    cols - x,
+                    Style::default()
+                        .bg(Color::Magenta)
+                        .fg(Color::Black)
+                        .add_modifier(Modifier::BOLD),
+                );
+            }
+        }
+    }
     // `fred` with no file: the start screen, until there's text.
     if ed.path.is_none()
         && ed.buf.len_bytes() == 0
@@ -413,6 +444,7 @@ fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter) {
     let mut left = vec![
         Span::styled(
             match (&ed.mode, &ed.dired) {
+                _ if ed.zap.is_some() => " ZAP ".to_string(),
                 (Mode::Normal, Some(d)) if !d.editing => " DIRED ".to_string(),
                 (m, _) => format!(" {} ", mode_name(m)),
             },
@@ -463,6 +495,19 @@ fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter) {
 fn draw_command_row(buf: &mut Screen, area: Rect, ed: &Editor) -> Option<usize> {
     let y = area.y + area.height - 1;
     let w = area.width as usize;
+    if let Some(zap) = &ed.zap {
+        let text = format!(
+            "zap> {}{}",
+            zap.query,
+            if zap.label_prefix.is_empty() {
+                String::new()
+            } else {
+                format!(" [{}]", zap.label_prefix)
+            }
+        );
+        buf.set_stringn(area.x, y, &text, w, Style::default());
+        return Some(display_width(&text, 1, 0).min(w.saturating_sub(1)));
+    }
     match &ed.mode {
         Mode::Pick(p) => Some(draw_input(buf, area, p.prompt(), &p.query)),
         Mode::Command(cl) if !cl.prompt.is_empty() => Some(draw_input(buf, area, &cl.prompt, cl)),
