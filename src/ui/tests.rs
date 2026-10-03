@@ -680,7 +680,7 @@ fn mouse_scroll_and_click_use_screen_coordinates() {
 }
 
 #[test]
-fn splash_shows_actions_and_recent_files() {
+fn splash_shows_actions_and_hotkeys() {
     let dir = tempfile::tempdir().unwrap();
     let recent = dir.path().join("recent");
     crate::pick::recent::record(&recent, std::path::Path::new("/tmp/notes.txt"), None);
@@ -689,26 +689,55 @@ fn splash_shows_actions_and_recent_files() {
     let mut s = Screen::new(80, 40);
     s.draw(&e);
     let text = (0..38).map(|y| s.row(y)).collect::<Vec<_>>().join("\n");
-    for label in ["Dr. Fred", "Recent files", "Find file", "Grep", "notes.txt"] {
+    for label in [
+        "Dr. Fred",
+        "New file",
+        "Find file",
+        "Recent files",
+        "Live grep",
+        "Claude",
+        "Config",
+        "Quit",
+        "notes.txt",
+    ] {
         assert!(text.contains(label), "missing {label}");
     }
-    for i in 0..5 {
-        crate::pick::recent::record(
-            e.project.recent_file.as_deref().unwrap(),
-            std::path::Path::new(&format!("/tmp/file{i}.txt")),
-            None,
+    let mut previous = None;
+    let mut key_column = None;
+    for (label, key) in [
+        ("New file", 'e'),
+        ("Find file", 'f'),
+        ("Recent files", 'r'),
+        ("Live grep", 'g'),
+        ("Claude", 'a'),
+        ("Config", 'c'),
+        ("Quit", 'q'),
+    ] {
+        let y = (0..38).find(|&y| s.row(y).contains(label)).unwrap();
+        assert!(
+            previous.is_none_or(|prev| y == prev + 1),
+            "keep the original compact spacing"
+        );
+        previous = Some(y);
+        let row = s.row(y);
+        assert!(row.ends_with(key), "{row}");
+        let column = row.chars().count() - 1;
+        assert!(key_column.is_none_or(|c| c == column));
+        key_column = Some(column);
+        assert_eq!(
+            s.term.backend().buffer()[(column as u16, y)].fg,
+            ratatui::style::Color::LightMagenta
         );
     }
     let mut standard = Screen::new(80, 24);
     standard.draw(&e);
     assert!(
         (0..22).any(|y| standard.row(y).contains("Dr. Fred")),
-        "keep the logo on a standard terminal with a full recent list"
+        "keep the logo and menu on a standard terminal"
     );
-    crate::pick::recent::record(
-        e.project.recent_file.as_deref().unwrap(),
-        std::path::Path::new("/tmp/notes.txt"),
-        None,
+    assert!(
+        (0..22).any(|y| standard.row(y).contains("notes.txt")),
+        "show recent files on a standard terminal"
     );
     e.handle_key(crate::key::Key::ch('r'));
     assert!(matches!(e.mode, Mode::Pick(ref p) if p.kind == crate::pick::Kind::Recent));
@@ -730,4 +759,29 @@ fn splash_shows_actions_and_recent_files() {
     assert!(
         matches!(e.pending_effect, Some(crate::ex::ExEffect::Open { ref path, .. }) if path == std::path::Path::new("/tmp/notes.txt"))
     );
+}
+
+#[test]
+fn splash_new_file_ai_config_and_quit_shortcuts() {
+    let mut e = editor("", "e");
+    assert_eq!(e.mode, Mode::Insert);
+    for k in parse_keys("hello<Esc>u") {
+        e.handle_key(k);
+    }
+    assert_eq!(
+        e.buf.len_bytes(),
+        0,
+        "new-file typing is one undoable insert"
+    );
+    e = editor("", "a");
+    assert!(matches!(&e.mode, Mode::Command(cl) if cl.text == "ai "));
+    e = editor("", "c");
+    assert!(
+        matches!(&e.pending_effect, Some(crate::ex::ExEffect::Open { path, .. }) if *path == crate::config::config_path())
+    );
+    e = editor("", "q");
+    assert!(matches!(
+        e.pending_effect,
+        Some(crate::ex::ExEffect::Quit { force: false })
+    ));
 }

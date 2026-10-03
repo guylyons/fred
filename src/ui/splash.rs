@@ -23,40 +23,71 @@ pub fn recent(ed: &crate::editor::Editor) -> Vec<std::path::PathBuf> {
         .collect()
 }
 
-pub fn dashboard(buf: &mut Screen, area: Rect, ed: &crate::editor::Editor) {
-    let recent = recent(ed);
-    let mut lines = vec![
-        "[f] Find file    Space p".into(),
-        "[g] Grep         Space g".into(),
-        "[r] Recent files Space r".into(),
+pub fn dashboard(buf: &mut Screen, area: Rect, ed: &crate::editor::Editor, icons: bool) {
+    let actions = [
+        ('\u{f0214}', '+', "New file", 'e'),
+        ('\u{f0219}', '?', "Find file", 'f'),
+        ('\u{f025a}', '*', "Recent files", 'r'),
+        ('\u{f021a}', '/', "Live grep", 'g'),
+        ('\u{f06a9}', '@', "Claude", 'a'),
+        ('\u{f0493}', '#', "Config", 'c'),
+        ('\u{f0343}', 'x', "Quit", 'q'),
     ];
-    if recent.is_empty() {
-        lines.push("    No recent files".into());
-    }
-    for (i, path) in recent.iter().enumerate() {
-        lines.push(format!("[{}] {}", i + 1, path.display()));
-    }
-    let logo_min = LOGO.lines().count().div_ceil(2) as u16 + 2;
-    let height = (lines.len() as u16 + 1)
-        .min(area.height.saturating_sub(logo_min).max(4))
-        .min(area.height);
+    let recent = recent(ed);
+    let compact_logo = LOGO.lines().count().div_ceil(4) as u16 + 2;
+    let recent_rows = recent.len().max(1).min(
+        area.height
+            .saturating_sub(compact_logo + actions.len() as u16 + 2)
+            .max(1) as usize,
+    );
+    let height = (actions.len() as u16 + 2 + recent_rows as u16).min(area.height);
     let logo_height = area.height - height;
     draw(buf, Rect::new(area.x, area.y, area.width, logo_height));
-    let width = lines
-        .iter()
-        .map(|s| unicode_width::UnicodeWidthStr::width(s.as_str()))
-        .max()
-        .unwrap_or(0)
-        .min(area.width as usize);
-    let x = area.x + (area.width - width as u16) / 2;
-    for (i, line) in lines.iter().take(height as usize).enumerate() {
+    let width = area.width.min(44);
+    let x = area.x + (area.width - width) / 2;
+    let label_style = Style::default().fg(Color::Indexed(250));
+    let key_style = Style::default()
+        .fg(Color::LightMagenta)
+        .add_modifier(Modifier::BOLD);
+    for (i, &(icon, fallback, label, key)) in actions.iter().enumerate() {
+        let y = area.y + logo_height + i as u16;
+        if y >= area.bottom() || width < 5 {
+            break;
+        }
+        let icon = if icons { icon } else { fallback };
+        buf.set_stringn(x, y, icon.to_string(), 2, label_style);
+        buf.set_stringn(x + 3, y, label, (width - 5) as usize, label_style);
+        buf.set_stringn(x + width - 1, y, key.to_string(), 1, key_style);
+    }
+    let heading_y = area.y + logo_height + actions.len() as u16 + 1;
+    if heading_y < area.bottom() {
         buf.set_stringn(
             x,
-            area.y + logo_height + i as u16,
-            line,
-            (area.right() - x) as usize,
-            Style::default().fg(Color::Rgb(140, 235, 235)),
+            heading_y,
+            "Recent files",
+            width as usize,
+            label_style.add_modifier(Modifier::BOLD),
         );
+    }
+    for i in 0..recent_rows {
+        let y = heading_y + 1 + i as u16;
+        if y >= area.bottom() {
+            break;
+        }
+        let line = recent.get(i).map_or_else(
+            || "No recent files".to_string(),
+            |path| {
+                format!(
+                    "[{}] {}",
+                    i + 1,
+                    super::render::status_tail(
+                        &crate::pick::browse::tilde(path),
+                        width.saturating_sub(4) as usize
+                    )
+                )
+            },
+        );
+        buf.set_stringn(x, y, line, width as usize, label_style);
     }
 }
 
@@ -72,22 +103,26 @@ fn color(px: u8) -> Option<Color> {
 }
 
 /// Draw the logo and its title centered in `area`: pixels twice the size
-/// when there's room, nothing when even one size doesn't fit.
+/// when there's room, half size when the menu needs more space.
 pub fn draw(buf: &mut Screen, area: Rect) {
     let rows: Vec<&[u8]> = LOGO.lines().map(str::as_bytes).collect();
     let (w, h) = (rows[0].len(), rows.len());
-    // Cells for the logo at `scale`, plus a gap and the title below.
-    let size = |scale: usize| (w * scale, (h * scale).div_ceil(2) + 2);
-    let fits = |(cw, ch): (usize, usize)| cw <= area.width as usize && ch <= area.height as usize;
-    let Some(scale) = [2, 1].into_iter().find(|&s| fits(size(s))) else {
+    // Pixel dimensions, plus the original gap and title below.
+    let Some((cw, ph)) = [(w * 2, h * 2), (w, h), (w / 2, h.div_ceil(2))]
+        .into_iter()
+        .find(|&(cw, ph)| cw <= area.width as usize && ph.div_ceil(2) + 2 <= area.height as usize)
+    else {
         return;
     };
-    let (cw, ch) = size(scale);
+    let ch = ph.div_ceil(2) + 2;
     let x0 = area.x + (area.width - cw as u16) / 2;
     let y0 = area.y + (area.height - ch as u16) / 2;
     let px = |x: usize, y: usize| {
-        rows.get(y / scale)
-            .and_then(|r| r.get(x / scale))
+        if y >= ph {
+            return None;
+        }
+        rows.get(y * h / ph)
+            .and_then(|r| r.get(x * w / cw))
             .and_then(|&p| color(p))
     };
     for cy in 0..ch - 2 {
@@ -150,7 +185,7 @@ mod tests {
         draw(&mut small, a);
         assert_eq!(width(&text(&small)), 24);
         // Too small for anything: nothing.
-        let mut tiny = Screen::empty(Rect::new(0, 0, 20, 10));
+        let mut tiny = Screen::empty(Rect::new(0, 0, 10, 8));
         let a = tiny.area;
         draw(&mut tiny, a);
         assert!(text(&tiny).trim().is_empty());

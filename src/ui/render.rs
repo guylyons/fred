@@ -400,7 +400,12 @@ pub fn draw(
         && ed.buf.len_bytes() == 0
         && matches!(ed.mode, Mode::Normal | Mode::Command(_))
     {
-        super::splash::dashboard(buf, Rect::new(ox, oy, area.width, rows as u16), ed);
+        super::splash::dashboard(
+            buf,
+            Rect::new(ox, oy, area.width, rows as u16),
+            ed,
+            cfg.icons,
+        );
     }
     if let Mode::Pick(p) = &ed.mode {
         let list = Rect::new(ox, oy + rows as u16 + 2, area.width, panel as u16);
@@ -570,7 +575,7 @@ fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter) {
 }
 
 /// Keep the filename end of a path when the modeline runs out of space.
-fn status_tail(text: &str, width: usize) -> String {
+pub(super) fn status_tail(text: &str, width: usize) -> String {
     if display_width(text, 1, 0) <= width {
         return text.to_string();
     }

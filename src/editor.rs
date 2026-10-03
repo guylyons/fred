@@ -199,6 +199,27 @@ impl Editor {
             && !k.alt
         {
             match k.code {
+                KeyCode::Char('e') => {
+                    vim::normal_key(self, Key::ch('i'));
+                    return;
+                }
+                KeyCode::Char('a') => {
+                    self.open_cmdline(':', "ai ");
+                    return;
+                }
+                KeyCode::Char('c') => {
+                    self.pending_effect = Some(ExEffect::Open {
+                        path: crate::config::config_path(),
+                        line: 0,
+                        col: 0,
+                        pattern: None,
+                    });
+                    return;
+                }
+                KeyCode::Char('q') => {
+                    self.run_ex("q");
+                    return;
+                }
                 KeyCode::Char('f') => {
                     crate::pick::open(self, crate::pick::Kind::Files);
                     return;
