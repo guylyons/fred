@@ -273,6 +273,7 @@ height = 12              # inline: lines of text in the window, or "max"
 wrap = false             # wrap long lines (otherwise the view scrolls sideways)
 numbers = true           # line numbers
 relative_numbers = false
+hl_line = false          # highlight the current line (including wrapped rows)
 theme = "ansi"           # any bat theme name, e.g. "Nord", "Dracula", "gruvbox-dark"
 tabstop = 8
 autocomplete = true      # pop up completions while typing (Ctrl-N works either way)
@@ -284,6 +285,9 @@ ai_command = "claude -p --tools '' --safe-mode"  # what :ai runs (prompt on stdi
 ai_rules = ""            # extra instructions for every :ai, e.g.
                          # "Smallest change that works. No new abstractions."
 ```
+
+Set `hl_line = true` for a full-width highlight in the terminal’s dark-gray
+color. Syntax colors stay visible, and visual selections take priority.
 
 ## Development
 

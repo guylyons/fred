@@ -317,6 +317,9 @@ pub fn draw(
             .map(|(&a, &b)| (a.min(b), a.max(b))),
         _ => None,
     };
+    let splash = ed.path.is_none()
+        && ed.buf.len_bytes() == 0
+        && matches!(ed.mode, Mode::Normal | Mode::Command(_));
     let num_style = Style::default().fg(Color::DarkGray);
     let cur_num_style = Style::default().add_modifier(Modifier::BOLD);
     let buf = f.buffer_mut();
@@ -363,6 +366,12 @@ pub fn draw(
                 &Line::from(spans),
                 cols as u16,
             );
+            if cfg.hl_line && l == ed.cur.line && !selected && !splash {
+                buf.set_style(
+                    Rect::new(ox + gutter as u16, oy + *y as u16, cols as u16, 1),
+                    Style::default().bg(Color::DarkGray),
+                );
+            }
             *y += 1;
         };
         if cfg.wrap {
@@ -444,10 +453,7 @@ pub fn draw(
         }
     }
     // `fred` with no file: the start screen, until there's text.
-    if ed.path.is_none()
-        && ed.buf.len_bytes() == 0
-        && matches!(ed.mode, Mode::Normal | Mode::Command(_))
-    {
+    if splash {
         super::splash::dashboard(
             buf,
             Rect::new(ox, oy, area.width, rows as u16),
