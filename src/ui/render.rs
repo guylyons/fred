@@ -329,7 +329,11 @@ pub fn draw(
     let mut l = view.top;
     while y < rows && l < n {
         let line = ed.buf.line(l);
-        let st = styles.get(l - view.top).cloned().flatten();
+        let st = if ed.dired.is_some() {
+            Some(crate::dired::styles(ed, l))
+        } else {
+            styles.get(l - view.top).cloned().flatten()
+        };
         let selected = sel.is_some_and(|(a, b)| l >= a && l <= b);
         // Rows of this line already scrolled off the top.
         let skip = if l == view.top { view.top_row } else { 0 };

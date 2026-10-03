@@ -391,6 +391,110 @@ fn line_text(d: &Dired, e: &Entry) -> String {
     }
 }
 
+/// Dired+ field coloring, using entry metadata rather than parsing filenames.
+/// Edited names can move the fields, so wdired stays unstyled until re-read.
+pub(crate) fn styles(ed: &Editor, line: usize) -> crate::highlight::LineStyles {
+    use ratatui::style::{Color, Modifier, Style};
+    let Some(d) = ed.dired.as_ref().filter(|d| !d.editing) else {
+        return vec![];
+    };
+    let text = ed.buf.line(line);
+    if line < HEADER {
+        return vec![(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+            0..text.len(),
+        )];
+    }
+    let Some(e) = entry_at(ed, line) else {
+        return vec![];
+    };
+    let suffix_len = usize::from(e.dir && e.link.is_none())
+        + e.link.as_ref().map_or(0, |target| 4 + target.len());
+    let Some(name) = text.len().checked_sub(e.name.len() + suffix_len) else {
+        return vec![];
+    };
+    let end = name + e.name.len();
+    // Embedded newlines can split an entry across buffer lines.
+    if name < if d.details { 33 } else { 2 } || text.get(name..end) != Some(e.name.as_str()) {
+        return vec![];
+    }
+    let mark = d.marks.get(&e.name).copied();
+    let mut spans = vec![];
+    if let Some(mark) = mark {
+        let color = if mark == 'D' {
+            Color::Red
+        } else {
+            Color::Yellow
+        };
+        spans.push((
+            Style::default().fg(color).add_modifier(Modifier::BOLD),
+            0..1,
+        ));
+    }
+    let kind = if e.link.is_some() {
+        Color::Blue
+    } else if e.dir {
+        Color::Cyan
+    } else if e.mode & 0o111 != 0 {
+        Color::Green
+    } else if e.name.starts_with('.') {
+        Color::DarkGray
+    } else {
+        Color::Gray
+    };
+    if d.details {
+        for (i, c) in mode_str(e).chars().enumerate() {
+            let color = match c {
+                'd' | 'l' => kind,
+                'r' => Color::Green,
+                'w' => Color::Yellow,
+                'x' => Color::Red,
+                _ => Color::DarkGray,
+            };
+            spans.push((Style::default().fg(color), 2 + i..3 + i));
+        }
+        spans.push((Style::default().fg(Color::Yellow), 13..name - 14));
+        spans.push((Style::default().fg(Color::Blue), name - 13..name - 1));
+    }
+    if mark == Some('D') {
+        spans.push((Style::default().fg(Color::Red), name..text.len()));
+    } else {
+        // A leading dot is a hidden basename, not a file extension.
+        let extension = (!e.dir && e.link.is_none())
+            .then(|| e.name.rfind('.').filter(|&i| i > 0 && i + 1 < e.name.len()))
+            .flatten();
+        let split = extension.map_or(end, |i| name + i);
+        spans.push((Style::default().fg(kind), name..split));
+        if split < end {
+            let compressed = matches!(
+                e.name[split - name + 1..].to_ascii_lowercase().as_str(),
+                "gz" | "bz2" | "xz" | "zst" | "zip" | "tgz" | "7z" | "tar"
+            );
+            spans.push((
+                Style::default().fg(if compressed {
+                    Color::Magenta
+                } else {
+                    Color::Green
+                }),
+                split..end,
+            ));
+        }
+        if suffix_len > 0 {
+            spans.push((
+                Style::default().fg(if e.link.is_some() {
+                    Color::DarkGray
+                } else {
+                    kind
+                }),
+                end..text.len(),
+            ));
+        }
+    }
+    spans
+}
+
 /// Put the listing in the buffer: not an edit (no undo, not modified).
 fn redraw(ed: &mut Editor) {
     let Some(d) = ed.dired.as_ref() else { return };

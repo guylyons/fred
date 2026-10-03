@@ -158,6 +158,13 @@ directory (cursor on the file). It's a read-only buffer, so every vim motion,
 count and search moves around it; these keys act on the entry under the
 cursor, on a `V` range, or on the `*` marked entries:
 
+Listings use Dired+-style field colors: cyan directories, blue symlinks,
+green executables and file extensions, magenta compressed extensions, and
+subdued dotfiles. Permissions, sizes, and dates have distinct colors;
+marked entries have a bold yellow `*`, and deletion flags and filenames
+turn red. Colors work with compact listings, wrapping, and current-line
+highlighting. Editing names with `i` temporarily disables field coloring.
+
 | Key | |
 |---|---|
 | `Enter` | open a file (as a buffer) or go into a directory |

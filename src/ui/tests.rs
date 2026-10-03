@@ -648,6 +648,156 @@ fn double_click_after_scrolling_opens_the_row_that_was_clicked() {
 }
 
 #[test]
+fn dired_colors_file_kinds_fields_and_marks() {
+    use ratatui::style::Color;
+    use std::os::unix::fs::{PermissionsExt, symlink};
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir(dir.path().join("folder")).unwrap();
+    std::fs::write(dir.path().join("plain.txt"), "hello").unwrap();
+    std::fs::write(dir.path().join("archive.tar.gz"), "compressed").unwrap();
+    std::fs::write(dir.path().join(".hidden"), "hidden").unwrap();
+    std::fs::write(dir.path().join("run"), "#!/bin/sh\n").unwrap();
+    std::fs::set_permissions(
+        dir.path().join("run"),
+        std::fs::Permissions::from_mode(0o755),
+    )
+    .unwrap();
+    symlink("plain.txt", dir.path().join("link")).unwrap();
+    let mut e = editor("", "");
+    crate::dired::visit(&mut e, dir.path(), None).unwrap();
+    let mut s = Screen::new(100, 12);
+    s.cfg.numbers = false;
+    s.draw(&e);
+    let position = |name: &str| {
+        let y = (1..e.line_count())
+            .find(|&y| e.buf.line(y)[33..].starts_with(name))
+            .unwrap();
+        (33, y as u16)
+    };
+    let folder = position("folder");
+    let link = position("link");
+    let run = position("run");
+    let plain = position("plain.txt");
+    let archive = position("archive.tar.gz");
+    let hidden = position(".hidden");
+    let b = s.term.backend().buffer();
+    let directory_color = b[folder].fg;
+    for pos in [folder, link, run, plain] {
+        assert_ne!(
+            b[pos].fg,
+            Color::Reset,
+            "file kind at {pos:?} must be styled"
+        );
+    }
+    assert_ne!(b[folder].fg, b[plain].fg);
+    assert_ne!(b[link].fg, b[folder].fg);
+    assert_ne!(b[run].fg, b[plain].fg);
+    assert_ne!(
+        b[(plain.0 + 5, plain.1)].fg,
+        b[plain].fg,
+        "suffix differs from basename"
+    );
+    assert_ne!(
+        b[(archive.0 + 11, archive.1)].fg,
+        b[(plain.0 + 5, plain.1)].fg,
+        "compressed suffix differs from ordinary extension"
+    );
+    assert_ne!(b[hidden].fg, b[plain].fg, "hidden names are subdued");
+    assert_ne!(
+        b[(2, run.1)].fg,
+        b[(3, run.1)].fg,
+        "absent and read permissions differ"
+    );
+    assert_ne!(
+        b[(3, run.1)].fg,
+        b[(4, run.1)].fg,
+        "read and write permissions differ"
+    );
+    assert_ne!(
+        b[(5, run.1)].fg,
+        b[(3, run.1)].fg,
+        "execute permissions stand out"
+    );
+    assert_ne!(b[(18, plain.1)].fg, Color::Reset, "size is styled");
+    assert_ne!(
+        b[(20, plain.1)].fg,
+        b[(18, plain.1)].fg,
+        "date differs from size"
+    );
+    e.set_cursor(plain.1 as usize, plain.0 as usize);
+    e.handle_key(crate::key::Key::ch('m'));
+    s.draw(&e);
+    let b = s.term.backend().buffer();
+    assert!(b[(0, plain.1)].modifier.contains(Modifier::BOLD));
+    let marked = b[(0, plain.1)].fg;
+    e.set_cursor(folder.1 as usize, folder.0 as usize);
+    e.handle_key(crate::key::Key::ch('d'));
+    s.draw(&e);
+    let b = s.term.backend().buffer();
+    assert_ne!(b[(0, folder.1)].fg, marked);
+    assert_eq!(
+        b[(0, folder.1)].fg,
+        b[folder].fg,
+        "delete flag overrides directory color"
+    );
+    e.set_cursor(folder.1 as usize, folder.0 as usize);
+    e.handle_key(crate::key::Key::ch('u'));
+    s.draw(&e);
+    assert_eq!(s.term.backend().buffer()[folder].fg, directory_color);
+}
+
+#[test]
+fn dired_colors_survive_compact_wrap_and_yield_to_name_editing() {
+    use ratatui::style::Color;
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir(dir.path().join("漢字folder")).unwrap();
+    let mut e = editor("", "");
+    crate::dired::visit(&mut e, dir.path(), Some("漢字folder")).unwrap();
+    e.handle_key(crate::key::Key::ch('('));
+    let mut s = Screen::new(8, 16);
+    s.cfg.numbers = false;
+    s.cfg.wrap = true;
+    s.cfg.hl_line = true;
+    s.draw(&e);
+    let b = s.term.backend().buffer();
+    let cells: Vec<_> = b
+        .content
+        .iter()
+        .filter(|c| matches!(c.symbol(), "漢" | "字" | "f" | "o" | "l" | "d" | "e" | "r"))
+        .collect();
+    assert!(cells.iter().any(|c| c.symbol() == "漢"));
+    let color = cells.iter().find(|c| c.symbol() == "漢").unwrap().fg;
+    assert_ne!(color, Color::Reset);
+    // The tail wraps onto the next row, retaining the directory color.
+    let start = b.content.iter().position(|c| c.symbol() == "漢").unwrap();
+    let tail = b.content[start..]
+        .iter()
+        .find(|c| c.symbol() == "/")
+        .unwrap();
+    assert_eq!(tail.fg, color);
+    e.handle_key(crate::key::Key::ch('i'));
+    s.draw(&e);
+    let b = s.term.backend().buffer();
+    assert_eq!(
+        b.content.iter().find(|c| c.symbol() == "漢").unwrap().fg,
+        Color::Reset
+    );
+}
+
+#[test]
+fn dired_newline_names_do_not_break_coloring() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("a\nvery-long-name.txt"), "hello").unwrap();
+    let mut e = editor("", "");
+    crate::dired::visit(&mut e, dir.path(), None).unwrap();
+    let mut s = Screen::new(80, 12);
+    s.draw(&e);
+    e.handle_key(crate::key::Key::ch('('));
+    s.draw(&e);
+    assert!(!e.buf.modified);
+}
+
+#[test]
 fn dired_double_click_opens_an_entry_and_slow_clicks_only_select() {
     use ratatui::crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
     let dir = tempfile::tempdir().unwrap();
