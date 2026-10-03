@@ -29,6 +29,7 @@ type Base = Arc<Mutex<Option<Option<Vec<String>>>>>;
 #[derive(Debug, Default)]
 pub struct Gutter {
     base: Base,
+    branch: Arc<Mutex<Option<String>>>,
     /// One per buffer line, for buffer version `seen`.
     marks: Vec<Option<Mark>>,
     seen: Option<u64>,
@@ -39,14 +40,32 @@ impl Gutter {
     pub fn load(path: &Path) -> Gutter {
         let g = Gutter::default();
         let base = Arc::clone(&g.base);
+        let branch = Arc::clone(&g.branch);
         let path = std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf());
         std::thread::spawn(move || {
+            if let Some(dir) = path.parent()
+                && let Ok(out) = Command::new("git")
+                    .arg("-C")
+                    .arg(dir)
+                    .args(["symbolic-ref", "--short", "HEAD"])
+                    .stdin(Stdio::null())
+                    .stderr(Stdio::null())
+                    .output()
+                && out.status.success()
+                && let Ok(mut name) = branch.lock()
+            {
+                *name = Some(String::from_utf8_lossy(&out.stdout).trim().to_string());
+            }
             let staged = staged(&path);
             if let Ok(mut b) = base.lock() {
                 *b = Some(staged);
             }
         });
         g
+    }
+
+    pub fn branch(&self) -> Option<String> {
+        self.branch.lock().ok()?.clone()
     }
 
     /// The file is in git: the gutter has a column for marks.
@@ -269,7 +288,7 @@ mod tests {
                 .status
                 .success()
         };
-        if !git(&["init", "-q"]) {
+        if !git(&["init", "-q", "-b", "modeline-test"]) {
             return; // no git here: nothing to test
         }
         std::fs::write(d.path().join("f"), "one\ntwo\n").unwrap();
@@ -285,6 +304,7 @@ mod tests {
             std::thread::sleep(Duration::from_millis(5));
         }
         assert!(g.active());
+        assert_eq!(g.branch().as_deref(), Some("modeline-test"));
         assert_eq!(
             (g.mark(0), g.mark(1), g.mark(2)),
             (None, Some(Changed), Some(Added))

@@ -775,11 +775,11 @@ pub fn pick_key(ed: &mut Editor, k: Key) {
             p.started = None;
             p.update(&ed.project, &ed.buf, Instant::now());
         }
-        // Best is at the bottom: Up goes to worse matches.
-        KeyCode::Up => p.sel = (p.sel + 1).min(p.rows.len().saturating_sub(1)),
-        KeyCode::Char('p') if k.ctrl => p.sel = (p.sel + 1).min(p.rows.len().saturating_sub(1)),
-        KeyCode::Down => p.sel = p.sel.saturating_sub(1),
-        KeyCode::Char('n') if k.ctrl => p.sel = p.sel.saturating_sub(1),
+        // Candidates run downward from the prompt.
+        KeyCode::Down => p.sel = (p.sel + 1).min(p.rows.len().saturating_sub(1)),
+        KeyCode::Char('n') if k.ctrl => p.sel = (p.sel + 1).min(p.rows.len().saturating_sub(1)),
+        KeyCode::Up => p.sel = p.sel.saturating_sub(1),
+        KeyCode::Char('p') if k.ctrl => p.sel = p.sel.saturating_sub(1),
         _ => {
             let before = p.query.text.clone();
             p.query.edit(k);

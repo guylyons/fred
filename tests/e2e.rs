@@ -486,7 +486,7 @@ fn syntax_highlighting_colors_code() {
         screen.cell(r, c).unwrap().fgcolor() != vt100::Color::Default
     };
     assert!(colored, "`fn` should be colored");
-    assert!(p.screen().contains("rust"));
+    assert!(p.screen().contains("Rust"));
     p.keys(&[":q\r"]);
     assert_eq!(p.wait_exit(), 0);
 }
@@ -827,7 +827,14 @@ fn git_marks_show_as_you_type() {
     p.wait_text("three");
     // Staged and unchanged: a column for marks, but none shown.
     let marked = |s: &str, text: &str| s.lines().any(|l| l.starts_with('▎') && l.contains(text));
-    assert!(!p.screen().contains('▎'), "{}", p.screen());
+    assert!(
+        !p.screen()
+            .lines()
+            .take(ROWS as usize - 2)
+            .any(|l| l.contains('▎')),
+        "{}",
+        p.screen()
+    );
     p.keys(&["o", "added line", "\x1b"]);
     p.wait_for("added mark", |s| marked(s, "added line"));
     p.keys(&["ggcw", "ONE", "\x1b"]);

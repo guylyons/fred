@@ -1520,8 +1520,8 @@ mod tests {
         let rows: Vec<&str> = p.rows.iter().map(|r| r.text.as_str()).collect();
         assert_eq!(rows.len(), 2, "{rows:?}");
         assert!(rows[0].ends_with("a:2: needle a") && rows[1].ends_with("b:3: needle b"));
-        // Up to b's match: Enter goes to that buffer and line.
-        t.keys("<Up><Enter>");
+        // Down to b's match: Enter goes to that buffer and line.
+        t.keys("<Down><Enter>");
         assert_eq!((t.s.ed.path.as_ref(), t.s.ed.cur.pos()), (Some(&b), (2, 0)));
         assert_eq!(t.s.ed.last_pat.as_deref(), Some("needle"));
         // This buffer's line, with nothing typed: the cursor just moves.
@@ -1548,7 +1548,7 @@ mod tests {
             (t.s.ed.path.as_ref(), &t.s.ed.mode),
             (Some(&a), &Mode::Normal)
         );
-        t.keys(":ls<Enter><Up><Enter>");
+        t.keys(":ls<Enter><Down><Enter>");
         assert_eq!(
             (t.s.ed.path.as_ref(), &t.s.ed.mode),
             (Some(&a), &Mode::Normal)

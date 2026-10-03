@@ -71,7 +71,7 @@ fn renders_gutter_status_and_cursor() {
     assert_eq!(s.row(2), "  3 c");
     assert!(s.row(3).contains("NORMAL"), "{}", s.row(3));
     assert!(s.row(3).contains("[No Name]"), "{}", s.row(3));
-    assert!(s.row(3).ends_with("1:1"), "{}", s.row(3));
+    assert!(s.row(3).contains("1:1"), "{}", s.row(3));
     assert_eq!(s.row(4), "");
     assert_eq!(s.cursor(), (4, 0));
 }
@@ -132,6 +132,61 @@ fn zap_labels_at_a_narrow_edge_reveal_the_next_selection_key() {
         "s",
         "the remaining label key must be visible"
     );
+}
+
+#[test]
+fn modeline_shows_metadata_and_keeps_the_filename_when_narrow() {
+    let mut e = editor("fn main() {}\r\n", "");
+    e.path = Some("/a/very/long/project/src/main.rs".into());
+    let mut s = Screen::new(100, 5);
+    s.hl.set_file(e.path.as_deref(), &e.buf);
+    s.draw(&e);
+    let row = s.row(3);
+    for want in ["NORMAL", "main.rs", "1:1", "100%", "CRLF", "UTF-8", "Rust"] {
+        assert!(row.contains(want), "{want} missing from {row}");
+    }
+    let mut narrow = Screen::new(30, 5);
+    narrow.hl.set_file(e.path.as_deref(), &e.buf);
+    narrow.draw(&e);
+    let row = narrow.row(3);
+    assert!(row.contains("main.rs") && row.contains("1:1"), "{row}");
+    assert!(
+        !row.contains("UTF-8"),
+        "secondary details should yield to the filename: {row}"
+    );
+}
+
+#[test]
+fn modeline_metadata_yields_to_filename_and_unsaved_flags() {
+    let dir = tempfile::tempdir().unwrap();
+    assert!(
+        std::process::Command::new("git")
+            .arg("-C")
+            .arg(dir.path())
+            .args(["init", "-q", "-b", "a-very-long-feature-branch"])
+            .status()
+            .unwrap()
+            .success()
+    );
+    let path = dir.path().join("important-file.rs");
+    let mut e = editor(&"a".repeat(10_000), "");
+    e.path = Some(path.clone());
+    e.cur.byte = 9_999;
+    e.buf.modified = true;
+    e.readonly = true;
+    e.git = crate::git::Gutter::load(&path);
+    let started = std::time::Instant::now();
+    while !e.git.refresh(&e.buf) {
+        assert!(started.elapsed() < Duration::from_secs(5));
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let mut s = Screen::new(80, 5);
+    s.hl.set_file(e.path.as_deref(), &e.buf);
+    s.draw(&e);
+    let row = s.row(3);
+    for want in ["NORMAL", "important-file.rs", "[+]", "[RO]", "1:10000"] {
+        assert!(row.contains(want), "{want} missing from {row}");
+    }
 }
 
 #[test]
@@ -378,11 +433,11 @@ fn status_line_colors_the_mode() {
     let cell = |s: &Screen, x: u16| s.term.backend().buffer()[(x, 3)].clone();
     let mut e = editor("a\nb", "");
     s.draw(&e);
-    assert_eq!(cell(&s, 1).bg, Color::Blue);
-    assert_eq!(cell(&s, 30).bg, Color::DarkGray);
+    assert_eq!(cell(&s, 2).fg, Color::Blue);
+    assert_eq!(cell(&s, 30).bg, Color::Indexed(235));
     e.handle_key(crate::key::Key::ch('i'));
     s.draw(&e);
-    assert_eq!(cell(&s, 1).bg, Color::Green);
+    assert_eq!(cell(&s, 2).fg, Color::Green);
     e.handle_key(crate::key::Key::ch('x'));
     s.draw(&e);
     let row = s.row(3);
@@ -406,10 +461,16 @@ fn picker_is_a_panel_under_the_file() {
     for y in 0..9 {
         assert_eq!(s.row(y), before[y as usize], "row {y}");
     }
-    assert!(s.row(9).starts_with(">  1: line 1"), "{}", s.row(9));
-    assert!(s.row(17).starts_with("   9: line 9"), "{}", s.row(17));
-    assert!(s.row(18).contains("LINES"), "{}", s.row(18));
-    assert!(s.row(19).starts_with("lines>"), "{}", s.row(19));
+    assert!(s.row(9).contains("LINES"), "{}", s.row(9));
+    assert!(s.row(10).starts_with("lines>"), "{}", s.row(10));
+    assert_eq!(s.cursor(), (7, 10));
+    assert!(s.row(11).starts_with(">  1: line 1"), "{}", s.row(11));
+    assert!(s.row(19).starts_with("   9: line 9"), "{}", s.row(19));
+    for k in parse_keys("<Down>") {
+        e.handle_key(k);
+    }
+    s.draw(&e);
+    assert!(s.row(12).starts_with(">  2: line 2"), "{}", s.row(12));
     // Fewer results: only as tall as needed (3 rows), the file above.
     for k in parse_keys("<C-u>1$") {
         e.handle_key(k);
@@ -417,7 +478,7 @@ fn picker_is_a_panel_under_the_file() {
     s.draw(&e);
     assert_eq!(s.row(14), before[14]);
     assert_eq!(
-        (15..18).map(|y| s.row(y)).collect::<Vec<_>>(),
+        (17..20).map(|y| s.row(y)).collect::<Vec<_>>(),
         [">  1: line 1", "  11: line 11", "  21: line 21"]
     );
 }
@@ -438,7 +499,7 @@ fn line_picker_rows_are_syntax_highlighted() {
         e.handle_key(k);
     }
     s.draw(&e);
-    let row = (0..10)
+    let row = (0..12)
         .find(|&y| s.row(y).contains("1: fn main"))
         .expect("picker row");
     let x = s.row(row).find("fn").unwrap() as u16;
@@ -460,7 +521,7 @@ fn file_pickers_show_type_icons_when_configured() {
     let mut e = editor("", "");
     crate::pick::browse(&mut e, dir.path());
     let mut s = Screen::new(40, 12);
-    let rows = |s: &Screen| (0..10).map(|y| s.row(y)).collect::<Vec<_>>().join("\n");
+    let rows = |s: &Screen| (0..12).map(|y| s.row(y)).collect::<Vec<_>>().join("\n");
     s.draw(&e);
     assert!(!rows(&s).contains('\u{f1617}'), "{}", rows(&s));
     s.cfg.icons = true;
@@ -469,6 +530,49 @@ fn file_pickers_show_type_icons_when_configured() {
     for want in ["\u{f024b} src/", "\u{f1617} main.rs", "\u{f0214} notes.zzz"] {
         assert!(all.contains(want), "{want:?} in\n{all}");
     }
+}
+
+#[test]
+fn mouse_wheel_scrolls_picker_matches() {
+    use ratatui::crossterm::event::{KeyModifiers, MouseEvent, MouseEventKind};
+    let mut s = Screen::new(40, 8);
+    let mut e = editor(&"match\n".repeat(20), " k");
+    let area = ratatui::layout::Rect::new(2, 3, 40, 8);
+    let mut wheel = |e: &mut Editor, kind| {
+        super::render::mouse(
+            e,
+            &mut s.view,
+            &s.cfg,
+            area,
+            MouseEvent {
+                kind,
+                column: 8,
+                row: 10,
+                modifiers: KeyModifiers::NONE,
+            },
+        );
+    };
+    wheel(&mut e, MouseEventKind::ScrollDown);
+    let Mode::Pick(p) = &e.mode else {
+        panic!("picker closed")
+    };
+    assert_eq!(p.sel, 1);
+    for _ in 0..30 {
+        wheel(&mut e, MouseEventKind::ScrollDown);
+    }
+    let Mode::Pick(p) = &e.mode else {
+        panic!("picker closed")
+    };
+    assert_eq!(p.sel, p.rows.len() - 1);
+    for _ in 0..30 {
+        wheel(&mut e, MouseEventKind::ScrollUp);
+    }
+    let Mode::Pick(p) = &e.mode else {
+        panic!("picker closed")
+    };
+    assert_eq!(p.sel, 0);
+    assert_eq!(e.cur.pos(), (0, 0));
+    assert!(!e.buf.modified);
 }
 
 #[test]

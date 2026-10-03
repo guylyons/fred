@@ -108,11 +108,11 @@ fn selection_moves_and_clamps() {
     let (_d, mut ed) = setup(&[("a", ""), ("b", ""), ("c", "")]);
     keys(&mut ed, " p");
     assert_eq!(picker(&ed).sel, 0);
-    keys(&mut ed, "<Up><C-p><Up><Up>");
+    keys(&mut ed, "<Down><C-n><Down><Down>");
     assert_eq!(picker(&ed).sel, 2);
-    keys(&mut ed, "<Down><C-n><C-n>");
+    keys(&mut ed, "<Up><C-p><C-p>");
     assert_eq!(picker(&ed).sel, 0);
-    keys(&mut ed, "<Up>x");
+    keys(&mut ed, "<Down>x");
     assert_eq!(picker(&ed).sel, 0, "a new query selects the best match");
 }
 
@@ -190,7 +190,7 @@ fn space_k_jumps_to_a_line_in_this_file() {
     assert_eq!(p.rows[p.sel].line, 1, "starts on the cursor's line");
     keys(&mut ed, "draw fn");
     let p = picker(&ed);
-    assert_eq!(p.rows.iter().map(|r| r.line).collect::<Vec<_>>(), [3, 1]);
+    assert_eq!(p.rows.iter().map(|r| r.line).collect::<Vec<_>>(), [1, 3]);
     assert_eq!(p.status, "2/4 lines");
     // Up goes to the earlier line (higher on screen).
     keys(&mut ed, "<Up><Enter>");

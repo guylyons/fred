@@ -2036,7 +2036,7 @@ fn edit_other_file_with_and_without_bang() {
     p.keys(&[":e! b.rs\r"]);
     p.wait_text("fn b() {}");
     assert!(status_row(&p).contains("b.rs"));
-    assert!(status_row(&p).contains("rust"), "{}", status_row(&p));
+    assert!(status_row(&p).contains("Rust"), "{}", status_row(&p));
     let swaps = env.swap_texts();
     assert!(
         swaps.len() == 1 && !swaps[0].contains("aa"),
@@ -2114,7 +2114,7 @@ fn start_line_and_height_arguments() {
         assert_eq!(rows.len(), text_rows + 2, "{args:?}: {rows:?}");
         assert_eq!(rows[0], format!("{first:>3} line{first}"), "{args:?}");
         assert!(
-            rows[text_rows].ends_with(&format!(" {cursor_line}:1")),
+            rows[text_rows].contains(&format!(" {cursor_line}:1 ")),
             "{args:?}: {}",
             rows[text_rows]
         );

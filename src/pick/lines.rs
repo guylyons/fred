@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 const MAX_TEXT: usize = 400;
 
 pub struct Found {
-    /// Last line first, so the list reads top to bottom on screen.
+    /// Matches in file order, displayed downward from the prompt.
     pub rows: Vec<Row>,
     /// The first match at or after `from` (else the last match).
     pub sel: usize,
@@ -96,8 +96,6 @@ fn search_in(terms: &[Regex], text: &Rope, from: usize, name: Option<&str>, path
         .iter()
         .position(|r| r.line >= from)
         .unwrap_or(rows.len().saturating_sub(1));
-    rows.reverse();
-    let sel = rows.len().saturating_sub(1 + sel);
     Found { rows, sel }
 }
 
@@ -113,9 +111,9 @@ mod tests {
     #[test]
     fn all_words_in_any_order() {
         let t = "fn draw()\nlet x = draw;\nfn main()\ndraw fn here";
-        assert_eq!(lines("fn draw", t, 0).0, [3, 0]);
-        assert_eq!(lines("draw", t, 0).0, [3, 1, 0]);
-        assert_eq!(lines("", t, 0).0, [3, 2, 1, 0]);
+        assert_eq!(lines("fn draw", t, 0).0, [0, 3]);
+        assert_eq!(lines("draw", t, 0).0, [0, 1, 3]);
+        assert_eq!(lines("", t, 0).0, [0, 1, 2, 3]);
         // Smart case per word.
         assert_eq!(lines("Draw", t, 0).0, Vec::<usize>::new());
     }
@@ -123,11 +121,11 @@ mod tests {
     #[test]
     fn starts_at_the_first_match_from_the_cursor() {
         let t = "a\nx\na\nx\na";
-        // Matches are lines 4, 2, 0 (reversed); from line 1 the next is 2.
-        assert_eq!(lines("a", t, 1), (vec![4, 2, 0], 1));
-        assert_eq!(lines("a", t, 0), (vec![4, 2, 0], 2));
+        // Matches are lines 0, 2, 4; from line 1 the next is 2.
+        assert_eq!(lines("a", t, 1), (vec![0, 2, 4], 1));
+        assert_eq!(lines("a", t, 0), (vec![0, 2, 4], 0));
         // Past the last match: the last one.
-        assert_eq!(lines("x", t, 4), (vec![3, 1], 0));
+        assert_eq!(lines("x", t, 4), (vec![1, 3], 1));
     }
 
     #[test]
@@ -148,8 +146,8 @@ mod tests {
         let bufs = [buf("a.rs", "x\nfoo 1\nfoo 2"), buf("b.rs", "foo 3\ny")];
         let f = search_all("foo", &bufs, 2).unwrap();
         let texts: Vec<&str> = f.rows.iter().map(|r| r.text.as_str()).collect();
-        assert_eq!(texts, ["a.rs:3: foo 2", "a.rs:2: foo 1", "b.rs:1: foo 3"]);
-        assert_eq!(f.sel, 0);
+        assert_eq!(texts, ["a.rs:2: foo 1", "a.rs:3: foo 2", "b.rs:1: foo 3"]);
+        assert_eq!(f.sel, 1);
         assert_eq!(f.rows[2].path, PathBuf::from("b.rs"));
         assert!(search_all("(", &bufs, 0).is_err());
     }

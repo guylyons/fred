@@ -164,10 +164,19 @@ pub fn mouse(
     event: ratatui::crossterm::event::MouseEvent,
 ) {
     use ratatui::crossterm::event::{MouseButton, MouseEventKind};
-    if !area.contains((event.column, event.row).into())
-        || event.row >= area.bottom().saturating_sub(2)
-        || matches!(ed.mode, Mode::Pick(_) | Mode::Command(_))
-    {
+    if !area.contains((event.column, event.row).into()) {
+        return;
+    }
+    if matches!(ed.mode, Mode::Pick(_)) {
+        let code = match event.kind {
+            MouseEventKind::ScrollDown => crate::key::KeyCode::Down,
+            MouseEventKind::ScrollUp => crate::key::KeyCode::Up,
+            _ => return,
+        };
+        ed.handle_key(crate::key::Key::new(code));
+        return;
+    }
+    if event.row >= area.bottom().saturating_sub(2) || matches!(ed.mode, Mode::Command(_)) {
         return;
     }
     ed.zap = None;
@@ -394,13 +403,14 @@ pub fn draw(
         super::splash::dashboard(buf, Rect::new(ox, oy, area.width, rows as u16), ed);
     }
     if let Mode::Pick(p) = &ed.mode {
-        let list = Rect::new(ox, oy + rows as u16, area.width, panel as u16);
+        let list = Rect::new(ox, oy + rows as u16 + 2, area.width, panel as u16);
         draw_picker(buf, list, p, ed, hl, cfg, budget);
     }
+    let input_area = Rect::new(ox, oy, area.width, area.height - panel as u16);
     if area.height >= 2 {
-        draw_status(buf, area, ed, hl);
+        draw_status(buf, input_area, ed, hl);
     }
-    let cmd_cursor = draw_command_row(buf, area, ed);
+    let cmd_cursor = draw_command_row(buf, input_area, ed);
     if let Some((cx, cy)) = cursor
         && cy < rows
     {
@@ -412,7 +422,7 @@ pub fn draw(
         draw_popup(buf, area, ed, view, geom, (cx, cy));
     }
     match (cmd_cursor, cursor) {
-        (Some(x), _) => f.set_cursor_position((ox + x as u16, oy + area.height - 1)),
+        (Some(x), _) => f.set_cursor_position((ox + x as u16, oy + input_area.height - 1)),
         (None, Some((x, y))) if rows > 0 => {
             let x = x.min(area.width as usize - 1) as u16;
             let y = y.min(rows - 1) as u16;
@@ -435,60 +445,148 @@ fn mode_color(m: &Mode) -> Color {
 
 fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter) {
     let y = area.y + area.height - 2;
-    let bar = Style::default().bg(Color::DarkGray).fg(Color::White);
+    let w = area.width as usize;
+    let bar = Style::default()
+        .bg(Color::Indexed(235))
+        .fg(Color::Indexed(250));
     let bold = bar.add_modifier(Modifier::BOLD);
-    let mode = Style::default()
-        .bg(mode_color(&ed.mode))
-        .fg(Color::Black)
-        .add_modifier(Modifier::BOLD);
+    let mode = bar.fg(mode_color(&ed.mode)).add_modifier(Modifier::BOLD);
+    let label = match (&ed.mode, &ed.dired) {
+        _ if ed.zap.is_some() => "ZAP".to_string(),
+        (Mode::Normal, Some(d)) if !d.editing => "DIRED".to_string(),
+        (m, _) => mode_name(m).to_string(),
+    };
+    buf.set_stringn(area.x, y, " ".repeat(w), w, bar);
     let mut left = vec![
-        Span::styled(
-            match (&ed.mode, &ed.dired) {
-                _ if ed.zap.is_some() => " ZAP ".to_string(),
-                (Mode::Normal, Some(d)) if !d.editing => " DIRED ".to_string(),
-                (m, _) => format!(" {} ", mode_name(m)),
-            },
-            mode,
-        ),
-        Span::styled(" ", bar),
+        Span::styled("▎", mode),
+        Span::styled(format!(" {label} "), mode),
     ];
-    let mut right = vec![];
-    match &ed.mode {
-        // An error from opening the pick (unsaved changes) replaces the count.
-        Mode::Pick(p) => match &ed.msg {
-            Some((m, true)) => left.push(Span::styled(m.clone(), bar.fg(Color::LightRed))),
-            _ if p.err => left.push(Span::styled(p.status.clone(), bar.fg(Color::LightRed))),
-            _ => left.push(Span::styled(p.status.clone(), bar)),
-        },
-        _ => {
-            let name = ed
-                .path
-                .as_ref()
-                .map_or_else(|| "[No Name]".to_string(), |p| p.display().to_string());
-            left.push(Span::styled(name, bold));
-            if ed.buf.modified {
-                left.push(Span::styled(" [+]", bar.fg(Color::LightYellow)));
-            }
-            if ed.readonly {
-                left.push(Span::styled(" [RO]", bar.fg(Color::LightRed)));
-            }
-            let line = ed.buf.line(ed.cur.line);
-            let col = col_of_byte(&line, ed.cur.byte, ed.tabstop) + 1;
-            if hl.syntax_name() != "Plain Text" {
-                let ft = format!("{}  ", hl.syntax_name().to_lowercase());
-                right.push(Span::styled(ft, bar.fg(Color::Gray)));
-            }
-            right.push(Span::styled(format!("{}:{col} ", ed.cur.line + 1), bold));
+    if let Mode::Pick(p) = &ed.mode {
+        let (text, err) = match &ed.msg {
+            Some((m, true)) => (m.as_str(), true),
+            _ => (p.status.as_str(), p.err),
+        };
+        left.push(Span::styled(
+            text,
+            if err { bar.fg(Color::LightRed) } else { bar },
+        ));
+        buf.set_line(area.x, y, &Line::from(left), area.width);
+        return;
+    }
+    let line = ed.buf.line(ed.cur.line);
+    let col = col_of_byte(&line, ed.cur.byte, ed.tabstop) + 1;
+    let mut right = vec![Span::styled(format!(" {}:{col} ", ed.cur.line + 1), bold)];
+    if w >= 50 {
+        let percent = (ed.cur.line + 1) * 100 / ed.line_count().max(1);
+        right.push(Span::styled(format!("{percent}% "), bar));
+    }
+    if w >= 80 {
+        let ending = match ed.buf.line_ending {
+            crate::buffer::LineEnding::Lf => "LF",
+            crate::buffer::LineEnding::CrLf => "CRLF",
+        };
+        right.push(Span::styled(
+            format!(" {ending} UTF-8{} ", if ed.buf.bom { "+BOM" } else { "" }),
+            bar,
+        ));
+    }
+    if w >= 60 && hl.syntax_name() != "Plain Text" {
+        right.push(Span::styled(
+            format!(" {} ", hl.syntax_name()),
+            bold.fg(Color::LightBlue),
+        ));
+    }
+    if w >= 80
+        && let Some(branch) = ed.git.branch()
+    {
+        right.push(Span::styled(
+            format!(" ⎇ {} ", status_tail(&branch, 20)),
+            bold.fg(Color::LightGreen),
+        ));
+    }
+    let filename = ed.path.as_ref().and_then(|p| p.file_name()).map_or_else(
+        || "[No Name]".to_string(),
+        |s| s.to_string_lossy().into_owned(),
+    );
+    let flags_width = usize::from(ed.buf.modified) * 4 + usize::from(ed.readonly) * 5;
+    let core_width =
+        display_width(&label, 1, 0) + 4 + display_width(&filename, 1, 0).min(20) + flags_width + 1;
+    while right.len() > 1
+        && right
+            .iter()
+            .map(|s| display_width(&s.content, 1, 0))
+            .sum::<usize>()
+            + core_width
+            > w
+    {
+        right.pop();
+    }
+    let rw: usize = right.iter().map(|s| display_width(&s.content, 1, 0)).sum();
+    let lw = w.saturating_sub(rw);
+    let bytes = ed.buf.len_bytes();
+    if w >= 60 {
+        let size = if bytes >= 1_000_000 {
+            format!("{:.1}M", bytes as f64 / 1_000_000.0)
+        } else if bytes >= 1_000 {
+            format!("{}k", bytes / 1_000)
+        } else {
+            format!("{bytes}B")
+        };
+        let detail = format!(" {size}  F ");
+        if lw >= core_width + display_width(&detail, 1, 0) {
+            left.push(Span::styled(detail, bar));
         }
     }
-    let w = area.width as usize;
-    let rw: usize = right.iter().map(|s| display_width(&s.content, 1, 0)).sum();
-    buf.set_stringn(area.x, y, " ".repeat(w), w, bar);
-    let lw = w.saturating_sub(rw + 1).max(1);
-    buf.set_line(area.x, y, &Line::from(left), lw as u16);
-    if rw < w {
-        buf.set_line(area.x + (w - rw) as u16, y, &Line::from(right), rw as u16);
+    let name = ed.path.as_ref().map_or_else(
+        || "[No Name]".to_string(),
+        |p| crate::pick::browse::tilde(p),
+    );
+    let flags = format!(
+        "{}{}",
+        if ed.buf.modified { " [+]" } else { "" },
+        if ed.readonly { " [RO]" } else { "" }
+    );
+    let used: usize = left.iter().map(|s| display_width(&s.content, 1, 0)).sum();
+    let name = status_tail(
+        &name,
+        lw.saturating_sub(used + display_width(&flags, 1, 0) + 1),
+    );
+    if let Some((dir, file)) = name.rsplit_once('/') {
+        left.push(Span::styled(format!("{dir}/"), bar.fg(Color::DarkGray)));
+        left.push(Span::styled(file.to_string(), bold));
+    } else {
+        left.push(Span::styled(name, bold));
     }
+    if ed.buf.modified {
+        left.push(Span::styled(" [+]", bar.fg(Color::LightYellow)));
+    }
+    if ed.readonly {
+        left.push(Span::styled(" [RO]", bar.fg(Color::LightRed)));
+    }
+    buf.set_line(area.x, y, &Line::from(left), lw as u16);
+    if rw <= w {
+        buf.set_line(area.x + lw as u16, y, &Line::from(right), rw as u16);
+    }
+}
+
+/// Keep the filename end of a path when the modeline runs out of space.
+fn status_tail(text: &str, width: usize) -> String {
+    if display_width(text, 1, 0) <= width {
+        return text.to_string();
+    }
+    if width == 0 {
+        return String::new();
+    }
+    let mut used = 1;
+    let mut start = text.len();
+    for (byte, g) in text.grapheme_indices(true).rev() {
+        used += display_width(g, 1, 0);
+        if used > width {
+            break;
+        }
+        start = byte;
+    }
+    format!("…{}", &text[start..])
 }
 
 /// Draws the bottom row; returns the cursor column when typing a command.
@@ -552,7 +650,7 @@ fn panel_rows(text_rows: usize, results: usize) -> usize {
     results.clamp(1, (text_rows / 2).max(1)).min(text_rows)
 }
 
-/// Picker results in `area` (the panel), best at the bottom: code in its
+/// Picker results in `area` (the panel), best at the top: code in its
 /// syntax colors, matches in bold underline, and for files a dot when git
 /// has them changed (yellow) or new (green), then its type's icon.
 fn draw_picker(
@@ -574,7 +672,7 @@ fn draw_picker(
     let mut incomplete = hl.incomplete();
     let started = std::time::Instant::now();
     for (i, r) in p.rows.iter().enumerate().skip(off).take(rows) {
-        let y = area.y + (rows - 1 - (i - off)) as u16;
+        let y = area.y + (i - off) as u16;
         let selected = i == p.sel;
         let mut spans = vec![Span::raw(if selected { ">" } else { " " })];
         if files {

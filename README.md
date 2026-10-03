@@ -139,8 +139,8 @@ Space is the leader key (`l` still moves right).
   jumps there and `n` finds the next line with the first word.
 
 Pickers open as a panel at the bottom, only as tall as their results (up
-to half the screen); the file stays where it was above. The best match is
-at the bottom next to the prompt;
+to half the screen); the file stays where it was above. The status line sits above the
+prompt, with candidates listed downward beneath it, best match first;
 `Up`/`Ctrl-P` and `Down`/`Ctrl-N` move the selection, `Enter` opens it and
 `Esc` goes back. The project is the enclosing git repo (or the current
 directory), `.gitignore` is respected, and grep skips binary files and files
