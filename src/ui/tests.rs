@@ -412,3 +412,160 @@ fn file_pickers_show_type_icons_when_configured() {
         assert!(all.contains(want), "{want:?} in\n{all}");
     }
 }
+
+#[test]
+fn mouse_scroll_and_click_use_screen_coordinates() {
+    use ratatui::crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    let mut s = Screen::new(20, 6);
+    s.cfg.wrap = false;
+    let mut e = editor("a\nb\nc\nd\ne\nf\ng\nh", "");
+    let area = ratatui::layout::Rect::new(2, 3, 20, 6);
+    let mouse = |kind, column, row| MouseEvent {
+        kind,
+        column,
+        row,
+        modifiers: KeyModifiers::NONE,
+    };
+    super::render::mouse(
+        &mut e,
+        &mut s.view,
+        &s.cfg,
+        area,
+        mouse(MouseEventKind::ScrollDown, 8, 3),
+    );
+    assert_eq!(e.cur.line, 0);
+    assert_eq!(s.view.top, 3);
+    s.draw(&e);
+    assert_eq!(
+        s.view.top, 3,
+        "redrawing must not follow the cursor after a wheel event"
+    );
+    super::render::mouse(
+        &mut e,
+        &mut s.view,
+        &s.cfg,
+        area,
+        mouse(MouseEventKind::Down(MouseButton::Left), 6, 4),
+    );
+    assert_eq!(e.cur.line, 4);
+    e = editor("ab漢x\n\tz", "");
+    s.view = View::default();
+    s.cfg.wrap = true;
+    let area = ratatui::layout::Rect::new(0, 0, 9, 6);
+    super::render::mouse(
+        &mut e,
+        &mut s.view,
+        &s.cfg,
+        area,
+        mouse(MouseEventKind::Down(MouseButton::Left), 7, 0),
+    );
+    assert_eq!(
+        e.cur.byte, 2,
+        "either cell of a wide character selects that character"
+    );
+    super::render::mouse(
+        &mut e,
+        &mut s.view,
+        &s.cfg,
+        area,
+        mouse(MouseEventKind::Down(MouseButton::Left), 4, 1),
+    );
+    assert_eq!(e.cur.pos(), (1, 0), "a tab selects its source byte");
+    e = editor(&"abcdefghij\n".repeat(10), "");
+    s.view = View::default();
+    super::render::mouse(
+        &mut e,
+        &mut s.view,
+        &s.cfg,
+        area,
+        mouse(MouseEventKind::ScrollDown, 5, 0),
+    );
+    assert_eq!((s.view.top, s.view.top_row), (1, 1));
+    super::render::mouse(
+        &mut e,
+        &mut s.view,
+        &s.cfg,
+        area,
+        mouse(MouseEventKind::Down(MouseButton::Left), 6, 0),
+    );
+    assert_eq!(e.cur.pos(), (1, 7));
+    super::render::mouse(
+        &mut e,
+        &mut s.view,
+        &s.cfg,
+        area,
+        mouse(MouseEventKind::ScrollUp, 5, 0),
+    );
+    assert_eq!((s.view.top, s.view.top_row), (0, 0));
+    e = editor("abcdefghijklmnopqrstuvwxyz", "");
+    s.cfg.wrap = false;
+    s.view.left = 10;
+    super::render::mouse(
+        &mut e,
+        &mut s.view,
+        &s.cfg,
+        area,
+        mouse(MouseEventKind::Down(MouseButton::Left), 6, 0),
+    );
+    assert_eq!(e.cur.byte, 12);
+    e = editor("abcde", "A");
+    s.view = View::default();
+    s.view.wheel(&e, 1, 5, true, true);
+    assert_eq!(
+        s.view.top_row, 1,
+        "the full-row end cursor occupies a screen row"
+    );
+}
+
+#[test]
+fn splash_shows_actions_and_recent_files() {
+    let dir = tempfile::tempdir().unwrap();
+    let recent = dir.path().join("recent");
+    crate::pick::recent::record(&recent, std::path::Path::new("/tmp/notes.txt"), None);
+    let mut e = editor("", "");
+    e.project = std::sync::Arc::new(crate::pick::Project::new(None, Some(recent)));
+    let mut s = Screen::new(80, 40);
+    s.draw(&e);
+    let text = (0..38).map(|y| s.row(y)).collect::<Vec<_>>().join("\n");
+    for label in ["Dr. Fred", "Recent files", "Find file", "Grep", "notes.txt"] {
+        assert!(text.contains(label), "missing {label}");
+    }
+    for i in 0..5 {
+        crate::pick::recent::record(
+            e.project.recent_file.as_deref().unwrap(),
+            std::path::Path::new(&format!("/tmp/file{i}.txt")),
+            None,
+        );
+    }
+    let mut standard = Screen::new(80, 24);
+    standard.draw(&e);
+    assert!(
+        (0..22).any(|y| standard.row(y).contains("Dr. Fred")),
+        "keep the logo on a standard terminal with a full recent list"
+    );
+    crate::pick::recent::record(
+        e.project.recent_file.as_deref().unwrap(),
+        std::path::Path::new("/tmp/notes.txt"),
+        None,
+    );
+    e.handle_key(crate::key::Key::ch('r'));
+    assert!(matches!(e.mode, Mode::Pick(ref p) if p.kind == crate::pick::Kind::Recent));
+    for (key, kind) in [
+        ('f', crate::pick::Kind::Files),
+        ('g', crate::pick::Kind::Grep),
+    ] {
+        e.mode = Mode::Normal;
+        e.handle_key(crate::key::Key::ch(key));
+        assert!(matches!(e.mode, Mode::Pick(ref p) if p.kind == kind));
+    }
+    e.mode = Mode::Normal;
+    e.handle_key(crate::key::Key::ch('v'));
+    assert_eq!(
+        e.msg.as_ref().unwrap().0,
+        concat!("fred ", env!("CARGO_PKG_VERSION"))
+    );
+    e.handle_key(crate::key::Key::ch('1'));
+    assert!(
+        matches!(e.pending_effect, Some(crate::ex::ExEffect::Open { ref path, .. }) if path == std::path::Path::new("/tmp/notes.txt"))
+    );
+}

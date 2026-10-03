@@ -966,3 +966,31 @@ fn splash_until_there_is_text() {
     p.keys(&[":q!\r"]);
     assert_eq!(p.wait_exit(), 0);
 }
+
+#[test]
+fn mouse_wheel_keeps_edit_position_and_click_moves_it() {
+    let env = Env::new();
+    let text = (0..40).map(|i| format!("line{i:02}\n")).collect::<String>();
+    env.write("mouse.txt", &text);
+    let mut p = env.fred(&["-f", "mouse.txt"]);
+    p.wait_text("line00");
+    p.keys(&["\x1b[<65;6;1M"]); // wheel down over text
+    p.wait_for("viewport scrolled", |s| {
+        !s.contains("line00") && s.contains("line03")
+    });
+    p.resize(ROWS, COLS + 10);
+    p.wait_text("line00");
+    p.keys(&["iX", "\x1b"]); // editing still targets line00
+    p.wait_text("Xline00");
+    p.keys(&["\x1b[<0;7;2M", "\x1b[<0;7;2m", "iY", "\x1b", ":wq\r"]);
+    assert_eq!(p.wait_exit(), 0);
+    assert!(env.read("mouse.txt").starts_with("Xline00\nliYne01\n"));
+    assert!(
+        p.raw().contains("<ESC>[?1006h"),
+        "mouse capture must be enabled"
+    );
+    assert!(
+        p.raw().contains("<ESC>[?1006l"),
+        "mouse capture must be restored on exit"
+    );
+}

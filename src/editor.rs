@@ -184,6 +184,45 @@ impl Editor {
     }
 
     pub fn handle_key(&mut self, k: Key) {
+        if self.mode == Mode::Normal
+            && self.vim.pending.is_empty()
+            && crate::ui::splash::active(self)
+            && !k.ctrl
+            && !k.alt
+        {
+            match k.code {
+                KeyCode::Char('f') => {
+                    crate::pick::open(self, crate::pick::Kind::Files);
+                    return;
+                }
+                KeyCode::Char('g') => {
+                    crate::pick::open(self, crate::pick::Kind::Grep);
+                    return;
+                }
+                KeyCode::Char('r') => {
+                    crate::pick::open(self, crate::pick::Kind::Recent);
+                    return;
+                }
+                KeyCode::Char('v') => {
+                    self.set_msg(concat!("fred ", env!("CARGO_PKG_VERSION")));
+                    return;
+                }
+                KeyCode::Char(c @ '1'..='5') => {
+                    if let Some(path) =
+                        crate::ui::splash::recent(self).get((c as u8 - b'1') as usize)
+                    {
+                        self.pending_effect = Some(ExEffect::Open {
+                            path: path.clone(),
+                            line: 0,
+                            col: 0,
+                            pattern: None,
+                        });
+                    }
+                    return;
+                }
+                _ => {}
+            }
+        }
         if !matches!(self.mode, Mode::Command(_)) {
             self.msg = None;
         }

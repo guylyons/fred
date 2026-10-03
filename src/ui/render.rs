@@ -155,6 +155,76 @@ fn mode_name(m: &Mode) -> &'static str {
     }
 }
 
+/// Mouse coordinates use the same layout as rendering, including inline offsets.
+pub fn mouse(
+    ed: &mut Editor,
+    view: &mut View,
+    cfg: &Config,
+    area: Rect,
+    event: ratatui::crossterm::event::MouseEvent,
+) {
+    use ratatui::crossterm::event::{MouseButton, MouseEventKind};
+    if !area.contains((event.column, event.row).into())
+        || event.row >= area.bottom().saturating_sub(2)
+        || matches!(ed.mode, Mode::Pick(_) | Mode::Command(_))
+    {
+        return;
+    }
+    let gutter = gutter_width(ed, cfg).min(area.width as usize / 2);
+    let cols = (area.width as usize).saturating_sub(gutter).max(1);
+    let rows = (area.height as usize).saturating_sub(2).max(1);
+    match event.kind {
+        MouseEventKind::ScrollUp | MouseEventKind::ScrollDown => {
+            view.wheel(
+                ed,
+                rows,
+                cols,
+                cfg.wrap,
+                event.kind == MouseEventKind::ScrollDown,
+            );
+        }
+        MouseEventKind::Down(MouseButton::Left) => {
+            let mut y = (event.row - area.y) as usize + view.top_row;
+            let x = (event.column - area.x) as usize;
+            let x = x.saturating_sub(gutter);
+            for line in view.top..ed.line_count() {
+                let text = ed.buf.line(line);
+                let height = if cfg.wrap {
+                    let height = super::layout::wrap_rows(&text, ed.tabstop, cols);
+                    if line == ed.cur.line {
+                        height.max(wrap_cursor(&text, ed.cur.byte, ed.tabstop, cols).0 + 1)
+                    } else {
+                        height
+                    }
+                } else {
+                    1
+                };
+                if y >= height {
+                    y -= height;
+                    continue;
+                }
+                let target = if cfg.wrap { x } else { x + view.left };
+                let byte = Layout::new(&text, ed.tabstop, cfg.wrap.then_some(cols))
+                    .find(|p| p.row == y && p.x + p.width > target)
+                    .map_or_else(
+                        || {
+                            Layout::new(&text, ed.tabstop, cfg.wrap.then_some(cols))
+                                .filter(|p| p.row == y)
+                                .last()
+                                .map_or(text.len(), |p| p.byte + p.text.len())
+                        },
+                        |p| p.byte,
+                    );
+                ed.set_cursor(line, byte);
+                ed.popup = None;
+                ed.vim.pending.clear();
+                return;
+            }
+        }
+        _ => {}
+    }
+}
+
 /// Draw the editor; the frame area is the whole inline window.
 pub fn draw(
     f: &mut Frame,
@@ -266,7 +336,7 @@ pub fn draw(
                 if cr > row && y < rows {
                     emit(&mut y, cr, vec![]);
                 }
-                if cr >= skip {
+                if cr >= skip && first_y + cr - skip < rows {
                     cursor = Some((gutter + cx, first_y + cr - skip));
                 }
             }
@@ -274,7 +344,9 @@ pub fn draw(
             emit(&mut y, 0, visible(&line, &st, ed.tabstop, view.left, cols));
             if l == ed.cur.line {
                 let cc = col_of_byte(&line, ed.cur.byte, ed.tabstop);
-                cursor = Some((gutter + cc.saturating_sub(view.left), first_y));
+                if cc >= view.left && cc - view.left < cols {
+                    cursor = Some((gutter + cc - view.left, first_y));
+                }
             }
         }
         l += 1;
@@ -288,7 +360,7 @@ pub fn draw(
         && ed.buf.len_bytes() == 0
         && matches!(ed.mode, Mode::Normal | Mode::Command(_))
     {
-        super::splash::draw(buf, Rect::new(ox, oy, area.width, rows as u16));
+        super::splash::dashboard(buf, Rect::new(ox, oy, area.width, rows as u16), ed);
     }
     if let Mode::Pick(p) = &ed.mode {
         let list = Rect::new(ox, oy + rows as u16, area.width, panel as u16);

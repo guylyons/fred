@@ -8,6 +8,58 @@ use ratatui::style::{Color, Modifier, Style};
 const LOGO: &str = include_str!("logo.txt");
 const TITLE: &str = "Dr. Fred";
 
+pub fn active(ed: &crate::editor::Editor) -> bool {
+    ed.path.is_none() && ed.buf.len_bytes() == 0
+}
+
+pub fn recent(ed: &crate::editor::Editor) -> Vec<std::path::PathBuf> {
+    ed.project
+        .recent_file
+        .as_deref()
+        .map(crate::pick::recent::load)
+        .unwrap_or_default()
+        .into_iter()
+        .take(5)
+        .collect()
+}
+
+pub fn dashboard(buf: &mut Screen, area: Rect, ed: &crate::editor::Editor) {
+    let recent = recent(ed);
+    let mut lines = vec![
+        "[f] Find file    Space p".into(),
+        "[g] Grep         Space g".into(),
+        "[r] Recent files Space r".into(),
+    ];
+    if recent.is_empty() {
+        lines.push("    No recent files".into());
+    }
+    for (i, path) in recent.iter().enumerate() {
+        lines.push(format!("[{}] {}", i + 1, path.display()));
+    }
+    let logo_min = LOGO.lines().count().div_ceil(2) as u16 + 2;
+    let height = (lines.len() as u16 + 1)
+        .min(area.height.saturating_sub(logo_min).max(4))
+        .min(area.height);
+    let logo_height = area.height - height;
+    draw(buf, Rect::new(area.x, area.y, area.width, logo_height));
+    let width = lines
+        .iter()
+        .map(|s| unicode_width::UnicodeWidthStr::width(s.as_str()))
+        .max()
+        .unwrap_or(0)
+        .min(area.width as usize);
+    let x = area.x + (area.width - width as u16) / 2;
+    for (i, line) in lines.iter().take(height as usize).enumerate() {
+        buf.set_stringn(
+            x,
+            area.y + logo_height + i as u16,
+            line,
+            (area.right() - x) as usize,
+            Style::default().fg(Color::Rgb(140, 235, 235)),
+        );
+    }
+}
+
 fn color(px: u8) -> Option<Color> {
     Some(match px {
         b'W' => Color::Rgb(240, 240, 240),

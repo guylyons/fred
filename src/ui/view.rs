@@ -11,6 +11,8 @@ pub struct View {
     /// With wrapping: screen rows of the top line scrolled off above.
     pub top_row: usize,
     pub left: usize,
+    /// Wheel scrolling leaves the editing position alone until keyboard input.
+    pub detached: bool,
 }
 
 /// Total window rows (text + status + command) for a file of `file_lines`.
@@ -21,8 +23,50 @@ pub fn window_height(cfg_height: usize, file_lines: usize, term_rows: u16) -> u1
 }
 
 impl View {
+    pub fn wheel(&mut self, ed: &Editor, rows: usize, cols: usize, wrap: bool, down: bool) {
+        self.detached = true;
+        if !wrap {
+            self.top = if down {
+                self.top.saturating_add(3)
+            } else {
+                self.top.saturating_sub(3)
+            }
+            .min(ed.line_count().saturating_sub(rows));
+            self.top_row = 0;
+            return;
+        }
+        let rows_of = |l| {
+            let line = ed.buf.line(l);
+            let height = wrap_rows(&line, ed.tabstop, cols);
+            if l == ed.cur.line {
+                height.max(wrap_cursor(&line, ed.cur.byte, ed.tabstop, cols).0 + 1)
+            } else {
+                height
+            }
+        };
+        let mut top = (self.top, self.top_row);
+        if down {
+            for _ in 0..3 {
+                if top.1 + 1 < rows_of(top.0) {
+                    top.1 += 1;
+                } else if top.0 + 1 < ed.line_count() {
+                    top = (top.0 + 1, 0);
+                }
+            }
+        } else {
+            top = up(top, 3, &rows_of);
+        }
+        let last = ed.line_count() - 1;
+        let max_top = up((last, rows_of(last) - 1), rows.saturating_sub(1), &rows_of);
+        (self.top, self.top_row) = top.min(max_top);
+        self.left = 0;
+    }
+
     /// Scroll so the cursor is visible with up to 2 lines of context.
     pub fn scroll(&mut self, ed: &Editor, rows: usize, cols: usize, wrap: bool) {
+        if self.detached {
+            return;
+        }
         if wrap {
             self.scroll_wrapped(ed, rows.max(1), cols.max(1));
             return;

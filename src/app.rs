@@ -15,7 +15,8 @@ use anyhow::{Result, anyhow};
 use ratatui::backend::CrosstermBackend;
 use ratatui::crossterm::cursor::{self, MoveTo, SetCursorStyle};
 use ratatui::crossterm::event::{
-    self, DisableBracketedPaste, EnableBracketedPaste, Event, KeyEvent, KeyEventKind, KeyModifiers,
+    self, DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
+    Event, KeyEvent, KeyEventKind, KeyModifiers,
 };
 use ratatui::crossterm::execute;
 use ratatui::crossterm::terminal::{
@@ -138,7 +139,8 @@ impl Ui {
             io::stdout(),
             cursor::Show,
             SetCursorStyle::DefaultUserShape,
-            DisableBracketedPaste
+            DisableBracketedPaste,
+            DisableMouseCapture
         )?;
         terminal::disable_raw_mode()?;
         io::stdout().flush()
@@ -146,7 +148,7 @@ impl Ui {
 
     fn reopen(&mut self) -> io::Result<()> {
         terminal::enable_raw_mode()?;
-        execute!(io::stdout(), EnableBracketedPaste)?;
+        execute!(io::stdout(), EnableBracketedPaste, EnableMouseCapture)?;
         self.term = open_term(self.full, self.height)?;
         self.area = None;
         self.bar_cursor = false;
@@ -231,7 +233,8 @@ fn restore_terminal() {
         LeaveAlternateScreen,
         cursor::Show,
         SetCursorStyle::DefaultUserShape,
-        DisableBracketedPaste
+        DisableBracketedPaste,
+        DisableMouseCapture
     );
     let _ = terminal::disable_raw_mode();
 }
@@ -491,7 +494,7 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
     }
     terminal::enable_raw_mode()?;
     let setup = (|| -> Result<Ui> {
-        execute!(io::stdout(), EnableBracketedPaste)?;
+        execute!(io::stdout(), EnableBracketedPaste, EnableMouseCapture)?;
         let rows = terminal::size()?.1;
         let full = use_fullscreen(&args, &cfg, &s.ed, rows);
         Ok(Ui::new(
@@ -605,7 +608,19 @@ fn event_loop(
                     suspend(ui, s)?;
                     break;
                 }
-                step(s, hl, ev, &mut resized);
+                match ev {
+                    Event::Mouse(m) => {
+                        if let Some(area) = ui.area {
+                            ui::render::mouse(&mut s.ed, &mut ui.view, cfg, area, m);
+                        }
+                    }
+                    ev => {
+                        if matches!(ev, Event::Key(_) | Event::Paste(_) | Event::Resize(..)) {
+                            ui.view.detached = false;
+                        }
+                        step(s, hl, ev, &mut resized);
+                    }
+                }
                 if s.quit || !event::poll(BATCH)? {
                     break;
                 }
