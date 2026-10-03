@@ -33,34 +33,69 @@ pub fn dashboard(buf: &mut Screen, area: Rect, ed: &crate::editor::Editor, icons
         ('\u{f0493}', '#', "Config", 'c'),
         ('\u{f0343}', 'x', "Quit", 'q'),
     ];
+    if area.is_empty() {
+        return;
+    }
+    // The dashboard owns its area, including cells previously used by the editor.
+    for y in area.y..area.bottom() {
+        for x in area.x..area.right() {
+            buf[(x, y)].reset();
+        }
+    }
     let recent = recent(ed);
+    let columns = actions
+        .len()
+        .div_ceil(area.height.saturating_sub(1).max(1) as usize)
+        .min((area.width as usize / 19).max(1));
+    let action_rows = actions.len().div_ceil(columns) as u16;
+    let spare = area.height.saturating_sub(action_rows);
     let compact_logo = LOGO.lines().count().div_ceil(4) as u16 + 2;
-    let recent_rows = recent.len().max(1).min(
-        area.height
-            .saturating_sub(compact_logo + actions.len() as u16 + 2)
-            .max(1) as usize,
-    );
-    let height = (actions.len() as u16 + 2 + recent_rows as u16).min(area.height);
-    let logo_height = area.height - height;
+    let minimum_logo = if area.width >= 12 && spare >= compact_logo {
+        compact_logo
+    } else {
+        spare.min(1)
+    };
+    let recent_rows = recent
+        .len()
+        .max(1)
+        .min(spare.saturating_sub(minimum_logo + 2) as usize);
+    let recent_height = if recent_rows > 0 {
+        recent_rows as u16 + 2
+    } else {
+        0
+    };
+    let logo_height = spare - recent_height;
     draw(buf, Rect::new(area.x, area.y, area.width, logo_height));
-    let width = area.width.min(44);
+    let width = area.width.min(44 * columns as u16);
     let x = area.x + (area.width - width) / 2;
+    let column_width = width / columns as u16;
     let label_style = Style::default().fg(Color::Indexed(250));
     let key_style = Style::default()
         .fg(Color::LightMagenta)
         .add_modifier(Modifier::BOLD);
     for (i, &(icon, fallback, label, key)) in actions.iter().enumerate() {
-        let y = area.y + logo_height + i as u16;
-        if y >= area.bottom() || width < 5 {
+        let y = area.y + logo_height + (i / columns) as u16;
+        if y >= area.bottom() {
             break;
         }
-        let icon = if icons { icon } else { fallback };
-        buf.set_stringn(x, y, icon.to_string(), 2, label_style);
-        buf.set_stringn(x + 3, y, label, (width - 5) as usize, label_style);
-        buf.set_stringn(x + width - 1, y, key.to_string(), 1, key_style);
+        let cx = x + (i % columns) as u16 * column_width;
+        // Drop icons before sacrificing labels on narrow terminals.
+        let inset = if column_width >= 19 { 3 } else { 0 };
+        if inset > 0 {
+            let icon = if icons { icon } else { fallback };
+            buf.set_stringn(cx, y, icon.to_string(), 2, label_style);
+        }
+        buf.set_stringn(
+            cx + inset,
+            y,
+            label,
+            column_width.saturating_sub(inset + 2) as usize,
+            label_style,
+        );
+        buf.set_stringn(cx + column_width - 1, y, key.to_string(), 1, key_style);
     }
-    let heading_y = area.y + logo_height + actions.len() as u16 + 1;
-    if heading_y < area.bottom() {
+    let heading_y = area.y + logo_height + action_rows + 1;
+    if recent_rows > 0 {
         buf.set_stringn(
             x,
             heading_y,
@@ -112,6 +147,18 @@ pub fn draw(buf: &mut Screen, area: Rect) {
         .into_iter()
         .find(|&(cw, ph)| cw <= area.width as usize && ph.div_ceil(2) + 2 <= area.height as usize)
     else {
+        if area.height > 0 {
+            let width = area.width.min(TITLE.len() as u16);
+            buf.set_stringn(
+                area.x + (area.width - width) / 2,
+                area.y,
+                TITLE,
+                width as usize,
+                Style::default()
+                    .fg(Color::Rgb(140, 235, 235))
+                    .add_modifier(Modifier::BOLD),
+            );
+        }
         return;
     };
     let ch = ph.div_ceil(2) + 2;
@@ -164,6 +211,30 @@ mod tests {
     }
 
     #[test]
+    fn dashboard_stays_inside_small_offset_areas() {
+        let ed = crate::editor::Editor::new(crate::buffer::Buffer::from_text(""));
+        for width in 0..50 {
+            for height in 0..25 {
+                let mut buf = Screen::empty(Rect::new(0, 0, 55, 30));
+                buf.set_string(0, 0, "outside", Style::default());
+                dashboard(&mut buf, Rect::new(3, 2, width, height), &ed, true);
+                assert_eq!(buf[(0, 0)].symbol(), "o");
+                for y in 0..30 {
+                    for x in 0..55 {
+                        if (x >= 3 + width || y >= 2 + height) && (x > 6 || y > 0) {
+                            assert_eq!(
+                                buf[(x, y)].symbol(),
+                                " ",
+                                "{width}x{height} wrote outside at {x},{y}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
     fn centered_and_scaled_to_fit() {
         // Room for double size: 48 cells wide, 28 tall, title below.
         let mut big = Screen::empty(Rect::new(0, 0, 100, 40));
@@ -184,10 +255,10 @@ mod tests {
         let a = small.area;
         draw(&mut small, a);
         assert_eq!(width(&text(&small)), 24);
-        // Too small for anything: nothing.
+        // Too small for artwork: keep the title.
         let mut tiny = Screen::empty(Rect::new(0, 0, 10, 8));
         let a = tiny.area;
         draw(&mut tiny, a);
-        assert!(text(&tiny).trim().is_empty());
+        assert!(text(&tiny).contains(TITLE));
     }
 }
