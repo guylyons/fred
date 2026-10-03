@@ -13,6 +13,8 @@ pub struct View {
     pub left: usize,
     /// Wheel scrolling leaves the editing position alone until keyboard input.
     pub detached: bool,
+    pub(crate) picker_offset: usize,
+    pub(crate) last_click: Option<(std::time::Instant, bool, usize)>,
 }
 
 /// Total window rows (text + status + command) for a file of `file_lines`.
@@ -23,6 +25,22 @@ pub fn window_height(cfg_height: usize, file_lines: usize, term_rows: u16) -> u1
 }
 
 impl View {
+    pub(crate) fn double_click(&mut self, picker: bool, row: usize) -> bool {
+        let now = std::time::Instant::now();
+        let double = self
+            .last_click
+            .take()
+            .is_some_and(|(then, was_picker, previous)| {
+                was_picker == picker
+                    && previous == row
+                    && now.duration_since(then) <= std::time::Duration::from_millis(400)
+            });
+        if !double {
+            self.last_click = Some((now, picker, row));
+        }
+        double
+    }
+
     pub fn wheel(&mut self, ed: &Editor, rows: usize, cols: usize, wrap: bool, down: bool) {
         self.detached = true;
         if !wrap {

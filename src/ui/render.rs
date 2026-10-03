@@ -165,18 +165,41 @@ pub fn mouse(
 ) {
     use ratatui::crossterm::event::{MouseButton, MouseEventKind};
     if !area.contains((event.column, event.row).into()) {
+        view.last_click = None;
         return;
     }
-    if matches!(ed.mode, Mode::Pick(_)) {
+    if let Mode::Pick(p) = &mut ed.mode {
         let code = match event.kind {
             MouseEventKind::ScrollDown => crate::key::KeyCode::Down,
             MouseEventKind::ScrollUp => crate::key::KeyCode::Up,
+            MouseEventKind::Down(MouseButton::Left) => {
+                let text_rows = area.height.saturating_sub(2) as usize;
+                let panel = panel_rows(text_rows, p.rows.len());
+                let top = area.bottom().saturating_sub(panel as u16);
+                if event.row < top {
+                    view.last_click = None;
+                    return;
+                }
+                let selected = view.picker_offset + (event.row - top) as usize;
+                if selected >= p.rows.len() {
+                    view.last_click = None;
+                    return;
+                }
+                p.sel = selected;
+                if view.double_click(true, selected) {
+                    view.detached = false;
+                    ed.handle_key(crate::key::Key::new(crate::key::KeyCode::Enter));
+                }
+                return;
+            }
             _ => return,
         };
+        view.last_click = None;
         ed.handle_key(crate::key::Key::new(code));
         return;
     }
     if event.row >= area.bottom().saturating_sub(2) || matches!(ed.mode, Mode::Command(_)) {
+        view.last_click = None;
         return;
     }
     ed.zap = None;
@@ -185,6 +208,7 @@ pub fn mouse(
     let rows = (area.height as usize).saturating_sub(2).max(1);
     match event.kind {
         MouseEventKind::ScrollUp | MouseEventKind::ScrollDown => {
+            view.last_click = None;
             view.wheel(
                 ed,
                 rows,
@@ -228,6 +252,15 @@ pub fn mouse(
                 ed.set_cursor(line, byte);
                 ed.popup = None;
                 ed.vim.pending.clear();
+                if ed.dired.as_ref().is_some_and(|d| !d.editing) {
+                    view.detached = true;
+                    if view.double_click(false, line) {
+                        view.detached = false;
+                        ed.handle_key(crate::key::Key::new(crate::key::KeyCode::Enter));
+                    }
+                } else {
+                    view.last_click = None;
+                }
                 return;
             }
         }
@@ -256,6 +289,16 @@ pub fn draw(
         _ => 0,
     };
     let rows = text_rows - panel;
+    if let Mode::Pick(p) = &ed.mode {
+        view.picker_offset = view.picker_offset.min(p.rows.len().saturating_sub(panel));
+        if p.sel < view.picker_offset {
+            view.picker_offset = p.sel;
+        } else if p.sel >= view.picker_offset + panel {
+            view.picker_offset = (p.sel + 1).saturating_sub(panel);
+        }
+    } else {
+        view.picker_offset = 0;
+    }
     let gutter = gutter_width(ed, cfg).min(area.width as usize / 2);
     let sign = git_column(ed).min(gutter);
     let cols = (area.width as usize).saturating_sub(gutter).max(1);
@@ -267,6 +310,11 @@ pub fn draw(
     let styles = hl.styles(&ed.buf, view.top..last, budget);
     let sel = match ed.mode {
         Mode::VisualLine { anchor } => Some((anchor.min(ed.cur.line), anchor.max(ed.cur.line))),
+        Mode::Command(ref cl) if cl.kind == ':' && cl.text.starts_with("'<,'>") => ed
+            .marks
+            .get(&'<')
+            .zip(ed.marks.get(&'>'))
+            .map(|(&a, &b)| (a.min(b), a.max(b))),
         _ => None,
     };
     let num_style = Style::default().fg(Color::DarkGray);
@@ -409,7 +457,7 @@ pub fn draw(
     }
     if let Mode::Pick(p) = &ed.mode {
         let list = Rect::new(ox, oy + rows as u16 + 2, area.width, panel as u16);
-        draw_picker(buf, list, p, ed, hl, cfg, budget);
+        draw_picker(buf, list, p, view.picker_offset, ed, hl, cfg, budget);
     }
     let input_area = Rect::new(ox, oy, area.width, area.height - panel as u16);
     if area.height >= 2 {
@@ -699,13 +747,13 @@ fn draw_picker(
     buf: &mut Screen,
     area: Rect,
     p: &Picker,
+    off: usize,
     ed: &Editor,
     hl: &mut Highlighter,
     cfg: &Config,
     budget: Duration,
 ) {
     let rows = area.height as usize;
-    let off = (p.sel + 1).saturating_sub(rows);
     let files = matches!(
         p.kind,
         Kind::Files | Kind::Browse | Kind::Recent | Kind::Buffers

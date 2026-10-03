@@ -149,6 +149,9 @@ changes and all.
 
 ## Dired
 
+In pickers and Dired, click a row to select it and double-click to open it.
+The mouse wheel scrolls without opening an entry.
+
 A directory opens as a listing, as in Emacs's dired: `fred DIR`, `:e DIR`,
 `Enter` on a directory in `Space j`, or `Space -` for the current file's
 directory (cursor on the file). It's a read-only buffer, so every vim motion,

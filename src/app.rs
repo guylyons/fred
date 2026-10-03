@@ -630,6 +630,9 @@ fn event_loop(
                         let keep_view = s.ed.zap.is_some();
                         let keyboard =
                             matches!(ev, Event::Key(_) | Event::Paste(_) | Event::Resize(..));
+                        if keyboard {
+                            ui.view.last_click = None;
+                        }
                         step(s, hl, ev, &mut resized);
                         if keyboard
                             && !keep_view
@@ -688,7 +691,10 @@ fn event_loop(
             dirty = true;
         }
         // Picker results from background threads, or a grep due to start.
-        dirty |= crate::pick::tick(&mut s.ed);
+        if crate::pick::tick(&mut s.ed) {
+            ui.view.last_click = None;
+            dirty = true;
+        }
         // A definition search may have found where to jump.
         if let Some(eff) = s.ed.pending_effect.take() {
             s.perform(eff);

@@ -343,6 +343,33 @@ fn popup_is_drawn() {
 }
 
 #[test]
+fn visual_selection_stays_visible_while_typing_ex() {
+    let mut s = Screen::new(40, 6);
+    let mut e = editor("one\ntwo\nthree\nfour", "Vj:ai explain");
+    s.draw(&e);
+    for y in [0, 1] {
+        assert!(
+            s.term.backend().buffer()[(4, y)]
+                .modifier
+                .contains(Modifier::REVERSED)
+        );
+    }
+    assert!(
+        !s.term.backend().buffer()[(4, 2)]
+            .modifier
+            .contains(Modifier::REVERSED)
+    );
+    e.handle_key(crate::key::Key::new(crate::key::KeyCode::Esc));
+    s.draw(&e);
+    assert!(
+        !s.term.backend().buffer()[(4, 0)]
+            .modifier
+            .contains(Modifier::REVERSED)
+    );
+    assert!(!e.buf.modified);
+}
+
+#[test]
 fn visual_selection_is_reversed() {
     let mut s = Screen::new(20, 5);
     let e = editor("ab\ncd\nef", "Vj");
@@ -568,6 +595,147 @@ fn file_pickers_show_type_icons_when_configured() {
     for want in ["\u{f024b} src/", "\u{f1617} main.rs", "\u{f0214} notes.zzz"] {
         assert!(all.contains(want), "{want:?} in\n{all}");
     }
+}
+
+#[test]
+fn mouse_click_selects_picker_row_and_double_click_opens_it() {
+    use ratatui::crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    let mut s = Screen::new(40, 10);
+    let mut e = editor("one\ntwo\nthree\nfour\nfive\nsix", " k");
+    let area = ratatui::layout::Rect::new(2, 3, 40, 10);
+    let click = MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 9,
+        row: 11,
+        modifiers: KeyModifiers::NONE,
+    };
+    super::render::mouse(&mut e, &mut s.view, &s.cfg, area, click);
+    assert!(matches!(&e.mode, Mode::Pick(p) if p.sel == 2));
+    assert_eq!(e.cur.pos(), (0, 0));
+    super::render::mouse(&mut e, &mut s.view, &s.cfg, area, click);
+    assert_eq!(e.mode, Mode::Normal);
+    assert_eq!(e.cur.pos(), (2, 0));
+}
+
+#[test]
+fn double_click_after_scrolling_opens_the_row_that_was_clicked() {
+    use ratatui::crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    let mut s = Screen::new(40, 10);
+    let text: String = (1..=20).map(|i| format!("line{i}\n")).collect();
+    let mut e = editor(
+        &text,
+        " k<Down><Down><Down><Down><Down><Down><Down><Down><Down><Down>",
+    );
+    s.draw(&e);
+    let before = s.row(7);
+    let click = MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 9,
+        row: 7,
+        modifiers: KeyModifiers::NONE,
+    };
+    let area = ratatui::layout::Rect::new(0, 0, 40, 10);
+    super::render::mouse(&mut e, &mut s.view, &s.cfg, area, click);
+    s.draw(&e);
+    assert_eq!(
+        &s.row(7)[1..],
+        &before[1..],
+        "selection must not move the clicked row"
+    );
+    super::render::mouse(&mut e, &mut s.view, &s.cfg, area, click);
+    assert_eq!(e.mode, Mode::Normal);
+    assert_eq!(e.cur.line, 8);
+}
+
+#[test]
+fn dired_double_click_opens_an_entry_and_slow_clicks_only_select() {
+    use ratatui::crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("file.txt"), "hello").unwrap();
+    let mut e = editor("", "");
+    crate::dired::visit(&mut e, dir.path(), None).unwrap();
+    let line = (0..e.line_count())
+        .find(|&l| e.buf.line(l).ends_with("file.txt"))
+        .unwrap();
+    let path = e.dired.as_ref().unwrap().dir.join("file.txt");
+    let mut s = Screen::new(80, 12);
+    let area = ratatui::layout::Rect::new(2, 3, 80, 12);
+    let click = MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 9,
+        row: 3 + line as u16,
+        modifiers: KeyModifiers::NONE,
+    };
+    super::render::mouse(
+        &mut e,
+        &mut s.view,
+        &s.cfg,
+        area,
+        MouseEvent {
+            kind: MouseEventKind::ScrollDown,
+            ..click
+        },
+    );
+    super::render::mouse(&mut e, &mut s.view, &s.cfg, area, click);
+    assert_eq!(e.cur.line, line);
+    assert!(e.pending_effect.is_none());
+    s.view.last_click = Some((
+        std::time::Instant::now() - Duration::from_millis(500),
+        false,
+        line,
+    ));
+    super::render::mouse(&mut e, &mut s.view, &s.cfg, area, click);
+    assert!(
+        e.pending_effect.is_none(),
+        "slow clicks must not open an entry"
+    );
+    super::render::mouse(&mut e, &mut s.view, &s.cfg, area, click);
+    assert!(
+        matches!(&e.pending_effect, Some(crate::ex::ExEffect::Open { path: target, .. }) if *target == path)
+    );
+    assert!(!e.buf.modified);
+    assert!(
+        !s.view.detached,
+        "opening an entry should follow its cursor again"
+    );
+}
+
+#[test]
+fn dired_edge_click_keeps_the_entry_under_the_pointer() {
+    use ratatui::crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    let dir = tempfile::tempdir().unwrap();
+    for i in 0..24 {
+        std::fs::write(dir.path().join(format!("file{i:02}.txt")), "hello").unwrap();
+    }
+    let mut e = editor("", "");
+    crate::dired::visit(&mut e, dir.path(), None).unwrap();
+    let mut s = Screen::new(80, 12);
+    s.cfg.wrap = false;
+    s.draw(&e);
+    let before = s.row(9);
+    let name = (0..24)
+        .map(|i| format!("file{i:02}.txt"))
+        .find(|name| before.ends_with(name))
+        .unwrap();
+    let path = e.dired.as_ref().unwrap().dir.join(name);
+    let area = ratatui::layout::Rect::new(0, 0, 80, 12);
+    let click = MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 9,
+        row: 9,
+        modifiers: KeyModifiers::NONE,
+    };
+    super::render::mouse(&mut e, &mut s.view, &s.cfg, area, click);
+    s.draw(&e);
+    assert_eq!(
+        s.row(9),
+        before,
+        "clicking an edge entry must not shift the view"
+    );
+    super::render::mouse(&mut e, &mut s.view, &s.cfg, area, click);
+    assert!(
+        matches!(&e.pending_effect, Some(crate::ex::ExEffect::Open { path: target, .. }) if *target == path)
+    );
 }
 
 #[test]
