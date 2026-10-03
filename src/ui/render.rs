@@ -369,7 +369,7 @@ pub fn draw(
             if cfg.hl_line && l == ed.cur.line && !selected && !splash {
                 buf.set_style(
                     Rect::new(ox + gutter as u16, oy + *y as u16, cols as u16, 1),
-                    Style::default().bg(Color::DarkGray),
+                    Style::default().bg(Color::Indexed(235)),
                 );
             }
             *y += 1;

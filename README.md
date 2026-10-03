@@ -286,8 +286,8 @@ ai_rules = ""            # extra instructions for every :ai, e.g.
                          # "Smallest change that works. No new abstractions."
 ```
 
-Set `hl_line = true` for a full-width highlight in the terminal’s dark-gray
-color. Syntax colors stay visible, and visual selections take priority.
+Set `hl_line = true` for a subtle, full-width dark-gray highlight (`#262626`).
+Syntax colors stay visible, and visual selections take priority.
 
 ## Development
 
