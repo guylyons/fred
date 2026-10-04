@@ -336,6 +336,10 @@ than 20,000 characters.
   UTF-8 byte-order mark are all kept as they were. Files that aren't valid
   UTF-8 open read-only and fred never writes them.
 
+Select lines with `V` and press `K`, or use `:[range]explain [question]`, to
+show an AI explanation in a dismissible overlay. Press Escape to close it.
+The selected text stays unchanged.
+
 ## Config
 
 `~/.config/fred/config.toml` (or `$XDG_CONFIG_HOME/fred/config.toml`). Every
@@ -357,6 +361,8 @@ clipboard = true         # yank, delete and put use the system clipboard
 ai_command = "claude -p --tools '' --safe-mode"  # what :ai runs (prompt on stdin);
                          # --safe-mode skips your Claude plugins, hooks and
                          # CLAUDE.md: faster, and far fewer tokens
+explain_command = "claude -p --tools '' --safe-mode --model sonnet"
+                         # what :explain runs (prompt on stdin)
 ai_rules = ""            # extra instructions for every :ai, e.g.
                          # "Smallest change that works. No new abstractions."
 ```

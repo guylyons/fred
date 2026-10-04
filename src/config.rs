@@ -29,6 +29,8 @@ pub struct Config {
     pub ai_command: String,
     /// Extra instructions added to every `:ai` prompt.
     pub ai_rules: String,
+    /// What `:explain` (Visual `K`) runs, prompt on stdin.
+    pub explain_command: String,
 }
 
 impl Default for Config {
@@ -49,6 +51,7 @@ impl Default for Config {
             // CLAUDE.md: much faster, ~100x fewer tokens per call.
             ai_command: "claude -p --tools '' --safe-mode".into(),
             ai_rules: String::new(),
+            explain_command: "claude -p --tools '' --safe-mode --model sonnet".into(),
         }
     }
 }

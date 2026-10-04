@@ -200,6 +200,19 @@ pub fn mouse(
         ed.handle_key(crate::key::Key::new(code));
         return;
     }
+    if ed.explain.is_some() && matches!(event.kind, MouseEventKind::Down(_)) {
+        if let Some(b) = view.explain_box
+            && b.contains((event.column, event.row).into())
+        {
+            // Its ✕ closes it; other clicks inside leave it be.
+            if event.row == b.y && event.column + 4 >= b.right() {
+                ed.explain = None;
+            }
+            return;
+        }
+        // A click elsewhere closes it, and still does what it would.
+        ed.explain = None;
+    }
     if event.row >= area.bottom().saturating_sub(2) || matches!(ed.mode, Mode::Command(_)) {
         view.last_click = None;
         return;
@@ -331,6 +344,12 @@ pub fn draw(
     let buf = f.buffer_mut();
     let (ox, oy) = (area.x, area.y);
     let mut cursor = None;
+    // The explained lines' first row and the row after them, if on screen.
+    let mut ex_top = ed
+        .explain
+        .as_ref()
+        .and_then(|(range, _)| (range.start <= view.top && view.top <= range.end).then_some(0));
+    let mut ex_end = None;
     let mut y = 0usize;
     let mut l = view.top;
     while y < rows && l < n {
@@ -441,6 +460,14 @@ pub fn draw(
                 }
             }
         }
+        if let Some((r, _)) = &ed.explain {
+            if l == r.start && skip == 0 {
+                ex_top = Some(first_y);
+            }
+            if l == r.end {
+                ex_end = Some(y);
+            }
+        }
         l += 1;
     }
     while y < rows {
@@ -486,6 +513,10 @@ pub fn draw(
             cfg.icons,
         );
     }
+    view.explain_box = ed.explain.as_ref().and_then(|(_, text)| {
+        let text_area = Rect::new(ox, oy, area.width, rows as u16);
+        draw_explain(buf, text_area, gutter, text, ex_top, ex_end)
+    });
     if let Mode::Pick(p) = &ed.mode {
         let list = Rect::new(ox, oy + rows as u16 + 2, area.width, panel as u16);
         draw_picker(buf, list, p, view.picker_offset, ed, hl, cfg, budget);
@@ -944,6 +975,93 @@ fn row_spans(r: &Row, code: Option<&(usize, Option<LineStyles>)>) -> Vec<Span<'s
 }
 
 /// Where the text area is: gutter width, text rows, wrap width (0 = off).
+/// `:explain`'s box: above the lines (`top` is their first row), or below
+/// them (`end` is the row after) when that has more room. Returns where.
+fn draw_explain(
+    buf: &mut Screen,
+    area: Rect,
+    gutter: usize,
+    text: &str,
+    top: Option<usize>,
+    end: Option<usize>,
+) -> Option<Rect> {
+    use ratatui::widgets::{Block, Clear, Widget};
+    let width = (area.width as usize).min(80);
+    if width < 10 || (top.is_none() && end.is_none()) {
+        return None;
+    }
+    let lines = word_wrap(text, width - 4);
+    let want = lines.len() + 2;
+    let above = top.unwrap_or(0);
+    let below = end.map_or(0, |e| (area.height as usize).saturating_sub(e));
+    let (mut h, mut y0) = if top.is_some() && (above >= want || above >= below) {
+        let h = want.min(above);
+        (h, above - h)
+    } else {
+        (want.min(below), end.unwrap_or(0))
+    };
+    if h < 3 {
+        // A full-viewport selection has no spare rows. Overlay its bottom
+        // instead of silently losing the successful reply.
+        h = want.min(area.height as usize);
+        y0 = area.height as usize - h;
+    }
+    if h < 3 {
+        return None;
+    }
+    let x0 = gutter.min(area.width as usize - width);
+    let rect = Rect::new(
+        area.x + x0 as u16,
+        area.y + y0 as u16,
+        width as u16,
+        h as u16,
+    );
+    Clear.render(rect, buf);
+    Block::bordered()
+        .border_style(Style::default().fg(Color::Cyan))
+        .title(" Claude explains ")
+        .title(Line::from(" ✕ ").right_aligned())
+        .render(rect, buf);
+    let inner = h - 2;
+    for (i, line) in lines.iter().take(inner).enumerate() {
+        let cut = i + 1 == inner && lines.len() > inner;
+        let shown = if cut {
+            format!("{line}…")
+        } else {
+            line.clone()
+        };
+        buf.set_stringn(
+            rect.x + 2,
+            rect.y + 1 + i as u16,
+            shown,
+            width - 4,
+            Style::default(),
+        );
+    }
+    Some(rect)
+}
+
+/// `text` broken at spaces into lines at most `width` columns wide.
+// ponytail: a word wider than the box is cut off, not split.
+fn word_wrap(text: &str, width: usize) -> Vec<String> {
+    let mut out = vec![];
+    for para in text.lines() {
+        let mut line = String::new();
+        for word in para.split_whitespace() {
+            let w = display_width(word, 1, 0);
+            if !line.is_empty() && display_width(&line, 1, 0) + 1 + w > width {
+                out.push(std::mem::take(&mut line));
+            }
+            if !line.is_empty() {
+                line.push(' ');
+            }
+            line.push_str(word);
+        }
+        out.push(line);
+    }
+    out
+}
+
 #[derive(Clone, Copy)]
 struct Geom {
     gutter: usize,

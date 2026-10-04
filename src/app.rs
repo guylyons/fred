@@ -390,7 +390,8 @@ fn suspend(ui: &mut Ui, s: &mut Session) -> Result<()> {
 /// `:!cmd`: run it on the real terminal, then wait for Enter, as vim does.
 /// `:ai`: Claude (`cfg.ai_command`, plus `cfg.ai_rules`) answers in the
 /// background while a spinner holds the editor; keys typed meanwhile are
-/// dropped, so the lines can't change under the reply.
+/// dropped, so the lines can't change under the reply. `:explain`
+/// (`cfg.explain_command`) shows the reply in a box over the lines instead.
 // ponytail: no cancel; kill the child on Esc if a stuck claude bites.
 fn ask_claude(
     ui: &mut Ui,
@@ -399,9 +400,15 @@ fn ask_claude(
     cfg: &Config,
     r: Range,
     prompt: String,
+    explain: bool,
 ) -> Result<()> {
     const SPIN: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-    let cmd = cfg.ai_command.clone();
+    let cmd = if explain {
+        cfg.explain_command.clone()
+    } else {
+        cfg.ai_command.clone()
+    };
+    let verb = if explain { "explaining" } else { "rewriting" };
     let prompt = match cfg.ai_rules.trim() {
         "" => prompt,
         rules => format!("{prompt}\nRules: {rules}\n"),
@@ -415,10 +422,7 @@ fn ask_claude(
     while !job.is_finished() {
         let t = start.elapsed();
         let spin = SPIN[(t.as_millis() / 100) as usize % SPIN.len()];
-        s.ed.set_msg(format!(
-            "{spin} Claude is rewriting {what}… {}s",
-            t.as_secs()
-        ));
+        s.ed.set_msg(format!("{spin} Claude is {verb} {what}… {}s", t.as_secs()));
         ui.draw(s, hl, cfg)?;
         if event::poll(TICK)? {
             event::read()?;
@@ -428,6 +432,10 @@ fn ask_claude(
         }
     }
     match job.join() {
+        Ok(Ok(out)) if explain => {
+            s.ed.explain = Some((r, out.trim().to_string()));
+            s.ed.msg = None;
+        }
         Ok(Ok(out)) => {
             s.ed.ai_reply(r, &out);
             s.ed.set_msg(format!("Claude rewrote {what}"));
@@ -725,8 +733,8 @@ fn event_loop(
             crate::dired::refresh(&mut s.ed);
             dirty = true;
         }
-        if let Some((r, prompt)) = s.pending_ai.take() {
-            ask_claude(ui, s, hl, cfg, r, prompt)?;
+        if let Some((r, prompt, explain)) = s.pending_ai.take() {
+            ask_claude(ui, s, hl, cfg, r, prompt, explain)?;
             dirty = true;
         }
         if let Some(pe) = s.pending_edit.clone() {

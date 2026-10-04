@@ -42,9 +42,11 @@ pub enum ExEffect {
     /// `:cd [dir]` (home without one).
     Cd(Option<String>),
     /// `:[range]ai ask`: send `prompt` to Claude; its reply replaces `range`.
+    /// `:[range]explain`: its reply is shown over the lines instead.
     Ai {
         range: Range,
         prompt: String,
+        explain: bool,
     },
     /// `:b [N|name|#]`, `:bn`, `:bp`, `:bd[!] [N|name]`, `:ls`.
     Buffer {
@@ -283,12 +285,12 @@ fn file_command(st: &mut ExState, rest: &str, range: Option<Range>) -> Result<Ex
         let at = range.map_or(st.cur, |r| r.end);
         return read(st, at, arg);
     }
-    if name == "ai" {
+    if name == "ai" || name == "explain" {
         let r = range.unwrap_or(Range {
             start: st.cur,
             end: st.cur,
         });
-        return ai(st, r, arg);
+        return ai(st, r, arg, name == "explain");
     }
     if arg.starts_with('!') {
         return Err("shell commands are not supported here".into());
@@ -332,8 +334,9 @@ fn filter(st: &mut ExState, r: Range, cmd: &str) -> Result<ExEffect, String> {
 
 /// `:[range]ai what to do`: the prompt asking Claude to rewrite the lines,
 /// with the whole file for context. The caller runs it (see `app::ask_claude`).
-fn ai(st: &mut ExState, r: Range, ask: &str) -> Result<ExEffect, String> {
-    if ask.is_empty() {
+/// `:[range]explain [question]` asks for a short explanation instead.
+fn ai(st: &mut ExState, r: Range, ask: &str, explain: bool) -> Result<ExEffect, String> {
+    if ask.is_empty() && !explain {
         return Err("say what to change: :ai make this async".into());
     }
     let name = st
@@ -342,16 +345,34 @@ fn ai(st: &mut ExState, r: Range, ask: &str) -> Result<ExEffect, String> {
         .map_or("an unnamed file".into(), |p| p.display().to_string());
     let (a, b) = (r.start + 1, r.end + 1);
     let sel: String = st.lines(r).iter().map(|l| format!("{l}\n")).collect();
+    let task = if explain {
+        format!(
+            "Explain what the selected lines do to someone reading the file. \
+             Be brief: plain text, at most 8 short lines, no markdown headings, \
+             no code fences.{}",
+            match ask {
+                "" => String::new(),
+                q => format!("\n\nAsked: {q}"),
+            }
+        )
+    } else {
+        format!(
+            "Rewrite only the selected lines as asked, matching the file's \
+             style and indentation. Reply with just the new text for those \
+             lines: no explanation, no code fences, no line numbers.\n\nAsked: {ask}"
+        )
+    };
     let prompt = format!(
         "You are editing {name} in a text editor. The whole file is below for \
-         context, then the selected lines {a}-{b}. Rewrite only the selected \
-         lines as asked, matching the file's style and indentation. Reply with \
-         just the new text for those lines: no explanation, no code fences, no \
-         line numbers.\n\nAsked: {ask}\n\n<file>\n{}\n</file>\n\n\
+         context, then the selected lines {a}-{b}. {task}\n\n<file>\n{}\n</file>\n\n\
          <selection lines=\"{a}-{b}\">\n{sel}</selection>\n",
         st.buf.text()
     );
-    Ok(ExEffect::Ai { range: r, prompt })
+    Ok(ExEffect::Ai {
+        range: r,
+        prompt,
+        explain,
+    })
 }
 
 /// The reply without a ```lang … ``` wrapper, if it added one anyway.
@@ -742,7 +763,12 @@ mod tests {
         };
         let mut st = ExState::new(&mut x.buf, &mut x.undo, 0, &x.marks, &mut x.last_pat);
         st.file = Some("src/x.rs".into());
-        let Ok(ExEffect::Ai { range, prompt }) = run(&mut st, "2ai rename") else {
+        let Ok(ExEffect::Ai {
+            range,
+            prompt,
+            explain: false,
+        }) = run(&mut st, "2ai rename")
+        else {
             panic!("no ai effect");
         };
         assert_eq!(range, Range { start: 1, end: 1 });
@@ -755,6 +781,22 @@ mod tests {
             assert!(prompt.contains(w), "{w} not in {prompt}");
         }
         assert!(run(&mut st, "ai").is_err());
+        let Ok(ExEffect::Ai {
+            prompt,
+            explain: true,
+            ..
+        }) = run(&mut st, "1,2explain")
+        else {
+            panic!("no explain effect");
+        };
+        assert!(
+            prompt.contains("Explain what the selected lines do"),
+            "{prompt}"
+        );
+        assert!(
+            prompt.contains("lines=\"1-2\">\nfn a() {}\nfn b() {}\n"),
+            "{prompt}"
+        );
         assert_eq!(unfence("  x\n"), "  x\n");
         assert_eq!(unfence("```rust\n  x\n```\n"), "  x\n");
     }

@@ -1277,3 +1277,74 @@ fn magit_status_uses_title_and_diff_colors() {
     assert!(screen.row(4).contains("Magit 123abc"), "{}", screen.row(4));
     assert!(!screen.row(4).contains("opaque-hash"));
 }
+
+#[test]
+fn explain_box_sits_above_the_selection_until_closed() {
+    use crate::ex::ExEffect;
+    use crate::key::{Key, KeyCode};
+    use ratatui::crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    let text = "a\nb\nc\nd\ne\nf\ng\nh";
+    // Visual `K` asks for an explanation of the selected lines.
+    let mut e = editor(text, "5GVjK");
+    assert!(matches!(
+        &e.pending_effect,
+        Some(ExEffect::Ai { range, explain: true, .. }) if (range.start, range.end) == (4, 5)
+    ));
+    assert_eq!(e.mode, Mode::Normal);
+    e.explain = Some((
+        crate::ex::addr::Range { start: 4, end: 5 },
+        "Two letters.".into(),
+    ));
+    let mut s = Screen::new(40, 10);
+    s.draw(&e);
+    // Lines 5-6 are rows 4-5; the box takes the three rows above them.
+    assert!(s.row(1).contains("Claude explains") && s.row(1).contains("✕"));
+    assert!(s.row(2).contains("Two letters."), "{}", s.row(2));
+    assert!(s.row(4).contains('e'));
+    let click = |column, row| MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column,
+        row,
+        modifiers: KeyModifiers::NONE,
+    };
+    let area = ratatui::layout::Rect::new(0, 0, 40, 10);
+    // Inside the box: stays.
+    super::render::mouse(&mut e, &mut s.view, &s.cfg, area, click(10, 2));
+    assert!(e.explain.is_some());
+    // The ✕ closes it.
+    let b = s.view.explain_box.unwrap();
+    super::render::mouse(&mut e, &mut s.view, &s.cfg, area, click(b.right() - 2, b.y));
+    assert!(e.explain.is_none());
+    // A click away closes it and moves the cursor; so does Esc.
+    e.explain = Some((crate::ex::addr::Range { start: 4, end: 5 }, "x".into()));
+    s.draw(&e);
+    super::render::mouse(&mut e, &mut s.view, &s.cfg, area, click(6, 7));
+    assert!(e.explain.is_none());
+    assert_eq!(e.cur.line, 7);
+    e.explain = Some((crate::ex::addr::Range { start: 4, end: 5 }, "x".into()));
+    e.handle_key(Key::ch('j'));
+    assert!(e.explain.is_some(), "other keys leave it open");
+    e.handle_key(Key::new(KeyCode::Esc));
+    assert!(e.explain.is_none());
+}
+
+#[test]
+fn explain_reply_remains_visible_for_full_viewport_and_multiscreen_selection() {
+    let text = (0..40).map(|i| format!("line {i}\n")).collect::<String>();
+    for (range, top) in [
+        (crate::ex::addr::Range { start: 0, end: 7 }, 0),
+        (crate::ex::addr::Range { start: 0, end: 39 }, 12),
+    ] {
+        let mut e = editor(&text, "");
+        let before = e.buf.to_bytes();
+        e.set_cursor(top, 0);
+        e.explain = Some((range, "Visible explanation.".into()));
+        let mut s = Screen::new(40, 10);
+        s.view.top = top;
+        s.draw(&e);
+        assert!((0..8).any(|row| s.row(row).contains("Visible explanation.")));
+        assert!(s.view.explain_box.is_some());
+        assert!(s.row(8).contains("NORMAL"));
+        assert_eq!(e.buf.to_bytes(), before);
+    }
+}

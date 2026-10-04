@@ -15,6 +15,8 @@ pub struct View {
     pub detached: bool,
     pub(crate) picker_offset: usize,
     pub(crate) last_click: Option<(std::time::Instant, bool, usize)>,
+    /// Where the `:explain` box was last drawn, for clicks.
+    pub(crate) explain_box: Option<ratatui::layout::Rect>,
 }
 
 /// Total window rows (text + status + command) for a file of `file_lines`.
