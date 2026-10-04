@@ -23,12 +23,12 @@ git-commit.el,956,command,git-commit-test,partial,C-c C-t,explicit
 git-commit.el,962,command,git-commit-cc,partial,C-c C-o,explicit
 git-commit.el,967,command,git-commit-reported,partial,C-c C-p,explicit
 git-commit.el,972,command,git-commit-suggested,partial,C-c M-i,explicit
-git-commit.el,977,command,git-commit-co-authored,missing,,explicit
-git-commit.el,982,command,git-commit-co-developed,missing,,explicit
+git-commit.el,977,command,git-commit-co-authored,partial,:Magit git-commit-co-authored in a draft (or C-c C-i),explicit
+git-commit.el,982,command,git-commit-co-developed,partial,:Magit git-commit-co-developed in a draft (or C-c C-i),explicit
 git-commit.el,1294,option,git-commit-post-finish-hook,missing,,explicit
 git-commit.el,1313,option,git-commit-post-finish-hook-timeout,missing,,explicit
 git-commit.el,,command,git-commit-elisp-text-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-git-commit.el,,command,git-commit-insert-pseudo-header,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+git-commit.el,,command,git-commit-insert-pseudo-header,partial,"C-c C-i reads any ""Key: value"" trailer",runtime
 git-commit.el,,command,git-commit-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 git-commit.el,,command,git-commit-mode-menu,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 git-commit.el,,command,global-git-commit-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
@@ -374,7 +374,7 @@ magit-extras.el,193,command,magit-project-status,missing,,explicit
 magit-extras.el,210,command,magit-project-dispatch,missing,,explicit
 magit-extras.el,241,command,magit-previous-line,missing,,explicit
 magit-extras.el,264,command,magit-next-line,missing,,explicit
-magit-extras.el,288,command,magit-clean,missing,,explicit
+magit-extras.el,288,command,magit-clean,partial,:Magit magit-clean (typed yes; magit-clean-ignored for -x),explicit
 magit-extras.el,307,command,magit-generate-changelog,missing,,explicit
 magit-extras.el,338,command,magit-add-change-log-entry,missing,,explicit
 magit-extras.el,351,command,magit-add-change-log-entry-other-window,missing,,explicit
@@ -420,9 +420,9 @@ magit-files.el,53,command,magit-find-file,partial,"Space m F v; revision and fil
 magit-files.el,63,command,magit-find-file-other-window,missing,,explicit
 magit-files.el,73,command,magit-find-file-other-frame,missing,,explicit
 magit-files.el,363,command,magit-update-index,missing,,explicit
-magit-files.el,401,command,magit-find-git-config-file,missing,,explicit
-magit-files.el,417,command,magit-find-git-config-file-other-window,missing,,explicit
-magit-files.el,433,command,magit-find-git-config-file-other-frame,missing,,explicit
+magit-files.el,401,command,magit-find-git-config-file,partial,:Magit: visits the repository config file,explicit
+magit-files.el,417,command,magit-find-git-config-file-other-window,partial,Fred has no windows: same as magit-find-git-config-file,explicit
+magit-files.el,433,command,magit-find-git-config-file-other-frame,partial,Fred has no frames: same as magit-find-git-config-file,explicit
 magit-files.el,452,command,magit-file-dispatch,partial,"Space m F; file actions, inspect/log/blame/navigate groups and status/commit; t trace, e edit line, G, dired variants missing",explicit
 magit-files.el,536,command,magit-bury-buffer,missing,,explicit
 magit-files.el,548,command,magit-bury-or-kill-buffer,partial,q in blob buffers kills the buffer,explicit
@@ -627,8 +627,8 @@ magit-notes.el,,command,magit-core.notesRef,partial,Space m T c,runtime
 magit-notes.el,,command,magit-global-core.notesRef,partial,Space m T C,runtime
 magit-notes.el,,command,magit-global-notes.displayRef,partial,Space m T D,runtime
 magit-notes.el,,command,magit-notes.displayRef,partial,Space m T d (comma separated),runtime
-magit-notes.el,,command,magit-notes:--ref,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-notes.el,,command,magit-notes:--strategy,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-notes.el,,command,magit-notes:--ref,partial,-r in the notes menu: git notes --ref=REF edit/remove,runtime
+magit-notes.el,,command,magit-notes:--strategy,partial,-s cycles upstream choices,runtime
 magit-notes.el,,command,transient:magit-notes:--dry-run,partial,-n,runtime
 magit-patch.el,35,option,magit-patch-save-arguments,missing,,explicit
 magit-patch.el,56,command,magit-patch,partial,Space m W: c w a s r,explicit

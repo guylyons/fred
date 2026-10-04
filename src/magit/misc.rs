@@ -12,6 +12,10 @@ pub enum Op {
     /// The same, run in this directory relative to the toplevel (git -C).
     GitCommandIn(std::path::PathBuf),
     ResetQuickly,
+    /// magit-clean: untracked (0), untracked and ignored (1), ignored only (2).
+    Clean(u8),
+    /// magit-find-git-config-file.
+    GitConfigFile,
     RemoteSetHead,
     RemoteUnsetHead,
 }
@@ -86,6 +90,14 @@ impl Repo {
                 };
                 (vec![format!("Reset {here} to{suffix}: ")], vec![d])
             }
+            Op::Clean(n) => {
+                let what = ["untracked", "untracked and ignored", "ignored"][*n as usize % 3];
+                (
+                    vec![format!("Remove {what} files? (yes or no) ")],
+                    vec![String::new()],
+                )
+            }
+            Op::GitConfigFile => (vec![], vec![]),
             Op::RemoteSetHead | Op::RemoteUnsetHead => {
                 let d = self.current_remote().ok().flatten().unwrap_or_default();
                 let verb = if *op == Op::RemoteSetHead {
@@ -136,6 +148,25 @@ impl Repo {
                 .map_err(|_| format!("unknown revision {c:?}"))?;
                 self.read(&["reset", "--mixed", "-q", c, "--"])?;
                 Ok(Next::Done(Ok(format!("Reset HEAD to {c}"))))
+            }
+            Op::Clean(n) => {
+                if at(0) != "yes" {
+                    return Err("Abort".into());
+                }
+                let mut argv = vec!["clean", "-f", "-d"];
+                match n {
+                    1 => argv.push("-x"),
+                    2 => argv.push("-X"),
+                    _ => {}
+                }
+                self.read(&argv)?;
+                Ok(Next::Done(Ok("Cleaned".into())))
+            }
+            Op::GitConfigFile => {
+                let p = self.read(&["rev-parse", "--git-path", "config"])?;
+                Ok(Next::Visit(
+                    self.root.join(String::from_utf8_lossy(&p).trim()),
+                ))
             }
             Op::RemoteSetHead | Op::RemoteUnsetHead => {
                 let r = at(0);

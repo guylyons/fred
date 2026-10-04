@@ -3714,3 +3714,41 @@ fn smerge_keeps_a_side_of_the_conflict_at_point() {
     e.set_cursor(0, 0);
     assert!(!keep(&mut e, Keep::Upper));
 }
+
+#[test]
+fn clean_config_file_and_notes_ref() {
+    use super::branch::Next;
+    use super::misc::Op;
+    let (d, r) = setup();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    fs::write(d.path().join(".gitignore"), "ign\n").unwrap();
+    fs::write(d.path().join("f"), "f").unwrap();
+    git(d.path(), &["add", "."]);
+    git(d.path(), &["commit", "-qm", "base"]);
+    fs::write(d.path().join("loose"), "x").unwrap();
+    fs::write(d.path().join("ign"), "x").unwrap();
+    assert!(r.misc_step(Op::Clean(0), &s(&["y"])).is_err());
+    r.misc_step(Op::Clean(0), &s(&["yes"])).unwrap();
+    assert!(!d.path().join("loose").exists() && d.path().join("ign").exists());
+    r.misc_step(Op::Clean(2), &s(&["yes"])).unwrap();
+    assert!(!d.path().join("ign").exists());
+    let Next::Visit(p) = r.misc_step(Op::GitConfigFile, &[]).unwrap() else {
+        panic!()
+    };
+    assert!(p.ends_with(".git/config"));
+    // notes --ref goes before the subcommand.
+    let Next::Git(argv) = r
+        .notes_step(
+            super::notes::Op::Remove,
+            &s(&["HEAD"]),
+            &s(&["--ref=review"]),
+        )
+        .unwrap()
+    else {
+        panic!()
+    };
+    assert_eq!(
+        &argv[..3],
+        &s(&["notes", "--ref=refs/notes/review", "remove"])
+    );
+}

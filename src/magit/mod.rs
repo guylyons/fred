@@ -160,6 +160,8 @@ pub enum Action {
     Misc(misc::Op),
     /// magit-process-buffer.
     ProcessBuffer,
+    /// A git-commit trailer by key, read for the current draft.
+    Trailer(&'static str),
     /// magit-log-refresh's g: the menu's arguments for this log buffer.
     LogRefresh,
     /// magit-apply / magit-reverse of the diff hunk or file at point (true
@@ -3206,6 +3208,12 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                     "Arguments for merge",
                     "Merge strategy",
                     CycleOption("--strategy="),
+                ),
+                (
+                    "-r",
+                    "Arguments for edit and remove",
+                    "Manipulate ref",
+                    ReadOption("--ref="),
                 ),
                 ("T", "Actions", "Edit", Action::Notes(O::Edit)),
                 ("r", "Actions", "Remove", Action::Notes(O::Remove)),

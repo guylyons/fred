@@ -139,12 +139,12 @@ impl Repo {
                     return Err(format!("invalid revision {commit:?}"));
                 }
                 let verb = if op == Op::Edit { "edit" } else { "remove" };
-                let argv = vec![
-                    "notes".into(),
-                    verb.into(),
-                    "--end-of-options".into(),
-                    commit.into(),
-                ];
+                // magit-notes:--ref: git notes --ref=REF edit/remove.
+                let mut argv: Vec<String> = vec!["notes".into()];
+                if let Some(r) = args.iter().find_map(|x| x.strip_prefix("--ref=")) {
+                    argv.push(format!("--ref={}", notes_ref(r)?));
+                }
+                argv.extend([verb.into(), "--end-of-options".into(), commit.into()]);
                 Ok(if op == Op::Edit {
                     Next::GitEditor(argv)
                 } else {

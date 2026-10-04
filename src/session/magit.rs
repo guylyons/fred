@@ -339,7 +339,7 @@ impl Session {
             return;
         }
         if let Action::Misc(op) = action {
-            let from = self.magit_from();
+            let (origin, from) = (self.cur, self.magit_from());
             // magit-git-command runs in the current file's directory.
             let here = self
                 .ed
@@ -366,6 +366,12 @@ impl Session {
                     (op, _) => op,
                 };
                 let (prompts, defaults) = repo.misc_prompts(&op, at_point);
+                if prompts.is_empty() {
+                    let next = repo
+                        .misc_step(op, &[])
+                        .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                    return Ok(branch_outcome(repo, next, origin));
+                }
                 Ok(Outcome::Ask(repo, Question::Misc(op), defaults, prompts))
             });
             return;
@@ -565,6 +571,13 @@ impl Session {
                 }));
                 Ok(branch_outcome(repo, next, origin))
             });
+            return;
+        }
+        if let Action::Trailer(key) = action {
+            if self.ed.commit_repo.is_none() {
+                return self.ed.set_err("Not in a commit message draft");
+            }
+            crate::magit::prompt(&mut self.ed, crate::magit::Prompt::Trailer(Some(key)));
             return;
         }
         if action == Action::LogRefresh {
