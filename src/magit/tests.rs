@@ -1403,6 +1403,7 @@ fn branch_suffixes_follow_magit_branch() {
         Next::Done(r) => r,
         Next::Ask(op, p, _) => Err(format!("asked {op:?}: {p:?}")),
         Next::Git(a) => Err(format!("git {a:?}")),
+        other => Err(format!("{other:?}")),
     };
     let head = |b: &str| git(d.path(), &["rev-parse", b]);
     // n: create without checkout; c: create and checkout.
@@ -1582,6 +1583,10 @@ fn tag_versions_sort_like_version_to_list() {
     assert_eq!(version_list("1.0-rc.2"), Some(vec![1, 0, -1, 2]));
     assert_eq!(version_list("2.0alpha"), Some(vec![2, 0, -3]));
     assert_eq!(version_list("1.0-bogus"), None);
+    // A lone separator ranks below a release (magit-tag-version-regexp-alist).
+    assert_eq!(version_list("1.0-1"), Some(vec![1, 0, -4, 1]));
+    assert_eq!(version_list("1-2"), Some(vec![1, -4, 2]));
+    assert_eq!(version_list("1.2-a"), Some(vec![1, 2, 1]));
 }
 #[test]
 fn tag_suffixes_create_release_delete_and_prune() {
@@ -1597,6 +1602,7 @@ fn tag_suffixes_create_release_delete_and_prune() {
         }
         Next::Done(res) => res.map(|_| ()),
         Next::Ask(q, p, _) => Err(format!("asked {q:?} {p:?}")),
+        other => Err(format!("{other:?}")),
     };
     run(r
         .tag_step(Op::Create, &s(&["v1.0.0", "HEAD"]), &[])
@@ -1651,6 +1657,27 @@ fn tag_suffixes_create_release_delete_and_prune() {
         }
         _ => panic!("expected a message question"),
     }
+    // -e alone still asks for a message on a later release.
+    assert!(matches!(
+        r.tag_step(Op::Release, &s(&["v1.2.0"]), &s(&["--edit"]))
+            .unwrap(),
+        Next::Ask(Q::Tag(Op::ReleaseMessage(_)), ..)
+    ));
+    // Option-like remote names are never offered.
+    git(
+        d.path(),
+        &["config", "remote.--upload-pack=touch.url", "/nowhere"],
+    );
+    assert!(git(d.path(), &["remote"]).starts_with(b"--upload-pack"));
+    assert!(!r.remotes().unwrap().iter().any(|x| x.starts_with('-')));
+    assert!(
+        r.tag_step(Op::Prune, &s(&["--upload-pack=touch"]), &[])
+            .is_err()
+    );
+    git(
+        d.path(),
+        &["config", "--remove-section", "remote.--upload-pack=touch"],
+    );
     // Delete and prune.
     run(r.tag_step(Op::Delete, &s(&["v0.9"]), &[]).unwrap()).unwrap();
     git(d.path(), &["push", "-q", "origin", "main", "v1.0.0"]);
@@ -1682,4 +1709,104 @@ fn tag_suffixes_create_release_delete_and_prune() {
             .windows(11)
             .all(|w| w != b"remote-only")
     );
+}
+#[test]
+fn merge_suffixes_follow_magit_merge() {
+    use super::Question as Q;
+    use super::branch::Next;
+    use super::merge::Op;
+    let (d, r) = setup();
+    committed(d.path(), b"base\n");
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    let run = |n: Next| match n {
+        Next::Git(args) => {
+            let args: Vec<std::ffi::OsString> = args.into_iter().map(Into::into).collect();
+            r.run(&args, None).map(|_| ())
+        }
+        Next::Done(res) => res.map(|_| ()),
+        _ => Err("unexpected step".into()),
+    };
+    let branch = |name: &str, file: &str| {
+        git(d.path(), &["checkout", "-qb", name, "main"]);
+        fs::write(d.path().join(file), name.as_bytes()).unwrap();
+        git(d.path(), &["add", file]);
+        git(d.path(), &["commit", "-qm", name]);
+        git(d.path(), &["checkout", "-q", "main"]);
+    };
+    branch("a", "a");
+    branch("b", "b");
+    // Plain merge argv, octopus via commas, option-like answers rejected.
+    match r
+        .merge_step(Op::Plain, &s(&["a,b"]), &s(&["--no-ff"]))
+        .unwrap()
+    {
+        Next::Git(argv) => assert_eq!(argv, ["merge", "--no-edit", "--no-ff", "--", "a", "b"]),
+        _ => panic!("plain merge runs git"),
+    }
+    assert!(
+        r.merge_step(Op::Plain, &s(&["--upload-pack=x"]), &[])
+            .is_err()
+    );
+    // n drops --ff-only and adds --no-ff.
+    match r
+        .merge_step(Op::NoCommit, &s(&["a"]), &s(&["--ff-only"]))
+        .unwrap()
+    {
+        Next::Git(argv) => assert_eq!(argv, ["merge", "--no-commit", "--no-ff", "--", "a"]),
+        _ => panic!("no-commit merge runs git"),
+    }
+    // Dirty worktrees are refused.
+    fs::write(d.path().join("f"), b"dirty\n").unwrap();
+    assert!(
+        r.merge_step(Op::Plain, &s(&["a"]), &[])
+            .unwrap_err()
+            .contains("dirty")
+    );
+    git(d.path(), &["checkout", "-q", "--", "f"]);
+    // Preview shows the merge result without touching the worktree.
+    match r.merge_step(Op::Preview, &s(&["a"]), &[]).unwrap() {
+        Next::Show(super::diff::Target::Range(range)) => {
+            let out = r
+                .diff_output(&super::diff::Target::Range(range), &[])
+                .unwrap();
+            assert!(String::from_utf8_lossy(&out).contains("+a"));
+        }
+        _ => panic!("preview shows a diff"),
+    }
+    assert!(!d.path().join("a").exists());
+    // e merges without committing and opens a draft with MERGE_MSG.
+    match r.merge_step(Op::EditMsg, &s(&["a"]), &[]).unwrap() {
+        Next::Draft(msg) => assert!(String::from_utf8_lossy(&msg).contains("Merge branch 'a'")),
+        _ => panic!("edit-message merge opens a draft"),
+    }
+    assert!(r.merge_in_progress());
+    // Abort asks first.
+    let (prompts, _) = r.merge_prompts(&Op::Abort).unwrap();
+    assert_eq!(prompts, ["Abort merge? (y or n) "]);
+    assert!(r.merge_step(Op::Abort, &s(&["n"]), &[]).is_err());
+    run(r.merge_step(Op::Abort, &s(&["y"]), &[]).unwrap()).unwrap();
+    assert!(!r.merge_in_progress());
+    // Absorb merges and deletes the branch; squash leaves changes staged.
+    run(r.merge_step(Op::Absorb, &s(&["a"]), &[]).unwrap()).unwrap();
+    assert!(d.path().join("a").exists());
+    assert!(!r.branch_choices().contains(&"a".to_string()));
+    run(r.merge_step(Op::Squash, &s(&["b"]), &[]).unwrap()).unwrap();
+    assert!(git(d.path(), &["diff", "--cached", "--name-only"]).starts_with(b"b"));
+    git(d.path(), &["commit", "-qm", "squashed b"]);
+    // Absorbing the main branch must be confirmed with yes.
+    git(d.path(), &["checkout", "-qb", "side"]);
+    match r.merge_step(Op::Absorb, &s(&["main"]), &[]).unwrap() {
+        Next::Ask(Q::Merge(op @ Op::AbsorbMain(_)), _, _) => {
+            assert!(r.merge_step(op, &s(&["y"]), &[]).is_err());
+        }
+        _ => panic!("absorbing main asks"),
+    }
+    // Dissolve merges the current branch into another and removes it.
+    fs::write(d.path().join("side"), b"side").unwrap();
+    git(d.path(), &["add", "side"]);
+    git(d.path(), &["commit", "-qm", "side"]);
+    run(r.merge_step(Op::Dissolve, &s(&["main"]), &[]).unwrap()).unwrap();
+    assert_eq!(r.current_branch().unwrap(), "main");
+    assert!(d.path().join("side").exists());
+    assert!(!r.branch_choices().contains(&"side".to_string()));
 }

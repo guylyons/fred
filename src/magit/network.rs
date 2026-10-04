@@ -49,9 +49,12 @@ impl Repo {
         let out = self.read(&["config", "--get", key]).ok()?;
         Some(String::from_utf8_lossy(&out).trim_end().to_owned()).filter(|s| !s.is_empty())
     }
+    /// Configured remotes. Names that look like options (possible via
+    /// `git remote add -- -x`) are never offered, so no caller can pass one.
     pub fn remotes(&self) -> Result<Vec<String>, String> {
         Ok(String::from_utf8_lossy(&self.read(&["remote"])?)
             .lines()
+            .filter(|r| !r.starts_with('-'))
             .map(str::to_owned)
             .collect())
     }

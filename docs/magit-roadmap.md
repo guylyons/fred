@@ -129,3 +129,7 @@ options partial (defaults) / 232 missing. Score remains 3%.
 October 4 branch checkpoint: Space m b uses upstream keys b/l/c/s/n/S/m/x/k
 ([scenarios](magit-branch-acceptance.md)); status review fixes applied.
 Ledger 139 partial / 634 missing commands. Score remains 3%.
+
+October 4 merge checkpoint: Space m M ports magit-merge
+([scenarios](magit-merge-acceptance.md)); tag review fixes. Ledger 156
+partial / 617 missing commands. Score remains 3%.

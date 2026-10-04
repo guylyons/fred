@@ -25,6 +25,8 @@ fn release_re() -> regex::Regex {
 }
 
 /// version-to-list with magit-tag-version-regexp-alist; None if unparsable.
+/// Dots separate; other non-digit runs map through the alist (a lone
+/// separator is -4), and a single letter counts as its position (a = 1).
 pub fn version_list(v: &str) -> Option<Vec<i64>> {
     let mut out = vec![];
     let mut chars = v.chars().peekable();
@@ -36,19 +38,24 @@ pub fn version_list(v: &str) -> Option<Vec<i64>> {
                 chars.next();
             }
             out.push(n.parse().ok()?);
-        } else if "-._+ ".contains(c) {
+        } else if c == '.' {
             chars.next();
         } else {
-            let mut w = String::new();
-            while let Some(&d) = chars.peek().filter(|d| d.is_ascii_alphabetic()) {
-                w.push(d.to_ascii_lowercase());
+            let mut run = String::new();
+            while let Some(&d) = chars.peek().filter(|d| !d.is_ascii_digit() && **d != '.') {
+                run.push(d.to_ascii_lowercase());
                 chars.next();
             }
-            out.push(match w.as_str() {
+            let word = run.trim_start_matches(['-', '_', '+', ' ']);
+            out.push(match word {
+                "" => -4,
                 "snapshot" | "cvs" | "git" | "bzr" | "svn" | "hg" | "darcs" | "unknown" => -4,
                 "alpha" => -3,
                 "beta" => -2,
                 "pre" | "rc" => -1,
+                w if w.len() == 1 && w.as_bytes()[0].is_ascii_lowercase() => {
+                    i64::from(w.as_bytes()[0] - b'a' + 1)
+                }
                 _ => return None,
             });
         }
@@ -220,7 +227,8 @@ impl Repo {
             Op::Release => {
                 let tag = self.tag_name(at(0))?;
                 let first = self.releases().is_empty();
-                if !first && !annotating(args) {
+                let wants_message = annotating(args) || args.iter().any(|x| x == "--edit");
+                if !first && !wants_message {
                     return Ok(invocation(&tag, None, None));
                 }
                 // magit-tag-release: derive the message from the previous release.
@@ -242,11 +250,22 @@ impl Repo {
                             .file_name()
                             .map(|n| n.to_string_lossy().into_owned())
                             .unwrap_or_default();
-                        let mut c = name.chars();
-                        let cap = c
-                            .next()
-                            .map(|f| f.to_uppercase().chain(c).collect::<String>())
-                            .unwrap_or_default();
+                        // Emacs capitalize: each word initial upper, the rest lower.
+                        let mut cap = String::new();
+                        let mut start = true;
+                        for ch in name.chars() {
+                            if ch.is_alphanumeric() {
+                                cap.extend(if start {
+                                    ch.to_uppercase().collect::<Vec<_>>()
+                                } else {
+                                    ch.to_lowercase().collect()
+                                });
+                                start = false;
+                            } else {
+                                cap.push(ch);
+                                start = true;
+                            }
+                        }
                         format!("{cap} {ver}")
                     }
                 };
@@ -291,12 +310,19 @@ impl Repo {
                 self.prune_next(remote.to_owned(), local, remote_only)
             }
             Op::PruneLocal(remote, local, remote_only) => {
-                if matches!(at(0), "y" | "yes") {
+                // Like magit-call-git, a partial failure still continues to the remote step.
+                let failed = matches!(at(0), "y" | "yes") && {
                     let mut argv = vec!["tag", "-d", "--"];
                     argv.extend(local.iter().map(String::as_str));
-                    self.read(&argv)?;
+                    self.read(&argv).is_err()
+                };
+                let next = self.prune_next(remote, vec![], remote_only)?;
+                if failed && matches!(next, Next::Done(_)) {
+                    return Ok(Next::Done(Err(
+                        "Some local tags could not be deleted".into()
+                    )));
                 }
-                self.prune_next(remote, vec![], remote_only)
+                Ok(next)
             }
             Op::PruneRemote(remote, remote_only) => {
                 if !matches!(at(0), "y" | "yes") {

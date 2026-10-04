@@ -32,11 +32,16 @@ pub enum Op {
 }
 
 /// What the session should do after a branch step.
+#[derive(Debug)]
 pub enum Next {
     Done(Result<String, String>),
     Ask(super::Question, Vec<String>, Vec<String>),
     /// A network command for the terminal (delete on a remote).
     Git(Vec<String>),
+    /// Open Fred's commit draft with this message (merge --edit).
+    Draft(Vec<u8>),
+    /// Show a diff (merge preview).
+    Show(super::diff::Target),
 }
 
 fn name(v: &str) -> Result<&str, String> {

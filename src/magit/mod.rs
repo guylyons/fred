@@ -3,6 +3,7 @@ pub mod blame;
 pub mod blob;
 pub mod branch;
 pub mod diff;
+pub mod merge;
 pub mod network;
 pub mod repo;
 pub mod status;
@@ -53,6 +54,8 @@ pub enum Action {
     Branch(branch::Op),
     /// A magit-tag.el suffix.
     Tag(tag::Op),
+    /// A magit-merge.el suffix.
+    Merge(merge::Op),
     /// magit-file-stage/unstage/untrack/rename/delete/checkout.
     File(blob::FileOp),
     BlameCycle,
@@ -442,6 +445,12 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
                     if !ed.magit_options.remove(&option) {
                         ed.magit_options.insert(option);
                     }
+                    if option == MenuOption::MergeFfOnly {
+                        ed.magit_options.remove(&MenuOption::MergeNoFf);
+                    }
+                    if option == MenuOption::MergeNoFf {
+                        ed.magit_options.remove(&MenuOption::MergeFfOnly);
+                    }
                     if option == MenuOption::PullFfOnly {
                         ed.magit_options.retain(
                             |o| !matches!(o, MenuOption::Choice("--rebase=", v) if *v != "false"),
@@ -599,7 +608,9 @@ fn menu_help(menu: char) -> Option<&'static str> {
         'l' => "Log: l current  h HEAD  -f follow renames for file log; Space m L current file",
         't' => "Tag: t tag  r release  k delete  p prune; -a annotate -s sign -e message -f force",
         'C' => "Commit: a amend  e extend  w reword  f fixup",
-        'M' => "Merge: m merge  s squash  c continue  a abort",
+        'M' => {
+            "Merge: m merge  e edit msg  n no commit  a absorb  p preview  s squash  d dissolve; merging: m commit  a abort"
+        }
         'r' => "Rebase: r onto revision  c continue  s skip  a abort",
         'x' => "Cherry-pick: p pick  c continue  s skip  a abort",
         'v' => "Revert: v revert  c continue  s skip  a abort",
@@ -636,6 +647,7 @@ pub enum Prompt {
 pub enum Question {
     Branch(branch::Op),
     Tag(tag::Op),
+    Merge(merge::Op),
     Net(network::Op),
     Diff(diff::Op),
     FindFile,
@@ -1173,12 +1185,53 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("w", "Edit HEAD", "Reword (keep tree)", RewordDraft),
             ("c", "Create", "Commit", Commit),
         ],
-        'M' => vec![
-            ("m", "Merge", "Merge revision", Workflow(Merge)),
-            ("s", "Merge", "Squash", Workflow(Squash)),
-            ("c", "Sequence", "Continue", Workflow(MergeContinue)),
-            ("a", "Sequence", "Abort", Workflow(MergeAbort)),
-        ],
+        // magit-merge; while merging, m commits and a aborts (as upstream's
+        // in-progress group), resolved when run.
+        'M' => {
+            use merge::Op as O;
+            vec![
+                (
+                    "-f",
+                    "Arguments",
+                    "Fast-forward only",
+                    ToggleOption(MenuOption::MergeFfOnly),
+                ),
+                (
+                    "-n",
+                    "Arguments",
+                    "No fast-forward",
+                    ToggleOption(MenuOption::MergeNoFf),
+                ),
+                ("-s", "Arguments", "Strategy", CycleOption("--strategy=")),
+                (
+                    "m",
+                    "Actions",
+                    "Merge / commit merge",
+                    Action::Merge(O::Plain),
+                ),
+                (
+                    "e",
+                    "Actions",
+                    "Merge and edit message",
+                    Action::Merge(O::EditMsg),
+                ),
+                (
+                    "n",
+                    "Actions",
+                    "Merge but don't commit",
+                    Action::Merge(O::NoCommit),
+                ),
+                (
+                    "a",
+                    "Actions",
+                    "Absorb / abort merge",
+                    Action::Merge(O::Absorb),
+                ),
+                ("p", "Actions", "Preview merge", Action::Merge(O::Preview)),
+                ("s", "Actions", "Squash merge", Action::Merge(O::Squash)),
+                ("d", "Actions", "Dissolve", Action::Merge(O::Dissolve)),
+            ]
+        }
         'r' => vec![
             ("r", "Rebase", "Onto revision", Workflow(Rebase)),
             ("c", "Sequence", "Continue", Workflow(RebaseContinue)),
@@ -1230,6 +1283,8 @@ pub enum MenuOption {
     DiffNoExt,
     DiffStat,
     DiffSignature,
+    MergeFfOnly,
+    MergeNoFf,
     TagForce,
     TagEdit,
     TagAnnotate,
@@ -1249,6 +1304,7 @@ pub fn choices(prefix: &str) -> &'static [&'static str] {
         "--diff-algorithm=" => &["default", "minimal", "patience", "histogram"],
         "--diff-merges=" => &["off", "first-parent", "combined", "dense-combined"],
         "--ignore-submodules=" => &["none", "untracked", "dirty", "all"],
+        "--strategy=" => &["resolve", "recursive", "octopus", "ours", "subtree"],
         _ => &[],
     }
 }
@@ -1259,6 +1315,7 @@ impl MenuOption {
             PushForceWithLease | PushForce | PushNoVerify | PushDryRun | PushSetUpstream
             | PushTags | PushFollowTags => 'p',
             FetchPrune | FetchTags | FetchForce => 'f',
+            MergeFfOnly | MergeNoFf | Choice("--strategy=", _) => 'M',
             PullFfOnly | PullForce | Choice("--rebase=", _) => 'P',
             DiffIgnoreSpace | DiffIgnoreAllSpace | DiffFunctionContext | DiffRenames
             | DiffNoExt | DiffStat | DiffSignature | Choice(..) => 'd',
@@ -1298,6 +1355,8 @@ impl MenuOption {
             Self::DiffNoExt => "--no-ext-diff",
             Self::DiffStat => "--stat",
             Self::DiffSignature => "--show-signature",
+            Self::MergeFfOnly => "--ff-only",
+            Self::MergeNoFf => "--no-ff",
             Self::TagForce => "--force",
             Self::TagEdit => "--edit",
             Self::TagAnnotate => "--annotate",

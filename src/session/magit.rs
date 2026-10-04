@@ -159,29 +159,67 @@ impl Session {
             return self.file_answered(repo, op, answers, args);
         }
         if let Action::Answered(repo, Question::Branch(op), answers, defaults) = action {
+            let origin = self.cur;
             self.start_magit(move || {
                 let merged = merge_answers(&answers, &defaults);
-                Ok(branch_outcome(
-                    repo.clone(),
-                    repo.branch_step(op, &merged, &defaults),
-                ))
+                let next = repo.branch_step(op, &merged, &defaults);
+                Ok(branch_outcome(repo, next, origin))
             });
             return;
         }
         if let Action::Answered(repo, Question::Tag(op), answers, defaults) = action {
-            let args = crate::magit::menu_arguments(&self.ed, 't');
+            let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, 't'));
             self.start_magit(move || {
                 let merged = merge_answers(&answers, &defaults);
-                Ok(branch_outcome(
-                    repo.clone(),
-                    repo.tag_step(op, &merged, &args)
-                        .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e))),
-                ))
+                let next = repo
+                    .tag_step(op, &merged, &args)
+                    .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                Ok(branch_outcome(repo, next, origin))
+            });
+            return;
+        }
+        if let Action::Answered(repo, Question::Merge(op), answers, defaults) = action {
+            let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, 'M'));
+            self.start_magit(move || {
+                let merged = merge_answers(&answers, &defaults);
+                let next = repo
+                    .merge_step(op, &merged, &args)
+                    .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                Ok(branch_outcome(repo, next, origin))
+            });
+            return;
+        }
+        if let Action::Merge(op) = action {
+            use crate::magit::merge::Op as M;
+            let (origin, from) = (self.cur, self.magit_from());
+            let commit_args = crate::magit::menu_arguments(&self.ed, 'C');
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                // Upstream's in-progress group: m commits the merge, a aborts it.
+                let op = match op {
+                    M::Plain if repo.merge_in_progress() => {
+                        let message = repo.merge_message();
+                        return Ok(Outcome::Draft(
+                            repo,
+                            crate::magit::CommitMode::New,
+                            message,
+                            commit_args,
+                        ));
+                    }
+                    M::Absorb if repo.merge_in_progress() => M::Abort,
+                    _ if repo.merge_in_progress() => {
+                        return Err("A merge is in progress: m commits it, a aborts it".into());
+                    }
+                    op => op,
+                };
+                let (prompts, defaults) = repo.merge_prompts(&op)?;
+                let _ = origin;
+                Ok(Outcome::Ask(repo, Question::Merge(op), defaults, prompts))
             });
             return;
         }
         if let Action::Tag(op) = action {
-            let from = self.magit_from();
+            let (origin, from) = (self.cur, self.magit_from());
             let args = crate::magit::menu_arguments(&self.ed, 't');
             // The tag at point in the tags list.
             let at_point = self
@@ -198,7 +236,7 @@ impl Session {
                 let (prompts, defaults) = repo.tag_prompts(&op, &args, at_point)?;
                 if prompts.is_empty() {
                     let next = repo.tag_step(op, &defaults, &args)?;
-                    return Ok(branch_outcome(repo, next));
+                    return Ok(branch_outcome(repo, next, origin));
                 }
                 Ok(Outcome::Ask(repo, Question::Tag(op), defaults, prompts))
             });
@@ -220,7 +258,7 @@ impl Session {
             let origin = self.cur;
             let line = self.ed.cur.line;
             self.start_magit(move || match question {
-                Question::File(_) | Question::Branch(_) | Question::Tag(_) => {
+                Question::File(_) | Question::Branch(_) | Question::Tag(_) | Question::Merge(_) => {
                     unreachable!("handled before the worker")
                 }
                 Question::FindFile => {
@@ -1509,7 +1547,7 @@ fn merge_answers(answers: &[String], defaults: &[String]) -> Vec<String> {
         })
         .collect()
 }
-fn branch_outcome(repo: Repo, next: crate::magit::branch::Next) -> Outcome {
+fn branch_outcome(repo: Repo, next: crate::magit::branch::Next, origin: usize) -> Outcome {
     use crate::magit::branch::Next;
     match next {
         Next::Done(result) => Outcome::Saved(repo, result.map(|_| ())),
@@ -1522,6 +1560,13 @@ fn branch_outcome(repo: Repo, next: crate::magit::branch::Next) -> Outcome {
             draft: None,
             draft_stamp: None,
         }),
+        Next::Draft(message) => {
+            Outcome::Draft(repo, crate::magit::CommitMode::New, message, vec![])
+        }
+        Next::Show(target) => match diff_view(repo.clone(), target, vec![], origin) {
+            Ok(outcome) => outcome,
+            Err(e) => Outcome::Saved(repo, Err(e)),
+        },
     }
 }
 fn blob_outcome(

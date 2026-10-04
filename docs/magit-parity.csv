@@ -561,20 +561,20 @@ magit-margin.el,76,command,magit-margin-settings,missing,,explicit
 magit-margin.el,85,command,magit-toggle-margin,missing,,explicit
 magit-margin.el,99,command,magit-cycle-margin-style,missing,,explicit
 magit-margin.el,118,command,magit-toggle-margin-details,missing,,explicit
-magit-merge.el,37,command,magit-merge,missing,,explicit
-magit-merge.el,89,command,magit-merge-plain,partial,Space m M m; basic revision; transient options missing,explicit
-magit-merge.el,108,command,magit-merge-editmsg,missing,,explicit
-magit-merge.el,124,command,magit-merge-nocommit,missing,,explicit
-magit-merge.el,140,command,magit-merge-dissolve,missing,,explicit
-magit-merge.el,164,command,magit-merge-absorb,missing,,explicit
-magit-merge.el,225,command,magit-merge-squash,partial,Space m M s; basic squash; options missing,explicit
-magit-merge.el,233,command,magit-merge-preview,missing,,explicit
-magit-merge.el,239,command,magit-merge-abort,partial,Space m M a; operation guard,explicit
+magit-merge.el,37,command,magit-merge,partial,"Space m M with -f/-n (incompatible) and -s strategy choices; m/a resolve to commit/abort while merging; -X options, gpg-sign, signoff missing",explicit
+magit-merge.el,89,command,magit-merge-plain,partial,"Space m M m; --no-edit, octopus via commas, dirty worktree refused; prefix nocommit missing",explicit
+magit-merge.el,108,command,magit-merge-editmsg,partial,Space m M e; merge --no-commit --no-ff then Fred commit draft with MERGE_MSG (no Git editor),explicit
+magit-merge.el,124,command,magit-merge-nocommit,partial,"Space m M n; --no-commit --no-ff, drops --ff-only",explicit
+magit-merge.el,140,command,magit-merge-dissolve,partial,"Space m M d; checkout target, merge previous branch, delete it",explicit
+magit-merge.el,164,command,magit-merge-absorb,partial,Space m M a; main branch needs yes; merge then delete; pre-merge force push to push target and PR remote cleanup missing,explicit
+magit-merge.el,225,command,magit-merge-squash,partial,Space m M s,explicit
+magit-merge.el,233,command,magit-merge-preview,partial,Space m M p; merge-tree --write-tree result shown as a diff view,explicit
+magit-merge.el,239,command,magit-merge-abort,partial,Space m M a while merging; y/n confirmation,explicit
 magit-merge.el,248,command,magit-checkout-stage,missing,,explicit
-magit-merge.el,,command,magit-merge:--strategy,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-merge.el,,command,magit-merge:--strategy,partial,Space m M argument,runtime
 magit-merge.el,,command,magit-merge:--strategy-option,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-merge.el,,command,transient:magit-merge:--ff-only,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-merge.el,,command,transient:magit-merge:--no-ff,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-merge.el,,command,transient:magit-merge:--ff-only,partial,Space m M argument,runtime
+magit-merge.el,,command,transient:magit-merge:--no-ff,partial,Space m M argument,runtime
 magit-merge.el,,command,transient:magit-merge:-Xignore-all-space,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-merge.el,,command,transient:magit-merge:-Xignore-space-change,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-mode.el,60,option,magit-mode-hook,missing,,explicit
