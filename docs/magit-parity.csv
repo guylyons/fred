@@ -738,12 +738,12 @@ magit-refs.el,,command,transient:magit-show-refs:--no-merged=,missing,Runtime-ex
 magit-remote.el,33,option,magit-remote-add-set-remote.pushDefault,missing,,explicit
 magit-remote.el,48,option,magit-remote-direct-configure,missing,,explicit
 magit-remote.el,57,option,magit-prefer-push-default,missing,,explicit
-magit-remote.el,66,command,magit-remote,missing,,explicit
-magit-remote.el,100,command,magit-remote-add,missing,,explicit
-magit-remote.el,123,command,magit-remote-rename,missing,,explicit
-magit-remote.el,134,command,magit-remote-remove,missing,,explicit
-magit-remote.el,153,command,magit-remote-prune,missing,,explicit
-magit-remote.el,159,command,magit-remote-prune-refspecs,missing,,explicit
+magit-remote.el,66,command,magit-remote,partial,"Space m M (upstream dispatch key) with -f (default) and a/r/k/p/P; direct variables, C configure, d u, z unshallow missing",explicit
+magit-remote.el,100,command,magit-remote-add,partial,"Space m M a; owner-replaced url default, ask-if-unset remote.pushDefault, -f fetch via terminal",explicit
+magit-remote.el,123,command,magit-remote-rename,partial,Space m M r; push variables follow,explicit
+magit-remote.el,134,command,magit-remote-remove,partial,Space m M k; push variables cleaned,explicit
+magit-remote.el,153,command,magit-remote-prune,partial,Space m M p (remote prune via terminal),explicit
+magit-remote.el,159,command,magit-remote-prune-refspecs,partial,"Space m M P; ls-remote comparison, confirm stale refspecs and their branches, all-stale default/remove/abort",explicit
 magit-remote.el,237,command,magit-remote-set-head,missing,,explicit
 magit-remote.el,252,command,magit-remote-unset-head,missing,,explicit
 magit-remote.el,259,command,magit-update-default-branch,missing,,explicit
@@ -755,7 +755,7 @@ magit-remote.el,,command,magit-remote.<remote>.push,missing,Runtime-expanded sur
 magit-remote.el,,command,magit-remote.<remote>.pushurl,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-remote.el,,command,magit-remote.<remote>.tagopt,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-remote.el,,command,magit-remote.<remote>.url,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-remote.el,,command,transient:magit-remote:-f,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-remote.el,,command,transient:magit-remote:-f,partial,"-f in Space m M, on by default",runtime
 magit-repos.el,40,option,magit-repository-directories,missing,,explicit
 magit-repos.el,60,option,magit-repolist-mode-hook,missing,,explicit
 magit-repos.el,68,option,magit-repolist-columns,missing,,explicit

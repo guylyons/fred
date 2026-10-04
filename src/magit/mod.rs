@@ -5,6 +5,7 @@ pub mod branch;
 pub mod diff;
 pub mod merge;
 pub mod network;
+pub mod remote;
 pub mod repo;
 pub mod reset;
 pub mod status;
@@ -59,6 +60,8 @@ pub enum Action {
     Merge(merge::Op),
     /// A magit-reset.el suffix.
     Reset(reset::Op),
+    /// A magit-remote.el suffix.
+    Remote(remote::Op),
     /// magit-file-stage/unstage/untrack/rename/delete/checkout.
     File(blob::FileOp),
     BlameCycle,
@@ -586,6 +589,9 @@ mod tests;
 
 fn menu_help(menu: char) -> Option<&'static str> {
     Some(match menu {
+        'O' => {
+            "Remote: a add  r rename  k remove  p prune branches  P prune refspecs; -f fetch after add"
+        }
         'X' => "Reset: b branch  f file  m mixed  s soft  h hard  k keep  i index  w worktree",
         'z' => {
             "Stash: z both  i index  w worktree  x keep index; Snapshot: Z both  I index  W worktree"
@@ -653,6 +659,7 @@ pub enum Question {
     Tag(tag::Op),
     Merge(merge::Op),
     Reset(reset::Op),
+    Remote(remote::Op),
     Net(network::Op),
     Diff(diff::Op),
     FindFile,
@@ -733,6 +740,10 @@ pub(crate) fn open_menu(ed: &mut Editor, menu: char) {
             ed.magit_options.remove(&MenuOption::LogFollow);
         }
     }
+    // magit-remote :value '("-f").
+    if menu == 'O' && ed.magit_seeded.insert('O') {
+        ed.magit_options.insert(MenuOption::RemoteFetch);
+    }
     // magit-blame :value '("-w").
     if menu == 'B' && ed.magit_seeded.insert('B') {
         ed.magit_options.insert(MenuOption::BlameWhitespace);
@@ -777,7 +788,9 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("f", "Network", "Fetch", Menu('f')),
             ("z", "Change", "Stash", Menu('z')),
             ("t", "Tag", "Tags", Menu('t')),
-            ("M", "History", "Merge", Menu('M')),
+            // magit-dispatch keys: m merge, M remote.
+            ("m", "History", "Merge", Menu('M')),
+            ("M", "Network", "Remote", Menu('O')),
             ("R", "History", "Rebase", Menu('r')),
             ("r", "History", "Revert", Menu('v')),
             ("x", "History", "Cherry-pick", Menu('x')),
@@ -1191,6 +1204,32 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("w", "Edit HEAD", "Reword (keep tree)", RewordDraft),
             ("c", "Create", "Commit", Commit),
         ],
+        'O' => {
+            use remote::Op as O;
+            vec![
+                (
+                    "-f",
+                    "Arguments for add",
+                    "Fetch after add",
+                    ToggleOption(MenuOption::RemoteFetch),
+                ),
+                ("a", "Actions", "Add", Action::Remote(O::Add)),
+                ("r", "Actions", "Rename", Action::Remote(O::Rename)),
+                ("k", "Actions", "Remove", Action::Remote(O::Remove)),
+                (
+                    "p",
+                    "Actions",
+                    "Prune stale branches",
+                    Action::Remote(O::Prune),
+                ),
+                (
+                    "P",
+                    "Actions",
+                    "Prune stale refspecs",
+                    Action::Remote(O::PruneRefspecs),
+                ),
+            ]
+        }
         'X' => {
             use reset::Op as O;
             vec![
@@ -1332,6 +1371,7 @@ pub enum MenuOption {
     DiffNoExt,
     DiffStat,
     DiffSignature,
+    RemoteFetch,
     MergeFfOnly,
     MergeNoFf,
     TagForce,
@@ -1365,6 +1405,7 @@ impl MenuOption {
             | PushTags | PushFollowTags => 'p',
             FetchPrune | FetchTags | FetchForce => 'f',
             MergeFfOnly | MergeNoFf | Choice("--strategy=", _) => 'M',
+            RemoteFetch => 'O',
             PullFfOnly | PullForce | Choice("--rebase=", _) => 'P',
             DiffIgnoreSpace | DiffIgnoreAllSpace | DiffFunctionContext | DiffRenames
             | DiffNoExt | DiffStat | DiffSignature | Choice(..) => 'd',
@@ -1404,6 +1445,7 @@ impl MenuOption {
             Self::DiffNoExt => "--no-ext-diff",
             Self::DiffStat => "--stat",
             Self::DiffSignature => "--show-signature",
+            Self::RemoteFetch => "-f",
             Self::MergeFfOnly => "--ff-only",
             Self::MergeNoFf => "--no-ff",
             Self::TagForce => "--force",

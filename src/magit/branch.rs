@@ -155,20 +155,44 @@ impl Repo {
     }
     /// git reset --hard silently replaces untracked files the target tracks.
     pub(super) fn untracked_clobbered(&self, to: &str) -> Result<(), String> {
-        let untracked = self.read(&["ls-files", "--others", "--exclude-standard", "-z"])?;
-        if untracked.is_empty() {
-            return Ok(());
-        }
-        let tracked = self.read(&["ls-tree", "-r", "-z", "--name-only", "--end-of-options", to])?;
-        let tracked: std::collections::HashSet<&[u8]> = tracked.split(|b| *b == 0).collect();
-        if let Some(f) = untracked
-            .split(|b| *b == 0)
-            .find(|f| !f.is_empty() && tracked.contains(f))
-        {
-            return Err(format!(
+        use std::os::unix::ffi::OsStrExt;
+        let index = self.read(&["ls-files", "-z"])?;
+        let index: std::collections::HashSet<&[u8]> = index.split(|b| *b == 0).collect();
+        let target = self.read(&["ls-tree", "-r", "-z", "--name-only", "--end-of-options", to])?;
+        let refuse = |p: &[u8]| {
+            Err(format!(
                 "Untracked {} would be overwritten; move it first",
-                label(Path::new(&String::from_utf8_lossy(f).into_owned()))
-            ));
+                label(Path::new(&String::from_utf8_lossy(p).into_owned()))
+            ))
+        };
+        for t in target.split(|b| *b == 0).filter(|t| !t.is_empty()) {
+            let path = self.root.join(std::ffi::OsStr::from_bytes(t));
+            // The target's file replaces an untracked file, or a directory that
+            // holds untracked files.
+            if let Ok(meta) = path.symlink_metadata() {
+                if meta.is_dir() {
+                    let mut args: Vec<std::ffi::OsString> = vec![
+                        "ls-files".into(),
+                        "--others".into(),
+                        "-z".into(),
+                        "--".into(),
+                    ];
+                    args.push(std::ffi::OsStr::from_bytes(t).to_owned());
+                    if !self.run(&args, None)?.is_empty() {
+                        return refuse(t);
+                    }
+                } else if !index.contains(t) {
+                    return refuse(t);
+                }
+            }
+            // The target's directory replaces an untracked file.
+            for (n, _) in t.iter().enumerate().filter(|(_, b)| **b == b'/') {
+                let ancestor = &t[..n];
+                let p = self.root.join(std::ffi::OsStr::from_bytes(ancestor));
+                if p.symlink_metadata().is_ok_and(|m| !m.is_dir()) && !index.contains(ancestor) {
+                    return refuse(ancestor);
+                }
+            }
         }
         Ok(())
     }

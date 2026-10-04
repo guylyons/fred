@@ -17,7 +17,10 @@ impl Repo {
         let here = self
             .current_branch()
             .unwrap_or_else(|_| "detached head".into());
-        let d = at_point.unwrap_or_default();
+        // magit-read-branch-or-commit: thing at point, else the current branch.
+        let d = at_point
+            .or_else(|| self.current_branch().ok())
+            .unwrap_or_else(|| "HEAD".into());
         let prompt = match op {
             Op::Mixed | Op::Keep => format!("Reset {here} to"),
             Op::Soft => format!("Soft reset {here} to"),
@@ -46,9 +49,11 @@ impl Repo {
             Op::Worktree => {
                 // magit-reset-worktree: check out every file of COMMIT through a
                 // temporary index, leaving HEAD and the real index alone.
-                let dir = std::env::temp_dir().join(format!("fred-reset-{}", std::process::id()));
-                std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-                let index = dir.join("index");
+                self.untracked_clobbered(commit)?;
+                // Like magit-with-temp-index: a private index inside the git dir.
+                let name = format!("index.fred-reset-{}", std::process::id());
+                let index = self.read(&["rev-parse", "--git-path", &name])?;
+                let index = self.root.join(String::from_utf8_lossy(&index).trim());
                 let read_tree: Vec<std::ffi::OsString> = ["read-tree", "--end-of-options", commit]
                     .map(Into::into)
                     .into();
@@ -61,7 +66,7 @@ impl Repo {
                                 .into();
                         self.run_index(&checkout, None, Some(&index))
                     });
-                let _ = std::fs::remove_dir_all(&dir);
+                let _ = std::fs::remove_file(&index);
                 result?;
                 done(format!("Reset worktree to {commit}"))
             }

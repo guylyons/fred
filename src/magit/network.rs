@@ -83,7 +83,7 @@ impl Repo {
             .filter(|(r, _)| r == "." || remotes.contains(r)))
     }
     /// magit-get-current-remote: upstream remote, the only remote, or origin.
-    fn current_remote(&self) -> Result<Option<String>, String> {
+    pub(super) fn current_remote(&self) -> Result<Option<String>, String> {
         let remotes = self.remotes()?;
         let upstream = match self.current_branch() {
             Ok(b) => self.config(&format!("branch.{b}.remote")),

@@ -200,6 +200,26 @@ impl Session {
             });
             return;
         }
+        if let Action::Answered(repo, Question::Remote(op), answers, defaults) = action {
+            let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, 'O'));
+            self.start_magit(move || {
+                let merged = merge_answers(&answers, &defaults);
+                let next = repo
+                    .remote_step(op, &merged, &args)
+                    .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                Ok(branch_outcome(repo, next, origin))
+            });
+            return;
+        }
+        if let Action::Remote(op) = action {
+            let from = self.magit_from();
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                let (prompts, defaults) = repo.remote_prompts(&op)?;
+                Ok(Outcome::Ask(repo, Question::Remote(op), defaults, prompts))
+            });
+            return;
+        }
         if let Action::Reset(op) = action {
             let from = self.magit_from();
             // magit-read-branch-or-commit defaults to the commit at point.
@@ -294,7 +314,8 @@ impl Session {
                 | Question::Branch(_)
                 | Question::Tag(_)
                 | Question::Merge(_)
-                | Question::Reset(_) => {
+                | Question::Reset(_)
+                | Question::Remote(_) => {
                     unreachable!("handled before the worker")
                 }
                 Question::FindFile => {
@@ -1045,11 +1066,16 @@ impl Session {
                 let path = dir.join("COMMIT_EDITMSG");
                 // A merge/squash message seeds a new draft only when the draft is
                 // blank on disk and not open with unsaved text: the user's words win.
-                let blank_draft = std::fs::read(&path)
-                    .map_or(true, |b| b.iter().all(u8::is_ascii_whitespace))
-                    && !self
-                        .editors_mut()
-                        .any(|ed| ed.buf.modified && ed.path.as_deref() == Some(path.as_path()));
+                // An open draft buffer is never written underneath (compare canonical
+                // paths, as buffer paths may be relative).
+                let canonical = swap::canonical(&path);
+                let open = self.editors_mut().any(|ed| {
+                    ed.path
+                        .as_deref()
+                        .is_some_and(|p| swap::canonical(p) == canonical)
+                });
+                let blank_draft = !open
+                    && std::fs::read(&path).map_or(true, |b| b.iter().all(u8::is_ascii_whitespace));
                 let seed = match mode.target() {
                     Some(_) => !path.exists(),
                     None => !message.is_empty() && blank_draft,

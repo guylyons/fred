@@ -2466,7 +2466,7 @@ mod tests {
         repo.stage_file(Path::new("other")).unwrap();
         repo.read(&["commit", "-qm", "topic work"]).unwrap();
         repo.read(&["checkout", "-q", "main"]).unwrap();
-        t.keys(" mMe");
+        t.keys(" mme");
         magit_settle(&mut t);
         t.keys("topic<Enter>");
         magit_settle(&mut t);

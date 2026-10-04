@@ -137,3 +137,7 @@ partial / 617 missing commands. Score remains 3%.
 October 4 reset checkpoint: Space m X ports magit-reset
 ([scenarios](magit-reset-acceptance.md)); merge review fixes. Ledger 163
 partial / 610 missing commands. Score remains 3%.
+
+October 4 remote checkpoint: Space m M ports magit-remote; Space m m is merge
+as in magit-dispatch ([scenarios](magit-remote-acceptance.md)); reset review
+fixes. Ledger 170 partial / 603 missing commands. Score remains 3%.

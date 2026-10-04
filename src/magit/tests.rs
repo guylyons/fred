@@ -600,7 +600,7 @@ fn workflow_menu_dispatch_and_prompt_cancel() {
     for (keys, expected) in [
         (" mzz", "Stash"),
         (" mbc", "CreateCheckout"),
-        (" mMm", "Merge"),
+        (" mmm", "Merge"),
         (" mRr", "Rebase"),
         (" mCa", "Amend"),
     ] {
@@ -1876,4 +1876,128 @@ fn reset_suffixes_move_head_index_and_worktree_as_named() {
     fs::remove_file(d.path().join("f")).unwrap();
     r.reset_step(Op::Hard, &s(&["HEAD~1"])).unwrap();
     assert_eq!(disk(), b"two\n");
+}
+#[test]
+fn remote_suffixes_add_rename_remove_and_prune_refspecs() {
+    use super::Question as Q;
+    use super::branch::Next;
+    use super::remote::Op;
+    let (d, r, bare) = with_remote();
+    git(d.path(), &["push", "-q", "origin", "main"]);
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    let ok = |n: Next| match n {
+        Next::Done(res) => res,
+        other => Err(format!("{other:?}")),
+    };
+    git(
+        d.path(),
+        &[
+            "config",
+            "remote.origin.url",
+            "https://example.test/owner/repo.git",
+        ],
+    );
+    assert_eq!(
+        r.suggested_url("fork"),
+        "https://example.test/fork/repo.git"
+    );
+    git(
+        d.path(),
+        &["config", "remote.origin.url", bare.path().to_str().unwrap()],
+    );
+    // Add asks about remote.pushDefault when unset; -f fetches through the terminal.
+    let url = bare.path().to_str().unwrap();
+    let op = match r
+        .remote_step(Op::Add, &s(&["fork", url]), &s(&["-f"]))
+        .unwrap()
+    {
+        Next::Ask(Q::Remote(op @ Op::AddPushDefault(..)), _, _) => op,
+        other => panic!("{other:?}"),
+    };
+    match r.remote_step(op, &s(&["y"]), &s(&["-f"])).unwrap() {
+        Next::Git(argv) => assert_eq!(argv, ["fetch", "fork"]),
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(git(d.path(), &["config", "remote.pushDefault"]), b"fork\n");
+    assert!(r.remote_step(Op::Add, &s(&["--x", url]), &[]).is_err());
+    assert!(r.remote_step(Op::Add, &s(&["fork", url]), &[]).is_err());
+    // Rename and remove carry or clean the push variables.
+    git(d.path(), &["config", "branch.main.pushRemote", "fork"]);
+    ok(r.remote_step(Op::Rename, &s(&["fork", "mine"]), &[])
+        .unwrap())
+    .unwrap();
+    assert_eq!(git(d.path(), &["config", "remote.pushDefault"]), b"mine\n");
+    assert_eq!(
+        git(d.path(), &["config", "branch.main.pushRemote"]),
+        b"mine\n"
+    );
+    ok(r.remote_step(Op::Remove, &s(&["mine"]), &[]).unwrap()).unwrap();
+    assert!(r.read(&["config", "remote.pushDefault"]).is_err());
+    assert!(r.read(&["config", "branch.main.pushRemote"]).is_err());
+    assert!(r.remote_step(Op::Remove, &s(&["nope"]), &[]).is_err());
+    // A refspec for a branch the remote no longer has is stale.
+    git(
+        d.path(),
+        &[
+            "config",
+            "--add",
+            "remote.origin.fetch",
+            "+refs/heads/gone:refs/remotes/origin/gone",
+        ],
+    );
+    git(
+        d.path(),
+        &["update-ref", "refs/remotes/origin/gone", "HEAD"],
+    );
+    let op = match r
+        .remote_step(Op::PruneRefspecs, &s(&["origin"]), &[])
+        .unwrap()
+    {
+        Next::Ask(Q::Remote(op @ Op::PruneStale(..)), p, _) => {
+            assert!(p[0].contains("refs/heads/gone"), "{p:?}");
+            op
+        }
+        other => panic!("{other:?}"),
+    };
+    ok(r.remote_step(op, &s(&["y"]), &[]).unwrap()).unwrap();
+    assert!(
+        r.read(&["rev-parse", "--verify", "-q", "refs/remotes/origin/gone"])
+            .is_err()
+    );
+    let fetch = git(d.path(), &["config", "--get-all", "remote.origin.fetch"]);
+    assert_eq!(fetch, b"+refs/heads/*:refs/remotes/origin/*\n");
+    assert!(matches!(
+        r.remote_step(Op::PruneRefspecs, &s(&["origin"]), &[]).unwrap(),
+        Next::Done(Ok(m)) if m.contains("No stale refspecs")
+    ));
+}
+#[test]
+fn reset_guards_directory_file_conflicts_and_defaults_to_current_branch() {
+    use super::reset::Op;
+    let (d, r) = setup();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    // Target tracks a file `a`; worktree has an untracked directory a/ with content.
+    fs::write(d.path().join("a"), b"file\n").unwrap();
+    git(d.path(), &["add", "a"]);
+    git(d.path(), &["commit", "-qm", "file a"]);
+    git(d.path(), &["rm", "-q", "a"]);
+    git(d.path(), &["commit", "-qm", "drop a"]);
+    fs::create_dir(d.path().join("a")).unwrap();
+    fs::write(d.path().join("a/precious"), b"keep\n").unwrap();
+    assert!(r.reset_step(Op::Hard, &s(&["HEAD~1"])).is_err());
+    assert!(r.reset_step(Op::Worktree, &s(&["HEAD~1"])).is_err());
+    assert_eq!(fs::read(d.path().join("a/precious")).unwrap(), b"keep\n");
+    fs::remove_dir_all(d.path().join("a")).unwrap();
+    // Target tracks b/f; worktree has an untracked file `b`.
+    fs::create_dir(d.path().join("b")).unwrap();
+    fs::write(d.path().join("b/f"), b"tracked\n").unwrap();
+    git(d.path(), &["add", "b/f"]);
+    git(d.path(), &["commit", "-qm", "b/f"]);
+    git(d.path(), &["rm", "-qr", "b"]);
+    git(d.path(), &["commit", "-qm", "drop b"]);
+    fs::write(d.path().join("b"), b"mine\n").unwrap();
+    assert!(r.reset_step(Op::Hard, &s(&["HEAD~1"])).is_err());
+    assert_eq!(fs::read(d.path().join("b")).unwrap(), b"mine\n");
+    let (_, defaults) = r.reset_prompt(Op::Hard, None);
+    assert_eq!(defaults, ["main"]);
 }
