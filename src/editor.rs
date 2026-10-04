@@ -131,6 +131,13 @@ pub struct Editor {
     pub org_arg: crate::org::Prefix,
     /// The active region (Visual-line selection) for an Org command.
     pub org_region: Option<(usize, usize)>,
+    /// A special Org buffer's name (`*Org Note*`), its C-c C-c action
+    /// and the buffer to return to.
+    pub org_buffer_name: Option<String>,
+    pub org_finish: Option<crate::org::FinishSlot>,
+    pub org_return: Option<usize>,
+    /// The key Enter answers in the open Org menu (fast selection's RET).
+    pub org_menu_enter: Option<String>,
     pub magit_input_generation: u64,
     pub magit_options: std::collections::HashSet<crate::magit::MenuOption>,
     /// Free-form transient-option values by (menu, argument prefix).
@@ -209,6 +216,10 @@ impl Editor {
             org_keys: vec![],
             org_arg: crate::org::Prefix::None,
             org_region: None,
+            org_buffer_name: None,
+            org_finish: None,
+            org_return: None,
+            org_menu_enter: None,
             magit_input_generation: 0,
             magit_options: std::collections::HashSet::new(),
             magit_values: std::collections::BTreeMap::new(),

@@ -765,8 +765,11 @@ pub mod hooks {
         ctx::at_table(ed, ed.cur.line).then(|| call(ed, "org-table-toggle-column-width", Prefix::None))
     }
     /// A pending log note (org-finish-function), finished or aborted.
-    pub fn finish_note(_ed: &mut Editor, _abort: bool) -> Option<Result<(), String>> {
-        None
+    pub fn finish_note(ed: &mut Editor, abort: bool) -> Option<Result<(), String>> {
+        ed.org_finish.is_some().then(|| {
+            super::super::effect(ed, move |s| s.org_finish(abort));
+            Ok(())
+        })
     }
 }
 

@@ -681,64 +681,64 @@ pub fn headline(line: &str, st: &Settings) -> Option<Headline> {
 
 /// Lines of a buffer, for navigation helpers.
 pub trait Lines {
-    fn count(&self) -> usize;
-    fn get(&self, i: usize) -> String;
+    fn n_lines(&self) -> usize;
+    fn line_text(&self, i: usize) -> String;
 }
 
 impl Lines for crate::buffer::Buffer {
-    fn count(&self) -> usize {
+    fn n_lines(&self) -> usize {
         self.len_lines()
     }
-    fn get(&self, i: usize) -> String {
+    fn line_text(&self, i: usize) -> String {
         self.line(i)
     }
 }
 
 impl Lines for [String] {
-    fn count(&self) -> usize {
+    fn n_lines(&self) -> usize {
         self.len()
     }
-    fn get(&self, i: usize) -> String {
+    fn line_text(&self, i: usize) -> String {
         self[i].clone()
     }
 }
 
 impl Lines for Vec<String> {
-    fn count(&self) -> usize {
+    fn n_lines(&self) -> usize {
         self.len()
     }
-    fn get(&self, i: usize) -> String {
+    fn line_text(&self, i: usize) -> String {
         self[i].clone()
     }
 }
 
 /// The headline at or before line `l` (org-back-to-heading).
 pub fn heading_at_or_before<L: Lines + ?Sized>(b: &L, l: usize) -> Option<usize> {
-    (0..=l.min(b.count().saturating_sub(1)))
+    (0..=l.min(b.n_lines().saturating_sub(1)))
         .rev()
-        .find(|&i| level(&b.get(i)).is_some())
+        .find(|&i| level(&b.line_text(i)).is_some())
 }
 
 /// The next headline after `l` with level <= `lvl` (or any, with usize::MAX).
 pub fn next_heading<L: Lines + ?Sized>(b: &L, l: usize, max_level: usize) -> Option<usize> {
-    (l + 1..b.count()).find(|&i| level(&b.get(i)).is_some_and(|n| n <= max_level))
+    (l + 1..b.n_lines()).find(|&i| level(&b.line_text(i)).is_some_and(|n| n <= max_level))
 }
 
 /// The line after a subtree starting at heading `h` (org-end-of-subtree).
 pub fn subtree_end<L: Lines + ?Sized>(b: &L, h: usize) -> usize {
-    let lvl = level(&b.get(h)).unwrap_or(0);
-    next_heading(b, h, lvl).unwrap_or(b.count())
+    let lvl = level(&b.line_text(h)).unwrap_or(0);
+    next_heading(b, h, lvl).unwrap_or(b.n_lines())
 }
 
 /// The line after heading `h`'s own entry: the next heading of any level.
 pub fn entry_end<L: Lines + ?Sized>(b: &L, h: usize) -> usize {
-    next_heading(b, h, usize::MAX).unwrap_or(b.count())
+    next_heading(b, h, usize::MAX).unwrap_or(b.n_lines())
 }
 
 /// Parent heading of the heading at `h`.
 pub fn parent<L: Lines + ?Sized>(b: &L, h: usize) -> Option<usize> {
-    let lvl = level(&b.get(h))?;
-    (0..h).rev().find(|&i| level(&b.get(i)).is_some_and(|n| n < lvl))
+    let lvl = level(&b.line_text(h))?;
+    (0..h).rev().find(|&i| level(&b.line_text(i)).is_some_and(|n| n < lvl))
 }
 
 /// Direct children headings of `h`.
@@ -747,11 +747,11 @@ pub fn children<L: Lines + ?Sized>(b: &L, h: usize) -> Vec<usize> {
     let mut out = vec![];
     let mut min: Option<usize> = None;
     for i in h + 1..end {
-        if let Some(n) = level(&b.get(i)) {
+        if let Some(n) = level(&b.line_text(i)) {
             let m = *min.get_or_insert(n);
             if n <= m {
                 min = Some(n);
-                out.retain(|&c| level(&b.get(c)).is_some_and(|x| x <= n));
+                out.retain(|&c| level(&b.line_text(c)).is_some_and(|x| x <= n));
                 out.push(i);
             }
         }
@@ -761,16 +761,16 @@ pub fn children<L: Lines + ?Sized>(b: &L, h: usize) -> Vec<usize> {
 
 /// Next sibling heading (same level, same parent).
 pub fn next_sibling<L: Lines + ?Sized>(b: &L, h: usize) -> Option<usize> {
-    let lvl = level(&b.get(h))?;
+    let lvl = level(&b.line_text(h))?;
     let e = subtree_end(b, h);
-    (e < b.count() && level(&b.get(e)) == Some(lvl)).then_some(e)
+    (e < b.n_lines() && level(&b.line_text(e)) == Some(lvl)).then_some(e)
 }
 
 /// Previous sibling heading.
 pub fn prev_sibling<L: Lines + ?Sized>(b: &L, h: usize) -> Option<usize> {
-    let lvl = level(&b.get(h))?;
+    let lvl = level(&b.line_text(h))?;
     for i in (0..h).rev() {
-        if let Some(n) = level(&b.get(i)) {
+        if let Some(n) = level(&b.line_text(i)) {
             if n < lvl {
                 return None;
             }

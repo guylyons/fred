@@ -7,14 +7,19 @@
 pub mod babel;
 pub mod buf;
 pub mod ctx;
+pub mod dispatch;
 pub mod element;
 pub mod face;
 pub mod fold;
 pub mod list;
 pub mod table;
+pub mod tags;
 pub mod time;
+pub mod todo;
 pub mod keymap;
 pub mod options;
+pub mod props;
+pub mod re;
 pub mod sexp;
 pub mod structure;
 pub mod syntax;
@@ -24,6 +29,18 @@ use crate::key::{Key, KeyCode};
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use syntax::Settings;
+
+impl Org {
+    /// Forget the cached settings (org-mode-restart).
+    pub fn reset_settings(&mut self) {
+        *self.settings.borrow_mut() = None;
+    }
+}
+
+/// Column view in this buffer: C-c C-c quits it (org-colview).
+pub fn colview_active(_ed: &mut Editor) -> Option<Result<(), String>> {
+    None
+}
 
 /// A generated Org buffer (agenda and other views); see agenda.rs.
 pub struct View {
@@ -45,6 +62,11 @@ pub struct Org {
     pub specs: fold::Specs,
     /// org-adapt-indentation bound to nil (org-cycle-level).
     pub no_adapt: bool,
+    /// org-last-set-property and org-last-set-property-value.
+    pub last_property: Option<String>,
+    pub last_property_value: Option<String>,
+    /// Lines a sparse tree matched (for highlighting and next-error).
+    pub sparse_hits: Vec<usize>,
 }
 
 /// Emacs prefix argument.
@@ -111,6 +133,64 @@ impl std::fmt::Debug for Effect {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "org::Effect")
     }
+}
+
+/// A special buffer's finish action (see session/org.rs).
+pub struct FinishSlot(Arc<Mutex<Option<crate::session::Finish>>>);
+
+impl FinishSlot {
+    pub fn new(f: crate::session::Finish) -> FinishSlot {
+        FinishSlot(Arc::new(Mutex::new(Some(f))))
+    }
+
+    pub fn take(&self) -> Option<crate::session::Finish> {
+        self.0.lock().ok()?.take()
+    }
+}
+
+thread_local! {
+    /// A fixed "now" for tests (seconds since the epoch).
+    static NOW: std::cell::Cell<Option<i64>> = const { std::cell::Cell::new(None) };
+}
+
+/// The current time (org-current-time), in seconds since the epoch.
+pub fn now() -> i64 {
+    NOW.with(|n| n.get()).unwrap_or_else(|| {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs() as i64)
+    })
+}
+
+/// Fix the time (tests).
+pub fn set_now(t: Option<i64>) {
+    NOW.with(|n| n.set(t));
+}
+
+/// Local broken-down time: (year, month, day, hour, minute, weekday 0=Sun).
+pub fn localtime(t: i64) -> (i64, i64, i64, i64, i64, i64) {
+    // SAFETY: localtime_r writes into the struct we own.
+    unsafe {
+        let tt: libc::time_t = t as libc::time_t;
+        let mut tm: libc::tm = std::mem::zeroed();
+        libc::localtime_r(&tt, &mut tm);
+        (
+            tm.tm_year as i64 + 1900,
+            tm.tm_mon as i64 + 1,
+            tm.tm_mday as i64,
+            tm.tm_hour as i64,
+            tm.tm_min as i64,
+            tm.tm_wday as i64,
+        )
+    }
+}
+
+/// A timestamp for time `t`: `[2026-10-04 Sun 12:30]` (org-time-stamp-format).
+pub fn timestamp(t: i64, with_time: bool, inactive: bool) -> String {
+    let (y, m, d, hh, mm, wd) = localtime(t);
+    let day = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][wd as usize];
+    let body = if with_time { format!("{y:04}-{m:02}-{d:02} {day} {hh:02}:{mm:02}") } else { format!("{y:04}-{m:02}-{d:02} {day}") };
+    if inactive { format!("[{body}]") } else { format!("<{body}>") }
 }
 
 /// Ask the session to run `f`.
@@ -284,11 +364,13 @@ fn picker_key(ed: &mut Editor, k: Key) -> bool {
             if abort {
                 ed.mode = Mode::Normal;
                 ed.org_then = None;
+                ed.org_menu_enter = None;
                 ed.org_menu_typed.clear();
                 ed.set_msg("Abort");
                 return true;
             }
             let choice = match k.code {
+                KeyCode::Enter if ed.org_menu_enter.is_some() => ed.org_menu_enter.clone(),
                 KeyCode::Enter if !k.alt && !k.ctrl => p
                     .rows
                     .get(p.sel)
@@ -636,7 +718,11 @@ type Module = fn(&mut Editor, &str, Prefix) -> Option<Result<(), String>>;
 /// Every module's command table, tried in order.
 const MODULES: &[Module] = &[
     fold::command,
+    dispatch::command,
     structure::command,
+    todo::command,
+    tags::command,
+    props::command,
     table::command,
     list::command,
     time::command,

@@ -12,6 +12,8 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 mod magit;
+mod org;
+pub use org::Finish;
 
 const SWAP_IDLE: Duration = Duration::from_secs(1);
 const SWAP_EDITS: usize = 200;
@@ -215,6 +217,9 @@ fn release(swap: &Path) {
 fn buf_name(ed: &Editor) -> String {
     if let Some(v) = &ed.magit {
         return format!("[{}]", v.title());
+    }
+    if let Some(n) = &ed.org_buffer_name {
+        return format!("[{n}]");
     }
     ed.path
         .as_ref()
