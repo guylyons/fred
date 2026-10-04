@@ -3469,6 +3469,28 @@ fn configure_variables_orphan_shelve_and_unshallow() {
     assert!(d.path().join(".git/logs/refs/shelved").join(&name).exists());
     r.configure_step(Op::Unshelve, &s(&[&name])).unwrap();
     assert!(git(d.path(), &["branch", "--list", "side"]).starts_with(b"  side"));
+    // Delete a shelved branch; push a notes ref to a remote.
+    git(
+        d.path(),
+        &["update-ref", "refs/shelved/2020-01-01-old", "HEAD"],
+    );
+    r.configure_step(Op::DeleteShelved, &s(&["2020-01-01-old"]))
+        .unwrap();
+    assert!(
+        r.read(&["show-ref", "--verify", "-q", "refs/shelved/2020-01-01-old"])
+            .is_err()
+    );
+    let Next::Git(argv) = r
+        .configure_step(Op::PushNotesRef, &s(&["commits", "origin"]))
+        .unwrap()
+    else {
+        panic!()
+    };
+    assert_eq!(argv, s(&["push", "origin", "refs/notes/commits"]));
+    assert!(
+        r.configure_step(Op::PushNotesRef, &s(&["commits", "nope"]))
+            .is_err()
+    );
     // Orphan branch from HEAD keeps the tree, without history.
     r.configure_step(Op::Orphan, &s(&["fresh", "HEAD"]))
         .unwrap();

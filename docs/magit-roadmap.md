@@ -311,3 +311,9 @@ has no Ediff): E opens the menu and e is dwim; comparisons run git difftool
 and conflicts git mergetool in the terminal with the user's configured tools;
 magit-ediff-stage has no equivalent. Also gd, diff file-filter toggle and
 diff-unmerged. Ledger 654 partial / 119 missing commands. Score remains 3%.
+
+October 4 small-commands checkpoint: dired stage/unstage/log, push notes
+ref (p n), delete shelved branch, commit-buffer jumps, blame visit-file,
+half commit limit and version by name; review fixes for hunk apply
+(raw output, confirmation, renames) and smerge's C-c. Ledger 669 partial /
+104 missing commands. Score remains 3%.

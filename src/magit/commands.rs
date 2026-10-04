@@ -95,6 +95,20 @@ pub fn by_name(name: &str) -> Option<Action> {
         "magit-push-implicitly" => Some(GitRun(&["push", "-v"])),
         "magit-run" => menu('!'),
         "magit-process-buffer" => Some(ProcessBuffer),
+        "magit-delete-shelved-branch" => Some(super::Action::Configure(
+            super::configure::Op::DeleteShelved,
+        )),
+        "magit-push-notes-ref" => {
+            Some(super::Action::Configure(super::configure::Op::PushNotesRef))
+        }
+        "magit-revision-jump" | "magit-jump-to-revision-headers" => Some(RevisionJump("headers")),
+        "magit-jump-to-revision-message" => Some(RevisionJump("message")),
+        "magit-jump-to-revision-notes" => Some(RevisionJump("notes")),
+        "magit-jump-to-revision-diffstat" => Some(RevisionJump("diffstat")),
+        "magit-jump-to-revision-diff" => Some(RevisionJump("diff")),
+        "magit-blame-visit-file" => Some(BlameVisitFile),
+        "magit-log-half-commit-limit" => Some(LogHalfLimit),
+        "magit-version" => Some(Version),
         "magit-dired-jump" => Some(DiredJump),
         "magit-dired-stage" => Some(File(super::blob::FileOp::Stage)),
         "magit-dired-unstage" => Some(File(super::blob::FileOp::Unstage)),

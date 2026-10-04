@@ -701,6 +701,62 @@ impl Session {
             });
             return;
         }
+        if let Action::RevisionJump(part) = action {
+            // A commit buffer: headers, then a blank line, the message, then
+            // notes, the diffstat and the diff.
+            let Some(view) = self.ed.magit.as_ref() else {
+                return;
+            };
+            let rows: Vec<&str> = view.rows.iter().map(|r| r.text.as_str()).collect();
+            let blank = rows.iter().position(|l| l.trim().is_empty());
+            let target = match part {
+                "headers" => Some(0),
+                "message" => blank.map(|b| b + 1),
+                "notes" => rows.iter().position(|l| l.starts_with("Notes")),
+                "diffstat" => crate::magit::diff::stat_or_diff(&rows, 0)
+                    .filter(|i| !rows[*i].starts_with("diff ")),
+                _ => rows.iter().position(|l| l.starts_with("diff ")),
+            };
+            match target {
+                Some(i) => self.ed.set_cursor(i, 0),
+                None => self.ed.set_msg(format!("No {part} section")),
+            }
+            return;
+        }
+        if action == Action::BlameVisitFile {
+            let Some(b) = self.ed.blame.as_ref() else {
+                return self.ed.set_err("Not in a blame buffer");
+            };
+            let Some(c) = b.chunk_at(self.ed.cur.line) else {
+                return self.ed.set_err("No blame chunk here");
+            };
+            let (repo, rev, file, line) = (
+                b.repo.clone(),
+                c.rev.clone(),
+                c.orig_file.clone(),
+                c.orig_line,
+            );
+            self.start_magit(move || blob_outcome(repo, rev, file, line, None, None));
+            return;
+        }
+        if action == Action::LogHalfLimit {
+            match self.ed.magit.as_mut().map(|v| &mut v.kind) {
+                Some(Kind::Log(_, args)) => {
+                    let n = crate::magit::log::limit(args)
+                        .map(|n| n / 2)
+                        .filter(|n| *n > 0);
+                    *args = crate::magit::log::with_limit(args, n);
+                }
+                _ => return self.ed.set_err("Not in a log buffer"),
+            }
+            self.magit_action(Action::Refresh);
+            return;
+        }
+        if action == Action::Version {
+            return self
+                .ed
+                .set_msg(concat!("Magit port in fred ", env!("CARGO_PKG_VERSION")));
+        }
         if action == Action::LogRefresh {
             let args = crate::magit::menu_arguments(&self.ed, 'l');
             match self.ed.magit.as_mut().map(|v| &mut v.kind) {

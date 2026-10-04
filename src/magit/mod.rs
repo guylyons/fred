@@ -169,6 +169,14 @@ pub enum Action {
     EdiffDwim,
     /// magit-dired-jump.
     DiredJump,
+    /// magit-jump-to-revision-* in a commit buffer.
+    RevisionJump(&'static str),
+    /// magit-blame-visit-file: the blob of the chunk at point.
+    BlameVisitFile,
+    /// magit-log-half-commit-limit.
+    LogHalfLimit,
+    /// magit-version.
+    Version,
     /// magit-diff-unmerged: the changes a merge in progress brings in.
     DiffUnmerged,
     /// magit-log-refresh's g: the menu's arguments for this log buffer.
@@ -1643,6 +1651,12 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                     "Arguments",
                     "Set push option",
                     ReadOption("--push-option="),
+                ),
+                (
+                    "n",
+                    "Push",
+                    "a note ref",
+                    Configure(configure::Op::PushNotesRef),
                 ),
                 ("C", "Configure", "Set variables...", Menu('c')),
             ]

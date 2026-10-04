@@ -25,6 +25,10 @@ pub enum Op {
     Orphan,
     Shelve,
     Unshelve,
+    /// magit-delete-shelved-branch.
+    DeleteShelved,
+    /// magit-push-notes-ref: notes ref, then remote.
+    PushNotesRef,
     Unshallow,
     /// Unshallow: also replace the single refspec? (remote)
     UnshallowRefspec(String),
@@ -96,6 +100,17 @@ impl Repo {
             )),
             Op::Shelve => one("Shelve branch: ".into()),
             Op::Unshelve => one("Unshelve branch: ".into()),
+            Op::DeleteShelved => one("Delete shelved branch: ".into()),
+            Op::PushNotesRef => {
+                let d = self.current_remote()?.unwrap_or_default();
+                Ok((
+                    vec![
+                        "Push notes (default commits): ".into(),
+                        format!("Push to remote (default {d}): "),
+                    ],
+                    vec!["commits".into(), d],
+                ))
+            }
             Op::UnshallowRefspec(r) => {
                 let refspec = self
                     .config(&format!("remote.{r}.fetch"))
@@ -219,6 +234,27 @@ impl Repo {
                 self.set_config(&format!("branch.{b}.pushRemote"), None)?;
                 self.read(&["branch", "-D", "--", b])?;
                 done(format!("Shelved {b} as {}", &new[13..]))
+            }
+            Op::DeleteShelved => {
+                let s = value(at(0))?;
+                let r = format!("refs/shelved/{s}");
+                self.read(&["show-ref", "--verify", "-q", &r])
+                    .map_err(|_| format!("No shelved branch {s}"))?;
+                self.read(&["update-ref", "-d", &r])?;
+                done(format!("Deleted shelved {s}"))
+            }
+            Op::PushNotesRef => {
+                let n = value(at(0))?;
+                let r = value(at(1))?;
+                if !self.remotes()?.iter().any(|x| x == r) {
+                    return Err(format!("No remote {r:?}"));
+                }
+                let note = if n.starts_with("refs/") {
+                    n.to_owned()
+                } else {
+                    format!("refs/notes/{n}")
+                };
+                Ok(Next::Git(vec!["push".into(), r.into(), note]))
             }
             Op::Unshelve => {
                 let s = value(at(0))?;

@@ -127,7 +127,7 @@ magit-blame.el,790,command,magit-blame-addition,partial,Space m B b; gutter marg
 magit-blame.el,798,command,magit-blame-removal,partial,Blob buffers r / Space m B r; --reverse with orig/prev swap; recursion into previous blob,explicit
 magit-blame.el,809,command,magit-blame-reverse,partial,Blob buffers f / Space m B f; --reverse,explicit
 magit-blame.el,845,command,magit-blame-visit-other-file,partial,"Same-type b/r/f in a blamed buffer opens the previous blob and blames it; line position kept, not mapped",explicit
-magit-blame.el,858,command,magit-blame-visit-file,missing,,explicit
+magit-blame.el,858,command,magit-blame-visit-file,partial,:Magit magit-blame-visit-file: the blob at the chunk’s revision and line,explicit
 magit-blame.el,868,command,magit-blame-quit,partial,q in blame or Space m B q; restores read-only state,explicit
 magit-blame.el,878,command,magit-blame-next-chunk,partial,n,explicit
 magit-blame.el,886,command,magit-blame-previous-chunk,partial,p,explicit
@@ -315,9 +315,9 @@ magit-diff.el,1932,command,magit-diff-visit-worktree-file-other-frame,partial,Fr
 magit-diff.el,2179,command,magit-diff-show-or-scroll-up,partial,Enter shows the commit at point (no scrolling of another window),explicit
 magit-diff.el,2190,command,magit-diff-show-or-scroll-down,partial,Enter shows the commit at point (no scrolling of another window),explicit
 magit-diff.el,2256,command,magit-section-cycle-diffs,missing,,explicit
-magit-diff.el,2288,command,magit-revision-jump,missing,,explicit
-magit-diff.el,2316,command,magit-jump-to-revision-diffstat,missing,,explicit
-magit-diff.el,2335,command,magit-jump-to-revision-diff,missing,,explicit
+magit-diff.el,2288,command,magit-revision-jump,partial,:Magit: headers (no transient),explicit
+magit-diff.el,2316,command,magit-jump-to-revision-diffstat,partial,:Magit (also gd),explicit
+magit-diff.el,2335,command,magit-jump-to-revision-diff,partial,:Magit (also gd),explicit
 magit-diff.el,2349,command,magit-jump-to-diffstat-or-diff,partial,gd in diff and commit buffers (evil-collection),explicit
 magit-diff.el,,command,magit-diff:--color-moved,partial,=m cycles values; Fred draws no colors,runtime
 magit-diff.el,,command,magit-diff:--color-moved-ws,partial,=w cycles values; Fred draws no colors,runtime
@@ -331,9 +331,9 @@ magit-diff.el,,command,magit-diff:-C,partial,-C,runtime
 magit-diff.el,,command,magit-diff:-M,partial,-M without similarity index; magit-read-similarity-index missing,runtime
 magit-diff.el,,command,magit-diff:-R,partial,-R,runtime
 magit-diff.el,,command,magit-diff:-U,partial,-U reads a value,runtime
-magit-diff.el,,command,magit-jump-to-revision-headers,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-diff.el,,command,magit-jump-to-revision-message,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-diff.el,,command,magit-jump-to-revision-notes,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,magit-jump-to-revision-headers,partial,:Magit,runtime
+magit-diff.el,,command,magit-jump-to-revision-message,partial,:Magit,runtime
+magit-diff.el,,command,magit-jump-to-revision-notes,partial,:Magit,runtime
 magit-diff.el,,command,magit-jump-to-staged,partial,gs in status,runtime
 magit-diff.el,,command,magit-jump-to-unstaged,partial,gu in status,runtime
 magit-diff.el,,command,magit:--,partial,-- in the diff menus: one file (literal pathspec),runtime
@@ -497,10 +497,10 @@ magit-log.el,799,command,magit-log-buffer-file,partial,"Space m L: literal file 
 magit-log.el,825,command,magit-log-trace-definition,partial,Space m F t: git log -L :NAME:file for the word at point (no which-function),explicit
 magit-log.el,854,command,magit-diff-trace-definition,missing,,explicit
 magit-log.el,862,command,magit-log-merged,partial,"Space m l m: native (no git-when-merged) M^1..M, or first-parent neighborhood of a commit on the branch",explicit
-magit-log.el,911,command,magit-delete-shelved-branch,missing,,explicit
+magit-log.el,911,command,magit-delete-shelved-branch,partial,:Magit magit-delete-shelved-branch,explicit
 magit-log.el,919,command,magit-log-toggle-commit-limit,partial,= in a log buffer (default 256),explicit
 magit-log.el,926,command,magit-log-double-commit-limit,partial,+ in a log buffer,explicit
-magit-log.el,931,command,magit-log-half-commit-limit,missing,,explicit
+magit-log.el,931,command,magit-log-half-commit-limit,partial,:Magit (evil-collection leaves - to revert),explicit
 magit-log.el,955,command,magit-log-bury-buffer,partial,q in log buffers returns,explicit
 magit-log.el,972,command,magit-log-move-to-parent,partial,C-c C-n in a log buffer,explicit
 magit-log.el,989,command,magit-log-move-to-revision,missing,,explicit
@@ -695,7 +695,7 @@ magit-push.el,226,command,magit-push-refspecs,partial,Space m p r; comma-separat
 magit-push.el,243,command,magit-push-matching,partial,Space m p m; single remote used without prompt,explicit
 magit-push.el,253,command,magit-push-tags,partial,Space m p t; single remote used without prompt; default remote missing,explicit
 magit-push.el,264,command,magit-push-tag,partial,Space m p T; tag validated; completion missing,explicit
-magit-push.el,274,command,magit-push-notes-ref,missing,,explicit
+magit-push.el,274,command,magit-push-notes-ref,partial,"Space m p n: notes ref, then remote",explicit
 magit-push.el,285,command,magit-push-implicitly,partial,":Magit magit-push-implicitly (git push -v, no arguments menu)",explicit
 magit-push.el,363,command,magit-push-to-remote,missing,,explicit
 magit-push.el,,command,magit-push:--push-option,partial,-o reads a value,runtime
@@ -1006,6 +1006,6 @@ magit.el,434,command,magit-git-command,partial,"| in Magit buffers (evil-collect
 magit.el,446,command,magit-git-command-topdir,partial,! !,explicit
 magit.el,458,command,magit-shell-command,missing,,explicit
 magit.el,468,command,magit-shell-command-topdir,missing,,explicit
-magit.el,587,command,magit-version,missing,,explicit
+magit.el,587,command,magit-version,partial,:Magit magit-version,explicit
 magit.el,,command,magit:--gpg-sign,partial,"-S in commit, rebase, cherry-pick, revert, merge and am menus",runtime
 magit.el,,command,magit:--signoff,partial,"+s in commit, rebase, cherry-pick, revert and merge menus",runtime
