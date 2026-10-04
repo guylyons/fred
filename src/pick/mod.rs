@@ -861,6 +861,10 @@ pub fn magit_menu(ed: &mut Editor, menu: char) {
                         crate::magit::current_choice(ed, menu, prefix)
                             .map_or(" [off]".into(), |v| format!(" [{prefix}{v}]"))
                     }
+                    crate::magit::Action::ReadOption(prefix) => ed
+                        .magit_values
+                        .get(&(menu, prefix))
+                        .map_or(" [off]".into(), |v| format!(" [{prefix}{v}]")),
                     crate::magit::Action::ToggleOption(option)
                         if ed.magit_options.contains(&option) =>
                         " [on]".into(),

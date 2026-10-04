@@ -50,6 +50,8 @@ pub enum Next {
     Replay(super::rebase::Plan),
     /// Show the status of another worktree.
     Status(std::path::PathBuf),
+    /// Show a log of these revisions with these arguments.
+    Log(Vec<String>, Vec<String>),
 }
 
 fn name(v: &str) -> Result<&str, String> {
@@ -60,7 +62,7 @@ fn name(v: &str) -> Result<&str, String> {
 }
 
 impl Repo {
-    fn ok(&self, args: &[&str]) -> bool {
+    pub(super) fn ok(&self, args: &[&str]) -> bool {
         self.read(args).is_ok()
     }
     fn git(&self, args: &[&str]) -> Result<(), String> {

@@ -918,6 +918,13 @@ pub fn transient_lines(ed: &Editor, selected: usize, width: usize) -> Vec<Line<'
                     if set { on } else { off },
                 ));
             }
+            Action::ReadOption(prefix) => {
+                spans.push(Span::raw(" "));
+                spans.push(match ed.magit_values.get(&(menu, *prefix)) {
+                    Some(v) => Span::styled(format!("({prefix}{v})"), on),
+                    None => Span::styled(format!("({prefix})"), off),
+                });
+            }
             Action::CycleOption(prefix) => {
                 spans.push(Span::raw(" "));
                 spans.push(match current_choice(ed, menu, prefix) {

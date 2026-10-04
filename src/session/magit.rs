@@ -204,6 +204,39 @@ impl Session {
             });
             return;
         }
+        if let Action::Answered(repo, Question::Log(op), answers, defaults) = action {
+            let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, 'l'));
+            self.start_magit(move || {
+                let merged = merge_answers(&answers, &defaults);
+                let next = repo
+                    .log_step(op, &merged, &args)
+                    .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                Ok(branch_outcome(repo, next, origin))
+            });
+            return;
+        }
+        if let Action::LogOp(op) = action {
+            let (origin, from) = (self.cur, self.magit_from());
+            let args = crate::magit::menu_arguments(&self.ed, 'l');
+            let at_point =
+                self.ed
+                    .magit
+                    .as_ref()
+                    .and_then(|v| match v.action_at(self.ed.cur.line) {
+                        Some(RowAction::Commit(id)) => Some(id),
+                        _ => None,
+                    });
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                let (prompts, defaults) = repo.log_prompts(&op, at_point);
+                if prompts.is_empty() {
+                    let next = repo.log_step(op, &[], &args)?;
+                    return Ok(branch_outcome(repo, next, origin));
+                }
+                Ok(Outcome::Ask(repo, Question::Log(op), defaults, prompts))
+            });
+            return;
+        }
         if let Action::Answered(repo, Question::Bisect(op), answers, defaults) = action {
             let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, 'G'));
             self.start_magit(move || {
@@ -665,7 +698,8 @@ impl Session {
                 | Question::Worktree(_)
                 | Question::Reflog
                 | Question::Notes(_)
-                | Question::Bisect(_) => {
+                | Question::Bisect(_)
+                | Question::Log(_) => {
                     unreachable!("handled before the worker")
                 }
                 Question::FindFile => {
@@ -1104,7 +1138,13 @@ impl Session {
             });
             return;
         }
-        let file = if matches!(action, Action::FileLog | Action::Log) {
+        let inherited = self.ed.magit.as_ref().and_then(|view| match &view.kind {
+            Kind::FileLog(path, _) => Some(view.repo.root.join(path)),
+            _ => None,
+        });
+        let file = if matches!(action, Action::Log | Action::LogHead) {
+            inherited
+        } else if action == Action::FileLog {
             let candidate = self
                 .ed
                 .magit
@@ -1138,6 +1178,7 @@ impl Session {
             .magit_options
             .contains(&crate::magit::MenuOption::LogFollow);
         let commit_args = crate::magit::menu_arguments(&self.ed, 'C');
+        let log_args = crate::magit::menu_arguments(&self.ed, 'l');
         let stash_args = crate::magit::menu_arguments(&self.ed, 'z');
         let net_args = match action {
             Action::Net(op) => crate::magit::menu_arguments(&self.ed, op.menu()),
@@ -1181,13 +1222,18 @@ impl Session {
                     Ok(Outcome::View(Box::new(view), None, 0))
                 }
                 Action::Log | Action::FileLog | Action::LogHead => {
-                    let mut view = View::status(repo.clone(), repo.status()?);
-                    view.kind = if let Some(file) = file {
-                        let relative = repo_relative(&repo, &file)?;
-                        Kind::FileLog(relative, follow)
-                    } else {
-                        Kind::Log
+                    let Some(file) = file else {
+                        let op = if action == Action::Log {
+                            crate::magit::log::Op::Current
+                        } else {
+                            crate::magit::log::Op::Head
+                        };
+                        let next = repo.log_step(op, &[], &log_args)?;
+                        return Ok(branch_outcome(repo, next, origin));
                     };
+                    let mut view = View::status(repo.clone(), repo.status()?);
+                    let relative = repo_relative(&repo, &file)?;
+                    view.kind = Kind::FileLog(relative, follow);
                     view.return_to = origin;
                     refresh_log(&mut view)?;
                     Ok(Outcome::View(Box::new(view), None, 0))
@@ -2050,6 +2096,15 @@ fn branch_outcome(repo: Repo, next: crate::magit::branch::Next, origin: usize) -
                 Err(e) => Outcome::Saved(repo, Err(e)),
             }
         }
+        Next::Log(revs, args) => {
+            let mut view = View::status(repo.clone(), Default::default());
+            view.kind = Kind::Log(revs, args);
+            view.return_to = origin;
+            match refresh_log(&mut view) {
+                Ok(()) => Outcome::View(Box::new(view), None, 0),
+                Err(e) => Outcome::Saved(repo, Err(e)),
+            }
+        }
         Next::Replay(plan) => match plan.replay() {
             Ok(inv) => Outcome::Git(inv),
             Err(e) => Outcome::Saved(repo, Err(e)),
@@ -2223,7 +2278,10 @@ fn refresh_view(view: &mut View) -> Result<(), String> {
         view.rows = rows;
         return Ok(());
     }
-    if matches!(view.kind, Kind::Log | Kind::FileLog(..) | Kind::Reflog(_)) {
+    if matches!(
+        view.kind,
+        Kind::Log(..) | Kind::FileLog(..) | Kind::Reflog(_)
+    ) {
         return refresh_log(view);
     }
     if let Kind::StashPatch(stash) = &view.kind {
@@ -2303,6 +2361,34 @@ fn refresh_log(view: &mut View) -> Result<(), String> {
                 action: Some(RowAction::Commit(id)),
             });
         }
+        view.rows = rows;
+        return Ok(());
+    }
+    if let Kind::Log(revs, args) = &view.kind {
+        // magit-log-refresh-buffer: header line, then the washed log.
+        let mut rows = vec![Row {
+            text: format!(
+                "Commits in {}{} (Enter inspect, = limit, + more, gr refresh, q return)",
+                label(Path::new(&revs.join(" "))),
+                if args.is_empty() {
+                    String::new()
+                } else {
+                    format!(" {}", label(Path::new(&args.join(" "))))
+                }
+            ),
+            action: None,
+        }];
+        let lines = view.repo.log_lines(revs, args, &[])?;
+        if lines.is_empty() {
+            rows.push(Row {
+                text: "No commits for this history".into(),
+                action: None,
+            });
+        }
+        rows.extend(lines.into_iter().map(|l| Row {
+            text: l.text,
+            action: l.commit.map(RowAction::Commit),
+        }));
         view.rows = rows;
         return Ok(());
     }

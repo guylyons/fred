@@ -481,25 +481,25 @@ magit-log.el,320,option,magit-cherry-sections-hook,missing,,explicit
 magit-log.el,328,option,magit-cherry-margin,missing,,explicit
 magit-log.el,360,option,magit-log-section-commit-count,partial,default 10 used; not configurable,explicit
 magit-log.el,369,option,magit-log-merged-commit-count,missing,,explicit
-magit-log.el,525,command,magit-log,partial,Space m l opens a partial source-style log menu; follow toggle; missing remaining arguments/suffixes/context,explicit
+magit-log.el,525,command,magit-log,partial,"Space m l: upstream groups (commit limiting, history simplification, ordering, formatting) with free-form values; Log l/o/h/u/L/b/a/R/B/T/m and Reflog r/O/H; missing shortlog, wiplog, -- files, set/save",explicit
 magit-log.el,556,command,magit-log-refresh,missing,,explicit
-magit-log.el,699,command,magit-log-current,partial,Space m l l: HEAD history with current source-file filter; missing revision-context defaults and full log arguments,explicit
-magit-log.el,707,command,magit-log-head,partial,Space m l h: recent HEAD history; missing full log arguments and inherited file selection,explicit
-magit-log.el,713,command,magit-log-related,missing,,explicit
-magit-log.el,742,command,magit-log-other,missing,,explicit
-magit-log.el,753,command,magit-log-branches,missing,,explicit
-magit-log.el,762,command,magit-log-matching-branches,missing,,explicit
-magit-log.el,770,command,magit-log-matching-tags,missing,,explicit
-magit-log.el,778,command,magit-log-all-branches,missing,,explicit
-magit-log.el,787,command,magit-log-all,missing,,explicit
-magit-log.el,793,command,magit-log-reflog,missing,,explicit
+magit-log.el,699,command,magit-log-current,partial,Space m l l: current branch (or HEAD) with menu arguments; inherits the file of a file-log buffer,explicit
+magit-log.el,707,command,magit-log-head,partial,Space m l h: HEAD with menu arguments,explicit
+magit-log.el,713,command,magit-log-related,partial,"Space m l u: current/rebased/previous branch, push target, upstream and its upstream",explicit
+magit-log.el,742,command,magit-log-other,partial,"Space m l o: revisions separated by space or comma, default at point or previous branch; no completion",explicit
+magit-log.el,753,command,magit-log-branches,partial,Space m l L,explicit
+magit-log.el,762,command,magit-log-matching-branches,partial,Space m l B: --branches=PATTERN,explicit
+magit-log.el,770,command,magit-log-matching-tags,partial,Space m l T: --tags=PATTERN,explicit
+magit-log.el,778,command,magit-log-all-branches,partial,Space m l b,explicit
+magit-log.el,787,command,magit-log-all,partial,Space m l a,explicit
+magit-log.el,793,command,magit-log-reflog,partial,Space m l R,explicit
 magit-log.el,799,command,magit-log-buffer-file,partial,"Space m L: literal file history, follow rename option, refresh, commit inspection/return; missing region/revision/custom arguments",explicit
 magit-log.el,825,command,magit-log-trace-definition,missing,,explicit
 magit-log.el,854,command,magit-diff-trace-definition,missing,,explicit
-magit-log.el,862,command,magit-log-merged,missing,,explicit
+magit-log.el,862,command,magit-log-merged,partial,"Space m l m: native (no git-when-merged) M^1..M, or first-parent neighborhood of a commit on the branch",explicit
 magit-log.el,911,command,magit-delete-shelved-branch,missing,,explicit
-magit-log.el,919,command,magit-log-toggle-commit-limit,missing,,explicit
-magit-log.el,926,command,magit-log-double-commit-limit,missing,,explicit
+magit-log.el,919,command,magit-log-toggle-commit-limit,partial,= in a log buffer (default 256),explicit
+magit-log.el,926,command,magit-log-double-commit-limit,partial,+ in a log buffer,explicit
 magit-log.el,931,command,magit-log-half-commit-limit,missing,,explicit
 magit-log.el,955,command,magit-log-bury-buffer,missing,,explicit
 magit-log.el,972,command,magit-log-move-to-parent,missing,,explicit
@@ -518,36 +518,36 @@ magit-log.el,,command,magit-jump-to-unpulled-from-upstream,partial,gfu in status
 magit-log.el,,command,magit-jump-to-unpushed-to-pushremote,partial,gpp in status,runtime
 magit-log.el,,command,magit-jump-to-unpushed-to-upstream,partial,gpu in status (also recent commits),runtime
 magit-log.el,,command,magit-log-select-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,magit-log:--*-order,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,magit-log:--*-order,partial,-o cycles topo/author-date/date,runtime
 magit-log.el,,command,magit-log:--graph-lane-limit,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,magit-log:--grep,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,magit-log:--since,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,magit-log:--until,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,magit-log:-G,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,magit-log:-L,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,magit-log:-S,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,magit-log:-n,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,magit:--author,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,transient:magit-log-infix-arguments:++header,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,transient:magit-log-infix-arguments:--ancestry-path,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,transient:magit-log-infix-arguments:--color,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,transient:magit-log-infix-arguments:--decorate,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,transient:magit-log-infix-arguments:--dense,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,transient:magit-log-infix-arguments:--first-parent,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,transient:magit-log-infix-arguments:--follow,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,transient:magit-log-infix-arguments:--full-history,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,transient:magit-log-infix-arguments:--graph,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,transient:magit-log-infix-arguments:--invert-grep,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,transient:magit-log-infix-arguments:--merges,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,transient:magit-log-infix-arguments:--no-merges,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,transient:magit-log-infix-arguments:--patch,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,transient:magit-log-infix-arguments:--regexp-ignore-case,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,transient:magit-log-infix-arguments:--reverse,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,transient:magit-log-infix-arguments:--show-signature,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,transient:magit-log-infix-arguments:--simplify-by-decoration,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,transient:magit-log-infix-arguments:--simplify-merges,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,transient:magit-log-infix-arguments:--sparse,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,transient:magit-log-infix-arguments:--stat,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,magit-log:--grep,partial,-F reads a value,runtime
+magit-log.el,,command,magit-log:--since,partial,=s reads a value (no date reader),runtime
+magit-log.el,,command,magit-log:--until,partial,=u reads a value (no date reader),runtime
+magit-log.el,,command,magit-log:-G,partial,-G reads a value,runtime
+magit-log.el,,command,magit-log:-L,partial,-L reads a value (no file-trace reader),runtime
+magit-log.el,,command,magit-log:-S,partial,-S reads a value,runtime
+magit-log.el,,command,magit-log:-n,partial,-n reads a number; seeded -n256,runtime
+magit-log.el,,command,magit:--author,partial,-A reads a value (no person completion),runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:++header,partial,switch shown; Fred has no revision header lines,runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--ancestry-path,partial,switch passed to git log in log buffers (not file logs),runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--color,partial,switch shown; Fred renders the graph uncolored,runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--decorate,partial,switch passed to git log in log buffers (not file logs),runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--dense,partial,switch passed to git log in log buffers (not file logs),runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--first-parent,partial,switch passed to git log in log buffers (not file logs),runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--follow,partial,-f: applies to file logs (Space m L),runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--full-history,partial,switch passed to git log in log buffers (not file logs),runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--graph,partial,switch passed to git log in log buffers (not file logs),runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--invert-grep,partial,switch passed to git log in log buffers (not file logs),runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--merges,partial,switch passed to git log in log buffers (not file logs),runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--no-merges,partial,switch passed to git log in log buffers (not file logs),runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--patch,partial,switch passed to git log in log buffers (not file logs),runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--regexp-ignore-case,partial,switch passed to git log in log buffers (not file logs),runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--reverse,partial,switch passed to git log in log buffers (not file logs),runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--show-signature,partial,switch passed to git log in log buffers (not file logs),runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--simplify-by-decoration,partial,switch passed to git log in log buffers (not file logs),runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--simplify-merges,partial,switch passed to git log in log buffers (not file logs),runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--sparse,partial,switch passed to git log in log buffers (not file logs),runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--stat,partial,switch passed to git log in log buffers (not file logs),runtime
 magit-log.el,,command,transient:magit-log-refresh:--color,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-log.el,,command,transient:magit-log-refresh:--decorate,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-log.el,,command,transient:magit-log-refresh:--graph,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime

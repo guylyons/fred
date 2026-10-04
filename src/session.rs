@@ -1891,7 +1891,7 @@ mod tests {
         repo.stage_file(Path::new("other")).unwrap();
         repo.read(&["commit", "-qm", "unrelated"]).unwrap();
         t.keys(&format!(
-            ":e {}<Enter> ml-fl",
+            ":e {}<Enter> ml-f<Esc> mL",
             t.dir.path().join("renamed").display()
         ));
         magit_settle(&mut t);
@@ -1914,9 +1914,62 @@ mod tests {
         t.keys(" ml-fl");
         magit_settle(&mut t);
         assert!(!t.s.ed.buf.text().contains("before rename"));
-        t.keys("q mlh");
+        // h from a file log keeps its file (buffer arguments); from the
+        // source buffer it logs all of HEAD.
+        for _ in 0..4 {
+            if t.s.ed.magit.is_some() {
+                t.keys("q");
+            }
+        }
+        assert!(t.s.ed.magit.is_none());
+        t.keys(" mlh");
         magit_settle(&mut t);
         assert!(t.s.ed.buf.text().contains("unrelated"));
+    }
+
+    #[test]
+    fn magit_log_menu_reads_option_values_and_limits_in_the_buffer() {
+        let mut t = T::open(Some("f.txt"), Some("one\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        for i in 0..3 {
+            fs::write(t.dir.path().join("f.txt"), format!("{i}\n")).unwrap();
+            repo.stage_file(Path::new("f.txt")).unwrap();
+            repo.read(&["commit", "-qm", &format!("commit {i}")])
+                .unwrap();
+        }
+        // The seeded -n256 is unset by its key, then read from the minibuffer.
+        t.keys(" ml-n-n2<Enter>-Fcommit<Enter>l");
+        magit_settle(&mut t);
+        let text = t.s.ed.buf.text();
+        assert!(
+            text.contains("commit 2") && text.contains("commit 1"),
+            "{text}"
+        );
+        assert!(!text.contains("commit 0"), "{text}");
+        assert!(text.contains("--grep=commit"), "{text}");
+        t.keys("+");
+        magit_settle(&mut t);
+        assert!(t.s.ed.buf.text().contains("commit 0"));
+        t.keys("=");
+        magit_settle(&mut t);
+        let crate::magit::Kind::Log(_, args) = &t.s.ed.magit.as_ref().unwrap().kind else {
+            panic!()
+        };
+        assert!(crate::magit::log::limit(args).is_none(), "{args:?}");
+        // The menu opened from the log buffer shows the buffer's arguments.
+        t.keys(" ml");
+        assert!(!t.s.ed.magit_values.contains_key(&('l', "-n")));
+        assert_eq!(
+            t.s.ed
+                .magit_values
+                .get(&('l', "--grep="))
+                .map(String::as_str),
+            Some("commit")
+        );
     }
 
     #[test]
@@ -2604,7 +2657,7 @@ mod tests {
         t.keys("q");
         assert!(matches!(
             t.s.ed.magit.as_ref().unwrap().kind,
-            crate::magit::Kind::Log
+            crate::magit::Kind::Log(..)
         ));
     }
     #[test]

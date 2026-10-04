@@ -2654,3 +2654,86 @@ fn bisect_finds_the_bad_commit_and_runs_scripts() {
     }
     run(r.bisect_step(Op::Reset, &s(&["y"]), &[]).unwrap()).unwrap();
 }
+
+#[test]
+fn log_variants_arguments_and_merged() {
+    use super::branch::Next;
+    use super::log::Op;
+    let (d, r) = setup();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    let commit = |name: &str| {
+        fs::write(d.path().join(name), name).unwrap();
+        git(d.path(), &["add", name]);
+        git(d.path(), &["commit", "-qm", name]);
+    };
+    commit("base");
+    let main = String::from_utf8(git(d.path(), &["symbolic-ref", "--short", "HEAD"]))
+        .unwrap()
+        .trim()
+        .to_owned();
+    git(d.path(), &["checkout", "-qb", "topic"]);
+    commit("feature");
+    let feature = String::from_utf8(git(d.path(), &["rev-parse", "HEAD"]))
+        .unwrap()
+        .trim()
+        .to_owned();
+    git(d.path(), &["checkout", "-q", &main]);
+    commit("mainline");
+    git(
+        d.path(),
+        &["merge", "-q", "--no-ff", "-m", "merge topic", "topic"],
+    );
+    commit("after");
+    git(d.path(), &["tag", "v1", "HEAD~1"]);
+    let lines = |n: Next| match n {
+        Next::Log(revs, args) => (
+            revs.clone(),
+            r.log_lines(&revs, &args, &[])
+                .unwrap()
+                .into_iter()
+                .map(|l| l.text)
+                .collect::<Vec<_>>()
+                .join("\n"),
+        ),
+        other => panic!("{other:?}"),
+    };
+    let args = s(&["-n256", "--graph", "--decorate"]);
+    let (revs, text) = lines(r.log_step(Op::Current, &[], &args).unwrap());
+    assert_eq!(revs, vec![main.clone()]);
+    assert!(text.contains("* ") && text.contains("tag: v1"), "{text}");
+    // Limits, message search and revisions read from the minibuffer.
+    let (_, text) = lines(r.log_step(Op::Head, &[], &s(&["-n1"])).unwrap());
+    assert_eq!(text.lines().count(), 1);
+    let (_, text) = lines(
+        r.log_step(Op::Other, &s(&["topic"]), &s(&["--grep=feat"]))
+            .unwrap(),
+    );
+    assert!(text.contains("feature") && !text.contains("base"), "{text}");
+    assert!(r.log_step(Op::Other, &s(&["--all"]), &[]).is_err());
+    assert!(r.log_lines(&s(&["HEAD"]), &s(&["-nx"]), &[]).is_err());
+    let (revs, _) = lines(r.log_step(Op::MatchingTags, &s(&["v*"]), &[]).unwrap());
+    assert_eq!(revs, s(&["HEAD", "--tags=v*"]));
+    let (revs, _) = lines(r.log_step(Op::LocalBranches, &[], &[]).unwrap());
+    assert_eq!(revs, s(&["--branches"]));
+    // magit-log-merged: the merge that brought the commit in, as M^1..M.
+    let (revs, text) = lines(
+        r.log_step(Op::Merged, &[feature.clone(), main.clone()], &[])
+            .unwrap(),
+    );
+    let merge = String::from_utf8(git(d.path(), &["rev-parse", "HEAD~1"]))
+        .unwrap()
+        .trim()
+        .to_owned();
+    assert_eq!(revs, vec![format!("{merge}^1..{merge}")]);
+    assert!(
+        text.contains("feature") && text.contains("merge topic"),
+        "{text}"
+    );
+    assert!(!text.contains("mainline"), "{text}");
+    // A commit directly on the branch shows its first-parent neighborhood.
+    let (_, text) = lines(r.log_step(Op::Merged, &s(&["HEAD~2", &main]), &[]).unwrap());
+    assert!(
+        text.contains("mainline") && !text.contains("feature"),
+        "{text}"
+    );
+}

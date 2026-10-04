@@ -5,6 +5,7 @@ pub mod blob;
 pub mod branch;
 pub mod commit;
 pub mod diff;
+pub mod log;
 pub mod merge;
 pub mod network;
 pub mod notes;
@@ -33,6 +34,8 @@ pub enum Action {
     Menu(char),
     ToggleOption(MenuOption),
     CycleOption(&'static str),
+    /// A transient-option read from the minibuffer: its argument prefix.
+    ReadOption(&'static str),
     AmendDraft,
     RewordDraft,
     Stash(workflows::StashAction),
@@ -83,6 +86,8 @@ pub enum Action {
     Notes(notes::Op),
     /// A magit-bisect.el suffix.
     Bisect(bisect::Op),
+    /// A magit-log.el suffix.
+    LogOp(log::Op),
     /// magit-reflog-current / -head / -other (None asks for a ref).
     Reflog(Option<String>),
     /// ZZ / ZQ in a rebase todo buffer.
@@ -162,7 +167,8 @@ pub struct Row {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Kind {
     Status,
-    Log,
+    /// magit-log-mode: revisions and git-log arguments.
+    Log(Vec<String>, Vec<String>),
     FileLog(PathBuf, bool),
     Stashes,
     Tags,
@@ -217,7 +223,9 @@ impl View {
     pub fn title(&self) -> String {
         match &self.kind {
             Kind::Status => "Magit status".into(),
-            Kind::Log => "Magit log".into(),
+            Kind::Log(revs, _) => {
+                format!("Magit log {}", label(std::path::Path::new(&revs.join(" "))))
+            }
             Kind::FileLog(path, _) => format!("Magit file log {}", label(path)),
             Kind::Stashes => "Magit stashes".into(),
             Kind::Tags => "Magit tags".into(),
@@ -433,7 +441,10 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             return true;
         }
         let entries = menu_entries(ed.magit_menu.unwrap_or('*'));
-        if !k.ctrl && ed.vim.pending.is_empty() && matches!(k.char(), Some('-' | '+' | '=' | ',')) {
+        if !k.ctrl
+            && ed.vim.pending.is_empty()
+            && matches!(k.char(), Some('-' | '+' | '=' | ',' | '/'))
+        {
             ed.vim.pending = vec![k];
             return true;
         }
@@ -452,6 +463,7 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
                         [key] if *key == Key::ch('+') => "+",
                         [key] if *key == Key::ch('=') => "=",
                         [key] if *key == Key::ch(',') => ",",
+                        [key] if *key == Key::ch('/') => "/",
                         _ => "",
                     }
                 )
@@ -472,6 +484,17 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
                         ed.magit_options.remove(&MenuOption::PullFfOnly);
                     }
                     crate::pick::magit_menu(ed, menu);
+                    return true;
+                }
+                if let Action::ReadOption(prefix) = action {
+                    // transient-infix-read: a set option is unset, else read.
+                    if ed.magit_values.remove(&(menu, prefix)).is_none() {
+                        ed.mode = Mode::Normal;
+                        ed.magit_menu = None;
+                        prompt(ed, Prompt::OptionValue(menu, prefix));
+                    } else {
+                        crate::pick::magit_menu(ed, menu);
+                    }
                     return true;
                 }
                 if let Action::ToggleOption(option) = action {
@@ -592,6 +615,26 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     if !ed.vim.pending.is_empty() {
         return false;
     }
+    // magit-log-toggle-commit-limit (=) and -double-commit-limit (+);
+    // evil-collection leaves - to revert.
+    if let Some(Kind::Log(_, args)) = ed.magit.as_mut().map(|v| &mut v.kind)
+        && !k.ctrl
+        && matches!(k.char(), Some('=' | '+'))
+    {
+        let limit = log::limit(args);
+        let next = match (k.char(), limit) {
+            (Some('='), Some(_)) => None,
+            (Some('='), None) => Some(256),
+            (_, Some(n)) => Some(n.saturating_mul(2)),
+            (_, None) => {
+                ed.set_err("No commit limit");
+                return true;
+            }
+        };
+        *args = log::with_limit(args, next);
+        ed.pending_effect = Some(ExEffect::Magit(Action::Refresh));
+        return true;
+    }
     if ed
         .magit
         .as_ref()
@@ -653,7 +696,9 @@ fn menu_help(menu: char) -> Option<&'static str> {
             "Fetch: p pushRemote  u current remote  e elsewhere  a all  o branch  r refspec  m submodules"
         }
         'P' => "Pull: p pushRemote  u upstream  e elsewhere; -r cycles --rebase choices",
-        'l' => "Log: l current  h HEAD  -f follow renames for file log; Space m L current file",
+        'l' => {
+            "Log: l current  o other  h HEAD  u related  L/b/a/R branches, all, reflog objects  B/T matching  m merged; = limit, + more in a log"
+        }
         't' => "Tag: t tag  r release  k delete  p prune; -a annotate -s sign -e message -f force",
         'C' => "Commit: a amend  e extend  w reword  f fixup",
         'M' => {
@@ -696,6 +741,8 @@ pub enum Prompt {
     Ask(Repo, Question, Vec<String>, Vec<String>, Vec<String>),
     /// git-rebase-exec: the command to add below the current todo line.
     RebaseExec,
+    /// A transient-option value for (menu, argument prefix); returns to the menu.
+    OptionValue(char, &'static str),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Question {
@@ -712,6 +759,7 @@ pub enum Question {
     Reflog,
     Notes(notes::Op),
     Bisect(bisect::Op),
+    Log(log::Op),
     Net(network::Op),
     Diff(diff::Op),
     FindFile,
@@ -723,6 +771,7 @@ pub fn prompt(ed: &mut Editor, question: Prompt) {
         Prompt::Ask(_, _, _, prompts, answers) => prompts[answers.len()].clone(),
         Prompt::InitDir(_) => "Create repository in: ".into(),
         Prompt::RebaseExec => "Execute: ".into(),
+        Prompt::OptionValue(_, prefix) => (*prefix).into(),
         Prompt::InitConfirm(_, question) => question.clone(),
         Prompt::DropStash(_, stash) => format!(
             "Drop {} ({})? Type yes: ",
@@ -766,6 +815,12 @@ pub fn answer(ed: &mut Editor, text: &str) {
         }
         Some(Prompt::InitConfirm(..)) => ed.set_msg("Abort"),
         Some(Prompt::RebaseExec) => rebase::insert_exec(ed, text),
+        Some(Prompt::OptionValue(menu, prefix)) => {
+            if !text.is_empty() {
+                ed.magit_values.insert((menu, prefix), text.to_owned());
+            }
+            open_menu(ed, menu);
+        }
         Some(Prompt::Ask(repo, question, args, prompts, mut answers)) => {
             answers.push(text.trim().to_owned());
             if answers.len() < prompts.len() {
@@ -792,6 +847,22 @@ pub(crate) fn open_menu(ed: &mut Editor, menu: char) {
             ed.magit_options.insert(MenuOption::LogFollow);
         } else {
             ed.magit_options.remove(&MenuOption::LogFollow);
+        }
+    }
+    // magit-log-buffer arguments, else the default ("-n256" "--graph" "--decorate").
+    if menu == 'l' {
+        if let Some(Kind::Log(_, args)) = ed.magit.as_ref().map(|v| &v.kind) {
+            let args = args.clone();
+            let follow = ed.magit_options.contains(&MenuOption::LogFollow);
+            set_menu_arguments(ed, 'l', &args);
+            if follow {
+                ed.magit_options.insert(MenuOption::LogFollow);
+            }
+        } else if ed.magit_seeded.insert('l') {
+            ed.magit_values.insert(('l', "-n"), "256".into());
+            ed.magit_options.insert(MenuOption::Switch('l', "--graph"));
+            ed.magit_options
+                .insert(MenuOption::Switch('l', "--decorate"));
         }
     }
     // magit-rebase :value '("--autostash").
@@ -1062,19 +1133,150 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 ("t", "Actions", "Show stash", Diff(ShowStash)),
             ]
         }
-        'l' => vec![
-            (
-                "-f",
-                "Arguments",
-                "Follow renames in file log",
-                ToggleOption(MenuOption::LogFollow),
-            ),
-            ("l", "Log", "Current (HEAD)", Log),
-            ("h", "Log", "HEAD", LogHead),
-            ("r", "Reflog", "current", Reflog(Some(String::new()))),
-            ("O", "Reflog", "other", Reflog(None)),
-            ("H", "Reflog", "HEAD", Reflog(Some("HEAD".into()))),
-        ],
+        'l' => {
+            use log::Op as L;
+            let sw = |a| ToggleOption(MenuOption::Switch('l', a));
+            vec![
+                (
+                    "-n",
+                    "Commit limiting",
+                    "Limit number of commits",
+                    ReadOption("-n"),
+                ),
+                (
+                    "-A",
+                    "Commit limiting",
+                    "Limit to author",
+                    ReadOption("--author="),
+                ),
+                (
+                    "=s",
+                    "Commit limiting",
+                    "Limit to commits since",
+                    ReadOption("--since="),
+                ),
+                (
+                    "=u",
+                    "Commit limiting",
+                    "Limit to commits until",
+                    ReadOption("--until="),
+                ),
+                (
+                    "-F",
+                    "Commit limiting",
+                    "Search messages",
+                    ReadOption("--grep="),
+                ),
+                (
+                    "-i",
+                    "Commit limiting",
+                    "Search case-insensitive",
+                    sw("--regexp-ignore-case"),
+                ),
+                (
+                    "-I",
+                    "Commit limiting",
+                    "Invert search pattern",
+                    sw("--invert-grep"),
+                ),
+                ("-G", "Commit limiting", "Search changes", ReadOption("-G")),
+                (
+                    "-S",
+                    "Commit limiting",
+                    "Search occurrences",
+                    ReadOption("-S"),
+                ),
+                (
+                    "-L",
+                    "Commit limiting",
+                    "Trace line evolution",
+                    ReadOption("-L"),
+                ),
+                ("=M", "Commit limiting", "Only merges", sw("--merges")),
+                ("=m", "Commit limiting", "Omit merges", sw("--no-merges")),
+                (
+                    "=p",
+                    "Commit limiting",
+                    "First parent",
+                    sw("--first-parent"),
+                ),
+                (
+                    "-D",
+                    "History simplification",
+                    "Simplify by decoration",
+                    sw("--simplify-by-decoration"),
+                ),
+                (
+                    "-f",
+                    "History simplification",
+                    "Follow renames when showing single-file log",
+                    ToggleOption(MenuOption::LogFollow),
+                ),
+                (
+                    "/s",
+                    "History simplification",
+                    "Only commits changing given paths",
+                    sw("--sparse"),
+                ),
+                (
+                    "/d",
+                    "History simplification",
+                    "Only selected commits plus meaningful history",
+                    sw("--dense"),
+                ),
+                (
+                    "/a",
+                    "History simplification",
+                    "Only commits existing directly on ancestry path",
+                    sw("--ancestry-path"),
+                ),
+                (
+                    "/f",
+                    "History simplification",
+                    "Do not prune history",
+                    sw("--full-history"),
+                ),
+                (
+                    "/m",
+                    "History simplification",
+                    "Prune some history",
+                    sw("--simplify-merges"),
+                ),
+                (
+                    "-o",
+                    "Commit ordering",
+                    "Order commits by",
+                    CycleOption("--"),
+                ),
+                ("-r", "Commit ordering", "Reverse order", sw("--reverse")),
+                ("-g", "Formatting", "Show graph", sw("--graph")),
+                ("-c", "Formatting", "Show graph in color", sw("--color")),
+                ("-d", "Formatting", "Show refnames", sw("--decorate")),
+                (
+                    "=S",
+                    "Formatting",
+                    "Show signatures",
+                    sw("--show-signature"),
+                ),
+                ("-h", "Formatting", "Show header", sw("++header")),
+                ("-p", "Formatting", "Show diffs", sw("--patch")),
+                ("-s", "Formatting", "Show diffstats", sw("--stat")),
+                ("l", "Log", "current", Log),
+                ("o", "Log", "other", LogOp(L::Other)),
+                ("h", "Log", "HEAD", LogHead),
+                ("u", "Log", "related", LogOp(L::Related)),
+                ("L", "Log", "local branches", LogOp(L::LocalBranches)),
+                ("b", "Log", "all branches", LogOp(L::AllBranches)),
+                ("a", "Log", "all references", LogOp(L::All)),
+                ("R", "Log", "reflog objects", LogOp(L::Reflog)),
+                ("B", "Log", "matching branches", LogOp(L::MatchingBranches)),
+                ("T", "Log", "matching tags", LogOp(L::MatchingTags)),
+                ("m", "Log", "merged", LogOp(L::Merged)),
+                ("r", "Reflog", "current", Reflog(Some(String::new()))),
+                ("O", "Reflog", "other", Reflog(None)),
+                ("H", "Reflog", "HEAD", Reflog(Some("HEAD".into()))),
+            ]
+        }
         'z' => vec![
             (
                 "-u",
@@ -1816,6 +2018,8 @@ pub enum MenuOption {
     BlameFirstParent,
     BlameMoved,
     BlameCopied,
+    /// A transient-switch of this menu by its argument.
+    Switch(char, &'static str),
     /// A transient-option with fixed choices: argument prefix and selected value.
     Choice(char, &'static str, &'static str),
 }
@@ -1829,6 +2033,8 @@ pub fn choices(menu: char, prefix: &str) -> &'static [&'static str] {
         "--ignore-submodules=" => &["none", "untracked", "dirty", "all"],
         "--strategy=" => &["resolve", "recursive", "octopus", "ours", "subtree"],
         "--rebase-merges=" => &["no-rebase-cousins", "rebase-cousins"],
+        // magit-log:--*-order.
+        "--" if menu == 'l' => &["topo-order", "author-date-order", "date-order"],
         _ => &[],
     }
 }
@@ -1848,7 +2054,7 @@ impl MenuOption {
             | RebaseAutosquash | RebaseAutostash | RebaseInteractive | RebaseNoVerify => 'r',
             RevertEdit | RevertNoEdit => 'v',
             PullFfOnly | PullForce => 'P',
-            Choice(menu, ..) => menu,
+            Choice(menu, ..) | Switch(menu, _) => menu,
             DiffIgnoreSpace | DiffIgnoreAllSpace | DiffFunctionContext | DiffRenames
             | DiffNoExt | DiffStat | DiffSignature => 'd',
             BlameWhitespace | BlameRoot | BlameFirstParent | BlameMoved | BlameCopied => 'B',
@@ -1861,6 +2067,9 @@ impl MenuOption {
     pub fn argument(self) -> String {
         if let Self::Choice(_, prefix, value) = self {
             return format!("{prefix}{value}");
+        }
+        if let Self::Switch(_, argument) = self {
+            return argument.into();
         }
         match self {
             Self::LogFollow => "--follow",
@@ -1914,7 +2123,7 @@ impl MenuOption {
             Self::BlameFirstParent => "--first-parent",
             Self::BlameMoved => "-M",
             Self::BlameCopied => "-C",
-            Self::Choice(..) => unreachable!(),
+            Self::Choice(..) | Self::Switch(..) => unreachable!(),
         }
         .into()
     }
@@ -1944,6 +2153,12 @@ pub fn menu_arguments(ed: &Editor, menu: char) -> Vec<String> {
         .iter()
         .filter(|option| option.menu() == menu)
         .map(|option| option.argument())
+        .chain(
+            ed.magit_values
+                .iter()
+                .filter(|((m, _), _)| *m == menu)
+                .map(|((_, prefix), value)| format!("{prefix}{value}")),
+        )
         .collect();
     args.sort();
     args
@@ -1952,8 +2167,14 @@ pub fn menu_arguments(ed: &Editor, menu: char) -> Vec<String> {
 /// Make a menu's displayed switches and choices match explicit arguments.
 pub fn set_menu_arguments(ed: &mut Editor, menu: char, args: &[String]) {
     ed.magit_options.retain(|option| option.menu() != menu);
+    ed.magit_values.retain(|(m, _), _| *m != menu);
     for (_, _, _, action) in menu_entries(menu) {
         match action {
+            Action::ReadOption(prefix) => {
+                if let Some(value) = args.iter().find_map(|a| a.strip_prefix(prefix)) {
+                    ed.magit_values.insert((menu, prefix), value.to_owned());
+                }
+            }
             Action::ToggleOption(option) if args.contains(&option.argument()) => {
                 ed.magit_options.insert(option);
             }

@@ -47,10 +47,12 @@ additional behavior reopens its row and lowers the score until it is covered.
 
 ## Execution queue
 
-The in-flight stash batch is committed. Next finish the baseline's two remaining
-deliverables: full Fred UI mapping and the acceptance scenario matrix, using the
-user's exact leader contract. Then work through rows in order, preserving
-cross-track prerequisites and recording each accepted gate's evidence here.
+Log menu batch (this commit): free-form transient option values and the
+remaining magit-log suffixes. Next: shortlog and log-buffer navigation
+(move-to-parent/revision, references), log-select, cherry; then submodules,
+subtrees, patches/bundles, clone, refs view, sparse checkout and gitignore,
+recording each accepted gate's evidence here. The baseline's UI map and
+scenario matrix remain open.
 
 At every implementation commit, update the command ledger and this queue. Report
 the same score even when useful partial functionality lands but no acceptance
@@ -154,3 +156,12 @@ highlighted when on and choice values inline, then action groups in columns
 (ui::render::transient_lines; test magit_menus_render_as_transient_popups).
 Row 2 remains open: dynamic descriptions, inapt/hidden suffixes and levels,
 set/save of arguments, help, and free-form option values.
+
+October 4 log checkpoint: Space m l ports magit-log's argument groups and
+suffixes (o other, u related, L/b/a/R, B/T matching, m merged without
+git-when-merged) with --graph/--decorate rendering, = and + commit limits in
+log buffers ([scenarios](magit-log-acceptance.md)). Menus now read free-form
+option values (transient-option): pressing a set option unsets it. `l l` from
+a plain file buffer no longer filters to that file (upstream); Space m L does.
+Bisect (Space m G) and worktree/stash review fixes landed in 2ee8bdd.
+Ledger 277 partial / 496 missing commands. Score remains 3%.

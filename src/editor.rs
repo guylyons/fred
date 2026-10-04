@@ -115,6 +115,8 @@ pub struct Editor {
     pub magit: Option<Box<crate::magit::View>>,
     pub magit_input_generation: u64,
     pub magit_options: std::collections::HashSet<crate::magit::MenuOption>,
+    /// Free-form transient-option values by (menu, argument prefix).
+    pub magit_values: std::collections::BTreeMap<(char, &'static str), String>,
     /// Menus whose default arguments have been applied in this buffer.
     pub magit_seeded: std::collections::HashSet<char>,
     /// magit-blame-mode on this file buffer.
@@ -177,6 +179,7 @@ impl Editor {
             magit: None,
             magit_input_generation: 0,
             magit_options: std::collections::HashSet::new(),
+            magit_values: std::collections::BTreeMap::new(),
             magit_seeded: std::collections::HashSet::new(),
             blame: None,
             blob: None,

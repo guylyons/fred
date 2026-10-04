@@ -78,7 +78,7 @@ fn shell_quote(s: &str) -> String {
 }
 
 impl Repo {
-    fn git_path(&self, name: &str) -> Result<PathBuf, String> {
+    pub(super) fn git_path(&self, name: &str) -> Result<PathBuf, String> {
         let p = self.read(&["rev-parse", "--git-path", name])?;
         Ok(self.root.join(String::from_utf8_lossy(&p).trim()))
     }
