@@ -237,6 +237,11 @@ impl Editor {
         {
             return;
         }
+        // An Alt key nothing took: Fred's usual Esc, key.
+        if k.alt {
+            self.handle_key(Key::new(KeyCode::Esc));
+            return self.handle_key(Key { alt: false, ..k });
+        }
         if self.zap.is_some() {
             crate::zap::key(self, k);
             return;

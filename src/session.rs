@@ -2524,6 +2524,69 @@ mod tests {
     }
 
     #[test]
+    fn alt_keys_reach_magit_buffers_and_stay_esc_elsewhere() {
+        // A plain buffer: Alt+j is Esc, j (insert mode left, cursor down).
+        let mut t = T::open(Some("f.txt"), Some("one\ntwo\n"));
+        t.keys("ix<M-j>");
+        assert_eq!(t.s.ed.mode, crate::editor::Mode::Normal);
+        assert_eq!(t.s.ed.cur.line, 1);
+        // Word-jump in status: its labels never stage files.
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "base"]).unwrap();
+        fs::write(t.dir.path().join("f.txt"), "changed\n").unwrap();
+        t.keys(" ms");
+        magit_settle(&mut t);
+        let row =
+            t.s.ed
+                .magit
+                .as_ref()
+                .unwrap()
+                .rows
+                .iter()
+                .position(|r| {
+                    matches!(
+                        &r.action,
+                        Some(crate::magit::RowAction::File(
+                            _,
+                            crate::magit::Section::Unstaged
+                        ))
+                    )
+                })
+                .unwrap();
+        t.s.ed.set_cursor(row, 0);
+        t.keys(" ss");
+        magit_settle(&mut t);
+        assert!(
+            repo.read(&["diff", "--cached", "--quiet"]).is_ok(),
+            "word-jump staged a file"
+        );
+        t.keys("<Esc>");
+        // 1 on a commit row closes its section and lands on the heading.
+        let row = t.s.ed.magit.as_ref().unwrap().rows.iter().position(|r| {
+            matches!(
+                &r.action,
+                Some(crate::magit::RowAction::Section(
+                    crate::magit::Section::UnpushedUpstream
+                ))
+            )
+        });
+        if let Some(h) = row {
+            t.s.ed.set_cursor(h, 0);
+            t.keys("<Tab>");
+            magit_settle(&mut t);
+            t.s.ed.set_cursor(h + 1, 0);
+            t.keys("1");
+            magit_settle(&mut t);
+            assert_eq!(t.s.ed.cur.line, h);
+        }
+    }
+
+    #[test]
     fn magit_file_log_reads_deleted_parent_and_tracked_symlink_name() {
         use std::os::unix::fs::symlink;
         let mut t = T::open(Some("target"), Some("target contents\n"));

@@ -42,3 +42,13 @@ movement; Space stays the leader in the rebase todo buffer, which also gets
 evil-collection's text-mode toggle (C-t or \); zC only applies to diff
 sections. Evidence: magit::tests::discard_keeps_unrelated_work_by_status,
 session::tests::magit_rebase_todo_buffer_upstream_keys.
+
+Independent review (October 4, keys): Alt keys reach Magit, blame, todo and
+draft buffers whole in the real terminal (they were always split into Esc +
+key, so M-j/M-k/M-1..M-4/M-w never worked outside tests); elsewhere an
+unhandled Alt key is still Esc + key. Magit keys stand aside while word-jump
+or explain overlays are open (labels could stage or discard). The git
+command run from a subdirectory keeps the toplevel repository (git -C), so
+Magit buffers refresh afterwards. Level keys 1-4 act on the heading above
+any row and move point to it. Not done: reset-quickly does not save the
+undone commit's message (Fred's message history reads the log).

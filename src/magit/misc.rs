@@ -9,6 +9,8 @@ pub enum Op {
     GitCommand {
         topdir: bool,
     },
+    /// The same, run in this directory relative to the toplevel (git -C).
+    GitCommandIn(std::path::PathBuf),
     ResetQuickly,
     RemoteSetHead,
     RemoteUnsetHead,
@@ -69,7 +71,9 @@ pub fn split_words(s: &str) -> Result<Vec<String>, String> {
 impl Repo {
     pub fn misc_prompts(&self, op: &Op, at_point: Option<String>) -> (Vec<String>, Vec<String>) {
         match op {
-            Op::GitCommand { .. } => (vec!["git ".into()], vec![String::new()]),
+            Op::GitCommand { .. } | Op::GitCommandIn(_) => {
+                (vec!["git ".into()], vec![String::new()])
+            }
             Op::ResetQuickly => {
                 let here = self
                     .current_branch()
@@ -99,7 +103,7 @@ impl Repo {
     pub fn misc_step(&self, op: Op, a: &[String]) -> Result<Next, String> {
         let at = |i: usize| a.get(i).map(String::as_str).unwrap_or("").trim();
         match op {
-            Op::GitCommand { .. } => {
+            Op::GitCommand { .. } | Op::GitCommandIn(_) => {
                 // A leading "git" is optional, as upstream's prompt shows it.
                 let mut words = split_words(at(0))?;
                 if words.first().map(String::as_str) == Some("git") {
@@ -107,6 +111,13 @@ impl Repo {
                 }
                 if words.is_empty() {
                     return Err("No git subcommand".into());
+                }
+                // The repository stays the toplevel (so its buffers refresh);
+                // a working directory is git -C relative to it.
+                if let Op::GitCommandIn(dir) = &op
+                    && !dir.as_os_str().is_empty()
+                {
+                    words.splice(0..0, ["-C".to_owned(), dir.to_string_lossy().into_owned()]);
                 }
                 Ok(Next::GitEditor(words))
             }

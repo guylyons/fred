@@ -344,8 +344,15 @@ fn ask_swap(
 fn step(s: &mut Session, hl: &mut Highlighter, ev: Event, resized: &mut bool) {
     match ev {
         Event::Key(k) => {
-            for key in map_keys(k) {
-                s.handle_key(key);
+            // Magit-style buffers bind Alt keys (M-j, M-w, M-1 ...): they get
+            // the key whole; elsewhere Alt+X stays Esc, X.
+            match map_key(k) {
+                Some(key) if key.alt && crate::magit::wants_alt(&s.ed) => s.handle_key(key),
+                _ => {
+                    for key in map_keys(k) {
+                        s.handle_key(key);
+                    }
+                }
             }
         }
         Event::Paste(text) => s.ed.paste(&text),

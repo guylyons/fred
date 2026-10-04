@@ -356,12 +356,15 @@ impl Session {
                         _ => None,
                     });
             self.start_magit(move || {
-                let mut repo = Repo::discover(&from)?;
-                if op == (crate::magit::misc::Op::GitCommand { topdir: false })
-                    && let Some(dir) = here
-                {
-                    repo = Repo { root: dir };
-                }
+                let repo = Repo::discover(&from)?;
+                let op = match (op, here) {
+                    (crate::magit::misc::Op::GitCommand { topdir: false }, Some(dir)) => {
+                        crate::magit::misc::Op::GitCommandIn(
+                            repo_relative(&repo, &dir).unwrap_or_default(),
+                        )
+                    }
+                    (op, _) => op,
+                };
                 let (prompts, defaults) = repo.misc_prompts(&op, at_point);
                 Ok(Outcome::Ask(repo, Question::Misc(op), defaults, prompts))
             });
@@ -633,6 +636,7 @@ impl Session {
                     .collect()
             };
             let mut load = vec![];
+            let mut heading = None;
             match (how, &selected) {
                 (Fold::Level(n), _) => {
                     view.expanded.clear();
@@ -649,18 +653,18 @@ impl Session {
                         load.extend(files_of(&view, Section::Staged));
                     }
                 }
-                (Fold::LevelHere(n), Some(at)) => {
-                    // The top-level section around point.
-                    let s = match at {
-                        RowAction::Section(s) | RowAction::File(_, s) => Some(*s),
-                        RowAction::Hunk(_, staged, ..) => Some(if *staged {
-                            Section::Staged
-                        } else {
-                            Section::Unstaged
-                        }),
-                        _ => None,
-                    };
+                (Fold::LevelHere(n), Some(_)) => {
+                    // The top-level section around point: the nearest heading
+                    // above (commits and stashes included); point moves to it.
+                    let s = view.rows[..=fallback.min(view.rows.len().saturating_sub(1))]
+                        .iter()
+                        .rev()
+                        .find_map(|r| match r.action {
+                            Some(RowAction::Section(s)) => Some(s),
+                            _ => None,
+                        });
                     if let Some(s) = s {
+                        heading = Some(RowAction::Section(s));
                         let staged = s == Section::Staged;
                         if n == 1 {
                             view.closed.insert(s);
@@ -704,6 +708,7 @@ impl Session {
                 }
                 _ => {}
             }
+            let selected = heading.or(selected);
             if load.is_empty() {
                 view.rebuild();
                 self.install_magit(view, selected, fallback);

@@ -526,6 +526,10 @@ impl View {
             .unwrap_or(fallback.min(self.rows.len().saturating_sub(1)))
     }
 }
+/// Buffers whose keys include Alt bindings (Magit, blame, todo, drafts).
+pub fn wants_alt(ed: &Editor) -> bool {
+    ed.magit.is_some() || ed.blame.is_some() || ed.rebase_todo.is_some() || ed.commit_repo.is_some()
+}
 /// Intercept the extra prefix and component-local keys before Vim editing.
 pub fn key(ed: &mut Editor, k: Key) -> bool {
     if let Mode::Pick(picker) = &ed.mode
@@ -655,7 +659,8 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         }
         return false;
     }
-    if ed.mode != Mode::Normal {
+    // Overlays that keep Normal mode (word-jump, explain) own their keys.
+    if ed.mode != Mode::Normal || ed.zap.is_some() || ed.explain.is_some() {
         return false;
     }
     if ed.vim.pending == [Key::ch(' ')] && k.char() == Some('m') {
