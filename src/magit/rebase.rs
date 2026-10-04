@@ -549,7 +549,8 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             return true;
         }
         // Space stays the leader (Space m ...).
-        KeyCode::Enter => {
+        // git-rebase-show-commit (RET) and -show-or-scroll-down (DEL).
+        KeyCode::Enter | KeyCode::Backspace => {
             ed.pending_effect = Some(ExEffect::Magit(super::Action::RebaseShowCommit));
             return true;
         }

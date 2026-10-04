@@ -209,6 +209,37 @@ pub enum Action {
     Go(bool),
     /// magit-describe-section (true) / -briefly.
     DescribeSection(bool),
+    /// magit-run-git-gui-blame on the visited file and line.
+    GitGuiBlame,
+    /// magit-abort-dwim.
+    AbortDwim,
+    /// magit-toggle-git-debug ('d'), -subprocess-record ('r'), -profiling
+    /// ('p') and -verbose-refresh ('v').
+    DebugToggle(char),
+    /// magit-profile-refresh-buffer.
+    ProfileRefresh,
+    /// magit-zap-caches.
+    ZapCaches,
+    /// magit-save-repository-buffers.
+    SaveRepositoryBuffers,
+    /// magit-wip-commit-buffer-file.
+    WipCommitFile,
+    /// magit-wip-mode: autosave wip refs after saving files and Git commands.
+    WipMode,
+    /// magit-dired-am-apply-patches: the marked patch files.
+    DiredAm,
+    /// magit-do-async-shell-command (&): a shell command on the file at point.
+    AsyncShell,
+    /// magit-ediff-stage, adapted: git add --patch for the file at point.
+    EdiffStage,
+    /// magit-update-index: an index blob buffer's text becomes the index entry.
+    UpdateIndex,
+    /// magit-edit-thing (e), -browse-thing (o) and -copy-thing (w).
+    Thing(char),
+    /// magit-info: the Magit manual.
+    Info,
+    /// magit-auto-revert-mode (on by default, as upstream).
+    AutoRevertMode,
     /// magit-diff-toggle-refine-hunk (t) and -fontify-hunk (T).
     DiffToggle(char),
     /// git-commit-insert-changelog-gnu (true) / -plain.
@@ -992,6 +1023,10 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
                 log_move_to_parent(ed);
             } else if k == Key::ctrl('r') {
                 ed.pending_effect = Some(ExEffect::Magit(Action::NextReference(false)));
+            } else if let KeyCode::Char(c @ ('e' | 'o' | 'w')) = k.code
+                && k.ctrl
+            {
+                ed.pending_effect = Some(ExEffect::Magit(Action::Thing(c)));
             } else if !selecting && (k == Key::ctrl('b') || k == Key::ctrl('f')) {
                 ed.pending_effect = Some(ExEffect::Magit(Action::Go(k == Key::ctrl('b'))));
             } else if selecting && k == Key::ctrl('c') {
@@ -1032,6 +1067,10 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
                 Some(Action::NextReference(false))
             } else if k == Key::ctrl('b') || k == Key::ctrl('f') {
                 Some(Action::Go(k == Key::ctrl('b')))
+            } else if let KeyCode::Char(c @ ('e' | 'o' | 'w')) = k.code
+                && k.ctrl
+            {
+                Some(Action::Thing(c))
             } else {
                 None
             };
@@ -1128,6 +1167,19 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         {
             open_menu(ed, 'L');
             return true;
+        }
+        // magit-diff-section-map: & runs a shell command on the file.
+        KeyCode::Char('&')
+            if !k.ctrl
+                && !k.alt
+                && ed.magit.as_ref().is_some_and(|v| {
+                    matches!(
+                        v.action_at(ed.cur.line),
+                        Some(RowAction::File(..) | RowAction::Hunk(..))
+                    ) || matches!(v.kind, Kind::Diff(..) | Kind::Patch(_))
+                }) =>
+        {
+            Some(Action::AsyncShell)
         }
         // magit-diff-section-map: C on a file or hunk adds a changelog entry.
         KeyCode::Char('C')
@@ -1572,6 +1624,21 @@ pub enum Question {
     FindFile,
     File(blob::FileOp),
 }
+/// Whether the prompt being answered reads a new branch name (where
+/// magit-whitespace-disallowed turns a space into a dash).
+pub fn reads_branch_name(p: &Prompt) -> bool {
+    use branch::Op as B;
+    let Prompt::Ask(_, question, _, prompts, answers) = p else {
+        return false;
+    };
+    let i = answers.len();
+    match question {
+        Question::Branch(B::Create | B::CreateCheckout | B::Spinoff | B::Spinout) => i == 0,
+        Question::Branch(B::Rename) => i == 1,
+        Question::Configure(configure::Op::Orphan) => i == 0,
+        _ => prompts.get(i).is_some_and(|p| p.contains("branch named")),
+    }
+}
 pub fn prompt(ed: &mut Editor, question: Prompt) {
     let text = match &question {
         Prompt::Workflow(_, operation, _) => operation.prompt().unwrap_or("").to_owned(),
@@ -1697,6 +1764,12 @@ pub(crate) fn open_menu(ed: &mut Editor, menu: char) {
         ed.magit_options
             .insert(MenuOption::Switch('C', "--verbose"));
     }
+    // magit-fetch-modules :value '("--verbose" "--jobs=4").
+    if menu == 'Z' && ed.magit_seeded.insert('Z') {
+        ed.magit_options
+            .insert(MenuOption::Switch('Z', "--verbose"));
+        ed.magit_values.insert(('Z', "--jobs="), "4".into());
+    }
     // magit-commit-absorb :value '("-v"), magit-commit-autofixup '("-vv").
     if menu == 'A' && ed.magit_seeded.insert('A') {
         ed.magit_options
@@ -1771,6 +1844,22 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
     use Action::*;
     use workflows::{Operation::*, StashAction};
     match menu {
+        // magit-fetch-modules.
+        'Z' => vec![
+            (
+                "-v",
+                "Arguments",
+                "Verbose",
+                ToggleOption(MenuOption::Switch('Z', "--verbose")),
+            ),
+            ("-j", "Arguments", "Number of jobs", ReadOption("--jobs=")),
+            (
+                "m",
+                "Action",
+                "Fetch modules",
+                Net(network::Op::FetchModules),
+            ),
+        ],
         // magit-commit-absorb.
         'A' => vec![
             (
@@ -1953,7 +2042,9 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 ("a", "Fetch from", "all remotes", Net(FetchAll)),
                 ("o", "Fetch", "another branch", Net(FetchBranch)),
                 ("r", "Fetch", "explicit refspec", Net(FetchRefspec)),
-                ("m", "Fetch", "submodules", Net(FetchModules)),
+                // Fred has no prefix argument: m opens magit-fetch-modules'
+                // transient, as C-u m does upstream.
+                ("m", "Fetch", "submodules", Menu('Z')),
                 (
                     "-u",
                     "Arguments",
@@ -2364,12 +2455,7 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                     "List modules",
                     Submodule(O::List),
                 ),
-                (
-                    "f",
-                    "Populated modules actions",
-                    "Fetch modules",
-                    Net(network::Op::FetchModules),
-                ),
+                ("f", "Populated modules actions", "Fetch modules", Menu('Z')),
             ]
         }
         'k' => {
@@ -2655,6 +2741,7 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 ("c", "Show", "Show commit", Ediff(E::ShowCommit)),
                 ("r", "Show", "Show range", Ediff(E::Compare)),
                 ("z", "Show", "Show stash", Ediff(E::ShowStash)),
+                ("s", "Ediff", "Stage", EdiffStage),
             ]
         }
         // magit-git-mergetool.
@@ -2666,14 +2753,53 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 ReadOption("--tool="),
             ),
             (
+                "=t",
+                "Settings",
+                "merge.guitool",
+                Configure(configure::Op::GlobalTool("merge.guitool")),
+            ),
+            (
+                "=T",
+                "Settings",
+                "merge.tool",
+                Configure(configure::Op::GlobalTool("merge.tool")),
+            ),
+            (
+                "-r",
+                "Settings",
+                "mergetool.hideResolved",
+                Configure(configure::Op::GlobalBool("mergetool.hideResolved", "false")),
+            ),
+            (
+                "-b",
+                "Settings",
+                "mergetool.keepBackup",
+                Configure(configure::Op::GlobalBool("mergetool.keepBackup", "true")),
+            ),
+            (
+                "-k",
+                "Settings",
+                "mergetool.keepTemporaries",
+                Configure(configure::Op::GlobalBool(
+                    "mergetool.keepTemporaries",
+                    "false",
+                )),
+            ),
+            (
+                "-w",
+                "Settings",
+                "mergetool.writeToTemp",
+                Configure(configure::Op::GlobalBool("mergetool.writeToTemp", "false")),
+            ),
+            (
                 "m",
                 "Actions",
                 "Invoke mergetool",
                 Ediff(ediff::Op::Resolve),
             ),
         ],
-        // magit-run: git subcommands (shell commands and GUI launchers are not
-        // ported; Fred runs Git in the terminal).
+        // magit-run: git subcommands and shell commands in the terminal, and
+        // graphical tools started in the background.
         '!' => vec![
             (
                 "!",
@@ -2686,6 +2812,33 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 "Run git subcommand",
                 "in working directory",
                 Misc(misc::Op::GitCommand { topdir: false }),
+            ),
+            (
+                "s",
+                "Run shell command",
+                "in repository root",
+                Misc(misc::Op::ShellCommand { topdir: true }),
+            ),
+            (
+                "S",
+                "Run shell command",
+                "in working directory",
+                Misc(misc::Op::ShellCommand { topdir: false }),
+            ),
+            ("k", "Launch", "gitk", Misc(misc::Op::Gitk(""))),
+            ("a", "Launch", "gitk --all", Misc(misc::Op::Gitk("--all"))),
+            (
+                "b",
+                "Launch",
+                "gitk --branches",
+                Misc(misc::Op::Gitk("--branches")),
+            ),
+            ("g", "Launch", "git gui", Misc(misc::Op::GitGui)),
+            (
+                "m",
+                "Launch",
+                "git mergetool --gui",
+                GitRun(&["mergetool", "--gui"]),
             ),
         ],
         // magit-log-refresh: the log arguments, then g applies them here.

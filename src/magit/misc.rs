@@ -25,6 +25,25 @@ pub enum Op {
     RemovingFile,
     /// magit-log-move-to-revision's question (answered by the session).
     LogJump,
+    /// magit-shell-command(-topdir): in the repository root, or this directory.
+    ShellCommand {
+        topdir: bool,
+    },
+    ShellCommandIn(std::path::PathBuf),
+    /// magit-run's Launch group: gitk (with arguments) or git gui.
+    Gitk(&'static str),
+    GitGui,
+    /// magit-run-git-gui-blame: file and line from the visited file.
+    GitGuiBlame(std::path::PathBuf, usize),
+    /// magit-debug-git-executable.
+    DebugGit,
+    /// magit-do-async-shell-command on this repository-relative file.
+    AsyncShell(std::path::PathBuf),
+}
+
+/// Quote a word for sh.
+pub fn shell_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
 }
 
 /// magit-completing-read-multiple: comma-separated repository-relative files.
@@ -116,7 +135,16 @@ impl Repo {
                     vec![String::new()],
                 )
             }
-            Op::GitConfigFile => (vec![], vec![]),
+            Op::GitConfigFile | Op::Gitk(_) | Op::GitGui | Op::GitGuiBlame(..) | Op::DebugGit => {
+                (vec![], vec![])
+            }
+            Op::ShellCommand { .. } | Op::ShellCommandIn(_) => {
+                (vec!["Async shell command: ".into()], vec![String::new()])
+            }
+            Op::AsyncShell(file) => (
+                vec![format!("& on {}: ", file.display())],
+                vec![String::new()],
+            ),
             Op::RemovingFile => {
                 let d = at_point.unwrap_or_default();
                 let suffix = if d.is_empty() {
@@ -243,6 +271,62 @@ impl Repo {
                 Ok(Next::Show(super::diff::Target::Commit(id)))
             }
             Op::LogJump => Err("answered by the log buffer".into()),
+            Op::AsyncShell(file) => {
+                let cmd = at(0);
+                if cmd.is_empty() {
+                    return Err("No command".into());
+                }
+                // dired-do-shell-command: "*" stands for the file, else it is
+                // appended.
+                let quoted = shell_quote(&file.to_string_lossy());
+                let cmd = if cmd.contains('*') {
+                    cmd.replace('*', &quoted)
+                } else {
+                    format!("{cmd} {quoted}")
+                };
+                Ok(Next::Shell(format!(
+                    "cd {} && {cmd}",
+                    shell_quote(&self.root.to_string_lossy())
+                )))
+            }
+            Op::ShellCommand { .. } | Op::ShellCommandIn(_) => {
+                let cmd = at(0);
+                if cmd.is_empty() {
+                    return Err("No command".into());
+                }
+                let dir = match &op {
+                    Op::ShellCommandIn(d) => self.root.join(d),
+                    _ => self.root.clone(),
+                };
+                Ok(Next::Shell(format!(
+                    "cd {} && {cmd}",
+                    shell_quote(&dir.to_string_lossy())
+                )))
+            }
+            Op::Gitk(args) => self.launch("gitk", args.split_whitespace().collect()),
+            Op::GitGui => self.launch("git", vec!["gui"]),
+            Op::GitGuiBlame(file, line) => {
+                let line = format!("--line={line}");
+                let file = file.to_string_lossy().into_owned();
+                self.launch("git", vec!["gui", "blame", &line, "HEAD", "--", &file])
+            }
+            Op::DebugGit => {
+                let version = self.read(&["--version"])?;
+                let exec = self.read(&["--exec-path"])?;
+                let which = std::env::var_os("PATH")
+                    .map(|p| std::env::split_paths(&p).collect::<Vec<_>>())
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|d| d.join("git"))
+                    .find(|p| p.is_file())
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_else(|| "git (not on PATH)".into());
+                Ok(Next::Done(Ok(format!(
+                    "{which}: {}, exec-path {}",
+                    String::from_utf8_lossy(&version).trim(),
+                    String::from_utf8_lossy(&exec).trim()
+                ))))
+            }
             Op::StageFiles(force) => {
                 let mut argv: Vec<std::ffi::OsString> = vec!["add".into()];
                 if force {
@@ -314,5 +398,24 @@ impl Repo {
             ])
             .ok()?;
         Some(String::from_utf8_lossy(&out).trim().to_owned()).filter(|s| !s.is_empty())
+    }
+}
+
+impl Repo {
+    /// magit-process-file with DESTINATION 0: start a graphical tool in the
+    /// repository and do not wait for it.
+    fn launch(&self, program: &str, args: Vec<&str>) -> Result<Next, String> {
+        std::process::Command::new(program)
+            .args(&args)
+            .current_dir(&self.root)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .map_err(|e| format!("{program}: {e}"))?;
+        Ok(Next::Done(Ok(format!(
+            "Started {program} {}",
+            args.join(" ")
+        ))))
     }
 }

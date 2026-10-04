@@ -84,6 +84,15 @@ pub struct Session {
     pub git_busy: bool,
     /// magit-commit-add-log: the entry (file, defun) for the draft being opened.
     pending_add_log: Option<(String, Option<String>)>,
+    /// magit-refresh-verbose, and a one-shot magit-profile-refresh-buffer:
+    /// report how long a refresh took and how many Git calls it made.
+    refresh_verbose: bool,
+    profile_once: Option<(std::time::Instant, usize)>,
+    /// magit-wip-mode.
+    pub wip_mode: bool,
+    /// magit-auto-revert-mode: reload unmodified repository files that a Git
+    /// command changed.
+    pub auto_revert: bool,
     /// magit-process-buffer's log: each terminal Git command and its result.
     pub git_log: Vec<(PathBuf, String, Result<(), String>)>,
     magit_job: Option<magit::Job>,
@@ -250,6 +259,10 @@ impl Session {
             git_log: vec![],
             git_busy: false,
             pending_add_log: None,
+            refresh_verbose: false,
+            profile_once: None,
+            wip_mode: false,
+            auto_revert: true,
             magit_job: None,
             magit_picker_repo: None,
             magit_drafts: std::collections::HashMap::new(),
@@ -276,6 +289,7 @@ impl Session {
             s.open_dired(d, None);
         }
         let info = s.leftover_swap();
+        s.attach_git_commit_mode();
         Ok((s, info))
     }
 
@@ -483,6 +497,10 @@ impl Session {
             Ok(st) => {
                 self.stamp = Some(st);
                 self.ed.mark_saved();
+                // magit-wip-after-save-mode.
+                if self.wip_mode {
+                    self.wip_after_save(p);
+                }
                 let msg = summary(p, &data);
                 self.ed.set_msg(msg.clone());
                 self.written = Some(msg);
@@ -675,6 +693,7 @@ impl Session {
         }));
         self.show(self.bufs.len() - 1);
         self.arrived();
+        self.attach_git_commit_mode();
     }
 
     /// Put `o` in place of the buffer being edited.
@@ -696,6 +715,7 @@ impl Session {
         self.last_change = None;
         self.swap_path = new_swap;
         self.reloaded = true;
+        self.attach_git_commit_mode();
     }
 
     /// Finish an `:e` that was waiting on [`SwapChoice`].
@@ -2863,6 +2883,100 @@ mod tests {
         t.s.handle_key(m_tab);
         magit_settle(&mut t);
         assert!(t.s.ed.magit.as_ref().unwrap().expanded.is_empty());
+    }
+
+    #[test]
+    fn magit_abort_dwim_update_index_and_auto_revert() {
+        let mut t = T::open(Some("f.txt"), Some("one\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "one"]).unwrap();
+        t.keys(":e!<Enter>");
+        // Nothing to abort.
+        t.keys(":Magit magit-abort-dwim<Enter>");
+        assert_eq!(t.msg(), "Nothing to abort");
+        // Space in a new branch name is a dash.
+        t.keys(" mbn");
+        magit_settle(&mut t);
+        t.keys("my topic<Enter><Enter>");
+        magit_settle(&mut t);
+        assert!(
+            repo.read(&["rev-parse", "--verify", "my-topic"]).is_ok(),
+            "{}",
+            t.msg()
+        );
+        // Auto-revert: a Git command that changes a saved file reloads it.
+        fs::write(t.dir.path().join("f.txt"), "two\n").unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "two"]).unwrap();
+        t.keys(":e!<Enter>");
+        assert_eq!(t.s.ed.buf.text(), "two");
+        t.s.finish_git(
+            crate::magit::repo::GitInvocation {
+                expected_head: None,
+                repo: repo.clone(),
+                args: vec![],
+                input: None,
+                draft: None,
+                draft_stamp: None,
+                editor: false,
+                after: None,
+            },
+            {
+                repo.read(&["reset", "-q", "--hard", "HEAD~1"]).unwrap();
+                Ok(())
+            },
+        );
+        assert_eq!(t.s.ed.buf.text(), "one");
+        // magit-update-index: an edited index blob becomes the staged text.
+        t.s.magit_action(crate::magit::Action::BlobVisit(
+            crate::magit::blob::INDEX.into(),
+            "f.txt".into(),
+        ));
+        magit_settle(&mut t);
+        assert!(t.s.ed.blob.is_some(), "{}", t.msg());
+        let (edit, _) =
+            t.s.ed
+                .buf
+                .splice_edit(0, 1, &["staged".to_owned()])
+                .unwrap();
+        t.s.ed.buf.apply(edit);
+        t.keys(":Magit magit-update-index<Enter>");
+        magit_settle(&mut t);
+        let staged = repo.read(&["show", ":f.txt"]).unwrap();
+        assert_eq!(
+            String::from_utf8_lossy(&staged).trim(),
+            "staged",
+            "{}",
+            t.msg()
+        );
+    }
+
+    #[test]
+    fn magit_git_commit_mode_for_messages_git_is_waiting_for() {
+        let mut t = T::open(Some("f.txt"), Some("one\n"));
+        magit_repo(&t);
+        fs::write(t.dir.path().join(".git/COMMIT_EDITMSG"), "Subject\n").unwrap();
+        t.keys(&format!(
+            ":e {}<Enter>",
+            t.dir.path().join(".git/COMMIT_EDITMSG").display()
+        ));
+        assert!(t.s.ed.commit_repo.is_some(), "{}", t.msg());
+        // git-commit keys work; finishing saves and quits (with-editor-finish).
+        t.keys("<C-c><C-s>");
+        assert!(
+            t.s.ed.buf.text().contains("Signed-off-by:"),
+            "{}",
+            t.s.ed.buf.text()
+        );
+        t.keys(" mcc");
+        assert!(t.s.quit, "{}", t.msg());
+        let saved = fs::read_to_string(t.dir.path().join(".git/COMMIT_EDITMSG")).unwrap();
+        assert!(saved.contains("Signed-off-by:"));
     }
 
     #[test]

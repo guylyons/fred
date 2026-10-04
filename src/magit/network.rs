@@ -36,6 +36,8 @@ impl Op {
             PushRemote | PushUpstream | PushElsewhere | PushOther | PushRefspecs | PushMatching
             | PushTag | PushTags | PushToRemote => 'p',
             PullRemote | PullUpstream | PullElsewhere | PullIntoUpstream => 'P',
+            // magit-fetch-modules has its own transient.
+            FetchModules => 'Z',
             _ => 'f',
         }
     }
@@ -358,8 +360,11 @@ impl Repo {
                 add(&["fetch", checked(answer(0)?)?, checked(answer(1)?)?]);
                 add(&args.iter().map(String::as_str).collect::<Vec<_>>());
             }
-            // magit-fetch-modules' own default arguments, not magit-fetch's.
-            FetchModules => add(&["fetch", "--recurse-submodules", "--verbose", "--jobs=4"]),
+            // magit-fetch-modules: its own transient's arguments.
+            FetchModules => {
+                add(&["fetch", "--recurse-submodules"]);
+                add(&args.iter().map(String::as_str).collect::<Vec<_>>());
+            }
             PullIntoUpstream => {
                 // magit-pull--upstreams: a local upstream whose own upstream is remote.
                 let up1 = self

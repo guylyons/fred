@@ -340,3 +340,12 @@ refinement (t), commit fixup/squash/absorb and rebase i/m/w/k pick their
 commit in magit-log-select-mode when none is at point, and logs gain
 =g, C-c C-r references, move-to-revision, history (C-c C-b/C-f) and M-Tab
 diff cycling. Ledger 714 partial / 59 missing commands. Score remains 3%.
+
+October 4 run/tools checkpoint: Space m ! gains shell commands and the
+gitk/git gui/mergetool --gui launchers; the mergetool menu gains its six
+variables; f m opens magit-fetch-modules' transient; abort-dwim, wip-mode
+(after save and after Git commands), per-file wip commits, auto-revert of
+unmodified buffers, git-commit-mode for message files Git opens in Fred,
+debug/record/profiling toggles feeding the process buffer, & shell
+commands, dired am, update-index, and dash-for-space in branch names.
+Ledger 757 partial / 16 missing commands. Score remains 3%.

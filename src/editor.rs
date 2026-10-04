@@ -563,6 +563,17 @@ impl Editor {
                 }
             }
             KeyCode::Tab | KeyCode::BackTab => self.complete_cmdline(k.code == KeyCode::BackTab),
+            // magit-whitespace-disallowed: a space in a branch name is a dash.
+            KeyCode::Char(' ')
+                if !k.ctrl
+                    && !k.alt
+                    && self
+                        .magit_prompt
+                        .as_ref()
+                        .is_some_and(crate::magit::reads_branch_name) =>
+            {
+                cl.edit(Key::ch('-'))
+            }
             _ => cl.edit(k),
         }
     }

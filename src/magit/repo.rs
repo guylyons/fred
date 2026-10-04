@@ -4,6 +4,25 @@ use std::io::Write;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// magit-toggle-git-debug: failing background Git calls are logged for the
+/// process buffer; magit-toggle-subprocess-record logs every call, and
+/// magit-toggle-profiling every call with its duration.
+pub static DEBUG: AtomicBool = AtomicBool::new(false);
+pub static RECORD: AtomicBool = AtomicBool::new(false);
+pub static PROFILE: AtomicBool = AtomicBool::new(false);
+/// Background Git calls so far (magit-profile-refresh-buffer counts them).
+pub static CALLS_COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+type Call = (PathBuf, String, Result<(), String>);
+static CALLS: std::sync::Mutex<Vec<Call>> = std::sync::Mutex::new(vec![]);
+/// The logged background calls, oldest first, since the last take.
+pub fn take_calls() -> Vec<Call> {
+    CALLS
+        .lock()
+        .map(|mut c| std::mem::take(&mut *c))
+        .unwrap_or_default()
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Repo {
@@ -84,6 +103,44 @@ impl Repo {
         self.run_index(args, input, None)
     }
     pub(super) fn run_index(
+        &self,
+        args: &[OsString],
+        input: Option<&[u8]>,
+        index: Option<&Path>,
+    ) -> Result<Vec<u8>, String> {
+        CALLS_COUNT.fetch_add(1, Ordering::Relaxed);
+        let (debug, record, profile) = (
+            DEBUG.load(Ordering::Relaxed),
+            RECORD.load(Ordering::Relaxed),
+            PROFILE.load(Ordering::Relaxed),
+        );
+        if !(debug || record || profile) {
+            return self.run_index_inner(args, input, index);
+        }
+        let start = std::time::Instant::now();
+        let result = self.run_index_inner(args, input, index);
+        if record || profile || (debug && result.is_err()) {
+            let mut line: String = args
+                .iter()
+                .map(|a| a.to_string_lossy())
+                .collect::<Vec<_>>()
+                .join(" ");
+            if profile {
+                line.push_str(&format!(
+                    " [{:.1} ms]",
+                    start.elapsed().as_secs_f64() * 1000.0
+                ));
+            }
+            let outcome = result.as_ref().map(|_| ()).map_err(Clone::clone);
+            if let Ok(mut calls) = CALLS.lock() {
+                calls.push((self.root.clone(), line, outcome));
+                let excess = calls.len().saturating_sub(1000);
+                calls.drain(..excess);
+            }
+        }
+        result
+    }
+    fn run_index_inner(
         &self,
         args: &[OsString],
         input: Option<&[u8]>,

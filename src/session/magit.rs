@@ -40,6 +40,8 @@ pub(super) enum Outcome {
     Copy(String, String),
     /// Answer a question without asking (the commit at point).
     Answer(Repo, Question, Vec<String>, Vec<String>),
+    /// A shell command for the terminal.
+    Shell(String),
 }
 /// magit-log-select: the current branch's log, in which picking a commit
 /// answers QUESTION (after ANSWERS). INITIAL is the commit to start on;
@@ -154,6 +156,11 @@ impl Session {
         if self.magit_job.is_some() || self.pending_git.is_some() || self.git_busy {
             self.ed.set_err("Git operation in progress");
             return;
+        }
+        // magit-refresh-verbose times every refresh.
+        if self.refresh_verbose && action == Action::Refresh && self.profile_once.is_none() {
+            let calls = crate::magit::repo::CALLS_COUNT.load(std::sync::atomic::Ordering::Relaxed);
+            self.profile_once = Some((std::time::Instant::now(), calls));
         }
         if let Action::Stash(operation) = action {
             let Some(mut view) = self.ed.magit.as_deref().cloned() else {
@@ -464,6 +471,11 @@ impl Session {
                             repo_relative(&repo, &dir).unwrap_or_default(),
                         )
                     }
+                    (crate::magit::misc::Op::ShellCommand { topdir: false }, Some(dir)) => {
+                        crate::magit::misc::Op::ShellCommandIn(
+                            repo_relative(&repo, &dir).unwrap_or_default(),
+                        )
+                    }
                     (op, _) => op,
                 };
                 let (prompts, defaults) = repo.misc_prompts(&op, at_point);
@@ -632,6 +644,165 @@ impl Session {
             });
             return;
         }
+        if action == Action::DiredAm {
+            let Some(d) = self.ed.dired.as_ref() else {
+                return self.ed.set_err("Not in a dired buffer");
+            };
+            let dir = d.dir.clone();
+            let files = crate::dired::selection(&self.ed);
+            let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, 'w'));
+            self.start_magit(move || {
+                let repo = Repo::discover(&dir)?;
+                if files.is_empty() {
+                    return Err("No patch files selected".into());
+                }
+                let mut argv = vec!["am".to_owned()];
+                argv.extend(args);
+                argv.push("--".into());
+                argv.extend(files.iter().map(|f| f.to_string_lossy().into_owned()));
+                Ok(branch_outcome(
+                    repo,
+                    crate::magit::branch::Next::GitEditor(argv),
+                    origin,
+                ))
+            });
+            return;
+        }
+        if matches!(action, Action::AsyncShell | Action::EdiffStage) {
+            let file = match self
+                .ed
+                .magit
+                .as_deref()
+                .and_then(|v| v.action_at(self.ed.cur.line))
+            {
+                Some(RowAction::File(p, _) | RowAction::Hunk(p, ..)) => Some(p),
+                _ => self.hunk_defun().map(|(f, _)| PathBuf::from(f)),
+            };
+            let Some(file) = file else {
+                return self.ed.set_err("No file at point");
+            };
+            if action == Action::AsyncShell {
+                return self.magit_action(Action::Misc(crate::magit::misc::Op::AsyncShell(file)));
+            }
+            let (origin, from) = (self.cur, self.magit_from());
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                let argv = vec![
+                    "add".into(),
+                    "--patch".into(),
+                    "--".into(),
+                    file.to_string_lossy().into_owned(),
+                ];
+                Ok(branch_outcome(
+                    repo,
+                    crate::magit::branch::Next::GitEditor(argv),
+                    origin,
+                ))
+            });
+            return;
+        }
+        if action == Action::UpdateIndex {
+            let Some(b) = self
+                .ed
+                .blob
+                .as_ref()
+                .filter(|b| b.rev == crate::magit::blob::INDEX)
+            else {
+                return self.ed.set_err("Not visiting the index blob of a file");
+            };
+            let (repo, file) = (b.repo.clone(), b.file.clone());
+            let text = self.ed.buf.to_bytes();
+            let origin = self.cur;
+            self.start_magit(move || {
+                let path = crate::magit::repo::literal_pathspec(&file);
+                let staged =
+                    repo.run(&["ls-files".into(), "-s".into(), "--".into(), path], None)?;
+                let mode = String::from_utf8_lossy(&staged)
+                    .split_whitespace()
+                    .next()
+                    .map(str::to_owned)
+                    .ok_or("File is not in the index")?;
+                let id = repo.run(
+                    &["hash-object".into(), "-w".into(), "--stdin".into()],
+                    Some(&text),
+                )?;
+                let id = String::from_utf8_lossy(&id).trim().to_owned();
+                repo.run(
+                    &[
+                        "update-index".into(),
+                        "--cacheinfo".into(),
+                        format!("{mode},{id},{}", file.to_string_lossy()).into(),
+                    ],
+                    None,
+                )?;
+                Ok(branch_outcome(
+                    repo,
+                    crate::magit::branch::Next::Done(Ok(format!(
+                        "Updated index entry of {}",
+                        file.display()
+                    ))),
+                    origin,
+                ))
+            });
+            return;
+        }
+        if let Action::Thing(what) = action {
+            // Placeholders upstream: only a URL at point can be browsed.
+            let line = self.ed.buf.line(self.ed.cur.line);
+            let col = self.ed.cur.byte.min(line.len());
+            let url = line
+                .match_indices("http")
+                .map(|(i, _)| i)
+                .filter(|&i| i <= col)
+                .filter_map(|i| {
+                    let end = line[i..]
+                        .find(|c: char| c.is_whitespace() || "<>\"')".contains(c))
+                        .map_or(line.len(), |e| i + e);
+                    let u = &line[i..end];
+                    (end >= col && (u.starts_with("http://") || u.starts_with("https://")))
+                        .then(|| u.to_owned())
+                })
+                .last();
+            return match (what, url) {
+                ('o', Some(u)) => self.browse(&u),
+                ('o', None) => self
+                    .ed
+                    .set_err("There is no thing at point that could be browsed"),
+                ('e', _) => self
+                    .ed
+                    .set_err("There is no thing at point that could be edited"),
+                _ => self
+                    .ed
+                    .set_err("There is no thing at point that we know how to copy"),
+            };
+        }
+        if action == Action::Info {
+            return self.browse("https://magit.vc/manual/magit/");
+        }
+        if action == Action::AutoRevertMode {
+            self.auto_revert = !self.auto_revert;
+            let on = if self.auto_revert {
+                "enabled"
+            } else {
+                "disabled"
+            };
+            return self.ed.set_msg(format!("Magit-Auto-Revert mode {on}"));
+        }
+        if action == Action::WipMode {
+            self.wip_mode = !self.wip_mode;
+            let on = if self.wip_mode { "enabled" } else { "disabled" };
+            return self.ed.set_msg(format!("Magit-Wip mode {on}"));
+        }
+        if action == Action::WipCommitFile {
+            let Some(path) = self.ed.path.clone().filter(|_| !self.ed.generated()) else {
+                return self.ed.set_err("Not visiting a file");
+            };
+            let file = match Repo::discover(&path).and_then(|r| repo_relative(&r, &path)) {
+                Ok(f) => f,
+                Err(e) => return self.ed.set_err(e),
+            };
+            return self.magit_action(Action::Wip(crate::magit::wip::Op::CommitFile(file)));
+        }
         if let Action::Wip(op) = action {
             let (origin, from) = (self.cur, self.magit_from());
             self.start_magit(move || {
@@ -699,6 +870,118 @@ impl Session {
             return self
                 .ed
                 .set_msg(format!("{name} {}", if on { "on" } else { "off" }));
+        }
+        if action == Action::GitGuiBlame {
+            // The visited file at this line, else (upstream reads them) HEAD's.
+            let Some(path) = self.ed.path.clone().filter(|_| !self.ed.generated()) else {
+                return self.ed.set_err("Not visiting a file");
+            };
+            let repo = match Repo::discover(&path) {
+                Ok(r) => r,
+                Err(e) => return self.ed.set_err(e),
+            };
+            let file = match repo_relative(&repo, &path) {
+                Ok(f) => f,
+                Err(e) => return self.ed.set_err(e),
+            };
+            let line = self.ed.cur.line + 1;
+            return self.magit_action(Action::Misc(crate::magit::misc::Op::GitGuiBlame(
+                file, line,
+            )));
+        }
+        if action == Action::AbortDwim {
+            use crate::magit::{merge, patch, rebase, sequence};
+            let repo = match Repo::discover(&self.magit_from()) {
+                Ok(r) => r,
+                Err(e) => return self.ed.set_err(e),
+            };
+            // magit-abort-dwim's order: merge, rebase, am, sequencer, bisect.
+            let workflow = repo.active_workflow().ok().flatten();
+            let next = if workflow == Some("merge") {
+                Action::Merge(merge::Op::Abort)
+            } else if repo.am_in_progress() {
+                Action::Patch(patch::Op::AmAbort)
+            } else if workflow == Some("rebase") {
+                Action::Rebase(rebase::Op::Abort)
+            } else if matches!(workflow, Some("cherry-pick" | "revert")) {
+                Action::Sequence(sequence::Op::Abort)
+            } else if repo.bisecting() {
+                Action::Bisect(crate::magit::bisect::Op::Reset)
+            } else {
+                return self.ed.set_msg("Nothing to abort");
+            };
+            return self.magit_action(next);
+        }
+        if let Action::DebugToggle(which) = action {
+            use crate::magit::repo::{DEBUG, PROFILE, RECORD};
+            use std::sync::atomic::Ordering;
+            let (flag, name) = match which {
+                'd' => (&DEBUG, "Git debug"),
+                'r' => (&RECORD, "Subprocess recording"),
+                'p' => (&PROFILE, "Profiling"),
+                _ => {
+                    self.refresh_verbose = !self.refresh_verbose;
+                    let on = if self.refresh_verbose { "on" } else { "off" };
+                    return self.ed.set_msg(format!("Verbose refresh {on}"));
+                }
+            };
+            let on = !flag.fetch_xor(true, Ordering::Relaxed);
+            return self.ed.set_msg(format!(
+                "{name} {} (see the process buffer)",
+                if on { "on" } else { "off" }
+            ));
+        }
+        if action == Action::ProfileRefresh {
+            if self.ed.magit.is_none() {
+                return self.ed.set_err("Not in a Magit buffer");
+            }
+            let calls = crate::magit::repo::CALLS_COUNT.load(std::sync::atomic::Ordering::Relaxed);
+            self.profile_once = Some((std::time::Instant::now(), calls));
+            return self.magit_action(Action::Refresh);
+        }
+        if action == Action::ZapCaches {
+            for ed in self.editors_mut() {
+                if let Some(v) = &mut ed.magit {
+                    v.stamps.clear();
+                    v.dirty = true;
+                }
+            }
+            if self.ed.magit.is_some() {
+                return self.magit_action(Action::Refresh);
+            }
+            return self.ed.set_msg("Zapped caches");
+        }
+        if action == Action::SaveRepositoryBuffers {
+            let Ok(repo) = Repo::discover(&self.magit_from()) else {
+                return self.ed.set_err("not in a Git repository");
+            };
+            let origin = self.cur;
+            let slots: Vec<usize> = (0..self.bufs.len())
+                .filter(|&i| {
+                    let ed = self.ed_at(i);
+                    ed.buf.modified
+                        && ed.magit.is_none()
+                        && !ed.generated()
+                        && ed
+                            .path
+                            .as_ref()
+                            .is_some_and(|p| swap::canonical(p).starts_with(&repo.root))
+                })
+                .collect();
+            let mut saved = 0;
+            for i in &slots {
+                self.show(*i);
+                if self.write(None, false, None) {
+                    saved += 1;
+                }
+            }
+            if self.cur != origin && origin < self.bufs.len() {
+                self.show(origin);
+            }
+            return self.ed.set_msg(format!(
+                "Saved {saved} buffer(s) in {}",
+                repo.root.display()
+            ));
         }
         if action == Action::LogMoveTo {
             return self.magit_action(Action::Misc(crate::magit::misc::Op::LogJump));
@@ -1061,6 +1344,9 @@ impl Session {
             return;
         }
         if action == Action::ProcessBuffer {
+            self.git_log.extend(crate::magit::repo::take_calls());
+            let excess = self.git_log.len().saturating_sub(1000);
+            self.git_log.drain(..excess);
             // magit-process-buffer: this repository's Git commands, newest last.
             let Ok(repo) = Repo::discover(&self.magit_from()) else {
                 return self.ed.set_err("not in a Git repository");
@@ -2543,6 +2829,27 @@ impl Session {
             });
             return;
         }
+        // with-editor-finish in a message Git is waiting for.
+        if action == Action::Commit
+            && self.ed.commit_repo.is_some()
+            && self
+                .ed
+                .path
+                .as_ref()
+                .is_some_and(|p| !self.magit_drafts.contains_key(p))
+            && !self
+                .ed
+                .path
+                .as_ref()
+                .is_some_and(|p| p.starts_with(self.swap_dir.with_file_name("magit")))
+        {
+            return self.perform(crate::ex::ExEffect::Write {
+                path: None,
+                force: false,
+                range: None,
+                then_quit: true,
+            });
+        }
         if action == Action::Commit
             && let Some(repo) = self.ed.commit_repo.clone()
         {
@@ -3083,6 +3390,9 @@ impl Session {
                     self.magit_action(Action::Blame(kind));
                 }
             }
+            Ok(Outcome::Shell(cmd)) => {
+                self.pending_shell = Some(cmd);
+            }
             Ok(Outcome::Answer(repo, question, answers, defaults)) => {
                 self.magit_action(Action::Answered(repo, question, answers, defaults));
             }
@@ -3249,6 +3559,47 @@ impl Session {
         }
         true
     }
+    /// global-git-commit-mode: a message file Git asked Fred to edit
+    /// (git-commit-filename-regexp) gets the commit draft keys; finishing it
+    /// (Space m c c) saves and quits, as with-editor-finish.
+    pub(super) fn attach_git_commit_mode(&mut self) {
+        const NAMES: [&str; 9] = [
+            "COMMIT_EDITMSG",
+            "MERGE_MSG",
+            "TAG_EDITMSG",
+            "PULLREQ_EDITMSG",
+            "MERGEREQ_EDITMSG",
+            "SQUASH_MSG",
+            "NOTES_EDITMSG",
+            "EDIT_DESCRIPTION",
+            "BRANCH_DESCRIPTION",
+        ];
+        let Some(path) = self.ed.path.clone() else {
+            return;
+        };
+        let named = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| NAMES.contains(&n));
+        // Fred's own drafts (also after a restart) live in its state directory.
+        let own = path.starts_with(self.swap_dir.with_file_name("magit"))
+            || self.magit_drafts.contains_key(&path);
+        if !named || own || self.ed.commit_repo.is_some() {
+            return;
+        }
+        // Git runs the editor in the worktree; the file is in the git dir.
+        let worktree = path
+            .ancestors()
+            .find(|d| d.file_name().is_some_and(|n| n == ".git"))
+            .and_then(Path::parent)
+            .map(Path::to_path_buf)
+            .or_else(|| std::env::current_dir().ok());
+        if let Some(repo) = worktree.and_then(|d| Repo::discover(&d).ok()) {
+            self.ed.commit_repo = Some(repo);
+            self.ed.commit_mode = crate::magit::CommitMode::New;
+            self.ed.commit_args = vec![];
+        }
+    }
     pub(super) fn attach_commit_repo(&mut self) {
         if let Some((repo, mode, args)) =
             self.ed.path.as_ref().and_then(|p| self.magit_drafts.get(p))
@@ -3381,6 +3732,73 @@ impl Session {
             }));
             Ok(branch_outcome(repo, next, origin))
         });
+    }
+    /// magit-auto-revert-mode: reload unmodified buffers of files under ROOT
+    /// that changed on disk (auto-revert-buffer, without its timer).
+    fn auto_revert_buffers(&mut self, root: &Path) {
+        let origin = self.cur;
+        let stale: Vec<usize> = (0..self.bufs.len())
+            .filter(|&i| {
+                let (ed, stamp) = if i == self.cur {
+                    (&self.ed, self.stamp.as_ref())
+                } else {
+                    match &self.bufs[i] {
+                        Some(p) => (&p.ed, p.stamp.as_ref()),
+                        None => return false,
+                    }
+                };
+                !ed.buf.modified
+                    && ed.magit.is_none()
+                    && ed.commit_repo.is_none()
+                    && !ed.generated()
+                    && ed.path.as_ref().is_some_and(|p| {
+                        swap::canonical(p).starts_with(root)
+                            && p.is_file()
+                            && fileio::changed_on_disk(p, stamp)
+                    })
+            })
+            .collect();
+        for i in stale {
+            self.show(i);
+            self.edit(None, false);
+        }
+        if self.cur != origin {
+            self.show(origin);
+        }
+    }
+    /// browse-url: the system's opener, detached.
+    fn browse(&mut self, url: &str) {
+        let opener = if cfg!(target_os = "macos") {
+            "open"
+        } else {
+            "xdg-open"
+        };
+        match std::process::Command::new(opener)
+            .arg(url)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+        {
+            Ok(_) => self.ed.set_msg(format!("Opened {url}")),
+            Err(e) => self.ed.set_err(format!("{opener}: {e}")),
+        }
+    }
+    /// magit-wip-after-save-local-mode: the saved file's worktree wip ref.
+    pub(super) fn wip_after_save(&mut self, path: &Path) {
+        // ponytail: synchronous; a few local plumbing calls per save.
+        let result = Repo::discover(path).and_then(|r| {
+            let file = repo_relative(&r, path)?;
+            // Only tracked files have wip state.
+            r.read(&["ls-files", "--error-unmatch", "--", &file.to_string_lossy()])?;
+            r.wip_commit_file(&file)
+        });
+        if let Err(e) = result
+            && !e.contains("did not match")
+            && !e.contains("not a git repository")
+        {
+            self.ed.set_err(format!("magit-wip: {e}"));
+        }
     }
     /// magit-log-move-to-revision: in this log buffer, else the log of all
     /// branches.
@@ -4017,6 +4435,27 @@ impl Session {
         } else {
             "Git status refreshed".into()
         });
+        // magit-refresh-verbose / magit-profile-refresh-buffer.
+        let profile = self.profile_once.take();
+        if self.refresh_verbose || profile.is_some() {
+            let title = self
+                .ed
+                .magit
+                .as_ref()
+                .map(|v| v.title())
+                .unwrap_or_default();
+            let mut msg = format!("Refreshing buffer `{title}'...done");
+            if let Some((start, calls)) = profile {
+                let n = crate::magit::repo::CALLS_COUNT
+                    .load(std::sync::atomic::Ordering::Relaxed)
+                    .saturating_sub(calls);
+                msg.push_str(&format!(
+                    " ({:.3}s, {n} Git calls)",
+                    start.elapsed().as_secs_f64()
+                ));
+            }
+            self.ed.set_msg(msg);
+        }
     }
     fn refresh_gutters(&mut self) {
         for ed in self.editors_mut() {
@@ -4062,6 +4501,17 @@ impl Session {
                 self.ed.set_err(e);
             }
             return;
+        }
+        if self.auto_revert {
+            self.auto_revert_buffers(&inv.repo.root);
+        }
+        // magit-wip-after-apply-mode: record the state Git left behind.
+        if self.wip_mode
+            && inv.draft.is_none()
+            && let Err(e) = inv.repo.wip_commit("wip-save tracked files after Git")
+            && !e.contains("No commit")
+        {
+            self.ed.set_err(format!("magit-wip: {e}"));
         }
         if let Some(crate::magit::repo::After::Git(args)) = inv.after {
             self.pending_git = Some(GitInvocation {
@@ -4188,6 +4638,7 @@ fn branch_outcome(repo: Repo, next: crate::magit::branch::Next, origin: usize) -
             }
         }
         Next::Visit(path) => Outcome::VisitFile(path, 0),
+        Next::Shell(cmd) => Outcome::Shell(cmd),
         Next::Invoke(inv) => Outcome::Git(inv),
         Next::View(kind) => {
             let mut view = View::status(repo.clone(), Default::default());

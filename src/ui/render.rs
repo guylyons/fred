@@ -276,6 +276,17 @@ pub fn mouse(
                 ed.set_cursor(line, byte);
                 ed.popup = None;
                 ed.vim.pending.clear();
+                // magit-mouse-toggle-section: a click on a section's v/>.
+                if ed.magit.is_some() {
+                    let indicator = text.len() - text.trim_start().len();
+                    if byte == indicator
+                        && matches!(text[indicator..].chars().next(), Some('v' | '>'))
+                        && text[indicator..].chars().nth(1) == Some(' ')
+                    {
+                        ed.handle_key(crate::key::Key::new(crate::key::KeyCode::Tab));
+                        return;
+                    }
+                }
                 if ed.dired.as_ref().is_some_and(|d| !d.editing) {
                     view.detached = true;
                     if view.double_click(false, line) {

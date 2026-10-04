@@ -69,6 +69,8 @@ pub enum Next {
     Invoke(super::repo::GitInvocation),
     /// Visit a file (a cover letter).
     Visit(std::path::PathBuf),
+    /// A shell command for the terminal (magit-shell-command).
+    Shell(String),
 }
 
 fn name(v: &str) -> Result<&str, String> {

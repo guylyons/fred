@@ -13,6 +13,8 @@ pub enum Op {
     LogCurrent,
     Purge,
     PurgeConfirmed(Vec<String>),
+    /// magit-wip-commit-buffer-file: this file's worktree state only.
+    CommitFile(std::path::PathBuf),
 }
 
 const NAMESPACE: &str = "refs/wip/";
@@ -112,6 +114,38 @@ impl Repo {
             _ => format!("Saved work in progress to {NAMESPACE}{{index,wtree}}/{r}"),
         })
     }
+    /// magit-wip-commit-worktree for FILE: the worktree wip ref's tree (or
+    /// the branch's) with this file's current content.
+    pub fn wip_commit_file(&self, file: &std::path::Path) -> Result<String, String> {
+        let r = self
+            .wip_ref()
+            .ok_or("No commit to base work-in-progress refs on")?;
+        let wipref = Self::wip_name("wtree", &r);
+        let base = if self.rev(&wipref).is_some() {
+            wipref.clone()
+        } else {
+            r.clone()
+        };
+        let tmp = StashIndex::new()?;
+        let idx = tmp.0.join("index");
+        let run = |args: Vec<OsString>| self.run_index(&args, None, Some(&idx));
+        run(vec!["read-tree".into(), base.into()])?;
+        run(vec![
+            "add".into(),
+            "-u".into(),
+            "--".into(),
+            super::repo::literal_pathspec(file),
+        ])?;
+        let tree = String::from_utf8_lossy(&run(vec!["write-tree".into()])?)
+            .trim()
+            .to_owned();
+        let msg = format!("autosave {} after save", file.display());
+        Ok(if self.wip_update(&r, &wipref, &tree, &msg, "worktree")? {
+            format!("Saved {} to {wipref}", file.display())
+        } else {
+            "No changes since the last wip commit".into()
+        })
+    }
     pub fn wip_step(&self, op: Op, a: &[String]) -> Result<Next, String> {
         let r = self.wip_ref().unwrap_or_else(|| "HEAD".into());
         let log = |revs: Vec<String>| {
@@ -122,6 +156,7 @@ impl Repo {
         };
         match op {
             Op::Commit => Ok(Next::Done(Ok(self.wip_commit("wip-save tracked files")?))),
+            Op::CommitFile(file) => Ok(Next::Done(Ok(self.wip_commit_file(&file)?))),
             Op::LogIndex => log(vec![Self::wip_name("index", &r)]),
             Op::LogWorktree => log(vec![Self::wip_name("wtree", &r)]),
             Op::LogCurrent => {

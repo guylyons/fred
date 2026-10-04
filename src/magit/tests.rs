@@ -4109,7 +4109,10 @@ fn margin_ages_widths_stamps_and_refinement() {
     );
     // Hunk refinement: changed words, and each line's partner in its run.
     let (a, b) = super::diff::refine("let x = 1;", "let y = 1;");
-    assert_eq!((a.len(), b.len(), a[0].clone(), b[0].clone()), (1, 1, 4..5, 4..5));
+    assert_eq!(
+        (a.len(), b.len(), a[0].clone(), b[0].clone()),
+        (1, 1, 4..5, 4..5)
+    );
     let lines = [" ctx", "-a", "-b", "+A", "+B", "+C", " ctx"];
     let p = |l| super::diff::refine_partner(&lines, l);
     assert_eq!(
@@ -4158,4 +4161,87 @@ fn removing_file_and_fixup_target() {
         "{target}"
     );
     assert_eq!(r.fixup_target("HEAD~1").as_deref(), Some("HEAD~1"));
+}
+#[test]
+fn shell_commands_wip_file_and_recorded_calls() {
+    use super::branch::Next;
+    use super::misc::Op;
+    let (d, r) = setup();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    committed(d.path(), b"one\n");
+    // magit-shell-command runs in the root (quoted); & substitutes the file.
+    let Next::Shell(cmd) = r
+        .misc_step(Op::ShellCommand { topdir: true }, &s(&["ls"]))
+        .unwrap()
+    else {
+        panic!()
+    };
+    assert!(cmd.starts_with("cd '") && cmd.ends_with("' && ls"), "{cmd}");
+    let Next::Shell(cmd) = r
+        .misc_step(Op::AsyncShell("it's.txt".into()), &s(&["wc -l * | sort"]))
+        .unwrap()
+    else {
+        panic!()
+    };
+    assert!(cmd.ends_with("wc -l 'it'\\''s.txt' | sort"), "{cmd}");
+    assert_eq!(super::misc::shell_quote("a'b"), "'a'\\''b'");
+    assert!(
+        r.misc_step(Op::ShellCommand { topdir: false }, &s(&[""]))
+            .is_err()
+    );
+    let Next::Done(Ok(m)) = r.misc_step(Op::DebugGit, &[]).unwrap() else {
+        panic!()
+    };
+    assert!(m.contains("git version"), "{m}");
+    // magit-wip-commit-buffer-file: only that file's state.
+    fs::write(d.path().join("f"), "two\n").unwrap();
+    fs::write(d.path().join("g"), "untracked\n").unwrap();
+    let m = r.wip_commit_file(Path::new("f")).unwrap();
+    assert!(m.contains("refs/wip/wtree/refs/heads/main"), "{m}");
+    let blob = git(d.path(), &["show", "refs/wip/wtree/refs/heads/main:f"]);
+    assert_eq!(blob, b"two\n");
+    assert!(
+        r.wip_commit_file(Path::new("f"))
+            .unwrap()
+            .contains("No changes")
+    );
+    // magit-toggle-subprocess-record logs background calls.
+    use std::sync::atomic::Ordering;
+    super::repo::RECORD.store(true, Ordering::Relaxed);
+    r.read(&["rev-parse", "HEAD"]).unwrap();
+    super::repo::RECORD.store(false, Ordering::Relaxed);
+    let calls = super::repo::take_calls();
+    assert!(
+        calls
+            .iter()
+            .any(|(root, line, res)| *root == r.root && line == "rev-parse HEAD" && res.is_ok())
+    );
+}
+#[test]
+fn branch_name_prompts_turn_spaces_into_dashes() {
+    use super::{Prompt, Question, reads_branch_name};
+    let r = Repo { root: "/r".into() };
+    let ask = |q, answers: Vec<String>| {
+        Prompt::Ask(
+            r.clone(),
+            q,
+            vec![],
+            vec!["a: ".into(), "b: ".into()],
+            answers,
+        )
+    };
+    use super::branch::Op as B;
+    assert!(reads_branch_name(&ask(Question::Branch(B::Create), vec![])));
+    assert!(!reads_branch_name(&ask(
+        Question::Branch(B::Create),
+        vec!["x".into()]
+    )));
+    assert!(reads_branch_name(&ask(
+        Question::Branch(B::Rename),
+        vec!["old".into()]
+    )));
+    assert!(!reads_branch_name(&ask(
+        Question::Branch(B::Delete),
+        vec![]
+    )));
 }
