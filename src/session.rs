@@ -2442,6 +2442,15 @@ mod tests {
                 .as_ref()
                 .is_some_and(|v| v.kind == crate::magit::Kind::Status)
         );
+        // magit-status-jump: j in the dispatch menu, two-key fu/pu entries.
+        fs::write(t.dir.path().join("new"), "n").unwrap();
+        t.keys("gr");
+        magit_settle(&mut t);
+        t.keys(" mjn");
+        let row = t.s.ed.buf.line(t.s.ed.cur.line);
+        assert!(row.contains("Untracked files"), "{row}");
+        t.keys(" mjfu");
+        assert!(t.msg().contains("wasn't found"), "{}", t.msg());
         t.keys(":Magit magit-show-refs<Enter>");
         assert_eq!(t.s.ed.magit_menu, Some('y'));
         t.keys("<Esc>:Magit no-such-command<Enter>");

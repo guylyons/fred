@@ -156,6 +156,10 @@ pub enum Action {
     StashPush,
     /// magit-git-command, reset-quickly, remote set/unset-head.
     Misc(misc::Op),
+    /// magit-jump-to-*: a status section by name.
+    Jump(&'static str),
+    /// magit-parent-status: the superproject or enclosing repository.
+    ParentStatus,
     /// magit-log-trace-definition: git log -L for the name at point.
     TraceDefinition,
     /// magit-edit-line-commit: rebase to edit the commit that added the line.
@@ -527,9 +531,11 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             return true;
         }
         let entries = menu_entries(ed.magit_menu.unwrap_or('*'));
+        // Menu h (status jump) has fu fp pu pp.
+        let jump_prefix = ed.magit_menu == Some('h') && matches!(k.char(), Some('f' | 'p'));
         if !k.ctrl
             && ed.vim.pending.is_empty()
-            && matches!(k.char(), Some('-' | '+' | '=' | ',' | '/'))
+            && (jump_prefix || matches!(k.char(), Some('-' | '+' | '=' | ',' | '/')))
         {
             ed.vim.pending = vec![k];
             return true;
@@ -550,6 +556,8 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
                         [key] if *key == Key::ch('=') => "=",
                         [key] if *key == Key::ch(',') => ",",
                         [key] if *key == Key::ch('/') => "/",
+                        [key] if *key == Key::ch('f') => "f",
+                        [key] if *key == Key::ch('p') => "p",
                         _ => "",
                     }
                 )
@@ -1396,6 +1404,7 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("Y", "Inspect", "Cherries", LogOp(log::Op::Cherry)),
             ("y", "Inspect", "Show Refs", Menu('y')),
             ("D", "Inspect", "Diff (change)", Menu('D')),
+            ("j", "Inspect", "Jump to section", Menu('h')),
             ("!", "Repository", "Run", Menu('!')),
             (
                 "Q",
@@ -2147,6 +2156,51 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 ToggleOption(MenuOption::Switch('Q', "--no-keep-index")),
             ),
             ("P", "Actions", "push", StashPush),
+        ],
+        // magit-status-jump (no Imenu in Fred).
+        'h' => vec![
+            ("z", "Jump to", "Stashes", Jump("Stashes")),
+            ("t", "Jump to", "Tracked files", Jump("Tracked files")),
+            ("n", "Jump to", "Untracked files", Jump("Untracked files")),
+            ("i", "Jump to", "Ignored files", Jump("Ignored files")),
+            ("u", "Jump to", "Unstaged changes", Jump("Unstaged changes")),
+            ("s", "Jump to", "Staged changes", Jump("Staged changes")),
+            (
+                "fu",
+                "Jump to",
+                "Unpulled from @{upstream}",
+                Jump("Unpulled from @{upstream}"),
+            ),
+            (
+                "fp",
+                "Jump to",
+                "Unpulled from <push-remote>",
+                Jump("Unpulled from <push-remote>"),
+            ),
+            (
+                "pu",
+                "Jump to",
+                "Unpushed to @{upstream}",
+                Jump("Unpushed to @{upstream}"),
+            ),
+            (
+                "pp",
+                "Jump to",
+                "Unpushed to <push-remote>",
+                Jump("Unpushed to <push-remote>"),
+            ),
+            (
+                "a",
+                "Jump to",
+                "Assume-unchanged files",
+                Jump("Assume-unchanged files"),
+            ),
+            (
+                "w",
+                "Jump to",
+                "Skip-worktree files",
+                Jump("Skip-worktree files"),
+            ),
         ],
         // magit-run: git subcommands (shell commands and GUI launchers are not
         // ported; Fred runs Git in the terminal).

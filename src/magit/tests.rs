@@ -3397,7 +3397,7 @@ fn diff_location_maps_lines_to_both_sides() {
 
 #[test]
 fn menu_keys_are_unique_within_each_menu() {
-    for menu in "*OzFBbdpflMrxtCGNYXvSoukyJjWKawIEg>DceQP!".chars() {
+    for menu in "*OzFBbdpflMrxtCGNYXvSoukyJjWKawIEg>DceQP!h".chars() {
         let entries = super::menu_entries(menu);
         assert!(!entries.is_empty(), "menu {menu} is empty");
         let mut seen = std::collections::HashSet::new();

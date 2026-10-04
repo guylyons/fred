@@ -916,13 +916,13 @@ magit-status.el,252,command,magit-init,partial,"Space m i; directory prompt (def
 magit-status.el,280,command,magit-status,partial,"Space m s; headers (Head/Merge|Rebase/Push/Tags), file sections, stashes, unpushed/recent and unpulled log sections, jumpers; sequence/bisect sections and options missing",explicit
 magit-status.el,350,command,magit-status-here,partial,:Magit magit-status-here (status; point not moved to the file),explicit
 magit-status.el,363,command,magit-status-quick,partial,":Magit magit-status-quick (status, reusing the buffer)",explicit
-magit-status.el,397,command,magit-parent-status,missing,,explicit
-magit-status.el,425,command,magit-status-jump,missing,,explicit
+magit-status.el,397,command,magit-parent-status,partial,":Magit magit-parent-status: superproject, else the enclosing repository",explicit
+magit-status.el,425,command,magit-status-jump,partial,Space m j in status: z t n i u s fu fp pu pp a w (no Imenu),explicit
 magit-status.el,,command,magit,partial,:Magit magit (status),runtime
-magit-status.el,,command,magit-jump-to-assume-unchanged,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-status.el,,command,magit-jump-to-ignored,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-status.el,,command,magit-jump-to-skip-worktree,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-status.el,,command,magit-jump-to-tracked,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-status.el,,command,magit-jump-to-assume-unchanged,partial,j a: no such section,runtime
+magit-status.el,,command,magit-jump-to-ignored,partial,j i: no ignored-files section,runtime
+magit-status.el,,command,magit-jump-to-skip-worktree,partial,j w: no such section,runtime
+magit-status.el,,command,magit-jump-to-tracked,partial,j t / :Magit: Fred's status has no tracked-files section (upstream's is optional too),runtime
 magit-status.el,,command,magit-jump-to-untracked,partial,gn in status,runtime
 magit-submodule.el,35,option,magit-module-sections-hook,missing,,explicit
 magit-submodule.el,50,option,magit-module-sections-nested,missing,,explicit

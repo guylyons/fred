@@ -472,6 +472,46 @@ impl Session {
             });
             return;
         }
+        if let Action::Jump(name) = action {
+            // magit-jump-to-*: the section's heading row, by its title.
+            let row = self.ed.magit.as_ref().and_then(|v| {
+                v.rows.iter().position(|r| {
+                    matches!(r.action, Some(RowAction::Section(_)))
+                        && r.text.get(2..).is_some_and(|t| t.starts_with(name))
+                })
+            });
+            match row {
+                Some(line) => self.ed.set_cursor(line, 0),
+                None => self.ed.set_msg(format!("Section \"{name}\" wasn't found")),
+            }
+            return;
+        }
+        if action == Action::ParentStatus {
+            let origin = self.cur;
+            let from = self.magit_from();
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                // A submodule's superproject, else the repository around it.
+                let sup = repo
+                    .read(&["rev-parse", "--show-superproject-working-tree"])
+                    .map(|o| String::from_utf8_lossy(&o).trim().to_owned())
+                    .unwrap_or_default();
+                let parent = if sup.is_empty() {
+                    let up = repo.root.parent().ok_or("No parent repository")?;
+                    Repo::discover(up)
+                        .map_err(|_| "No parent repository".to_owned())?
+                        .root
+                } else {
+                    PathBuf::from(sup)
+                };
+                Ok(branch_outcome(
+                    repo,
+                    crate::magit::branch::Next::Status(parent),
+                    origin,
+                ))
+            });
+            return;
+        }
         if action == Action::StashPush {
             let (origin, from) = (self.cur, self.magit_from());
             let args = crate::magit::menu_arguments(&self.ed, 'Q');
