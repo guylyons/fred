@@ -2049,7 +2049,9 @@ mod tests {
         // -c opens the draft with that message.
         fs::write(t.dir.path().join("f.txt"), "three\n").unwrap();
         repo.stage_file(Path::new("f.txt")).unwrap();
-        t.keys(" mc-C-cHEAD~1<Enter>c");
+        // -C applied to that commit only; it is no longer set.
+        assert!(!t.s.ed.magit_values.contains_key(&('C', "--reuse-message=")));
+        t.keys(" mc-cHEAD~1<Enter>c");
         magit_settle(&mut t);
         assert!(
             t.s.ed.buf.text().starts_with("first message"),
@@ -2134,6 +2136,13 @@ mod tests {
             (t.s.ed.cur.line, t.s.ed.buf.line(t.s.ed.cur.line)),
             (4, "five".to_owned())
         );
+        // C-j visits the worktree file at that line.
+        t.keys("q");
+        magit_settle(&mut t);
+        t.keys(&format!("{}G<C-j>", row + 1));
+        magit_settle(&mut t);
+        assert!(t.s.ed.blob.is_none() && t.s.ed.magit.is_none());
+        assert_eq!(t.s.ed.cur.line, 4);
     }
 
     #[test]

@@ -118,7 +118,8 @@ impl Repo {
         })
     }
     pub fn diff_output(&self, target: &Target, args: &[String]) -> Result<Vec<u8>, String> {
-        let mut argv: Vec<std::ffi::OsString> = vec![];
+        // Unquoted names, so visiting can read non-ASCII paths.
+        let mut argv: Vec<std::ffi::OsString> = vec!["-c".into(), "core.quotePath=false".into()];
         let show = matches!(target, Target::Commit(_));
         argv.push(if show { "show" } else { "diff" }.into());
         // magit-insert-diff/revision always ask for the patch, even with --stat.
@@ -174,73 +175,106 @@ impl Repo {
     }
 }
 
-/// Where a diff line points (magit-diff-visit-file): the file, its 1-based
-/// line on the side shown, and whether the line was removed (old side).
+/// Where a diff line points (magit-diff-visit-file): the file on each side,
+/// the 1-based line on each side, and whether the line was removed.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Location {
     pub file: PathBuf,
+    pub old_file: PathBuf,
     pub line: usize,
+    pub old_line: usize,
     pub removed: bool,
+}
+
+/// A file header path: drop the a/ or b/ prefix and the tab Git appends to
+/// names with spaces (shown escaped as \t by Fred).
+fn header_path(l: &str, prefix: &str) -> Option<String> {
+    let p = l.strip_prefix(prefix)?;
+    let p = p
+        .strip_suffix("\\t")
+        .or_else(|| p.strip_suffix('\t'))
+        .unwrap_or(p);
+    Some(p.to_owned())
 }
 
 /// Read the location of LINE in a rendered patch (a/ and b/ prefixes).
 pub fn location(lines: &[&str], line: usize) -> Option<Location> {
-    let at = *lines.get(line)?;
-    let mut hunk = None;
-    let mut file = None;
-    for i in (0..=line).rev() {
-        let l = lines[i];
-        if hunk.is_none() && i < line && l.starts_with("@@ ") {
-            hunk = Some(i);
-        }
-        if let Some(p) = l.strip_prefix("+++ b/") {
-            file = Some(p.to_owned());
-            break;
-        }
-        if l == "+++ /dev/null" {
-            // A deletion: the old name.
-            file = lines
-                .get(i.wrapping_sub(1))?
-                .strip_prefix("--- a/")
-                .map(str::to_owned);
-            break;
-        }
-        if l.starts_with("diff --git ") && i < line {
-            return None;
+    lines.get(line)?;
+    // The hunk containing LINE (its header may be LINE itself), then the
+    // file header above that hunk.
+    let hunk = (0..=line).rev().find(|&i| lines[i].starts_with("@@"));
+    let file_start = (0..=line).rev().find(|&i| lines[i].starts_with("diff "))?;
+    // A hunk above this file's header belongs to the previous file.
+    let hunk = hunk.filter(|&h| h > file_start);
+    let mut new = None;
+    let mut old = None;
+    // On a file header, its names come before the first hunk.
+    let end = hunk.unwrap_or_else(|| {
+        (line + 1..lines.len())
+            .find(|&i| lines[i].starts_with("@@") || lines[i].starts_with("diff "))
+            .unwrap_or(lines.len())
+    });
+    for l in &lines[file_start..end] {
+        if let Some(p) = header_path(l, "+++ b/") {
+            new = Some(p);
+        } else if let Some(p) = header_path(l, "--- a/") {
+            old = Some(p);
         }
     }
-    let file = PathBuf::from(file?);
-    let removed = at.starts_with('-') && !at.starts_with("---");
+    let new = new.or_else(|| old.clone())?;
+    let old = old.unwrap_or_else(|| new.clone());
+    let (file, old_file) = (PathBuf::from(new), PathBuf::from(old));
     let Some(h) = hunk else {
         return Some(Location {
             file,
+            old_file,
             line: 1,
+            old_line: 1,
             removed: false,
         });
     };
-    // @@ -a,b +c,d @@
+    // @@ -a,b +c,d @@, or combined @@@ -a -b +c @@@ with one column per parent.
     let header = lines[h];
-    let num = |sign: char| {
+    let ats = header.chars().take_while(|c| *c == '@').count();
+    let columns = ats.saturating_sub(1).max(1);
+    let num = |sign: char, nth: usize| {
         header
             .split_whitespace()
-            .find_map(|w| w.strip_prefix(sign))
+            .filter_map(|w| w.strip_prefix(sign))
+            .nth(nth)
             .and_then(|w| w.split(',').next())
             .and_then(|n| n.parse::<usize>().ok())
     };
-    let mut n = if removed { num('-')? } else { num('+')? };
-    for l in &lines[h + 1..line] {
-        let skip = if removed {
-            l.starts_with('+')
-        } else {
-            l.starts_with('-')
-        };
-        if !skip {
-            n += 1;
+    let (mut new_n, mut old_n) = (num('+', 0)?, num('-', 0)?);
+    // Upstream visits the first changed line from a hunk header.
+    let target = if line == h {
+        (h + 1..lines.len())
+            .take_while(|&i| !lines[i].starts_with("@@") && !lines[i].starts_with("diff "))
+            .find(|&i| lines[i].chars().take(columns).any(|c| c != ' '))
+            .unwrap_or(h + 1)
+            .min(lines.len().saturating_sub(1))
+    } else {
+        line
+    };
+    let marks = |l: &str| l.chars().take(columns).collect::<String>();
+    for l in &lines[h + 1..target] {
+        if l.starts_with('\\') {
+            continue;
+        }
+        let m = marks(l);
+        if !m.contains('-') {
+            new_n += 1;
+        }
+        if !m.contains('+') {
+            old_n += 1;
         }
     }
+    let removed = marks(lines.get(target).copied().unwrap_or("")).contains('-');
     Some(Location {
         file,
-        line: n.max(1),
+        old_file,
+        line: new_n.max(1),
+        old_line: old_n.max(1),
         removed,
     })
 }

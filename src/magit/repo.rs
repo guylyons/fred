@@ -434,6 +434,8 @@ impl Repo {
             return Err("invalid commit hash".into());
         }
         self.read(&[
+            "-c",
+            "core.quotePath=false",
             "show",
             "--no-ext-diff",
             "--no-textconv",

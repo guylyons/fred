@@ -94,7 +94,19 @@ impl Repo {
                 if since.is_empty() || since.starts_with('-') {
                     return Err(format!("invalid commit {since:?}"));
                 }
-                if self.read(&["autofixup", "--help"]).is_err() {
+                // executable-find: git-autofixup on PATH or in git's exec path
+                // ("git autofixup --help" would open a man page instead).
+                let exec_path = self
+                    .read(&["--exec-path"])
+                    .map(|o| String::from_utf8_lossy(&o).trim().to_owned())
+                    .unwrap_or_default();
+                let found = std::env::var_os("PATH")
+                    .map(|p| std::env::split_paths(&p).collect::<Vec<_>>())
+                    .unwrap_or_default()
+                    .into_iter()
+                    .chain([std::path::PathBuf::from(exec_path)])
+                    .any(|d| d.join("git-autofixup").is_file());
+                if !found {
                     return Err("This command requires git-autofixup".into());
                 }
                 let base = self
@@ -316,8 +328,13 @@ impl Repo {
                 .ok()
                 .map(|o| String::from_utf8_lossy(&o).trim().to_owned())
         };
-        let me = get(&["config", "user.email"]);
-        me.is_some() && me == get(&["log", "-1", "--format=%ae", "HEAD"])
+        // magit-rev-author-p: same name or same email.
+        let same = |me: &[&str], fmt: &str| {
+            let me = get(me);
+            me.is_some() && me == get(&["log", "-1", fmt, "HEAD"])
+        };
+        same(&["config", "user.name"], "--format=%an")
+            || same(&["config", "user.email"], "--format=%ae")
     }
     /// Change the committer (and, for your own commit, author) date of HEAD.
     pub fn reshelve(&self, date: &str, args: &[String]) -> Result<Next, String> {
@@ -331,7 +348,18 @@ impl Repo {
                 .duration_since(std::time::UNIX_EPOCH)
                 .map_err(|e| e.to_string())?
                 .as_secs();
-            format!("{secs} +0000")
+            // The local zone, as upstream's %F %T %z default.
+            let zone = self
+                .read(&["var", "GIT_COMMITTER_IDENT"])
+                .ok()
+                .and_then(|o| {
+                    String::from_utf8_lossy(&o)
+                        .split_whitespace()
+                        .last()
+                        .map(str::to_owned)
+                })
+                .unwrap_or_else(|| "+0000".into());
+            format!("{secs} {zone}")
         } else {
             date.to_owned()
         };
@@ -373,12 +401,23 @@ impl Repo {
         let modules = self.module_paths()?;
         let modified: Vec<&String> = modules
             .iter()
-            .filter(|m| self.read(&["diff", "--quiet", "HEAD", "--", m]).is_err())
+            // Only a moved gitlink (submodule status "+"), not dirty contents.
+            .filter(|m| {
+                self.read(&[
+                    "diff",
+                    "--quiet",
+                    "--ignore-submodules=dirty",
+                    "HEAD",
+                    "--",
+                    m,
+                ])
+                .is_err()
+            })
             .collect();
         if modified.is_empty() {
             return Err("There are no modified modules that could be absorbed".into());
         }
-        let mut made = 0;
+        let (mut made, mut failed) = (0, vec![]);
         for m in modified {
             let subject =
                 self.read(&["log", "-1", "--format=%s", &format!("{since}.."), "--", m])?;
@@ -386,15 +425,24 @@ impl Repo {
             if subject.is_empty() {
                 continue;
             }
-            self.read(&[
+            if let Err(e) = self.read(&[
                 "commit",
                 "-m",
                 &format!("fixup! {subject}"),
                 "--only",
                 "--",
                 m,
-            ])?;
+            ]) {
+                failed.push(format!("{m}: {e}"));
+                continue;
+            }
             made += 1;
+        }
+        if !failed.is_empty() {
+            return Err(format!(
+                "Created {made} fixup commits; failed: {}",
+                failed.join("; ")
+            ));
         }
         Ok(Next::Done(Ok(format!("Created {made} fixup commits"))))
     }

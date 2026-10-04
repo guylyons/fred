@@ -585,7 +585,7 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
                         ed.magit_options.remove(&MenuOption::StashAll);
                     }
                     if ed.commit_repo.is_some() && option.menu() == 'C' {
-                        ed.commit_args = menu_arguments(ed, 'C');
+                        ed.commit_args = commit_arguments(ed);
                     }
                     crate::pick::magit_menu(ed, menu);
                     return true;
@@ -626,8 +626,10 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             ed.vim.pending.clear();
             if k == Key::ctrl('d') {
                 ed.pending_effect = Some(ExEffect::Magit(Action::DiffWhileCommitting));
+                return true;
             }
-            return true;
+            // Not C-c C-d: the key keeps its usual meaning.
+            return false;
         }
     }
     if ed.magit.is_none() {
@@ -1109,7 +1111,13 @@ pub(crate) fn open_menu(ed: &mut Editor, menu: char) {
     }
     if menu == 'd' || menu == 'D' {
         let args = match ed.magit.as_ref().map(|v| &v.kind) {
-            Some(Kind::Diff(_, args)) => Some(args.clone()),
+            // A buffer's file limit stays with that buffer.
+            Some(Kind::Diff(_, args)) => Some(
+                args.iter()
+                    .filter(|a| !a.starts_with("-- ") && *a != "--cached")
+                    .cloned()
+                    .collect(),
+            ),
             // magit-diff-mode's default arguments, applied once per buffer.
             _ if ed.magit_seeded.insert('d') => Some(vec!["--stat".into(), "--no-ext-diff".into()]),
             _ => None,
@@ -3318,6 +3326,14 @@ pub fn menu_arguments(ed: &Editor, menu: char) -> Vec<String> {
     args
 }
 
+/// The commit menu's arguments for drafts and commands: -C/-c only apply to
+/// a new commit (magit-commit-create), where they are read separately.
+pub fn commit_arguments(ed: &Editor) -> Vec<String> {
+    menu_arguments(ed, 'C')
+        .into_iter()
+        .filter(|a| !a.starts_with("--reuse-message=") && !a.starts_with("--reedit-message="))
+        .collect()
+}
 /// Make a menu's displayed switches and choices match explicit arguments.
 pub fn set_menu_arguments(ed: &mut Editor, menu: char, args: &[String]) {
     ed.magit_options.retain(|option| option.menu() != menu);

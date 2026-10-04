@@ -244,15 +244,26 @@ impl Session {
                 let Some(repo) = self.ed.commit_repo.clone() else {
                     return self.ed.set_err("No commit in progress");
                 };
-                let amend = self.ed.commit_mode != crate::magit::CommitMode::New;
+                // magit-commit-diff--args: reword shows HEAD^..HEAD, amend
+                // everything since HEAD^, --all the worktree.
+                let mode = self.ed.commit_mode.clone();
+                let all = self.ed.commit_args.iter().any(|a| a == "--all");
                 self.start_magit(move || {
-                    let target =
-                        if amend && repo.read(&["rev-parse", "--verify", "-q", "HEAD^"]).is_ok() {
+                    let parent = repo.read(&["rev-parse", "--verify", "-q", "HEAD^"]).is_ok();
+                    let target = match mode {
+                        crate::magit::CommitMode::Reword(_) if parent => {
+                            Target::Range("HEAD^..HEAD".into())
+                        }
+                        crate::magit::CommitMode::Amend(_) if parent && all => {
+                            Target::Range("HEAD^".into())
+                        }
+                        crate::magit::CommitMode::Amend(_) if parent => {
                             args.push("--cached".into());
                             Target::Range("HEAD^".into())
-                        } else {
-                            Target::Staged
-                        };
+                        }
+                        _ if all => Target::Range("HEAD".into()),
+                        _ => Target::Staged,
+                    };
                     diff_view(repo, target, args, origin)
                 });
                 return;
@@ -304,7 +315,12 @@ impl Session {
             let changed = match self.ed.magit.as_mut().map(|v| &mut v.kind) {
                 Some(Kind::Diff(target, buffer_args)) => match how {
                     Refresh::Buffer => {
+                        // --cached is part of what the buffer shows, not a menu option.
+                        let cached = buffer_args.iter().any(|a| a == "--cached");
                         *buffer_args = args;
+                        if cached {
+                            buffer_args.push("--cached".into());
+                        }
                         Ok(())
                     }
                     how => target.refreshed(how).map(|t| *target = t),
@@ -856,7 +872,7 @@ impl Session {
             return;
         }
         if let Action::Answered(repo, Question::Commit(op), answers, defaults) = action {
-            let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, 'C'));
+            let (origin, args) = (self.cur, crate::magit::commit_arguments(&self.ed));
             self.start_magit(move || {
                 let merged = merge_answers(&answers, &defaults);
                 let next = repo
@@ -1070,7 +1086,7 @@ impl Session {
         if let Action::Merge(op) = action {
             use crate::magit::merge::Op as M;
             let (origin, from) = (self.cur, self.magit_from());
-            let commit_args = crate::magit::menu_arguments(&self.ed, 'C');
+            let commit_args = crate::magit::commit_arguments(&self.ed);
             self.start_magit(move || {
                 let repo = Repo::discover(&from)?;
                 // Upstream's in-progress group: m commits the merge, a aborts it.
@@ -1498,7 +1514,12 @@ impl Session {
         }
         if matches!(
             action,
-            Action::Toggle | Action::Stage | Action::Unstage | Action::Visit | Action::Refresh
+            Action::Toggle
+                | Action::Stage
+                | Action::Unstage
+                | Action::Visit
+                | Action::VisitWorktree
+                | Action::Refresh
         ) {
             let Some(mut view) = self.ed.magit.as_deref().cloned() else {
                 self.ed.set_err("open Git status first");
@@ -1660,7 +1681,19 @@ impl Session {
             .ed
             .magit_options
             .contains(&crate::magit::MenuOption::LogFollow);
-        let commit_args = crate::magit::menu_arguments(&self.ed, 'C');
+        let commit_args = crate::magit::commit_arguments(&self.ed);
+        // -C / -c belong to this one new commit; they don't stick.
+        let reuse = |ed: &mut crate::editor::Editor, p: &'static str| {
+            if action == Action::Commit {
+                ed.magit_values.remove(&('C', p))
+            } else {
+                None
+            }
+        };
+        let (reuse, reedit) = (
+            reuse(&mut self.ed, "--reuse-message="),
+            reuse(&mut self.ed, "--reedit-message="),
+        );
         let log_args = crate::magit::menu_arguments(&self.ed, 'l');
         let stash_args = crate::magit::menu_arguments(&self.ed, 'z');
         let net_args = match action {
@@ -1757,21 +1790,7 @@ impl Session {
                 Action::Commit => {
                     // --reuse-message commits at once; --reedit-message starts
                     // the draft from that message (Fred owns the message buffer).
-                    let value = |p: &str| {
-                        commit_args
-                            .iter()
-                            .find_map(|a| a.strip_prefix(p))
-                            .map(str::to_owned)
-                    };
-                    let (reuse, reedit) = (value("--reuse-message="), value("--reedit-message="));
-                    let rest: Vec<String> = commit_args
-                        .iter()
-                        .filter(|a| {
-                            !a.starts_with("--reuse-message=")
-                                && !a.starts_with("--reedit-message=")
-                        })
-                        .cloned()
-                        .collect();
+                    let rest = commit_args.clone();
                     if let Some(r) = reuse {
                         let mut args: Vec<OsString> = vec!["commit".into()];
                         args.extend(rest.iter().map(OsString::from));
@@ -2659,44 +2678,63 @@ fn branch_outcome(repo: Repo, next: crate::magit::branch::Next, origin: usize) -
         },
     }
 }
-/// The revision (or worktree) and 0-based line a diff line points to.
+/// The revision (or worktree) and 0-based line a diff line points to, by
+/// magit-diff-visit--sides: the old side for removed lines, else the new.
 fn diff_visit(view: &View, line: usize, worktree: bool) -> Option<(String, PathBuf, usize)> {
-    use crate::magit::blob::WORKTREE;
+    use crate::magit::blob::{INDEX, WORKTREE};
     use crate::magit::diff::Target;
     let lines: Vec<&str> = view.rows.iter().map(|r| r.text.as_str()).collect();
     let loc = crate::magit::diff::location(&lines, line)?;
-    let side = |a: &str, b: &str| {
-        let r = if loc.removed { a } else { b };
-        if r.is_empty() {
-            "HEAD".to_owned()
-        } else {
-            r.to_owned()
-        }
-    };
-    let rev = match &view.kind {
-        _ if worktree && !loc.removed => WORKTREE.to_owned(),
-        Kind::Diff(Target::Unstaged | Target::Staged, _) => WORKTREE.to_owned(),
-        Kind::Diff(Target::Range(r), _) => match r.split_once("...").or_else(|| r.split_once(".."))
-        {
-            Some((a, b)) => side(a, b),
-            // One revision compared with the worktree.
-            None if loc.removed => r.clone(),
-            None => WORKTREE.to_owned(),
-        },
-        Kind::Diff(Target::Commit(id), _) | Kind::Patch(id) => {
-            if loc.removed {
-                format!("{id}^")
+    // magit-diff-visit-worktree-file: the worktree at the new side's line.
+    if worktree {
+        return Some((WORKTREE.to_owned(), loc.file, loc.line - 1));
+    }
+    let old = |rev: String| Some((rev, loc.old_file.clone(), loc.old_line - 1));
+    let new = |rev: String| Some((rev, loc.file.clone(), loc.line - 1));
+    let pick = |a: String, b: String| if loc.removed { old(a) } else { new(b) };
+    match &view.kind {
+        Kind::Diff(Target::Staged, _) => pick("HEAD".into(), INDEX.into()),
+        Kind::Diff(Target::Unstaged, _) => pick(INDEX.into(), WORKTREE.into()),
+        Kind::Diff(Target::Range(r), _) => {
+            let or_head = |s: &str| {
+                if s.is_empty() {
+                    "HEAD".to_owned()
+                } else {
+                    s.to_owned()
+                }
+            };
+            if let Some((a, b)) = r.split_once("...") {
+                // A...B compares B with the merge base.
+                let base = view
+                    .repo
+                    .read(&["merge-base", "--end-of-options", &or_head(a), &or_head(b)])
+                    .map(|o| String::from_utf8_lossy(&o).trim().to_owned())
+                    .unwrap_or_else(|_| or_head(a));
+                pick(base, or_head(b))
+            } else if let Some((a, b)) = r.split_once("..") {
+                pick(or_head(a), or_head(b))
             } else {
-                id.clone()
+                // One revision compared with the worktree.
+                pick(r.clone(), WORKTREE.into())
             }
         }
-        Kind::StashPatch(_) => WORKTREE.to_owned(),
-        _ => return None,
-    };
-    if worktree && loc.removed {
-        return None;
+        Kind::Diff(Target::Commit(id), _) | Kind::Patch(id) => pick(format!("{id}^"), id.clone()),
+        // stash_patch's sections: Unstaged ^2..stash, Staged ^1..^2,
+        // Untracked files ^3.
+        Kind::StashPatch(stash) => {
+            let id = &stash.id;
+            let section = lines[..=line]
+                .iter()
+                .rev()
+                .find(|l| matches!(**l, "Unstaged" | "Staged" | "Untracked files"))?;
+            match *section {
+                "Unstaged" => pick(format!("{id}^2"), id.clone()),
+                "Staged" => pick(format!("{id}^1"), format!("{id}^2")),
+                _ => new(format!("{id}^3")),
+            }
+        }
+        _ => None,
     }
-    Some((rev, loc.file, loc.line - 1))
 }
 fn blob_outcome(
     repo: Repo,

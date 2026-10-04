@@ -419,7 +419,11 @@ impl Repo {
         ] {
             patch.extend_from_slice(format!("\n{heading}\n").as_bytes());
             patch.extend(self.read(&[
+                "-c",
+                "core.quotePath=false",
                 "diff",
+                "--src-prefix=a/",
+                "--dst-prefix=b/",
                 "--no-ext-diff",
                 "--no-textconv",
                 "--no-color",
@@ -432,7 +436,11 @@ impl Repo {
         if self.read(&["rev-parse", "--verify", &untracked]).is_ok() {
             patch.extend_from_slice(b"\nUntracked files\n");
             patch.extend(self.read(&[
+                "-c",
+                "core.quotePath=false",
                 "show",
+                "--src-prefix=a/",
+                "--dst-prefix=b/",
                 "--format=",
                 "--root",
                 "--no-ext-diff",

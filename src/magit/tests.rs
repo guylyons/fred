@@ -3367,25 +3367,32 @@ fn commit_reshelve_and_absorb_modules() {
 
 #[test]
 fn diff_location_maps_lines_to_both_sides() {
-    use super::diff::{Location, location};
+    use super::diff::location;
     use std::path::PathBuf;
-    let patch = "diff --git a/f b/f\nindex 1..2 100644\n--- a/f\n+++ b/f\n@@ -3,4 +3,4 @@ ctx\n 3\n 4\n-five\n+5\n 6\ndiff --git a/gone b/gone\ndeleted file mode 100644\n--- a/gone\n+++ /dev/null\n@@ -1 +0,0 @@\n-x";
+    let patch = "diff --git a/old b/f\nsimilarity index 90%\nrename from old\nrename to f\n--- a/old\n+++ b/f\n@@ -3,4 +3,4 @@ ctx\n 3\n 4\n--- five\n\\ No newline at end of file\n+5\n 6\ndiff --git a/gone b/gone\ndeleted file mode 100644\n--- a/gone\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\ndiff --git a/sp ace b/sp ace\n--- a/sp ace\\t\n+++ b/sp ace\\t\n@@ -1 +1 @@\n-a\n+b";
     let lines: Vec<&str> = patch.lines().collect();
-    let at = |l| location(&lines, l);
-    let f = |line, removed| {
-        Some(Location {
-            file: PathBuf::from("f"),
-            line,
-            removed,
-        })
-    };
-    assert_eq!(at(6), f(4, false));
-    assert_eq!(at(7), f(5, true));
-    assert_eq!(at(8), f(5, false));
-    assert_eq!(at(9), f(6, false));
-    assert_eq!(at(3), f(1, false));
-    assert_eq!(at(15).unwrap().file, PathBuf::from("gone"));
-    assert_eq!(at(0), None);
+    let at = |l| location(&lines, l).unwrap();
+    // Context and added lines: the new side; removed: the old side and name.
+    assert_eq!((at(8).line, at(8).removed), (4, false));
+    let removed = at(9);
+    assert!(removed.removed);
+    assert_eq!(
+        (removed.old_line, removed.old_file.clone()),
+        (5, PathBuf::from("old"))
+    );
+    // "\ No newline" lines are not counted.
+    assert_eq!((at(11).line, at(11).file.clone()), (5, PathBuf::from("f")));
+    // A hunk header visits its first change.
+    assert_eq!((at(6).old_line, at(6).removed), (5, true));
+    assert_eq!(at(18).old_file, PathBuf::from("gone"));
+    assert_eq!(at(24).file, PathBuf::from("sp ace"));
+    assert!(location(&lines, 0).is_some_and(|l| l.line == 1));
+    assert_eq!(at(13).file, PathBuf::from("gone"));
+    // Combined diffs: @@@ headers with two marker columns.
+    let cc = "diff --cc f\n--- a/f\n+++ b/f\n@@@ -1,2 -1,2 +1,3 @@@\n  a\n+ b\n +c";
+    let lines: Vec<&str> = cc.lines().collect();
+    let l = location(&lines, 6).unwrap();
+    assert_eq!((l.line, l.removed), (3, false));
 }
 
 #[test]

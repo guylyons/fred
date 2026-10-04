@@ -30,3 +30,17 @@ state with Space m d) and g applies them to the current diff buffer; r
 switches A..B and A...B, f flips the revisions; = + ~ adjust -U in a diff
 buffer as evil-collection binds them. Evidence:
 session::tests::magit_diff_context_keys_and_refresh_menu.
+
+Independent review (October 4): C-j reaches its handler; -C/-c apply to one
+new commit only and never reach drafts, amend or fixups; diff-line visiting
+handles hunk headers (first change), "\ No newline" markers, removed lines
+starting with "--", renames (old name for removed lines), names with spaces,
+unquoted non-ASCII names (core.quotePath=false), combined @@@ hunks and file
+headers; sides follow magit-diff-visit--sides (staged: HEAD/index, unstaged:
+index/worktree, A...B: merge base, stash sections ^2/stash, ^1/^2, ^3);
+stash patches use fixed prefixes. Absorb modules only takes moved gitlinks
+and reports per-module failures; autofixup is found on PATH or Git's exec
+path; reshelve "now" keeps the local zone and treats same name or email as
+yours; diff while committing shows HEAD^..HEAD for reword and the worktree
+with --all; a buffer's -- file limit and --cached stay with that buffer; C-c
+followed by another key in a draft keeps that key's meaning.
