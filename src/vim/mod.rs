@@ -627,14 +627,18 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
                         .map(|n| n.to_string_lossy().into_owned()),
                 });
             }
-            // Find-file from the current file's directory (else the cwd).
+            // Find-file from the listed directory, else the current file's
+            // directory, else the cwd.
             Some('j') => {
-                let dir = ed
-                    .path
-                    .as_deref()
-                    .and_then(|p| std::path::absolute(p).ok())
-                    .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
-                    .unwrap_or_else(|| std::path::PathBuf::from("."));
+                let dir = match &ed.dired {
+                    Some(d) => d.dir.clone(),
+                    None => ed
+                        .path
+                        .as_deref()
+                        .and_then(|p| std::path::absolute(p).ok())
+                        .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
+                        .unwrap_or_else(|| std::path::PathBuf::from(".")),
+                };
                 crate::pick::browse(ed, &dir);
             }
             Some('\n') => {

@@ -668,11 +668,13 @@ fn dired_colors_file_kinds_fields_and_marks() {
     let mut s = Screen::new(100, 12);
     s.cfg.numbers = false;
     s.draw(&e);
+    // Names start where the `.` entry's does.
+    let col = e.buf.line(1).len() - 1;
     let position = |name: &str| {
         let y = (1..e.line_count())
-            .find(|&y| e.buf.line(y)[33..].starts_with(name))
+            .find(|&y| e.buf.line(y)[col..].starts_with(name))
             .unwrap();
-        (33, y as u16)
+        (col as u16, y as u16)
     };
     let folder = position("folder");
     let link = position("link");
@@ -718,10 +720,11 @@ fn dired_colors_file_kinds_fields_and_marks() {
         b[(3, run.1)].fg,
         "execute permissions stand out"
     );
-    assert_ne!(b[(18, plain.1)].fg, Color::Reset, "size is styled");
+    let (size, date) = (plain.0 - 15, plain.0 - 12);
+    assert_ne!(b[(size, plain.1)].fg, Color::Reset, "size is styled");
     assert_ne!(
-        b[(20, plain.1)].fg,
-        b[(18, plain.1)].fg,
+        b[(date, plain.1)].fg,
+        b[(size, plain.1)].fg,
         "date differs from size"
     );
     e.set_cursor(plain.1 as usize, plain.0 as usize);
@@ -772,7 +775,7 @@ fn dired_colors_survive_compact_wrap_and_yield_to_name_editing() {
     let start = b.content.iter().position(|c| c.symbol() == "漢").unwrap();
     let tail = b.content[start..]
         .iter()
-        .find(|c| c.symbol() == "/")
+        .find(|c| c.symbol() == "r")
         .unwrap();
     assert_eq!(tail.fg, color);
     e.handle_key(crate::key::Key::ch('i'));

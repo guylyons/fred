@@ -196,6 +196,7 @@ pub fn mouse(
                     return;
                 }
                 p.sel = selected;
+                p.prompt = false;
                 if view.double_click(true, selected) {
                     view.detached = false;
                     ed.handle_key(crate::key::Key::new(crate::key::KeyCode::Enter));
@@ -680,8 +681,8 @@ fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter) {
     ];
     if let Mode::Pick(p) = &ed.mode {
         let (text, err) = match &ed.msg {
-            Some((m, true)) => (m.as_str(), true),
-            _ => (p.status.as_str(), p.err),
+            Some((m, true)) => (m.as_str().into(), true),
+            _ => (p.status_text(), p.err),
         };
         left.push(Span::styled(
             text,
@@ -1040,7 +1041,7 @@ fn draw_picker(
     let started = std::time::Instant::now();
     for (i, r) in p.rows.iter().enumerate().skip(off).take(rows) {
         let y = area.y + (i - off) as u16;
-        let selected = i == p.sel;
+        let selected = !p.prompt && i == p.sel;
         let mut spans = vec![Span::raw(if selected { ">" } else { " " })];
         if files {
             let state = ed.project.file_state(&r.path, r.text.ends_with('/'));

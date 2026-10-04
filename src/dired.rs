@@ -31,6 +31,9 @@ struct Entry {
     size: u64,
     mtime: Option<SystemTime>,
     mode: u32,
+    nlink: u64,
+    user: String,
+    group: String,
 }
 
 /// What the `@` command line is asking for.
@@ -52,6 +55,8 @@ pub struct Dired {
     /// `*` marked or `D` flagged for deletion, by name.
     marks: HashMap<String, char>,
     details: bool,
+    /// Widths of the link count, user, group and size columns, as drawn.
+    widths: [usize; 4],
     by_time: bool,
     hide_dots: bool,
     /// `i`: the names are being edited; `:w` renames.
@@ -70,6 +75,7 @@ pub fn visit(ed: &mut Editor, dir: &Path, focus: Option<&str>) -> Result<(), Str
             entries: vec![],
             marks: HashMap::new(),
             details: true,
+            widths: [0; 4],
             by_time: false,
             hide_dots: false,
             editing: false,
@@ -92,7 +98,14 @@ pub fn visit(ed: &mut Editor, dir: &Path, focus: Option<&str>) -> Result<(), Str
     ed.path = Some(dir);
     ed.readonly = true;
     redraw(ed);
-    let line = focus.and_then(|f| line_of(ed, f)).unwrap_or(HEADER + 1);
+    // Else the first entry past `.` and `..`, as Emacs.
+    let first = ed
+        .dired
+        .as_ref()
+        .and_then(|d| d.entries.iter().position(|e| !dots(&e.name)));
+    let line = focus
+        .and_then(|f| line_of(ed, f))
+        .unwrap_or(HEADER + first.unwrap_or(0));
     goto(ed, line);
     Ok(())
 }
@@ -268,7 +281,7 @@ pub fn answer(ed: &mut Editor, text: &str) {
                     for e in d
                         .entries
                         .iter()
-                        .filter(|e| e.name != ".." && re.is_match(&e.name))
+                        .filter(|e| !dots(&e.name) && re.is_match(&e.name))
                     {
                         d.marks.insert(e.name.clone(), '*');
                         n += 1;
@@ -330,23 +343,70 @@ pub fn refresh(ed: &mut Editor) {
 
 fn read(d: &Dired) -> Result<Vec<Entry>, String> {
     let rd = fs::read_dir(&d.dir).map_err(|e| crate::fileio::err_msg(&e))?;
+    let mut owners = Owners::default();
     let mut entries: Vec<Entry> = rd
         .filter_map(Result::ok)
-        .map(|e| entry(&e.path(), e.file_name().to_string_lossy().into_owned()))
+        .map(|e| {
+            entry(
+                &e.path(),
+                e.file_name().to_string_lossy().into_owned(),
+                &mut owners,
+            )
+        })
         .filter(|e| !(d.hide_dots && e.name.starts_with('.')))
         .collect();
+    // As `ls` does in Emacs: case doesn't split the names apart.
+    let by_name = |a: &Entry, b: &Entry| {
+        (a.name.to_lowercase(), &a.name).cmp(&(b.name.to_lowercase(), &b.name))
+    };
     if d.by_time {
-        entries.sort_by(|a, b| b.mtime.cmp(&a.mtime).then(a.name.cmp(&b.name)));
+        entries.sort_by(|a, b| b.mtime.cmp(&a.mtime).then_with(|| by_name(a, b)));
     } else {
-        entries.sort_by(|a, b| a.name.cmp(&b.name));
+        entries.sort_by(by_name);
     }
+    let mut top = vec![entry(&d.dir, ".".into(), &mut owners)];
     if d.dir.parent().is_some() {
-        entries.insert(0, entry(&d.dir.join(".."), "..".into()));
+        top.push(entry(&d.dir.join(".."), "..".into(), &mut owners));
     }
+    entries.splice(0..0, top);
     Ok(entries)
 }
 
-fn entry(path: &Path, name: String) -> Entry {
+/// `.` and `..`: listed, but never marked, renamed or acted on.
+fn dots(name: &str) -> bool {
+    name == "." || name == ".."
+}
+
+/// User and group names by id, looked up once per listing.
+#[derive(Default)]
+struct Owners(HashMap<(bool, u32), String>);
+
+impl Owners {
+    /// The name of user `id` (group `id` if `group`), else the number, as `ls`.
+    fn name(&mut self, group: bool, id: u32) -> String {
+        self.0
+            .entry((group, id))
+            .or_insert_with(|| {
+                // SAFETY: each returns null or an entry valid until the next
+                // call, and the name is copied out before then.
+                let name = unsafe {
+                    if group {
+                        let g = libc::getgrgid(id);
+                        (!g.is_null()).then(|| std::ffi::CStr::from_ptr((*g).gr_name))
+                    } else {
+                        let u = libc::getpwuid(id);
+                        (!u.is_null()).then(|| std::ffi::CStr::from_ptr((*u).pw_name))
+                    }
+                    .map(|n| n.to_string_lossy().into_owned())
+                };
+                name.unwrap_or_else(|| id.to_string())
+            })
+            .clone()
+    }
+}
+
+fn entry(path: &Path, name: String, owners: &mut Owners) -> Entry {
+    use std::os::unix::fs::MetadataExt;
     let lm = fs::symlink_metadata(path).ok();
     let link = lm
         .as_ref()
@@ -359,6 +419,9 @@ fn entry(path: &Path, name: String) -> Entry {
         size: lm.as_ref().map_or(0, fs::Metadata::len),
         mtime: lm.as_ref().and_then(|m| m.modified().ok()),
         mode: lm.as_ref().map_or(0, |m| m.permissions().mode()),
+        nlink: lm.as_ref().map_or(0, MetadataExt::nlink),
+        user: owners.name(false, lm.as_ref().map_or(0, MetadataExt::uid)),
+        group: owners.name(true, lm.as_ref().map_or(0, MetadataExt::gid)),
         name,
     }
 }
@@ -366,28 +429,47 @@ fn entry(path: &Path, name: String) -> Entry {
 /// Where names start on a line: after the mark and the details.
 fn name_col(ed: &Editor) -> usize {
     match ed.dired.as_ref() {
-        Some(d) if d.details => 2 + 10 + 1 + 6 + 1 + 12 + 1,
+        Some(d) if d.details => details_len(d.widths),
         _ => 2,
     }
 }
 
+/// The mark, then `ls -l`'s mode, links, user, group, size and date.
+fn details_len([l, u, g, s]: [usize; 4]) -> usize {
+    2 + 10 + 1 + l + 1 + u + 1 + g + 1 + s + 1 + 12 + 1
+}
+
+fn widths(entries: &[Entry]) -> [usize; 4] {
+    entries.iter().fold([0; 4], |w, e| {
+        [
+            w[0].max(e.nlink.to_string().len()),
+            w[1].max(e.user.len()),
+            w[2].max(e.group.len()),
+            w[3].max(e.size.to_string().len()),
+        ]
+    })
+}
+
 fn line_text(d: &Dired, e: &Entry) -> String {
     let mark = d.marks.get(&e.name).copied().unwrap_or(' ');
-    let slash = if e.dir && e.link.is_none() { "/" } else { "" };
     let link = e
         .link
         .as_ref()
         .map_or(String::new(), |t| format!(" -> {t}"));
     if d.details {
+        let [l, u, g, s] = d.widths;
         format!(
-            "{mark} {} {:>6} {} {}{slash}{link}",
+            "{mark} {} {:>l$} {:<u$} {:<g$} {:>s$} {} {}{link}",
             mode_str(e),
-            human(e.size),
+            e.nlink,
+            e.user,
+            e.group,
+            e.size,
             date(e.mtime),
             e.name
         )
     } else {
-        format!("{mark} {}{slash}{link}", e.name)
+        format!("{mark} {}{link}", e.name)
     }
 }
 
@@ -410,14 +492,15 @@ pub(crate) fn styles(ed: &Editor, line: usize) -> crate::highlight::LineStyles {
     let Some(e) = entry_at(ed, line) else {
         return vec![];
     };
-    let suffix_len = usize::from(e.dir && e.link.is_none())
-        + e.link.as_ref().map_or(0, |target| 4 + target.len());
+    let suffix_len = e.link.as_ref().map_or(0, |target| 4 + target.len());
     let Some(name) = text.len().checked_sub(e.name.len() + suffix_len) else {
         return vec![];
     };
     let end = name + e.name.len();
     // Embedded newlines can split an entry across buffer lines.
-    if name < if d.details { 33 } else { 2 } || text.get(name..end) != Some(e.name.as_str()) {
+    if name < if d.details { details_len(d.widths) } else { 2 }
+        || text.get(name..end) != Some(e.name.as_str())
+    {
         return vec![];
     }
     let mark = d.marks.get(&e.name).copied();
@@ -455,7 +538,9 @@ pub(crate) fn styles(ed: &Editor, line: usize) -> crate::highlight::LineStyles {
             };
             spans.push((Style::default().fg(color), 2 + i..3 + i));
         }
-        spans.push((Style::default().fg(Color::Yellow), 13..name - 14));
+        let size = name - 14 - d.widths[3];
+        spans.push((Style::default().fg(Color::DarkGray), 13..size));
+        spans.push((Style::default().fg(Color::Yellow), size..name - 14));
         spans.push((Style::default().fg(Color::Blue), name - 13..name - 1));
     }
     if mark == Some('D') {
@@ -497,8 +582,10 @@ pub(crate) fn styles(ed: &Editor, line: usize) -> crate::highlight::LineStyles {
 
 /// Put the listing in the buffer: not an edit (no undo, not modified).
 fn redraw(ed: &mut Editor) {
+    let w = ed.dired.as_ref().map(|d| widths(&d.entries));
+    with(ed, |d| d.widths = w.unwrap_or_default());
     let Some(d) = ed.dired.as_ref() else { return };
-    let mut lines = vec![format!("  {}:", crate::pick::browse::tilde(&d.dir))];
+    let mut lines = vec![format!("  {}:{}", d.dir.display(), available(&d.dir))];
     lines.extend(d.entries.iter().map(|e| line_text(d, e)));
     let (line, n) = (ed.cur.line, ed.buf.len_lines());
     crate::vim::ops::splice_lines(ed, 0, n, &lines);
@@ -579,7 +666,7 @@ fn up(ed: &mut Editor) {
 fn mark(ed: &mut Editor, lo: usize, hi: usize, visual: bool, m: Option<char>) {
     let names: Vec<String> = (lo..=hi)
         .filter_map(|l| entry_at(ed, l))
-        .filter(|e| e.name != "..")
+        .filter(|e| !dots(&e.name))
         .map(|e| e.name.clone())
         .collect();
     with(ed, |d| {
@@ -599,7 +686,7 @@ fn mark(ed: &mut Editor, lo: usize, hi: usize, visual: bool, m: Option<char>) {
 /// `t`: marked become unmarked and unmarked marked (flags stay).
 fn toggle(ed: &mut Editor) {
     with(ed, |d| {
-        for e in d.entries.iter().filter(|e| e.name != "..") {
+        for e in d.entries.iter().filter(|e| !dots(&e.name)) {
             match d.marks.get(&e.name) {
                 Some('*') => {
                     d.marks.remove(&e.name);
@@ -637,7 +724,7 @@ fn targets(ed: &Editor, lo: usize, hi: usize, visual: bool) -> Vec<PathBuf> {
     }
     (lo..=hi)
         .filter_map(|l| entry_at(ed, l))
-        .filter(|e| e.name != "..")
+        .filter(|e| !dots(&e.name))
         .map(|e| d.dir.join(&e.name))
         .collect()
 }
@@ -831,7 +918,7 @@ fn renames(ed: &Editor, d: &Dired) -> Result<Vec<(String, String)>, String> {
         if new.is_empty() {
             return Err(format!("line {}: empty name", HEADER + i + 1));
         }
-        if new != e.name && e.name != ".." {
+        if new != e.name && !dots(&e.name) {
             plan.push((e.name.clone(), new));
         }
     }
@@ -876,6 +963,25 @@ fn mode_str(e: &Entry) -> String {
         s.push(if b & 1 != 0 { 'x' } else { '-' });
     }
     s
+}
+
+/// ` (37 GiB available)` on the disk holding `dir`, as Emacs's header says.
+fn available(dir: &Path) -> String {
+    use std::os::unix::ffi::OsStrExt;
+    let Ok(c) = std::ffi::CString::new(dir.as_os_str().as_bytes()) else {
+        return String::new();
+    };
+    // SAFETY: `st` is plain data that statvfs fills in.
+    let mut st: libc::statvfs = unsafe { std::mem::zeroed() };
+    // SAFETY: both pointers are valid for the call.
+    if unsafe { libc::statvfs(c.as_ptr(), &mut st) } != 0 {
+        return String::new();
+    }
+    let h = human(st.f_bavail as u64 * st.f_frsize as u64);
+    match h.strip_suffix(|c: char| c.is_ascii_alphabetic()) {
+        Some(n) => format!(" ({n} {}iB available)", &h[n.len()..]),
+        None => format!(" ({h} bytes available)"),
+    }
 }
 
 /// `ls -h` style: `512`, `4.0K`, `13M`, `1.8G`.
@@ -964,13 +1070,19 @@ mod tests {
         let (d, mut ed) = setup();
         assert_eq!(
             names(&ed),
-            ["..", ".hidden", "a.txt", "b.txt", "c.log", "sub"]
+            [".", "..", ".hidden", "a.txt", "b.txt", "c.log", "sub"]
         );
-        assert!(ed.buf.line(0).ends_with(':'));
-        assert!(ed.buf.line(6).ends_with(" sub/"));
+        // As `ls -al` in Emacs: the path and free space, then links,
+        // owner, group and the size in bytes.
+        let head = format!("  {}: (", ed.dired.as_ref().unwrap().dir.display());
+        assert!(ed.buf.line(0).starts_with(&head) && ed.buf.line(0).ends_with("available)"));
+        assert!(ed.buf.line(7).ends_with(" sub"));
+        let a = ed.buf.line(line_of(&ed, "a.txt").unwrap());
+        let e = &ed.dired.as_ref().unwrap().entries[3];
+        assert!(a.contains(&format!(" 1 {} {} ", e.user, e.group)), "{a}");
         assert!(!ed.buf.modified && ed.readonly);
         // The cursor sits on names; j keeps it there.
-        // The cursor starts on the first entry after `..`, on its name; j
+        // The cursor starts on the first entry after `.` and `..`, on its name; j
         // keeps it on names.
         assert_eq!(&ed.buf.line(ed.cur.line)[ed.cur.byte..], ".hidden");
         keys(&mut ed, "j");
@@ -995,7 +1107,7 @@ mod tests {
         keys(&mut ed, "gh");
         assert!(!names(&ed).contains(&".hidden".to_string()));
         keys(&mut ed, "(");
-        assert_eq!(ed.buf.line(1), "  ../");
+        assert_eq!(ed.buf.line(2), "  ..");
         keys(&mut ed, "s");
         assert!(ed.dired.as_ref().unwrap().by_time);
     }
@@ -1018,7 +1130,7 @@ mod tests {
         assert!(d.path().join("a.txt").exists(), "no: nothing deleted");
         keys(&mut ed, "xy<Enter>");
         assert!(!d.path().join("a.txt").exists() && !d.path().join("b.txt").exists());
-        assert_eq!(names(&ed), ["..", ".hidden", "c.log", "sub"]);
+        assert_eq!(names(&ed), [".", "..", ".hidden", "c.log", "sub"]);
         // D on a directory deletes it, recursively.
         fs::write(d.path().join("sub/x"), "x").unwrap();
         on(&mut ed, "sub");
@@ -1121,6 +1233,6 @@ mod tests {
         assert!(ed.dired.as_ref().unwrap().editing && ed.msg.as_ref().unwrap().1);
         keys(&mut ed, "<Esc>gr");
         assert!(!ed.dired.as_ref().unwrap().editing && !ed.buf.modified);
-        assert_eq!(names(&ed).len(), 6);
+        assert_eq!(names(&ed).len(), 7);
     }
 }

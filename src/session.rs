@@ -562,6 +562,14 @@ impl Session {
         let path = std::env::current_dir()
             .ok()
             .and_then(|c| path.strip_prefix(c).ok().map(Path::to_path_buf))
+            // The working directory itself is `.`, not an empty (new) file.
+            .map(|p| {
+                if p.as_os_str().is_empty() {
+                    ".".into()
+                } else {
+                    p
+                }
+            })
             .unwrap_or(path);
         self.edit_path(path, then);
         // Still here: the open failed or waits on a swap question.
@@ -1496,6 +1504,14 @@ mod tests {
         // :e on a directory too; wdired renames on :w.
         t.keys(&format!(":e {}<Enter>", d.display()));
         assert!(t.s.ed.buf.line(t.s.ed.cur.line).ends_with("old.txt"));
+        // Space j finds files in the listed directory, not its parent.
+        t.keys(" j");
+        let Mode::Pick(p) = &t.s.ed.mode else {
+            panic!("no picker")
+        };
+        let listed = &t.s.ed.dired.as_ref().unwrap().dir;
+        assert_eq!(p.query.text, crate::pick::browse::show(listed));
+        t.keys("<Esc>");
         t.keys("icwnew<Esc>:w<Enter>");
         assert!(d.join("new.txt").exists(), "{:?}", t.s.ed.msg);
         assert!(!t.s.ed.buf.modified);
@@ -1571,6 +1587,20 @@ mod tests {
         assert!(std::sync::Arc::ptr_eq(&project, &t.s.ed.project));
         let recent = crate::pick::recent::load(&t.dir.path().join("recent"));
         assert_eq!(recent, [b, t.dir.path().join("a")]);
+    }
+
+    #[test]
+    fn opening_the_working_directory_lists_it() {
+        let mut t = T::open(Some("a"), Some("one\n"));
+        let cwd = std::env::current_dir().unwrap();
+        t.s.perform(ExEffect::Open {
+            path: cwd.clone(),
+            line: 0,
+            col: 0,
+            pattern: None,
+        });
+        let d = t.s.ed.dired.as_ref().expect("dired, not a new file");
+        assert_eq!(d.dir, fs::canonicalize(cwd).unwrap());
     }
 
     #[test]
