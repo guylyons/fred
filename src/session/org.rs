@@ -41,8 +41,8 @@ impl Session {
         if let Some(b) = back.filter(|&b| b < self.bufs.len() && b != me) {
             self.show(b);
         }
-        // Drop the special buffer.
-        if self.cur != me {
+        // Drop a special buffer (a capture's file buffer stays).
+        if self.cur != me && self.ed_at(me).path.is_none() {
             self.bufs.remove(me);
             if me < self.cur {
                 self.cur -= 1;

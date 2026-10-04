@@ -6,6 +6,7 @@
 
 pub mod babel;
 pub mod buf;
+pub mod capture;
 pub mod ctx;
 pub mod dispatch;
 pub mod element;
@@ -727,6 +728,7 @@ const MODULES: &[Module] = &[
     tags::command,
     props::command,
     links::command,
+    capture::command,
     table::command,
     list::command,
     time::command,
@@ -818,6 +820,37 @@ pub fn find_id_file(s: &mut crate::session::Session, id: &str) -> Option<(std::p
         }
     }
     None
+}
+
+/// A timestamp for a typed date (`2026-10-04`, `2026-10-04 13:00`, `+2d`,
+/// `today`), until the full org-read-date is wired in by time.rs.
+pub fn read_date_timestamp(s: &str, with_time: bool, inactive: bool) -> Option<String> {
+    let s = s.trim();
+    let now = now();
+    let (y, m, d, hh, mm, _) = localtime(now);
+    let today = tags::days_from_civil(y, m, d);
+    let (days, time) = if s.is_empty() || s == "." || s == "today" {
+        (today, None)
+    } else if let Some(n) = s.strip_prefix('+').and_then(|r| r.strip_suffix('d')).and_then(|n| n.parse::<i64>().ok()) {
+        (today + n, None)
+    } else {
+        let (date, time) = match s.split_once(' ') {
+            Some((a, b)) => (a, Some(b)),
+            None => (s, None),
+        };
+        let mut it = date.split('-');
+        let (yy, mo, dd) = (it.next()?.parse().ok()?, it.next()?.parse().ok()?, it.next()?.parse().ok()?);
+        (tags::days_from_civil(yy, mo, dd), time.map(str::to_owned))
+    };
+    let (yy, mo, dd) = capture::civil_from_days(days);
+    let wd = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][(days + 4).rem_euclid(7) as usize];
+    let t = match (time, with_time) {
+        (Some(t), _) => format!(" {t}"),
+        (None, true) => format!(" {hh:02}:{mm:02}"),
+        (None, false) => String::new(),
+    };
+    let body = format!("{yy:04}-{mo:02}-{dd:02} {wd}{t}");
+    Some(if inactive { format!("[{body}]") } else { format!("<{body}>") })
 }
 
 /// Run a command by name from another command (context dispatchers).

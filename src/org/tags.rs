@@ -908,7 +908,7 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
 
 #[cfg(test)]
 mod tests {
-    use super::super::tests::{org, shown};
+    use super::super::tests::org;
     use super::*;
 
     fn eval(m: &str, todo: Option<&str>, tags: &[&str], level: usize, props: &[(&str, &str)]) -> bool {

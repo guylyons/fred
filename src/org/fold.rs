@@ -15,6 +15,8 @@ pub enum Spec {
     Outline,
     Block,
     Drawer,
+    /// Narrowing (narrow-to-region): text outside is not part of the buffer.
+    Narrow,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -22,6 +24,7 @@ pub struct Specs {
     pub outline: Folds,
     pub block: Folds,
     pub drawer: Folds,
+    pub narrow: Folds,
 }
 
 impl Specs {
@@ -30,11 +33,12 @@ impl Specs {
             Spec::Outline => &mut self.outline,
             Spec::Block => &mut self.block,
             Spec::Drawer => &mut self.drawer,
+            Spec::Narrow => &mut self.narrow,
         }
     }
 
     pub fn line_change(&mut self, at: usize, removed: usize, inserted: usize) {
-        for f in [&mut self.outline, &mut self.block, &mut self.drawer] {
+        for f in [&mut self.outline, &mut self.block, &mut self.drawer, &mut self.narrow] {
             f.line_change(at, removed, inserted);
         }
     }
@@ -48,7 +52,7 @@ fn specs(ed: &mut Editor) -> Option<&mut Specs> {
 fn sync(ed: &mut Editor) {
     let Some(o) = &ed.org else { return };
     let mut all = Folds::default();
-    for f in [&o.specs.outline, &o.specs.block, &o.specs.drawer] {
+    for f in [&o.specs.outline, &o.specs.block, &o.specs.drawer, &o.specs.narrow] {
         for &(s, e) in f.ranges() {
             all.hide(s, e);
         }
@@ -504,12 +508,64 @@ pub fn show_context_for(ed: &mut Editor, l: usize, key: &str) {
     show_set_visibility(ed, l, &detail);
 }
 
+/// The narrowed region (first, last line), if narrowed.
+pub fn narrowed(ed: &Editor) -> Option<(usize, usize)> {
+    let o = ed.org.as_ref()?;
+    let r = o.specs.narrow.ranges();
+    if r.is_empty() {
+        return None;
+    }
+    let n = ed.line_count();
+    let start = if r[0].0 == 0 { r[0].1 + 1 } else { 0 };
+    let end = match r.last() {
+        Some(&(s, e)) if e + 1 >= n && s > 0 => s - 1,
+        _ => n - 1,
+    };
+    Some((start.min(n - 1), end.max(start).min(n - 1)))
+}
+
+/// narrow-to-region on lines `s..=e`.
+pub fn narrow(ed: &mut Editor, s: usize, e: usize) {
+    widen(ed);
+    let n = ed.line_count();
+    if s > 0 {
+        region(ed, 0, s - 1, true, Spec::Narrow);
+    }
+    if e + 1 < n {
+        region(ed, e + 1, n - 1, true, Spec::Narrow);
+    }
+    if ed.cur.line < s || ed.cur.line > e {
+        ed.set_cursor(s, 0);
+    }
+}
+
+/// widen.
+pub fn widen(ed: &mut Editor) {
+    let n = ed.line_count();
+    region(ed, 0, n - 1, false, Spec::Narrow);
+}
+
 /// Reveal line `l` after a search or jump (isearch context).
 pub fn show_context(ed: &mut Editor, l: usize) {
+    if let Some((s, e)) = narrowed(ed)
+        && (l < s || l > e)
+    {
+        // Outside the narrowing: stay inside it.
+        let to = if l < s { s } else { e };
+        ed.set_cursor(to, 0);
+        if hidden(ed, to) {
+            show_context(ed, to);
+        }
+        return;
+    }
     show_context_for(ed, l, "isearch");
     if hidden(ed, l) {
         // Still hidden (a fold spec this detail does not open): open it.
         show_all_specs(ed, l, l);
+    }
+    if ed.cur.line == l && hidden(ed, l) {
+        let to = ed.folds.prev_visible(l);
+        ed.set_cursor(to, 0);
     }
 }
 
@@ -525,6 +581,7 @@ pub fn show_set_visibility(ed: &mut Editor, l: usize, detail: &str) {
                 let range = ed.org.as_ref().and_then(|o| match spec {
                     Spec::Block => o.specs.block.range_at(l),
                     Spec::Drawer => o.specs.drawer.range_at(l),
+                    Spec::Narrow => None,
                     Spec::Outline => o.specs.outline.range_at(l),
                 });
                 if let Some((s, e)) = range {
@@ -896,6 +953,54 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
         "org-set-startup-visibility" | "org-cycle-set-startup-visibility" => {
             startup_visibility(ed);
             Ok(())
+        }
+        "org-narrow-to-subtree" => match back_to_heading(ed, l) {
+            Some(h) => {
+                let end = syntax::subtree_end(&ed.buf, h);
+                narrow(ed, h, end.saturating_sub(1));
+                Ok(())
+            }
+            None => Err("Not in a subtree".into()),
+        },
+        "org-narrow-to-block" => match super::ctx::block_at(ed, l).map(|(_, b, e)| (b, e)).or_else(|| wrapper_at(ed, l, false)) {
+            Some((b, e)) => {
+                narrow(ed, b, e);
+                Ok(())
+            }
+            None => Err("Not in a block".into()),
+        },
+        "org-narrow-to-element" => {
+            // The paragraph, block, drawer or subtree at point.
+            if super::ctx::at_heading(ed, l) {
+                let end = syntax::subtree_end(&ed.buf, l);
+                narrow(ed, l, end - 1);
+            } else if let Some((b, e)) = wrapper_at(ed, l, false).or_else(|| wrapper_at(ed, l, true)) {
+                narrow(ed, b, e);
+            } else {
+                let blank = |i: usize| line(ed, i).trim().is_empty();
+                let mut s = l;
+                while s > 0 && !blank(s - 1) && !super::ctx::at_heading(ed, s - 1) {
+                    s -= 1;
+                }
+                let mut e = l;
+                while e + 1 < n_lines(ed) && !blank(e + 1) && !super::ctx::at_heading(ed, e + 1) {
+                    e += 1;
+                }
+                narrow(ed, s, e);
+            }
+            Ok(())
+        }
+        "widen" | "org-widen" => {
+            widen(ed);
+            Ok(())
+        }
+        "org-toggle-narrow-to-subtree" => {
+            if narrowed(ed).is_some() {
+                widen(ed);
+                Ok(())
+            } else {
+                command(ed, "org-narrow-to-subtree", arg).unwrap()
+            }
         }
         "org-ctrl-c-tab" => {
             if let Some(r) = hooks::table_width(ed) {
