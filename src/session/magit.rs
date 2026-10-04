@@ -158,6 +158,35 @@ impl Session {
         if let Action::Answered(repo, Question::File(op), answers, args) = action {
             return self.file_answered(repo, op, answers, args);
         }
+        if let Action::Answered(repo, Question::Branch(op), answers, defaults) = action {
+            self.start_magit(move || {
+                let merged: Vec<String> = answers
+                    .iter()
+                    .enumerate()
+                    .map(|(i, a)| {
+                        if a.is_empty() {
+                            defaults.get(i).cloned().unwrap_or_default()
+                        } else {
+                            a.clone()
+                        }
+                    })
+                    .collect();
+                Ok(branch_outcome(
+                    repo.clone(),
+                    repo.branch_step(op, &merged, &defaults),
+                ))
+            });
+            return;
+        }
+        if let Action::Branch(op) = action {
+            let from = self.magit_from();
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                let (prompts, defaults) = repo.branch_prompts(&op)?;
+                Ok(Outcome::Ask(repo, Question::Branch(op), defaults, prompts))
+            });
+            return;
+        }
         if let Action::File(op) = action {
             return self.file_action(op);
         }
@@ -165,7 +194,9 @@ impl Session {
             let origin = self.cur;
             let line = self.ed.cur.line;
             self.start_magit(move || match question {
-                Question::File(_) => unreachable!("handled before the worker"),
+                Question::File(_) | Question::Branch(_) => {
+                    unreachable!("handled before the worker")
+                }
                 Question::FindFile => {
                     let pick = |i: usize| {
                         answers
@@ -458,12 +489,20 @@ impl Session {
             return;
         }
         if let Action::Switch(name) = action {
+            if name.starts_with('-') || name.chars().any(char::is_control) {
+                return self.ed.set_err(format!("invalid revision {name:?}"));
+            }
             if let Some(repo) = self.magit_picker_repo.take() {
                 self.ed.mode = Mode::Normal;
                 self.pending_git = Some(GitInvocation {
                     expected_head: None,
                     repo,
-                    args: vec!["switch".into(), "--".into(), name.into()],
+                    // magit-checkout: a branch, or any revision (detaching HEAD).
+                    args: vec![
+                        "checkout".into(),
+                        name.strip_prefix("heads/").unwrap_or(&name).into(),
+                        "--".into(),
+                    ],
                     input: None,
                     draft: None,
                     draft_stamp: None,
@@ -636,7 +675,7 @@ impl Session {
                         Ok(Outcome::View(Box::new(view), selected, line))
                     } else {
                         let snapshot = repo.status()?;
-                        let mut view = View::status(repo, snapshot);
+                        let mut view = View::new_status(repo, snapshot);
                         view.return_to = origin;
                         Ok(Outcome::View(Box::new(view), None, 0))
                     }
@@ -717,7 +756,7 @@ impl Session {
                     Ok(Outcome::Draft(repo, mode, message, commit_args))
                 }
                 Action::Branches => {
-                    let names = repo.branches()?;
+                    let names = repo.branch_choices();
                     Ok(Outcome::Branches(repo, names))
                 }
                 Action::Net(op) => {
@@ -1413,6 +1452,23 @@ impl Session {
         }
     }
 }
+fn branch_outcome(repo: Repo, next: crate::magit::branch::Next) -> Outcome {
+    use crate::magit::branch::Next;
+    match next {
+        Next::Done(result) => Outcome::Saved(repo, result.map(|_| ())),
+        Next::Ask(op, prompts, defaults) => {
+            Outcome::Ask(repo, Question::Branch(op), defaults, prompts)
+        }
+        Next::Git(args) => Outcome::Git(GitInvocation {
+            expected_head: None,
+            repo,
+            args: args.into_iter().map(OsString::from).collect(),
+            input: None,
+            draft: None,
+            draft_stamp: None,
+        }),
+    }
+}
 fn blob_outcome(
     repo: Repo,
     rev: String,
@@ -1510,6 +1566,20 @@ fn diff_context(
             (Some(RowAction::Section(Section::Staged)), _)
             | (Some(RowAction::File(_, Section::Staged)), _)
             | (Some(RowAction::Hunk(_, true, ..)), _) => Some(Ok(Target::Staged)),
+            // Log sections diff their range as endpoints (magit-diff--range-to-endpoints).
+            (Some(RowAction::Section(Section::UnpushedUpstream)), _) => {
+                Some(Ok(Target::Range("@{upstream}...".into())))
+            }
+            (Some(RowAction::Section(Section::UnpulledUpstream)), _) => {
+                Some(Ok(Target::Range("...@{upstream}".into())))
+            }
+            (Some(RowAction::Section(Section::UnpushedPush)), _) => {
+                Some(Ok(Target::Range("@{push}...".into())))
+            }
+            (Some(RowAction::Section(Section::UnpulledPush)), _) => {
+                Some(Ok(Target::Range("...@{push}".into())))
+            }
+            (Some(RowAction::Section(Section::Stashes)), _) => None,
             // magit-diff--dwim has no untracked case: fall through to the range prompt.
             (Some(RowAction::Section(Section::Untracked)), _)
             | (Some(RowAction::File(_, Section::Untracked)), _) => None,
@@ -1574,6 +1644,7 @@ fn refresh_view(view: &mut View) -> Result<(), String> {
         return Ok(());
     }
     view.snapshot = view.repo.status()?;
+    view.snapshot.extra = view.repo.status_extra();
     view.diffs.clear();
     for (path, staged) in view.expanded.clone() {
         if view

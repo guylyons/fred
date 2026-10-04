@@ -1201,9 +1201,11 @@ fn magit_workflow_menu_prompt_and_terminal_return() {
     let mut p = env.fred(&["-f", "f.txt"]);
     p.wait_for("editor", |s| s.contains("NORMAL"));
     p.keys(&[" mb"]);
-    p.wait_for("branch menu", |s| s.contains("create and switch"));
+    p.wait_for("branch menu", |s| s.contains("new spin-off"));
     p.keys(&["c"]);
-    p.wait_for("branch prompt", |s| s.contains("Branch name:"));
+    p.wait_for("branch prompt", |s| {
+        s.contains("Create and checkout branch named:")
+    });
     p.keys(&["cancelled\x1b"]);
     p.wait_for("cancel prompt", |s| s.contains("NORMAL"));
     p.keys(&[" mtc"]);

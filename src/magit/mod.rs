@@ -1,6 +1,7 @@
 //! A status-centered Git component; rendered text is never used as an operation path.
 pub mod blame;
 pub mod blob;
+pub mod branch;
 pub mod diff;
 pub mod network;
 pub mod repo;
@@ -47,6 +48,8 @@ pub enum Action {
     /// magit-blob-visit-file: the worktree file of this blob.
     BlobVisitFile,
     BlobQuit,
+    /// A magit-branch.el suffix.
+    Branch(branch::Op),
     /// magit-file-stage/unstage/untrack/rename/delete/checkout.
     File(blob::FileOp),
     BlameCycle,
@@ -83,12 +86,15 @@ pub enum Section {
 impl Section {
     fn name(self) -> &'static str {
         match self {
-            Self::Conflicts => "Unmerged",
+            Self::Conflicts => "Conflicts",
             Self::Untracked => "Untracked files",
             Self::Unstaged => "Unstaged changes",
             Self::Staged => "Staged changes",
             Self::Stashes => "Stashes",
-            _ => "Commits",
+            Self::UnpushedPush => "Unpushed to <push-remote>",
+            Self::UnpushedUpstream => "Unpushed to @{upstream}",
+            Self::UnpulledPush => "Unpulled from <push-remote>",
+            Self::UnpulledUpstream => "Unpulled from @{upstream}",
         }
     }
     fn contains(self, e: &repo::Entry) -> bool {
@@ -138,6 +144,20 @@ pub struct View {
     pub diffs: HashMap<(PathBuf, bool), Diff>,
 }
 impl View {
+    /// A new status buffer: sections start hidden as upstream inserts them
+    /// (magit-section-initial-visibility-alist and the log sections' HIDE).
+    pub fn new_status(repo: Repo, mut snapshot: Snapshot) -> Self {
+        snapshot.extra = repo.status_extra();
+        let mut v = Self::status(repo, snapshot);
+        v.closed.insert(Section::Stashes);
+        for (section, heading, _) in &v.snapshot.extra.logs {
+            if *section != Section::UnpushedUpstream || heading == "Recent commits" {
+                v.closed.insert(*section);
+            }
+        }
+        v.rebuild();
+        v
+    }
     pub fn status(repo: Repo, snapshot: Snapshot) -> Self {
         let mut v = Self {
             dirty: false,
@@ -331,6 +351,8 @@ impl View {
             // magit-section-show-child-count, except for recent commits.
             let count = if heading == "Recent commits" {
                 String::new()
+            } else if section != Section::Stashes && rows.len() >= status::LIMIT {
+                format!(" ({}+)", rows.len())
             } else {
                 format!(" ({})", rows.len())
             };
@@ -344,9 +366,15 @@ impl View {
         }
     }
     pub fn selection(&self, action: &Option<RowAction>, fallback: usize) -> usize {
+        // A commit can appear in several sections: keep the occurrence nearest
+        // the previous position.
         action
             .as_ref()
-            .and_then(|a| self.rows.iter().position(|r| r.action.as_ref() == Some(a)))
+            .and_then(|a| {
+                (0..self.rows.len())
+                    .filter(|&i| self.rows[i].action.as_ref() == Some(a))
+                    .min_by_key(|&i| i.abs_diff(fallback))
+            })
             .unwrap_or(fallback.min(self.rows.len().saturating_sub(1)))
     }
 }
@@ -551,7 +579,9 @@ fn menu_help(menu: char) -> Option<&'static str> {
         'B' => {
             "Blame: b addition  m echo  q quit  c cycle style; in blame n/p chunks  N/P same commit  RET commit"
         }
-        'b' => "Branch: c create  s create and switch  r rename current  d delete merged",
+        'b' => {
+            "Branch: b checkout  l local  c new  s spin-off  n create  S spin-out  m rename  x reset  k delete"
+        }
         'd' => {
             "Diff: d dwim  r range  p paths  u unstaged  s staged  w worktree  c commit  t stash"
         }
@@ -598,8 +628,9 @@ pub enum Prompt {
     /// A chain of prompts: repo, question, arguments, prompts, answers so far.
     Ask(Repo, Question, Vec<String>, Vec<String>, Vec<String>),
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Question {
+    Branch(branch::Op),
     Net(network::Op),
     Diff(diff::Op),
     FindFile,
@@ -1054,11 +1085,25 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("c", "Refresh", "Cycle style", BlameCycle),
         ],
         'b' => vec![
-            ("b", "Checkout", "Switch local branch", Branches),
-            ("c", "Create", "create", Workflow(CreateBranch)),
-            ("s", "Create", "create and switch", Workflow(CreateSwitch)),
-            ("r", "Edit", "Rename current", Workflow(RenameBranch)),
-            ("d", "Delete", "Delete merged", Workflow(DeleteBranch)),
+            ("b", "Checkout", "branch/revision", Branches),
+            (
+                "l",
+                "Checkout",
+                "local branch",
+                Branch(branch::Op::CheckoutLocal),
+            ),
+            (
+                "c",
+                "Checkout",
+                "new branch",
+                Branch(branch::Op::CreateCheckout),
+            ),
+            ("s", "Checkout", "new spin-off", Branch(branch::Op::Spinoff)),
+            ("n", "Create", "new branch", Branch(branch::Op::Create)),
+            ("S", "Create", "new spin-out", Branch(branch::Op::Spinout)),
+            ("m", "Do", "rename", Branch(branch::Op::Rename)),
+            ("x", "Do", "reset", Branch(branch::Op::Reset)),
+            ("k", "Do", "delete", Branch(branch::Op::Delete)),
         ],
         't' => vec![
             ("c", "Create", "Lightweight tag", Workflow(Tag)),

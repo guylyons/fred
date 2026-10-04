@@ -151,19 +151,19 @@ magit-branch.el,107,option,magit-branch-adjust-remote-upstream-alist,missing,,ex
 magit-branch.el,169,option,magit-branch-rename-push-target,missing,,explicit
 magit-branch.el,197,option,magit-branch-direct-configure,missing,,explicit
 magit-branch.el,206,option,magit-published-branches,missing,,explicit
-magit-branch.el,215,command,magit-branch,missing,,explicit
-magit-branch.el,265,command,magit-checkout,missing,,explicit
-magit-branch.el,285,command,magit-branch-create,partial,Space m b c; HEAD start point only,explicit
-magit-branch.el,298,command,magit-branch-and-checkout,partial,Space m b s; HEAD start point only,explicit
+magit-branch.el,215,command,magit-branch,partial,"Space m b menu with upstream keys b/l/c/s/n/S/m/x/k; direct configure group, C configure, hidden o/r/w/W/h/H and -m/-r missing",explicit
+magit-branch.el,265,command,magit-checkout,partial,"Space m b b picker of local and remote branches; Enter checks out, a typed revision detaches; -m/-r arguments missing",explicit
+magit-branch.el,285,command,magit-branch-create,partial,"Space m b n; name validated (check-ref-format, not taken) then start point; upstream adjustment alist missing",explicit
+magit-branch.el,298,command,magit-branch-and-checkout,partial,Space m b c; stash@{N} start uses git stash branch,explicit
 magit-branch.el,314,command,magit-branch-or-checkout,missing,,explicit
-magit-branch.el,340,command,magit-branch-checkout,partial,Space m b b; local picker; other ref/options/context modes missing,explicit
+magit-branch.el,340,command,magit-branch-checkout,partial,"Space m b l; local, remote-tracking (creates branch, sets pushRemote unless pushDefault), or new name with start point; refuses with uncommitted changes",explicit
 magit-branch.el,428,command,magit-branch-orphan,missing,,explicit
 magit-branch.el,434,command,magit-checkout-remote-ref,missing,,explicit
-magit-branch.el,517,command,magit-branch-spinout,missing,,explicit
-magit-branch.el,527,command,magit-branch-spinoff,missing,,explicit
-magit-branch.el,602,command,magit-branch-reset,missing,,explicit
-magit-branch.el,643,command,magit-branch-delete,partial,Space m b d; merged-only; selection/force options missing,explicit
-magit-branch.el,818,command,magit-branch-rename,partial,Space m b r; current branch only,explicit
+magit-branch.el,517,command,magit-branch-spinout,partial,"Space m b S; stays on branch unless dirty, hard-resets it to merge-base; region FROM missing",explicit
+magit-branch.el,527,command,magit-branch-spinoff,partial,"Space m b s; new branch tracks old, old moves back to merge-base; region FROM missing",explicit
+magit-branch.el,602,command,magit-branch-reset,partial,"Space m b x; non-current via update-ref, current via reset --hard after yes when dirty; prefix set-upstream missing",explicit
+magit-branch.el,643,command,magit-branch-delete,partial,"Space m b k; merged/unmerged confirm, current branch detach/checkout-target choice, remote-tracking delete on remote or locally; multi-branch region, PR remote cleanup missing",explicit
+magit-branch.el,818,command,magit-branch-rename,partial,Space m b m; keeps pushRemote; remote push-target rename and force missing,explicit
 magit-branch.el,864,command,magit-branch-shelve,missing,,explicit
 magit-branch.el,879,command,magit-branch-unshelve,missing,,explicit
 magit-branch.el,906,command,magit-branch-configure,missing,,explicit

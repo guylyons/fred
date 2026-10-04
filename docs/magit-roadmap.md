@@ -125,3 +125,7 @@ October 4 status checkpoint: status headers, stash and log sections and the
 user's evil-collection jumpers ([scenarios](magit-status-acceptance.md)); file
 action safety re-review fixes. Ledger 134 partial / 639 missing commands, 5
 options partial (defaults) / 232 missing. Score remains 3%.
+
+October 4 branch checkpoint: Space m b uses upstream keys b/l/c/s/n/S/m/x/k
+([scenarios](magit-branch-acceptance.md)); status review fixes applied.
+Ledger 139 partial / 634 missing commands. Score remains 3%.

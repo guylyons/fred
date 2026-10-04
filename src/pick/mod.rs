@@ -766,11 +766,15 @@ pub fn pick_key(ed: &mut Editor, k: Key) {
             set_query(p, q);
             p.update(&ed.project, &ed.buf, Instant::now());
         }
+        // magit-read-other-branch-or-commit: a typed revision works too.
         KeyCode::Enter if p.kind == Kind::Branches => {
-            if let Some(r) = p.rows.get(p.sel) {
-                ed.pending_effect = Some(ExEffect::Magit(crate::magit::Action::Switch(
-                    r.text.clone(),
-                )));
+            let choice = p
+                .rows
+                .get(p.sel)
+                .map(|r| r.text.clone())
+                .or_else(|| Some(p.query.text.trim().to_owned()).filter(|q| !q.is_empty()));
+            if let Some(choice) = choice {
+                ed.pending_effect = Some(ExEffect::Magit(crate::magit::Action::Switch(choice)));
             }
         }
         KeyCode::Enter if p.kind == Kind::Buffers => {

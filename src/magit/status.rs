@@ -15,6 +15,8 @@ pub struct Extra {
 
 /// magit-log-section-commit-count.
 const RECENT: usize = 10;
+/// magit-status buffer log arguments default to -n256.
+pub const LIMIT: usize = 256;
 
 fn header(keyword: &str, text: &str) -> String {
     format!("{keyword:<10}{text}")
@@ -107,10 +109,14 @@ impl Repo {
         let remote = self.config(&format!("branch.{branch}.remote"));
         let merge = self.config(&format!("branch.{branch}.merge"));
         if remote.is_some() || merge.is_some() {
+            // Upstream's pcase: only "true"/"false" decide; anything else falls back to
+            // pull.rebase read as a boolean (magit-get-boolean).
             let rebase = match self.config(&format!("branch.{branch}.rebase")).as_deref() {
+                Some("true") => true,
                 Some("false") => false,
-                Some(_) => true,
-                None => self.config("pull.rebase").is_some_and(|v| v != "false"),
+                _ => self
+                    .read(&["config", "--bool", "--get", "pull.rebase"])
+                    .is_ok_and(|o| o.starts_with(b"true")),
             };
             let keyword = if rebase { "Rebase:" } else { "Merge:" };
             let remotes = self.remotes().unwrap_or_default();
@@ -118,21 +124,34 @@ impl Repo {
                 .verify(&format!("{branch}@{{upstream}}"))
                 .then(|| self.short_ref(&format!("{branch}@{{upstream}}")))
                 .flatten();
+            // magit--unnamed-upstream-p and magit--valid-upstream-p; config values are
+            // labelled so an embedded newline cannot split the row.
+            let unnamed = |r: &str| {
+                r.starts_with('/')
+                    || r.starts_with("./")
+                    || r.starts_with("../")
+                    || r.contains([':', '@'])
+            };
             let text = match (&upstream, &remote, &merge) {
                 (Some(u), _, _) => format!(
                     "{} {}",
                     label(Path::new(u)),
                     self.summary(u).unwrap_or_default()
                 ),
-                (None, Some(r), Some(m)) if r != "." && !remotes.contains(r) => {
+                (None, Some(r), Some(m)) if unnamed(r) && m.starts_with("refs/") => {
                     format!("{} from {}", label(Path::new(m)), label(Path::new(r)))
                 }
-                (None, Some(r), Some(m)) if m.starts_with("refs/heads/") => {
-                    let name = m.trim_start_matches("refs/heads/");
+                (None, Some(r), Some(m))
+                    if (r == "." || remotes.contains(r)) && m.starts_with("refs/") =>
+                {
                     if r == "." {
-                        format!("{} does not exist", label(Path::new(name)))
+                        format!("{} does not exist", label(Path::new(m)))
                     } else {
-                        format!("{name} does not exist on {r}")
+                        format!(
+                            "{} does not exist on {}",
+                            label(Path::new(m)),
+                            label(Path::new(r))
+                        )
                     }
                 }
                 _ => "invalid upstream configuration".into(),
@@ -234,7 +253,7 @@ impl Repo {
             add(
                 Section::UnpushedPush,
                 format!("Unpushed to {p}"),
-                self.log_range(&format!("refs/remotes/{p}..HEAD"), None),
+                self.log_range(&format!("refs/remotes/{p}..HEAD"), Some(LIMIT)),
             );
         }
         // magit-insert-unpushed-to-upstream-or-recent.
@@ -247,7 +266,7 @@ impl Repo {
                 add(
                     Section::UnpushedUpstream,
                     format!("Unmerged into {u}"),
-                    self.log_range("@{upstream}..HEAD", None),
+                    self.log_range("@{upstream}..HEAD", Some(LIMIT)),
                 );
             }
             _ => add(
@@ -260,14 +279,14 @@ impl Repo {
             add(
                 Section::UnpulledPush,
                 format!("Unpulled from {p}"),
-                self.log_range(&format!("HEAD..refs/remotes/{p}"), None),
+                self.log_range(&format!("HEAD..refs/remotes/{p}"), Some(LIMIT)),
             );
         }
         if let Some(u) = &upstream {
             add(
                 Section::UnpulledUpstream,
                 format!("Unpulled from {u}"),
-                self.log_range("HEAD..@{upstream}", None),
+                self.log_range("HEAD..@{upstream}", Some(LIMIT)),
             );
         }
         extra

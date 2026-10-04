@@ -599,7 +599,7 @@ fn workflow_menu_dispatch_and_prompt_cancel() {
     };
     for (keys, expected) in [
         (" mzz", "Stash"),
-        (" mbc", "CreateBranch"),
+        (" mbc", "CreateCheckout"),
         (" mMm", "Merge"),
         (" mRr", "Rebase"),
         (" mCa", "Amend"),
@@ -866,7 +866,7 @@ fn workflow_menu_is_visible_navigable_and_cancelled() {
     for key in parse_keys(" mb<Down><Down><Enter>") {
         ed.handle_key(key);
     }
-    assert!(format!("{:?}", ed.pending_effect).contains("CreateSwitch"));
+    assert!(format!("{:?}", ed.pending_effect).contains("CreateCheckout"));
     assert_eq!(ed.buf.line(0), "source");
 }
 
@@ -1324,7 +1324,7 @@ fn status_headers_and_log_sections_follow_upstream_and_push_remote() {
     git(d.path(), &["fetch", "-q"]);
     fs::write(d.path().join("f"), b"stash me\n").unwrap();
     git(d.path(), &["stash", "push", "-qm", "parked"]);
-    let x = r.status().unwrap().extra;
+    let x = r.status_extra();
     assert_eq!(x.headers[0], "Head:     main initial");
     assert_eq!(x.headers[1], "Merge:    origin/main remote work");
     assert_eq!(x.headers[2], "Tag:      v1 (1)");
@@ -1343,36 +1343,180 @@ fn status_headers_and_log_sections_follow_upstream_and_push_remote() {
     );
     git(d.path(), &["config", "branch.main.pushRemote", "origin"]);
     git(d.path(), &["config", "branch.main.rebase", "true"]);
-    let x = r.status().unwrap().extra;
+    let x = r.status_extra();
     assert_eq!(x.headers[1], "Rebase:   origin/main remote work");
     assert_eq!(x.headers[2], "Push:     origin/main remote work");
     // The push target equals the upstream, so no duplicate push sections.
     assert_eq!(x.logs.len(), 2);
     git(d.path(), &["config", "branch.main.pushRemote", "nowhere"]);
-    let x = r.status().unwrap().extra;
+    let x = r.status_extra();
     assert_eq!(x.headers[2], "Push:     nowhere remote does not exist");
     git(
         d.path(),
         &["config", "branch.main.merge", "refs/heads/gone"],
     );
-    let x = r.status().unwrap().extra;
-    assert_eq!(x.headers[1], "Rebase:   gone does not exist on origin");
+    let x = r.status_extra();
+    assert_eq!(
+        x.headers[1],
+        "Rebase:   refs/heads/gone does not exist on origin"
+    );
+    git(
+        d.path(),
+        &["config", "branch.main.merge", "refs/heads/a\nb"],
+    );
+    assert!(!r.status_extra().headers[1].contains('\n'));
+    git(d.path(), &["config", "branch.main.rebase", "merges"]);
+    git(d.path(), &["config", "pull.rebase", "no"]);
+    assert!(r.status_extra().headers[1].starts_with("Merge:"));
+    git(d.path(), &["config", "branch.main.remote", "deleted"]);
+    assert_eq!(
+        r.status_extra().headers[1],
+        "Merge:    invalid upstream configuration"
+    );
     assert_eq!(x.logs[0].1, "Recent commits");
 }
 #[test]
 fn status_of_unborn_and_detached_heads() {
     let (d, r) = setup();
     assert_eq!(
-        r.status().unwrap().extra.headers,
+        r.status_extra().headers,
         ["Head:     main (no commits yet)"]
     );
     committed(d.path(), b"one\n");
     git(d.path(), &["checkout", "-q", "--detach"]);
-    let x = r.status().unwrap().extra;
+    let x = r.status_extra();
     assert!(
         x.headers[0].starts_with("Head:     ") && x.headers[0].ends_with(" initial"),
         "{:?}",
         x.headers
     );
     assert_eq!(x.logs[0].1, "Recent commits");
+}
+#[test]
+fn branch_suffixes_follow_magit_branch() {
+    use super::branch::{Next, Op};
+    let (d, r, bare) = with_remote();
+    git(d.path(), &["push", "-qu", "origin", "main"]);
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    let done = |n: Next| match n {
+        Next::Done(r) => r,
+        Next::Ask(op, p, _) => Err(format!("asked {op:?}: {p:?}")),
+        Next::Git(a) => Err(format!("git {a:?}")),
+    };
+    let head = |b: &str| git(d.path(), &["rev-parse", b]);
+    // n: create without checkout; c: create and checkout.
+    done(r.branch_step(Op::Create, &s(&["topic", "main"]), &[])).unwrap();
+    assert_eq!(r.current_branch().unwrap(), "main");
+    assert!(
+        done(r.branch_step(Op::Create, &s(&["topic", "main"]), &[]))
+            .unwrap_err()
+            .contains("exists")
+    );
+    assert!(done(r.branch_step(Op::Create, &s(&["bad..name", "main"]), &[])).is_err());
+    assert!(done(r.branch_step(Op::Create, &s(&["x", "-p"]), &[])).is_err());
+    done(r.branch_step(Op::CreateCheckout, &s(&["work", "main"]), &[])).unwrap();
+    assert_eq!(r.current_branch().unwrap(), "work");
+    // l: local, remote-tracking (pushRemote set), or new name with a start point.
+    done(r.branch_step(Op::CheckoutLocal, &s(&["main"]), &[])).unwrap();
+    assert_eq!(r.current_branch().unwrap(), "main");
+    let other = tempfile::tempdir().unwrap();
+    git(
+        other.path(),
+        &["clone", "-q", bare.path().to_str().unwrap(), "."],
+    );
+    git(other.path(), &["checkout", "-qb", "feature"]);
+    git(other.path(), &["push", "-qu", "origin", "feature"]);
+    git(d.path(), &["fetch", "-q"]);
+    git(d.path(), &["config", "remote.pushDefault", "elsewhere"]);
+    done(r.branch_step(Op::CheckoutLocal, &s(&["origin/feature"]), &[])).unwrap();
+    assert_eq!(r.current_branch().unwrap(), "feature");
+    assert_eq!(
+        git(d.path(), &["config", "branch.feature.pushRemote"]),
+        b"origin\n"
+    );
+    match r.branch_step(Op::CheckoutLocal, &s(&["brand-new"]), &[]) {
+        Next::Ask(Op::CheckoutNew(n), _, defaults) => {
+            assert_eq!((n.as_str(), defaults[0].as_str()), ("brand-new", "feature"))
+        }
+        _ => panic!("expected a start-point question"),
+    }
+    done(r.branch_step(Op::CheckoutNew("brand-new".into()), &s(&["main"]), &[])).unwrap();
+    assert_eq!(head("brand-new"), head("main"));
+    // m: rename keeps the push target.
+    git(
+        d.path(),
+        &["config", "branch.brand-new.pushRemote", "origin"],
+    );
+    done(r.branch_step(Op::Rename, &s(&["brand-new", "renamed"]), &[])).unwrap();
+    assert_eq!(
+        git(d.path(), &["config", "branch.renamed.pushRemote"]),
+        b"origin\n"
+    );
+    // s: spin off unpushed commits; main returns to its upstream.
+    done(r.branch_step(Op::CheckoutLocal, &s(&["main"]), &[])).unwrap();
+    let pushed = head("main");
+    committed(d.path(), b"unpushed\n");
+    let unpushed = head("main");
+    done(r.branch_step(Op::Spinoff, &s(&["spun"]), &[])).unwrap();
+    assert_eq!(r.current_branch().unwrap(), "spun");
+    assert_eq!(
+        (head("spun"), head("main")),
+        (unpushed.clone(), pushed.clone())
+    );
+    // S: spin out stays on the branch and hard-resets it (clean tree only).
+    done(r.branch_step(Op::CheckoutLocal, &s(&["main"]), &[])).unwrap();
+    committed(d.path(), b"more\n");
+    done(r.branch_step(Op::Spinout, &s(&["out"]), &[])).unwrap();
+    assert_eq!(r.current_branch().unwrap(), "main");
+    assert_eq!(head("main"), pushed);
+    // x: reset another branch by ref update; the current one asks when dirty.
+    done(r.branch_step(Op::Reset, &s(&["out", "main"]), &[])).unwrap();
+    assert_eq!(head("out"), pushed);
+    fs::write(d.path().join("f"), b"dirty\n").unwrap();
+    match r.branch_step(Op::Reset, &s(&["main", "spun"]), &[]) {
+        Next::Ask(op @ Op::ResetConfirmed(..), _, _) => {
+            assert!(done(r.branch_step(op.clone(), &s(&["no"]), &[])).is_err());
+            assert_eq!(fs::read(d.path().join("f")).unwrap(), b"dirty\n");
+            done(r.branch_step(op, &s(&["yes"]), &[])).unwrap();
+        }
+        _ => panic!("expected confirmation"),
+    }
+    assert_eq!(head("main"), unpushed);
+    // k: merged deletes; unmerged asks; current offers detach.
+    done(r.branch_step(Op::Delete, &s(&["out"]), &[])).unwrap();
+    match r.branch_step(Op::Delete, &s(&["topic"]), &[]) {
+        Next::Done(Ok(_)) => (),
+        _ => panic!("topic is merged into HEAD"),
+    }
+    match r.branch_step(Op::Delete, &s(&["renamed"]), &[]) {
+        Next::Done(Ok(_)) => (),
+        other => panic!("{:?}", matches!(other, Next::Ask(..))),
+    }
+    git(d.path(), &["checkout", "-qb", "doomed"]);
+    committed(d.path(), b"doomed\n");
+    git(d.path(), &["checkout", "-q", "main"]);
+    let op = match r.branch_step(Op::Delete, &s(&["doomed"]), &[]) {
+        Next::Ask(op @ Op::DeleteUnmerged(_), _, _) => op,
+        _ => panic!("unmerged branches need confirmation"),
+    };
+    assert!(done(r.branch_step(op.clone(), &s(&["n"]), &[])).is_err());
+    done(r.branch_step(op, &s(&["y"]), &[])).unwrap();
+    assert!(!r.branch_choices().contains(&"doomed".to_string()));
+    match r.branch_step(Op::Delete, &s(&["main"]), &[]) {
+        Next::Ask(op @ Op::DeleteCurrent(_), _, defaults) => {
+            assert_eq!(defaults, [""]);
+            assert!(done(r.branch_step(op.clone(), &s(&["a"]), &defaults)).is_err());
+        }
+        _ => panic!("current branch offers detach"),
+    }
+    match r.branch_step(Op::Delete, &s(&["origin/feature"]), &[]) {
+        Next::Ask(op @ Op::DeleteRemote(_), _, _) => {
+            assert!(
+                matches!(r.branch_step(op.clone(), &s(&["y"]), &[]), Next::Git(a) if a == ["push", "--delete", "origin", "refs/heads/feature"])
+            );
+            done(r.branch_step(op, &s(&["n"]), &[])).unwrap();
+            assert!(!r.branch_choices().contains(&"origin/feature".to_string()));
+        }
+        _ => panic!("remote branches ask about the remote"),
+    }
 }

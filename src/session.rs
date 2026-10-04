@@ -2422,35 +2422,21 @@ mod tests {
         magit_settle(&mut t);
         let text = t.s.ed.buf.text();
         assert!(
-            text.contains("v Stashes (1)") && text.contains("v Recent commits"),
+            text.contains("> Stashes (1)") && text.contains("> Recent commits"),
             "{text}"
         );
-        t.keys("gz");
-        assert!(t.s.ed.buf.line(t.s.ed.cur.line).starts_with("v Stashes"));
+        let line = |t: &T| t.s.ed.buf.line(t.s.ed.cur.line);
+        t.keys("gz<Tab>");
+        assert!(line(&t).starts_with("v Stashes"), "{}", line(&t));
         t.keys("gn");
-        assert!(
-            t.s.ed
-                .buf
-                .line(t.s.ed.cur.line)
-                .starts_with("v Untracked files")
-        );
+        assert!(line(&t).starts_with("v Untracked files"));
         t.keys("gpu");
-        assert!(
-            t.s.ed
-                .buf
-                .line(t.s.ed.cur.line)
-                .starts_with("v Recent commits")
-        );
+        assert!(line(&t).starts_with("> Recent commits"));
         t.keys("gfu");
-        assert!(t.msg().contains("wasn't found"), "{}", t.msg());
+        assert!(t.msg().contains("Unpulled from @{upstream}"), "{}", t.msg());
         t.keys("gpu<Tab>");
-        assert!(
-            t.s.ed
-                .buf
-                .line(t.s.ed.cur.line)
-                .starts_with("> Recent commits")
-        );
-        t.keys("<Tab>j<Enter>");
+        assert!(line(&t).starts_with("v Recent commits"));
+        t.keys("j<Enter>");
         magit_settle(&mut t);
         assert!(
             t.s.ed.buf.line(0).starts_with("commit "),
