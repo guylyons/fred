@@ -154,7 +154,7 @@ impl Repo {
         indirect.or_else(main).filter(|t| t != branch)
     }
     /// git reset --hard silently replaces untracked files the target tracks.
-    fn untracked_clobbered(&self, to: &str) -> Result<(), String> {
+    pub(super) fn untracked_clobbered(&self, to: &str) -> Result<(), String> {
         let untracked = self.read(&["ls-files", "--others", "--exclude-standard", "-z"])?;
         if untracked.is_empty() {
             return Ok(());

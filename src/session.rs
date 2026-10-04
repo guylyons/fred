@@ -2452,6 +2452,42 @@ mod tests {
         ));
     }
     #[test]
+    fn magit_merge_edit_message_seeds_a_blank_draft_and_commits_two_parents() {
+        let mut t = T::open(Some("f.txt"), Some("one\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "base"]).unwrap();
+        repo.read(&["checkout", "-qb", "topic"]).unwrap();
+        fs::write(t.dir.path().join("other"), "x").unwrap();
+        repo.stage_file(Path::new("other")).unwrap();
+        repo.read(&["commit", "-qm", "topic work"]).unwrap();
+        repo.read(&["checkout", "-q", "main"]).unwrap();
+        t.keys(" mMe");
+        magit_settle(&mut t);
+        t.keys("topic<Enter>");
+        magit_settle(&mut t);
+        assert!(t.s.ed.commit_repo.is_some(), "{}", t.msg());
+        assert!(
+            t.s.ed.buf.line(0).starts_with("Merge branch 'topic'"),
+            "{}",
+            t.s.ed.buf.line(0)
+        );
+        t.keys(":w<Enter> mcc");
+        let inv = t.s.pending_git.take().expect("commit invocation");
+        let result = inv.repo.run(&inv.args, inv.input.as_deref()).map(|_| ());
+        assert!(result.is_ok(), "{result:?}");
+        t.s.finish_git(inv, result);
+        let parents = repo.read(&["rev-list", "--parents", "-1", "HEAD"]).unwrap();
+        assert_eq!(
+            String::from_utf8_lossy(&parents).split_whitespace().count(),
+            3
+        );
+    }
+    #[test]
     fn magit_file_log_rejects_buffers_without_a_source_file() {
         let mut t = T::open(None, None);
         t.keys(" mL");

@@ -133,3 +133,7 @@ Ledger 139 partial / 634 missing commands. Score remains 3%.
 October 4 merge checkpoint: Space m M ports magit-merge
 ([scenarios](magit-merge-acceptance.md)); tag review fixes. Ledger 156
 partial / 617 missing commands. Score remains 3%.
+
+October 4 reset checkpoint: Space m X ports magit-reset
+([scenarios](magit-reset-acceptance.md)); merge review fixes. Ledger 163
+partial / 610 missing commands. Score remains 3%.

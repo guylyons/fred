@@ -12,6 +12,8 @@ pub enum Op {
     Absorb,
     /// Absorbing the main branch needs a typed "yes".
     AbsorbMain(String),
+    /// magit-merge-assert confirmed for a dirty worktree: the op and its answer.
+    Dirty(Box<Op>, String),
     Preview,
     Squash,
     Dissolve,
@@ -93,7 +95,7 @@ impl Repo {
                 )
             }
             Op::Abort => (vec!["Abort merge? (y or n) ".into()], vec![String::new()]),
-            Op::AbsorbMain(_) => return Err("not a menu suffix".into()),
+            Op::AbsorbMain(_) | Op::Dirty(..) => return Err("not a menu suffix".into()),
         })
     }
     /// magit-get-local-upstream-branch.
@@ -105,22 +107,36 @@ impl Repo {
     }
 
     pub fn merge_step(&self, op: Op, a: &[String], args: &[String]) -> Result<Next, String> {
+        self.merge_inner(op, a, args, true)
+    }
+    fn merge_inner(
+        &self,
+        op: Op,
+        a: &[String],
+        args: &[String],
+        check: bool,
+    ) -> Result<Next, String> {
         let at = |i: usize| a.get(i).map(String::as_str).unwrap_or("");
         let git = |mut argv: Vec<String>| {
             argv.insert(0, "merge".into());
             Ok(Next::Git(argv))
         };
-        let assert_clean = || {
-            // magit-merge-assert: refuse over uncommitted changes.
-            if self.read(&["diff", "--quiet"]).is_err()
-                || self.read(&["diff", "--cached", "--quiet"]).is_err()
-            {
-                return Err(
-                    "Merging with dirty worktree is risky.  Commit or stash first".to_owned(),
-                );
-            }
-            Ok(())
+        // magit-merge-assert: ask before merging over uncommitted changes
+        // (magit-anything-modified-p t ignores submodules).
+        let dirty = || {
+            self.read(&["diff", "--quiet", "--ignore-submodules"])
+                .is_err()
+                || self
+                    .read(&["diff", "--cached", "--quiet", "--ignore-submodules"])
+                    .is_err()
         };
+        if check && matches!(op, Op::Plain | Op::EditMsg | Op::NoCommit | Op::Squash) && dirty() {
+            return Ok(Next::Ask(
+                Question::Merge(Op::Dirty(Box::new(op), at(0).to_owned())),
+                vec!["Merging with dirty worktree is risky.  Continue? (y or n) ".into()],
+                vec![String::new()],
+            ));
+        }
         let with_args = |extra: &[&str], drop_ff_only: bool, revs: Vec<String>| {
             let mut argv: Vec<String> = extra.iter().map(|s| s.to_string()).collect();
             argv.extend(
@@ -135,13 +151,21 @@ impl Repo {
             argv.extend(revs);
             argv
         };
+        let other_local = |b: &str| {
+            self.current_branch().ok().as_deref() != Some(b)
+                && self
+                    .read(&["show-ref", "--verify", "-q", &format!("refs/heads/{b}")])
+                    .is_ok()
+        };
         match op {
-            Op::Plain => {
-                assert_clean()?;
-                git(with_args(&["--no-edit"], false, self.merge_revs(at(0))?))
+            Op::Dirty(op, answer) => {
+                if !matches!(at(0), "y" | "yes") {
+                    return Err("Abort".into());
+                }
+                self.merge_inner(*op, &[answer], args, false)
             }
+            Op::Plain => git(with_args(&["--no-edit"], false, self.merge_revs(at(0))?)),
             Op::NoCommit | Op::EditMsg => {
-                assert_clean()?;
                 let mut extra = vec!["--no-commit"];
                 if !args.iter().any(|x| x == "--no-ff") {
                     extra.push("--no-ff");
@@ -155,14 +179,18 @@ impl Repo {
                 full.extend(argv);
                 let full: Vec<std::ffi::OsString> = full.into_iter().map(Into::into).collect();
                 self.run(&full, None)?;
+                if !self.merge_in_progress() {
+                    return Ok(Next::Done(Ok("Already up to date".into())));
+                }
                 Ok(Next::Draft(self.merge_message()))
             }
-            Op::Squash => {
-                assert_clean()?;
-                git(vec!["--squash".into(), "--".into(), rev(at(0))?.into()])
-            }
+            Op::Squash => git(vec!["--squash".into(), "--".into(), rev(at(0))?.into()]),
             Op::Preview => {
-                let other = self.merge_revs(at(0))?.remove(0);
+                let mut revs = self.merge_revs(at(0))?;
+                if revs.len() != 1 {
+                    return Err("Preview takes a single revision".into());
+                }
+                let other = revs.remove(0);
                 // git merge-tree exits 1 for conflicts but still prints the tree.
                 let out = self
                     .command()
@@ -182,18 +210,11 @@ impl Repo {
                     "HEAD..{tree}"
                 ))))
             }
+            // magit-read-other-local-branch for absorb and dissolve.
             Op::Absorb => {
                 let branch = rev(at(0))?.to_owned();
-                if !self
-                    .read(&[
-                        "show-ref",
-                        "--verify",
-                        "-q",
-                        &format!("refs/heads/{branch}"),
-                    ])
-                    .is_ok()
-                {
-                    return Err(format!("{branch} is not a local branch"));
+                if !other_local(&branch) {
+                    return Err(format!("{branch} is not another local branch"));
                 }
                 self.absorb(branch, args)
             }
@@ -205,6 +226,9 @@ impl Repo {
             }
             Op::Dissolve => {
                 let into = rev(at(0))?.to_owned();
+                if !other_local(&into) {
+                    return Err(format!("{into} is not another local branch"));
+                }
                 let current = self.current_branch().ok();
                 let head = String::from_utf8_lossy(&self.read(&["rev-parse", "HEAD"])?)
                     .trim()
@@ -255,8 +279,8 @@ impl Repo {
         argv.extend(args.iter().map(String::as_str));
         argv.extend(["--no-edit", "--", branch]);
         self.read(&argv)?;
-        let _ = self.read(&["config", "--unset", &format!("branch.{branch}.pushRemote")]);
         self.read(&["branch", "-D", "--", branch])?;
+        let _ = self.read(&["config", "--unset", &format!("branch.{branch}.pushRemote")]);
         Ok(Next::Done(Ok(format!("Merged and removed {branch}"))))
     }
 }

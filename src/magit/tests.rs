@@ -1755,14 +1755,25 @@ fn merge_suffixes_follow_magit_merge() {
         Next::Git(argv) => assert_eq!(argv, ["merge", "--no-commit", "--no-ff", "--", "a"]),
         _ => panic!("no-commit merge runs git"),
     }
-    // Dirty worktrees are refused.
+    // Dirty worktrees ask first (magit-merge-assert), and proceed on y.
     fs::write(d.path().join("f"), b"dirty\n").unwrap();
-    assert!(
-        r.merge_step(Op::Plain, &s(&["a"]), &[])
-            .unwrap_err()
-            .contains("dirty")
-    );
+    let op = match r.merge_step(Op::Plain, &s(&["a"]), &[]).unwrap() {
+        Next::Ask(Q::Merge(op @ Op::Dirty(..)), _, _) => op,
+        other => panic!("{other:?}"),
+    };
+    assert!(r.merge_step(op.clone(), &s(&["n"]), &[]).is_err());
+    assert!(matches!(
+        r.merge_step(op, &s(&["y"]), &[]).unwrap(),
+        Next::Git(_)
+    ));
     git(d.path(), &["checkout", "-q", "--", "f"]);
+    // Preview needs one revision; dissolve and absorb need another local branch.
+    assert!(r.merge_step(Op::Preview, &s(&["a,b"]), &[]).is_err());
+    git(d.path(), &["tag", "v1"]);
+    assert!(r.merge_step(Op::Dissolve, &s(&["v1"]), &[]).is_err());
+    assert!(r.merge_step(Op::Dissolve, &s(&["main"]), &[]).is_err());
+    assert!(r.merge_step(Op::Absorb, &s(&["main"]), &[]).is_err());
+    assert_eq!(r.current_branch().unwrap(), "main");
     // Preview shows the merge result without touching the worktree.
     match r.merge_step(Op::Preview, &s(&["a"]), &[]).unwrap() {
         Next::Show(super::diff::Target::Range(range)) => {
@@ -1775,6 +1786,10 @@ fn merge_suffixes_follow_magit_merge() {
     }
     assert!(!d.path().join("a").exists());
     // e merges without committing and opens a draft with MERGE_MSG.
+    assert!(matches!(
+        r.merge_step(Op::EditMsg, &s(&["main"]), &[]).unwrap(),
+        Next::Done(Ok(m)) if m == "Already up to date"
+    ));
     match r.merge_step(Op::EditMsg, &s(&["a"]), &[]).unwrap() {
         Next::Draft(msg) => assert!(String::from_utf8_lossy(&msg).contains("Merge branch 'a'")),
         _ => panic!("edit-message merge opens a draft"),
@@ -1809,4 +1824,56 @@ fn merge_suffixes_follow_magit_merge() {
     assert_eq!(r.current_branch().unwrap(), "main");
     assert!(d.path().join("side").exists());
     assert!(!r.branch_choices().contains(&"side".to_string()));
+}
+#[test]
+fn reset_suffixes_move_head_index_and_worktree_as_named() {
+    use super::reset::Op;
+    let (d, r) = setup();
+    committed(d.path(), b"one\n");
+    committed(d.path(), b"two\n");
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    let head = || git(d.path(), &["rev-parse", "HEAD"]);
+    let first = git(d.path(), &["rev-parse", "HEAD~1"]);
+    let staged = || git(d.path(), &["show", ":f"]);
+    let disk = || fs::read(d.path().join("f")).unwrap();
+    assert!(r.reset_step(Op::Mixed, &s(&["--hard"])).is_err());
+    assert!(r.reset_step(Op::Mixed, &s(&["nope"])).is_err());
+    // soft: HEAD only.
+    r.reset_step(Op::Soft, &s(&["HEAD~1"])).unwrap();
+    assert_eq!(
+        (head(), staged(), disk()),
+        (first.clone(), b"two\n".to_vec(), b"two\n".to_vec())
+    );
+    git(d.path(), &["commit", "-qm", "again"]);
+    // mixed: HEAD and index.
+    r.reset_step(Op::Mixed, &s(&["HEAD~1"])).unwrap();
+    assert_eq!(
+        (head(), staged(), disk()),
+        (first.clone(), b"one\n".to_vec(), b"two\n".to_vec())
+    );
+    git(d.path(), &["commit", "-qam", "again"]);
+    // index only; then worktree only.
+    r.reset_step(Op::Index, &s(&["HEAD~1"])).unwrap();
+    assert_eq!((staged(), disk()), (b"one\n".to_vec(), b"two\n".to_vec()));
+    git(d.path(), &["reset", "-q"]);
+    r.reset_step(Op::Worktree, &s(&["HEAD~1"])).unwrap();
+    assert_eq!((staged(), disk()), (b"two\n".to_vec(), b"one\n".to_vec()));
+    git(d.path(), &["checkout", "-q", "--", "f"]);
+    // keep refuses to lose local changes to files it would touch.
+    fs::write(d.path().join("f"), b"local\n").unwrap();
+    assert!(r.reset_step(Op::Keep, &s(&["HEAD~1"])).is_err());
+    git(d.path(), &["checkout", "-q", "--", "f"]);
+    // hard refuses to replace an untracked file the target tracks.
+    git(d.path(), &["rm", "-q", "--cached", "f"]);
+    git(d.path(), &["commit", "-qm", "untrack f"]);
+    fs::write(d.path().join("f"), b"precious\n").unwrap();
+    assert!(
+        r.reset_step(Op::Hard, &s(&["HEAD~1"]))
+            .unwrap_err()
+            .contains("overwritten")
+    );
+    assert_eq!(disk(), b"precious\n");
+    fs::remove_file(d.path().join("f")).unwrap();
+    r.reset_step(Op::Hard, &s(&["HEAD~1"])).unwrap();
+    assert_eq!(disk(), b"two\n");
 }

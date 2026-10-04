@@ -189,6 +189,38 @@ impl Session {
             });
             return;
         }
+        if let Action::Answered(repo, Question::Reset(op), answers, defaults) = action {
+            let origin = self.cur;
+            self.start_magit(move || {
+                let merged = merge_answers(&answers, &defaults);
+                let next = repo
+                    .reset_step(op, &merged)
+                    .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                Ok(branch_outcome(repo, next, origin))
+            });
+            return;
+        }
+        if let Action::Reset(op) = action {
+            let from = self.magit_from();
+            // magit-read-branch-or-commit defaults to the commit at point.
+            let at_point =
+                self.ed
+                    .magit
+                    .as_ref()
+                    .and_then(|v| match v.action_at(self.ed.cur.line) {
+                        Some(RowAction::Commit(id)) => Some(id),
+                        _ => match &v.kind {
+                            Kind::Patch(id) | Kind::Diff(Target::Commit(id), _) => Some(id.clone()),
+                            _ => None,
+                        },
+                    });
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                let (prompts, defaults) = repo.reset_prompt(op, at_point);
+                Ok(Outcome::Ask(repo, Question::Reset(op), defaults, prompts))
+            });
+            return;
+        }
         if let Action::Merge(op) = action {
             use crate::magit::merge::Op as M;
             let (origin, from) = (self.cur, self.magit_from());
@@ -258,7 +290,11 @@ impl Session {
             let origin = self.cur;
             let line = self.ed.cur.line;
             self.start_magit(move || match question {
-                Question::File(_) | Question::Branch(_) | Question::Tag(_) | Question::Merge(_) => {
+                Question::File(_)
+                | Question::Branch(_)
+                | Question::Tag(_)
+                | Question::Merge(_)
+                | Question::Reset(_) => {
                     unreachable!("handled before the worker")
                 }
                 Question::FindFile => {
@@ -1007,10 +1043,18 @@ impl Session {
                     return true;
                 }
                 let path = dir.join("COMMIT_EDITMSG");
-                if mode.target().is_some()
-                    && !path.exists()
-                    && let Err(error) = fileio::write(&path, &message, None, false)
-                {
+                // A merge/squash message seeds a new draft only when the draft is
+                // blank on disk and not open with unsaved text: the user's words win.
+                let blank_draft = std::fs::read(&path)
+                    .map_or(true, |b| b.iter().all(u8::is_ascii_whitespace))
+                    && !self
+                        .editors_mut()
+                        .any(|ed| ed.buf.modified && ed.path.as_deref() == Some(path.as_path()));
+                let seed = match mode.target() {
+                    Some(_) => !path.exists(),
+                    None => !message.is_empty() && blank_draft,
+                };
+                if seed && let Err(error) = fileio::write(&path, &message, None, false) {
                     self.ed.set_err(error);
                     return true;
                 }

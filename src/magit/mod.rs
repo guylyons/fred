@@ -6,6 +6,7 @@ pub mod diff;
 pub mod merge;
 pub mod network;
 pub mod repo;
+pub mod reset;
 pub mod status;
 pub mod tag;
 pub mod workflows;
@@ -56,6 +57,8 @@ pub enum Action {
     Tag(tag::Op),
     /// A magit-merge.el suffix.
     Merge(merge::Op),
+    /// A magit-reset.el suffix.
+    Reset(reset::Op),
     /// magit-file-stage/unstage/untrack/rename/delete/checkout.
     File(blob::FileOp),
     BlameCycle,
@@ -583,6 +586,7 @@ mod tests;
 
 fn menu_help(menu: char) -> Option<&'static str> {
     Some(match menu {
+        'X' => "Reset: b branch  f file  m mixed  s soft  h hard  k keep  i index  w worktree",
         'z' => {
             "Stash: z both  i index  w worktree  x keep index; Snapshot: Z both  I index  W worktree"
         }
@@ -648,6 +652,7 @@ pub enum Question {
     Branch(branch::Op),
     Tag(tag::Op),
     Merge(merge::Op),
+    Reset(reset::Op),
     Net(network::Op),
     Diff(diff::Op),
     FindFile,
@@ -762,6 +767,7 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("d", "Inspect", "Diff", Menu('d')),
             ("i", "Repository", "Init", Init),
             ("F", "Inspect", "File dispatch", Menu('F')),
+            ("X", "History", "Reset", Menu('X')),
             ("b", "Branch", "Branch operations", Menu('b')),
             ("B", "Inspect", "Blame", Menu('B')),
             ("c", "Commit", "Commit menu", Menu('C')),
@@ -1185,6 +1191,49 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("w", "Edit HEAD", "Reword (keep tree)", RewordDraft),
             ("c", "Create", "Commit", Commit),
         ],
+        'X' => {
+            use reset::Op as O;
+            vec![
+                ("b", "Reset", "branch", Branch(branch::Op::Reset)),
+                ("f", "Reset", "file", File(blob::FileOp::Checkout)),
+                (
+                    "m",
+                    "Reset this",
+                    "mixed    (HEAD and index)",
+                    Action::Reset(O::Mixed),
+                ),
+                (
+                    "s",
+                    "Reset this",
+                    "soft     (HEAD only)",
+                    Action::Reset(O::Soft),
+                ),
+                (
+                    "h",
+                    "Reset this",
+                    "hard     (HEAD, index and worktree)",
+                    Action::Reset(O::Hard),
+                ),
+                (
+                    "k",
+                    "Reset this",
+                    "keep     (HEAD and index, keeping uncommitted)",
+                    Action::Reset(O::Keep),
+                ),
+                (
+                    "i",
+                    "Reset this",
+                    "index    (only)",
+                    Action::Reset(O::Index),
+                ),
+                (
+                    "w",
+                    "Reset this",
+                    "worktree (only)",
+                    Action::Reset(O::Worktree),
+                ),
+            ]
+        }
         // magit-merge; while merging, m commits and a aborts (as upstream's
         // in-progress group), resolved when run.
         'M' => {

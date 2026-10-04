@@ -767,13 +767,13 @@ magit-repos.el,169,command,magit-repolist-mark,missing,,explicit
 magit-repos.el,175,command,magit-repolist-unmark,missing,,explicit
 magit-repos.el,180,command,magit-repolist-fetch,missing,,explicit
 magit-repos.el,187,command,magit-repolist-find-file-other-frame,missing,,explicit
-magit-reset.el,34,command,magit-reset,missing,,explicit
-magit-reset.el,49,command,magit-reset-mixed,missing,,explicit
-magit-reset.el,56,command,magit-reset-soft,missing,,explicit
-magit-reset.el,63,command,magit-reset-hard,missing,,explicit
-magit-reset.el,72,command,magit-reset-keep,missing,,explicit
-magit-reset.el,79,command,magit-reset-index,missing,,explicit
-magit-reset.el,88,command,magit-reset-worktree,missing,,explicit
+magit-reset.el,34,command,magit-reset,partial,"Space m X (upstream X) with b branch, f file, m/s/h/k/i/w",explicit
+magit-reset.el,49,command,magit-reset-mixed,partial,Space m X m,explicit
+magit-reset.el,56,command,magit-reset-soft,partial,Space m X s,explicit
+magit-reset.el,63,command,magit-reset-hard,partial,Space m X h; refuses to replace untracked files the target tracks (Fred safety),explicit
+magit-reset.el,72,command,magit-reset-keep,partial,Space m X k,explicit
+magit-reset.el,79,command,magit-reset-index,partial,Space m X i (git reset COMMIT -- .),explicit
+magit-reset.el,88,command,magit-reset-worktree,partial,Space m X w via temporary index checkout-index --all --force,explicit
 magit-reset.el,99,command,magit-reset-quickly,missing,,explicit
 magit-section.el,145,option,magit-section-highlight-current,missing,,explicit
 magit-section.el,151,option,magit-section-highlight-selection,missing,,explicit
