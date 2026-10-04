@@ -7,6 +7,7 @@ pub mod bundle;
 pub mod clone;
 pub mod commit;
 pub mod diff;
+pub mod ignore;
 pub mod log;
 pub mod merge;
 pub mod network;
@@ -104,6 +105,8 @@ pub enum Action {
     Bundle(bundle::Op),
     /// A magit-refs.el suffix.
     Refs(refs::Op),
+    /// A magit-gitignore.el or magit-sparse-checkout.el suffix.
+    Ignore(ignore::Op),
     /// A magit-clone.el suffix.
     Clone(clone::Op),
     /// magit-reflog-current / -head / -other (None asks for a ref).
@@ -784,6 +787,10 @@ fn menu_help(menu: char) -> Option<&'static str> {
             "Log: l current  o other  h HEAD  u related  L/b/a/R branches, all, reflog objects  B/T matching  m merged; = limit, + more in a log"
         }
         'u' => "Subtree: i import  e export",
+        'g' => {
+            "Ignore: t toplevel  s subdirectory  p private  g global; w/W skip worktree  u/U assume unchanged"
+        }
+        '>' => "Sparse checkout: e enable  d disable  r reapply  s set  a add; -i sparse index",
         'y' => {
             "Refs: y HEAD  c current  o other  v commit counts; -c contains  -M/-m merged  -N/-n not merged  -s sort"
         }
@@ -875,6 +882,7 @@ pub enum Question {
     Bundle(bundle::Op),
     Clone(clone::Op),
     Refs(refs::Op),
+    Ignore(ignore::Op),
     Net(network::Op),
     Diff(diff::Op),
     FindFile,
@@ -1054,6 +1062,9 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("T", "Inspect", "Notes", Menu('N')),
             ("Y", "Inspect", "Cherries", LogOp(log::Op::Cherry)),
             ("y", "Inspect", "Show Refs", Menu('y')),
+            // Upstream's i is the user's init key: gitignore takes upstream's I.
+            ("I", "Repository", "Ignore", Menu('g')),
+            (">", "Repository", "Sparse checkout", Menu('>')),
             ("o", "Repository", "Submodules", Menu('o')),
             ("O", "Repository", "Subtrees", Menu('u')),
             ("W", "Repository", "Patches", Menu('W')),
@@ -1598,6 +1609,85 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 Refs(refs::Op::Count),
             ),
         ],
+        'g' => {
+            use ignore::Op as G;
+            vec![
+                (
+                    "t",
+                    "Gitignore",
+                    "shared at toplevel (.gitignore)",
+                    Ignore(G::Topdir),
+                ),
+                (
+                    "s",
+                    "Gitignore",
+                    "shared in subdirectory (path/to/.gitignore)",
+                    Ignore(G::Subdir),
+                ),
+                (
+                    "p",
+                    "Gitignore",
+                    "privately (.git/info/exclude)",
+                    Ignore(G::Gitdir),
+                ),
+                (
+                    "g",
+                    "Gitignore",
+                    "privately for all repositories (core.excludesFile)",
+                    Ignore(G::System),
+                ),
+                (
+                    "w",
+                    "Skip worktree",
+                    "do skip worktree",
+                    Ignore(G::SkipWorktree),
+                ),
+                (
+                    "W",
+                    "Skip worktree",
+                    "do not skip worktree",
+                    Ignore(G::NoSkipWorktree),
+                ),
+                (
+                    "u",
+                    "Assume unchanged",
+                    "do assume unchanged",
+                    Ignore(G::AssumeUnchanged),
+                ),
+                (
+                    "U",
+                    "Assume unchanged",
+                    "do not assume unchanged",
+                    Ignore(G::NoAssumeUnchanged),
+                ),
+            ]
+        }
+        '>' => {
+            use ignore::Op as G;
+            vec![
+                (
+                    "-i",
+                    "Arguments for enabling",
+                    "Use sparse index",
+                    ToggleOption(MenuOption::Switch('>', "--sparse-index")),
+                ),
+                (
+                    "e",
+                    "Actions",
+                    "Enable sparse checkout",
+                    Ignore(G::SparseEnable),
+                ),
+                (
+                    "d",
+                    "Actions",
+                    "Disable sparse checkout",
+                    Ignore(G::SparseDisable),
+                ),
+                ("r", "Actions", "Reapply rules", Ignore(G::SparseReapply)),
+                ("s", "Actions", "Set directories", Ignore(G::SparseSet)),
+                ("a", "Actions", "Add directories", Ignore(G::SparseAdd)),
+            ]
+        }
         'J' => vec![
             ("c", "Actions", "create", Menu('j')),
             ("v", "Actions", "verify", Bundle(bundle::Op::Verify)),

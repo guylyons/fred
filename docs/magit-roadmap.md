@@ -48,8 +48,8 @@ additional behavior reopens its row and lowers the score until it is covered.
 ## Execution queue
 
 Submodule, subtree and patch/am batches done. Bundles and clone done.
-Patch review fixes and the refs view done. Next: sparse checkout,
-gitignore, then reference movement and log-select,
+Refs, sparse checkout and gitignore done. Next: the remaining diff and
+log commands (reference movement, log-select), then commit menu remainder,
 subtrees, patches/bundles, clone, refs view, sparse checkout and gitignore,
 recording each accepted gate's evidence here. The baseline's UI map and
 scenario matrix remain open.
@@ -199,3 +199,8 @@ description, local branches with upstream tracking, remotes with their urls,
 tags with messages, focus column and commit counts, for-each-ref filters)
 ([scenarios](magit-refs-acceptance.md)); patch review fixes (bbd1264). Ledger
 403 partial / 370 missing commands. Score remains 3%.
+
+October 4 ignore checkpoint: Space m I ports magit-gitignore (toplevel,
+subdirectory, private, global rules; skip-worktree and assume-unchanged) and
+Space m > ports magit-sparse-checkout ([scenarios](magit-ignore-acceptance.md)).
+Ledger 419 partial / 354 missing commands. Score remains 3%.

@@ -452,15 +452,15 @@ magit-git.el,265,option,magit-list-refs-sortby,missing,,explicit
 magit-git.el,293,option,magit-cygwin-mount-points,missing,,explicit
 magit-git.el,328,command,magit-toggle-git-debug,missing,,explicit
 magit-git.el,824,command,magit-debug-git-executable,missing,,explicit
-magit-gitignore.el,34,command,magit-gitignore,missing,,explicit
-magit-gitignore.el,52,command,magit-gitignore-in-topdir,missing,,explicit
-magit-gitignore.el,61,command,magit-gitignore-in-subdir,missing,,explicit
-magit-gitignore.el,78,command,magit-gitignore-in-gitdir,missing,,explicit
-magit-gitignore.el,89,command,magit-gitignore-on-system,missing,,explicit
-magit-gitignore.el,159,command,magit-skip-worktree,missing,,explicit
-magit-gitignore.el,171,command,magit-no-skip-worktree,missing,,explicit
-magit-gitignore.el,182,command,magit-assume-unchanged,missing,,explicit
-magit-gitignore.el,194,command,magit-no-assume-unchanged,missing,,explicit
+magit-gitignore.el,34,command,magit-gitignore,partial,Space m I (upstream i is the user's init): t s p g; w W u U,explicit
+magit-gitignore.el,52,command,magit-gitignore-in-topdir,partial,I t: default from the file at point; staged,explicit
+magit-gitignore.el,61,command,magit-gitignore-in-subdir,partial,I s: directory then pattern; staged,explicit
+magit-gitignore.el,78,command,magit-gitignore-in-gitdir,partial,I p: common gitdir info/exclude,explicit
+magit-gitignore.el,89,command,magit-gitignore-on-system,partial,I g: core.excludesFile (~ expanded),explicit
+magit-gitignore.el,159,command,magit-skip-worktree,partial,I w: tracked files only,explicit
+magit-gitignore.el,171,command,magit-no-skip-worktree,partial,I W,explicit
+magit-gitignore.el,182,command,magit-assume-unchanged,partial,I u,explicit
+magit-gitignore.el,194,command,magit-no-assume-unchanged,partial,I U,explicit
 magit-log.el,76,option,magit-log-mode-hook,missing,,explicit
 magit-log.el,81,option,magit-log-remove-graph-args,missing,,explicit
 magit-log.el,95,option,magit-log-revision-headers-format,missing,,explicit
@@ -868,13 +868,13 @@ magit-sequence.el,,command,transient:magit-rebase:--rebase-merges=,missing,Runti
 magit-sequence.el,,command,transient:magit-rebase:--update-refs,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-sequence.el,,command,transient:magit-revert:--edit,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-sequence.el,,command,transient:magit-revert:--no-edit,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-sparse-checkout.el,58,command,magit-sparse-checkout,missing,,explicit
-magit-sparse-checkout.el,74,command,magit-sparse-checkout-enable,missing,,explicit
-magit-sparse-checkout.el,80,command,magit-sparse-checkout-set,missing,,explicit
-magit-sparse-checkout.el,95,command,magit-sparse-checkout-add,missing,,explicit
-magit-sparse-checkout.el,114,command,magit-sparse-checkout-reapply,missing,,explicit
-magit-sparse-checkout.el,123,command,magit-sparse-checkout-disable,missing,,explicit
-magit-sparse-checkout.el,,command,transient:magit-sparse-checkout:--sparse-index,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sparse-checkout.el,58,command,magit-sparse-checkout,partial,Space m >: -i; e d r s a (enabled-state checked at run time),explicit
+magit-sparse-checkout.el,74,command,magit-sparse-checkout-enable,partial,> e: init --cone [--sparse-index],explicit
+magit-sparse-checkout.el,80,command,magit-sparse-checkout-set,partial,> s: directories space separated; auto-enables cone mode,explicit
+magit-sparse-checkout.el,95,command,magit-sparse-checkout-add,partial,> a,explicit
+magit-sparse-checkout.el,114,command,magit-sparse-checkout-reapply,partial,> r,explicit
+magit-sparse-checkout.el,123,command,magit-sparse-checkout-disable,partial,> d,explicit
+magit-sparse-checkout.el,,command,transient:magit-sparse-checkout:--sparse-index,partial,-i,runtime
 magit-stash.el,41,option,magit-stash-sections-hook,missing,,explicit
 magit-stash.el,53,option,magit-stashes-margin,missing,,explicit
 magit-stash.el,91,command,magit-stash,partial,Space m z; source menu groups and -u/-a switches; worktree/snapshot/transform groups still missing,explicit

@@ -3197,3 +3197,65 @@ fn refs_list_branches_remotes_tags_with_counts_and_filters() {
     assert!(r.refs_focus(&Op::Other, Some("-x")).is_err());
     assert_eq!(r.refs_focus(&Op::Current, None).unwrap(), "main");
 }
+
+#[test]
+fn gitignore_rules_skip_worktree_and_sparse_checkout() {
+    use super::ignore::Op;
+    let (d, r) = setup();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    fs::create_dir_all(d.path().join("sub/deep")).unwrap();
+    fs::write(d.path().join("sub/deep/f"), "f").unwrap();
+    fs::write(d.path().join("tracked"), "t").unwrap();
+    fs::create_dir(d.path().join("other")).unwrap();
+    fs::write(d.path().join("other/o"), "o").unwrap();
+    git(d.path(), &["add", "."]);
+    git(d.path(), &["commit", "-qm", "base"]);
+    fs::write(d.path().join("build.log"), "x").unwrap();
+    fs::write(d.path().join(".gitignore"), "existing").unwrap();
+    // Defaults: the untracked file itself.
+    let (_, def) = r.ignore_prompts(&Op::Topdir, Some("build.log".into()));
+    assert_eq!(def, s(&["/build.log"]));
+    r.ignore_step(Op::Topdir, &s(&["/build.log"]), &[]).unwrap();
+    let text = fs::read_to_string(d.path().join(".gitignore")).unwrap();
+    assert_eq!(text, "existing\n/build.log\n");
+    assert!(git(d.path(), &["diff", "--cached", "--name-only"]).starts_with(b".gitignore"));
+    r.ignore_step(Op::Subdir, &s(&["sub", "a\\b"]), &[])
+        .unwrap();
+    assert_eq!(
+        fs::read_to_string(d.path().join("sub/.gitignore")).unwrap(),
+        "a\\\\b\n"
+    );
+    r.ignore_step(Op::Gitdir, &s(&["*.tmp"]), &[]).unwrap();
+    assert!(
+        fs::read_to_string(d.path().join(".git/info/exclude"))
+            .unwrap()
+            .ends_with("*.tmp\n")
+    );
+    for bad in ["../x", ".git", ".GIT/x"] {
+        assert!(
+            r.ignore_step(Op::Subdir, &s(&[bad, "p"]), &[]).is_err(),
+            "{bad}"
+        );
+    }
+    // Skip worktree only for tracked files.
+    r.ignore_step(Op::SkipWorktree, &s(&["tracked"]), &[])
+        .unwrap();
+    assert!(git(d.path(), &["ls-files", "-v", "tracked"]).starts_with(b"S "));
+    assert!(
+        r.ignore_step(Op::AssumeUnchanged, &s(&["build.log"]), &[])
+            .is_err()
+    );
+    r.ignore_step(Op::NoSkipWorktree, &s(&["tracked"]), &[])
+        .unwrap();
+    // Sparse: set auto-enables cone mode; disable/reapply need it enabled.
+    assert!(r.ignore_step(Op::SparseReapply, &[], &[]).is_err());
+    git(d.path(), &["commit", "-qm", "ignore"]);
+    r.ignore_step(Op::SparseSet, &s(&["sub"]), &[]).unwrap();
+    assert!(r.sparse_enabled());
+    // Cone mode keeps top-level files.
+    assert!(d.path().join("sub/deep/f").exists() && !d.path().join("other/o").exists());
+    assert!(r.ignore_step(Op::SparseEnable, &[], &[]).is_err());
+    assert!(r.ignore_step(Op::SparseAdd, &s(&["--x"]), &[]).is_err());
+    r.ignore_step(Op::SparseDisable, &[], &[]).unwrap();
+    assert!(d.path().join("other/o").exists());
+}

@@ -234,6 +234,48 @@ impl Session {
             });
             return;
         }
+        if let Action::Answered(repo, Question::Ignore(op), answers, defaults) = action {
+            let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, '>'));
+            self.start_magit(move || {
+                let merged = merge_answers(&answers, &defaults);
+                let next = repo
+                    .ignore_step(op, &merged, &args)
+                    .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                Ok(branch_outcome(repo, next, origin))
+            });
+            return;
+        }
+        if let Action::Ignore(op) = action {
+            let (origin, from) = (self.cur, self.magit_from());
+            let args = crate::magit::menu_arguments(&self.ed, '>');
+            // magit-current-file: the file at point, or the visited file.
+            let file = self
+                .ed
+                .magit
+                .as_ref()
+                .and_then(|v| match v.action_at(self.ed.cur.line) {
+                    Some(RowAction::File(p, _)) | Some(RowAction::Hunk(p, ..)) => {
+                        Some(p.to_string_lossy().into_owned())
+                    }
+                    _ => None,
+                });
+            let visited = self.ed.path.clone();
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                let file = file.or_else(|| {
+                    visited
+                        .and_then(|p| repo_relative(&repo, &p).ok())
+                        .map(|p| p.to_string_lossy().into_owned())
+                });
+                let (prompts, defaults) = repo.ignore_prompts(&op, file);
+                if prompts.is_empty() {
+                    let next = repo.ignore_step(op, &[], &args)?;
+                    return Ok(branch_outcome(repo, next, origin));
+                }
+                Ok(Outcome::Ask(repo, Question::Ignore(op), defaults, prompts))
+            });
+            return;
+        }
         if let Action::Answered(repo, Question::Refs(op), answers, defaults) = action {
             let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, 'y'));
             self.start_magit(move || {
@@ -961,7 +1003,8 @@ impl Session {
                 | Question::Patch(_)
                 | Question::Bundle(_)
                 | Question::Clone(_)
-                | Question::Refs(_) => {
+                | Question::Refs(_)
+                | Question::Ignore(_) => {
                     unreachable!("handled before the worker")
                 }
                 Question::FindFile => {
