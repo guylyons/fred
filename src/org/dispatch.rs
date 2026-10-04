@@ -72,9 +72,7 @@ fn shift_horizontal(ed: &mut Editor, arg: Prefix, right: bool) -> Result<(), Str
         ed.cur.byte >= ind && ed.cur.byte < ind + b.len()
     };
     if (ss != "nil" && not_always(&ss) && on_bullet) || (ss == "nil" && ctx::at_item(ed, l)) {
-        return call(ed, "org-cycle-list-bullet", if right { Prefix::None } else { Prefix::Num(-1) }).or_else(|_| {
-            call(ed, if right { "org-cycle-list-bullet-next" } else { "org-cycle-list-bullet-previous" }, Prefix::None)
-        });
+        return call(ed, if right { "org-cycle-list-bullet" } else { "org-cycle-list-bullet-previous" }, Prefix::None);
     }
     if not_always(&ss) && ctx::at_property(ed, l) {
         return call(ed, if right { "org-property-next-allowed-value" } else { "org-property-previous-allowed-value" }, arg);

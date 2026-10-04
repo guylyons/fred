@@ -1089,8 +1089,8 @@ pub fn in_item(ed: &Editor, l: usize) -> bool {
 /// org-insert-todo-heading.
 fn insert_todo_heading(ed: &mut Editor, arg: Prefix, respect: bool) -> Result<(), String> {
     let l = ed.cur.line;
-    if !respect && in_item(ed, l) {
-        return call(ed, "org-insert-item", Prefix::U(1)).or_else(|_| call(ed, "org-insert-item", Prefix::None));
+    if !respect && super::list::insert_item_cmd(ed, true)? {
+        return Ok(());
     }
     let st = super::settings(ed);
     let prev_kw = fold::back_to_heading(ed, l).and_then(|h| syntax::headline(&ed.buf.line(h), &st)).and_then(|h| h.todo);
