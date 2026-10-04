@@ -3136,7 +3136,10 @@ fn clone_regular_sparse_and_into_non_empty_directory() {
     let run = |n: Next| match n {
         Next::Invoke(inv) => {
             inv.repo.run(&inv.args, None).unwrap();
-            inv.after.unwrap().finish().unwrap()
+            let Some(After::Clone(after)) = inv.after else {
+                panic!()
+            };
+            after.finish().unwrap()
         }
         other => panic!("{other:?}"),
     };
@@ -3834,4 +3837,102 @@ fn hunk_patch_keeps_raw_bytes_and_drops_renames_for_hunks() {
         .split(|b| *b == b'\n')
         .collect();
     assert!(hunk_patch(&cc, 2).is_err());
+}
+#[test]
+fn branch_or_checkout_remote_ref_and_default_branch() {
+    use super::Question as Q;
+    use super::branch::{Next, Op};
+    let (d, r, bare) = with_remote();
+    git(d.path(), &["push", "-qu", "origin", "main"]);
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    // An existing revision is checked out; a new name asks for a start point.
+    git(d.path(), &["branch", "side"]);
+    let n = r.branch_step(Op::OrCheckout, &s(&["side"]), &[]);
+    assert!(matches!(n, Next::Done(Ok(_))), "{n:?}");
+    assert_eq!(r.current_branch().unwrap(), "side");
+    let Next::Ask(Q::Branch(Op::OrCheckoutNew(new)), _, _) =
+        r.branch_step(Op::OrCheckout, &s(&["fresh"]), &[])
+    else {
+        panic!()
+    };
+    // Uncommitted changes block it, unless --merge carries them over.
+    fs::write(d.path().join("f"), "dirty\n").unwrap();
+    assert!(matches!(
+        r.branch_step(Op::OrCheckoutNew(new.clone()), &s(&["main"]), &[]),
+        Next::Done(Err(_))
+    ));
+    let n = r.branch_step_args(Op::OrCheckoutNew(new), &s(&["main"]), &[], &s(&["--merge"]));
+    assert!(matches!(n, Next::Done(Ok(_))), "{n:?}");
+    assert_eq!(r.current_branch().unwrap(), "fresh");
+    git(d.path(), &["checkout", "-q", "--", "f"]);
+    // checkout-remote-ref: fetch the ref, then check out FETCH_HEAD.
+    let Next::Ask(Q::Branch(op), _, _) = r.branch_step(Op::RemoteRef, &s(&["origin"]), &[]) else {
+        panic!()
+    };
+    let Next::Invoke(inv) = r.branch_step(op, &s(&["main"]), &[]) else {
+        panic!()
+    };
+    assert_eq!(inv.args, ["fetch", "origin", "main"]);
+    assert!(matches!(&inv.after, Some(After::Git(a)) if a == &s(&["checkout", "FETCH_HEAD"])));
+    assert!(matches!(
+        r.branch_step(Op::RemoteRef, &s(&["nope"]), &[]),
+        Next::Done(Err(_))
+    ));
+    // The remote renames main to trunk: rename locally and fix upstreams.
+    git(d.path(), &["checkout", "-q", "main"]);
+    git(d.path(), &["remote", "set-head", "origin", "main"]);
+    git(bare.path(), &["branch", "-m", "main", "trunk"]);
+    git(bare.path(), &["symbolic-ref", "HEAD", "refs/heads/trunk"]);
+    git(
+        d.path(),
+        &["branch", "-q", "--set-upstream-to=origin/main", "side"],
+    );
+    let Next::Ask(Q::Branch(op), p, _) = r.branch_step(Op::UpdateDefault, &[], &[]) else {
+        panic!()
+    };
+    assert!(p[0].contains("from `main' to `trunk'"), "{p:?}");
+    assert!(matches!(
+        r.branch_step(op.clone(), &s(&["n"]), &[]),
+        Next::Done(Err(_))
+    ));
+    assert!(matches!(
+        r.branch_step(op, &s(&["y"]), &[]),
+        Next::Done(Ok(_))
+    ));
+    assert_eq!(r.current_branch().unwrap(), "trunk");
+    assert_eq!(r.upstream_of("trunk").as_deref(), Some("origin/trunk"));
+    assert_eq!(r.upstream_of("side").as_deref(), Some("origin/trunk"));
+}
+#[test]
+fn pull_into_upstream_and_push_to_remote() {
+    use super::network::Op::*;
+    let (d, r, bare) = with_remote();
+    git(d.path(), &["push", "-qu", "origin", "main"]);
+    // main tracks origin/main; work tracks main.
+    git(d.path(), &["checkout", "-qb", "work", "--track", "main"]);
+    let other = tempfile::tempdir().unwrap();
+    git(
+        other.path(),
+        &["clone", "-q", bare.path().to_str().unwrap(), "."],
+    );
+    fs::write(other.path().join("g"), "remote\n").unwrap();
+    git(other.path(), &["add", "g"]);
+    git(other.path(), &["commit", "-qm", "remote"]);
+    git(other.path(), &["push", "-q", "origin", "main"]);
+    let argv = run_net(&r, PullIntoUpstream, &[], &[]);
+    assert_eq!(argv[..2], ["fetch", "origin"]);
+    assert_eq!(
+        git(d.path(), &["rev-parse", "main"]),
+        git(other.path(), &["rev-parse", "HEAD"])
+    );
+    assert_eq!(r.current_branch().unwrap(), "work");
+    // Not possible when the upstream is remote.
+    git(d.path(), &["checkout", "-q", "main"]);
+    assert!(r.network(PullIntoUpstream, &[], &[]).is_err());
+    // push-to-remote: no refspec, the menu's arguments.
+    let inv = r
+        .network(PushToRemote, &["origin".into()], &["--dry-run".into()])
+        .unwrap();
+    assert_eq!(inv.args, ["push", "-v", "--dry-run", "origin"]);
+    assert!(r.network(PushToRemote, &["nope".into()], &[]).is_err());
 }

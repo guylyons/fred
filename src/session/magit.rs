@@ -164,10 +164,10 @@ impl Session {
             return self.file_answered(repo, op, answers, args);
         }
         if let Action::Answered(repo, Question::Branch(op), answers, defaults) = action {
-            let origin = self.cur;
+            let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, 'b'));
             self.start_magit(move || {
                 let merged = merge_answers(&answers, &defaults);
-                let next = repo.branch_step(op, &merged, &defaults);
+                let next = repo.branch_step_args(op, &merged, &defaults, &args);
                 Ok(branch_outcome(repo, next, origin))
             });
             return;
@@ -1871,10 +1871,15 @@ impl Session {
             return;
         }
         if let Action::Branch(op) = action {
-            let from = self.magit_from();
+            let (origin, from) = (self.cur, self.magit_from());
+            let args = crate::magit::menu_arguments(&self.ed, 'b');
             self.start_magit(move || {
                 let repo = Repo::discover(&from)?;
                 let (prompts, defaults) = repo.branch_prompts(&op)?;
+                if prompts.is_empty() {
+                    let next = repo.branch_step_args(op, &[], &[], &args);
+                    return Ok(branch_outcome(repo, next, origin));
+                }
                 Ok(Outcome::Ask(repo, Question::Branch(op), defaults, prompts))
             });
             return;
@@ -2236,11 +2241,19 @@ impl Session {
             }
             if let Some(repo) = self.magit_picker_repo.take() {
                 self.ed.mode = Mode::Normal;
+                // magit-checkout: a branch, or any revision (detaching HEAD),
+                // with magit-branch-arguments.
+                let mut args: Vec<OsString> = vec!["checkout".into()];
+                args.extend(
+                    crate::magit::menu_arguments(&self.ed, 'b')
+                        .into_iter()
+                        .map(OsString::from),
+                );
+                args.extend([name.into(), "--".into()]);
                 self.pending_git = Some(GitInvocation {
                     expected_head: None,
                     repo,
-                    // magit-checkout: a branch, or any revision (detaching HEAD).
-                    args: vec!["checkout".into(), name.into(), "--".into()],
+                    args,
                     input: None,
                     draft: None,
                     draft_stamp: None,
@@ -3357,7 +3370,20 @@ impl Session {
             }
             return;
         }
-        if let Some(after) = inv.after {
+        if let Some(crate::magit::repo::After::Git(args)) = inv.after {
+            self.pending_git = Some(GitInvocation {
+                expected_head: None,
+                repo: inv.repo,
+                args: args.into_iter().map(OsString::from).collect(),
+                input: None,
+                draft: None,
+                draft_stamp: None,
+                editor: false,
+                after: None,
+            });
+            return;
+        }
+        if let Some(crate::magit::repo::After::Clone(after)) = inv.after {
             let (origin, repo) = (self.cur, inv.repo);
             self.start_magit(move || {
                 let next = after

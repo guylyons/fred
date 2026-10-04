@@ -99,11 +99,11 @@ impl Repo {
             draft: None,
             draft_stamp: None,
             editor: false,
-            after: Some(After {
+            after: Some(super::repo::After::Clone(After {
                 dir,
                 op,
                 args: args.to_vec(),
-            }),
+            })),
         }))
     }
 }

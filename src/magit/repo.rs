@@ -365,8 +365,16 @@ pub struct GitInvocation {
     pub draft_stamp: Option<crate::fileio::FileStamp>,
     /// Let Git open an editor (Fred itself, like with-editor) in the terminal.
     pub editor: bool,
-    /// Work to finish after a successful terminal clone.
-    pub after: Option<super::clone::After>,
+    /// Work to finish after the terminal command succeeds.
+    pub after: Option<After>,
+}
+/// What follows a successful terminal Git command.
+#[derive(Clone, Debug)]
+pub enum After {
+    /// magit-clone-internal's sentinel.
+    Clone(super::clone::After),
+    /// Another terminal Git command (fetch, then checkout FETCH_HEAD).
+    Git(Vec<String>),
 }
 impl Repo {
     pub fn file_history(&self, file: &Path, follow: bool) -> Result<Vec<Commit>, String> {

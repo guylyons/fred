@@ -2943,6 +2943,24 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 Action::Worktree(worktree::Op::Branch),
             ),
             ("C", "Do", "configure...", Menu('c')),
+            (
+                "-m",
+                "Arguments",
+                "Automatically merge conflicting local modifications",
+                ToggleOption(MenuOption::Switch('b', "--merge")),
+            ),
+            (
+                "-r",
+                "Arguments",
+                "Recurse submodules when checking out an existing branch",
+                ToggleOption(MenuOption::Switch('b', "--recurse-submodules")),
+            ),
+            (
+                "B",
+                "Configure repository defaults",
+                "Update default branch",
+                Branch(branch::Op::UpdateDefault),
+            ),
             ("h", "Do", "shelve", Configure(configure::Op::Shelve)),
             ("H", "Do", "unshelve", Configure(configure::Op::Unshelve)),
         ],
@@ -3207,6 +3225,12 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                     Action::Remote(O::PruneRefspecs),
                 ),
                 ("C", "Actions", "Configure...", Menu('e')),
+                (
+                    "B",
+                    "Configure repository defaults",
+                    "Update default branch",
+                    Branch(branch::Op::UpdateDefault),
+                ),
                 (
                     "z",
                     "Actions",

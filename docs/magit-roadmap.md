@@ -317,3 +317,10 @@ ref (p n), delete shelved branch, commit-buffer jumps, blame visit-file,
 half commit limit and version by name; review fixes for hunk apply
 (raw output, confirmation, renames) and smerge's C-c. Ledger 669 partial /
 104 missing commands. Score remains 3%.
+
+October 4 branch/network checkpoint: branch -m/-r reach every checkout
+(lifting the dirty check for --merge), B updates the default branch from
+the branch and remote menus, and :Magit gains branch-or-checkout,
+checkout-remote-ref (terminal fetch, then FETCH_HEAD via a chained Git
+command), pull-into-upstream and push-to-remote. Ledger 676 partial / 97
+missing commands. Score remains 3%.

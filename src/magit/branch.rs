@@ -29,6 +29,19 @@ pub enum Op {
     /// Current branch, checkout target (None detaches): confirm unmerged deletion.
     DeleteCurrentUnmerged(String, Option<String>),
     DeleteUnmerged(String),
+    /// magit-branch-or-checkout: a revision, or a new branch's name.
+    OrCheckout,
+    OrCheckoutNew(String),
+    /// magit-checkout-remote-ref: the remote, then one of its refs.
+    RemoteRef,
+    RemoteRefFetch(String),
+    /// magit-update-default-branch and its follow-up questions.
+    UpdateDefault,
+    /// The default is unchanged: replace upstreams named the answer with it.
+    UpdateDefaultReplace(String),
+    /// Read the old name, then confirm.
+    UpdateDefaultOld(String, String),
+    UpdateDefaultConfirm(String, String, String),
 }
 
 /// What the session should do after a branch step.
@@ -72,7 +85,7 @@ impl Repo {
     fn git(&self, args: &[&str]) -> Result<(), String> {
         self.read(args).map(|_| ())
     }
-    fn local_branch(&self, b: &str) -> bool {
+    pub(super) fn local_branch(&self, b: &str) -> bool {
         self.ok(&["show-ref", "--verify", "-q", &format!("refs/heads/{b}")])
     }
     fn commitish(&self, rev: &str) -> Result<String, String> {
@@ -271,6 +284,16 @@ impl Repo {
                 vec![format!("Delete branch (default {previous}): ")],
                 vec![previous],
             ),
+            Op::OrCheckout => (vec!["Checkout: ".into()], vec![String::new()]),
+            Op::RemoteRef => {
+                let d = self.current_remote()?.unwrap_or_default();
+                (
+                    vec![format!("Checkout ref from remote (default {d}): ")],
+                    vec![d],
+                )
+            }
+            // Asks only after the remote has been consulted.
+            Op::UpdateDefault => (vec![], vec![]),
             _ => return Err("not a menu suffix".into()),
         })
     }
@@ -278,17 +301,160 @@ impl Repo {
     /// Run one answered step: `a` holds answers with empty ones defaulted,
     /// `defaults` the step's own defaults.
     pub fn branch_step(&self, op: Op, a: &[String], defaults: &[String]) -> Next {
-        match self.branch_step_inner(op, a, defaults) {
+        self.branch_step_args(op, a, defaults, &[])
+    }
+    /// The same, with magit-branch-arguments (-m --merge, -r --recurse-submodules).
+    pub fn branch_step_args(
+        &self,
+        op: Op,
+        a: &[String],
+        defaults: &[String],
+        args: &[String],
+    ) -> Next {
+        match self.branch_step_inner(op, a, defaults, args) {
             Ok(next) => next,
             Err(e) => Next::Done(Err(e)),
         }
     }
-    fn branch_step_inner(&self, op: Op, a: &[String], defaults: &[String]) -> Result<Next, String> {
+    fn branch_step_inner(
+        &self,
+        op: Op,
+        a: &[String],
+        defaults: &[String],
+        args: &[String],
+    ) -> Result<Next, String> {
         let at = |i: usize| a.get(i).map(String::as_str).unwrap_or("");
         let done = |msg: String| Ok(Next::Done(Ok(msg)));
-        // ponytail: -m/-r (levels 6/7) are not offered yet, so checkout takes no arguments.
-        let checkout_args: Vec<&str> = vec![];
+        let checkout_args: Vec<&str> = args
+            .iter()
+            .map(String::as_str)
+            .filter(|a| matches!(*a, "--merge" | "--recurse-submodules"))
+            .collect();
+        // Uncommitted changes block creating a branch unless --merge carries them.
+        let blocked = || self.modified() && !checkout_args.contains(&"--merge");
         match op {
+            Op::OrCheckout => {
+                let choice = at(0);
+                let choice = name(choice.strip_prefix("heads/").unwrap_or(choice))?;
+                if self.commitish(choice).is_ok() {
+                    let mut argv = vec!["checkout"];
+                    argv.extend(&checkout_args);
+                    argv.extend([choice, "--"]);
+                    self.git(&argv)?;
+                    return done(format!("Checked out {choice}"));
+                }
+                let new = self.new_branch(choice)?;
+                let here = self.current_branch().unwrap_or_else(|_| "HEAD".into());
+                Ok(Next::Ask(
+                    super::Question::Branch(Op::OrCheckoutNew(new.clone())),
+                    vec![format!(
+                        "Create and checkout branch starting at (default {here}): "
+                    )],
+                    vec![here],
+                ))
+            }
+            Op::OrCheckoutNew(new) => {
+                let start = self.commitish(at(0))?;
+                if blocked() {
+                    return Err("Cannot checkout when there are uncommitted changes".into());
+                }
+                self.create_checkout(&new, &start, &checkout_args)?;
+                done(format!("Created and checked out {new}"))
+            }
+            Op::RemoteRef => {
+                let remote = name(at(0))?.to_owned();
+                if !self.remotes()?.contains(&remote) {
+                    return Err(format!("No remote {remote:?}"));
+                }
+                Ok(Next::Ask(
+                    super::Question::Branch(Op::RemoteRefFetch(remote)),
+                    vec!["Fetch and checkout ref: ".into()],
+                    vec![String::new()],
+                ))
+            }
+            Op::RemoteRefFetch(remote) => {
+                let r = name(at(0))?;
+                // The terminal fetches (credentials), then checks out FETCH_HEAD.
+                Ok(Next::Invoke(super::repo::GitInvocation {
+                    expected_head: None,
+                    repo: self.clone(),
+                    args: ["fetch", &remote, r].map(Into::into).to_vec(),
+                    input: None,
+                    draft: None,
+                    draft_stamp: None,
+                    editor: false,
+                    after: Some(super::repo::After::Git(
+                        ["checkout", "FETCH_HEAD"].map(Into::into).to_vec(),
+                    )),
+                }))
+            }
+            Op::UpdateDefault => {
+                let remotes = self.remotes()?;
+                let remote = self
+                    .primary_remote(&remotes)
+                    .ok_or("Cannot determine primary remote")?;
+                let old = self.remote_default(&remote);
+                self.git(&["fetch", "--prune"])?;
+                self.git(&["remote", "set-head", "--auto", &remote])?;
+                let new = self
+                    .remote_default(&remote)
+                    .ok_or("Cannot determine new default branch")?;
+                match old {
+                    Some(old) if old == new => Ok(Next::Ask(
+                        super::Question::Branch(Op::UpdateDefaultReplace(new.clone())),
+                        vec![format!(
+                            "Name of default branch is still `{old}', but the upstreams of some \
+                             local branches might need updating.  Name of upstream branches to \
+                             replace with `{new}': "
+                        )],
+                        vec![String::new()],
+                    )),
+                    Some(old) => Ok(Next::Ask(
+                        super::Question::Branch(Op::UpdateDefaultConfirm(
+                            remote.clone(),
+                            old.clone(),
+                            new.clone(),
+                        )),
+                        vec![format!(
+                            "Default branch changed from `{old}' to `{new}' on {remote}.  Do the same locally? (y or n) "
+                        )],
+                        vec![String::new()],
+                    )),
+                    None => Ok(Next::Ask(
+                        super::Question::Branch(Op::UpdateDefaultOld(remote, new.clone())),
+                        vec![format!(
+                            "Name of old default branch to be renamed to `{new}' (default master): "
+                        )],
+                        vec!["master".into()],
+                    )),
+                }
+            }
+            Op::UpdateDefaultReplace(new) => {
+                let old = name(at(0))?;
+                self.set_default_branch(&new, old)?;
+                done(format!("Updated upstreams from {old} to {new}"))
+            }
+            Op::UpdateDefaultOld(remote, new) => {
+                let old = name(at(0))?.to_owned();
+                Ok(Next::Ask(
+                    super::Question::Branch(Op::UpdateDefaultConfirm(
+                        remote.clone(),
+                        old.clone(),
+                        new.clone(),
+                    )),
+                    vec![format!(
+                        "Default branch changed from `{old}' to `{new}' on {remote}.  Do the same locally? (y or n) "
+                    )],
+                    vec![String::new()],
+                ))
+            }
+            Op::UpdateDefaultConfirm(_, old, new) => {
+                if !matches!(at(0), "y" | "yes") {
+                    return Err("Abort".into());
+                }
+                self.set_default_branch(&new, &old)?;
+                done(format!("Default branch is now {new}"))
+            }
             Op::CheckoutLocal => {
                 let choice = name(at(0))?;
                 if self.local_branch(choice) {
@@ -306,7 +472,7 @@ impl Repo {
                 ]) && let Some((remote, branch)) = self.remote_split(choice)
                     && !self.local_branch(&branch)
                 {
-                    if self.modified() {
+                    if blocked() {
                         return Err("Cannot checkout when there are uncommitted changes".into());
                     }
                     let (remote, branch) = (remote.as_str(), branch.as_str());
@@ -327,7 +493,7 @@ impl Repo {
             }
             Op::CheckoutNew(new) => {
                 let start = self.commitish(at(0))?;
-                if self.modified() {
+                if blocked() {
                     return Err("Cannot checkout when there are uncommitted changes".into());
                 }
                 self.create_checkout(&new, &start, &checkout_args)?;
@@ -502,6 +668,63 @@ impl Repo {
                 done(format!("Deleted {branch}"))
             }
         }
+    }
+    /// magit--get-default-branch: the branch refs/remotes/<remote>/HEAD names.
+    fn remote_default(&self, remote: &str) -> Option<String> {
+        let out = self
+            .read(&[
+                "symbolic-ref",
+                "--short",
+                &format!("refs/remotes/{remote}/HEAD"),
+            ])
+            .ok()?;
+        let full = String::from_utf8_lossy(&out).trim().to_owned();
+        full.strip_prefix(&format!("{remote}/")).map(str::to_owned)
+    }
+    /// magit--set-default-branch: rename OLD locally (unless NEW exists) and
+    /// point upstreams naming OLD (locally or on the primary remote) at NEW.
+    fn set_default_branch(&self, new: &str, old: &str) -> Result<(), String> {
+        let remotes = self.remotes()?;
+        let remote = self
+            .primary_remote(&remotes)
+            .ok_or("Cannot determine primary remote")?;
+        let out = self.read(&[
+            "for-each-ref",
+            "refs/heads",
+            "--format=%(refname:short)\t%(upstream:short)",
+        ])?;
+        let mut branches: Vec<(String, String)> = String::from_utf8_lossy(&out)
+            .lines()
+            .filter_map(|l| l.split_once('\t'))
+            .map(|(b, u)| (b.to_owned(), u.to_owned()))
+            .collect();
+        if branches.iter().any(|(b, _)| b == old) && !branches.iter().any(|(b, _)| b == new) {
+            self.git(&["branch", "-m", old, new])?;
+            for (b, _) in &mut branches {
+                if b == old {
+                    *b = new.to_owned();
+                }
+            }
+        }
+        let target = if self.local_branch(new) {
+            new.to_owned()
+        } else {
+            format!("{remote}/{new}")
+        };
+        let remote_old = format!("{remote}/{old}");
+        for (branch, upstream) in &branches {
+            if upstream == old {
+                self.git(&["branch", "--set-upstream-to", &target, branch])?;
+            } else if *upstream == remote_old {
+                self.git(&[
+                    "branch",
+                    "--set-upstream-to",
+                    &format!("{remote}/{new}"),
+                    branch,
+                ])?;
+            }
+        }
+        Ok(())
     }
     fn create_checkout(&self, new: &str, start: &str, args: &[&str]) -> Result<(), String> {
         let mut argv = vec!["checkout"];

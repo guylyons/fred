@@ -109,6 +109,13 @@ pub fn by_name(name: &str) -> Option<Action> {
         "magit-blame-visit-file" => Some(BlameVisitFile),
         "magit-log-half-commit-limit" => Some(LogHalfLimit),
         "magit-version" => Some(Version),
+        "magit-branch-or-checkout" => Some(super::Action::Branch(super::branch::Op::OrCheckout)),
+        "magit-checkout-remote-ref" => Some(super::Action::Branch(super::branch::Op::RemoteRef)),
+        "magit-update-default-branch" => {
+            Some(super::Action::Branch(super::branch::Op::UpdateDefault))
+        }
+        "magit-pull-into-upstream" => Some(Net(super::network::Op::PullIntoUpstream)),
+        "magit-push-to-remote" => Some(Net(super::network::Op::PushToRemote)),
         "magit-dired-jump" => Some(DiredJump),
         "magit-dired-stage" => Some(File(super::blob::FileOp::Stage)),
         "magit-dired-unstage" => Some(File(super::blob::FileOp::Unstage)),
