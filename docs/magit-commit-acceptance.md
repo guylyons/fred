@@ -22,3 +22,11 @@ and --date for your own commit); R rewords a past commit; X writes a fixup
 commit per modified module; x runs git-autofixup when installed. Evidence:
 magit::tests::commit_reshelve_and_absorb_modules,
 session::tests::magit_commit_reuse_and_reedit_message.
+
+Message buffer (October 4): C-c C-s inserts Signed-off-by with your ident;
+C-c C-a/C-m/C-r/C-t/C-o/C-p/M-i ask for a value defaulting to your ident;
+C-c C-i reads any "Key: value"; all go through git interpret-trailers. M-k/gk
+and M-j/gj step through recent commit messages (the repository log, where
+upstream uses Emacs's comment ring) and return to the draft. Other keys after
+C-c keep their meaning. Evidence:
+session::tests::magit_draft_trailers_and_message_history.

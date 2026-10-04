@@ -126,6 +126,8 @@ pub struct Editor {
     /// git-rebase-mode: this buffer is an interactive rebase's todo list.
     pub rebase_todo: Option<crate::magit::rebase::Plan>,
     pub commit_args: Vec<String>,
+    /// git-commit-prev-message position and the draft text it replaced.
+    pub commit_history: Option<(usize, String)>,
     pub magit_menu: Option<char>,
     pub magit_prompt: Option<crate::magit::Prompt>,
     pub commit_mode: crate::magit::CommitMode,
@@ -185,6 +187,7 @@ impl Editor {
             blob: None,
             rebase_todo: None,
             commit_args: vec![],
+            commit_history: None,
             magit_menu: None,
             magit_prompt: None,
             commit_mode: crate::magit::CommitMode::New,

@@ -2312,14 +2312,75 @@ mod tests {
         magit_settle(&mut t);
         let text = t.s.ed.buf.text();
         assert!(text.contains("+2"), "{text}");
+        // C-k goes back to the previous section start; M-k / M-j siblings.
         goto(&mut t, file("c", Section::Staged));
-        t.keys("<C-k><C-j>");
-        assert_eq!(at(&t), Some(file("c", Section::Staged)));
+        t.keys("<C-k>");
+        assert_eq!(at(&t), Some(RowAction::Section(Section::Staged)));
+        goto(&mut t, file("b", Section::Unstaged));
+        t.keys("<M-k>");
+        assert_eq!(at(&t), Some(file("a", Section::Unstaged)));
+        t.keys("<M-j>");
+        assert_eq!(at(&t), Some(file("b", Section::Unstaged)));
         t.keys("z1");
         magit_settle(&mut t);
         let view = t.s.ed.magit.as_ref().unwrap();
         assert!(view.closed.contains(&Section::Unstaged) && view.expanded.is_empty());
         assert!(!t.s.ed.buf.text().contains("\na\n") && !t.s.ed.buf.text().contains("+2"));
+    }
+
+    #[test]
+    fn magit_draft_trailers_and_message_history() {
+        let mut t = T::open(Some("f.txt"), Some("one\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "earlier message"]).unwrap();
+        fs::write(t.dir.path().join("f.txt"), "two\n").unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        t.keys(" mcc");
+        magit_settle(&mut t);
+        assert!(t.s.ed.commit_repo.is_some());
+        t.keys("inew message<Esc>");
+        // C-c C-s signs off; C-c C-r asks, defaulting to you.
+        t.keys("<C-c><C-s>");
+        assert!(
+            t.s.ed
+                .buf
+                .text()
+                .contains("Signed-off-by: Fred <fred@example.test>"),
+            "{}",
+            t.s.ed.buf.text()
+        );
+        t.keys("<C-c><C-r><Enter>");
+        assert!(
+            t.s.ed
+                .buf
+                .text()
+                .contains("Reviewed-by: Fred <fred@example.test>"),
+            "{}",
+            t.s.ed.buf.text()
+        );
+        t.keys("<C-c><Tab>Fixes: #12<Enter>");
+        assert!(
+            t.s.ed.buf.text().contains("Fixes: #12"),
+            "{}",
+            t.s.ed.buf.text()
+        );
+        // M-k shows the previous commit message; M-j returns to the draft.
+        t.keys("<M-k>");
+        assert_eq!(t.s.ed.buf.text().trim(), "earlier message");
+        t.keys("<M-j>");
+        assert!(
+            t.s.ed.buf.text().starts_with("new message"),
+            "{}",
+            t.s.ed.buf.text()
+        );
+        // Other keys after C-c keep their meaning.
+        t.keys("<C-c>x");
+        assert!(t.s.ed.buf.text().starts_with("ew message"));
     }
 
     #[test]

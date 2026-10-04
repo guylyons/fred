@@ -7,22 +7,22 @@ git-commit.el,220,option,git-commit-summary-max-length,missing,,explicit
 git-commit.el,233,option,git-commit-trailers,missing,,explicit
 git-commit.el,253,option,git-commit-use-local-message-ring,missing,,explicit
 git-commit.el,262,option,git-commit-cd-to-toplevel,missing,,explicit
-git-commit.el,758,command,git-commit-prev-message,missing,,explicit
-git-commit.el,786,command,git-commit-next-message,missing,,explicit
-git-commit.el,792,command,git-commit-search-message-backward,missing,,explicit
-git-commit.el,803,command,git-commit-search-message-forward,missing,,explicit
+git-commit.el,758,command,git-commit-prev-message,partial,M-k / gk (evil-collection) in a draft: recent commit messages from the log (upstream: session comment ring),explicit
+git-commit.el,786,command,git-commit-next-message,partial,M-j / gj; back past the newest restores the draft,explicit
+git-commit.el,792,command,git-commit-search-message-backward,partial,C-c M-p steps to older messages (no regexp search),explicit
+git-commit.el,803,command,git-commit-search-message-forward,partial,C-c M-n steps to newer messages (no regexp search),explicit
 git-commit.el,814,command,git-commit-save-message,missing,,explicit
 git-commit.el,872,command,git-commit-insert-changelog-gnu,missing,,explicit
 git-commit.el,890,command,git-commit-insert-changelog-plain,missing,,explicit
-git-commit.el,909,command,git-commit-insert-trailer,missing,,explicit
-git-commit.el,933,command,git-commit-ack,missing,,explicit
-git-commit.el,938,command,git-commit-modified,missing,,explicit
-git-commit.el,943,command,git-commit-review,missing,,explicit
-git-commit.el,950,command,git-commit-signoff,missing,,explicit
-git-commit.el,956,command,git-commit-test,missing,,explicit
-git-commit.el,962,command,git-commit-cc,missing,,explicit
-git-commit.el,967,command,git-commit-reported,missing,,explicit
-git-commit.el,972,command,git-commit-suggested,missing,,explicit
+git-commit.el,909,command,git-commit-insert-trailer,partial,"C-c C-i / C-c Tab: ""Key: value"" through git interpret-trailers",explicit
+git-commit.el,933,command,git-commit-ack,partial,C-c C-a (default your ident),explicit
+git-commit.el,938,command,git-commit-modified,partial,C-c C-m,explicit
+git-commit.el,943,command,git-commit-review,partial,C-c C-r,explicit
+git-commit.el,950,command,git-commit-signoff,partial,C-c C-s (your ident at once),explicit
+git-commit.el,956,command,git-commit-test,partial,C-c C-t,explicit
+git-commit.el,962,command,git-commit-cc,partial,C-c C-o,explicit
+git-commit.el,967,command,git-commit-reported,partial,C-c C-p,explicit
+git-commit.el,972,command,git-commit-suggested,partial,C-c M-i,explicit
 git-commit.el,977,command,git-commit-co-authored,missing,,explicit
 git-commit.el,982,command,git-commit-co-developed,missing,,explicit
 git-commit.el,1294,option,git-commit-post-finish-hook,missing,,explicit

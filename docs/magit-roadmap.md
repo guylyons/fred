@@ -251,3 +251,10 @@ October 4 section checkpoint: Magit buffers gain evil-collection's section
 movement (C-j C-k, gj gk ] [ M-j M-k, gh) and folds (za zo zc zO zC z1-z4
 zr); z is a prefix in Magit buffers since Fred's Vim has no z commands.
 Ledger 526 partial / 247 missing commands. Score remains 3%.
+
+October 4 commit-message checkpoint: drafts gain git-commit's trailer keys
+(C-c C-s C-a C-m C-r C-t C-o C-p M-i, C-c C-i any trailer) via git
+interpret-trailers, and message history (M-k/gk, M-j/gj). Fix: Ctrl/Alt
+section movement keys never matched (Key::char is None with modifiers); C-j
+in diff buffers visits the worktree file. Ledger 539 partial / 234 missing
+commands. Score remains 3%.

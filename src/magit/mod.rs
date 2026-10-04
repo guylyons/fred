@@ -12,6 +12,7 @@ pub mod diff;
 pub mod ignore;
 pub mod log;
 pub mod merge;
+pub mod message;
 pub mod network;
 pub mod notes;
 pub mod patch;
@@ -630,21 +631,9 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         open_menu(ed, '*');
         return true;
     }
-    // magit-diff-while-committing: C-c C-d in a commit message draft.
-    if ed.commit_repo.is_some() && ed.magit.is_none() {
-        if ed.vim.pending.is_empty() && k == Key::ctrl('c') {
-            ed.vim.pending = vec![k];
-            return true;
-        }
-        if ed.vim.pending == [Key::ctrl('c')] {
-            ed.vim.pending.clear();
-            if k == Key::ctrl('d') {
-                ed.pending_effect = Some(ExEffect::Magit(Action::DiffWhileCommitting));
-                return true;
-            }
-            // Not C-c C-d: the key keeps its usual meaning.
-            return false;
-        }
+    // git-commit-mode keys in a commit draft.
+    if message::key(ed, k) {
+        return true;
     }
     if ed.magit.is_none() {
         return false;
@@ -694,9 +683,13 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     }
     // magit-section movement (evil-collection): C-j/C-k sections, gj gk ] [
     // M-j M-k siblings, gh parent; z folds.
-    if !k.ctrl || matches!(k.char(), Some('j' | 'k')) {
+    let code = match k.code {
+        KeyCode::Char(c) => Some(c),
+        _ => None,
+    };
+    if !k.ctrl || matches!(code, Some('j' | 'k')) {
         let pending = ed.vim.pending.clone();
-        let mv = match (pending.as_slice(), k.char(), k.ctrl, k.alt) {
+        let mv = match (pending.as_slice(), code, k.ctrl, k.alt) {
             ([], Some('j'), true, false) => {
                 // C-j on a file or hunk visits the worktree file (section maps).
                 let on_file = ed.magit.as_ref().is_some_and(|v| {
@@ -707,6 +700,16 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
                 });
                 if on_file {
                     ed.pending_effect = Some(ExEffect::Magit(Action::Visit));
+                    return true;
+                }
+                // Diff, commit and stash buffers: lines are in file/hunk sections.
+                if ed.magit.as_ref().is_some_and(|v| {
+                    matches!(
+                        v.kind,
+                        Kind::Diff(..) | Kind::Patch(_) | Kind::StashPatch(_)
+                    )
+                }) {
+                    ed.pending_effect = Some(ExEffect::Magit(Action::VisitWorktree));
                     return true;
                 }
                 Some(Move::Next)
@@ -1059,6 +1062,8 @@ pub enum Prompt {
     /// A todo line to add below point: its verb (exec, label, reset, merge,
     /// pick) and prompt.
     RebaseLine(&'static str, &'static str),
+    /// git-commit-insert-trailer: the trailer key, or None to read "Key: value".
+    Trailer(Option<&'static str>),
     /// A transient-option value for (menu, argument prefix); returns to the menu.
     OptionValue(char, &'static str),
 }
@@ -1098,6 +1103,9 @@ pub fn prompt(ed: &mut Editor, question: Prompt) {
         Prompt::Ask(_, _, _, prompts, answers) => prompts[answers.len()].clone(),
         Prompt::InitDir(_) => "Create repository in: ".into(),
         Prompt::RebaseLine(_, prompt) => (*prompt).into(),
+        Prompt::Trailer(key) => {
+            key.map_or("Insert trailer (Key: value): ".into(), |k| format!("{k}: "))
+        }
         Prompt::OptionValue(_, prefix) => (*prefix).into(),
         Prompt::InitConfirm(_, question) => question.clone(),
         Prompt::DropStash(_, stash) => format!(
@@ -1142,6 +1150,13 @@ pub fn answer(ed: &mut Editor, text: &str) {
         }
         Some(Prompt::InitConfirm(..)) => ed.set_msg("Abort"),
         Some(Prompt::RebaseLine(verb, _)) => rebase::insert_line(ed, verb, text),
+        Some(Prompt::Trailer(Some(key))) => message::insert_trailer(ed, key, text),
+        Some(Prompt::Trailer(None)) => match text.split_once(':') {
+            Some((key, value)) if !key.trim().is_empty() && !key.contains(char::is_whitespace) => {
+                message::insert_trailer(ed, key.trim(), value)
+            }
+            _ => ed.set_err("Type a trailer as Key: value"),
+        },
         Some(Prompt::OptionValue(menu, prefix)) => {
             if !text.is_empty() {
                 ed.magit_values
