@@ -47,9 +47,8 @@ additional behavior reopens its row and lowers the score until it is covered.
 
 ## Execution queue
 
-Log menu batch (this commit): free-form transient option values and the
-remaining magit-log suffixes. Next: shortlog and log-buffer navigation
-(move-to-parent/revision, references), log-select, cherry; then submodules,
+Log batch done (shortlog, cherry, move-to-parent, review fixes). Next:
+reference movement and log-select; then submodules,
 subtrees, patches/bundles, clone, refs view, sparse checkout and gitignore,
 recording each accepted gate's evidence here. The baseline's UI map and
 scenario matrix remain open.
@@ -165,3 +164,9 @@ option values (transient-option): pressing a set option unsets it. `l l` from
 a plain file buffer no longer filters to that file (upstream); Space m L does.
 Bisect (Space m G) and worktree/stash review fixes landed in 2ee8bdd.
 Ledger 277 partial / 496 missing commands. Score remains 3%.
+
+October 4 shortlog/cherry checkpoint: Space m l s (shortlog menu), Space m Y
+(cherry), C-c C-n in logs; log review fixes (--reverse drops --graph, patch
+text is never parsed as a commit, typed option values survive in a log
+buffer's menu, + without a limit sets 256 and 0 means none). Ledger 288
+partial / 485 missing commands. Score remains 3%.

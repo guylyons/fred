@@ -177,6 +177,10 @@ pub enum Kind {
     Diff(diff::Target, Vec<String>),
     /// magit-reflog-mode for a ref.
     Reflog(String),
+    /// magit-cherry-mode: head and upstream.
+    Cherry(String, String),
+    /// *magit-shortlog*: revision or range and arguments.
+    Shortlog(String, Vec<String>),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct View {
@@ -233,6 +237,11 @@ impl View {
             Kind::Patch(id) => format!("Magit {id}"),
             Kind::Diff(target, _) => format!("Magit diff: {}", target.title()),
             Kind::Reflog(r) => format!("Magit reflog {}", label(std::path::Path::new(r))),
+            Kind::Cherry(h, u) => format!(
+                "Magit cherry {}",
+                label(std::path::Path::new(&format!("{u}..{h}")))
+            ),
+            Kind::Shortlog(r, _) => format!("Magit shortlog {}", label(std::path::Path::new(r))),
         }
     }
     pub fn text(&self) -> String {
@@ -612,6 +621,24 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         ed.pending_effect = Some(ExEffect::Magit(Action::Refresh));
         return true;
     }
+    // magit-log-move-to-parent (C-c C-n).
+    if ed
+        .magit
+        .as_ref()
+        .is_some_and(|v| matches!(v.kind, Kind::Log(..)))
+    {
+        if ed.vim.pending.is_empty() && k == Key::ctrl('c') {
+            ed.vim.pending = vec![k];
+            return true;
+        }
+        if ed.vim.pending == [Key::ctrl('c')] {
+            ed.vim.pending.clear();
+            if k == Key::ctrl('n') {
+                log_move_to_parent(ed);
+            }
+            return true;
+        }
+    }
     if !ed.vim.pending.is_empty() {
         return false;
     }
@@ -626,11 +653,10 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             (Some('='), Some(_)) => None,
             (Some('='), None) => Some(256),
             (_, Some(n)) => Some(n.saturating_mul(2)),
-            (_, None) => {
-                ed.set_err("No commit limit");
-                return true;
-            }
+            (_, None) => Some(256),
         };
+        // magit-log-set-commit-limit: a limit of 0 or less is no limit.
+        let next = next.filter(|n| *n > 0);
         *args = log::with_limit(args, next);
         ed.pending_effect = Some(ExEffect::Magit(Action::Refresh));
         return true;
@@ -665,6 +691,35 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     }
     false
 }
+fn log_move_to_parent(ed: &mut Editor) {
+    let Some(view) = ed.magit.as_ref() else {
+        return;
+    };
+    let line = ed.cur.line;
+    let Some(RowAction::Commit(id)) = view.action_at(line) else {
+        return;
+    };
+    // ponytail: synchronous rev-parse; local and fast, move to the worker if not.
+    let parent = view
+        .repo
+        .read(&["rev-parse", "--verify", "-q", &format!("{id}^1")])
+        .map(|o| String::from_utf8_lossy(&o).trim().to_owned());
+    let Ok(parent) = parent else {
+        return ed.set_err(format!(
+            "Parent {}^1 does not exist",
+            &id[..id.len().min(8)]
+        ));
+    };
+    let target = (line + 1..view.rows.len())
+        .find(|&i| view.rows[i].action.as_ref() == Some(&RowAction::Commit(parent.clone())));
+    match target {
+        Some(i) => ed.set_cursor(i, 0),
+        None => ed.set_err(format!(
+            "Parent {} not found.  Try typing + first",
+            &parent[..parent.len().min(8)]
+        )),
+    }
+}
 #[cfg(test)]
 mod tests;
 
@@ -698,6 +753,9 @@ fn menu_help(menu: char) -> Option<&'static str> {
         'P' => "Pull: p pushRemote  u upstream  e elsewhere; -r cycles --rebase choices",
         'l' => {
             "Log: l current  o other  h HEAD  u related  L/b/a/R branches, all, reflog objects  B/T matching  m merged; = limit, + more in a log"
+        }
+        'S' => {
+            "Shortlog: s since  r range; -n numbered  -s summary  -e email  -g group  -f format  -w wrap"
         }
         't' => "Tag: t tag  r release  k delete  p prune; -a annotate -s sign -e message -f force",
         'C' => "Commit: a amend  e extend  w reword  f fixup",
@@ -819,7 +877,9 @@ pub fn answer(ed: &mut Editor, text: &str) {
             if !text.is_empty() {
                 ed.magit_values.insert((menu, prefix), text.to_owned());
             }
-            open_menu(ed, menu);
+            // Return to the open transient, not a fresh one seeded from the buffer.
+            ed.magit_menu = Some(menu);
+            crate::pick::magit_menu(ed, menu);
         }
         Some(Prompt::Ask(repo, question, args, prompts, mut answers)) => {
             answers.push(text.trim().to_owned());
@@ -864,6 +924,13 @@ pub(crate) fn open_menu(ed: &mut Editor, menu: char) {
             ed.magit_options
                 .insert(MenuOption::Switch('l', "--decorate"));
         }
+    }
+    // magit-shortlog :value '("--numbered" "--summary").
+    if menu == 'S' && ed.magit_seeded.insert('S') {
+        ed.magit_options
+            .insert(MenuOption::Switch('S', "--numbered"));
+        ed.magit_options
+            .insert(MenuOption::Switch('S', "--summary"));
     }
     // magit-rebase :value '("--autostash").
     if menu == 'r' && ed.magit_seeded.insert('r') {
@@ -917,6 +984,7 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("X", "History", "Reset", Menu('X')),
             ("Z", "Repository", "Worktree", Menu('Y')),
             ("T", "Inspect", "Notes", Menu('N')),
+            ("Y", "Inspect", "Cherries", LogOp(log::Op::Cherry)),
             // Upstream's B is the user's blame key, so bisect lives on G.
             ("G", "History", "Bisect", Menu('G')),
             ("b", "Branch", "Branch operations", Menu('b')),
@@ -1275,6 +1343,35 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 ("r", "Reflog", "current", Reflog(Some(String::new()))),
                 ("O", "Reflog", "other", Reflog(None)),
                 ("H", "Reflog", "HEAD", Reflog(Some("HEAD".into()))),
+                ("s", "Other", "shortlog", Menu('S')),
+            ]
+        }
+        'S' => {
+            let sw = |a| ToggleOption(MenuOption::Switch('S', a));
+            vec![
+                (
+                    "-n",
+                    "Arguments",
+                    "Sort by number of commits",
+                    sw("--numbered"),
+                ),
+                (
+                    "-s",
+                    "Arguments",
+                    "Show commit count summary only",
+                    sw("--summary"),
+                ),
+                ("-e", "Arguments", "Show email addresses", sw("--email")),
+                (
+                    "-g",
+                    "Arguments",
+                    "Group commits by",
+                    CycleOption("--group="),
+                ),
+                ("-f", "Arguments", "Format string", ReadOption("--format=")),
+                ("-w", "Arguments", "Linewrap", ReadOption("-w")),
+                ("s", "Shortlog", "since", LogOp(log::Op::ShortlogSince)),
+                ("r", "Shortlog", "range", LogOp(log::Op::ShortlogRange)),
             ]
         }
         'z' => vec![
@@ -2033,6 +2130,8 @@ pub fn choices(menu: char, prefix: &str) -> &'static [&'static str] {
         "--ignore-submodules=" => &["none", "untracked", "dirty", "all"],
         "--strategy=" => &["resolve", "recursive", "octopus", "ours", "subtree"],
         "--rebase-merges=" => &["no-rebase-cousins", "rebase-cousins"],
+        // "trailer:" takes a key Fred cannot read in a cycle.
+        "--group=" => &["author", "committer"],
         // magit-log:--*-order.
         "--" if menu == 'l' => &["topo-order", "author-date-order", "date-order"],
         _ => &[],

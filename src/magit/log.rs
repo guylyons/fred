@@ -1,4 +1,5 @@
 //! magit-log.el: log buffers over revisions with git-log arguments.
+use super::Kind;
 use super::branch::Next;
 use super::repo::{Repo, label};
 
@@ -15,6 +16,11 @@ pub enum Op {
     MatchingBranches,
     MatchingTags,
     Merged,
+    /// magit-shortlog-since / -range.
+    ShortlogSince,
+    ShortlogRange,
+    /// magit-cherry: head, then upstream.
+    Cherry,
 }
 
 /// magit-log-merged-commit-count.
@@ -37,6 +43,8 @@ fn rev(v: &str) -> Result<&str, String> {
 /// The arguments git log receives: Fred draws the graph colors and refs itself.
 pub fn git_args(args: &[String]) -> Result<Vec<String>, String> {
     let mut out = vec![];
+    // magit-log-refresh-buffer drops --graph when --reverse is used.
+    let reverse = args.iter().any(|a| a == "--reverse");
     for a in args {
         if let Some(n) = a.strip_prefix("-n") {
             n.parse::<usize>()
@@ -45,7 +53,8 @@ pub fn git_args(args: &[String]) -> Result<Vec<String>, String> {
         if !matches!(
             a.as_str(),
             "--color" | "--decorate" | "++header" | "--follow"
-        ) {
+        ) && !(reverse && a == "--graph")
+        {
             out.push(a.clone());
         }
     }
@@ -149,6 +158,32 @@ impl Repo {
                     vec![d, here],
                 )
             }
+            Op::ShortlogSince => {
+                // magit-get-current-tag.
+                let d = self
+                    .read(&["describe", "--tags", "--abbrev=0"])
+                    .map(|o| String::from_utf8_lossy(&o).trim().to_owned())
+                    .unwrap_or_default();
+                (vec![format!("Shortlog since (default {d}): ")], vec![d])
+            }
+            Op::Cherry => {
+                let head = self.current_branch().unwrap_or_default();
+                let upstream = self.upstream_of(&head).unwrap_or_default();
+                (
+                    vec![
+                        format!("Cherry head (default {head}): "),
+                        format!("Cherry upstream (default {upstream}): "),
+                    ],
+                    vec![head, upstream],
+                )
+            }
+            Op::ShortlogRange => {
+                let d = at_point.unwrap_or_default();
+                (
+                    vec![format!("Shortlog for revision or range (default {d}): ")],
+                    vec![d],
+                )
+            }
             _ => (vec![], vec![]),
         }
     }
@@ -195,8 +230,28 @@ impl Repo {
                 vec!["HEAD".into(), format!("--{kind}={p}")]
             }
             Op::Merged => return self.log_merged(rev(at(0))?, rev(at(1))?, args),
+            Op::ShortlogSince => {
+                return Ok(Next::View(Kind::Shortlog(
+                    format!("{}..", rev(at(0))?),
+                    args.to_vec(),
+                )));
+            }
+            Op::Cherry => {
+                let (head, upstream) = (rev(at(0))?, rev(at(1))?);
+                for r in [head, upstream] {
+                    self.read(&["rev-parse", "--verify", "-q", "--end-of-options", r])
+                        .map_err(|_| format!("unknown revision {r:?}"))?;
+                }
+                return Ok(Next::View(Kind::Cherry(head.into(), upstream.into())));
+            }
+            Op::ShortlogRange => {
+                return Ok(Next::View(Kind::Shortlog(
+                    rev(at(0))?.to_owned(),
+                    args.to_vec(),
+                )));
+            }
         };
-        Ok(Next::Log(revs, args.to_vec()))
+        Ok(Next::View(Kind::Log(revs, args.to_vec())))
     }
     /// magit-log-merged without git-when-merged: the oldest first-parent
     /// commit of BRANCH that descends from COMMIT is the merge.
@@ -243,7 +298,7 @@ impl Repo {
             if !args.iter().any(|a| a == "--first-parent") {
                 args.insert(0, "--first-parent".into());
             }
-            return Ok(Next::Log(vec![format!("{from}..{to}")], args));
+            return Ok(Next::View(Kind::Log(vec![format!("{from}..{to}")], args)));
         }
         let ancestry = lines(&["rev-list", "--ancestry-path", &format!("{c}..{b}")])?;
         let m = ancestry
@@ -251,7 +306,39 @@ impl Repo {
             .rev()
             .find(|x| first_parent.contains(x))
             .ok_or_else(|| format!("Could not find when {commit} was merged into {branch}"))?;
-        Ok(Next::Log(vec![format!("{m}^1..{m}")], args.to_vec()))
+        Ok(Next::View(Kind::Log(
+            vec![format!("{m}^1..{m}")],
+            args.to_vec(),
+        )))
+    }
+    /// magit-insert-cherry-commits: (+ or -, commit, subject), newest first.
+    pub fn cherry(
+        &self,
+        head: &str,
+        upstream: &str,
+    ) -> Result<Vec<(char, String, String)>, String> {
+        let out = self.read(&["cherry", "-v", upstream, head])?;
+        let mut v: Vec<_> = String::from_utf8_lossy(&out)
+            .lines()
+            .filter_map(|l| {
+                let mut f = l.splitn(3, ' ');
+                let sign = f.next()?.chars().next()?;
+                Some((
+                    sign,
+                    f.next()?.to_owned(),
+                    f.next().unwrap_or("").to_owned(),
+                ))
+            })
+            .collect();
+        v.reverse();
+        Ok(v)
+    }
+    /// magit-git-shortlog.
+    pub fn shortlog(&self, rev: &str, args: &[String]) -> Result<Vec<u8>, String> {
+        let mut argv = vec!["shortlog"];
+        argv.extend(args.iter().map(String::as_str));
+        argv.extend([rev, "--"]);
+        self.read(&argv)
     }
     /// magit-log-refresh-buffer: git log with the buffer's revisions and arguments.
     pub fn log_lines(
@@ -281,33 +368,41 @@ impl Repo {
         let text = String::from_utf8_lossy(&out[..limit]);
         Ok(text
             .lines()
-            .map(|line| match line.split_once('\x1e') {
-                Some((graph, rest)) => {
-                    let f: Vec<&str> = rest.split('\x1f').collect();
-                    let get = |i: usize| f.get(i).copied().unwrap_or("");
-                    let refs = if decorate && !get(1).is_empty() {
-                        format!("({}) ", get(1))
-                    } else {
-                        String::new()
-                    };
-                    let id = get(0);
-                    Line {
-                        text: label(std::path::Path::new(&format!(
-                            "{graph}{} {} {} {refs}{}",
-                            &id[..id.len().min(8)],
-                            get(2),
-                            get(3),
-                            get(4)
-                        ))),
-                        commit: Some(id.to_owned()).filter(|i| !i.is_empty()),
+            .map(|line| {
+                match line.split_once('\x1e').filter(|(_, rest)| {
+                    // Only our format line: a full object id before the first field
+                    // separator (patch text may contain \x1e too).
+                    rest.split('\x1f').next().is_some_and(|id| {
+                        matches!(id.len(), 40 | 64) && id.bytes().all(|b| b.is_ascii_hexdigit())
+                    })
+                }) {
+                    Some((graph, rest)) => {
+                        let f: Vec<&str> = rest.split('\x1f').collect();
+                        let get = |i: usize| f.get(i).copied().unwrap_or("");
+                        let refs = if decorate && !get(1).is_empty() {
+                            format!("({}) ", get(1))
+                        } else {
+                            String::new()
+                        };
+                        let id = get(0);
+                        Line {
+                            text: label(std::path::Path::new(&format!(
+                                "{graph}{} {} {} {refs}{}",
+                                &id[..8],
+                                get(2),
+                                get(3),
+                                get(4)
+                            ))),
+                            commit: Some(id.to_owned()).filter(|i| !i.is_empty()),
+                        }
                     }
+                    None => Line {
+                        text: label(std::path::Path::new(
+                            &line.chars().take(20_000).collect::<String>(),
+                        )),
+                        commit: None,
+                    },
                 }
-                None => Line {
-                    text: label(std::path::Path::new(
-                        &line.chars().take(20_000).collect::<String>(),
-                    )),
-                    commit: None,
-                },
             })
             .collect())
     }

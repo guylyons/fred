@@ -205,7 +205,15 @@ impl Session {
             return;
         }
         if let Action::Answered(repo, Question::Log(op), answers, defaults) = action {
-            let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, 'l'));
+            let menu = if matches!(
+                op,
+                crate::magit::log::Op::ShortlogSince | crate::magit::log::Op::ShortlogRange
+            ) {
+                'S'
+            } else {
+                'l'
+            };
+            let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, menu));
             self.start_magit(move || {
                 let merged = merge_answers(&answers, &defaults);
                 let next = repo
@@ -2096,11 +2104,11 @@ fn branch_outcome(repo: Repo, next: crate::magit::branch::Next, origin: usize) -
                 Err(e) => Outcome::Saved(repo, Err(e)),
             }
         }
-        Next::Log(revs, args) => {
+        Next::View(kind) => {
             let mut view = View::status(repo.clone(), Default::default());
-            view.kind = Kind::Log(revs, args);
+            view.kind = kind;
             view.return_to = origin;
-            match refresh_log(&mut view) {
+            match refresh_view(&mut view) {
                 Ok(()) => Outcome::View(Box::new(view), None, 0),
                 Err(e) => Outcome::Saved(repo, Err(e)),
             }
@@ -2283,6 +2291,48 @@ fn refresh_view(view: &mut View) -> Result<(), String> {
         Kind::Log(..) | Kind::FileLog(..) | Kind::Reflog(_)
     ) {
         return refresh_log(view);
+    }
+    if let Kind::Cherry(head, upstream) = &view.kind {
+        // magit-insert-cherry-headers and -commits.
+        let mut rows = vec![
+            Row {
+                text: format!("Head:     {}", label(Path::new(head))),
+                action: None,
+            },
+            Row {
+                text: format!("Upstream: {}", label(Path::new(upstream))),
+                action: None,
+            },
+            Row {
+                text: "Cherry commits (+ not in upstream, - equivalent change upstream)".into(),
+                action: None,
+            },
+        ];
+        for (sign, id, subject) in view.repo.cherry(head, upstream)? {
+            rows.push(Row {
+                text: format!(
+                    "{sign} {} {}",
+                    &id[..id.len().min(8)],
+                    label(Path::new(&subject))
+                ),
+                action: Some(RowAction::Commit(id)),
+            });
+        }
+        view.rows = rows;
+        return Ok(());
+    }
+    if let Kind::Shortlog(rev, args) = &view.kind {
+        let mut rows = vec![Row {
+            text: format!(
+                "git shortlog {} {} (gr refresh, q return)",
+                label(Path::new(&args.join(" "))),
+                label(Path::new(rev))
+            ),
+            action: None,
+        }];
+        rows.extend(display_patch(&view.repo.shortlog(rev, args)?));
+        view.rows = rows;
+        return Ok(());
     }
     if let Kind::StashPatch(stash) = &view.kind {
         view.rows = display_patch(&view.repo.stash_patch(stash)?);

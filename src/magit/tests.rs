@@ -2686,7 +2686,7 @@ fn log_variants_arguments_and_merged() {
     commit("after");
     git(d.path(), &["tag", "v1", "HEAD~1"]);
     let lines = |n: Next| match n {
-        Next::Log(revs, args) => (
+        Next::View(super::Kind::Log(revs, args)) => (
             revs.clone(),
             r.log_lines(&revs, &args, &[])
                 .unwrap()
@@ -2711,6 +2711,20 @@ fn log_variants_arguments_and_merged() {
     assert!(text.contains("feature") && !text.contains("base"), "{text}");
     assert!(r.log_step(Op::Other, &s(&["--all"]), &[]).is_err());
     assert!(r.log_lines(&s(&["HEAD"]), &s(&["-nx"]), &[]).is_err());
+    // --reverse drops --graph (git refuses both).
+    assert!(
+        r.log_lines(&s(&["HEAD"]), &s(&["--graph", "--reverse"]), &[])
+            .is_ok()
+    );
+    // Patch text containing the record separator is not a commit line.
+    fs::write(d.path().join("sep"), "\x1ea\u{e9}\u{e9}\u{e9}\u{e9}\n").unwrap();
+    git(d.path(), &["add", "sep"]);
+    git(d.path(), &["commit", "-qm", "sep"]);
+    let patched = r
+        .log_lines(&s(&["HEAD"]), &s(&["-n1", "--patch"]), &[])
+        .unwrap();
+    assert_eq!(patched.iter().filter(|l| l.commit.is_some()).count(), 1);
+    git(d.path(), &["reset", "-q", "--hard", "HEAD~1"]);
     let (revs, _) = lines(r.log_step(Op::MatchingTags, &s(&["v*"]), &[]).unwrap());
     assert_eq!(revs, s(&["HEAD", "--tags=v*"]));
     let (revs, _) = lines(r.log_step(Op::LocalBranches, &[], &[]).unwrap());
@@ -2736,4 +2750,32 @@ fn log_variants_arguments_and_merged() {
         text.contains("mainline") && !text.contains("feature"),
         "{text}"
     );
+    // magit-shortlog-since: "REV.." with the menu's arguments.
+    let Next::View(super::Kind::Shortlog(rev, args)) = r
+        .log_step(
+            Op::ShortlogSince,
+            &s(&["v1"]),
+            &s(&["--numbered", "--summary"]),
+        )
+        .unwrap()
+    else {
+        panic!()
+    };
+    assert_eq!(rev, "v1..");
+    let out = String::from_utf8(r.shortlog(&rev, &args).unwrap()).unwrap();
+    assert!(out.trim().starts_with("1\t"), "{out:?}");
+    assert!(r.log_step(Op::ShortlogRange, &s(&["--all"]), &[]).is_err());
+    // magit-cherry: topic's commit is merged, so cherry from v1's parent.
+    git(d.path(), &["checkout", "-qb", "pick", "HEAD~3"]);
+    git(d.path(), &["cherry-pick", &feature]);
+    commit("own");
+    let Next::View(super::Kind::Cherry(head, upstream)) =
+        r.log_step(Op::Cherry, &s(&["pick", "topic"]), &[]).unwrap()
+    else {
+        panic!()
+    };
+    let cherries = r.cherry(&head, &upstream).unwrap();
+    let signs: Vec<_> = cherries.iter().map(|c| (c.0, c.2.as_str())).collect();
+    assert_eq!(signs, vec![('+', "own"), ('-', "feature")]);
+    assert!(r.log_step(Op::Cherry, &s(&["pick", "-x"]), &[]).is_err());
 }

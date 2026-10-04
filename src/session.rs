@@ -1960,8 +1960,31 @@ mod tests {
             panic!()
         };
         assert!(crate::magit::log::limit(args).is_none(), "{args:?}");
-        // The menu opened from the log buffer shows the buffer's arguments.
-        t.keys(" ml");
+        // C-c C-n moves to the parent commit's row.
+        let row = |t: &T, c: &str| t.s.ed.buf.text().lines().position(|l| l.contains(c));
+        t.keys(&format!("{}G", row(&t, "commit 2").unwrap() + 1));
+        t.keys("<C-c><C-n>");
+        assert_eq!(Some(t.s.ed.cur.line), row(&t, "commit 1"));
+        // + with no limit sets the default limit (magit-log-set-commit-limit).
+        t.keys("+");
+        magit_settle(&mut t);
+        let crate::magit::Kind::Log(_, args) = &t.s.ed.magit.as_ref().unwrap().kind else {
+            panic!()
+        };
+        assert_eq!(crate::magit::log::limit(args), Some(256));
+        t.keys("=");
+        magit_settle(&mut t);
+        // The menu opened from the log buffer shows the buffer's arguments,
+        // and values typed into it stay (not reseeded from the buffer).
+        t.keys(" ml-Afred<Enter>");
+        assert_eq!(
+            t.s.ed
+                .magit_values
+                .get(&('l', "--author="))
+                .map(String::as_str),
+            Some("fred")
+        );
+        t.keys("-A");
         assert!(!t.s.ed.magit_values.contains_key(&('l', "-n")));
         assert_eq!(
             t.s.ed

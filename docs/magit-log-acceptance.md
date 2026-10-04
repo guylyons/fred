@@ -15,3 +15,12 @@ Reference: magit-log transient and suffixes at the pinned upstream revision.
 | merged | git-when-merged: M^1..M, or first-parent neighborhood | Native: oldest first-parent descendant on the ancestry path | log test |
 | Commit limit keys | = toggle, + double, - half | = and +; - stays revert (evil-collection) | session test |
 | Graph and refs | washed graph with decorations | git --graph prefixes kept; refs shown in parentheses with -d | log test |
+| Shortlog | magit-shortlog since/range with --numbered --summary | Menu S from `l s`; output in a read-only view | log test |
+| Cherry | magit-cherry head/upstream, +/- commits newest first | Space m Y | log test |
+| Move to parent | C-c C-n | Same; error suggests + when the parent is beyond the limit | session test |
+
+Independent review (October 4): --reverse drops --graph as upstream does; a
+log line is a commit only when its id field is a full object id (patch text
+containing \x1e no longer panics); typed option values return to the open
+menu instead of reseeding it from the log buffer; + without a limit sets 256
+and a zero limit is removed.

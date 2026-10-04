@@ -50,8 +50,8 @@ pub enum Next {
     Replay(super::rebase::Plan),
     /// Show the status of another worktree.
     Status(std::path::PathBuf),
-    /// Show a log of these revisions with these arguments.
-    Log(Vec<String>, Vec<String>),
+    /// Show a log, shortlog or cherry buffer.
+    View(super::Kind),
 }
 
 fn name(v: &str) -> Result<&str, String> {
@@ -96,7 +96,7 @@ impl Repo {
     fn modified(&self) -> bool {
         !self.ok(&["diff", "--quiet"]) || !self.ok(&["diff", "--cached", "--quiet"])
     }
-    fn upstream_of(&self, b: &str) -> Option<String> {
+    pub(super) fn upstream_of(&self, b: &str) -> Option<String> {
         let out = self
             .read(&["rev-parse", "--abbrev-ref", &format!("{b}@{{upstream}}")])
             .ok()?;

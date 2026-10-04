@@ -502,17 +502,17 @@ magit-log.el,919,command,magit-log-toggle-commit-limit,partial,= in a log buffer
 magit-log.el,926,command,magit-log-double-commit-limit,partial,+ in a log buffer,explicit
 magit-log.el,931,command,magit-log-half-commit-limit,missing,,explicit
 magit-log.el,955,command,magit-log-bury-buffer,missing,,explicit
-magit-log.el,972,command,magit-log-move-to-parent,missing,,explicit
+magit-log.el,972,command,magit-log-move-to-parent,partial,C-c C-n in a log buffer,explicit
 magit-log.el,989,command,magit-log-move-to-revision,missing,,explicit
-magit-log.el,1018,command,magit-shortlog,missing,,explicit
-magit-log.el,1046,command,magit-shortlog-since,missing,,explicit
-magit-log.el,1054,command,magit-shortlog-range,missing,,explicit
+magit-log.el,1018,command,magit-shortlog,partial,Space m l s opens menu S: -n -s -e -g (author/committer; trailer: missing) -f -w; seeded --numbered --summary,explicit
+magit-log.el,1046,command,magit-shortlog-since,partial,S s: REV.. default current tag,explicit
+magit-log.el,1054,command,magit-shortlog-range,partial,"S r: revision or range, default at point",explicit
 magit-log.el,1083,command,magit-previous-reference,missing,,explicit
 magit-log.el,1094,command,magit-next-reference,missing,,explicit
 magit-log.el,1692,command,magit-toggle-log-margin-style,missing,,explicit
 magit-log.el,1870,command,magit-log-select-pick,missing,,explicit
 magit-log.el,1880,command,magit-log-select-quit,missing,,explicit
-magit-log.el,1930,command,magit-cherry,missing,,explicit
+magit-log.el,1930,command,magit-cherry,partial,"Space m Y: head/upstream headers and +/- cherry commits, newest first; upstream default is the current branch's",explicit
 magit-log.el,,command,magit-jump-to-unpulled-from-pushremote,partial,gfp in status,runtime
 magit-log.el,,command,magit-jump-to-unpulled-from-upstream,partial,gfu in status,runtime
 magit-log.el,,command,magit-jump-to-unpushed-to-pushremote,partial,gpp in status,runtime
@@ -551,12 +551,12 @@ magit-log.el,,command,transient:magit-log-infix-arguments:--stat,partial,switch 
 magit-log.el,,command,transient:magit-log-refresh:--color,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-log.el,,command,transient:magit-log-refresh:--decorate,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-log.el,,command,transient:magit-log-refresh:--graph,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,transient:magit-shortlog:--email,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,transient:magit-shortlog:--format=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,transient:magit-shortlog:--group=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,transient:magit-shortlog:--numbered,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,transient:magit-shortlog:--summary,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,transient:magit-shortlog:-w,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-shortlog:--email,partial,menu S argument,runtime
+magit-log.el,,command,transient:magit-shortlog:--format=,partial,menu S argument,runtime
+magit-log.el,,command,transient:magit-shortlog:--group=,partial,-g cycles author/committer only,runtime
+magit-log.el,,command,transient:magit-shortlog:--numbered,partial,menu S argument,runtime
+magit-log.el,,command,transient:magit-shortlog:--summary,partial,menu S argument,runtime
+magit-log.el,,command,transient:magit-shortlog:-w,partial,menu S argument,runtime
 magit-margin.el,76,command,magit-margin-settings,missing,,explicit
 magit-margin.el,85,command,magit-toggle-margin,missing,,explicit
 magit-margin.el,99,command,magit-cycle-margin-style,missing,,explicit
