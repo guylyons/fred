@@ -153,6 +153,22 @@ impl Session {
             }
             return;
         }
+        // magit-process-kill works while a Git process runs.
+        if action == Action::TodoHelp {
+            return self.ed.set_msg(
+                "Rebase todo: p r e s f d set action  x exec  b break  l label  t reset  M merge  \
+                 M-j/M-k move  RET show  ZZ run  ZQ cancel",
+            );
+        }
+        if action == Action::ProcessKill {
+            let n = Repo::discover(&self.magit_from())
+                .map_or(0, |r| crate::magit::repo::kill_running(&r.root));
+            return if n == 0 {
+                self.ed.set_err("No process at point")
+            } else {
+                self.ed.set_msg(format!("Killed {n} Git process(es)"))
+            };
+        }
         if self.magit_job.is_some() || self.pending_git.is_some() || self.git_busy {
             self.ed.set_err("Git operation in progress");
             return;
@@ -489,16 +505,22 @@ impl Session {
             });
             return;
         }
-        if matches!(action, Action::TraceDefinition | Action::EditLineCommit) {
+        if matches!(
+            action,
+            Action::TraceDefinition
+                | Action::EditLineCommit
+                | Action::DiffTrace
+                | Action::DiffEditHunk
+        ) {
             let origin = self.cur;
             // The visited file (or blob) and the line / name at point.
-            let blob = self
+            let mut blob = self
                 .ed
                 .blob
                 .as_ref()
                 .map(|b| (b.repo.clone(), b.rev.clone(), b.file.clone()));
             let (from, path) = (self.magit_from(), self.ed.path.clone());
-            let line = self.ed.cur.line + 1;
+            let mut line = self.ed.cur.line + 1;
             let text = self.ed.buf.line(self.ed.cur.line);
             let col = self.ed.cur.byte.min(text.len());
             let is_word = |c: char| c.is_alphanumeric() || c == '_';
@@ -508,11 +530,39 @@ impl Session {
             let end = text[col..]
                 .find(|c: char| !is_word(c))
                 .map_or(text.len(), |i| col + i);
-            let name = text.get(start..end).unwrap_or("").to_owned();
+            let mut name = text.get(start..end).unwrap_or("").to_owned();
+            // From a hunk: the side of the file it shows (magit-diff-visit-file)
+            // and the function the hunk changes.
+            let action = match action {
+                Action::DiffTrace | Action::DiffEditHunk => {
+                    let Some(view) = self.ed.magit.as_deref() else {
+                        return;
+                    };
+                    let Some((rev, file, l)) = diff_visit(view, self.ed.cur.line, false) else {
+                        return self.ed.set_err("No hunk at point");
+                    };
+                    name = self.hunk_defun().and_then(|(_, d)| d).unwrap_or_default();
+                    blob = Some((view.repo.clone(), rev, file));
+                    line = l + 1;
+                    if action == Action::DiffTrace {
+                        Action::TraceDefinition
+                    } else {
+                        Action::EditLineCommit
+                    }
+                }
+                a => a,
+            };
             let log_args = crate::magit::menu_arguments(&self.ed, 'l');
             let rebase_args = crate::magit::menu_arguments(&self.ed, 'r');
             self.start_magit(move || {
                 let (repo, rev, file) = match blob {
+                    // The worktree (or index) side: blame the file itself.
+                    Some((repo, rev, file))
+                        if rev == crate::magit::blob::WORKTREE
+                            || rev == crate::magit::blob::INDEX =>
+                    {
+                        (repo, None, file)
+                    }
                     Some((repo, rev, file)) => (repo, Some(rev), file),
                     None => {
                         let repo = Repo::discover(&from)?;
@@ -2258,6 +2308,18 @@ impl Session {
                             defaults,
                             msg,
                             initial,
+                            origin,
+                        )
+                    }
+                    C::ReshelveSince => {
+                        let msg = pick("reshelve it and the commits above it");
+                        log_select(
+                            repo,
+                            Question::Commit(op),
+                            vec![],
+                            vec![String::new()],
+                            msg,
+                            None,
                             origin,
                         )
                     }

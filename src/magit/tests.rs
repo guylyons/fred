@@ -4245,3 +4245,88 @@ fn branch_name_prompts_turn_spaces_into_dashes() {
         vec![]
     )));
 }
+#[test]
+fn pop_revision_stack_inserts_references() {
+    let (d, r) = setup();
+    committed(d.path(), b"one\n");
+    let id = String::from_utf8_lossy(&git(d.path(), &["rev-parse", "HEAD"]))
+        .trim()
+        .to_owned();
+    let mut ed =
+        crate::editor::Editor::new(crate::buffer::Buffer::from_text("Fix it \n\n# comment"));
+    ed.set_cursor(0, 7);
+    ed.revision_stack.push((id.clone(), r.root.clone()));
+    ed.revision_stack.push((id.clone(), r.root.clone()));
+    super::message::pop_revision_stack(&mut ed);
+    let short = &id[..7];
+    let text = ed.buf.text();
+    assert!(text.starts_with(&format!("Fix it [1: {short}")), "{text:?}");
+    assert!(
+        text.contains("\n\n1: ") && text.contains(&id),
+        "{text:?}"
+    );
+    assert!(text.ends_with("# comment"), "{text:?}");
+    // The next one is numbered after the last index before point.
+    super::message::pop_revision_stack(&mut ed);
+    let text = ed.buf.text();
+    assert!(text.contains("[2: ") && text.contains("\n2: "), "{text:?}");
+    assert!(!text.contains("\n\n2: "), "entries stay together: {text:?}");
+    super::message::pop_revision_stack(&mut ed);
+    assert!(ed.msg.as_ref().is_some_and(|m| m.0.contains("empty")));
+}
+#[test]
+fn reshelve_since_rewrites_dates_a_minute_apart() {
+    use super::branch::Next;
+    use super::commit::Op;
+    let (d, r) = setup();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    committed(d.path(), b"one\n");
+    for m in ["two", "three"] {
+        fs::write(d.path().join(m), m).unwrap();
+        git(d.path(), &["add", m]);
+        git(d.path(), &["commit", "-qm", m]);
+    }
+    let tree = git(d.path(), &["rev-parse", "HEAD^{tree}"]);
+    let Next::Ask(super::Question::Commit(op), p, defaults) = r
+        .commit_step(Op::ReshelveSince, &s(&["HEAD~1"]), &[])
+        .unwrap()
+    else {
+        panic!()
+    };
+    assert!(p[0].starts_with("Date for first commit"), "{p:?}");
+    assert!(!defaults[0].is_empty());
+    r.commit_step(op, &s(&["2001-02-03 04:05:06 +0000"]), &[])
+        .unwrap();
+    let dates =
+        String::from_utf8_lossy(&git(d.path(), &["log", "-3", "--format=%at %ct %s"])).into_owned();
+    let lines: Vec<&str> = dates.lines().collect();
+    assert_eq!(lines[0], "981173166 981173166 three", "{dates}");
+    assert_eq!(lines[1], "981173106 981173106 two", "{dates}");
+    assert!(
+        !lines[2].starts_with("981"),
+        "the base is untouched: {dates}"
+    );
+    assert_eq!(git(d.path(), &["rev-parse", "HEAD^{tree}"]), tree);
+    assert_eq!(r.current_branch().unwrap(), "main");
+    assert!(
+        r.commit_step(Op::ReshelveSinceDate("HEAD".into()), &s(&["-x"]), &[])
+            .is_err()
+    );
+}
+#[test]
+fn process_kill_interrupts_background_git() {
+    let (_d, r) = setup();
+    let worker = {
+        let r = r.clone();
+        std::thread::spawn(move || r.read(&["-c", "alias.zz=!sleep 30", "zz"]))
+    };
+    let start = std::time::Instant::now();
+    let mut killed = 0;
+    while killed == 0 && start.elapsed() < std::time::Duration::from_secs(5) {
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        killed = super::repo::kill_running(&r.root);
+    }
+    assert!(killed >= 1);
+    assert!(worker.join().unwrap().is_err());
+    assert!(start.elapsed() < std::time::Duration::from_secs(20));
+}

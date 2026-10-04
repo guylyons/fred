@@ -16,6 +16,28 @@ pub static PROFILE: AtomicBool = AtomicBool::new(false);
 pub static CALLS_COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 type Call = (PathBuf, String, Result<(), String>);
 static CALLS: std::sync::Mutex<Vec<Call>> = std::sync::Mutex::new(vec![]);
+/// Background Git processes still running (magit-process-kill).
+static RUNNING: std::sync::Mutex<Vec<(u32, PathBuf)>> = std::sync::Mutex::new(vec![]);
+/// magit-process-kill: interrupt the repository's running background Git
+/// processes.
+pub fn kill_running(root: &Path) -> usize {
+    let pids: Vec<u32> = RUNNING
+        .lock()
+        .map(|r| {
+            r.iter()
+                .filter(|(_, p)| p == root)
+                .map(|(pid, _)| *pid)
+                .collect()
+        })
+        .unwrap_or_default();
+    for pid in &pids {
+        // SAFETY: plain signal delivery to a child process id we started.
+        unsafe {
+            libc::kill(*pid as libc::pid_t, libc::SIGTERM);
+        }
+    }
+    pids.len()
+}
 /// The logged background calls, oldest first, since the last take.
 pub fn take_calls() -> Vec<Call> {
     CALLS
@@ -162,6 +184,19 @@ impl Repo {
                 Stdio::null()
             });
         let mut child = cmd.spawn().map_err(|e| format!("git: {e}"))?;
+        let pid = child.id();
+        if let Ok(mut r) = RUNNING.lock() {
+            r.push((pid, self.root.clone()));
+        }
+        struct Done(u32);
+        impl Drop for Done {
+            fn drop(&mut self) {
+                if let Ok(mut r) = RUNNING.lock() {
+                    r.retain(|(p, _)| *p != self.0);
+                }
+            }
+        }
+        let _done = Done(pid);
         // Feed stdin concurrently: a hook may emit output before consuming input.
         let writer = input.map(|data| {
             let mut stdin = child.stdin.take().expect("piped stdin");

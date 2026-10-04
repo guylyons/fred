@@ -225,6 +225,8 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             cycle(ed, k.code == KeyCode::Char('p'));
         } else if k.alt && k.code == KeyCode::Char('s') {
             save_message(ed);
+        } else if k == Key::ctrl('w') {
+            pop_revision_stack(ed);
         } else {
             // Not a git-commit key: it keeps its usual meaning.
             return false;
@@ -525,4 +527,72 @@ pub fn change_log_add(old: &str, heading: &str, file: &str, defun: Option<&str>)
     };
     lines.insert(2.min(lines.len()), item);
     lines.join("\n") + "\n"
+}
+
+/// magit-pop-revision-stack with the default magit-pop-revision-stack-format:
+/// "[N: %h] " at point and "N: %cs %H\n   %s" near the end, N one more than
+/// the last index before point.
+pub fn pop_revision_stack(ed: &mut Editor) {
+    let Some((rev, root)) = ed.revision_stack.pop() else {
+        return ed.set_err("Revision stack is empty");
+    };
+    let repo = Repo { root };
+    let text = ed.buf.text();
+    let lines: Vec<&str> = text.split('\n').collect();
+    let before: String = lines[..ed.cur.line.min(lines.len())].join("\n")
+        + "\n"
+        + lines
+            .get(ed.cur.line)
+            .map_or("", |l| &l[..ed.cur.byte.min(l.len())]);
+    let re = regex::Regex::new(r"\[([0-9]+)[\]:]").expect("valid regex");
+    let n = re
+        .captures_iter(&before)
+        .last()
+        .and_then(|c| c[1].parse::<usize>().ok())
+        .map_or(1, |n| n + 1);
+    let format = |f: &str| {
+        repo.read(&["log", "--no-walk", &format!("--format={f}"), &rev, "--"])
+            .map(|o| {
+                String::from_utf8_lossy(&o)
+                    .trim_end_matches('\n')
+                    .to_owned()
+            })
+    };
+    let (Ok(at_point), Ok(at_end)) = (
+        format(&format!("[{n}: %h] ")),
+        format(&format!("{n}: %cs %H%n   %s")),
+    ) else {
+        return ed.set_err(format!("Cannot describe {rev}"));
+    };
+    // Point text first, then the entry before the comment lines at the end.
+    let line = ed.cur.line;
+    let mut new: Vec<String> = lines.iter().map(|l| l.to_string()).collect();
+    if let Some(l) = new.get_mut(line) {
+        let at = ed.cur.byte.min(l.len());
+        l.insert_str(at, &at_point);
+    }
+    let mut end = new
+        .iter()
+        .position(|l| l.starts_with('#'))
+        .unwrap_or(new.len());
+    while end > 0 && new[end - 1].trim().is_empty() {
+        end -= 1;
+    }
+    let mut entry: Vec<String> = at_end.lines().map(str::to_owned).collect();
+    let previous_entry = end > 0 && {
+        let mut i = end - 1;
+        while i > 0 && new[i].starts_with("   ") {
+            i -= 1;
+        }
+        new[i]
+            .split_once(": ")
+            .is_some_and(|(d, _)| d.parse::<usize>().is_ok())
+    };
+    if !previous_entry {
+        entry.insert(0, String::new());
+    }
+    new.splice(end..end, entry);
+    let cursor = (line, ed.cur.byte + at_point.len());
+    replace_all(ed, &new.join("\n"));
+    ed.set_cursor(cursor.0, cursor.1);
 }

@@ -349,3 +349,10 @@ unmodified buffers, git-commit-mode for message files Git opens in Fred,
 debug/record/profiling toggles feeding the process buffer, & shell
 commands, dired am, update-index, and dash-for-space in branch names.
 Ledger 757 partial / 16 missing commands. Score remains 3%.
+
+October 4 history-tools checkpoint: magit-pop-revision-stack (C-c C-w;
+ys/yb push), magit-reshelve-since (log-select, plumbing rewrite),
+C-c C-t / C-c C-e from hunks, process-kill for background Git, and the
+menu-bar menus mapped to transients. Ledger 765 partial / 8 missing
+commands (repolist, which needs magit-repository-directories, and two
+Emacs-only commands). Score remains 3%.

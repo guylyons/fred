@@ -2980,6 +2980,39 @@ mod tests {
     }
 
     #[test]
+    fn magit_diff_trace_definition_from_a_hunk() {
+        let mut t = T::open(Some("f.rs"), Some("fn alpha() {\n    1\n}\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        repo.stage_file(Path::new("f.rs")).unwrap();
+        repo.read(&["commit", "-qm", "one"]).unwrap();
+        fs::write(t.dir.path().join("f.rs"), "fn alpha() {\n    2\n}\n").unwrap();
+        repo.stage_file(Path::new("f.rs")).unwrap();
+        repo.read(&["commit", "-qm", "two"]).unwrap();
+        t.keys(" mdc");
+        magit_settle(&mut t);
+        t.keys("HEAD<Enter>");
+        magit_settle(&mut t);
+        let row =
+            t.s.ed
+                .buf
+                .text()
+                .lines()
+                .position(|l| l == "+    2")
+                .unwrap();
+        t.keys(&format!("{}G<C-c><C-t>", row + 1));
+        magit_settle(&mut t);
+        let kind = t.s.ed.magit.as_ref().map(|v| v.kind.clone());
+        let Some(crate::magit::Kind::Log(_, args)) = kind else {
+            panic!("{kind:?} {}", t.msg())
+        };
+        assert!(args.iter().any(|a| a == "-L:alpha:f.rs"), "{args:?}");
+    }
+
+    #[test]
     fn magit_dired_stage_and_log_marked_files() {
         let mut t = T::open(Some("f.txt"), Some("one\n"));
         magit_repo(&t);

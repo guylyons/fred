@@ -240,6 +240,14 @@ pub enum Action {
     Info,
     /// magit-auto-revert-mode (on by default, as upstream).
     AutoRevertMode,
+    /// magit-process-kill.
+    ProcessKill,
+    /// git-rebase-mode-menu: the todo buffer's commands.
+    TodoHelp,
+    /// magit-diff-trace-definition (C-c C-t) and magit-diff-edit-hunk-commit
+    /// (C-c C-e) from a hunk.
+    DiffTrace,
+    DiffEditHunk,
     /// magit-diff-toggle-refine-hunk (t) and -fontify-hunk (T).
     DiffToggle(char),
     /// git-commit-insert-changelog-gnu (true) / -plain.
@@ -970,11 +978,30 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     // buffer's revision, yr shows refs.
     if ed.vim.pending == [Key::ch('y')] && matches!(k.char(), Some('s' | 'b' | 'r')) {
         ed.vim.pending.clear();
-        match k.char() {
-            Some('r') => open_menu(ed, 'y'),
-            Some('s') => copy_value(ed, section_value(ed)),
-            _ => copy_value(ed, buffer_revision(ed)),
+        // A commit also goes on magit-revision-stack (magit-pop-revision-stack).
+        let value = match k.char() {
+            Some('r') => {
+                open_menu(ed, 'y');
+                return true;
+            }
+            Some('s') => section_value(ed).map(|v| {
+                let commit = matches!(
+                    ed.magit
+                        .as_ref()
+                        .and_then(|view| view.action_at(ed.cur.line)),
+                    Some(RowAction::Commit(_))
+                );
+                (v, commit)
+            }),
+            _ => buffer_revision(ed).map(|v| (v, true)),
+        };
+        if let Some((v, true)) = &value
+            && let Some(view) = ed.magit.as_ref()
+        {
+            let root = view.repo.root.clone();
+            ed.revision_stack.push((v.clone(), root));
         }
+        copy_value(ed, value.map(|(v, _)| v));
         return true;
     }
     // magit-jump-to-diffstat-or-diff (gd in diff and commit buffers).
@@ -1067,6 +1094,10 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
                 Some(Action::NextReference(false))
             } else if k == Key::ctrl('b') || k == Key::ctrl('f') {
                 Some(Action::Go(k == Key::ctrl('b')))
+            } else if k == Key::ctrl('t') {
+                Some(Action::DiffTrace)
+            } else if k == Key::ctrl('e') && diff_like(ed) {
+                Some(Action::DiffEditHunk)
             } else if let KeyCode::Char(c @ ('e' | 'o' | 'w')) = k.code
                 && k.ctrl
             {
@@ -1378,6 +1409,19 @@ fn section_value(ed: &Editor) -> Option<String> {
 /// magit-copy-buffer-revision: the revision the buffer shows.
 /// magit-diff-type is `committed': revision and stash buffers, and diffs of
 /// a range other than HEAD against the worktree or index.
+/// magit-diff-section-map applies: a diff, commit or stash buffer, or a
+/// file or hunk in status.
+fn diff_like(ed: &Editor) -> bool {
+    ed.magit.as_ref().is_some_and(|v| {
+        matches!(
+            v.kind,
+            Kind::Diff(..) | Kind::Patch(_) | Kind::StashPatch(_)
+        ) || matches!(
+            v.action_at(ed.cur.line),
+            Some(RowAction::File(..) | RowAction::Hunk(..))
+        )
+    })
+}
 pub fn committed_diff(kind: &Kind) -> bool {
     match kind {
         Kind::Patch(_) | Kind::StashPatch(_) | Kind::Diff(diff::Target::Commit(_), _) => true,

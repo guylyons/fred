@@ -30,7 +30,7 @@ git-commit.el,1313,option,git-commit-post-finish-hook-timeout,missing,,explicit
 git-commit.el,,command,git-commit-elisp-text-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 git-commit.el,,command,git-commit-insert-pseudo-header,partial,"C-c C-i reads any ""Key: value"" trailer",runtime
 git-commit.el,,command,git-commit-mode,partial,Fred drafts and Git-opened message files,runtime
-git-commit.el,,command,git-commit-mode-menu,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+git-commit.el,,command,git-commit-mode-menu,partial,:Magit name; the commit transient,runtime
 git-commit.el,,command,global-git-commit-mode,partial,message files Git opens in Fred get draft keys; Space m c c saves and quits,runtime
 git-commit.el,,option,git-commit-mode-hook,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 git-commit.el,,option,global-git-commit-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
@@ -63,7 +63,7 @@ git-rebase.el,726,command,git-rebase-show-commit,partial,Enter: the line's commi
 git-rebase.el,731,command,git-rebase-show-or-scroll-up,partial,SPC shows the commit (no scrolling),explicit
 git-rebase.el,741,command,git-rebase-show-or-scroll-down,partial,Backspace in the todo buffer shows the commit (no scrolling),explicit
 git-rebase.el,751,command,git-rebase-backward-line,partial,k under evil-collection,explicit
-git-rebase.el,,command,git-rebase-mode-menu,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+git-rebase.el,,command,git-rebase-mode-menu,partial,:Magit name; the todo buffer's keys,runtime
 magit-apply.el,55,option,magit-delete-by-moving-to-trash,missing,,explicit
 magit-apply.el,66,option,magit-unstage-committed,missing,,explicit
 magit-apply.el,82,option,magit-reverse-atomically,missing,,explicit
@@ -379,12 +379,12 @@ magit-extras.el,307,command,magit-generate-changelog,partial,:Magit name; GNU en
 magit-extras.el,338,command,magit-add-change-log-entry,partial,":Magit name; nearest ChangeLog, today's author heading, item per file/defun",explicit
 magit-extras.el,351,command,magit-add-change-log-entry-other-window,partial,:Magit name; as magit-add-change-log-entry,explicit
 magit-extras.el,364,command,magit-edit-line-commit,partial,"F e: blame the line, rebase edit its commit (or check it out when not on HEAD)",explicit
-magit-extras.el,405,command,magit-diff-edit-hunk-commit,missing,,explicit
+magit-extras.el,405,command,magit-diff-edit-hunk-commit,partial,"C-c C-e on a hunk; blames the shown side's line, then rebase-edits that commit",explicit
 magit-extras.el,432,option,magit-reshelve-since-committer-only,missing,,explicit
-magit-extras.el,440,command,magit-reshelve-since,missing,,explicit
+magit-extras.el,440,command,magit-reshelve-since,partial,":Magit name; log-select the first commit, read its date; rewritten with commit-tree (no filter-branch), --gpg-sign from the rebase menu",explicit
 magit-extras.el,530,option,magit-pop-revision-stack-format,missing,,explicit
 magit-extras.el,577,option,magit-copy-revision-abbreviated,missing,,explicit
-magit-extras.el,584,command,magit-pop-revision-stack,missing,,explicit
+magit-extras.el,584,command,magit-pop-revision-stack,partial,"C-c C-w in drafts; ys/yb push commits; default format (point and end entries, numbered); empty stack errors instead of reading a revision",explicit
 magit-extras.el,651,command,magit-copy-section-value,partial,"ys: commit, file, stash, module",explicit
 magit-extras.el,711,command,magit-copy-buffer-revision,partial,yb,explicit
 magit-extras.el,758,command,magit-display-repository-buffer,partial,F G: the repository's status buffer (no buffer choice),explicit
@@ -495,7 +495,7 @@ magit-log.el,787,command,magit-log-all,partial,Space m l a,explicit
 magit-log.el,793,command,magit-log-reflog,partial,Space m l R,explicit
 magit-log.el,799,command,magit-log-buffer-file,partial,"Space m L: literal file history, follow rename option, refresh, commit inspection/return; missing region/revision/custom arguments",explicit
 magit-log.el,825,command,magit-log-trace-definition,partial,Space m F t: git log -L :NAME:file for the word at point (no which-function),explicit
-magit-log.el,854,command,magit-diff-trace-definition,missing,,explicit
+magit-log.el,854,command,magit-diff-trace-definition,partial,C-c C-t on a hunk; the hunk's function by Git's funcname,explicit
 magit-log.el,862,command,magit-log-merged,partial,"Space m l m: native (no git-when-merged) M^1..M, or first-parent neighborhood of a commit on the branch",explicit
 magit-log.el,911,command,magit-delete-shelved-branch,partial,:Magit magit-delete-shelved-branch,explicit
 magit-log.el,919,command,magit-log-toggle-commit-limit,partial,= in a log buffer (default 256),explicit
@@ -615,7 +615,7 @@ magit-mode.el,1407,command,magit-go-backward,partial,C-c C-b in diff buffers (re
 magit-mode.el,1414,command,magit-go-forward,partial,C-c C-f,explicit
 magit-mode.el,1562,command,magit-zap-caches,partial,:Magit name; drops margin stamps and refreshes,explicit
 magit-mode.el,1598,command,magit-toggle-verbose-refresh,partial,:Magit name; refresh time and call count in the echo area,explicit
-magit-mode.el,,command,magit-mode-menu,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-mode.el,,command,magit-mode-menu,partial,:Magit name; the dispatch transient lists the same commands,runtime
 magit-notes.el,34,command,magit-notes,partial,"Space m T (magit-dispatch key) with c/d/C/D config, -n, -s strategy and T/r/m/p; c/a commit/abort while merging; -r --ref missing",explicit
 magit-notes.el,110,command,magit-notes-edit,partial,Space m T T (Fred as Git editor),explicit
 magit-notes.el,121,command,magit-notes-remove,partial,Space m T r,explicit
@@ -673,7 +673,7 @@ magit-process.el,255,option,magit-show-process-buffer-hint,missing,,explicit
 magit-process.el,277,option,magit-process-apply-ansi-colors,missing,,explicit
 magit-process.el,295,option,magit-process-timestamp-format,missing,,explicit
 magit-process.el,367,command,magit-process-buffer,partial,"` in Magit buffers (evil-collection), Space m $: this repository's terminal Git commands and errors (output itself goes to the terminal)",explicit
-magit-process.el,404,command,magit-process-kill,missing,,explicit
+magit-process.el,404,command,magit-process-kill,partial,:Magit name; SIGTERM to the repository's running background Git processes (terminal ones stop with C-c),explicit
 magit-process.el,429,command,magit-toggle-subprocess-record,partial,:Magit name; every background Git call listed,explicit
 magit-pull.el,33,option,magit-pull-or-fetch,missing,,explicit
 magit-pull.el,42,command,magit-pull,partial,"Space m P menu; -f/-r/-F arguments and p/u/e suffixes; -A, U, r/C configure, magit-pull-or-fetch missing",explicit
