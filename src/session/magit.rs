@@ -13,6 +13,7 @@ pub(super) enum Outcome {
     Prompt(Repo, crate::magit::workflows::Operation, Vec<String>),
     Ask(Repo, crate::magit::Question, Vec<String>, Vec<String>),
     InitConfirm(PathBuf, String),
+    Blame(Box<crate::magit::blame::Blame>),
     Draft(Repo, crate::magit::CommitMode, Vec<u8>, Vec<String>),
     Branches(Repo, Vec<String>),
     Git(GitInvocation),
@@ -161,6 +162,53 @@ impl Session {
             });
             return;
         }
+        if let Action::Blame(echo) = action {
+            let Some(path) = self.ed.path.clone().filter(|_| {
+                self.ed.magit.is_none() && self.ed.dired.is_none() && self.ed.commit_repo.is_none()
+            }) else {
+                self.ed.set_err("Buffer isn't visiting a file");
+                return;
+            };
+            if self.ed.buf.modified {
+                // ponytail: Git blames the saved file; unsaved lines would be misattributed.
+                self.ed.set_err("Save the buffer before blaming");
+                return;
+            }
+            let args = crate::magit::menu_arguments(&self.ed, 'B');
+            let version = self.ed.buf.version;
+            let was_readonly = self
+                .ed
+                .blame
+                .as_ref()
+                .map_or(self.ed.readonly, |b| b.was_readonly);
+            self.start_magit(move || {
+                let repo = Repo::discover(&path)?;
+                let absolute = std::path::absolute(&path).map_err(|e| e.to_string())?;
+                let parent = absolute
+                    .parent()
+                    .ok_or("file has no parent")?
+                    .canonicalize()
+                    .map_err(|e| e.to_string())?;
+                let file = parent
+                    .join(absolute.file_name().ok_or("file has no name")?)
+                    .strip_prefix(&repo.root)
+                    .map_err(|_| "Buffer isn't visiting a tracked file")?
+                    .to_owned();
+                let (chunks, info) = repo.blame(&file, &args)?;
+                Ok(Outcome::Blame(Box::new(crate::magit::blame::Blame {
+                    repo,
+                    file,
+                    args,
+                    chunks,
+                    info,
+                    style: 0,
+                    echo,
+                    version,
+                    was_readonly,
+                })))
+            });
+            return;
+        }
         if action == Action::Init {
             let from = self.magit_from();
             let base = if from.is_dir() {
@@ -191,6 +239,24 @@ impl Session {
                         )
                     };
                     return Ok(Outcome::InitConfirm(dir, question));
+                }
+                // Inside a .git directory or a bare repository there is no toplevel.
+                let existing = dir.ancestors().find(|p| p.is_dir()).unwrap_or(&dir);
+                let in_git_dir = std::process::Command::new("git")
+                    .arg("-C")
+                    .arg(existing)
+                    .args(["rev-parse", "--git-dir"])
+                    .stdin(std::process::Stdio::null())
+                    .output()
+                    .is_ok_and(|o| o.status.success());
+                if !confirmed && in_git_dir {
+                    return Ok(Outcome::InitConfirm(
+                        dir.clone(),
+                        format!(
+                            "{} is inside a Git directory.  Create a repository there? (y or n) ",
+                            label(&dir)
+                        ),
+                    ));
                 }
                 let out = std::process::Command::new("git")
                     .arg("init")
@@ -630,6 +696,16 @@ impl Session {
                     &mut self.ed,
                     crate::magit::Prompt::Workflow(repo, operation, args),
                 );
+            }
+            Ok(Outcome::Blame(blame)) => {
+                if blame.version != self.ed.buf.version {
+                    self.ed.set_msg("Blaming...aborted: buffer changed");
+                    return true;
+                }
+                // magit-blame-read-only, except for echo.
+                self.ed.readonly = blame.was_readonly || !blame.echo;
+                self.ed.blame = Some(*blame);
+                self.ed.set_msg("Blaming...done");
             }
             Ok(Outcome::InitConfirm(dir, question)) => {
                 if self.ed.magit_input_generation != job.input_generation

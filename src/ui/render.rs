@@ -119,7 +119,15 @@ pub fn gutter_width(ed: &Editor, cfg: &Config) -> usize {
     } else {
         0
     };
-    numbers + git_column(ed)
+    numbers + git_column(ed) + blame_column(ed)
+}
+
+/// magit-blame's margin, when the current style draws one.
+fn blame_column(ed: &Editor) -> usize {
+    ed.blame
+        .as_ref()
+        .filter(|b| b.version == ed.buf.version)
+        .map_or(0, |b| b.width())
 }
 
 /// One column for git marks, if the file is in git.
@@ -315,7 +323,9 @@ pub fn draw(
         view.picker_offset = 0;
     }
     let gutter = gutter_width(ed, cfg).min(area.width as usize / 2);
-    let sign = git_column(ed).min(gutter);
+    let blame_w = blame_column(ed).min(gutter);
+    let sign = git_column(ed).min(gutter - blame_w);
+    let blame = ed.blame.as_ref().filter(|b| b.version == ed.buf.version);
     let cols = (area.width as usize).saturating_sub(gutter).max(1);
     if panel == 0 && ed.zap.is_none() {
         view.scroll(ed, rows.max(1), cols, cfg.wrap);
@@ -382,6 +392,22 @@ pub fn draw(
             if selected {
                 reversed(&mut spans);
             }
+            if blame_w > 0
+                && row == 0
+                && let Some((_, text)) = blame.and_then(|b| b.margin(l))
+            {
+                // Keep one blank column between a heading and the source text.
+                let keep = if blame_w > 1 { blame_w - 1 } else { blame_w };
+                let text: String = text.chars().take(keep).collect();
+                let text = format!("{text:<blame_w$}");
+                buf.set_stringn(
+                    ox,
+                    oy + *y as u16,
+                    text,
+                    blame_w,
+                    Style::default().fg(Color::Indexed(244)),
+                );
+            }
             if gutter > 0 && row == 0 {
                 let mark = ed.git.mark(l).map(git_sign);
                 let num = if cfg.relative_numbers && l != ed.cur.line {
@@ -394,14 +420,26 @@ pub fn draw(
                 } else {
                     num_style
                 };
-                if let Some((bar, color)) = mark {
-                    buf.set_stringn(ox, oy + *y as u16, bar, 1, Style::default().fg(color));
+                if let Some((bar, color)) = mark.filter(|_| sign > 0) {
+                    buf.set_stringn(
+                        ox + blame_w as u16,
+                        oy + *y as u16,
+                        bar,
+                        1,
+                        Style::default().fg(color),
+                    );
                     style = style.fg(color);
                 }
-                let numbers = gutter - sign;
+                let numbers = gutter - sign - blame_w;
                 if numbers > 0 {
                     let text = format!("{num:>w$} ", w = numbers - 1);
-                    buf.set_stringn(ox + sign as u16, oy + *y as u16, text, numbers, style);
+                    buf.set_stringn(
+                        ox + (blame_w + sign) as u16,
+                        oy + *y as u16,
+                        text,
+                        numbers,
+                        style,
+                    );
                 }
             }
             buf.set_line(
@@ -410,6 +448,17 @@ pub fn draw(
                 &Line::from(spans),
                 cols as u16,
             );
+            // magit-blame highlight style: the first line of each chunk.
+            if row == 0
+                && blame.is_some_and(|b| {
+                    b.style() == "highlight" && b.chunk_at(l).is_some_and(|c| c.line == l)
+                })
+            {
+                buf.set_style(
+                    Rect::new(ox + gutter as u16, oy + *y as u16, cols as u16, 1),
+                    Style::default().bg(Color::Indexed(237)),
+                );
+            }
             if cfg.hl_line && l == ed.cur.line && !selected && !splash {
                 buf.set_style(
                     Rect::new(ox + gutter as u16, oy + *y as u16, cols as u16, 1),
@@ -781,6 +830,13 @@ fn draw_command_row(buf: &mut Screen, area: Rect, ed: &Editor) -> Option<usize> 
                     Style::default()
                 };
                 buf.set_stringn(area.x, y, m, w, style);
+            } else if let Some(m) = ed
+                .blame
+                .as_ref()
+                .filter(|b| b.version == ed.buf.version)
+                .and_then(|b| b.message(ed.cur.line))
+            {
+                buf.set_stringn(area.x, y, m, w, Style::default());
             }
             None
         }

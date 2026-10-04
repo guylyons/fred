@@ -261,3 +261,11 @@ Context resolution (dwim, commit/stash at point) is diff_context in
 src/session/magit.rs. Kind::Diff stores target and args so gr and the menu
 can reuse them. Work for this branch now happens in the linked worktree
 /Users/guy/github/fred-magit; the main checkout is on another branch.
+
+## Blame
+
+src/magit/blame.rs parses `git blame --incremental` into chunks and renders
+through ed.blame: headings become a 48-column gutter margin (Fred has no
+virtual lines), lines a 1-column rule plus message-row summary. Blame is
+dropped when the buffer version changes, since overlays cannot track edits.
+The internal branch menu id is now 'b' and blame uses 'B'.

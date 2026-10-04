@@ -641,7 +641,13 @@ fn user_leader_bindings_open_branch_commit_and_revert_menus() {
         editor::{Editor, Mode},
         key::parse_keys,
     };
-    for (keys, menu) in [(" mb", 'B'), (" mc", 'C'), (" mr", 'v'), (" ml", 'l')] {
+    for (keys, menu) in [
+        (" mb", 'b'),
+        (" mB", 'B'),
+        (" mc", 'C'),
+        (" mr", 'v'),
+        (" ml", 'l'),
+    ] {
         let mut e = Editor::new(Buffer::from_text("source"));
         for key in parse_keys(keys) {
             e.handle_key(key);
@@ -1092,4 +1098,75 @@ fn diff_targets_render_index_worktree_range_commit_and_paths() {
         r.diff_target(Op::Paths, &["a".into(), "missing".into()])
             .is_err()
     );
+}
+#[test]
+fn blame_attributes_chunks_and_commit_info() {
+    let (d, r) = setup();
+    fs::write(d.path().join("f"), b"a\nb\nc\n").unwrap();
+    git(d.path(), &["add", "f"]);
+    git(d.path(), &["commit", "-qm", "first"]);
+    fs::write(d.path().join("f"), b"a\nB  \nc\n").unwrap();
+    git(d.path(), &["commit", "-qam", "second"]);
+    let (chunks, info) = r.blame(Path::new("f"), &[]).unwrap();
+    let lines: Vec<_> = chunks.iter().map(|c| (c.line, c.lines)).collect();
+    assert_eq!(lines, [(0, 1), (1, 1), (2, 1)]);
+    assert_eq!(info[&chunks[1].rev].summary, "second");
+    assert_eq!(info[&chunks[0].rev].summary, "first");
+    assert!(chunks[1].prev.is_some() && chunks[0].prev.is_none());
+    let blame = super::blame::Blame {
+        repo: r.clone(),
+        file: "f".into(),
+        args: vec![],
+        chunks,
+        info,
+        style: 0,
+        echo: false,
+        version: 0,
+        was_readonly: false,
+    };
+    let (w, heading) = blame.margin(1).unwrap();
+    assert_eq!(w, super::blame::HEADING_WIDTH);
+    assert!(
+        heading.starts_with("Fred Test") && heading.ends_with("second"),
+        "{heading}"
+    );
+    assert!(r.blame(Path::new("missing"), &[]).is_err());
+}
+#[test]
+fn blame_time_uses_commit_zone() {
+    let info = |t, tz: &str| super::blame::Info {
+        committer_time: t,
+        committer_tz: tz.into(),
+        ..Default::default()
+    };
+    let (_d, r) = setup();
+    let mut blame = super::blame::Blame {
+        repo: r,
+        file: "f".into(),
+        args: vec![],
+        chunks: vec![super::blame::Chunk {
+            rev: "a".repeat(40),
+            line: 0,
+            lines: 2,
+            orig_line: 1,
+            orig_file: "f".into(),
+            prev: None,
+        }],
+        info: [("a".repeat(40), info(1_700_000_000, "+0100"))].into(),
+        style: 0,
+        echo: false,
+        version: 0,
+        was_readonly: false,
+    };
+    assert!(blame.heading(&blame.chunks[0]).contains("2023-11-14 23:13"));
+    blame.info.insert("a".repeat(40), info(0, "-0230"));
+    assert!(blame.heading(&blame.chunks[0]).contains("1969-12-31 21:30"));
+    assert_eq!(blame.margin(1).unwrap().1, "");
+    blame.style = 2;
+    assert_eq!(blame.margin(0).unwrap(), (1, "┌".into()));
+    blame.echo = true;
+    assert_eq!((blame.margin(0), blame.width()), (None, 0));
+    assert!(blame.message(0).is_some());
+    blame.echo = false;
+    assert_eq!(blame.margin(1).unwrap(), (1, "│".into()));
 }

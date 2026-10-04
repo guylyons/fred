@@ -122,26 +122,26 @@ magit-blame.el,147,option,magit-blame-read-only,missing,,explicit
 magit-blame.el,153,option,magit-blame-disable-modes,missing,,explicit
 magit-blame.el,160,option,magit-blame-mode-lighter,missing,,explicit
 magit-blame.el,165,option,magit-blame-goto-chunk-hook,missing,,explicit
-magit-blame.el,766,command,magit-blame-echo,missing,,explicit
-magit-blame.el,790,command,magit-blame-addition,missing,,explicit
+magit-blame.el,766,command,magit-blame-echo,partial,"Space m B m; lines style, message row shows chunk; editing allowed",explicit
+magit-blame.el,790,command,magit-blame-addition,partial,Space m B b; gutter margin styles; recursive blame on a blamed chunk needs blob buffers,explicit
 magit-blame.el,798,command,magit-blame-removal,missing,,explicit
 magit-blame.el,809,command,magit-blame-reverse,missing,,explicit
 magit-blame.el,845,command,magit-blame-visit-other-file,missing,,explicit
 magit-blame.el,858,command,magit-blame-visit-file,missing,,explicit
-magit-blame.el,868,command,magit-blame-quit,missing,,explicit
-magit-blame.el,878,command,magit-blame-next-chunk,missing,,explicit
-magit-blame.el,886,command,magit-blame-previous-chunk,missing,,explicit
-magit-blame.el,894,command,magit-blame-next-chunk-same-commit,missing,,explicit
-magit-blame.el,917,command,magit-blame-previous-chunk-same-commit,missing,,explicit
-magit-blame.el,922,command,magit-blame-cycle-style,missing,,explicit
+magit-blame.el,868,command,magit-blame-quit,partial,q in blame or Space m B q; restores read-only state,explicit
+magit-blame.el,878,command,magit-blame-next-chunk,partial,n,explicit
+magit-blame.el,886,command,magit-blame-previous-chunk,partial,p,explicit
+magit-blame.el,894,command,magit-blame-next-chunk-same-commit,partial,N,explicit
+magit-blame.el,917,command,magit-blame-previous-chunk-same-commit,partial,P,explicit
+magit-blame.el,922,command,magit-blame-cycle-style,partial,"c / Space m B c over headings (left margin), highlight, lines",explicit
 magit-blame.el,933,command,magit-blame-copy-hash,missing,,explicit
-magit-blame.el,946,command,magit-blame,missing,,explicit
-magit-blame.el,,command,magit-blame-read-only-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-blame.el,,command,magit-blame:-C,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-blame.el,,command,magit-blame:-M,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-blame.el,,command,transient:magit-blame:--first-parent,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-blame.el,,command,transient:magit-blame:--root,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-blame.el,,command,transient:magit-blame:-w,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-blame.el,946,command,magit-blame,partial,Space m B menu with -w (default) -r -P -M -C and b/m/q/c; r/f report missing blob buffers; numeric -M/-C values missing,explicit
+magit-blame.el,,command,magit-blame-read-only-mode,partial,"Keys n/p/N/P/RET/b/c/q/B; SPC/DEL are Fred leader, M-w copy missing; Fred readonly blocks writes only, edits drop blame",runtime
+magit-blame.el,,command,magit-blame:-C,partial,-C without value,runtime
+magit-blame.el,,command,magit-blame:-M,partial,-M without value,runtime
+magit-blame.el,,command,transient:magit-blame:--first-parent,partial,-P,runtime
+magit-blame.el,,command,transient:magit-blame:--root,partial,-r,runtime
+magit-blame.el,,command,transient:magit-blame:-w,partial,"-w, on by default",runtime
 magit-blame.el,,option,magit-blame-mode-hook,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-blame.el,,option,magit-blame-read-only-mode-hook,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-branch.el,38,option,magit-branch-read-upstream-first,missing,,explicit

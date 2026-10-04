@@ -1,4 +1,5 @@
 //! A status-centered Git component; rendered text is never used as an operation path.
+pub mod blame;
 pub mod diff;
 pub mod network;
 pub mod repo;
@@ -30,6 +31,12 @@ pub enum Action {
     Net(network::Op),
     Diff(diff::Op),
     Init,
+    /// Blame the visited file: echo (not read-only) or addition.
+    Blame(bool),
+    /// magit-blame-removal/reverse require revision (blob) buffers.
+    BlameNeedsBlob,
+    BlameQuit,
+    BlameCycle,
     /// Directory to initialize, and whether nesting/reinitializing was confirmed.
     InitDir(PathBuf, bool),
     /// All of a question's prompts answered: repo, question, answers, arguments.
@@ -353,7 +360,13 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
                 }
                 ed.mode = Mode::Normal;
                 ed.magit_menu = None;
-                if let Action::Menu(menu) = action {
+                if action == Action::BlameQuit {
+                    blame::quit(ed);
+                } else if action == Action::BlameCycle {
+                    blame::cycle(ed);
+                } else if action == Action::BlameNeedsBlob {
+                    ed.set_err("Only blob buffers can be blamed in reverse (not yet ported)");
+                } else if let Action::Menu(menu) = action {
                     open_menu(ed, menu);
                 } else {
                     ed.pending_effect = Some(ExEffect::Magit(action));
@@ -422,7 +435,10 @@ fn menu_help(menu: char) -> Option<&'static str> {
         'z' => {
             "Stash: z both  i index  w worktree  x keep index; Snapshot: Z both  I index  W worktree"
         }
-        'B' => "Branch: c create  s create and switch  r rename current  d delete merged",
+        'B' => {
+            "Blame: b addition  m echo  q quit  c cycle style; in blame n/p chunks  N/P same commit  RET commit"
+        }
+        'b' => "Branch: c create  s create and switch  r rename current  d delete merged",
         'd' => {
             "Diff: d dwim  r range  p paths  u unstaged  s staged  w worktree  c commit  t stash"
         }
@@ -535,7 +551,7 @@ pub fn answer(ed: &mut Editor, text: &str) {
     }
 }
 
-fn open_menu(ed: &mut Editor, menu: char) {
+pub(crate) fn open_menu(ed: &mut Editor, menu: char) {
     if menu == 'C' && ed.commit_repo.is_some() {
         sync_commit_options(ed);
     }
@@ -548,6 +564,10 @@ fn open_menu(ed: &mut Editor, menu: char) {
         } else {
             ed.magit_options.remove(&MenuOption::LogFollow);
         }
+    }
+    // magit-blame :value '("-w").
+    if menu == 'B' && ed.magit_seeded.insert('B') {
+        ed.magit_options.insert(MenuOption::BlameWhitespace);
     }
     if menu == 'd' {
         let args = match ed.magit.as_ref().map(|v| &v.kind) {
@@ -578,7 +598,8 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("L", "Inspect", "Current file log", FileLog),
             ("d", "Inspect", "Diff", Menu('d')),
             ("i", "Repository", "Init", Init),
-            ("b", "Branch", "Branch operations", Menu('B')),
+            ("b", "Branch", "Branch operations", Menu('b')),
+            ("B", "Inspect", "Blame", Menu('B')),
             ("c", "Commit", "Commit menu", Menu('C')),
             ("C", "Commit", "Amend / fixup", Menu('C')),
             ("p", "Network", "Push", Menu('p')),
@@ -835,6 +856,54 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("v", "Inspect", "Show selected stash", Visit),
         ],
         'B' => vec![
+            (
+                "-w",
+                "Arguments",
+                "Ignore whitespace",
+                ToggleOption(MenuOption::BlameWhitespace),
+            ),
+            (
+                "-r",
+                "Arguments",
+                "Do not treat root commits as boundaries",
+                ToggleOption(MenuOption::BlameRoot),
+            ),
+            (
+                "-P",
+                "Arguments",
+                "Follow only first parent",
+                ToggleOption(MenuOption::BlameFirstParent),
+            ),
+            (
+                "-M",
+                "Arguments",
+                "Detect lines moved or copied within a file",
+                ToggleOption(MenuOption::BlameMoved),
+            ),
+            (
+                "-C",
+                "Arguments",
+                "Detect lines moved or copied between files",
+                ToggleOption(MenuOption::BlameCopied),
+            ),
+            ("b", "Actions", "Show commits adding lines", Blame(false)),
+            (
+                "r",
+                "Actions",
+                "Show commits removing lines",
+                BlameNeedsBlob,
+            ),
+            (
+                "f",
+                "Actions",
+                "Show last commits that still have lines",
+                BlameNeedsBlob,
+            ),
+            ("m", "Actions", "Blame echo", Blame(true)),
+            ("q", "Actions", "Quit blaming", BlameQuit),
+            ("c", "Refresh", "Cycle style", BlameCycle),
+        ],
+        'b' => vec![
             ("b", "Checkout", "Switch local branch", Branches),
             ("c", "Create", "create", Workflow(CreateBranch)),
             ("s", "Create", "create and switch", Workflow(CreateSwitch)),
@@ -939,6 +1008,11 @@ pub enum MenuOption {
     DiffNoExt,
     DiffStat,
     DiffSignature,
+    BlameWhitespace,
+    BlameRoot,
+    BlameFirstParent,
+    BlameMoved,
+    BlameCopied,
     /// A transient-option with fixed choices: argument prefix and selected value.
     Choice(&'static str, &'static str),
 }
@@ -962,6 +1036,7 @@ impl MenuOption {
             PullFfOnly | PullForce | Choice("--rebase=", _) => 'P',
             DiffIgnoreSpace | DiffIgnoreAllSpace | DiffFunctionContext | DiffRenames
             | DiffNoExt | DiffStat | DiffSignature | Choice(..) => 'd',
+            BlameWhitespace | BlameRoot | BlameFirstParent | BlameMoved | BlameCopied => 'B',
             Self::LogFollow => 'l',
             Self::StashUntracked | Self::StashAll => 'z',
             _ => 'C',
@@ -996,6 +1071,11 @@ impl MenuOption {
             Self::DiffNoExt => "--no-ext-diff",
             Self::DiffStat => "--stat",
             Self::DiffSignature => "--show-signature",
+            Self::BlameWhitespace => "-w",
+            Self::BlameRoot => "--root",
+            Self::BlameFirstParent => "--first-parent",
+            Self::BlameMoved => "-M",
+            Self::BlameCopied => "-C",
             Self::Choice(..) => unreachable!(),
         }
         .into()

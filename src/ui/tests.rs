@@ -1348,3 +1348,56 @@ fn explain_reply_remains_visible_for_full_viewport_and_multiscreen_selection() {
         assert_eq!(e.buf.to_bytes(), before);
     }
 }
+
+#[test]
+fn blame_margin_headings_and_lines_shift_text_and_show_message() {
+    use crate::magit::blame::{Blame, Chunk, Info};
+    use crate::magit::repo::Repo;
+    let mut e = editor("alpha\nbeta\ngamma", "");
+    let rev = "a".repeat(40);
+    e.blame = Some(Blame {
+        repo: Repo {
+            root: "/repo".into(),
+        },
+        file: "f".into(),
+        args: vec![],
+        chunks: vec![Chunk {
+            rev: rev.clone(),
+            line: 0,
+            lines: 3,
+            orig_line: 1,
+            orig_file: "f".into(),
+            prev: None,
+        }],
+        info: [(
+            rev,
+            Info {
+                summary: "the summary".into(),
+                author: "Ada".into(),
+                committer_time: 0,
+                committer_tz: "+0000".into(),
+            },
+        )]
+        .into(),
+        style: 0,
+        echo: false,
+        version: e.buf.version,
+        was_readonly: false,
+    });
+    let mut screen = Screen::new(100, 6);
+    screen.cfg.numbers = false;
+    screen.draw(&e);
+    assert!(
+        screen
+            .row(0)
+            .starts_with("Ada                  1970-01-01 00:00 the summa alpha"),
+        "{}",
+        screen.row(0)
+    );
+    assert_eq!(&screen.row(0)[48..53], "alpha");
+    assert_eq!(&screen.row(1)[48..52], "beta");
+    e.blame.as_mut().unwrap().style = 2;
+    screen.draw(&e);
+    assert!(screen.row(0).starts_with("┌alpha"), "{}", screen.row(0));
+    assert!(screen.row(5).contains("the summary"), "{}", screen.row(5));
+}

@@ -2115,8 +2115,72 @@ mod tests {
             &t.s.ed.mode,
             crate::editor::Mode::Command(cl) if cl.prompt.starts_with("Reinitialize existing repository")
         ));
-        t.keys("<Esc>");
+        t.keys("<Esc> mi.git<Enter>");
+        magit_settle(&mut t);
+        assert!(
+            matches!(
+                &t.s.ed.mode,
+                crate::editor::Mode::Command(cl) if cl.prompt.contains("inside a Git directory")
+            ),
+            "{}",
+            t.msg()
+        );
+        t.keys("n<Enter>");
+        assert!(!t.dir.path().join(".git/.git").exists());
         assert_eq!(t.s.ed.buf.line(0), "original");
+    }
+    #[test]
+    fn magit_blame_navigates_chunks_shows_commits_and_quits() {
+        let mut t = T::open(Some("f.txt"), Some("one\ntwo\nthree\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "first"]).unwrap();
+        fs::write(t.dir.path().join("f.txt"), "one\nTWO\nthree\n").unwrap();
+        repo.read(&["commit", "-qam", "second"]).unwrap();
+        t.keys(":e!<Enter>");
+        t.keys(" mB");
+        assert!(t.s.magit_job.is_none());
+        assert_eq!(crate::magit::menu_arguments(&t.s.ed, 'B'), ["-w"]);
+        t.keys("b");
+        magit_settle(&mut t);
+        let blame = t.s.ed.blame.as_ref().expect("blaming");
+        assert_eq!(blame.chunks.len(), 3);
+        assert_eq!(blame.args, ["-w"]);
+        assert!(t.s.ed.readonly);
+        t.keys(" sq<Esc>");
+        assert!(t.s.ed.blame.is_some(), "word-jump keys are not blame keys");
+        t.keys("gg");
+        t.keys("n");
+        assert_eq!(t.s.ed.cur.line, 1);
+        t.keys("N");
+        assert!(t.msg().contains("No more chunks"));
+        t.keys("P");
+        assert_eq!(t.s.ed.cur.line, 1);
+        t.keys("p");
+        assert_eq!(t.s.ed.cur.line, 0);
+        t.keys("c");
+        assert_eq!(t.s.ed.blame.as_ref().unwrap().style(), "highlight");
+        t.keys("j<Enter>");
+        magit_settle(&mut t);
+        assert!(t.s.ed.buf.text().contains("+TWO"), "{}", t.msg());
+        t.keys("q");
+        assert!(t.s.ed.blame.is_some());
+        t.keys("q");
+        assert!(t.s.ed.blame.is_none() && !t.s.ed.readonly);
+        t.keys(" mBm");
+        magit_settle(&mut t);
+        assert!(t.s.ed.blame.as_ref().is_some_and(|b| b.echo) && !t.s.ed.readonly);
+        t.keys("gg");
+        assert!(t.s.ed.blame.as_ref().unwrap().message(0).is_some());
+        t.keys("ix<Esc>");
+        t.keys("j");
+        assert!(t.s.ed.blame.is_none());
+        t.keys(" mBb");
+        assert!(t.msg().contains("Save the buffer"), "{}", t.msg());
     }
     #[test]
     fn magit_file_log_rejects_buffers_without_a_source_file() {

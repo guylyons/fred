@@ -117,6 +117,8 @@ pub struct Editor {
     pub magit_options: std::collections::HashSet<crate::magit::MenuOption>,
     /// Menus whose default arguments have been applied in this buffer.
     pub magit_seeded: std::collections::HashSet<char>,
+    /// magit-blame-mode on this file buffer.
+    pub blame: Option<crate::magit::blame::Blame>,
     pub commit_args: Vec<String>,
     pub magit_menu: Option<char>,
     pub magit_prompt: Option<crate::magit::Prompt>,
@@ -172,6 +174,7 @@ impl Editor {
             magit_input_generation: 0,
             magit_options: std::collections::HashSet::new(),
             magit_seeded: std::collections::HashSet::new(),
+            blame: None,
             commit_args: vec![],
             magit_menu: None,
             magit_prompt: None,
@@ -212,7 +215,7 @@ impl Editor {
 
     pub fn handle_key(&mut self, k: Key) {
         self.magit_input_generation = self.magit_input_generation.wrapping_add(1);
-        if crate::magit::key(self, k) {
+        if crate::magit::key(self, k) || crate::magit::blame::key(self, k) {
             return;
         }
         if self.zap.is_some() {

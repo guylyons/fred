@@ -6,7 +6,7 @@ The prefix is `Space m`. This exact layout governs the Fred port.
 
 | Key | Emacs command | Required Fred behavior | Current gap |
 | --- | --- | --- | --- |
-| B | magit-blame | Blame menu/modes | Reserved; blame missing |
+| B | magit-blame | Blame menu/modes | Addition/echo, styles, chunk keys, show commit and quit implemented; removal/reverse/recursive need blob buffers |
 | L | magit-log-buffer-file | Current file's history | Literal file filtering and follow toggle implemented; region/revision/custom arguments remain partial |
 | P | magit-pull | Pull menu and contextual variants | Menu with -f/-r/-F and p/u/e; -A, U, configure and dynamic descriptions remain |
 | b | magit-branch | Branch menu | Menu routing corrected; full branch options/context remain partial |

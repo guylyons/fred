@@ -107,3 +107,10 @@ October 4 init checkpoint: Space m i follows magit-status.el:252-277 (directory
 prompt, nested/reinitialize confirmation, status afterwards), tested by
 magit_init_creates_repository_and_confirms_nesting. Score remains 3%; ledger
 95 partial / 678 missing. Next: B blame, reviewed together with init.
+
+October 4 blame checkpoint: Space m B ports blame-addition/echo with Fred
+gutter adaptations of the three default styles ([scenarios](magit-blame-acceptance.md)).
+Every user-binding key now opens its source menu or workflow. Row 12 stays
+partial (blob buffers, bisect), so the score remains 3%. Next: revision/blob
+buffers (unblocks removal/reverse/recursive blame and the open file-log gap),
+then the full UI map and acceptance-matrix baseline gates.
