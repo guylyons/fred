@@ -8,6 +8,7 @@ pub mod network;
 pub mod remote;
 pub mod repo;
 pub mod reset;
+pub mod sequence;
 pub mod status;
 pub mod tag;
 pub mod workflows;
@@ -62,6 +63,8 @@ pub enum Action {
     Reset(reset::Op),
     /// A magit-remote.el suffix.
     Remote(remote::Op),
+    /// A cherry-pick or revert suffix from magit-sequence.el.
+    Sequence(sequence::Op),
     /// magit-file-stage/unstage/untrack/rename/delete/checkout.
     File(blob::FileOp),
     BlameCycle,
@@ -435,13 +438,11 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             ed.vim.pending.clear();
             if let Some((_, _, _, action)) = entries.into_iter().find(|(key, ..)| *key == suffix) {
                 if let Action::CycleOption(prefix) = action {
-                    cycle_choice(ed, prefix);
+                    cycle_choice(ed, menu, prefix);
                     // magit-pull :incompatible --ff-only with rebasing choices.
-                    if ed
-                        .magit_options
-                        .iter()
-                        .any(|o| matches!(o, MenuOption::Choice("--rebase=", v) if *v != "false"))
-                    {
+                    if ed.magit_options.iter().any(
+                        |o| matches!(o, MenuOption::Choice(_, "--rebase=", v) if *v != "false"),
+                    ) {
                         ed.magit_options.remove(&MenuOption::PullFfOnly);
                     }
                     crate::pick::magit_menu(ed, menu);
@@ -451,6 +452,17 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
                     if !ed.magit_options.remove(&option) {
                         ed.magit_options.insert(option);
                     }
+                    for (a, b) in [
+                        (MenuOption::CherryFf, MenuOption::CherryX),
+                        (MenuOption::RevertEdit, MenuOption::RevertNoEdit),
+                    ] {
+                        if option == a {
+                            ed.magit_options.remove(&b);
+                        }
+                        if option == b {
+                            ed.magit_options.remove(&a);
+                        }
+                    }
                     if option == MenuOption::MergeFfOnly {
                         ed.magit_options.remove(&MenuOption::MergeNoFf);
                     }
@@ -459,7 +471,7 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
                     }
                     if option == MenuOption::PullFfOnly {
                         ed.magit_options.retain(
-                            |o| !matches!(o, MenuOption::Choice("--rebase=", v) if *v != "false"),
+                            |o| !matches!(o, MenuOption::Choice(_, "--rebase=", v) if *v != "false"),
                         );
                     }
                     if option == MenuOption::StashAll {
@@ -622,8 +634,10 @@ fn menu_help(menu: char) -> Option<&'static str> {
             "Merge: m merge  e edit msg  n no commit  a absorb  p preview  s squash  d dissolve; merging: m commit  a abort"
         }
         'r' => "Rebase: r onto revision  c continue  s skip  a abort",
-        'x' => "Cherry-pick: p pick  c continue  s skip  a abort",
-        'v' => "Revert: v revert  c continue  s skip  a abort",
+        'x' => {
+            "Cherry-pick: A pick  a apply  h harvest  m squash  d donate  n spinout  s spinoff; picking: A continue  s skip  a abort"
+        }
+        'v' => "Revert: V revert commits  v revert changes; reverting: V continue  s skip  a abort",
         _ => return None,
     })
 }
@@ -660,6 +674,7 @@ pub enum Question {
     Merge(merge::Op),
     Reset(reset::Op),
     Remote(remote::Op),
+    Sequence(sequence::Op),
     Net(network::Op),
     Diff(diff::Op),
     FindFile,
@@ -740,6 +755,13 @@ pub(crate) fn open_menu(ed: &mut Editor, menu: char) {
             ed.magit_options.remove(&MenuOption::LogFollow);
         }
     }
+    // magit-cherry-pick :value '("--ff") and magit-revert :value '("--edit").
+    if menu == 'x' && ed.magit_seeded.insert('x') {
+        ed.magit_options.insert(MenuOption::CherryFf);
+    }
+    if menu == 'v' && ed.magit_seeded.insert('v') {
+        ed.magit_options.insert(MenuOption::RevertEdit);
+    }
     // magit-remote :value '("-f").
     if menu == 'O' && ed.magit_seeded.insert('O') {
         ed.magit_options.insert(MenuOption::RemoteFetch);
@@ -795,6 +817,9 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("r", "History", "Revert", Menu('v')),
             ("x", "History", "Cherry-pick", Menu('x')),
             ("v", "History", "Revert", Menu('v')),
+            // magit-dispatch keys.
+            ("A", "History", "Cherry-pick", Menu('x')),
+            ("V", "History", "Revert", Menu('v')),
         ],
         'p' => {
             use network::Op::*;
@@ -1326,18 +1351,101 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("s", "Sequence", "Skip", Workflow(RebaseSkip)),
             ("a", "Sequence", "Abort", Workflow(RebaseAbort)),
         ],
-        'x' => vec![
-            ("p", "Cherry-pick", "Pick revision", Workflow(CherryPick)),
-            ("c", "Sequence", "Continue", Workflow(CherryContinue)),
-            ("s", "Sequence", "Skip", Workflow(CherrySkip)),
-            ("a", "Sequence", "Abort", Workflow(CherryAbort)),
-        ],
-        'v' => vec![
-            ("v", "Revert", "Revert revision", Workflow(Revert)),
-            ("c", "Sequence", "Continue", Workflow(RevertContinue)),
-            ("s", "Sequence", "Skip", Workflow(RevertSkip)),
-            ("a", "Sequence", "Abort", Workflow(RevertAbort)),
-        ],
+        // magit-cherry-pick; while a sequence runs, A continues, s skips, a aborts.
+        'x' => {
+            use sequence::Op as O;
+            vec![
+                ("=s", "Arguments", "Strategy", CycleOption("--strategy=")),
+                (
+                    "-F",
+                    "Arguments",
+                    "Attempt fast-forward",
+                    ToggleOption(MenuOption::CherryFf),
+                ),
+                (
+                    "-x",
+                    "Arguments",
+                    "Reference cherry in commit message",
+                    ToggleOption(MenuOption::CherryX),
+                ),
+                (
+                    "-e",
+                    "Arguments",
+                    "Edit commit messages",
+                    ToggleOption(MenuOption::CherryEdit),
+                ),
+                (
+                    "A",
+                    "Apply here",
+                    "Pick / continue",
+                    Action::Sequence(O::Pick),
+                ),
+                (
+                    "a",
+                    "Apply here",
+                    "Apply / abort",
+                    Action::Sequence(O::Apply),
+                ),
+                ("h", "Apply here", "Harvest", Action::Sequence(O::Harvest)),
+                (
+                    "m",
+                    "Apply here",
+                    "Squash",
+                    Action::Merge(merge::Op::Squash),
+                ),
+                (
+                    "d",
+                    "Apply elsewhere",
+                    "Donate",
+                    Action::Sequence(O::Donate),
+                ),
+                (
+                    "n",
+                    "Apply elsewhere",
+                    "Spinout",
+                    Action::Sequence(O::Spinout),
+                ),
+                (
+                    "s",
+                    "Apply elsewhere",
+                    "Spinoff / skip",
+                    Action::Sequence(O::Spinoff),
+                ),
+            ]
+        }
+        // magit-revert; while a sequence runs, V continues, s skips, a aborts.
+        'v' => {
+            use sequence::Op as O;
+            vec![
+                (
+                    "-e",
+                    "Arguments",
+                    "Edit commit message",
+                    ToggleOption(MenuOption::RevertEdit),
+                ),
+                (
+                    "-E",
+                    "Arguments",
+                    "Don't edit commit message",
+                    ToggleOption(MenuOption::RevertNoEdit),
+                ),
+                ("=s", "Arguments", "Strategy", CycleOption("--strategy=")),
+                (
+                    "V",
+                    "Actions",
+                    "Revert commit(s) / continue",
+                    Action::Sequence(O::Revert),
+                ),
+                (
+                    "v",
+                    "Actions",
+                    "Revert changes",
+                    Action::Sequence(O::RevertNoCommit),
+                ),
+                ("s", "Sequence", "Skip", Workflow(RevertSkip)),
+                ("a", "Sequence", "Abort", Workflow(RevertAbort)),
+            ]
+        }
         _ => vec![],
     }
 }
@@ -1372,6 +1480,11 @@ pub enum MenuOption {
     DiffStat,
     DiffSignature,
     RemoteFetch,
+    CherryFf,
+    CherryX,
+    CherryEdit,
+    RevertEdit,
+    RevertNoEdit,
     MergeFfOnly,
     MergeNoFf,
     TagForce,
@@ -1384,7 +1497,7 @@ pub enum MenuOption {
     BlameMoved,
     BlameCopied,
     /// A transient-option with fixed choices: argument prefix and selected value.
-    Choice(&'static str, &'static str),
+    Choice(char, &'static str, &'static str),
 }
 /// Fred cycles a transient-option's choices instead of reading one, then turns it off.
 pub fn choices(prefix: &str) -> &'static [&'static str] {
@@ -1404,11 +1517,14 @@ impl MenuOption {
             PushForceWithLease | PushForce | PushNoVerify | PushDryRun | PushSetUpstream
             | PushTags | PushFollowTags => 'p',
             FetchPrune | FetchTags | FetchForce => 'f',
-            MergeFfOnly | MergeNoFf | Choice("--strategy=", _) => 'M',
+            MergeFfOnly | MergeNoFf => 'M',
             RemoteFetch => 'O',
-            PullFfOnly | PullForce | Choice("--rebase=", _) => 'P',
+            CherryFf | CherryX | CherryEdit => 'x',
+            RevertEdit | RevertNoEdit => 'v',
+            PullFfOnly | PullForce => 'P',
+            Choice(menu, ..) => menu,
             DiffIgnoreSpace | DiffIgnoreAllSpace | DiffFunctionContext | DiffRenames
-            | DiffNoExt | DiffStat | DiffSignature | Choice(..) => 'd',
+            | DiffNoExt | DiffStat | DiffSignature => 'd',
             BlameWhitespace | BlameRoot | BlameFirstParent | BlameMoved | BlameCopied => 'B',
             TagForce | TagEdit | TagAnnotate | TagSign => 't',
             Self::LogFollow => 'l',
@@ -1417,7 +1533,7 @@ impl MenuOption {
         }
     }
     pub fn argument(self) -> String {
-        if let Self::Choice(prefix, value) = self {
+        if let Self::Choice(_, prefix, value) = self {
             return format!("{prefix}{value}");
         }
         match self {
@@ -1446,6 +1562,10 @@ impl MenuOption {
             Self::DiffStat => "--stat",
             Self::DiffSignature => "--show-signature",
             Self::RemoteFetch => "-f",
+            Self::CherryFf => "--ff",
+            Self::CherryX => "-x",
+            Self::CherryEdit | Self::RevertEdit => "--edit",
+            Self::RevertNoEdit => "--no-edit",
             Self::MergeFfOnly => "--ff-only",
             Self::MergeNoFf => "--no-ff",
             Self::TagForce => "--force",
@@ -1462,22 +1582,23 @@ impl MenuOption {
         .into()
     }
 }
-pub fn current_choice(ed: &Editor, prefix: &str) -> Option<&'static str> {
+pub fn current_choice(ed: &Editor, menu: char, prefix: &str) -> Option<&'static str> {
     ed.magit_options.iter().find_map(|o| match o {
-        MenuOption::Choice(p, v) if *p == prefix => Some(*v),
+        MenuOption::Choice(m, p, v) if *m == menu && *p == prefix => Some(*v),
         _ => None,
     })
 }
-fn cycle_choice(ed: &mut Editor, prefix: &'static str) {
+fn cycle_choice(ed: &mut Editor, menu: char, prefix: &'static str) {
     let all = choices(prefix);
-    let next = match current_choice(ed, prefix) {
+    let next = match current_choice(ed, menu, prefix) {
         None => all.first(),
         Some(v) => all.iter().skip_while(|c| **c != v).nth(1),
     };
     ed.magit_options
-        .retain(|o| !matches!(o, MenuOption::Choice(p, _) if *p == prefix));
+        .retain(|o| !matches!(o, MenuOption::Choice(m, p, _) if *m == menu && *p == prefix));
     if let Some(next) = next {
-        ed.magit_options.insert(MenuOption::Choice(prefix, next));
+        ed.magit_options
+            .insert(MenuOption::Choice(menu, prefix, next));
     }
 }
 pub fn menu_arguments(ed: &Editor, menu: char) -> Vec<String> {
@@ -1504,7 +1625,8 @@ pub fn set_menu_arguments(ed: &mut Editor, menu: char, args: &[String]) {
                     .iter()
                     .find(|v| args.contains(&format!("{prefix}{v}")))
                 {
-                    ed.magit_options.insert(MenuOption::Choice(prefix, value));
+                    ed.magit_options
+                        .insert(MenuOption::Choice(menu, prefix, value));
                 }
             }
             _ => (),

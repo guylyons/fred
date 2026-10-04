@@ -6,6 +6,8 @@ use super::repo::Repo;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Op {
     Add,
+    /// The url, with origin's url (owner replaced) as a visible default.
+    AddUrl(String),
     /// remote.pushDefault is unset: name, url, then ask whether to set it.
     AddPushDefault(String, String),
     Rename,
@@ -63,10 +65,7 @@ impl Repo {
     pub fn remote_prompts(&self, op: &Op) -> Result<(Vec<String>, Vec<String>), String> {
         let current = self.current_remote().ok().flatten().unwrap_or_default();
         Ok(match op {
-            Op::Add => (
-                vec!["Remote name: ".into(), "Remote url: ".into()],
-                vec![String::new(), String::new()],
-            ),
+            Op::Add => (vec!["Remote name: ".into()], vec![String::new()]),
             Op::Rename => (
                 vec![
                     format!("Rename remote (default {current}): "),
@@ -112,16 +111,21 @@ impl Repo {
                 if self.remotes()?.contains(&name) {
                     return Err(format!("remote {name} already exists"));
                 }
-                let mut url = at(1).to_owned();
-                if url.is_empty() {
-                    url = self.suggested_url(&name);
-                }
+                let suggested = self.suggested_url(&name);
+                Ok(Next::Ask(
+                    Question::Remote(Op::AddUrl(name)),
+                    vec![format!("Remote url (default {suggested}): ")],
+                    vec![suggested],
+                ))
+            }
+            Op::AddUrl(name) => {
+                let mut url = at(0).to_owned();
                 if url.is_empty() || url.starts_with('-') || url.chars().any(char::is_control) {
                     return Err("A remote url is required".into());
                 }
-                if let Some(rest) = url.strip_prefix("~/") {
+                if url == "~" || url.starts_with("~/") {
                     url = std::env::var("HOME")
-                        .map(|h| format!("{h}/{rest}"))
+                        .map(|h| format!("{h}{}", &url[1..]))
                         .unwrap_or(url);
                 }
                 // magit-remote-add-set-remote.pushDefault is ask-if-unset.
@@ -167,11 +171,17 @@ impl Repo {
                     return Err("Abort".into());
                 }
                 let var = format!("remote.{remote}.fetch");
+                // Like upstream, keep going past a failing entry and report it.
+                let mut failed = 0;
                 for (refspec, refs) in &stale {
-                    self.read(&["config", "--fixed-value", "--unset", &var, refspec])?;
+                    let unset = ["config", "--fixed-value", "--unset-all", &var, refspec];
+                    failed += usize::from(self.read(&unset).is_err());
                     for r in refs {
-                        self.read(&["update-ref", "-d", r])?;
+                        failed += usize::from(self.read(&["update-ref", "-d", r]).is_err());
                     }
+                }
+                if failed > 0 {
+                    return Ok(Next::Done(Err(format!("{failed} prune steps failed"))));
                 }
                 done(format!("Pruned {} stale refspecs", stale.len()))
             }
@@ -216,7 +226,7 @@ impl Repo {
     /// magit-remote-prune-refspecs.
     fn prune_refspecs(&self, remote: String) -> Result<Next, String> {
         let remote_refs: Vec<String> =
-            String::from_utf8_lossy(&self.read(&["ls-remote", "--", &remote])?)
+            String::from_utf8_lossy(&self.read_network(&["ls-remote", "--", &remote])?)
                 .lines()
                 .filter_map(|l| l.split_once('\t').map(|(_, r)| r.to_owned()))
                 .collect();

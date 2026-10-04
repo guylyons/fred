@@ -90,6 +90,9 @@ impl Repo {
         index: Option<&Path>,
     ) -> Result<Vec<u8>, String> {
         let mut cmd = self.command();
+        // Background commands own no terminal: fail instead of prompting for
+        // credentials (terminal-handoff commands keep interactive auth).
+        cmd.env("GIT_TERMINAL_PROMPT", "0");
         cmd.args(args);
         if let Some(index) = index {
             cmd.env("GIT_INDEX_FILE", index);
@@ -117,6 +120,23 @@ impl Repo {
             return Err(format!("git ({}): {}", out.status, stderr.trim()));
         }
         Ok(out.stdout)
+    }
+    /// A background network read: ssh may not prompt (passphrase, host key)
+    /// either, so BatchMode is added to the user's own ssh command.
+    pub fn read_network(&self, args: &[&str]) -> Result<Vec<u8>, String> {
+        let ssh = self
+            .read(&["config", "--get", "core.sshCommand"])
+            .map(|o| String::from_utf8_lossy(&o).trim().to_owned())
+            .ok()
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "ssh".into());
+        let mut full = vec![
+            "-c".to_owned(),
+            format!("core.sshCommand={ssh} -o BatchMode=yes"),
+        ];
+        full.extend(args.iter().map(|s| s.to_string()));
+        let full: Vec<OsString> = full.into_iter().map(Into::into).collect();
+        self.run(&full, None)
     }
     pub fn read(&self, args: &[&str]) -> Result<Vec<u8>, String> {
         self.run(&args.iter().map(OsString::from).collect::<Vec<_>>(), None)

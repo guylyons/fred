@@ -1905,10 +1905,18 @@ fn remote_suffixes_add_rename_remove_and_prune_refspecs() {
         d.path(),
         &["config", "remote.origin.url", bare.path().to_str().unwrap()],
     );
-    // Add asks about remote.pushDefault when unset; -f fetches through the terminal.
+    // Add asks for the url with the suggestion as a visible default, then about
+    // remote.pushDefault when unset; -f fetches through the terminal.
     let url = bare.path().to_str().unwrap();
+    match r.remote_step(Op::Add, &s(&["fork"]), &[]).unwrap() {
+        Next::Ask(Q::Remote(Op::AddUrl(n)), p, d) => {
+            assert_eq!(n, "fork");
+            assert!(p[0].contains(&d[0]), "{p:?} {d:?}");
+        }
+        other => panic!("{other:?}"),
+    }
     let op = match r
-        .remote_step(Op::Add, &s(&["fork", url]), &s(&["-f"]))
+        .remote_step(Op::AddUrl("fork".into()), &s(&[url]), &s(&["-f"]))
         .unwrap()
     {
         Next::Ask(Q::Remote(op @ Op::AddPushDefault(..)), _, _) => op,
@@ -1919,8 +1927,12 @@ fn remote_suffixes_add_rename_remove_and_prune_refspecs() {
         other => panic!("{other:?}"),
     }
     assert_eq!(git(d.path(), &["config", "remote.pushDefault"]), b"fork\n");
-    assert!(r.remote_step(Op::Add, &s(&["--x", url]), &[]).is_err());
-    assert!(r.remote_step(Op::Add, &s(&["fork", url]), &[]).is_err());
+    assert!(r.remote_step(Op::Add, &s(&["--x"]), &[]).is_err());
+    assert!(r.remote_step(Op::Add, &s(&["fork"]), &[]).is_err());
+    assert!(
+        r.remote_step(Op::AddUrl("x".into()), &s(&["--upload-pack=y"]), &[])
+            .is_err()
+    );
     // Rename and remove carry or clean the push variables.
     git(d.path(), &["config", "branch.main.pushRemote", "fork"]);
     ok(r.remote_step(Op::Rename, &s(&["fork", "mine"]), &[])
@@ -2000,4 +2012,118 @@ fn reset_guards_directory_file_conflicts_and_defaults_to_current_branch() {
     assert_eq!(fs::read(d.path().join("b")).unwrap(), b"mine\n");
     let (_, defaults) = r.reset_prompt(Op::Hard, None);
     assert_eq!(defaults, ["main"]);
+}
+#[test]
+fn cherry_pick_and_revert_suffixes_follow_magit_sequence() {
+    use super::Question as Q;
+    use super::branch::Next;
+    use super::sequence::Op;
+    let (d, r) = setup();
+    committed(d.path(), b"base\n");
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    let run = |n: Next| match n {
+        Next::Git(args) => {
+            let args: Vec<std::ffi::OsString> = args.into_iter().map(Into::into).collect();
+            r.run(&args, None).map(|_| ())
+        }
+        Next::Done(res) => res.map(|_| ()),
+        other => Err(format!("{other:?}")),
+    };
+    let commit = |file: &str| {
+        fs::write(d.path().join(file), file.as_bytes()).unwrap();
+        git(d.path(), &["add", file]);
+        git(d.path(), &["commit", "-qm", file]);
+        String::from_utf8(git(d.path(), &["rev-parse", "HEAD"]))
+            .unwrap()
+            .trim()
+            .to_owned()
+    };
+    git(d.path(), &["checkout", "-qb", "topic"]);
+    let a = commit("a");
+    let b = commit("b");
+    git(d.path(), &["checkout", "-q", "main"]);
+    // A: pick with -x; option-like answers are rejected.
+    match r.sequence_step(Op::Pick, &s(&[&a]), &s(&["-x"])).unwrap() {
+        Next::Git(argv) => {
+            assert_eq!(argv[..3], ["cherry-pick", "-x", "--end-of-options"]);
+            run(Next::Git(argv)).unwrap();
+        }
+        other => panic!("{other:?}"),
+    }
+    assert!(d.path().join("a").exists());
+    assert!(r.sequence_step(Op::Pick, &s(&["--all"]), &[]).is_err());
+    // a: apply without committing drops --ff.
+    match r
+        .sequence_step(Op::Apply, &s(&[&b]), &s(&["--ff"]))
+        .unwrap()
+    {
+        Next::Git(argv) => assert_eq!(
+            argv[..3],
+            ["cherry-pick", "--no-commit", "--end-of-options"]
+        ),
+        other => panic!("{other:?}"),
+    }
+    // V with --edit stops before committing and opens a draft with the message.
+    match r
+        .sequence_step(Op::Revert, &s(&["HEAD"]), &s(&["--edit"]))
+        .unwrap()
+    {
+        Next::Draft(msg) => assert!(String::from_utf8_lossy(&msg).starts_with("Revert \"a\"")),
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(r.sequencer(), Some("revert"));
+    git(d.path(), &["revert", "--abort"]);
+    // Merge commits ask for a mainline.
+    git(
+        d.path(),
+        &["merge", "-q", "--no-ff", "-m", "merge topic", "topic"],
+    );
+    match r
+        .sequence_step(Op::Revert, &s(&["HEAD"]), &s(&["--no-edit"]))
+        .unwrap()
+    {
+        Next::Ask(Q::Sequence(op @ Op::Mainline(..)), _, defaults) => {
+            assert_eq!(defaults, ["1"]);
+            assert!(r.sequence_step(op.clone(), &s(&["0"]), &[]).is_err());
+            match r.sequence_step(op, &s(&["1"]), &s(&["--no-edit"])).unwrap() {
+                Next::Git(argv) => assert!(argv.contains(&"--mainline=1".to_string())),
+                other => panic!("{other:?}"),
+            }
+        }
+        other => panic!("{other:?}"),
+    }
+    git(d.path(), &["reset", "-q", "--hard", "HEAD~1"]);
+    // d: donate the tip commit to another branch; main drops it.
+    let c = commit("c");
+    git(d.path(), &["branch", "dest", "HEAD~1"]);
+    match r.sequence_step(Op::Donate, &s(&[&c]), &[]).unwrap() {
+        Next::Ask(Q::Sequence(op @ Op::DonateTo(_)), _, _) => {
+            run(r.sequence_step(op, &s(&["dest"]), &[]).unwrap()).unwrap()
+        }
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(r.current_branch().unwrap(), "main");
+    assert!(!d.path().join("c").exists());
+    assert!(git(d.path(), &["show", "dest:c"]) == b"c");
+    // n: spin out a commit that is not the tip; later commits are kept.
+    let e = commit("e");
+    let _f = commit("f");
+    match r.sequence_step(Op::Spinout, &s(&[&e]), &[]).unwrap() {
+        Next::Ask(Q::Sequence(op @ Op::NewBranch(..)), _, _) => {
+            run(r.sequence_step(op, &s(&["side", "HEAD~2"]), &[]).unwrap()).unwrap()
+        }
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(r.current_branch().unwrap(), "main");
+    assert!(!d.path().join("e").exists() && d.path().join("f").exists());
+    assert!(git(d.path(), &["show", "side:e"]) == b"e");
+    // Moving cherries away requires them to be reachable from HEAD.
+    assert!(r.sequence_step(Op::Spinoff, &s(&[&b]), &[]).is_err());
+    // h: harvest from a branch onto the current one.
+    match r.sequence_step(Op::Harvest, &s(&[&b]), &[]).unwrap() {
+        Next::Done(Ok(_)) => (),
+        other => panic!("{other:?}"),
+    }
+    assert!(d.path().join("b").exists());
+    assert_eq!(r.current_branch().unwrap(), "main");
 }

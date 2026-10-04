@@ -286,7 +286,7 @@ impl Repo {
                 if !self.remotes()?.iter().any(|r| r == remote) {
                     return Err(format!("no remote named {remote:?}"));
                 }
-                let out = self.read(&["ls-remote", "--tags", "--refs", remote])?;
+                let out = self.read_network(&["ls-remote", "--tags", "--refs", remote])?;
                 let rtags: Vec<String> = String::from_utf8_lossy(&out)
                     .lines()
                     .filter_map(|l| l.split_once("refs/tags/").map(|(_, t)| t.to_owned()))

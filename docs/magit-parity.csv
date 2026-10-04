@@ -812,16 +812,16 @@ magit-section.el,1219,command,magit-describe-section,missing,,explicit
 magit-sequence.el,96,command,magit-sequencer-continue,partial,Space m x/v c; guarded continuation,explicit
 magit-sequence.el,108,command,magit-sequencer-skip,partial,Space m x/v s; guarded skip,explicit
 magit-sequence.el,117,command,magit-sequencer-abort,partial,Space m x/v a; guarded abort,explicit
-magit-sequence.el,140,command,magit-cherry-pick,partial,Space m x p; one revision; range/options missing,explicit
-magit-sequence.el,210,command,magit-cherry-copy,missing,,explicit
-magit-sequence.el,219,command,magit-cherry-apply,missing,,explicit
-magit-sequence.el,228,command,magit-cherry-harvest,missing,,explicit
-magit-sequence.el,249,command,magit-cherry-donate,missing,,explicit
-magit-sequence.el,269,command,magit-cherry-spinout,missing,,explicit
-magit-sequence.el,279,command,magit-cherry-spinoff,missing,,explicit
-magit-sequence.el,374,command,magit-revert,partial,Space m r; revert menu with partial suffix/options behavior; v alias retained,explicit
-magit-sequence.el,402,command,magit-revert-and-commit,missing,,explicit
-magit-sequence.el,411,command,magit-revert-no-commit,missing,,explicit
+magit-sequence.el,140,command,magit-cherry-pick,partial,"Space m x / A with =s -F -x -e (--ff default, --ff/-x incompatible) and A/a/h/m/d/n/s; A/s/a continue/skip/abort while picking; -m prompted for merges, gpg/signoff missing",explicit
+magit-sequence.el,210,command,magit-cherry-copy,partial,Space m x A; single commit or A..B range; region selection missing,explicit
+magit-sequence.el,219,command,magit-cherry-apply,partial,"Space m x a; --no-commit, drops --ff",explicit
+magit-sequence.el,228,command,magit-cherry-harvest,partial,Space m x h; containing branch chosen or asked; stays on current branch,explicit
+magit-sequence.el,249,command,magit-cherry-donate,partial,Space m x d; contiguous range removed from source via update-ref or rebase --onto (upstream uses a perl sequence editor),explicit
+magit-sequence.el,269,command,magit-cherry-spinout,partial,Space m x n; new branch with start point; stays on source,explicit
+magit-sequence.el,279,command,magit-cherry-spinoff,partial,Space m x s; new branch; checks it out,explicit
+magit-sequence.el,374,command,magit-revert,partial,Space m v / V with -e (default) -E =s and V/v; V/s/a continue/skip/abort while reverting,explicit
+magit-sequence.el,402,command,magit-revert-and-commit,partial,Space m v V; --edit opens Fred draft from MERGE_MSG for single commits,explicit
+magit-sequence.el,411,command,magit-revert-no-commit,partial,Space m v v,explicit
 magit-sequence.el,431,command,magit-am,missing,,explicit
 magit-sequence.el,469,command,magit-am-apply-patches,missing,,explicit
 magit-sequence.el,485,command,magit-am-apply-maildir,missing,,explicit

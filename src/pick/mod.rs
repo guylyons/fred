@@ -858,7 +858,7 @@ pub fn magit_menu(ed: &mut Editor, menu: char) {
                 "{group}: {key}  {label}{}",
                 match action {
                     crate::magit::Action::CycleOption(prefix) => {
-                        crate::magit::current_choice(ed, prefix)
+                        crate::magit::current_choice(ed, menu, prefix)
                             .map_or(" [off]".into(), |v| format!(" [{prefix}{v}]"))
                     }
                     crate::magit::Action::ToggleOption(option)

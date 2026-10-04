@@ -200,6 +200,60 @@ impl Session {
             });
             return;
         }
+        if let Action::Answered(repo, Question::Sequence(op), answers, defaults) = action {
+            let menu = sequence_menu(&op);
+            let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, menu));
+            self.start_magit(move || {
+                let merged = merge_answers(&answers, &defaults);
+                let next = repo
+                    .sequence_step(op, &merged, &args)
+                    .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                Ok(branch_outcome(repo, next, origin))
+            });
+            return;
+        }
+        if let Action::Sequence(op) = action {
+            use crate::magit::sequence::Op as S;
+            use crate::magit::workflows::Operation as W;
+            let from = self.magit_from();
+            let at_point =
+                self.ed
+                    .magit
+                    .as_ref()
+                    .and_then(|v| match v.action_at(self.ed.cur.line) {
+                        Some(RowAction::Commit(id)) => Some(id),
+                        _ => match &v.kind {
+                            Kind::Patch(id) | Kind::Diff(Target::Commit(id), _) => Some(id.clone()),
+                            _ => None,
+                        },
+                    });
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                // Upstream's in-progress group shares keys with the suffixes.
+                if let Some(kind) = repo.sequencer() {
+                    let operation = match (kind, &op) {
+                        ("cherry-pick", S::Pick) => W::CherryContinue,
+                        ("cherry-pick", S::Spinoff) => W::CherrySkip,
+                        ("cherry-pick", S::Apply) => W::CherryAbort,
+                        ("revert", S::Revert) => W::RevertContinue,
+                        _ => {
+                            return Err(format!(
+                                "A {kind} is in progress: continue, skip or abort it first"
+                            ));
+                        }
+                    };
+                    return Ok(Outcome::Git(repo.operation(operation, "")?));
+                }
+                let (prompts, defaults) = repo.sequence_prompts(&op, at_point)?;
+                Ok(Outcome::Ask(
+                    repo,
+                    Question::Sequence(op),
+                    defaults,
+                    prompts,
+                ))
+            });
+            return;
+        }
         if let Action::Answered(repo, Question::Remote(op), answers, defaults) = action {
             let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, 'O'));
             self.start_magit(move || {
@@ -315,7 +369,8 @@ impl Session {
                 | Question::Tag(_)
                 | Question::Merge(_)
                 | Question::Reset(_)
-                | Question::Remote(_) => {
+                | Question::Remote(_)
+                | Question::Sequence(_) => {
                     unreachable!("handled before the worker")
                 }
                 Question::FindFile => {
@@ -1601,6 +1656,15 @@ impl Session {
         } else {
             self.ed.set_msg("Git operation completed");
         }
+    }
+}
+/// The prefix whose arguments a sequence suffix reads.
+fn sequence_menu(op: &crate::magit::sequence::Op) -> char {
+    use crate::magit::sequence::Op as S;
+    match op {
+        S::Revert | S::RevertNoCommit => 'v',
+        S::Mainline(inner, _) => sequence_menu(inner),
+        _ => 'x',
     }
 }
 /// Prompt answers with empty ones replaced by their defaults.
