@@ -3387,3 +3387,19 @@ fn diff_location_maps_lines_to_both_sides() {
     assert_eq!(at(15).unwrap().file, PathBuf::from("gone"));
     assert_eq!(at(0), None);
 }
+
+#[test]
+fn menu_keys_are_unique_within_each_menu() {
+    for menu in "*OzFBbdpflMrxtCGNYXvSoukyJjWKawIEg>D".chars() {
+        let entries = super::menu_entries(menu);
+        assert!(!entries.is_empty(), "menu {menu} is empty");
+        let mut seen = std::collections::HashSet::new();
+        for (key, ..) in &entries {
+            assert!(seen.insert(*key), "menu {menu} repeats key {key}");
+        }
+    }
+    let has = |m: char, k: &str| super::menu_entries(m).iter().any(|e| e.0 == k);
+    assert!(has('r', "-f") && has('r', "-x") && has('r', "+s"));
+    assert!(has('x', "-m") && has('v', "-m") && has('v', "-S"));
+    assert!(!has('p', "-x"));
+}

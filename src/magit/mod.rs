@@ -2789,6 +2789,30 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                     Action::Rebase(O::Continue),
                 ),
                 ("a", "Actions (rebasing)", "Abort", Action::Rebase(O::Abort)),
+                (
+                    "-f",
+                    "Arguments",
+                    "Force rebase",
+                    ToggleOption(MenuOption::Switch('r', "--force-rebase")),
+                ),
+                (
+                    "-x",
+                    "Arguments",
+                    "Run command after commits",
+                    ReadOption("--exec="),
+                ),
+                (
+                    "-S",
+                    "Arguments",
+                    "Sign using gpg",
+                    ReadOption("--gpg-sign="),
+                ),
+                (
+                    "+s",
+                    "Arguments",
+                    "Add Signed-off-by lines",
+                    ToggleOption(MenuOption::Switch('r', "--signoff")),
+                ),
             ]
         }
         // magit-cherry-pick; while a sequence runs, A continues, s skips, a aborts.
@@ -2851,6 +2875,24 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                     "Spinoff / skip",
                     Action::Sequence(O::Spinoff),
                 ),
+                (
+                    "-m",
+                    "Arguments",
+                    "Replay merge relative to parent",
+                    ReadOption("--mainline="),
+                ),
+                (
+                    "-S",
+                    "Arguments",
+                    "Sign using gpg",
+                    ReadOption("--gpg-sign="),
+                ),
+                (
+                    "+s",
+                    "Arguments",
+                    "Add Signed-off-by lines",
+                    ToggleOption(MenuOption::Switch('x', "--signoff")),
+                ),
             ]
         }
         // magit-revert; while a sequence runs, V continues, s skips, a aborts.
@@ -2884,6 +2926,24 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 ),
                 ("s", "Sequence", "Skip", Action::Sequence(O::Skip)),
                 ("a", "Sequence", "Abort", Action::Sequence(O::Abort)),
+                (
+                    "-m",
+                    "Arguments",
+                    "Replay merge relative to parent",
+                    ReadOption("--mainline="),
+                ),
+                (
+                    "-S",
+                    "Arguments",
+                    "Sign using gpg",
+                    ReadOption("--gpg-sign="),
+                ),
+                (
+                    "+s",
+                    "Arguments",
+                    "Add Signed-off-by lines",
+                    ToggleOption(MenuOption::Switch('v', "--signoff")),
+                ),
             ]
         }
         _ => vec![],

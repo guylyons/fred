@@ -225,3 +225,8 @@ missing commands. Score remains 3%.
 October 4 file-diff checkpoint: Space m F d ports magit-diff-buffer-file, C-c
 C-d in a draft ports magit-diff-while-committing, and the diff menus gain the
 -- file limit. Ledger 455 partial / 318 missing commands. Score remains 3%.
+
+October 4 sequence-arguments checkpoint: rebase gains -f, -x, -S, +s;
+cherry-pick and revert gain -m, -S, +s; a test now keeps every menu's keys
+unique; ledger rows for switches already present are recorded. Ledger 474
+partial / 299 missing commands. Score remains 3%.

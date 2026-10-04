@@ -842,9 +842,9 @@ magit-sequence.el,823,command,magit-rebase-continue,partial,Space m R c; no edit
 magit-sequence.el,850,command,magit-rebase-skip,partial,Space m R s; guarded operation,explicit
 magit-sequence.el,858,command,magit-rebase-edit,partial,Space m R e while rebasing (Fred as editor),explicit
 magit-sequence.el,866,command,magit-rebase-abort,partial,Space m R a; guarded operation,explicit
-magit-sequence.el,,command,magit-apply:-p,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-sequence.el,,command,magit-cherry-pick:--mainline,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-sequence.el,,command,magit-rebase:--exec,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sequence.el,,command,magit-apply:-p,partial,-p in the am menu (value required),runtime
+magit-sequence.el,,command,magit-cherry-pick:--mainline,partial,-m in cherry-pick and revert menus,runtime
+magit-sequence.el,,command,magit-rebase:--exec,partial,-x in the rebase menu,runtime
 magit-sequence.el,,command,transient:magit-am:--3way,partial,menu argument,runtime
 magit-sequence.el,,command,transient:magit-am:--committer-date-is-author-date,partial,menu argument,runtime
 magit-sequence.el,,command,transient:magit-am:--ignore-date,partial,menu argument,runtime
@@ -852,22 +852,22 @@ magit-sequence.el,,command,transient:magit-am:--keep,partial,menu argument,runti
 magit-sequence.el,,command,transient:magit-am:--keep-non-patch,partial,menu argument,runtime
 magit-sequence.el,,command,transient:magit-am:--reject,partial,menu argument,runtime
 magit-sequence.el,,command,transient:magit-am:--scissors,partial,menu argument,runtime
-magit-sequence.el,,command,transient:magit-cherry-pick:--edit,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-sequence.el,,command,transient:magit-cherry-pick:--ff,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-sequence.el,,command,transient:magit-cherry-pick:-x,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-sequence.el,,command,transient:magit-rebase:--autosquash,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-sequence.el,,command,transient:magit-rebase:--autostash,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-sequence.el,,command,transient:magit-rebase:--committer-date-is-author-date,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-sequence.el,,command,transient:magit-rebase:--force-rebase,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-sequence.el,,command,transient:magit-rebase:--ignore-date,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-sequence.el,,command,transient:magit-rebase:--interactive,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-sequence.el,,command,transient:magit-rebase:--keep-empty,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-sequence.el,,command,transient:magit-rebase:--no-verify,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-sequence.el,,command,transient:magit-rebase:--preserve-merges,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-sequence.el,,command,transient:magit-rebase:--rebase-merges=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-sequence.el,,command,transient:magit-rebase:--update-refs,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-sequence.el,,command,transient:magit-revert:--edit,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-sequence.el,,command,transient:magit-revert:--no-edit,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sequence.el,,command,transient:magit-cherry-pick:--edit,partial,-e,runtime
+magit-sequence.el,,command,transient:magit-cherry-pick:--ff,partial,-F (seeded),runtime
+magit-sequence.el,,command,transient:magit-cherry-pick:-x,partial,-x,runtime
+magit-sequence.el,,command,transient:magit-rebase:--autosquash,partial,-a,runtime
+magit-sequence.el,,command,transient:magit-rebase:--autostash,partial,-A (seeded),runtime
+magit-sequence.el,,command,transient:magit-rebase:--committer-date-is-author-date,partial,-d,runtime
+magit-sequence.el,,command,transient:magit-rebase:--force-rebase,partial,-f,runtime
+magit-sequence.el,,command,transient:magit-rebase:--ignore-date,partial,-t,runtime
+magit-sequence.el,,command,transient:magit-rebase:--interactive,partial,-i,runtime
+magit-sequence.el,,command,transient:magit-rebase:--keep-empty,partial,-k,runtime
+magit-sequence.el,,command,transient:magit-rebase:--no-verify,partial,-h,runtime
+magit-sequence.el,,command,transient:magit-rebase:--preserve-merges,partial,hidden: Git 2.33+ removed it (upstream hides it there too),runtime
+magit-sequence.el,,command,transient:magit-rebase:--rebase-merges=,partial,-r cycles,runtime
+magit-sequence.el,,command,transient:magit-rebase:--update-refs,partial,-u,runtime
+magit-sequence.el,,command,transient:magit-revert:--edit,partial,-e,runtime
+magit-sequence.el,,command,transient:magit-revert:--no-edit,partial,-E,runtime
 magit-sparse-checkout.el,58,command,magit-sparse-checkout,partial,Space m >: -i; e d r s a (enabled-state checked at run time),explicit
 magit-sparse-checkout.el,74,command,magit-sparse-checkout-enable,partial,> e: init --cone [--sparse-index],explicit
 magit-sparse-checkout.el,80,command,magit-sparse-checkout-set,partial,> s: directories space separated; auto-enables cone mode,explicit
