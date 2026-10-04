@@ -1239,11 +1239,11 @@ org-agenda.el,5722,function,org-agenda-todo-custom-ignore-p,missing,,Check wheth
 org-agenda.el,5734,function,org-agenda-check-for-timestamp-as-reason-to-ignore-todo-item,missing,,Do we have a reason to ignore this TODO entry because it has a time stamp?
 org-agenda.el,5808,function,org-agenda-get-timestamps,missing,,Return the date stamp information for agenda display.
 org-agenda.el,5961,function,org-agenda-get-sexps,missing,,Return the sexp information for agenda display.
-org-agenda.el,6043,function,org-anniversary,missing,,"Like `diary-anniversary', but with fixed (ISO) order of arguments."
-org-agenda.el,6048,function,org-cyclic,missing,,"Like `diary-cyclic', but with fixed (ISO) order of arguments."
-org-agenda.el,6053,function,org-block,missing,,"Like `diary-block', but with fixed (ISO) order of arguments."
-org-agenda.el,6058,function,org-date,missing,,"Like `diary-date', but with fixed (ISO) order of arguments."
-org-agenda.el,6065,function,org-class,missing,,"Entry applies if date is between dates on DAYNAME, but skips SKIP-WEEKS."
+org-agenda.el,6043,function,org-anniversary,done,time::diary,"Like `diary-anniversary', but with fixed (ISO) order of arguments."
+org-agenda.el,6048,function,org-cyclic,done,time::diary,"Like `diary-cyclic', but with fixed (ISO) order of arguments."
+org-agenda.el,6053,function,org-block,done,time::diary,"Like `diary-block', but with fixed (ISO) order of arguments."
+org-agenda.el,6058,function,org-date,done,time::diary,"Like `diary-date', but with fixed (ISO) order of arguments."
+org-agenda.el,6065,function,org-class,done,time::diary (holidays as above),"Entry applies if date is between dates on DAYNAME, but skips SKIP-WEEKS."
 org-agenda.el,6090,function,org-get-closed,missing,,Return the logged TODO entries for agenda display.
 org-agenda.el,6091,function,org-agenda-get-progress,missing,,Return the logged TODO entries for agenda display.
 org-agenda.el,6208,command,org-agenda-show-clocking-issues,missing,,"Add overlays, showing issues with clocking."
@@ -1680,7 +1680,7 @@ org-clock.el,2759,function,org-clocktable-write-default,missing,,Write out a clo
 org-clock.el,3010,function,org-clocktable-indent-string,missing,,Return indentation string according to LEVEL.
 org-clock.el,3016,function,org-clocktable-steps,missing,,"Create one or more clock tables, according to PARAMS."
 org-clock.el,3109,function,org-clock-get-table-data,missing,,"Get the clocktable data for file FILE, with parameters PARAMS."
-org-clock.el,3222,command,org-clock-update-time-maybe,missing,,"If this is a CLOCK line, update it and return t."
+org-clock.el,3222,command,org-clock-update-time-maybe,partial,time::clock_update_time_maybe on CLOCK ranges; running-clock mode line is the clock module's,"If this is a CLOCK line, update it and return t."
 org-clock.el,3280,function,org-clock-save,missing,,Persist various clock-related data to disk.
 org-clock.el,3322,function,org-clock-load,missing,,"Load clock-related data from disk, maybe resuming a stored clock."
 org-clock.el,3350,function,org-clock-kill-emacs-query,missing,,Query user when killing Emacs.
@@ -2141,14 +2141,14 @@ org-datetree.el,199,function,org-datetree-find-create-hierarchy,missing,,Find or
 org-datetree.el,261,function,org-datetree--find-create-subheading,missing,,"Find datetree subheading, or create it if it doesn't exist."
 org-datetree.el,318,function,org-datetree-file-entry-under,missing,,Insert a node TXT into the date tree under date D.
 org-datetree.el,326,command,org-datetree-cleanup,missing,,Make sure all entries in the current tree are under the correct date.
-org-duration.el,70,option,org-duration-units,missing,,Conversion factor to minutes for a duration.
-org-duration.el,115,option,org-duration-format,missing,,Format definition for a duration.
-org-duration.el,238,function,org-duration--modifier,missing,,Return modifier associated to string UNIT.
-org-duration.el,251,command,org-duration-set-regexps,missing,,Set duration related regexps.
-org-duration.el,271,function,org-duration-p,missing,,Non-nil when string S is a time duration.
-org-duration.el,279,function,org-duration-to-minutes,missing,,Return number of minutes of DURATION string.
-org-duration.el,317,function,org-duration-from-minutes,missing,,Return duration string for a given number of MINUTES.
-org-duration.el,433,function,org-duration-h:mm-only-p,missing,,"Non-nil when every duration in TIMES has ""H:MM"" or ""H:MM:SS"" format."
+org-duration.el,70,option,org-duration-units,done,time::duration::units; option read on each use,Conversion factor to minutes for a duration.
+org-duration.el,115,option,org-duration-format,done,"time::duration::Format::option (h:mm, h:mm:ss, unit lists, special, compact)",Format definition for a duration.
+org-duration.el,238,function,org-duration--modifier,internal,time::duration::modifier,Return modifier associated to string UNIT.
+org-duration.el,251,command,org-duration-set-regexps,done,time::duration::set_regexps; regexps also rebuilt when org-duration-units changes,Set duration related regexps.
+org-duration.el,271,function,org-duration-p,done,time::duration::is_duration,Non-nil when string S is a time duration.
+org-duration.el,279,function,org-duration-to-minutes,done,"time::duration::to_minutes(d, canonical)",Return number of minutes of DURATION string.
+org-duration.el,317,function,org-duration-from-minutes,done,"time::duration::from_minutes(m, fmt, canonical)",Return duration string for a given number of MINUTES.
+org-duration.el,433,function,org-duration-h:mm-only-p,done,time::duration::hmm_only,"Non-nil when every duration in TIMES has ""H:MM"" or ""H:MM:SS"" format."
 org-element-ast.el,216,function,org-element-type,missing,,Return type of NODE.
 org-element-ast.el,244,function,org-element-secondary-p,missing,,Non-nil when NODE directly belongs to a secondary node.
 org-element-ast.el,287,function,org-element--deferred-resolve-once,missing,,Resolve DEFERRED-VALUE for NODE.
@@ -2345,8 +2345,8 @@ org-element.el,4344,function,org-element-table-cell-parser,missing,,Parse table 
 org-element.el,4362,function,org-element-table-cell-interpreter,missing,,Interpret table-cell element as Org syntax.
 org-element.el,4370,function,org-element-target-parser,missing,,"Parse target at point, if any."
 org-element.el,4392,function,org-element-target-interpreter,missing,,Interpret TARGET object as Org syntax.
-org-element.el,4411,function,org-element-timestamp-parser,missing,,"Parse time stamp at point, if any."
-org-element.el,4558,function,org-element-timestamp-interpreter,missing,,Interpret TIMESTAMP object as Org syntax.
+org-element.el,4411,function,org-element-timestamp-parser,internal,time::stamp::Timestamp::parse,"Parse time stamp at point, if any."
+org-element.el,4558,function,org-element-timestamp-interpreter,internal,time::stamp::Timestamp::interpret,Interpret TIMESTAMP object as Org syntax.
 org-element.el,4694,function,org-element-underline-parser,missing,,"Parse underline object at point, if any."
 org-element.el,4704,function,org-element-underline-interpreter,missing,,Interpret underline object as Org syntax.
 org-element.el,4712,function,org-element-verbatim-parser,missing,,"Parse verbatim object at point, if any."
@@ -3086,16 +3086,16 @@ org-macs.el,1549,function,org-invisible-p2,missing,,Check if point is at a chara
 org-macs.el,1558,function,org-region-invisible-p,missing,,Check if region if completely hidden.
 org-macs.el,1564,function,org-find-visible,missing,,"Return closest visible buffer position, or `point-max'."
 org-macs.el,1570,function,org-find-invisible,missing,,"Return closest invisible buffer position, or `point-max'."
-org-macs.el,1579,function,org-2ft,missing,,Convert S to a floating point time.
-org-macs.el,1592,function,org-time=,missing,,
-org-macs.el,1597,function,org-time<,missing,,
-org-macs.el,1602,function,org-time<=,missing,,
-org-macs.el,1607,function,org-time>,missing,,
-org-macs.el,1612,function,org-time>=,missing,,
-org-macs.el,1617,function,org-time<>,missing,,
-org-macs.el,1622,macro,org-encode-time,missing,,Compatibility and convenience helper for `encode-time'.
-org-macs.el,1657,function,org-parse-time-string,missing,,Parse Org time string S.
-org-macs.el,1684,function,org-matcher-time,missing,,Interpret a time comparison value S as a floating point time.
+org-macs.el,1579,function,org-2ft,done,time::stamp::to_ft,Convert S to a floating point time.
+org-macs.el,1592,function,org-time=,done,"time::stamp::time_cmp(a, b, op)",
+org-macs.el,1597,function,org-time<,done,time::stamp::time_cmp,
+org-macs.el,1602,function,org-time<=,done,time::stamp::time_cmp,
+org-macs.el,1607,function,org-time>,done,time::stamp::time_cmp,
+org-macs.el,1612,function,org-time>=,done,time::stamp::time_cmp,
+org-macs.el,1617,function,org-time<>,done,time::stamp::time_cmp,
+org-macs.el,1622,macro,org-encode-time,internal,"time::civil::Tm::norm / Tm::epoch (libc mktime, DST guessed)",Compatibility and convenience helper for `encode-time'.
+org-macs.el,1657,function,org-parse-time-string,done,time::stamp::parse_time_string (Parsed; nodefault via Option hour/min),Parse Org time string S.
+org-macs.el,1684,function,org-matcher-time,done,time::stamp::matcher_time,Interpret a time comparison value S as a floating point time.
 org-macs.el,1713,function,org-scroll,missing,,Receive KEY and scroll the current window accordingly.
 org-macs.el,1742,function,org-knuth-hash,missing,,Calculate Knuth's multiplicative hash for NUMBER.
 org-macs.el,1751,function,org-sxhash-safe,missing,,"Like `sxhash' for OBJ, but collision-free for in-memory objects."
@@ -3773,7 +3773,7 @@ org.el,1608,option,org-open-non-existing-files,missing,,Non-nil means `org-open-
 org.el,1620,option,org-open-directory-means-index-dot-org,missing,,"When non-nil a link to a directory really means to ""index.org""."
 org.el,1628,option,org-bookmark-names-plist,missing,,Names for bookmarks automatically set by some Org commands.
 org.el,1648,option,org-odd-levels-only,missing,,Non-nil means skip even levels and only use odd levels for the outline.
-org.el,1664,option,org-adapt-indentation,missing,,Non-nil means adapt indentation to outline node level.
+org.el,1664,option,org-adapt-indentation,partial,planning line indentation (org-add-planning-info),Non-nil means adapt indentation to outline node level.
 org.el,1702,option,org-special-ctrl-a/e,missing,,Non-nil means `C-a' and `C-e' behave specially in headlines and items.
 org.el,1740,option,org-special-ctrl-k,missing,,Non-nil means that \<org-mode-map>\[org-kill-line] will behave specially in headlines.
 org.el,1753,option,org-ctrl-k-protect-subtree,missing,,"Non-nil means, do not delete a hidden subtree with `C-k'."
@@ -3805,10 +3805,10 @@ org.el,2193,option,org-treat-insert-todo-heading-as-state-change,missing,,Non-ni
 org.el,2201,option,org-treat-S-cursor-todo-selection-as-state-change,missing,,Non-nil means switching TODO states with S-cursor counts as state change.
 org.el,2209,option,org-todo-state-tags-triggers,missing,,Tag changes that should be triggered by TODO state changes.
 org.el,2230,option,org-log-done,missing,,Information to record when a task moves to the DONE state.
-org.el,2260,option,org-log-reschedule,missing,,Information to record when the scheduling date of a task is modified.
-org.el,2287,option,org-log-redeadline,missing,,Information to record when the deadline date of a task is modified.
+org.el,2260,option,org-log-reschedule,partial,read by org-schedule; the note is a time::LogRequest taken by the logging module via org-add-log-setup,Information to record when the scheduling date of a task is modified.
+org.el,2287,option,org-log-redeadline,partial,read by org-deadline; note via time::LogRequest / org-add-log-setup,Information to record when the deadline date of a task is modified.
 org.el,2314,option,org-log-note-clock-out,missing,,Non-nil means record a note when clocking out of an item.
-org.el,2325,option,org-log-done-with-time,missing,,Non-nil means the CLOSED time stamp will contain date and time.
+org.el,2325,option,org-log-done-with-time,partial,CLOSED stamps of time::add_planning_info,Non-nil means the CLOSED time stamp will contain date and time.
 org.el,2331,option,org-log-note-headings,missing,,Headings for notes added to entries.
 org.el,2379,option,org-log-into-drawer,missing,,Non-nil means insert state change notes and time stamps into a drawer.
 org.el,2379,function,org-log-into-drawer,missing,,"Name of the log drawer, as a string, or nil."
@@ -3823,22 +3823,22 @@ org.el,2532,option,org-priority-lowest,missing,,The lowest priority of TODO item
 org.el,2555,option,org-priority-default,missing,,The default priority of TODO items.
 org.el,2571,option,org-priority-start-cycle-with-default,missing,,Non-nil means start with default priority when starting to cycle.
 org.el,2580,option,org-priority-get-priority-function,missing,,Function to extract the priority from a string.
-org.el,2601,option,org-timestamp-rounding-minutes,missing,,Number of minutes to round time stamps to.
-org.el,2632,option,org-display-custom-times,missing,,Non-nil means overlay custom formats over all time stamps.
-org.el,2642,option,org-timestamp-custom-formats,missing,,Custom formats for time stamps.
-org.el,2664,function,org-time-stamp-format,missing,,Get timestamp format for a time string.
-org.el,2695,option,org-deadline-warning-days,missing,,Number of days before expiration during which a deadline becomes active.
-org.el,2706,option,org-scheduled-delay-days,missing,,Number of days before a scheduled item becomes active.
-org.el,2721,option,org-read-date-prefer-future,missing,,Non-nil means assume future for incomplete date input from user.
+org.el,2601,option,org-timestamp-rounding-minutes,done,"time::stamp::rounding_minutes (first: inserting, second: S-up/S-down)",Number of minutes to round time stamps to.
+org.el,2632,option,org-display-custom-times,adapted,"per-buffer flag time::display_custom_times (option, #+STARTUP customtime, toggle); renderer uses stamp::custom_overlays",Non-nil means overlay custom formats over all time stamps.
+org.el,2642,option,org-timestamp-custom-formats,done,time::stamp::custom_formats,Custom formats for time stamps.
+org.el,2664,function,org-time-stamp-format,done,"time::stamp::time_stamp_format(with_time, Brackets, custom)",Get timestamp format for a time string.
+org.el,2695,option,org-deadline-warning-days,done,"org-get-wdays, org-check-deadlines",Number of days before expiration during which a deadline becomes active.
+org.el,2706,option,org-scheduled-delay-days,done,org-get-wdays with delay,Number of days before a scheduled item becomes active.
+org.el,2721,option,org-read-date-prefer-future,done,"t, nil, time in read::analyze",Non-nil means assume future for incomplete date input from user.
 org.el,2750,option,org-agenda-jump-prefer-future,missing,,Should the agenda jump command prefer the future for incomplete dates?
-org.el,2764,option,org-read-date-force-compatible-dates,missing,,Should date/time prompt force dates that are guaranteed to work in Emacs?
-org.el,2795,option,org-read-date-display-live,missing,,Non-nil means display current interpretation of date prompt live.
-org.el,2806,option,org-read-date-popup-calendar,missing,,Non-nil means pop up a calendar when prompting for a date.
-org.el,2814,option,org-extend-today-until,missing,,The hour when your day really ends.  Must be an integer.
-org.el,2829,option,org-use-effective-time,missing,,"If non-nil, consider `org-extend-today-until' when creating timestamps."
-org.el,2838,option,org-use-last-clock-out-time-as-effective-time,missing,,"When non-nil, use the last clock out time for `org-todo'."
-org.el,2847,option,org-edit-timestamp-down-means-later,missing,,Non-nil means S-down will increase the time in a time stamp.
-org.el,2853,option,org-calendar-follow-timestamp-change,missing,,Non-nil means make the calendar window follow timestamp changes.
+org.el,2764,option,org-read-date-force-compatible-dates,done,1970-2037 forcing with message,Should date/time prompt force dates that are guaranteed to work in Emacs?
+org.el,2795,option,org-read-date-display-live,done,live interpretation in the prompt text,Non-nil means display current interpretation of date prompt live.
+org.el,2806,option,org-read-date-popup-calendar,adapted,no calendar window; calendar keys move a virtual calendar date in the prompt,Non-nil means pop up a calendar when prompting for a date.
+org.el,2814,option,org-extend-today-until,done,"org-read-date default, org-today, repeaters, closest-date",The hour when your day really ends.  Must be an integer.
+org.el,2829,option,org-use-effective-time,done,time::current_effective_time,"If non-nil, consider `org-extend-today-until' when creating timestamps."
+org.el,2838,option,org-use-last-clock-out-time-as-effective-time,partial,needs the clock module's last clock-out; not consulted,"When non-nil, use the last clock out time for `org-todo'."
+org.el,2847,option,org-edit-timestamp-down-means-later,partial,for the org-shiftup/org-shiftdown dispatcher (not in time.rs),Non-nil means S-down will increase the time in a time stamp.
+org.el,2853,option,org-calendar-follow-timestamp-change,adapted,timestamp changes move the virtual calendar date when set,Non-nil means make the calendar window follow timestamp changes.
 org.el,2865,option,org-tag-alist,missing,,Default tags available in Org files.
 org.el,2902,option,org-tag-persistent-alist,missing,,Tags always available in Org files.
 org.el,2937,option,org-complete-tags-always-offer-all-agenda-tags,missing,,"If non-nil, always offer completion for all tags of all agenda files."
@@ -3907,7 +3907,7 @@ org.el,4092,function,org-clock-auto-clockout-insinuate,missing,,Set up hook for 
 org.el,4105,option,org-archive-location,missing,,The location where subtrees should be archived.
 org.el,4163,option,org-agenda-skip-archived-trees,missing,,Non-nil means the agenda will skip any items located in archived trees.
 org.el,4172,option,org-columns-skip-archived-trees,missing,,Non-nil means ignore archived trees when creating column view.
-org.el,4178,option,org-sparse-tree-open-archived-trees,missing,,Non-nil means sparse tree construction shows matches in archived trees.
+org.el,4178,option,org-sparse-tree-open-archived-trees,partial,date sparse trees (time::occur),Non-nil means sparse tree construction shows matches in archived trees.
 org.el,4186,option,org-sparse-tree-default-date-type,missing,,The default date type when building a sparse tree.
 org.el,4207,command,org-advertized-archive-subtree,missing,,Move the current subtree to the archive.
 org.el,4385,option,org-group-tags,missing,,"When non-nil (the default), use group tags."
@@ -3936,8 +3936,8 @@ org.el,5108,function,org-before-change-function,missing,,Every change indicates 
 org.el,5164,function,org--set-tab-width,missing,,Set `tab-width' to be 8.
 org.el,5169,command,org-mode,missing,,"Outline-based notes management and organizer, alias"
 org.el,5411,function,org-find-invisible-foreground,missing,,
-org.el,5425,function,org-current-time,missing,,"Current time, possibly rounded to ROUNDING-MINUTES."
-org.el,5444,function,org-today,missing,,"Return today date, considering `org-extend-today-until'."
+org.el,5425,function,org-current-time,done,"time::read::current_time(rounding, past)","Current time, possibly rounded to ROUNDING-MINUTES."
+org.el,5444,function,org-today,done,time::today,"Return today date, considering `org-extend-today-until'."
 org.el,5454,function,org-create-multibrace-regexp,missing,,Create a regular expression which will match a balanced sexp.
 org.el,5493,function,org-rear-nonsticky-at,missing,,
 org.el,5514,function,org-do-emphasis-faces,missing,,Run through the buffer and emphasize strings.
@@ -4090,7 +4090,7 @@ org.el,9583,function,org--insert-structure-template-unique-keys,missing,,"Make a
 org.el,9608,command,org-insert-block-template,missing,,Insert a block structure of the type #+begin_foo/#+end_foo.
 org.el,9609,command,org-insert-structure-template,missing,,Insert a block structure of the type #+begin_foo/#+end_foo.
 org.el,9665,command,org-toggle-comment,missing,,Change the COMMENT state of an entry.
-org.el,9700,function,org-current-effective-time,missing,,Return current time adjusted for `org-extend-today-until' variable.
+org.el,9700,function,org-current-effective-time,partial,time::current_effective_time (no last clock-out time),Return current time adjusted for `org-extend-today-until' variable.
 org.el,9713,command,org-todo-yesterday,missing,,Like `org-todo' but the time of change will be 23:59 of yesterday.
 org.el,9726,command,org-cancel-repeater,missing,,Cancel all the repeaters in entry by setting their numeric value to zero.
 org.el,9727,command,org-cancel-repeaters,missing,,Cancel all the repeaters in entry by setting their numeric value to zero.
@@ -4109,18 +4109,18 @@ org.el,10373,function,org-fast-todo-selection,missing,,Fast TODO keyword selecti
 org.el,10491,function,org-entry-is-todo-p,missing,,
 org.el,10494,function,org-entry-is-done-p,missing,,
 org.el,10497,function,org-get-todo-state,missing,,Return the TODO keyword of the current subtree.
-org.el,10506,function,org-at-date-range-p,missing,,Non-nil if point is inside a date range.
-org.el,10530,function,org-get-repeat,missing,,Check if there is a timestamp with repeater in this entry.
-org.el,10560,function,org-auto-repeat-maybe,missing,,Check if the current headline contains a repeated timestamp.
+org.el,10506,function,org-at-date-range-p,done,time::stamp::date_range_at,Non-nil if point is inside a date range.
+org.el,10530,function,org-get-repeat,done,"time::get_repeat(ed, h); stamp::repeat_of for a string",Check if there is a timestamp with repeater in this entry.
+org.el,10560,function,org-auto-repeat-maybe,partial,"time::auto_repeat(ed, h): CLOSED/SCHEDULED cleanup and all repeater shifts; state reset, LAST_REPEAT, logging are the TODO module's; no y-or-n after 10 ++ shifts",Check if the current headline contains a repeated timestamp.
 org.el,10722,command,org-show-todo-tree,missing,,Make a compact tree which shows all headlines marked with TODO.
 org.el,10747,function,org--deadline-or-schedule,missing,,Insert DEADLINE or SCHEDULE information in current entry.
-org.el,10832,command,org-deadline,missing,,"Insert a ""DEADLINE:"" string with a timestamp to make a deadline."
-org.el,10853,command,org-schedule,missing,,"Insert a ""SCHEDULED:"" string with a timestamp to schedule an item."
-org.el,10874,function,org-get-scheduled-time,missing,,"Get the scheduled time as a time tuple, of a format suitable"
-org.el,10882,function,org-get-deadline-time,missing,,"Get the deadline as a time tuple, of a format suitable for"
-org.el,10890,function,org-remove-timestamp-with-keyword,missing,,Remove all time stamps with KEYWORD in the current entry.
+org.el,10832,command,org-deadline,done,"C-c C-d; C-u removes, C-u C-u warning delay, repeater/warning kept, CLOSED removed; no active-region loop (Org commands never see a Visual region)","Insert a ""DEADLINE:"" string with a timestamp to make a deadline."
+org.el,10853,command,org-schedule,done,"C-c C-s; C-u removes, C-u C-u delay, repeater kept, CLOSED removed; no active-region loop","Insert a ""SCHEDULED:"" string with a timestamp to schedule an item."
+org.el,10874,function,org-get-scheduled-time,internal,"time::planning_get(ed, h, Scheduled) + stamp::time_string_to_tm","Get the scheduled time as a time tuple, of a format suitable"
+org.el,10882,function,org-get-deadline-time,internal,"time::planning_get(ed, h, Deadline) + stamp::time_string_to_tm","Get the deadline as a time tuple, of a format suitable for"
+org.el,10890,function,org-remove-timestamp-with-keyword,done,time::remove_timestamp_with_keyword (planning line),Remove all time stamps with KEYWORD in the current entry.
 org.el,10918,function,org-at-planning-p,missing,,Non-nil when point is on a planning info line.
-org.el,10934,function,org-add-planning-info,missing,,Insert new timestamp with keyword in the planning line.
+org.el,10934,function,org-add-planning-info,done,"time::set_planning / time::add_planning_info, upstream order and org-adapt-indentation",Insert new timestamp with keyword in the planning line.
 org.el,11062,command,org-add-note,missing,,Add a note to the current entry.
 org.el,11068,function,org-log-beginning,missing,,Return expected start of log notes in current entry.
 org.el,11159,function,org-add-log-setup,missing,,Set up the post command hook to take a note.
@@ -4214,76 +4214,76 @@ org.el,14231,function,org-find-olp,missing,,Return a marker pointing to the entr
 org.el,14269,function,org-find-exact-headline-in-buffer,missing,,Find node HEADING in BUFFER.
 org.el,14287,function,org-find-exact-heading-in-directory,missing,,"Find Org node headline HEADING in all "".org"" files in directory DIR."
 org.el,14303,command,org-find-entry-with-id,missing,,Locate the entry that contains the ID property with exact value IDENT.
-org.el,14322,command,org-time-stamp,missing,,Prompt for a date/time and insert a time stamp.
-org.el,14323,command,org-timestamp,missing,,Prompt for a date/time and insert a time stamp.
-org.el,14395,function,org-get-compact-tod,missing,,
-org.el,14411,command,org-time-stamp-inactive,missing,,Insert an inactive time stamp.
-org.el,14412,command,org-timestamp-inactive,missing,,Insert an inactive time stamp.
-org.el,14450,function,org-read-date,missing,,"Read a date, possibly a time, and make things smooth for the user."
-org.el,14622,function,org-read-date-display,missing,,Display the current date prompt interpretation in the minibuffer.
-org.el,14660,function,org-read-date-analyze,missing,,Analyze the combined answer of the date prompt.
-org.el,14896,function,org-read-date-get-relative,missing,,Check string S for special relative date string.
-org.el,14936,function,org-order-calendar-date-args,missing,,Turn a user-specified date into the internal representation.
-org.el,14946,function,org-funcall-in-calendar,missing,,Call FUNC in the calendar window and return to current window.
-org.el,14961,function,org-eval-in-calendar,missing,,
-org.el,14965,command,org-calendar-goto-today-or-insert-dot,missing,,"Go to the current date, or insert a dot."
-org.el,14978,command,org-calendar-goto-today,missing,,Reposition the calendar window so the current date is visible.
-org.el,14983,command,org-calendar-backward-month,missing,,Move the cursor backward by one month.
-org.el,14988,command,org-calendar-forward-month,missing,,Move the cursor forward by one month.
-org.el,14993,command,org-calendar-backward-year,missing,,Move the cursor backward by one year.
-org.el,14998,command,org-calendar-forward-year,missing,,Move the cursor forward by one year.
-org.el,15003,command,org-calendar-backward-week,missing,,Move the cursor backward by one week.
-org.el,15008,command,org-calendar-forward-week,missing,,Move the cursor forward by one week.
-org.el,15013,command,org-calendar-backward-day,missing,,Move the cursor backward by one day.
-org.el,15018,command,org-calendar-forward-day,missing,,Move the cursor forward by one day.
-org.el,15023,command,org-calendar-view-entries,missing,,Prepare and display a buffer with diary entries.
-org.el,15029,command,org-calendar-scroll-month-left,missing,,Scroll the displayed calendar left by one month.
-org.el,15034,command,org-calendar-scroll-month-right,missing,,Scroll the displayed calendar right by one month.
-org.el,15042,command,org-calendar-scroll-three-months-left,missing,,Scroll the displayed calendar left by three months.
-org.el,15052,command,org-calendar-scroll-three-months-right,missing,,Scroll the displayed calendar right by three months.
-org.el,15062,command,org-calendar-select,missing,,Return to `org-read-date' with the date currently selected.
-org.el,15076,function,org-insert-time-stamp,missing,,Insert a date stamp for the date given by the internal TIME.
-org.el,15077,function,org-insert-timestamp,missing,,Insert a date stamp for the date given by the internal TIME.
-org.el,15104,command,org-toggle-time-stamp-overlays,missing,,Toggle the use of custom time stamp formats.
-org.el,15105,command,org-toggle-timestamp-overlays,missing,,Toggle the use of custom time stamp formats.
-org.el,15123,function,org-display-custom-time,missing,,Overlay modified time stamp format over timestamp between BEG and END.
-org.el,15141,function,org-fix-decoded-time,missing,,Set 0 instead of nil for the first 6 elements of time.
-org.el,15147,function,org-time-stamp-to-now,missing,,Difference between TIMESTAMP-STRING and now in days.
-org.el,15148,function,org-timestamp-to-now,missing,,Difference between TIMESTAMP-STRING and now in days.
-org.el,15155,function,org-deadline-close-p,missing,,Is the time in TIMESTAMP-STRING close to the current date?
-org.el,15161,function,org-get-wdays,missing,,Get the deadline lead time appropriate for timestring TS.
-org.el,15185,command,org-calendar-select-mouse,missing,,Return to `org-read-date' with the date currently selected.
-org.el,15200,command,org-check-deadlines,missing,,Check if there are any deadlines due or past due.
-org.el,15221,function,org-re-timestamp,missing,,Return a regexp for timestamp TYPE.
-org.el,15246,command,org-check-before-date,missing,,Check if there are deadlines or scheduled entries before date D.
-org.el,15269,command,org-check-after-date,missing,,Check if there are deadlines or scheduled entries after date D.
-org.el,15292,command,org-check-dates-range,missing,,Check for deadlines/scheduled entries between START-DATE and END-DATE.
-org.el,15320,command,org-evaluate-time-range,missing,,Evaluate a time range by computing the difference between start and end.
-org.el,15382,function,org-make-tdiff-string,missing,,
-org.el,15399,function,org-time-string-to-time,missing,,Convert timestamp string S into internal time.
-org.el,15403,function,org-time-string-to-seconds,missing,,Convert a timestamp string S into a number of seconds.
-org.el,15409,function,org-time-string-to-absolute,missing,,Convert time stamp S to an absolute day number.
-org.el,15443,function,org-days-to-iso-week,missing,,Return the ISO week number.
-org.el,15448,function,org-small-year-to-year,missing,,Convert 2-digit years into 4-digit years.
-org.el,15460,function,org-time-from-absolute,missing,,Return the time corresponding to date D.
-org.el,15471,function,org-calendar-holiday,missing,,"List of holidays, for Diary display in Org mode."
-org.el,15479,function,org-diary-sexp-entry,missing,,Process a SEXP diary ENTRY for date D.
-org.el,15512,function,org-diary-to-ical-string,missing,,Get iCalendar entries from diary entries in buffer FROMBUF.
-org.el,15539,function,org-closest-date,missing,,Return closest date to CURRENT starting from START.
+org.el,14322,command,org-time-stamp,done,alias of org-timestamp,Prompt for a date/time and insert a time stamp.
+org.el,14323,command,org-timestamp,done,"C-c .: prompt, replace keeping repeater, twice for a range, C-u time, C-u C-u now",Prompt for a date/time and insert a time stamp.
+org.el,14395,function,org-get-compact-tod,done,time::stamp::compact_tod,
+org.el,14411,command,org-time-stamp-inactive,done,alias of org-timestamp-inactive,Insert an inactive time stamp.
+org.el,14412,command,org-timestamp-inactive,done,C-c !,Insert an inactive time stamp.
+org.el,14450,function,org-read-date,adapted,"time::read_date(ed, ReadOpts, then): minibuffer prompt with live display, calendar keys on a virtual date","Read a date, possibly a time, and make things smooth for the user."
+org.el,14622,function,org-read-date-display,adapted,time::live_prompt: `=> <date>` and (=>F) in the prompt,Display the current date prompt interpretation in the minibuffer.
+org.el,14660,function,org-read-date-analyze,done,time::read::analyze (verified against upstream Emacs),Analyze the combined answer of the date prompt.
+org.el,14896,function,org-read-date-get-relative,done,time::read::get_relative,Check string S for special relative date string.
+org.el,14936,function,org-order-calendar-date-args,internal,diary make_date (calendar-date-style),Turn a user-specified date into the internal representation.
+org.el,14946,function,org-funcall-in-calendar,adapted,virtual calendar date motion (time::calendar_move),Call FUNC in the calendar window and return to current window.
+org.el,14961,function,org-eval-in-calendar,adapted,obsolete; as org-funcall-in-calendar,
+org.el,14965,command,org-calendar-goto-today-or-insert-dot,adapted,"date prompt keys (S-arrows, M-S-arrows, < > C-v M-v, ., !) and :org commands move the virtual calendar date","Go to the current date, or insert a dot."
+org.el,14978,command,org-calendar-goto-today,adapted,"date prompt keys (S-arrows, M-S-arrows, < > C-v M-v, ., !) and :org commands move the virtual calendar date",Reposition the calendar window so the current date is visible.
+org.el,14983,command,org-calendar-backward-month,adapted,"date prompt keys (S-arrows, M-S-arrows, < > C-v M-v, ., !) and :org commands move the virtual calendar date",Move the cursor backward by one month.
+org.el,14988,command,org-calendar-forward-month,adapted,"date prompt keys (S-arrows, M-S-arrows, < > C-v M-v, ., !) and :org commands move the virtual calendar date",Move the cursor forward by one month.
+org.el,14993,command,org-calendar-backward-year,adapted,"date prompt keys (S-arrows, M-S-arrows, < > C-v M-v, ., !) and :org commands move the virtual calendar date",Move the cursor backward by one year.
+org.el,14998,command,org-calendar-forward-year,adapted,"date prompt keys (S-arrows, M-S-arrows, < > C-v M-v, ., !) and :org commands move the virtual calendar date",Move the cursor forward by one year.
+org.el,15003,command,org-calendar-backward-week,adapted,"date prompt keys (S-arrows, M-S-arrows, < > C-v M-v, ., !) and :org commands move the virtual calendar date",Move the cursor backward by one week.
+org.el,15008,command,org-calendar-forward-week,adapted,"date prompt keys (S-arrows, M-S-arrows, < > C-v M-v, ., !) and :org commands move the virtual calendar date",Move the cursor forward by one week.
+org.el,15013,command,org-calendar-backward-day,adapted,"date prompt keys (S-arrows, M-S-arrows, < > C-v M-v, ., !) and :org commands move the virtual calendar date",Move the cursor backward by one day.
+org.el,15018,command,org-calendar-forward-day,adapted,"date prompt keys (S-arrows, M-S-arrows, < > C-v M-v, ., !) and :org commands move the virtual calendar date",Move the cursor forward by one day.
+org.el,15023,command,org-calendar-view-entries,adapted,"date prompt keys (S-arrows, M-S-arrows, < > C-v M-v, ., !) and :org commands move the virtual calendar date",Prepare and display a buffer with diary entries.
+org.el,15029,command,org-calendar-scroll-month-left,adapted,"date prompt keys (S-arrows, M-S-arrows, < > C-v M-v, ., !) and :org commands move the virtual calendar date",Scroll the displayed calendar left by one month.
+org.el,15034,command,org-calendar-scroll-month-right,adapted,"date prompt keys (S-arrows, M-S-arrows, < > C-v M-v, ., !) and :org commands move the virtual calendar date",Scroll the displayed calendar right by one month.
+org.el,15042,command,org-calendar-scroll-three-months-left,adapted,"date prompt keys (S-arrows, M-S-arrows, < > C-v M-v, ., !) and :org commands move the virtual calendar date",Scroll the displayed calendar left by three months.
+org.el,15052,command,org-calendar-scroll-three-months-right,adapted,"date prompt keys (S-arrows, M-S-arrows, < > C-v M-v, ., !) and :org commands move the virtual calendar date",Scroll the displayed calendar right by three months.
+org.el,15062,command,org-calendar-select,adapted,"date prompt keys (S-arrows, M-S-arrows, < > C-v M-v, ., !) and :org commands move the virtual calendar date",Return to `org-read-date' with the date currently selected.
+org.el,15076,function,org-insert-time-stamp,done,alias of org-insert-timestamp,Insert a date stamp for the date given by the internal TIME.
+org.el,15077,function,org-insert-timestamp,done,time::insert_timestamp / stamp::stamp_text,Insert a date stamp for the date given by the internal TIME.
+org.el,15104,command,org-toggle-time-stamp-overlays,adapted,alias of org-toggle-timestamp-overlays,Toggle the use of custom time stamp formats.
+org.el,15105,command,org-toggle-timestamp-overlays,adapted,C-c C-x C-t toggles the buffer flag time::display_custom_times,Toggle the use of custom time stamp formats.
+org.el,15123,function,org-display-custom-time,adapted,time::stamp::custom_display / custom_overlays (display text for the renderer),Overlay modified time stamp format over timestamp between BEG and END.
+org.el,15141,function,org-fix-decoded-time,internal,Parsed::tm defaults,Set 0 instead of nil for the first 6 elements of time.
+org.el,15147,function,org-time-stamp-to-now,done,alias of org-timestamp-to-now,Difference between TIMESTAMP-STRING and now in days.
+org.el,15148,function,org-timestamp-to-now,done,"time::stamp::timestamp_to_now(s, seconds)",Difference between TIMESTAMP-STRING and now in days.
+org.el,15155,function,org-deadline-close-p,done,time::deadline_close_p,Is the time in TIMESTAMP-STRING close to the current date?
+org.el,15161,function,org-get-wdays,done,time::stamp::get_wdays,Get the deadline lead time appropriate for timestring TS.
+org.el,15185,command,org-calendar-select-mouse,adapted,no mouse calendar; Enter in the prompt takes the calendar date,Return to `org-read-date' with the date currently selected.
+org.el,15200,command,org-check-deadlines,done,"sparse tree via time::occur; C-u all, numeric days",Check if there are any deadlines due or past due.
+org.el,15221,function,org-re-timestamp,done,time::re_timestamp,Return a regexp for timestamp TYPE.
+org.el,15246,command,org-check-before-date,done,sparse tree; org-ts-type via time::set_ts_type,Check if there are deadlines or scheduled entries before date D.
+org.el,15269,command,org-check-after-date,done,sparse tree,Check if there are deadlines or scheduled entries after date D.
+org.el,15292,command,org-check-dates-range,done,"sparse tree, two prompts",Check for deadlines/scheduled entries between START-DATE and END-DATE.
+org.el,15320,command,org-evaluate-time-range,done,"C-c C-y; C-u inserts (table: next column, org-table-align)",Evaluate a time range by computing the difference between start and end.
+org.el,15382,function,org-make-tdiff-string,done,time::stamp::tdiff_string,
+org.el,15399,function,org-time-string-to-time,done,time::stamp::time_string_to_tm,Convert timestamp string S into internal time.
+org.el,15403,function,org-time-string-to-seconds,done,time::stamp::time_string_to_seconds (local time zone),Convert a timestamp string S into a number of seconds.
+org.el,15409,function,org-time-string-to-absolute,done,"time::stamp::time_string_to_absolute (diary sexps, repeaters)",Convert time stamp S to an absolute day number.
+org.el,15443,function,org-days-to-iso-week,done,time::stamp::days_to_iso_week,Return the ISO week number.
+org.el,15448,function,org-small-year-to-year,done,time::stamp::small_year_to_year,Convert 2-digit years into 4-digit years.
+org.el,15460,function,org-time-from-absolute,done,time::civil::Tm::from_absolute,Return the time corresponding to date D.
+org.el,15471,function,org-calendar-holiday,partial,time::diary::holidays: US general + Easter/Good Friday/Christmas; no Hebrew/Islamic/Bahai/Chinese/solar,"List of holidays, for Diary display in Org mode."
+org.el,15479,function,org-diary-sexp-entry,done,"time::diary::entry: diary-date/block/float/anniversary/cyclic/offset, org-* wrappers, and/or/not",Process a SEXP diary ENTRY for date D.
+org.el,15512,function,org-diary-to-ical-string,missing,iCalendar export (export module),Get iCalendar entries from diary entries in buffer FROMBUF.
+org.el,15539,function,org-closest-date,done,time::stamp::closest_date,Return closest date to CURRENT starting from START.
 org.el,15632,function,org-date-to-gregorian,missing,,Turn any specification of date D into a Gregorian date for the calendar.
-org.el,15641,command,org-timestamp-up,missing,,Increase the date item at the cursor by one.
-org.el,15650,command,org-timestamp-down,missing,,Decrease the date item at the cursor by one.
-org.el,15659,command,org-timestamp-up-day,missing,,Increase the date in the time stamp by one day.
-org.el,15668,command,org-timestamp-down-day,missing,,Decrease the date in the time stamp by one day.
-org.el,15677,function,org-at-timestamp-p,missing,,Non-nil if point is inside a timestamp.
-org.el,15761,command,org-toggle-timestamp-type,missing,,Toggle the type (<active> or [inactive]) of a time stamp.
+org.el,15641,command,org-timestamp-up,done,"per part (year/month/day/hour/minute/repeater/warning), rounding, CLOCK update, bracket toggles",Increase the date item at the cursor by one.
+org.el,15650,command,org-timestamp-down,done,as org-timestamp-up,Decrease the date item at the cursor by one.
+org.el,15659,command,org-timestamp-up-day,done,day change; on a heading: org-shiftright,Increase the date in the time stamp by one day.
+org.el,15668,command,org-timestamp-down-day,done,day change; on a heading: org-shiftleft,Decrease the date in the time stamp by one day.
+org.el,15677,function,org-at-timestamp-p,partial,"time::stamp::at_timestamp ('lax, parts) and time::agenda_timestamp ('agenda); strict element context via callers",Non-nil if point is inside a timestamp.
+org.el,15761,command,org-toggle-timestamp-type,done,command and bracket position of S-up/S-down,Toggle the type (<active> or [inactive]) of a time stamp.
 org.el,15775,function,org-at-clock-log-p,missing,,Non-nil if point is on a clock log line.
-org.el,15784,function,org-timestamp-change,missing,,Change the date in the time stamp at point.
-org.el,15978,function,org-modify-ts-extra,missing,,Change the lead-time/repeat fields at POS in timestamp string TS-STRING.
-org.el,16034,function,org-recenter-calendar,missing,,"If the calendar is visible, recenter it to date D."
-org.el,16043,command,org-goto-calendar,missing,,Go to the Emacs calendar at the current date.
-org.el,16061,function,org-get-date-from-calendar,missing,,Return a list (month day year) of date at point in calendar.
-org.el,16067,command,org-date-from-calendar,missing,,Insert time stamp corresponding to cursor date in *Calendar* buffer.
+org.el,15784,function,org-timestamp-change,done,"time::change_at_point / change_at / stamp::change (DST gap error, ranges, extra, calendar)",Change the date in the time stamp at point.
+org.el,15978,function,org-modify-ts-extra,done,time::stamp::modify_ts_extra,Change the lead-time/repeat fields at POS in timestamp string TS-STRING.
+org.el,16034,function,org-recenter-calendar,adapted,virtual calendar date follows changes,"If the calendar is visible, recenter it to date D."
+org.el,16043,command,org-goto-calendar,adapted,C-c >: sets the virtual calendar date (timestamp on line or today; C-u today) and reports it with holidays; no calendar window,Go to the Emacs calendar at the current date.
+org.el,16061,function,org-get-date-from-calendar,adapted,time::calendar_date,Return a list (month day year) of date at point in calendar.
+org.el,16067,command,org-date-from-calendar,adapted,C-c <: inserts or changes to the virtual calendar date,Insert time stamp corresponding to cursor date in *Calendar* buffer.
 org.el,16081,option,org-image-actual-width,missing,,"When non-nil, use the actual width of images when inlining them."
 org.el,16128,option,org-agenda-inhibit-startup,missing,,Inhibit startup when preparing agenda buffers.
 org.el,16137,option,org-agenda-ignore-properties,missing,,Avoid updating text properties when building the agenda.
@@ -4430,13 +4430,13 @@ org.el,20750,command,org-setup-comments-handling,missing,,
 org.el,20759,function,org-insert-comment,missing,,Insert an empty comment above current line.
 org.el,20783,function,org-comment-or-uncomment-region,missing,,Comment or uncomment each non-blank line in the region.
 org.el,20859,command,org-comment-dwim,missing,,Call the comment command you mean.
-org.el,20874,function,org-timestamp-from-string,missing,,"Convert Org timestamp S, as a string, into a timestamp object."
-org.el,20882,function,org-timestamp-from-time,missing,,Convert a time value into a timestamp object.
-org.el,20902,function,org-timestamp-to-time,missing,,Convert TIMESTAMP object into an Emacs internal time value.
-org.el,20915,function,org-timestamp-has-time-p,missing,,Non-nil when TIMESTAMP has a time specified.
-org.el,20919,function,org-format-timestamp,missing,,Format a TIMESTAMP object into a string.
-org.el,20933,function,org-timestamp-split-range,missing,,Extract a TIMESTAMP object from a date or time range.
-org.el,20965,function,org-timestamp-translate,missing,,Translate TIMESTAMP object to custom format.
+org.el,20874,function,org-timestamp-from-string,done,time::stamp::Timestamp::from_string,"Convert Org timestamp S, as a string, into a timestamp object."
+org.el,20882,function,org-timestamp-from-time,done,time::stamp::Timestamp::from_time,Convert a time value into a timestamp object.
+org.el,20902,function,org-timestamp-to-time,done,time::stamp::Timestamp::to_tm,Convert TIMESTAMP object into an Emacs internal time value.
+org.el,20915,function,org-timestamp-has-time-p,done,time::stamp::Timestamp::has_time,Non-nil when TIMESTAMP has a time specified.
+org.el,20919,function,org-format-timestamp,done,time::stamp::Timestamp::format (no UTC),Format a TIMESTAMP object into a string.
+org.el,20933,function,org-timestamp-split-range,done,time::stamp::Timestamp::split_range,Extract a TIMESTAMP object from a date or time range.
+org.el,20965,function,org-timestamp-translate,done,time::stamp::Timestamp::translate,Translate TIMESTAMP object to custom format.
 org.el,20990,function,org-setup-yank-dnd-handlers,missing,,Setup the `yank-media' and DND handlers for buffer.
 org.el,21012,option,org-yank-image-save-method,missing,,Method to save images yanked from clipboard and dropped to Emacs.
 org.el,21025,option,org-yank-image-file-name-function,missing,,Function to generate filename for image yanked from clipboard.
@@ -4510,15 +4510,15 @@ org.el,22614,command,org-info-find-node,missing,,Find Info documentation NODENAM
 org.el,,option,org-log-state-notes-into-drawer,missing,,Non-nil means insert state change notes and time stamps into a drawer.
 org.el,,option,org-cdlatex-mode-hook,missing,,Hook run after entering or leaving `org-cdlatex-mode'.
 org.el,,option,org-default-priority,missing,,The default priority of TODO items.
-org.el,,option,org-time-stamp-custom-formats,missing,,Custom formats for time stamps.
-org.el,,option,org-popup-calendar-for-date-prompt,missing,,Non-nil means pop up a calendar when prompting for a date.
+org.el,,option,org-time-stamp-custom-formats,done,alias of org-timestamp-custom-formats,Custom formats for time stamps.
+org.el,,option,org-popup-calendar-for-date-prompt,adapted,alias of org-read-date-popup-calendar,Non-nil means pop up a calendar when prompting for a date.
 org.el,,option,org-lowest-priority,missing,,The lowest priority of TODO items.
 org.el,,option,org-special-ctrl-a,missing,,Non-nil means `C-a' and `C-e' behave specially in headlines and items.
 org.el,,option,org-enable-priority-commands,missing,,Non-nil means priority commands are active.
 org.el,,option,org-highest-priority,missing,,The highest priority of TODO items.
 org.el,,option,org-startup-with-inline-images,missing,,Non-nil means show inline images when loading a new Org file.
 org.el,,option,org-get-priority-function,missing,,Function to extract the priority from a string.
-org.el,,option,org-time-stamp-rounding-minutes,missing,,Number of minutes to round time stamps to.
+org.el,,option,org-time-stamp-rounding-minutes,done,alias of org-timestamp-rounding-minutes,Number of minutes to round time stamps to.
 org.el,,option,org-agenda-multi-occur-extra-files,missing,,List of extra files to be searched by text search commands.
 ox-ascii.el,159,option,org-ascii-text-width,missing,,Maximum width of exported text.
 ox-ascii.el,168,option,org-ascii-global-margin,missing,,"Width of the left margin, in number of characters."

@@ -49,3 +49,7 @@ Evidence: [source ledger](org-parity.csv), [keys](org-keys.csv),
 
 2026-10-04: pinned checkout and inventory: 5715 definitions and 597 bindings.
 Baseline points for pin and inventory accepted (2). UI map open.
+2026-10-04: timestamps, date prompt, schedule/deadline, repeaters, diary
+sexps, sparse date trees and org-duration in `src/org/time/` (ledger rows
+updated). Row 7 stays unaccepted until S-arrow dispatch (org-shiftup...) and
+the TODO module's org-auto-repeat-maybe use it.
