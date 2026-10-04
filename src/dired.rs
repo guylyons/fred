@@ -642,6 +642,16 @@ fn targets(ed: &Editor, lo: usize, hi: usize, visual: bool) -> Vec<PathBuf> {
         .collect()
 }
 
+/// The marked entries, else the one under the cursor (magit-dired's
+/// dired-get-marked-files).
+pub fn selection(ed: &Editor) -> Vec<PathBuf> {
+    targets(ed, ed.cur.line, ed.cur.line, false)
+}
+/// Only the `*` marked entries.
+pub fn marked(ed: &Editor) -> Vec<PathBuf> {
+    paths_marked(ed, '*')
+}
+
 fn what(ps: &[PathBuf]) -> String {
     match ps {
         [p] => p

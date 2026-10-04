@@ -2666,6 +2666,41 @@ mod tests {
     }
 
     #[test]
+    fn magit_dired_stage_and_log_marked_files() {
+        let mut t = T::open(Some("f.txt"), Some("one\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        fs::write(t.dir.path().join("a"), "a\n").unwrap();
+        fs::write(t.dir.path().join("b"), "b\n").unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "base"]).unwrap();
+        t.keys(&format!(":e {}<Enter>", t.dir.path().display()));
+        assert!(t.s.ed.dired.is_some());
+        // Mark a, then F s stages the marked file only.
+        let row =
+            t.s.ed
+                .buf
+                .text()
+                .lines()
+                .position(|l| l.ends_with(" a"))
+                .unwrap();
+        t.keys(&format!("{}Gm", row + 1));
+        t.keys(" mFs");
+        magit_settle(&mut t);
+        let staged = repo.read(&["diff", "--cached", "--name-only"]).unwrap();
+        assert_eq!(String::from_utf8_lossy(&staged), "a\n");
+        repo.read(&["commit", "-qm", "add a"]).unwrap();
+        // F l logs the marked files.
+        t.keys(" mFl");
+        magit_settle(&mut t);
+        let text = t.s.ed.buf.text();
+        assert!(text.contains("add a") && !text.contains("base"), "{text}");
+    }
+
+    #[test]
     fn magit_file_log_reads_deleted_parent_and_tracked_symlink_name() {
         use std::os::unix::fs::symlink;
         let mut t = T::open(Some("target"), Some("target contents\n"));

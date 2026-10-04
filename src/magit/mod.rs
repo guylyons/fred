@@ -167,6 +167,8 @@ pub enum Action {
     Ediff(ediff::Op),
     /// magit-ediff-dwim: by the thing at point.
     EdiffDwim,
+    /// magit-dired-jump.
+    DiredJump,
     /// magit-diff-unmerged: the changes a merge in progress brings in.
     DiffUnmerged,
     /// magit-log-refresh's g: the menu's arguments for this log buffer.

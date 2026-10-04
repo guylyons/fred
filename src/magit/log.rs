@@ -50,10 +50,12 @@ pub fn git_args(args: &[String]) -> Result<Vec<String>, String> {
             n.parse::<usize>()
                 .map_err(|_| format!("invalid commit limit {n:?}"))?;
         }
-        if !matches!(
-            a.as_str(),
-            "--color" | "--decorate" | "++header" | "--follow"
-        ) && !(reverse && a == "--graph")
+        if !a.starts_with("-- ")
+            && !matches!(
+                a.as_str(),
+                "--color" | "--decorate" | "++header" | "--follow"
+            )
+            && !(reverse && a == "--graph")
         {
             out.push(a.clone());
         }
@@ -363,6 +365,10 @@ impl Repo {
         argv.extend(revs.iter().map(Into::into));
         argv.push("--".into());
         argv.extend(files.iter().map(Into::into));
+        // "-- path" arguments (magit-dired-log's files) limit the log.
+        for f in args.iter().filter_map(|a| a.strip_prefix("-- ")) {
+            argv.push(format!(":(literal){f}").into());
+        }
         let out = self.run(&argv, None)?;
         let limit = out.len().min(4 * 1024 * 1024);
         let text = String::from_utf8_lossy(&out[..limit]);

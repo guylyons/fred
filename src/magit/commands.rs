@@ -95,6 +95,10 @@ pub fn by_name(name: &str) -> Option<Action> {
         "magit-push-implicitly" => Some(GitRun(&["push", "-v"])),
         "magit-run" => menu('!'),
         "magit-process-buffer" => Some(ProcessBuffer),
+        "magit-dired-jump" => Some(DiredJump),
+        "magit-dired-stage" => Some(File(super::blob::FileOp::Stage)),
+        "magit-dired-unstage" => Some(File(super::blob::FileOp::Unstage)),
+        "magit-dired-log" => Some(FileLog),
         "magit-ediff" => menu('U'),
         "magit-ediff-dwim" => Some(EdiffDwim),
         "magit-ediff-resolve-rest" | "magit-ediff-resolve-all" | "magit-git-mergetool" => {

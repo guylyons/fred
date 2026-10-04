@@ -342,10 +342,10 @@ magit-diff.el,,command,transient:magit-diff-infix-arguments:--function-context,p
 magit-diff.el,,command,transient:magit-diff-infix-arguments:--ignore-all-space,partial,-w,runtime
 magit-diff.el,,command,transient:magit-diff-infix-arguments:--ignore-space-change,partial,-b,runtime
 magit-diff.el,,command,transient:magit-diff-infix-arguments:--irreversible-delete,partial,-D,runtime
-magit-dired.el,39,command,magit-dired-jump,missing,,explicit
-magit-dired.el,55,command,magit-dired-stage,missing,,explicit
-magit-dired.el,61,command,magit-dired-unstage,missing,,explicit
-magit-dired.el,67,command,magit-dired-log,missing,,explicit
+magit-dired.el,39,command,magit-dired-jump,partial,:Magit magit-dired-jump: the directory of the file at point (point not moved),explicit
+magit-dired.el,55,command,magit-dired-stage,partial,Space m F s in dired: marked files or the one at point,explicit
+magit-dired.el,61,command,magit-dired-unstage,partial,Space m F u in dired,explicit
+magit-dired.el,67,command,magit-dired-log,partial,"Space m F l in dired: marked files, else the directory",explicit
 magit-dired.el,87,command,magit-dired-am-apply-patches,missing,,explicit
 magit-dired.el,101,command,magit-do-async-shell-command,missing,,explicit
 magit-ediff.el,44,option,magit-ediff-quit-hook,missing,,explicit

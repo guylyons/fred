@@ -625,6 +625,54 @@ impl Session {
             });
             return;
         }
+        // magit-dired-log: the marked files, or the directory.
+        if action == Action::FileLog && self.ed.dired.is_some() {
+            let marked = crate::dired::marked(&self.ed);
+            let dir = self
+                .ed
+                .dired
+                .as_ref()
+                .map(|d| d.dir.clone())
+                .unwrap_or_default();
+            let files = if marked.is_empty() { vec![dir] } else { marked };
+            let (origin, from) = (self.cur, self.magit_from());
+            let args = crate::magit::menu_arguments(&self.ed, 'l');
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                let mut args = args;
+                for f in &files {
+                    let rel = repo_relative(&repo, f).unwrap_or_default();
+                    let rel = rel.to_string_lossy();
+                    args.push(format!("-- {}", if rel.is_empty() { "." } else { &rel }));
+                }
+                let rev = repo.current_branch().unwrap_or_else(|_| "HEAD".into());
+                Ok(branch_outcome(
+                    repo,
+                    crate::magit::branch::Next::View(Kind::Log(vec![rev], args)),
+                    origin,
+                ))
+            });
+            return;
+        }
+        if action == Action::DiredJump {
+            // magit-dired-jump: dired at the file at point, else the toplevel.
+            let Some(view) = self.ed.magit.as_ref() else {
+                return self.ed.set_err("Not in a Magit buffer");
+            };
+            let file = match view.action_at(self.ed.cur.line) {
+                Some(RowAction::File(p, _) | RowAction::Hunk(p, ..)) => {
+                    Some(view.repo.root.join(p))
+                }
+                _ => None,
+            };
+            let dir = file
+                .as_ref()
+                .and_then(|f| f.parent().map(Path::to_path_buf))
+                .unwrap_or(view.repo.root.clone());
+            // ponytail: opens the directory; point is not moved to the file.
+            self.open_pick(dir, None);
+            return;
+        }
         if action == Action::DiffUnmerged {
             let (origin, from) = (self.cur, self.magit_from());
             let args = crate::magit::menu_arguments(&self.ed, 'd');
@@ -2822,6 +2870,29 @@ impl Session {
     /// The visited file (not a blob) for file-dispatch commands.
     fn file_action(&mut self, op: crate::magit::blob::FileOp) {
         use crate::magit::blob::FileOp as O;
+        // magit-dired-stage / -unstage: the marked files or the one at point.
+        if self.ed.dired.is_some() && matches!(op, O::Stage | O::Unstage) {
+            let files = crate::dired::selection(&self.ed);
+            let (origin, from) = (self.cur, self.magit_from());
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                for f in &files {
+                    let rel = repo_relative(&repo, f)?;
+                    if op == O::Stage {
+                        repo.stage_file(&rel)?;
+                    } else {
+                        repo.unstage_file(&rel)?;
+                    }
+                }
+                let verb = if op == O::Stage { "Staged" } else { "Unstaged" };
+                Ok(branch_outcome(
+                    repo,
+                    crate::magit::branch::Next::Done(Ok(format!("{verb} {} files", files.len()))),
+                    origin,
+                ))
+            });
+            return;
+        }
         let from = self.magit_from();
         let blob = self.ed.blob.clone();
         let path = self
