@@ -413,6 +413,12 @@ pub fn draw(
         } else {
             styles.get(l - view.top).cloned().flatten()
         };
+        // Org: descriptive links and hidden markers, except on the cursor line.
+        let (line, st) = if ed.org.is_some() && l != ed.cur.line {
+            crate::org::face::conceal(line, st, &org_settings)
+        } else {
+            (line, st)
+        };
         let selected = sel.is_some_and(|(a, b)| l >= a && l <= b);
         // Rows of this line already scrolled off the top.
         let skip = if l == view.top { view.top_row } else { 0 };

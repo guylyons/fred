@@ -452,3 +452,104 @@ pub fn emphasis_len(line: &str, i: usize) -> Option<usize> {
     }
     None
 }
+
+/// Hide link brackets and targets (org-link-descriptive), emphasis
+/// markers (org-hide-emphasis-markers) and macro braces
+/// (org-hide-macro-markers) on a line that does not hold the cursor.
+pub fn conceal(line: String, st: Option<LineStyles>, settings: &Settings) -> (String, Option<LineStyles>) {
+    let mut hide: Vec<std::ops::Range<usize>> = vec![];
+    if settings.opt_bool("org-link-descriptive", true) && line.contains("[[") {
+        for lk in super::links::links_in(&line, settings) {
+            let r = lk.range.clone();
+            if !line[r.clone()].starts_with("[[") {
+                continue;
+            }
+            match &lk.desc {
+                Some(d) => {
+                    let dstart = r.end - 2 - d.len();
+                    hide.push(r.start..dstart);
+                    hide.push(r.end - 2..r.end);
+                }
+                None => {
+                    hide.push(r.start..r.start + 2);
+                    hide.push(r.end - 2..r.end);
+                }
+            }
+        }
+    }
+    if settings.opt_bool("org-hide-emphasis-markers", false) {
+        let mut i = 0;
+        while i < line.len() {
+            let c = line[i..].chars().next().unwrap();
+            if "*/_=~+".contains(c)
+                && !(i == 0 && c == '*' && syntax::level(&line).is_some())
+                && let Some(len) = emphasis_len(&line, i)
+                && !hide.iter().any(|h| h.contains(&i))
+            {
+                hide.push(i..i + 1);
+                hide.push(i + len - 1..i + len);
+                i += len;
+                continue;
+            }
+            i += c.len_utf8();
+        }
+    }
+    if settings.opt_bool("org-hide-macro-markers", false) {
+        let mut from = 0;
+        while let Some(s) = line[from..].find("{{{").map(|x| x + from) {
+            let Some(e) = line[s..].find("}}}").map(|x| x + s) else { break };
+            hide.push(s..s + 3);
+            hide.push(e..e + 3);
+            from = e + 3;
+        }
+    }
+    if hide.is_empty() {
+        return (line, st);
+    }
+    hide.sort_by_key(|r| r.start);
+    let mut out = String::with_capacity(line.len());
+    // New position of each old byte offset.
+    let mut map: Vec<usize> = Vec::with_capacity(line.len() + 1);
+    let mut h = 0;
+    for (i, c) in line.char_indices() {
+        while h < hide.len() && hide[h].end <= i {
+            h += 1;
+        }
+        let hidden = h < hide.len() && hide[h].contains(&i);
+        for _ in 0..c.len_utf8() {
+            map.push(out.len());
+        }
+        if !hidden {
+            out.push(c);
+        }
+    }
+    map.push(out.len());
+    let st = st.map(|v| {
+        v.into_iter()
+            .map(|(s, r)| (s, map[r.start.min(line.len())]..map[r.end.min(line.len())]))
+            .filter(|(_, r)| r.start < r.end)
+            .collect()
+    });
+    (out, st)
+}
+
+#[cfg(test)]
+mod conceal_tests {
+    use super::*;
+
+    #[test]
+    fn hides_link_targets_and_markers() {
+        let st = syntax::settings("".lines(), None);
+        let (l, _) = conceal("see [[https://x.org][the site]] and [[t]]".into(), None, &st);
+        assert_eq!(l, "see the site and t");
+        let st = syntax::settings("#+STARTUP: literallinks".lines(), None);
+        let (l, _) = conceal("[[a][b]]".into(), None, &st);
+        assert_eq!(l, "[[a][b]]");
+        let st = syntax::settings("".lines(), None);
+        super::super::options::put("org-hide-emphasis-markers", toml::Value::Boolean(true));
+        let (l, s) = conceal("a *bold* b".into(), Some(vec![(Style::default(), 2..8)]), &st);
+        assert_eq!(l, "a bold b");
+        assert_eq!(s.unwrap()[0].1, 2..6);
+        super::super::options::put("org-hide-emphasis-markers", toml::Value::Boolean(false));
+    }
+}
