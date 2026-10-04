@@ -81,10 +81,14 @@ impl Repo {
                 .to_owned();
                 let patch = self.read(&["stash", "show", "-p", &stash.id])?;
                 let path = self.root.join(&name);
-                if path.exists() {
-                    return Err(format!("{name} already exists"));
-                }
-                std::fs::write(&path, patch).map_err(|e| e.to_string())?;
+                // create_new: never follow a symlink or replace an existing file.
+                use std::io::Write;
+                let mut file = std::fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(&path)
+                    .map_err(|e| format!("{name}: {e}"))?;
+                file.write_all(&patch).map_err(|e| e.to_string())?;
                 done(format!("Wrote {name}"))
             }
             Op::Clear => unreachable!(),

@@ -1,4 +1,5 @@
 //! A status-centered Git component; rendered text is never used as an operation path.
+pub mod bisect;
 pub mod blame;
 pub mod blob;
 pub mod branch;
@@ -80,6 +81,8 @@ pub enum Action {
     Worktree(worktree::Op),
     /// A magit-notes.el suffix.
     Notes(notes::Op),
+    /// A magit-bisect.el suffix.
+    Bisect(bisect::Op),
     /// magit-reflog-current / -head / -other (None asks for a ref).
     Reflog(Option<String>),
     /// ZZ / ZQ in a rebase todo buffer.
@@ -708,6 +711,7 @@ pub enum Question {
     Worktree(worktree::Op),
     Reflog,
     Notes(notes::Op),
+    Bisect(bisect::Op),
     Net(network::Op),
     Diff(diff::Op),
     FindFile,
@@ -842,6 +846,8 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("X", "History", "Reset", Menu('X')),
             ("Z", "Repository", "Worktree", Menu('Y')),
             ("T", "Inspect", "Notes", Menu('N')),
+            // Upstream's B is the user's blame key, so bisect lives on G.
+            ("G", "History", "Bisect", Menu('G')),
             ("b", "Branch", "Branch operations", Menu('b')),
             ("B", "Inspect", "Blame", Menu('B')),
             ("c", "Commit", "Commit menu", Menu('C')),
@@ -1334,6 +1340,40 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 ),
             ]
         }
+        // magit-bisect; while bisecting, B marks bad (resolved when run).
+        'G' => {
+            use bisect::Op as O;
+            vec![
+                (
+                    "-n",
+                    "Arguments",
+                    "Don't checkout commits",
+                    ToggleOption(MenuOption::BisectNoCheckout),
+                ),
+                (
+                    "-p",
+                    "Arguments",
+                    "Follow only first parent of a merge",
+                    ToggleOption(MenuOption::BisectFirstParent),
+                ),
+                ("B", "Actions", "Start / bad", Action::Bisect(O::Start)),
+                (
+                    "s",
+                    "Actions",
+                    "Start script / run script",
+                    Action::Bisect(O::Run),
+                ),
+                ("g", "Actions (bisecting)", "Good", Action::Bisect(O::Good)),
+                ("m", "Actions (bisecting)", "Mark", Action::Bisect(O::Mark)),
+                ("k", "Actions (bisecting)", "Skip", Action::Bisect(O::Skip)),
+                (
+                    "r",
+                    "Actions (bisecting)",
+                    "Reset",
+                    Action::Bisect(O::Reset),
+                ),
+            ]
+        }
         // magit-notes (internal id N; leader key T). While merging notes,
         // c commits and a aborts the merge (resolved when run).
         'N' => {
@@ -1750,6 +1790,8 @@ pub enum MenuOption {
     DiffSignature,
     RemoteFetch,
     NotesDryRun,
+    BisectNoCheckout,
+    BisectFirstParent,
     RebaseKeepEmpty,
     RebaseUpdateRefs,
     RebaseAuthorDate,
@@ -1800,6 +1842,7 @@ impl MenuOption {
             MergeFfOnly | MergeNoFf => 'M',
             RemoteFetch => 'O',
             NotesDryRun => 'N',
+            BisectNoCheckout | BisectFirstParent => 'G',
             CherryFf | CherryX | CherryEdit => 'x',
             RebaseKeepEmpty | RebaseUpdateRefs | RebaseAuthorDate | RebaseIgnoreDate
             | RebaseAutosquash | RebaseAutostash | RebaseInteractive | RebaseNoVerify => 'r',
@@ -1846,6 +1889,8 @@ impl MenuOption {
             Self::DiffSignature => "--show-signature",
             Self::RemoteFetch => "-f",
             Self::NotesDryRun => "--dry-run",
+            Self::BisectNoCheckout => "--no-checkout",
+            Self::BisectFirstParent => "--first-parent",
             Self::RebaseKeepEmpty => "--keep-empty",
             Self::RebaseUpdateRefs => "--update-refs",
             Self::RebaseAuthorDate => "--committer-date-is-author-date",

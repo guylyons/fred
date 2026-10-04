@@ -13,6 +13,8 @@ pub(super) enum Outcome {
     Prompt(Repo, crate::magit::workflows::Operation, Vec<String>),
     Ask(Repo, crate::magit::Question, Vec<String>, Vec<String>),
     InitConfirm(PathBuf, String),
+    /// A completed operation and the message to show.
+    Done(Repo, String),
     /// An interactive rebase todo list to open for editing.
     Todo(crate::magit::rebase::Plan),
     Blame(Box<crate::magit::blame::Blame>),
@@ -202,6 +204,41 @@ impl Session {
             });
             return;
         }
+        if let Action::Answered(repo, Question::Bisect(op), answers, defaults) = action {
+            let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, 'G'));
+            self.start_magit(move || {
+                let merged = merge_answers(&answers, &defaults);
+                let next = repo
+                    .bisect_step(op, &merged, &args)
+                    .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                Ok(branch_outcome(repo, next, origin))
+            });
+            return;
+        }
+        if let Action::Bisect(op) = action {
+            use crate::magit::bisect::Op as G;
+            let (origin, from) = (self.cur, self.magit_from());
+            let args = crate::magit::menu_arguments(&self.ed, 'G');
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                let op = match (repo.bisecting(), op) {
+                    (true, G::Start) => G::Bad,
+                    (false, G::Good | G::Mark | G::Skip | G::Reset) => {
+                        return Err("Not bisecting".into());
+                    }
+                    (_, op) => op,
+                };
+                let (prompts, defaults) = repo.bisect_prompts(&op);
+                if prompts.is_empty() {
+                    let next = repo
+                        .bisect_step(op, &[], &args)
+                        .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                    return Ok(branch_outcome(repo, next, origin));
+                }
+                Ok(Outcome::Ask(repo, Question::Bisect(op), defaults, prompts))
+            });
+            return;
+        }
         if let Action::Answered(repo, Question::Notes(op), answers, defaults) = action {
             let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, 'N'));
             self.start_magit(move || {
@@ -320,9 +357,10 @@ impl Session {
                     .magit
                     .as_ref()
                     .and_then(|v| match v.action_at(self.ed.cur.line) {
-                        Some(RowAction::Stash(stash)) => Some(stash.selector),
+                        // The object id names the stash even if selectors renumber.
+                        Some(RowAction::Stash(stash)) => Some(stash.id),
                         _ => match &v.kind {
-                            Kind::StashPatch(stash) => Some(stash.selector.clone()),
+                            Kind::StashPatch(stash) => Some(stash.id.clone()),
                             _ => None,
                         },
                     });
@@ -626,7 +664,8 @@ impl Session {
                 | Question::Stash(_)
                 | Question::Worktree(_)
                 | Question::Reflog
-                | Question::Notes(_) => {
+                | Question::Notes(_)
+                | Question::Bisect(_) => {
                     unreachable!("handled before the worker")
                 }
                 Question::FindFile => {
@@ -1326,6 +1365,21 @@ impl Session {
                     self.magit_action(Action::Blame(kind));
                 }
             }
+            Ok(Outcome::Done(repo, message)) => {
+                self.finish_git(
+                    GitInvocation {
+                        expected_head: None,
+                        repo,
+                        args: vec![],
+                        input: None,
+                        draft: None,
+                        draft_stamp: None,
+                        editor: false,
+                    },
+                    Ok(()),
+                );
+                self.ed.set_msg(message);
+            }
             Ok(Outcome::Todo(plan)) => {
                 self.open_pick(plan.todo.clone(), None);
                 // Only the todo buffer itself gets the plan (a swap prompt may
@@ -1961,7 +2015,8 @@ fn merge_answers(answers: &[String], defaults: &[String]) -> Vec<String> {
 fn branch_outcome(repo: Repo, next: crate::magit::branch::Next, origin: usize) -> Outcome {
     use crate::magit::branch::Next;
     match next {
-        Next::Done(result) => Outcome::Saved(repo, result.map(|_| ())),
+        Next::Done(Ok(message)) => Outcome::Done(repo, message),
+        Next::Done(Err(e)) => Outcome::Saved(repo, Err(e)),
         Next::Ask(question, prompts, defaults) => Outcome::Ask(repo, question, defaults, prompts),
         Next::Git(args) => Outcome::Git(GitInvocation {
             expected_head: None,

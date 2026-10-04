@@ -64,8 +64,20 @@ impl Repo {
             .to_string_lossy()
             .into_owned()
     }
+    /// Directory answers are relative to the parent of this worktree, as with
+    /// upstream's read-directory-name; ~/ expands to the home directory.
+    fn resolve_dir(&self, answer: &str) -> Result<PathBuf, String> {
+        let answer = match answer.strip_prefix("~/") {
+            Some(rest) => std::env::var("HOME")
+                .map(|h| format!("{h}/{rest}"))
+                .unwrap_or(answer.to_owned()),
+            None => answer.to_owned(),
+        };
+        let base = self.root.parent().unwrap_or(&self.root);
+        std::path::absolute(base.join(answer)).map_err(|e| e.to_string())
+    }
     fn existing_worktree(&self, answer: &str) -> Result<PathBuf, String> {
-        let path = PathBuf::from(answer);
+        let path = self.resolve_dir(answer)?;
         let path = std::fs::canonicalize(&path).unwrap_or(path);
         self.worktrees()?
             .into_iter()
@@ -79,15 +91,24 @@ impl Repo {
         at_point: Option<String>,
     ) -> (Vec<String>, Vec<String>) {
         let here = self.current_branch().unwrap_or_else(|_| "HEAD".into());
+        let current = std::fs::canonicalize(&self.root).unwrap_or(self.root.clone());
         let other = self
             .worktrees()
             .unwrap_or_default()
             .into_iter()
-            .skip(1)
-            .map(|w| w.path.to_string_lossy().into_owned())
-            .next()
+            .map(|w| w.path)
+            .find(|p| std::fs::canonicalize(p).unwrap_or(p.clone()) != current)
+            .map(|p| p.to_string_lossy().into_owned())
             .unwrap_or_default();
-        let d = at_point.unwrap_or(other);
+        // Move/delete have no default (upstream offers only the worktree at point).
+        let d = at_point.clone().unwrap_or_default();
+        let ask = |verb: &str, d: &str| {
+            if d.is_empty() {
+                format!("{verb}: ")
+            } else {
+                format!("{verb} (default {d}): ")
+            }
+        };
         match op {
             Op::Checkout => (
                 vec![
@@ -105,17 +126,14 @@ impl Repo {
                 vec![String::new(), here, String::new()],
             ),
             Op::Move => (
-                vec![
-                    format!("Move worktree (default {d}): "),
-                    "Move worktree to: ".into(),
-                ],
+                vec![ask("Move worktree", &d), "Move worktree to: ".into()],
                 vec![d, String::new()],
             ),
-            Op::Delete => (vec![format!("Delete worktree (default {d}): ")], vec![d]),
-            Op::Visit => (
-                vec![format!("Show status for worktree (default {d}): ")],
-                vec![d],
-            ),
+            Op::Delete => (vec![ask("Delete worktree", &d)], vec![d]),
+            Op::Visit => {
+                let v = at_point.unwrap_or(other);
+                (vec![ask("Show status for worktree", &v)], vec![v])
+            }
             Op::DeleteConfirmed(..) => (vec![], vec![]),
         }
     }
@@ -185,11 +203,20 @@ impl Repo {
                 if worktree.join(".git").is_dir() {
                     return Err("You may not move the main working tree".into());
                 }
-                let to = checked(at(1))?;
-                let to = std::path::absolute(self.root.join(to)).map_err(|e| e.to_string())?;
-                let args: Vec<std::ffi::OsString> =
-                    vec!["worktree".into(), "move".into(), worktree.into(), to.into()];
+                let to = self.resolve_dir(&checked(at(1))?)?;
+                let here =
+                    std::fs::canonicalize(&self.root).ok() == std::fs::canonicalize(&worktree).ok();
+                let args: Vec<std::ffi::OsString> = vec![
+                    "worktree".into(),
+                    "move".into(),
+                    worktree.into(),
+                    to.clone().into(),
+                ];
                 self.run(&args, None)?;
+                // Moving the worktree we are in: continue at its new location.
+                if here {
+                    return Ok(Next::Status(to));
+                }
                 Ok(Next::Done(Ok("Moved worktree".into())))
             }
             Op::Delete => {
@@ -218,12 +245,12 @@ impl Repo {
                     .map(|n| n.to_string_lossy().into_owned())
                     .unwrap_or_default();
                 // magit-worktree-delete: uncommitted work makes it a typed "yes".
-                let dirty = !Repo {
+                // Fail closed: if status cannot be read, treat the tree as dirty.
+                let dirty = Repo {
                     root: worktree.clone(),
                 }
                 .read(&["status", "--porcelain"])
-                .unwrap_or_default()
-                .is_empty();
+                .map_or(true, |o| !o.is_empty());
                 let question = if dirty {
                     format!("Delete worktree \"{name}\" despite uncommitted changes? (yes or no) ")
                 } else {
@@ -244,14 +271,29 @@ impl Repo {
                 if !yes {
                     return Err("Abort".into());
                 }
-                let args: Vec<std::ffi::OsString> = vec![
-                    "worktree".into(),
-                    "remove".into(),
-                    "--force".into(),
-                    worktree.clone().into(),
-                ];
-                self.run(&args, None)?;
-                self.read(&["worktree", "prune"])?;
+                // --force only after the typed "yes" for a dirty tree; a tree
+                // that became dirty since the question is refused by git.
+                let mut args: Vec<std::ffi::OsString> = vec!["worktree".into(), "remove".into()];
+                if dirty {
+                    args.push("--force".into());
+                }
+                args.push(worktree.clone().into());
+                let primary = self
+                    .worktrees()?
+                    .first()
+                    .map(|w| w.path.clone())
+                    .unwrap_or(self.root.clone());
+                let here =
+                    std::fs::canonicalize(&self.root).ok() == std::fs::canonicalize(&worktree).ok();
+                // Run from the primary worktree: the deleted one may be ours.
+                let main = Repo {
+                    root: primary.clone(),
+                };
+                main.run(&args, None)?;
+                main.read(&["worktree", "prune"])?;
+                if here {
+                    return Ok(Next::Status(primary));
+                }
                 Ok(Next::Done(Ok(format!(
                     "Deleted worktree {}",
                     label(&worktree)

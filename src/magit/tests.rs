@@ -2497,6 +2497,32 @@ fn worktree_suffixes_create_move_delete_and_visit() {
     r.worktree_step(op, &s(&["yes"])).unwrap();
     assert!(!moved.exists());
     assert_eq!(r.worktrees().unwrap().len(), 2);
+    // Delete has no default; deleting the worktree you are in reopens the primary.
+    let (prompts, defaults) = r.worktree_prompts(&Op::Delete, None);
+    assert_eq!(
+        (prompts[0].as_str(), defaults[0].as_str()),
+        ("Delete worktree: ", "")
+    );
+    let inside = Repo::discover(&dir).unwrap();
+    let op = match inside
+        .worktree_step(Op::Delete, &s(&[dir.to_str().unwrap()]))
+        .unwrap()
+    {
+        Next::Ask(Q::Worktree(op), _, _) => op,
+        other => panic!("{other:?}"),
+    };
+    match inside.worktree_step(op, &s(&["y"])).unwrap() {
+        Next::Status(p) => assert_eq!(
+            fs::canonicalize(p).unwrap(),
+            fs::canonicalize(&root).unwrap()
+        ),
+        other => panic!("{other:?}"),
+    }
+    assert!(!dir.exists());
+    let dir = match r.worktree_step(Op::Checkout, &s(&["HEAD", ""])) {
+        Ok(Next::Status(dir)) => dir,
+        other => panic!("{other:?}"),
+    };
     // g: visit an existing worktree only.
     assert!(matches!(
         r.worktree_step(Op::Visit, &s(&[dir.to_str().unwrap()])),
@@ -2556,4 +2582,75 @@ fn notes_suffixes_configure_edit_remove_merge_and_prune() {
         other => panic!("{other:?}"),
     }
     assert!(!r.notes_merging());
+}
+#[test]
+fn bisect_finds_the_bad_commit_and_runs_scripts() {
+    use super::bisect::Op;
+    use super::branch::Next;
+    let (d, r) = setup();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    let run = |n: Next| match n {
+        Next::Git(argv) => r
+            .run(&argv.into_iter().map(Into::into).collect::<Vec<_>>(), None)
+            .map(|_| ()),
+        Next::Done(res) => res.map(|_| ()),
+        other => Err(format!("{other:?}")),
+    };
+    for i in 0..6 {
+        let text = if i >= 4 { "bug\n" } else { "fine\n" };
+        fs::write(d.path().join("f"), text).unwrap();
+        fs::write(d.path().join("n"), format!("{i}")).unwrap();
+        git(d.path(), &["add", "f", "n"]);
+        git(d.path(), &["commit", "-qm", &format!("c{i}")]);
+    }
+    let first_bad = String::from_utf8(git(d.path(), &["rev-parse", "HEAD~1"])).unwrap();
+    assert!(r.bisect_step(Op::Good, &[], &[]).is_err());
+    fs::write(d.path().join("f"), b"dirty").unwrap();
+    assert!(
+        r.bisect_step(Op::Start, &s(&["HEAD", "HEAD~5"]), &[])
+            .is_err()
+    );
+    git(d.path(), &["checkout", "-q", "--", "f"]);
+    run(r
+        .bisect_step(Op::Start, &s(&["HEAD", "HEAD~5"]), &[])
+        .unwrap())
+    .unwrap();
+    assert!(r.bisecting());
+    assert_eq!(r.bisect_terms().unwrap(), ("bad".into(), "good".into()));
+    // Mark by inspecting the file at each step.
+    for _ in 0..5 {
+        let bug = fs::read(d.path().join("f")).unwrap() == b"bug\n";
+        let op = if bug { Op::Bad } else { Op::Good };
+        let step = run(r.bisect_step(op, &[], &[]).unwrap());
+        if step.is_err() {
+            break;
+        }
+        let log = String::from_utf8(git(d.path(), &["bisect", "log"])).unwrap();
+        if log.contains("first 'bad' commit") {
+            break;
+        }
+    }
+    let log = String::from_utf8(git(d.path(), &["bisect", "log"])).unwrap();
+    assert!(
+        log.contains(&format!("first 'bad' commit: [{}", first_bad.trim())),
+        "{log}"
+    );
+    assert!(r.bisect_step(Op::Reset, &s(&["n"]), &[]).is_err());
+    run(r.bisect_step(Op::Reset, &s(&["y"]), &[]).unwrap()).unwrap();
+    assert!(!r.bisecting());
+    // s: start and run a script in one go.
+    match r
+        .bisect_step(Op::Run, &s(&["! grep -q bug f", "HEAD", "HEAD~5"]), &[])
+        .unwrap()
+    {
+        Next::Git(argv) => {
+            assert_eq!(argv[..4], ["bisect", "run", "sh", "-c"]);
+            let out = r
+                .run(&argv.into_iter().map(Into::into).collect::<Vec<_>>(), None)
+                .unwrap();
+            assert!(String::from_utf8_lossy(&out).contains(first_bad.trim()));
+        }
+        other => panic!("{other:?}"),
+    }
+    run(r.bisect_step(Op::Reset, &s(&["y"]), &[]).unwrap()).unwrap();
 }

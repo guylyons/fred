@@ -103,14 +103,14 @@ magit-base.el,444,option,magit-view-git-manual-method,missing,,explicit
 magit-base.el,721,command,magit-whitespace-disallowed,missing,,explicit
 magit-base.el,865,command,magit-emacs-Q-command,missing,,explicit
 magit-bisect.el,33,option,magit-bisect-show-graph,missing,,explicit
-magit-bisect.el,57,command,magit-bisect,missing,,explicit
-magit-bisect.el,93,command,magit-bisect-start,missing,,explicit
-magit-bisect.el,141,command,magit-bisect-reset,missing,,explicit
-magit-bisect.el,151,command,magit-bisect-good,missing,,explicit
-magit-bisect.el,160,command,magit-bisect-bad,missing,,explicit
-magit-bisect.el,169,command,magit-bisect-mark,missing,,explicit
-magit-bisect.el,189,command,magit-bisect-skip,missing,,explicit
-magit-bisect.el,197,command,magit-bisect-run,missing,,explicit
+magit-bisect.el,57,command,magit-bisect,partial,Space m G (upstream B is the user's blame key) with -n -p and B/s; g/m/k/r while bisecting; term-old/new values missing,explicit
+magit-bisect.el,93,command,magit-bisect-start,partial,Space m G B; merge-base and clean-tree asserts,explicit
+magit-bisect.el,141,command,magit-bisect-reset,partial,r with y/n,explicit
+magit-bisect.el,151,command,magit-bisect-good,partial,g while bisecting,explicit
+magit-bisect.el,160,command,magit-bisect-bad,partial,B while bisecting (BISECT_TERMS new term),explicit
+magit-bisect.el,169,command,magit-bisect-mark,partial,m with n/o,explicit
+magit-bisect.el,189,command,magit-bisect-skip,partial,k,explicit
+magit-bisect.el,197,command,magit-bisect-run,partial,Space m G s; starts first when needed,explicit
 magit-bisect.el,,command,magit-bisect:--term-new,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-bisect.el,,command,magit-bisect:--term-old,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-bisect.el,,command,transient:magit-bisect:--first-parent,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
