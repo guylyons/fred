@@ -542,36 +542,46 @@ impl Session {
             });
             return;
         }
+        if let Action::Answered(_, Question::ReverseDiff(line), answers, _) = action {
+            if !matches!(answers.first().map(|a| a.trim()), Some("y" | "yes")) {
+                return self.ed.set_msg("Abort");
+            }
+            return self.apply_diff(true, line);
+        }
         if let Action::ApplyDiff(reverse) = action {
+            use crate::magit::diff::Target;
             let Some(view) = self.ed.magit.as_deref() else {
                 return;
             };
-            let lines: Vec<&str> = view.rows.iter().map(|r| r.text.as_str()).collect();
-            let Some(patch) = crate::magit::diff::hunk_patch(&lines, self.ed.cur.line) else {
-                return self.ed.set_err("No hunk or file at point");
-            };
-            let (repo, origin) = (view.repo.clone(), self.cur);
-            self.start_magit(move || {
-                let mut argv: Vec<OsString> = vec!["apply".into(), "--whitespace=nowarn".into()];
-                if reverse {
-                    argv.push("--reverse".into());
+            // magit-apply / magit-reverse refusals.
+            let refuse = match (&view.kind, reverse) {
+                (Kind::Diff(Target::Unstaged, _), true) => Some("Cannot reverse unstaged changes"),
+                (Kind::Diff(Target::Unstaged | Target::Staged, _), false) => {
+                    Some("Change is already in the working tree")
                 }
-                let mut check = argv.clone();
-                check.push("--check".into());
-                let r = repo
-                    .run(&check, Some(patch.as_bytes()))
-                    .and_then(|_| repo.run(&argv, Some(patch.as_bytes())));
-                let next = crate::magit::branch::Next::Done(r.map(|_| {
-                    if reverse {
-                        "Reversed in the worktree"
-                    } else {
-                        "Applied to the worktree"
-                    }
-                    .into()
-                }));
-                Ok(branch_outcome(repo, next, origin))
-            });
-            return;
+                (Kind::Diff(Target::Paths(..), _), _) => Some("Cannot apply a diff between files"),
+                _ => None,
+            };
+            if let Some(e) = refuse {
+                return self.ed.set_err(e);
+            }
+            let line = self.ed.cur.line;
+            if reverse {
+                // magit-confirm 'reverse.
+                let repo = view.repo.clone();
+                crate::magit::prompt(
+                    &mut self.ed,
+                    crate::magit::Prompt::Ask(
+                        repo,
+                        Question::ReverseDiff(line),
+                        vec![],
+                        vec!["Reverse this change in the worktree? (y or n) ".into()],
+                        vec![],
+                    ),
+                );
+                return;
+            }
+            return self.apply_diff(false, line);
         }
         if let Action::Trailer(key) = action {
             if self.ed.commit_repo.is_none() {
@@ -1846,7 +1856,8 @@ impl Session {
                 | Question::Apply(_)
                 | Question::Misc(_)
                 | Question::Wip(_)
-                | Question::Ediff(_) => {
+                | Question::Ediff(_)
+                | Question::ReverseDiff(_) => {
                     unreachable!("handled before the worker")
                 }
                 Question::FindFile => {
@@ -2868,6 +2879,48 @@ impl Session {
         })
     }
     /// The visited file (not a blob) for file-dispatch commands.
+    /// Apply or reverse the hunk (or file) at LINE of this diff, commit or
+    /// stash buffer, from Git's raw output (display text is escaped).
+    fn apply_diff(&mut self, reverse: bool, line: usize) {
+        let Some(view) = self.ed.magit.as_deref().cloned() else {
+            return;
+        };
+        let origin = self.cur;
+        self.start_magit(move || {
+            let repo = view.repo.clone();
+            // The raw output and the rows before it (a diff buffer's title).
+            let (bytes, offset) = match &view.kind {
+                Kind::Diff(target, args) => (repo.diff_output(target, args)?, 1),
+                Kind::Patch(id) => (repo.commit_patch(id)?, 0),
+                Kind::StashPatch(stash) => (repo.stash_patch(stash)?, 0),
+                _ => return Err("Not in a diff buffer".into()),
+            };
+            if bytes.len() > 1024 * 1024 {
+                return Err("Diff too large to apply from here".into());
+            }
+            let lines: Vec<&[u8]> = bytes.split(|b| *b == b'\n').collect();
+            let at = line.checked_sub(offset).ok_or("No hunk or file at point")?;
+            let patch = crate::magit::diff::hunk_patch(&lines, at)?;
+            let mut argv: Vec<OsString> = vec!["apply".into(), "--whitespace=nowarn".into()];
+            if reverse {
+                argv.push("--reverse".into());
+            }
+            let mut check = argv.clone();
+            check.push("--check".into());
+            let r = repo
+                .run(&check, Some(&patch))
+                .and_then(|_| repo.run(&argv, Some(&patch)));
+            let next = crate::magit::branch::Next::Done(r.map(|_| {
+                if reverse {
+                    "Reversed in the worktree"
+                } else {
+                    "Applied to the worktree"
+                }
+                .into()
+            }));
+            Ok(branch_outcome(repo, next, origin))
+        });
+    }
     fn file_action(&mut self, op: crate::magit::blob::FileOp) {
         use crate::magit::blob::FileOp as O;
         // magit-dired-stage / -unstage: the marked files or the one at point.

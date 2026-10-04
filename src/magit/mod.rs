@@ -1340,6 +1340,8 @@ pub enum Question {
     Misc(misc::Op),
     Wip(wip::Op),
     Ediff(ediff::Op),
+    /// magit-reverse in a diff buffer: confirm, with the line at point.
+    ReverseDiff(usize),
     Net(network::Op),
     Diff(diff::Op),
     FindFile,

@@ -44,3 +44,12 @@ path; reshelve "now" keeps the local zone and treats same name or email as
 yours; diff while committing shows HEAD^..HEAD for reword and the worktree
 with --all; a buffer's -- file limit and --cached stay with that buffer; C-c
 followed by another key in a draft keeps that key's meaning.
+
+Independent review (October 4, apply): a and - in diff, commit and stash
+buffers build the patch from Git's raw output (display text escapes tabs,
+CRs and invalid bytes), refuse when the output is over 1 MB, refuse - on
+unstaged diffs and a on unstaged/staged diffs (already in the worktree) and
+diffs between files, and ask before reversing; a single hunk of a renamed
+file applies to the new name without the rename; combined (--cc) hunks are
+refused. C-c starts the smerge prefix only on a conflict, and other keys
+after C-c ^ keep their meaning.

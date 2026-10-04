@@ -29,6 +29,20 @@ fn conflict(lines: &[String], line: usize) -> Option<(usize, Option<usize>, usiz
     Some((start, base, sep, end))
 }
 
+/// Point is inside a <<<<<<< ... >>>>>>> block (scanning up from point).
+fn in_conflict(ed: &Editor) -> bool {
+    for i in (0..=ed.cur.line).rev() {
+        let l = ed.buf.line(i);
+        if l.starts_with(">>>>>>>") && i != ed.cur.line {
+            return false;
+        }
+        if l.starts_with("<<<<<<<") {
+            return true;
+        }
+    }
+    false
+}
+
 /// Resolve the conflict around point; false if point is not in one.
 pub fn keep(ed: &mut Editor, how: Keep) -> bool {
     let lines: Vec<String> = (0..ed.buf.len_lines()).map(|i| ed.buf.line(i)).collect();
@@ -74,7 +88,8 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         return false;
     }
     match ed.vim.pending.as_slice() {
-        [] if k == Key::ctrl('c') => {
+        // Only on a conflict: elsewhere C-c keeps Vim's meaning.
+        [] if k == Key::ctrl('c') && in_conflict(ed) => {
             ed.vim.pending = vec![k];
             true
         }
@@ -94,7 +109,7 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
                 (Some('b'), _) => Keep::Base,
                 (Some('l'), _) => Keep::Lower,
                 (Some('a'), _) => Keep::All,
-                _ => return true,
+                _ => return false,
             };
             if !keep(ed, how) {
                 ed.set_err("No conflict here");

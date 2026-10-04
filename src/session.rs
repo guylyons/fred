@@ -2643,7 +2643,8 @@ mod tests {
         t.keys("HEAD<Enter>");
         magit_settle(&mut t);
         let row = t.s.ed.buf.text().lines().position(|l| l == "+two").unwrap();
-        t.keys(&format!("{}G-", row + 1));
+        // Reversing asks first (magit-confirm 'reverse).
+        t.keys(&format!("{}G-y<Enter>", row + 1));
         magit_settle(&mut t);
         assert_eq!(
             fs::read_to_string(t.dir.path().join("f.txt")).unwrap(),

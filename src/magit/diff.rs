@@ -281,33 +281,75 @@ pub fn location(lines: &[&str], line: usize) -> Option<Location> {
     })
 }
 
-/// The patch for the hunk at LINE (or the whole file on a file header) in a
-/// rendered diff: the file's header lines plus the hunk.
-pub fn hunk_patch(lines: &[&str], line: usize) -> Option<String> {
-    lines.get(line)?;
-    let file_start = (0..=line).rev().find(|&i| lines[i].starts_with("diff "))?;
+/// The patch for the hunk at LINE (or the whole file on a file header) in
+/// raw diff output lines. A single hunk of a renamed file is applied to the
+/// new name without the rename (magit-diff-file-header's no-rename form).
+pub fn hunk_patch(lines: &[&[u8]], line: usize) -> Result<Vec<u8>, String> {
+    let starts = |i: usize, p: &[u8]| lines[i].starts_with(p);
+    lines.get(line).ok_or("No hunk or file at point")?;
+    let file_start = (0..=line)
+        .rev()
+        .find(|&i| starts(i, b"diff "))
+        .ok_or("No hunk or file at point")?;
+    if starts(file_start, b"diff --cc") || starts(file_start, b"diff --combined") {
+        return Err("Cannot apply resolution hunks".into());
+    }
     let file_end = (file_start + 1..lines.len())
-        .find(|&i| lines[i].starts_with("diff "))
+        .find(|&i| starts(i, b"diff "))
         .unwrap_or(lines.len());
-    let first_hunk = (file_start..file_end).find(|&i| lines[i].starts_with("@@"))?;
-    let header = &lines[file_start..first_hunk];
-    let (from, to) = if line < first_hunk {
+    let first_hunk = (file_start..file_end)
+        .find(|&i| starts(i, b"@@"))
+        .ok_or("No hunk to apply (binary or mode-only change)")?;
+    let whole = line < first_hunk;
+    let (from, to) = if whole {
         (first_hunk, file_end)
     } else {
         let h = (first_hunk..=line)
             .rev()
-            .find(|&i| lines[i].starts_with("@@"))?;
+            .find(|&i| starts(i, b"@@"))
+            .unwrap_or(first_hunk);
         let end = (h + 1..file_end)
-            .find(|&i| lines[i].starts_with("@@"))
+            .find(|&i| starts(i, b"@@"))
             .unwrap_or(file_end);
         (h, end)
     };
-    let mut patch: String = header.iter().map(|l| format!("{l}\n")).collect();
-    for l in &lines[from..to] {
-        patch.push_str(l);
-        patch.push('\n');
+    let header = &lines[file_start..first_hunk];
+    let new_name: Option<&[u8]> = header.iter().find_map(|l| l.strip_prefix(b"+++ b/"));
+    let mut patch = vec![];
+    for l in header {
+        let rename = [
+            &b"similarity index"[..],
+            b"dissimilarity index",
+            b"rename from",
+            b"rename to",
+            b"copy from",
+            b"copy to",
+        ]
+        .iter()
+        .any(|p| l.starts_with(p));
+        if !whole && rename {
+            continue;
+        }
+        match (whole, new_name) {
+            (false, Some(n)) if l.starts_with(b"diff --git ") => {
+                patch.extend_from_slice(b"diff --git a/");
+                patch.extend_from_slice(n);
+                patch.extend_from_slice(b" b/");
+                patch.extend_from_slice(n);
+            }
+            (false, Some(n)) if l.starts_with(b"--- a/") => {
+                patch.extend_from_slice(b"--- a/");
+                patch.extend_from_slice(n);
+            }
+            _ => patch.extend_from_slice(l),
+        }
+        patch.push(b'\n');
     }
-    Some(patch)
+    for l in &lines[from..to] {
+        patch.extend_from_slice(l);
+        patch.push(b'\n');
+    }
+    Ok(patch)
 }
 
 /// A --stat line: " path | 3 ++-" (path first, "|" then a count or "Bin").

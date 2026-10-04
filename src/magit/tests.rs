@@ -3793,3 +3793,23 @@ fn ediff_runs_difftool_and_mergetool() {
     let (_, def) = r.ediff_prompts(&Op::ShowCommit, None, None);
     assert_eq!(def, s(&["HEAD"]));
 }
+
+#[test]
+fn hunk_patch_keeps_raw_bytes_and_drops_renames_for_hunks() {
+    use super::diff::hunk_patch;
+    let raw = b"diff --git a/old b/new\nsimilarity index 90%\nrename from old\nrename to new\n--- a/old\n+++ b/new\n@@ -1 +1 @@\n-x\n+\ty\r\n";
+    let lines: Vec<&[u8]> = raw.split(|b| *b == b'\n').collect();
+    let hunk = hunk_patch(&lines, 7).unwrap();
+    let text = String::from_utf8(hunk).unwrap();
+    assert!(
+        text.starts_with("diff --git a/new b/new\n--- a/new\n+++ b/new\n@@"),
+        "{text}"
+    );
+    assert!(text.contains("+\ty\r\n"), "{text:?}");
+    let whole = String::from_utf8(hunk_patch(&lines, 0).unwrap()).unwrap();
+    assert!(whole.contains("rename from old"));
+    let cc: Vec<&[u8]> = b"diff --cc f\n@@@ -1 -1 +1 @@@\n+ x"
+        .split(|b| *b == b'\n')
+        .collect();
+    assert!(hunk_patch(&cc, 2).is_err());
+}
