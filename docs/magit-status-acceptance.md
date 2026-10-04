@@ -29,3 +29,16 @@ do); gj gk ] [ M-j M-k move between siblings without leaving the parent; gh
 goes up; za zo zc zO zC fold the heading, file or hunk's file at point; z1
 closes every heading, z2 opens headings with files collapsed, z3/z4/zr
 expand every file. Evidence: session::tests::magit_section_movement_and_folding.
+
+Independent review of discard/reverse and keys (October 4): discard now
+follows magit-discard-files' status table per file: staged changes with
+unstaged work keep that work (index reversed, worktree only where it
+applies); a new file with unstaged edits becomes untracked instead of being
+deleted; a staged rename is undone (git mv back); intent-to-add files are
+refused; section discards act only on the files the buffer listed and skip
+any whose status changed; conflicts are never touched; reverse uses the
+hardened diff (fixed prefixes). Hunk rows count as one section each for
+movement; Space stays the leader in the rebase todo buffer, which also gets
+evil-collection's text-mode toggle (C-t or \); zC only applies to diff
+sections. Evidence: magit::tests::discard_keeps_unrelated_work_by_status,
+session::tests::magit_rebase_todo_buffer_upstream_keys.

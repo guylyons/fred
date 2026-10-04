@@ -1,7 +1,7 @@
 //! magit-apply.el: discard, reverse, stage all modified and unstage all.
 use super::Section;
 use super::branch::Next;
-use super::repo::{Diff, Repo, label};
+use super::repo::{Diff, Entry, Repo, label};
 use std::path::{Path, PathBuf};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -12,11 +12,12 @@ pub enum Kind {
     UnstageAll,
 }
 
-/// The section, file or hunk at point.
+/// The section (with the files it listed), file (with its status) or hunk
+/// at point.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Thing {
-    Section(Section),
-    File(PathBuf, Section),
+    Section(Section, Vec<PathBuf>),
+    File(PathBuf, Section, String),
     Hunk(Diff, usize),
 }
 
@@ -24,6 +25,17 @@ pub enum Thing {
 pub struct Op {
     pub kind: Kind,
     pub thing: Option<Thing>,
+}
+
+/// Discarding this staged/untracked file deletes it from disk.
+fn deletes(section: Section, xy: &str) -> bool {
+    let b = xy.as_bytes();
+    let (x, y) = (
+        b.first().copied().unwrap_or(b' '),
+        b.get(1).copied().unwrap_or(b' '),
+    );
+    section == Section::Untracked
+        || (section == Section::Staged && matches!(x, b'A' | b'C') && y != b'M')
 }
 
 impl Op {
@@ -34,95 +46,155 @@ impl Op {
             (Kind::StageModified, _) => return Ok(None),
             (Kind::UnstageAll, _) => "Unstage all changes? (y or n) ".into(),
             (_, None) => return Err("Nothing at point".into()),
+            (
+                _,
+                Some(Thing::File(_, Section::Conflicts, _) | Thing::Section(Section::Conflicts, _)),
+            ) => {
+                return Err("Resolve conflicts with the file's own commands".into());
+            }
             (Kind::Discard, Some(Thing::Hunk(..))) => "Discard hunk? (y or n) ".into(),
             (Kind::Reverse, Some(Thing::Hunk(..))) => "Reverse hunk? (y or n) ".into(),
-            (Kind::Discard, Some(Thing::File(p, Section::Untracked))) => {
-                format!("Delete untracked {}? (y or n) ", name(p))
+            (Kind::Discard, Some(Thing::File(p, s, xy))) if deletes(*s, xy) => {
+                format!("Delete {}? (y or n) ", name(p))
             }
-            (Kind::Discard, Some(Thing::File(p, Section::Staged))) => {
-                format!("Discard staged changes in {}? (y or n) ", name(p))
+            (Kind::Discard, Some(Thing::File(p, s, _))) => {
+                let side = if *s == Section::Staged {
+                    "staged"
+                } else {
+                    "unstaged"
+                };
+                format!("Discard {side} changes in {}? (y or n) ", name(p))
             }
-            (Kind::Discard, Some(Thing::File(p, _))) => {
-                format!("Discard changes in {}? (y or n) ", name(p))
-            }
-            (Kind::Reverse, Some(Thing::File(p, _))) => {
+            (Kind::Reverse, Some(Thing::File(p, Section::Staged, _))) => {
                 format!("Reverse changes in {}? (y or n) ", name(p))
             }
-            (Kind::Discard, Some(Thing::Section(Section::Untracked))) => {
-                "Delete all untracked files? (y or n) ".into()
+            (Kind::Reverse, Some(Thing::File(..))) => {
+                return Err("Cannot reverse unstaged changes".into());
             }
-            (Kind::Discard, Some(Thing::Section(Section::Staged))) => {
-                "Discard all staged changes? (y or n) ".into()
+            (Kind::Discard, Some(Thing::Section(s, files)))
+                if matches!(s, Section::Untracked | Section::Unstaged | Section::Staged) =>
+            {
+                let what = match s {
+                    Section::Untracked => "Delete",
+                    Section::Staged => "Discard staged changes in",
+                    _ => "Discard unstaged changes in",
+                };
+                let shown: Vec<String> = files.iter().take(5).map(name).collect();
+                let more = if files.len() > 5 { ", ..." } else { "" };
+                format!(
+                    "{what} {} files ({}{more})? (y or n) ",
+                    files.len(),
+                    shown.join(", ")
+                )
             }
-            (Kind::Discard, Some(Thing::Section(_))) => {
-                "Discard all unstaged changes? (y or n) ".into()
+            (Kind::Reverse, Some(Thing::Section(Section::Staged, files))) => {
+                format!("Reverse staged changes in {} files? (y or n) ", files.len())
             }
-            (Kind::Reverse, Some(Thing::Section(_))) => {
-                "Reverse all staged changes? (y or n) ".into()
-            }
+            (_, Some(Thing::Section(..))) => return Err("Nothing to do for this section".into()),
         }))
     }
 }
 
 impl Repo {
-    fn in_head(&self, path: &Path) -> bool {
-        self.read(&[
-            "cat-file",
-            "-e",
-            &format!("HEAD:{}", path.to_string_lossy()),
-        ])
-        .is_ok()
+    fn apply_patch(&self, patch: &[u8], mode: &[&str]) -> Result<(), String> {
+        let mut args: Vec<std::ffi::OsString> = vec!["apply".into(), "--whitespace=nowarn".into()];
+        args.extend(mode.iter().map(Into::into));
+        let mut check = args.clone();
+        check.push("--check".into());
+        self.run(&check, Some(patch))?;
+        self.run(&args, Some(patch)).map(|_| ())
     }
-    /// magit-discard-files--discard for a staged file: back to HEAD in the
-    /// index and worktree, or gone if HEAD does not have it.
-    fn discard_staged_file(&self, path: &Path) -> Result<(), String> {
-        if self.in_head(path) {
-            self.run(&self.path_args(&["checkout", "HEAD"], path), None)?;
-        } else {
-            self.run(&self.path_args(&["rm", "-f", "-q"], path), None)?;
+    /// The staged diff of one file, with Repo::diff's hardened arguments.
+    fn staged_patch(&self, path: &Path) -> Result<Vec<u8>, String> {
+        let d = self.diff(path, true)?;
+        if d.bytes.is_empty() {
+            return Err(format!("{} has no staged changes", label(path)));
         }
-        Ok(())
+        if d.hunks.is_empty() {
+            return Err(format!(
+                "Cannot discard staged changes to binary {}; unstage instead",
+                label(path)
+            ));
+        }
+        Ok(d.bytes)
     }
-    /// Reverse staged changes in the worktree only.
-    fn reverse_staged(&self, path: Option<&Path>) -> Result<(), String> {
-        let mut args: Vec<std::ffi::OsString> = [
-            "diff",
-            "--cached",
-            "--no-ext-diff",
-            "--no-color",
-            "--binary",
-        ]
-        .iter()
-        .map(Into::into)
-        .collect();
-        if let Some(p) = path {
-            args = self.path_args(
-                &[
-                    "diff",
-                    "--cached",
-                    "--no-ext-diff",
-                    "--no-color",
-                    "--binary",
-                ],
-                p,
-            );
+    /// magit-discard-files for one entry, by its status (upstream's table).
+    fn discard_entry(&self, e: &Entry, section: Section) -> Result<(), String> {
+        let b = e.xy.as_bytes();
+        let (x, y) = (
+            b.first().copied().unwrap_or(b' '),
+            b.get(1).copied().unwrap_or(b' '),
+        );
+        let p = &e.path;
+        let run = |args: &[&str]| self.run(&self.path_args(args, p), None).map(|_| ());
+        match section {
+            Section::Untracked => run(&["clean", "-f", "-d", "-q"]),
+            Section::Unstaged => match y {
+                b'M' | b'T' | b'D' => run(&["checkout"]),
+                b'A' => Err(format!("{} is intent-to-add; unstage it instead", label(p))),
+                _ => Err(format!("Nothing to discard in {}", label(p))),
+            },
+            Section::Staged => match x {
+                b'M' | b'T' => {
+                    let patch = self.staged_patch(p)?;
+                    if y == b' ' {
+                        // Index and worktree both back to HEAD.
+                        self.apply_patch(&patch, &["--reverse", "--index"])
+                    } else {
+                        // Keep the unstaged work (upstream: --cached, then
+                        // --reject): reverse the index, and the worktree only
+                        // where the reverse applies cleanly; overlapping
+                        // edits stay as they are.
+                        self.apply_patch(&patch, &["--reverse", "--cached"])?;
+                        let _ = self.apply_patch(&patch, &["--reverse"]);
+                        Ok(())
+                    }
+                }
+                // A new file with unstaged edits becomes untracked, content kept.
+                b'A' | b'C' if y == b'M' => {
+                    run(&["add"])?;
+                    run(&["reset", "-q"])
+                }
+                b'A' | b'C' => run(&["rm", "-f", "-q"]),
+                // magit-discard-files--resurrect (staged): back into the index.
+                b'D' => run(&["reset", "-q"]),
+                b'R' => {
+                    let orig = e.old_path.clone().ok_or("rename without its source")?;
+                    if self.root.join(p).exists() {
+                        if let Some(dir) = self.root.join(&orig).parent() {
+                            std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+                        }
+                        let args: Vec<std::ffi::OsString> =
+                            vec!["mv".into(), "--".into(), p.into(), orig.into()];
+                        self.run(&args, None).map(|_| ())
+                    } else {
+                        run(&["rm", "--cached", "-q"])?;
+                        self.run(&self.path_args(&["reset", "-q"], &orig), None)
+                            .map(|_| ())
+                    }
+                }
+                _ => Err(format!("Nothing to discard in {}", label(p))),
+            },
+            _ => Err("Resolve conflicts with the file's own commands".into()),
         }
-        let patch = self.run(&args, None)?;
-        if patch.is_empty() {
-            return Err("Nothing to reverse".into());
-        }
-        self.run(&["apply".into(), "--reverse".into()], Some(&patch))
-            .map(|_| ())
     }
     pub fn apply_step(&self, op: Op, answer: &str) -> Result<Next, String> {
         if op.question()?.is_some() && !matches!(answer.trim(), "y" | "yes") {
             return Err("Abort".into());
         }
-        let done = |m: &str| Ok(Next::Done(Ok(m.to_owned())));
+        let done = |m: String| Ok(Next::Done(Ok(m)));
+        // The repository now: entries that left the section are skipped.
+        let fresh = |path: &PathBuf, s: Section| -> Result<Option<Entry>, String> {
+            Ok(self
+                .status()?
+                .entries
+                .into_iter()
+                .find(|e| &e.path == path && s.contains(e)))
+        };
         match (op.kind, op.thing) {
             (Kind::StageModified, _) => {
                 self.read(&["add", "-u", "--", "."])?;
-                done("Staged all modified files")
+                done("Staged all modified files".into())
             }
             (Kind::UnstageAll, _) => {
                 if self.read(&["rev-parse", "--verify", "-q", "HEAD"]).is_ok() {
@@ -130,12 +202,9 @@ impl Repo {
                 } else {
                     self.read(&["rm", "--cached", "-r", "-q", "--", "."])?;
                 }
-                done("Unstaged all changes")
+                done("Unstaged all changes".into())
             }
             (_, None) => Err("Nothing at point".into()),
-            (_, Some(Thing::File(_, Section::Conflicts) | Thing::Section(Section::Conflicts))) => {
-                Err("Resolve conflicts with the file's own commands".into())
-            }
             (Kind::Discard, Some(Thing::Hunk(diff, i))) => {
                 let mode: &[&str] = if diff.staged {
                     &["--index", "--reverse"]
@@ -149,53 +218,49 @@ impl Repo {
                         e
                     }
                 })?;
-                done("Discarded hunk")
+                done("Discarded hunk".into())
             }
             (Kind::Reverse, Some(Thing::Hunk(diff, i))) => {
                 if !diff.staged {
                     return Err("Cannot reverse unstaged changes".into());
                 }
                 self.apply_hunk_with(&diff, i, &["--reverse"])?;
-                done("Reversed hunk")
+                done("Reversed hunk".into())
             }
-            (Kind::Discard, Some(Thing::File(p, Section::Untracked))) => {
-                self.run(&self.path_args(&["clean", "-f", "-d", "-q"], &p), None)?;
-                done("Deleted untracked file")
-            }
-            (Kind::Discard, Some(Thing::File(p, Section::Staged))) => {
-                self.discard_staged_file(&p)?;
-                done("Discarded staged changes")
-            }
-            (Kind::Discard, Some(Thing::File(p, _))) => {
-                self.run(&self.path_args(&["checkout"], &p), None)?;
-                done("Discarded changes")
-            }
-            (Kind::Reverse, Some(Thing::File(p, Section::Staged))) => {
-                self.reverse_staged(Some(&p))?;
-                done("Reversed changes")
-            }
-            (Kind::Reverse, Some(Thing::File(..))) => Err("Cannot reverse unstaged changes".into()),
-            (Kind::Discard, Some(Thing::Section(Section::Untracked))) => {
-                self.read(&["clean", "-f", "-d", "-q", "--", "."])?;
-                done("Deleted untracked files")
-            }
-            (Kind::Discard, Some(Thing::Section(Section::Unstaged))) => {
-                self.read(&["checkout", "--", "."])?;
-                done("Discarded unstaged changes")
-            }
-            (Kind::Discard, Some(Thing::Section(Section::Staged))) => {
-                let names = self.read(&["diff", "--cached", "--name-only", "-z"])?;
-                for name in names.split(|b| *b == 0).filter(|n| !n.is_empty()) {
-                    let p = PathBuf::from(String::from_utf8_lossy(name).into_owned());
-                    self.discard_staged_file(&p)?;
+            (kind, Some(Thing::File(p, s, xy))) => {
+                let e = fresh(&p, s)?.ok_or("File changed; refresh and select again")?;
+                if e.xy != xy {
+                    return Err("File changed; refresh and select again".into());
                 }
-                done("Discarded staged changes")
+                if kind == Kind::Reverse {
+                    let patch = self.staged_patch(&p)?;
+                    self.apply_patch(&patch, &["--reverse"])?;
+                    return done(format!("Reversed changes in {}", label(&p)));
+                }
+                self.discard_entry(&e, s)?;
+                done(format!("Discarded {}", label(&p)))
             }
-            (Kind::Reverse, Some(Thing::Section(Section::Staged))) => {
-                self.reverse_staged(None)?;
-                done("Reversed staged changes")
+            (kind, Some(Thing::Section(s, files))) => {
+                let mut failed = vec![];
+                let mut count = 0;
+                for p in &files {
+                    let Some(e) = fresh(p, s)? else { continue };
+                    let r = if kind == Kind::Reverse {
+                        self.staged_patch(p)
+                            .and_then(|patch| self.apply_patch(&patch, &["--reverse"]))
+                    } else {
+                        self.discard_entry(&e, s)
+                    };
+                    match r {
+                        Ok(()) => count += 1,
+                        Err(err) => failed.push(err),
+                    }
+                }
+                if !failed.is_empty() {
+                    return Err(format!("Done for {count} files; {}", failed.join("; ")));
+                }
+                done(format!("Done for {count} files"))
             }
-            _ => Err("Nothing to do for this section".into()),
         }
     }
 }

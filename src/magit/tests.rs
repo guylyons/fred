@@ -3498,3 +3498,89 @@ fn configure_variables_orphan_shelve_and_unshallow() {
         Some("+refs/heads/*:refs/remotes/origin/*")
     );
 }
+
+#[test]
+fn discard_keeps_unrelated_work_by_status() {
+    use super::Section;
+    use super::apply::{Kind, Op, Thing};
+    let (d, r) = setup();
+    let w = |f: &str, t: &str| fs::write(d.path().join(f), t).unwrap();
+    let read = |f: &str| fs::read_to_string(d.path().join(f)).ok();
+    for f in ["m", "r", "keep", "au", "x"] {
+        w(f, "base\n");
+    }
+    fs::create_dir(d.path().join("src")).unwrap();
+    w("src/x", "one\n");
+    git(d.path(), &["add", "."]);
+    git(d.path(), &["commit", "-qm", "base"]);
+    let xy = |p: &str| {
+        r.status()
+            .unwrap()
+            .entries
+            .into_iter()
+            .find(|e| e.path == std::path::Path::new(p))
+            .map(|e| e.xy)
+            .unwrap()
+    };
+    let discard = |thing: Thing| {
+        r.apply_step(
+            Op {
+                kind: Kind::Discard,
+                thing: Some(thing),
+            },
+            "y",
+        )
+    };
+    // MM: staged discard keeps the unstaged work.
+    w("m", "staged\n");
+    git(d.path(), &["add", "m"]);
+    w("m", "unstaged-work\n");
+    discard(Thing::File("m".into(), Section::Staged, xy("m"))).unwrap();
+    assert_eq!(read("m").as_deref(), Some("unstaged-work\n"));
+    assert!(git(d.path(), &["diff", "--cached", "--name-only"]).is_empty());
+    // AM: a new file with unstaged edits becomes untracked, content kept.
+    w("new", "first\n");
+    git(d.path(), &["add", "new"]);
+    w("new", "edited\n");
+    discard(Thing::File("new".into(), Section::Staged, xy("new"))).unwrap();
+    assert_eq!(read("new").as_deref(), Some("edited\n"));
+    assert_eq!(xy("new"), "??");
+    // R: a staged rename is undone, edits to the renamed file kept.
+    git(d.path(), &["mv", "r", "r2"]);
+    w("r2", "wip\n");
+    discard(Thing::File("r2".into(), Section::Staged, xy("r2"))).unwrap();
+    assert_eq!(read("r").as_deref(), Some("wip\n"));
+    assert!(read("r2").is_none());
+    // Intent-to-add is refused, not truncated.
+    w("ita", "precious\n");
+    git(d.path(), &["add", "-N", "ita"]);
+    assert!(discard(Thing::File("ita".into(), Section::Unstaged, xy("ita"))).is_err());
+    assert_eq!(read("ita").as_deref(), Some("precious\n"));
+    // The Unstaged section only touches the files it listed.
+    git(d.path(), &["update-index", "--assume-unchanged", "keep"]);
+    w("keep", "hidden edit\n");
+    w("au", "listed edit\n");
+    w("x", "unlisted edit\n");
+    discard(Thing::Section(Section::Unstaged, vec!["au".into()])).unwrap();
+    assert_eq!(read("au").as_deref(), Some("base\n"));
+    assert_eq!(read("x").as_deref(), Some("unlisted edit\n"));
+    assert_eq!(read("keep").as_deref(), Some("hidden edit\n"));
+    assert_eq!(read("ita").as_deref(), Some("precious\n"));
+    // Reverse uses fixed prefixes: diff.noprefix cannot redirect it.
+    git(d.path(), &["config", "diff.noprefix", "true"]);
+    w("src/x", "two\n");
+    git(d.path(), &["add", "src/x"]);
+    w("x", "two\n");
+    r.apply_step(
+        Op {
+            kind: Kind::Reverse,
+            thing: Some(Thing::File("src/x".into(), Section::Staged, xy("src/x"))),
+        },
+        "y",
+    )
+    .unwrap();
+    assert_eq!(read("src/x").as_deref(), Some("one\n"));
+    assert_eq!(read("x").as_deref(), Some("two\n"));
+    // A file whose status changed since the buffer was drawn is refused.
+    assert!(discard(Thing::File("src/x".into(), Section::Staged, "A ".into())).is_err());
+}

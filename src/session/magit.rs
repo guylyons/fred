@@ -51,6 +51,7 @@ impl Session {
             .map(|v| v.repo.root.clone())
             .or_else(|| self.ed.blob.as_ref().map(|b| b.repo.root.clone()))
             .or_else(|| self.ed.commit_repo.as_ref().map(|r| r.root.clone()))
+            .or_else(|| self.ed.rebase_todo.as_ref().map(|p| p.repo.root.clone()))
             .or_else(|| self.ed.dired.as_ref().map(|d| d.dir.clone()))
             .or_else(|| self.ed.path.clone())
             .unwrap_or_else(|| PathBuf::from("."))
@@ -398,7 +399,9 @@ impl Session {
                     view.closed.remove(s);
                     load.extend(files_of(&view, *s));
                 }
-                (Fold::HideChildren, Some(RowAction::Section(s))) => {
+                (Fold::HideChildren, Some(RowAction::Section(s)))
+                    if matches!(s, Section::Unstaged | Section::Staged) =>
+                {
                     let staged = *s == Section::Staged;
                     view.expanded.retain(|(_, st)| *st != staged);
                 }
@@ -500,9 +503,27 @@ impl Session {
             let Some(view) = self.ed.magit.as_deref() else {
                 return;
             };
+            // The files and statuses this buffer showed.
+            let shown = |s: Section| -> Vec<PathBuf> {
+                view.snapshot
+                    .entries
+                    .iter()
+                    .filter(|e| s.contains(e))
+                    .map(|e| e.path.clone())
+                    .collect()
+            };
             let thing = match view.action_at(self.ed.cur.line) {
-                Some(RowAction::Section(s)) => Some(Thing::Section(s)),
-                Some(RowAction::File(p, s)) => Some(Thing::File(p, s)),
+                Some(RowAction::Section(s)) => Some(Thing::Section(s, shown(s))),
+                Some(RowAction::File(p, s)) => {
+                    let xy = view
+                        .snapshot
+                        .entries
+                        .iter()
+                        .find(|e| e.path == p)
+                        .map(|e| e.xy.clone())
+                        .unwrap_or_default();
+                    Some(Thing::File(p, s, xy))
+                }
                 Some(RowAction::Hunk(p, staged, i, _)) => view
                     .diffs
                     .get(&(p, staged))

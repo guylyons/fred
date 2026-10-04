@@ -996,8 +996,17 @@ fn section_move(ed: &mut Editor, mv: Move) {
         return;
     };
     let rows = &view.rows;
-    let start =
-        |i: usize| rows[i].action.is_some() && (i == 0 || rows[i - 1].action != rows[i].action);
+    if rows.is_empty() {
+        return;
+    }
+    // A hunk's rows differ only in their source line: one section per hunk.
+    let unit = |a: &Option<RowAction>| match a {
+        Some(RowAction::Hunk(p, staged, i, _)) => Some(RowAction::Hunk(p.clone(), *staged, *i, 0)),
+        other => other.clone(),
+    };
+    let start = |i: usize| {
+        rows[i].action.is_some() && (i == 0 || unit(&rows[i - 1].action) != unit(&rows[i].action))
+    };
     let cur = ed.cur.line.min(rows.len().saturating_sub(1));
     // The section the cursor is in: the nearest start at or above it.
     let here = (0..=cur).rev().find(|&i| start(i));

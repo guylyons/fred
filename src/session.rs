@@ -3014,6 +3014,12 @@ mod tests {
         assert_eq!(verb(&t, 5), "pick HEAD");
         t.keys("MMmine<Enter>");
         assert_eq!(verb(&t, 6), "merge mine");
+        // C-t switches to plain Vim keys: x deletes a character.
+        t.keys("gg<C-t>x");
+        assert!(t.s.ed.magit_prompt.is_none());
+        assert!(!verb(&t, 0).starts_with("pick"), "{}", verb(&t, 0));
+        t.keys("u<C-t>");
+        assert!(verb(&t, 0).starts_with("pick"));
         // Enter shows the commit on the line.
         t.keys("gg<Enter>");
         magit_settle(&mut t);
@@ -3025,6 +3031,18 @@ mod tests {
             ))
         ));
         assert!(t.s.ed.buf.text().contains("first") || t.s.ed.buf.text().contains("second"));
+        // Space stays the leader in the todo buffer.
+        t.keys("q");
+        magit_settle(&mut t);
+        assert!(t.s.ed.rebase_todo.is_some());
+        t.keys(" ms");
+        magit_settle(&mut t);
+        assert!(
+            t.s.ed
+                .magit
+                .as_ref()
+                .is_some_and(|v| v.kind == crate::magit::Kind::Status)
+        );
     }
 
     #[test]

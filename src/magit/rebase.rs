@@ -477,6 +477,20 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     if ed.rebase_todo.is_none() || ed.mode != Mode::Normal || ed.zap.is_some() {
         return false;
     }
+    // evil-collection-magit-toggle-text-mode: C-t or \ switches between the
+    // todo keys and plain Vim editing.
+    if ed.vim.pending.is_empty() && (k == Key::ctrl('t') || k == Key::ch('\\')) {
+        ed.rebase_text = !ed.rebase_text;
+        ed.set_msg(if ed.rebase_text {
+            "Text mode: Vim keys (C-t or \\ for todo keys)"
+        } else {
+            "Todo keys (C-t or \\ for text mode)"
+        });
+        return true;
+    }
+    if ed.rebase_text && ed.vim.pending != [Key::ch('Z')] && k != Key::ch('Z') {
+        return false;
+    }
     if ed.vim.pending == [Key::ch('Z')] {
         ed.vim.pending.clear();
         let action = match k.char() {
@@ -534,7 +548,8 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             insert_line(ed, "noop", "");
             return true;
         }
-        KeyCode::Enter | KeyCode::Char(' ') => {
+        // Space stays the leader (Space m ...).
+        KeyCode::Enter => {
             ed.pending_effect = Some(ExEffect::Magit(super::Action::RebaseShowCommit));
             return true;
         }

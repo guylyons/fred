@@ -125,6 +125,8 @@ pub struct Editor {
     pub blob: Option<crate::magit::blob::Blob>,
     /// git-rebase-mode: this buffer is an interactive rebase's todo list.
     pub rebase_todo: Option<crate::magit::rebase::Plan>,
+    /// evil-collection-magit-toggle-text-mode: todo keys off, plain Vim on.
+    pub rebase_text: bool,
     pub commit_args: Vec<String>,
     /// git-commit-prev-message position and the draft text it replaced.
     pub commit_history: Option<(usize, String)>,
@@ -186,6 +188,7 @@ impl Editor {
             blame: None,
             blob: None,
             rebase_todo: None,
+            rebase_text: false,
             commit_args: vec![],
             commit_history: None,
             magit_menu: None,

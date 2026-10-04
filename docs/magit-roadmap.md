@@ -258,3 +258,9 @@ interpret-trailers, and message history (M-k/gk, M-j/gj). Fix: Ctrl/Alt
 section movement keys never matched (Key::char is None with modifiers); C-j
 in diff buffers visits the worktree file. Ledger 539 partial / 234 missing
 commands. Score remains 3%.
+
+October 4 discard-safety checkpoint: discard follows upstream's per-status
+table and never deletes or overwrites work it did not show (review fixes);
+todo buffer text-mode toggle; hunks are single sections for movement; levels
+1-4 / M-1..M-4 replace the z fold keys, which evil-collection leaves off by
+default (the user's config keeps defaults); ys/yb/yr and gR.
