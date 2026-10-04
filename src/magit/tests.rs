@@ -187,7 +187,7 @@ fn leader_m_routes_and_cancels() {
         ("P", "Pull"),
         ("f", "Fetch"),
         ("cc", "Commit"),
-        ("l", "Log"),
+        ("ll", "Log"),
         ("bb", "Branches"),
     ] {
         let mut e = Editor::new(Buffer::from_text("source"));
@@ -641,7 +641,7 @@ fn user_leader_bindings_open_branch_commit_and_revert_menus() {
         editor::{Editor, Mode},
         key::parse_keys,
     };
-    for (keys, menu) in [(" mb", 'B'), (" mc", 'C'), (" mr", 'v')] {
+    for (keys, menu) in [(" mb", 'B'), (" mc", 'C'), (" mr", 'v'), (" ml", 'l')] {
         let mut e = Editor::new(Buffer::from_text("source"));
         for key in parse_keys(keys) {
             e.handle_key(key);
@@ -875,4 +875,35 @@ fn stash_drop_uses_ordinal_identity_with_configured_log_dates() {
     let stash = r.stashes().unwrap()[0].clone();
     r.stash_action(&stash, StashAction::Drop).unwrap();
     assert!(r.stashes().unwrap().is_empty());
+}
+
+#[test]
+fn file_history_filters_literal_paths_and_follows_renames() {
+    let (d, repo) = setup();
+    let old = ":(glob)* old";
+    let new = "renamed file";
+    fs::write(d.path().join(old), "original\n").unwrap();
+    git(d.path(), &["add", "--", old]);
+    git(d.path(), &["commit", "-qm", "original file"]);
+    fs::write(d.path().join("unrelated"), "other\n").unwrap();
+    git(d.path(), &["add", "unrelated"]);
+    git(d.path(), &["commit", "-qm", "unrelated commit"]);
+    git(d.path(), &["mv", "--", old, new]);
+    git(d.path(), &["commit", "-qm", "rename file"]);
+    for (file, follow, want) in [
+        (old, false, vec!["rename file", "original file"]),
+        (new, false, vec!["rename file"]),
+        (new, true, vec!["rename file", "original file"]),
+    ] {
+        let commits = repo.file_history(Path::new(file), follow).unwrap();
+        assert_eq!(
+            commits
+                .iter()
+                .map(|c| c.subject.as_str())
+                .collect::<Vec<_>>(),
+            want
+        );
+    }
+    assert!(repo.file_history(Path::new("../outside"), false).is_err());
+    assert!(repo.file_history(d.path(), false).is_err());
 }

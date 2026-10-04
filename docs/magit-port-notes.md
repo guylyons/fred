@@ -219,3 +219,29 @@ existing allowance and release build passed. Installation targets the existing
 /Users/guy/.cargo/bin/fred; publish this checkpoint to origin/feat-magit.
 Accepted full-port progress remains 3%, with 97% remaining. Resume from the
 roadmap after this stopping checkpoint; do not mistake this merge for full parity.
+
+## Resumed file-log parity slice
+
+The user resumed parity after the stop/install/push checkpoint. The checkout
+was on main at f03aaf0; continued on feat-magit-file-log without altering notes.md.
+Pinned magit-log.el:799-821 and :498/:525-554, and magit-git.el:1320-1338 are
+behavioral references. Space m l is now a menu; l carries the current file filter,
+h shows HEAD, and -f toggles follow-renames. Space m L reads visited-file history.
+Generated file-log views preserve path/follow state during gr refresh and commit
+inspection/return. Parent-directory canonicalization resolves macOS path aliases
+while retaining tracked symlink names. Git gets literal pathspecs, including
+colon/magic-looking names; no shell interpolation. Empty/unborn history remains
+safe. No source buffer is saved or replaced by these read-only operations.
+
+Remaining: all other log suffixes/infixes; inherited file selection on HEAD and
+other menus; region -L tracing; blob/revision contexts; argument persistence,
+graphs, ranges, log margins and custom options. The complete UI map and acceptance
+matrix gates remain open, accepted score 3%. Source ledger: 49 partial commands,
+724 missing; all 237 customization options still missing. Tests link to the
+concrete file-log scenarios in docs/magit-log-acceptance.md.
+
+Checkpoint fixes before committing the file-log slice: the log menu now seeds
+-f from the current file-log buffer (magit-prefix-use-buffer-arguments, pinned
+magit-mode.el:213), and repository discovery/path resolution walk to the
+nearest existing ancestor so files in since-deleted directories still resolve.
+Verification: 394 passed / 18 ignored; fmt, diff check and Clippy passed.

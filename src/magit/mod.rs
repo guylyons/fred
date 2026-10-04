@@ -10,7 +10,7 @@ use repo::{Diff, Repo, Snapshot, label};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
-pub const HELP: &str = "Magit: s status  p push  P pull  f fetch  c commit menu  l log  b branch menu  r revert  z stash  t tag  C commit  M merge  R rebase  x cherry-pick";
+pub const HELP: &str = "Magit: s status  p push  P pull  f fetch  c commit menu  l log menu  L file log  b branch menu  r revert  z stash  t tag  C commit  M merge  R rebase  x cherry-pick";
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Action {
     Menu(char),
@@ -29,6 +29,8 @@ pub enum Action {
     Fetch,
     Commit,
     Log,
+    FileLog,
+    LogHead,
     Branches,
     Switch(String),
     Refresh,
@@ -80,6 +82,7 @@ pub struct Row {
 pub enum Kind {
     Status,
     Log,
+    FileLog(PathBuf, bool),
     Stashes,
     Tags,
     StashPatch(workflows::Stash),
@@ -117,6 +120,7 @@ impl View {
         match &self.kind {
             Kind::Status => "Magit status".into(),
             Kind::Log => "Magit log".into(),
+            Kind::FileLog(path, _) => format!("Magit file log {}", label(path)),
             Kind::Stashes => "Magit stashes".into(),
             Kind::Tags => "Magit tags".into(),
             Kind::StashPatch(stash) => format!("Magit {}", stash.selector),
@@ -391,6 +395,7 @@ fn menu_help(menu: char) -> Option<&'static str> {
             "Stash: z both  i index  w worktree  x keep index; Snapshot: Z both  I index  W worktree"
         }
         'B' => "Branch: c create  s create and switch  r rename current  d delete merged",
+        'l' => "Log: l current  h HEAD  -f follow renames for file log; Space m L current file",
         't' => "Tag: c create lightweight tag  l list",
         'C' => "Commit: a amend  e extend  w reword  f fixup",
         'M' => "Merge: m merge  s squash  c continue  a abort",
@@ -457,6 +462,16 @@ fn open_menu(ed: &mut Editor, menu: char) {
     if menu == 'C' && ed.commit_repo.is_some() {
         sync_commit_options(ed);
     }
+    // magit-prefix-use-buffer-arguments: a log buffer's own arguments seed its menu.
+    if menu == 'l'
+        && let Some(Kind::FileLog(_, follow)) = ed.magit.as_ref().map(|v| &v.kind)
+    {
+        if *follow {
+            ed.magit_options.insert(MenuOption::LogFollow);
+        } else {
+            ed.magit_options.remove(&MenuOption::LogFollow);
+        }
+    }
     ed.magit_menu = Some(menu);
     crate::pick::magit_menu(ed, menu);
     if let Some(help) = menu_help(menu) {
@@ -471,7 +486,8 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
     match menu {
         '*' => vec![
             ("s", "Inspect", "Status", Status),
-            ("l", "Inspect", "Log", Log),
+            ("l", "Inspect", "Log menu", Menu('l')),
+            ("L", "Inspect", "Current file log", FileLog),
             ("b", "Branch", "Branch operations", Menu('B')),
             ("c", "Commit", "Commit menu", Menu('C')),
             ("C", "Commit", "Amend / fixup", Menu('C')),
@@ -485,6 +501,16 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("r", "History", "Revert", Menu('v')),
             ("x", "History", "Cherry-pick", Menu('x')),
             ("v", "History", "Revert", Menu('v')),
+        ],
+        'l' => vec![
+            (
+                "-f",
+                "Arguments",
+                "Follow renames in file log",
+                ToggleOption(MenuOption::LogFollow),
+            ),
+            ("l", "Log", "Current (HEAD)", Log),
+            ("h", "Log", "HEAD", LogHead),
         ],
         'z' => vec![
             (
@@ -602,6 +628,7 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum MenuOption {
+    LogFollow,
     StashUntracked,
     StashAll,
     CommitAll,
@@ -613,12 +640,14 @@ pub enum MenuOption {
 impl MenuOption {
     pub fn menu(self) -> char {
         match self {
+            Self::LogFollow => 'l',
             Self::StashUntracked | Self::StashAll => 'z',
             _ => 'C',
         }
     }
     pub fn argument(self) -> &'static str {
         match self {
+            Self::LogFollow => "--follow",
             Self::StashUntracked => "--include-untracked",
             Self::StashAll => "--all",
             Self::CommitAll => "--all",

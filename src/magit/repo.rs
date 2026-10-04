@@ -51,11 +51,11 @@ pub fn label(path: &Path) -> String {
 impl Repo {
     pub fn discover(from: &Path) -> Result<Self, String> {
         let abs = std::path::absolute(from).map_err(|e| e.to_string())?;
-        let dir = if abs.is_dir() {
-            abs.as_path()
-        } else {
-            abs.parent().unwrap_or(Path::new("."))
-        };
+        // A visited file's directories may have been removed since it was opened.
+        let dir = abs
+            .ancestors()
+            .find(|p| p.is_dir())
+            .unwrap_or(Path::new("."));
         let out = Command::new("git")
             .arg("-C")
             .arg(dir)
@@ -323,16 +323,40 @@ pub struct GitInvocation {
     pub draft_stamp: Option<crate::fileio::FileStamp>,
 }
 impl Repo {
+    pub fn file_history(&self, file: &Path, follow: bool) -> Result<Vec<Commit>, String> {
+        if file.as_os_str().is_empty()
+            || file
+                .components()
+                .any(|c| !matches!(c, std::path::Component::Normal(_)))
+            || self.root.join(file).is_dir()
+        {
+            return Err("file history requires a repository-relative file".into());
+        }
+        self.history_for(Some(file), follow)
+    }
     pub fn history(&self) -> Result<Vec<Commit>, String> {
+        self.history_for(None, false)
+    }
+    fn history_for(&self, file: Option<&Path>, follow: bool) -> Result<Vec<Commit>, String> {
         if self.read(&["rev-parse", "--verify", "HEAD"]).is_err() {
             return Ok(vec![]);
         }
-        let bytes = self.read(&[
+        let mut args = vec![
             "log",
             "-100",
             "--format=%H%x00%s%x00%an%x00%ad%x00",
             "--date=short",
-        ])?;
+        ];
+        if follow && file.is_some() {
+            args.push("--follow");
+        }
+        args.push("HEAD");
+        let args = if let Some(file) = file {
+            self.path_args(&args, file)
+        } else {
+            args.iter().map(OsString::from).collect()
+        };
+        let bytes = self.run(&args, None)?;
         let mut fields = bytes.split(|b| *b == 0);
         let mut commits = vec![];
         while let Some(id) = fields.next() {

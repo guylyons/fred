@@ -1837,6 +1837,130 @@ mod tests {
         t.keys("inext message<Esc>:w<Enter>");
         assert_eq!(fs::read_to_string(&path).unwrap(), "next message\n");
     }
+
+    #[test]
+    fn magit_file_log_preserves_source_and_refreshes_its_filter() {
+        let mut t = T::open(Some("f.txt"), Some("original\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "file initial"]).unwrap();
+        fs::write(t.dir.path().join("other"), "unrelated\n").unwrap();
+        repo.stage_file(Path::new("other")).unwrap();
+        repo.read(&["commit", "-qm", "unrelated"]).unwrap();
+        t.keys("iunsaved <Esc> mL");
+        magit_settle(&mut t);
+        assert!(t.s.ed.magit.is_some(), "{}", t.msg());
+        assert!(t.s.ed.buf.text().contains("file initial"));
+        assert!(!t.s.ed.buf.text().contains("unrelated"));
+        fs::write(t.dir.path().join("f.txt"), "changed\n").unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "file later"]).unwrap();
+        t.keys("gr");
+        magit_settle(&mut t);
+        assert!(t.s.ed.buf.text().contains("file later"));
+        assert!(!t.s.ed.buf.text().contains("unrelated"));
+        t.keys("j<Enter>");
+        magit_settle(&mut t);
+        assert!(t.s.ed.buf.line(0).starts_with("commit "));
+        t.keys("qq");
+        assert!(t.s.ed.magit.is_none());
+        assert_eq!(t.s.ed.buf.line(0), "unsaved original");
+    }
+
+    #[test]
+    fn magit_log_menu_inherits_file_filter_and_follow_option() {
+        let mut t = T::open(Some("f.txt"), Some("original\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "before rename"]).unwrap();
+        repo.read(&["mv", "f.txt", "renamed"]).unwrap();
+        repo.read(&["commit", "-qm", "rename"]).unwrap();
+        fs::write(t.dir.path().join("other"), "unrelated\n").unwrap();
+        repo.stage_file(Path::new("other")).unwrap();
+        repo.read(&["commit", "-qm", "unrelated"]).unwrap();
+        t.keys(&format!(
+            ":e {}<Enter> ml-fl",
+            t.dir.path().join("renamed").display()
+        ));
+        magit_settle(&mut t);
+        assert!(
+            t.s.ed.buf.text().contains("before rename"),
+            "{}",
+            t.s.ed.buf.text()
+        );
+        assert!(!t.s.ed.buf.text().contains("unrelated"));
+        t.keys("gr");
+        magit_settle(&mut t);
+        assert!(t.s.ed.buf.text().contains("before rename"));
+        t.keys(" mll");
+        magit_settle(&mut t);
+        assert!(
+            t.s.ed.buf.text().contains("before rename"),
+            "{}",
+            t.s.ed.buf.text()
+        );
+        t.keys(" ml-fl");
+        magit_settle(&mut t);
+        assert!(!t.s.ed.buf.text().contains("before rename"));
+        t.keys("q mlh");
+        magit_settle(&mut t);
+        assert!(t.s.ed.buf.text().contains("unrelated"));
+    }
+
+    #[test]
+    fn magit_file_log_reads_deleted_parent_and_tracked_symlink_name() {
+        use std::os::unix::fs::symlink;
+        let mut t = T::open(Some("target"), Some("target contents\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        repo.stage_file(Path::new("target")).unwrap();
+        repo.read(&["commit", "-qm", "target commit"]).unwrap();
+        fs::create_dir(t.dir.path().join("nested")).unwrap();
+        symlink("../target", t.dir.path().join("nested/link")).unwrap();
+        repo.stage_file(Path::new("nested/link")).unwrap();
+        repo.read(&["commit", "-qm", "symlink commit"]).unwrap();
+        t.keys(&format!(
+            ":e {}<Enter>",
+            t.dir.path().join("nested/link").display()
+        ));
+        repo.read(&["rm", "nested/link"]).unwrap();
+        repo.read(&["commit", "-qm", "remove symlink"]).unwrap();
+        assert!(!t.dir.path().join("nested").exists());
+        t.keys(" mL");
+        magit_settle(&mut t);
+        assert!(t.s.ed.buf.text().contains("symlink commit"), "{}", t.msg());
+        assert!(t.s.ed.buf.text().contains("remove symlink"));
+        assert!(!t.s.ed.buf.text().contains("target commit"));
+        t.keys("q");
+        assert!(t.s.ed.magit.is_none());
+        assert_eq!(t.s.ed.buf.line(0), "target contents");
+    }
+    #[test]
+    fn magit_file_log_rejects_buffers_without_a_source_file() {
+        let mut t = T::open(None, None);
+        t.keys(" mL");
+        assert!(t.msg().contains("isn't visiting a file"), "{}", t.msg());
+        assert!(t.s.magit_job.is_none());
+        magit_repo(&t);
+        t.s.ed.magit = Some(Box::new(crate::magit::View::status(
+            crate::magit::repo::Repo::discover(t.dir.path()).unwrap(),
+            Default::default(),
+        )));
+        t.keys(" mL");
+        assert!(t.msg().contains("isn't visiting a file"), "{}", t.msg());
+        assert!(t.s.magit_job.is_none());
+    }
     #[test]
     fn magit_returns_from_commit_patch_to_history() {
         let mut t = T::open(Some("f.txt"), Some("original\n"));
@@ -1847,7 +1971,7 @@ mod tests {
             .unwrap();
         repo.stage_file(Path::new("f.txt")).unwrap();
         repo.read(&["commit", "-qm", "initial"]).unwrap();
-        t.keys(" ml");
+        t.keys(" mlh");
         magit_settle(&mut t);
         assert!(t.s.ed.magit.is_some());
         t.keys("j<Enter>");

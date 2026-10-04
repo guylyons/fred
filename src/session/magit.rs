@@ -318,6 +318,38 @@ impl Session {
             });
             return;
         }
+        let file = if matches!(action, Action::FileLog | Action::Log) {
+            let candidate = self
+                .ed
+                .magit
+                .as_ref()
+                .and_then(|view| match &view.kind {
+                    Kind::FileLog(path, _) => Some(view.repo.root.join(path)),
+                    _ => None,
+                })
+                .or_else(|| {
+                    if self.ed.magit.is_none()
+                        && self.ed.dired.is_none()
+                        && self.ed.commit_repo.is_none()
+                    {
+                        self.ed.path.clone()
+                    } else {
+                        None
+                    }
+                });
+            let candidate = candidate.filter(|p| !p.is_dir());
+            if candidate.is_none() && action == Action::FileLog {
+                self.ed.set_err("Buffer isn't visiting a file");
+                return;
+            }
+            candidate
+        } else {
+            None
+        };
+        let follow = self
+            .ed
+            .magit_options
+            .contains(&crate::magit::MenuOption::LogFollow);
         let commit_args = crate::magit::menu_arguments(&self.ed, 'C');
         let stash_args = crate::magit::menu_arguments(&self.ed, 'z');
         let from = self.magit_from();
@@ -357,32 +389,32 @@ impl Session {
                     refresh_refs(&mut view)?;
                     Ok(Outcome::View(Box::new(view), None, 0))
                 }
-                Action::Log => {
+                Action::Log | Action::FileLog | Action::LogHead => {
                     let mut view = View::status(repo.clone(), repo.status()?);
-                    view.kind = Kind::Log;
+                    view.kind = if let Some(file) = file {
+                        let absolute = std::path::absolute(file).map_err(|e| e.to_string())?;
+                        // Resolve directory aliases, but keep a tracked symlink's own name.
+                        // Directories removed since the file was visited are kept literally.
+                        let parent = absolute.parent().ok_or("file has no parent")?;
+                        let existing = parent
+                            .ancestors()
+                            .find(|p| p.is_dir())
+                            .ok_or("file has no existing parent")?;
+                        let parent = existing
+                            .canonicalize()
+                            .map_err(|e| e.to_string())?
+                            .join(parent.strip_prefix(existing).unwrap_or(Path::new("")));
+                        let absolute = parent.join(absolute.file_name().ok_or("file has no name")?);
+                        let relative = absolute
+                            .strip_prefix(&repo.root)
+                            .map_err(|_| "file is outside the repository")?
+                            .to_owned();
+                        Kind::FileLog(relative, follow)
+                    } else {
+                        Kind::Log
+                    };
                     view.return_to = origin;
-                    view.rows = vec![Row {
-                        text: "Recent commits (Enter inspect, q return)".into(),
-                        action: None,
-                    }];
-                    for c in repo.history()? {
-                        view.rows.push(Row {
-                            text: format!(
-                                "{} {} {} {}",
-                                &c.id[..c.id.len().min(8)],
-                                c.date,
-                                label(Path::new(&c.author)),
-                                label(Path::new(&c.subject))
-                            ),
-                            action: Some(RowAction::Commit(c.id)),
-                        });
-                    }
-                    if view.rows.len() == 1 {
-                        view.rows.push(Row {
-                            text: "No commits yet".into(),
-                            action: None,
-                        });
-                    }
+                    refresh_log(&mut view)?;
                     Ok(Outcome::View(Box::new(view), None, 0))
                 }
                 Action::Workflow(operation) => {
@@ -729,6 +761,9 @@ impl Session {
 }
 fn refresh_view(view: &mut View) -> Result<(), String> {
     view.dirty = false;
+    if matches!(view.kind, Kind::Log | Kind::FileLog(..)) {
+        return refresh_log(view);
+    }
     if let Kind::StashPatch(stash) = &view.kind {
         view.rows = display_patch(&view.repo.stash_patch(stash)?);
         return Ok(());
@@ -758,6 +793,46 @@ fn refresh_view(view: &mut View) -> Result<(), String> {
     view.rebuild();
     Ok(())
 }
+fn refresh_log(view: &mut View) -> Result<(), String> {
+    let (heading, commits) = match &view.kind {
+        Kind::FileLog(path, follow) => (
+            format!(
+                "History: {}{} (Enter inspect, gr refresh, q return)",
+                label(path),
+                if *follow { " --follow" } else { "" }
+            ),
+            view.repo.file_history(path, *follow)?,
+        ),
+        _ => (
+            "Recent commits (Enter inspect, gr refresh, q return)".into(),
+            view.repo.history()?,
+        ),
+    };
+    view.rows = vec![Row {
+        text: heading,
+        action: None,
+    }];
+    for c in commits {
+        view.rows.push(Row {
+            text: format!(
+                "{} {} {} {}",
+                &c.id[..c.id.len().min(8)],
+                c.date,
+                label(Path::new(&c.author)),
+                label(Path::new(&c.subject))
+            ),
+            action: Some(RowAction::Commit(c.id)),
+        });
+    }
+    if view.rows.len() == 1 {
+        view.rows.push(Row {
+            text: "No commits for this history".into(),
+            action: None,
+        });
+    }
+    Ok(())
+}
+
 fn display_patch(bytes: &[u8]) -> Vec<Row> {
     let limit = bytes.len().min(1024 * 1024);
     let text = String::from_utf8_lossy(&bytes[..limit]);

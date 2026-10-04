@@ -78,3 +78,11 @@ b/c/r now route to branch/commit/revert menus, R is a nonconflicting rebase
 entry, and B is reserved for unported blame. Stash-view k again moves up; x/d
 request a confirmed drop. Next: complete the Fred UI mapping and acceptance
 scenario matrix, prioritizing B/L/d/i and menu semantics for network/log entries.
+
+October 4 continuation: resumed after the integration stop. File history and a
+partial log prefix are now in progress: Space m L, log l/h, follow-renames,
+filtered refresh and commit inspection/return. This is a cross-track UI mapping
+prerequisite, not acceptance of the log family or either open baseline gate.
+Score remains 3%. Next finish source-linked UI mapping and acceptance scenarios;
+continue missing B/d/i and full log/network menu semantics. The file-log gaps
+include region tracing, revision/blob context and inherited arguments/settings.

@@ -481,10 +481,10 @@ magit-log.el,320,option,magit-cherry-sections-hook,missing,,explicit
 magit-log.el,328,option,magit-cherry-margin,missing,,explicit
 magit-log.el,360,option,magit-log-section-commit-count,missing,,explicit
 magit-log.el,369,option,magit-log-merged-commit-count,missing,,explicit
-magit-log.el,525,command,magit-log,missing,,explicit
+magit-log.el,525,command,magit-log,partial,Space m l opens a partial source-style log menu; follow toggle; missing remaining arguments/suffixes/context,explicit
 magit-log.el,556,command,magit-log-refresh,missing,,explicit
-magit-log.el,699,command,magit-log-current,partial,Space m l; latest 100; graph/range/options missing,explicit
-magit-log.el,707,command,magit-log-head,missing,,explicit
+magit-log.el,699,command,magit-log-current,partial,Space m l l: HEAD history with current source-file filter; missing revision-context defaults and full log arguments,explicit
+magit-log.el,707,command,magit-log-head,partial,Space m l h: recent HEAD history; missing full log arguments and inherited file selection,explicit
 magit-log.el,713,command,magit-log-related,missing,,explicit
 magit-log.el,742,command,magit-log-other,missing,,explicit
 magit-log.el,753,command,magit-log-branches,missing,,explicit
@@ -493,7 +493,7 @@ magit-log.el,770,command,magit-log-matching-tags,missing,,explicit
 magit-log.el,778,command,magit-log-all-branches,missing,,explicit
 magit-log.el,787,command,magit-log-all,missing,,explicit
 magit-log.el,793,command,magit-log-reflog,missing,,explicit
-magit-log.el,799,command,magit-log-buffer-file,missing,,explicit
+magit-log.el,799,command,magit-log-buffer-file,partial,"Space m L: literal file history, follow rename option, refresh, commit inspection/return; missing region/revision/custom arguments",explicit
 magit-log.el,825,command,magit-log-trace-definition,missing,,explicit
 magit-log.el,854,command,magit-diff-trace-definition,missing,,explicit
 magit-log.el,862,command,magit-log-merged,missing,,explicit

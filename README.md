@@ -252,7 +252,8 @@ argument switches, including their on/off state:
 | `Space m P` | pull, fast-forward only |
 | `Space m f` | fetch |
 | `Space m c` | commit menu; `c` creates or submits a draft |
-| `Space m l` | recent commits; `Enter` opens a commit's patch |
+| `Space m l` | log menu: `l` current history, `h` HEAD; `-f` follows renames in file history |
+| `Space m L` | current file history; `Enter` inspects a commit, `gr` refreshes, `q` returns |
 | `Space m b` | branch menu; `b` picks a local branch to switch to |
 | `Space m z` | stash menu: save/index/keep index, apply/pop/drop, list/inspect |
 | `Space m t` | tag menu: create lightweight tag, list and inspect |
