@@ -161,6 +161,9 @@ pub enum Action {
     ProcessBuffer,
     /// magit-log-refresh's g: the menu's arguments for this log buffer.
     LogRefresh,
+    /// magit-apply / magit-reverse of the diff hunk or file at point (true
+    /// reverses) to the worktree.
+    ApplyDiff(bool),
     /// A magit-wip.el command.
     Wip(wip::Op),
     /// magit-jump-to-*: a status section by name.
@@ -940,6 +943,19 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             } else {
                 sequence::Op::Apply
             }))
+        }
+        // In diff, commit and stash buffers: a applies, - reverses the hunk.
+        KeyCode::Char(c @ ('-' | 'a'))
+            if !k.ctrl
+                && !k.alt
+                && ed.magit.as_ref().is_some_and(|v| {
+                    matches!(
+                        v.kind,
+                        Kind::Diff(..) | Kind::Patch(_) | Kind::StashPatch(_)
+                    )
+                }) =>
+        {
+            Some(Action::ApplyDiff(c == '-'))
         }
         KeyCode::Char('q') if !k.ctrl => Some(Action::Return),
         // magit-mode-map's menu keys, as evil-collection leaves or moves them.

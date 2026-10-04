@@ -2614,6 +2614,47 @@ mod tests {
     }
 
     #[test]
+    fn magit_apply_and_reverse_hunks_from_a_commit_buffer() {
+        let mut t = T::open(Some("f.txt"), Some("1\n2\n3\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "one"]).unwrap();
+        fs::write(t.dir.path().join("f.txt"), "1\ntwo\n3\n").unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "two"]).unwrap();
+        // Reverse the commit's hunk in the worktree, then apply it again.
+        t.keys(" mdc");
+        magit_settle(&mut t);
+        t.keys("HEAD<Enter>");
+        magit_settle(&mut t);
+        let row = t.s.ed.buf.text().lines().position(|l| l == "+two").unwrap();
+        t.keys(&format!("{}G-", row + 1));
+        magit_settle(&mut t);
+        assert_eq!(
+            fs::read_to_string(t.dir.path().join("f.txt")).unwrap(),
+            "1\n2\n3\n"
+        );
+        t.keys(&format!("{}Ga", row + 1));
+        magit_settle(&mut t);
+        assert_eq!(
+            fs::read_to_string(t.dir.path().join("f.txt")).unwrap(),
+            "1\ntwo\n3\n"
+        );
+        // Applying it twice is refused by git apply --check.
+        t.keys(&format!("{}Ga", row + 1));
+        magit_settle(&mut t);
+        assert!(
+            t.msg().contains("patch") || t.msg().contains("error"),
+            "{}",
+            t.msg()
+        );
+    }
+
+    #[test]
     fn magit_file_log_reads_deleted_parent_and_tracked_symlink_name() {
         use std::os::unix::fs::symlink;
         let mut t = T::open(Some("target"), Some("target contents\n"));

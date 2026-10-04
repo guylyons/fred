@@ -278,3 +278,32 @@ pub fn location(lines: &[&str], line: usize) -> Option<Location> {
         removed,
     })
 }
+
+/// The patch for the hunk at LINE (or the whole file on a file header) in a
+/// rendered diff: the file's header lines plus the hunk.
+pub fn hunk_patch(lines: &[&str], line: usize) -> Option<String> {
+    lines.get(line)?;
+    let file_start = (0..=line).rev().find(|&i| lines[i].starts_with("diff "))?;
+    let file_end = (file_start + 1..lines.len())
+        .find(|&i| lines[i].starts_with("diff "))
+        .unwrap_or(lines.len());
+    let first_hunk = (file_start..file_end).find(|&i| lines[i].starts_with("@@"))?;
+    let header = &lines[file_start..first_hunk];
+    let (from, to) = if line < first_hunk {
+        (first_hunk, file_end)
+    } else {
+        let h = (first_hunk..=line)
+            .rev()
+            .find(|&i| lines[i].starts_with("@@"))?;
+        let end = (h + 1..file_end)
+            .find(|&i| lines[i].starts_with("@@"))
+            .unwrap_or(file_end);
+        (h, end)
+    };
+    let mut patch: String = header.iter().map(|l| format!("{l}\n")).collect();
+    for l in &lines[from..to] {
+        patch.push_str(l);
+        patch.push('\n');
+    }
+    Some(patch)
+}

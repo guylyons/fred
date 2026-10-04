@@ -536,6 +536,37 @@ impl Session {
             });
             return;
         }
+        if let Action::ApplyDiff(reverse) = action {
+            let Some(view) = self.ed.magit.as_deref() else {
+                return;
+            };
+            let lines: Vec<&str> = view.rows.iter().map(|r| r.text.as_str()).collect();
+            let Some(patch) = crate::magit::diff::hunk_patch(&lines, self.ed.cur.line) else {
+                return self.ed.set_err("No hunk or file at point");
+            };
+            let (repo, origin) = (view.repo.clone(), self.cur);
+            self.start_magit(move || {
+                let mut argv: Vec<OsString> = vec!["apply".into(), "--whitespace=nowarn".into()];
+                if reverse {
+                    argv.push("--reverse".into());
+                }
+                let mut check = argv.clone();
+                check.push("--check".into());
+                let r = repo
+                    .run(&check, Some(patch.as_bytes()))
+                    .and_then(|_| repo.run(&argv, Some(patch.as_bytes())));
+                let next = crate::magit::branch::Next::Done(r.map(|_| {
+                    if reverse {
+                        "Reversed in the worktree"
+                    } else {
+                        "Applied to the worktree"
+                    }
+                    .into()
+                }));
+                Ok(branch_outcome(repo, next, origin))
+            });
+            return;
+        }
         if action == Action::LogRefresh {
             let args = crate::magit::menu_arguments(&self.ed, 'l');
             match self.ed.magit.as_mut().map(|v| &mut v.kind) {
