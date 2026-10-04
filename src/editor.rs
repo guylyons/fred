@@ -129,6 +129,8 @@ pub struct Editor {
     pub org_keys: Vec<Key>,
     /// The prefix argument for the next Org command (`Space u`).
     pub org_arg: crate::org::Prefix,
+    /// The active region (Visual-line selection) for an Org command.
+    pub org_region: Option<(usize, usize)>,
     pub magit_input_generation: u64,
     pub magit_options: std::collections::HashSet<crate::magit::MenuOption>,
     /// Free-form transient-option values by (menu, argument prefix).
@@ -206,6 +208,7 @@ impl Editor {
             org_menu_typed: String::new(),
             org_keys: vec![],
             org_arg: crate::org::Prefix::None,
+            org_region: None,
             magit_input_generation: 0,
             magit_options: std::collections::HashSet::new(),
             magit_values: std::collections::BTreeMap::new(),

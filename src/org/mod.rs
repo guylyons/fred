@@ -5,6 +5,7 @@
 //! command by its upstream name.
 
 pub mod babel;
+pub mod buf;
 pub mod ctx;
 pub mod element;
 pub mod face;
@@ -15,6 +16,7 @@ pub mod time;
 pub mod keymap;
 pub mod options;
 pub mod sexp;
+pub mod structure;
 pub mod syntax;
 
 use crate::editor::{Editor, Mode};
@@ -41,6 +43,8 @@ pub struct Org {
     pub global_status: Option<&'static str>,
     /// Folds per spec (outline, blocks, drawers).
     pub specs: fold::Specs,
+    /// org-adapt-indentation bound to nil (org-cycle-level).
+    pub no_adapt: bool,
 }
 
 /// Emacs prefix argument.
@@ -550,6 +554,8 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         return false;
     };
     let insert = ed.mode == Mode::Insert;
+    let visual = matches!(ed.mode, Mode::VisualLine { .. });
+    let normal = normal || visual;
     if !normal && !insert {
         return false;
     }
@@ -578,7 +584,13 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             if arg.is_none() && !digits.is_empty() {
                 arg = Prefix::Num(digits.parse().unwrap_or(1));
             }
+            // A Visual-line selection is the active region.
+            if let Mode::VisualLine { anchor } = ed.mode {
+                ed.org_region = Some((anchor.min(ed.cur.line), anchor.max(ed.cur.line)));
+                ed.mode = Mode::Normal;
+            }
             run(ed, cmd, arg);
+            ed.org_region = None;
             true
         }
         Lookup::Prefix => {
@@ -624,6 +636,7 @@ type Module = fn(&mut Editor, &str, Prefix) -> Option<Result<(), String>>;
 /// Every module's command table, tried in order.
 const MODULES: &[Module] = &[
     fold::command,
+    structure::command,
     table::command,
     list::command,
     time::command,

@@ -72,19 +72,31 @@
                                  (nth 2 r) (csv (nth 3 r)) "missing" "" (csv (nth 4 r)))
                            ",")
                 "\n")))
-    ;; Effective bindings of the main keymaps, as Emacs resolves them.
+    ;; Activate the modes once so derived keymaps get their parents.
+    (with-temp-buffer (ignore-errors (org-mode)))
+    ;; Effective bindings of the main keymaps, as Emacs resolves them:
+    ;; parent keymaps (outline-mode-map) included, remaps applied.
     (dolist (map '(org-mode-map org-agenda-mode-map org-capture-mode-map
-                   org-src-mode-map org-columns-map org-agenda-keymap))
+                   org-src-mode-map org-columns-map))
       (when (and (boundp map) (keymapp (symbol-value map)))
-        (cl-labels ((walk (keys b)
-                      (cond ((and (symbolp b) (keymapp b) (not (fboundp b))) nil)
-                            ((keymapp b)
-                             (map-keymap (lambda (e b2) (walk (vconcat keys (vector e)) b2)) b))
-                            ((and b (symbolp b))
-                             (push (list (symbol-name map) (key-description keys)
-                                         (symbol-name b))
-                                   key-rows)))))
-          (walk [] (symbol-value map)))))
+        (let ((km (symbol-value map)) (seen (make-hash-table :test #'equal)))
+          (cl-labels ((walk (keys b)
+                        (cond ((and (symbolp b) (keymapp b) (not (fboundp b))) nil)
+                              ((keymapp b)
+                               (map-keymap (lambda (e b2) (walk (vconcat keys (vector e)) b2)) b))
+                              ((and b (symbolp b))
+                               (let* ((desc (key-description keys))
+                                      (eff (lookup-key km keys))
+                                      (eff (and (symbolp eff) eff))
+                                      (cmd (or (and eff (command-remapping eff nil (list km))) eff)))
+                                 (when (and cmd (symbolp cmd) (not (gethash desc seen)))
+                                   (puthash desc t seen)
+                                   (push (list (symbol-name map) desc (symbol-name cmd))
+                                         key-rows)))))))
+            (let ((m km))
+              (while m
+                (walk [] m)
+                (setq m (keymap-parent m))))))))
     (with-temp-file keys-output
       (insert "keymap,key,command,state,fred_key\n")
       (dolist (r (nreverse key-rows))

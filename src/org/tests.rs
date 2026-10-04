@@ -95,3 +95,4 @@ fn drawers_and_blocks_fold_on_tab() {
     assert_eq!(shown(&e).len(), 8);
 }
 
+

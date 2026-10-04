@@ -725,8 +725,11 @@ pub mod hooks {
     use crate::editor::Editor;
 
     /// org-cycle-level: TAB on a new empty heading cycles its level.
-    pub fn cycle_level(_ed: &mut Editor) -> Result<bool, String> {
-        Ok(false)
+    pub fn cycle_level(ed: &mut Editor) -> Result<bool, String> {
+        if !super::super::options::bool("org-cycle-level-after-item/entry-creation", true) {
+            return Ok(false);
+        }
+        super::super::structure::cycle_level(ed)
     }
     /// In a table: org-table-next-field.
     pub fn table_tab(ed: &mut Editor) -> Result<bool, String> {
