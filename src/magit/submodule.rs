@@ -33,7 +33,7 @@ impl Op {
     /// The menu arguments each suffix accepts (magit-submodule-arguments).
     fn accepts(&self, arg: &str) -> bool {
         match self {
-            Op::Add | Op::Unpopulate | Op::Remove => arg == "--force",
+            Op::Add | Op::Unpopulate | Op::Remove | Op::RemoveDirty(..) => arg == "--force",
             Op::Populate | Op::Synchronize => arg == "--recursive",
             Op::Update => matches!(
                 arg,
@@ -60,6 +60,13 @@ fn url_name(url: &str) -> String {
     last.strip_suffix(".git").unwrap_or(last).to_owned()
 }
 
+/// git's is_hfs_dotgit/is_ntfs_dotgit: .git in any case, with trailing dots
+/// or spaces, or as the 8.3 name git~1.
+fn is_dotgit(component: &str) -> bool {
+    let c = component.trim_end_matches(['.', ' ']);
+    c.eq_ignore_ascii_case(".git") || c.eq_ignore_ascii_case("git~1")
+}
+
 impl Repo {
     /// magit-list-module-paths: gitlinks at stage 0.
     pub fn module_paths(&self) -> Result<Vec<String>, String> {
@@ -77,6 +84,23 @@ impl Repo {
     /// magit-module-worktree-p.
     fn populated(&self, module: &str) -> bool {
         self.root.join(module).join(".git").exists()
+    }
+    /// Uncommitted work in a module, untracked files and nested modules included,
+    /// whatever its status configuration says. Fails closed.
+    fn module_dirty(&self, module: &str) -> bool {
+        let dir = self.root.join(module);
+        if !self.populated(module) {
+            // Upstream: a non-empty directory without a repository.
+            return std::fs::read_dir(&dir).map_or(dir.exists(), |mut d| d.next().is_some());
+        }
+        Repo { root: dir }
+            .read(&[
+                "status",
+                "--porcelain",
+                "--untracked-files=all",
+                "--ignore-submodules=none",
+            ])
+            .map_or(true, |o| !o.is_empty())
     }
     fn suitable(&self, op: &Op) -> Vec<String> {
         self.module_paths()
@@ -122,11 +146,17 @@ impl Repo {
     fn modules(&self, op: &Op, answer: &str) -> Result<Vec<String>, String> {
         let known = self.module_paths()?;
         let suitable = self.suitable(op);
-        let modules: Vec<String> = answer
-            .split(',')
-            .map(|m| m.trim().trim_end_matches('/').to_owned())
-            .filter(|m| !m.is_empty())
-            .collect();
+        // A module name may itself contain commas: an exact match wins.
+        let whole = answer.trim().trim_end_matches('/');
+        let modules: Vec<String> = if known.iter().any(|m| m == whole) {
+            vec![whole.to_owned()]
+        } else {
+            answer
+                .split(',')
+                .map(|m| m.trim().trim_end_matches('/').to_owned())
+                .filter(|m| !m.is_empty())
+                .collect()
+        };
         if modules.is_empty() {
             return Err("No module selected".into());
         }
@@ -172,7 +202,7 @@ impl Repo {
                         || Path::new(v)
                             .components()
                             .any(|c| !matches!(c, std::path::Component::Normal(_)))
-                        || v.split('/').any(|c| c == ".git")
+                        || v.split('/').any(is_dotgit)
                     {
                         return Err(format!("invalid module path or name {v:?}"));
                     }
@@ -212,16 +242,15 @@ impl Repo {
                 // Never remove uncommitted work silently (magit-submodule-remove).
                 let dirty: Vec<String> = modules
                     .iter()
-                    .filter(|m| {
-                        self.populated(m)
-                            && Repo {
-                                root: self.root.join(m),
-                            }
-                            .read(&["status", "--porcelain"])
-                            .map_or(true, |o| !o.is_empty())
-                    })
+                    .filter(|m| self.module_dirty(m))
                     .cloned()
                     .collect();
+                // Files in an unpopulated module's directory cannot be stashed.
+                if let Some(m) = dirty.iter().find(|m| !self.populated(m)) {
+                    return Err(format!(
+                        "Module {m} is not populated but its directory has files; move them first"
+                    ));
+                }
                 if dirty.is_empty() {
                     return self.remove_modules(&modules, &args, &[]);
                 }
@@ -284,9 +313,16 @@ impl Repo {
             .read(&[
                 "stash",
                 "push",
+                "--include-untracked",
                 "-m",
                 "backup before removal of this module",
             ])?;
+            // Nested modules' work is not stashed: refuse rather than delete it.
+            if self.module_dirty(m) {
+                return Err(format!(
+                    "Module {m} still has changes after stashing (nested modules?); not removed"
+                ));
+            }
         }
         let run = |words: &[&str], args: &[String]| -> Result<Vec<u8>, String> {
             let mut argv: Vec<std::ffi::OsString> = words.iter().map(Into::into).collect();

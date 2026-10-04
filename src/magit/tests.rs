@@ -2844,9 +2844,27 @@ fn submodule_add_populate_list_and_remove() {
             .is_err()
     );
     assert!(d.path().join("lib/x").exists());
+    // Untracked files count as dirty and are stashed with the tracked change.
+    fs::write(d.path().join("lib/untracked"), "keep").unwrap();
+    git(
+        d.path().join("lib").as_path(),
+        &["config", "status.showUntrackedFiles", "no"],
+    );
     r.submodule_step(op, &s(&["y"]), &s(&["--force"])).unwrap();
     assert!(r.module_paths().unwrap().is_empty());
     assert!(!d.path().join("lib").exists());
+    let gitdir = d.path().join(".git/modules/lib");
+    let tracked = git(&gitdir, &["diff", "--name-only", "stash^1", "stash"]);
+    let untracked = git(&gitdir, &["ls-tree", "-r", "--name-only", "stash^3"]);
+    assert_eq!(String::from_utf8(tracked).unwrap().trim(), "x");
+    assert_eq!(String::from_utf8(untracked).unwrap().trim(), "untracked");
+    // Paths naming .git in any case are refused.
+    for bad in [".GIT/foo", "a/.Git", "git~1", ".git."] {
+        assert!(
+            r.submodule_step(Op::Add, &s(&[&url, bad]), &[]).is_err(),
+            "{bad}"
+        );
+    }
 }
 
 #[test]
