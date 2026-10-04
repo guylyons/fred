@@ -309,6 +309,88 @@ impl Session {
             });
             return;
         }
+        if let Action::Fold(how) = action {
+            use crate::magit::Fold;
+            let Some(mut view) = self.ed.magit.as_deref().cloned() else {
+                return;
+            };
+            if view.kind != Kind::Status {
+                return self.ed.set_err("Folding needs a status buffer");
+            }
+            let selected = view.action_at(self.ed.cur.line);
+            let fallback = self.ed.cur.line;
+            // Files whose diffs to load and show.
+            let files_of = |view: &crate::magit::View, s: Section| -> Vec<(PathBuf, bool)> {
+                if !matches!(s, Section::Unstaged | Section::Staged) {
+                    return vec![];
+                }
+                view.snapshot
+                    .entries
+                    .iter()
+                    .filter(|e| s.contains(e))
+                    .map(|e| (e.path.clone(), s == Section::Staged))
+                    .collect()
+            };
+            let mut load = vec![];
+            match (how, &selected) {
+                (Fold::Level(n), _) => {
+                    view.expanded.clear();
+                    view.closed.clear();
+                    if n == 1 {
+                        for r in &view.rows {
+                            if let Some(RowAction::Section(s)) = r.action {
+                                view.closed.insert(s);
+                            }
+                        }
+                    }
+                    if n >= 3 {
+                        load.extend(files_of(&view, Section::Unstaged));
+                        load.extend(files_of(&view, Section::Staged));
+                    }
+                }
+                (Fold::Show, Some(RowAction::Section(s))) => {
+                    view.closed.remove(s);
+                }
+                (Fold::Hide, Some(RowAction::Section(s))) => {
+                    view.closed.insert(*s);
+                }
+                (Fold::ShowChildren, Some(RowAction::Section(s))) => {
+                    view.closed.remove(s);
+                    load.extend(files_of(&view, *s));
+                }
+                (Fold::HideChildren, Some(RowAction::Section(s))) => {
+                    let staged = *s == Section::Staged;
+                    view.expanded.retain(|(_, st)| *st != staged);
+                }
+                (Fold::Show | Fold::ShowChildren, Some(RowAction::File(p, s)))
+                    if matches!(s, Section::Unstaged | Section::Staged) =>
+                {
+                    load.push((p.clone(), *s == Section::Staged));
+                }
+                (Fold::Hide | Fold::HideChildren, Some(RowAction::File(p, s))) => {
+                    view.expanded.remove(&(p.clone(), *s == Section::Staged));
+                }
+                (Fold::Hide | Fold::HideChildren, Some(RowAction::Hunk(p, staged, ..))) => {
+                    view.expanded.remove(&(p.clone(), *staged));
+                }
+                _ => {}
+            }
+            if load.is_empty() {
+                view.rebuild();
+                self.install_magit(view, selected, fallback);
+                return;
+            }
+            self.start_magit(move || {
+                for key in load {
+                    let diff = view.repo.diff(&key.0, key.1)?;
+                    view.diffs.insert(key.clone(), diff);
+                    view.expanded.insert(key);
+                }
+                view.rebuild();
+                Ok(Outcome::View(Box::new(view), selected, fallback))
+            });
+            return;
+        }
         if action == Action::RebaseShowCommit {
             let Some(plan) = self.ed.rebase_todo.clone() else {
                 return;

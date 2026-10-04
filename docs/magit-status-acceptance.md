@@ -22,3 +22,10 @@ sections start collapsed per magit-section-initial-visibility-alist and HIDE;
 dwim on log sections diffs their endpoints; the cursor keeps the nearest
 duplicate commit row; jumper messages name their sections. Open: duplicated
 git calls per refresh (no refresh cache yet).
+
+Sections (October 4): C-j/C-k move to the next/previous section start (C-j on
+a file or hunk visits the worktree file, as evil-collection's section maps
+do); gj gk ] [ M-j M-k move between siblings without leaving the parent; gh
+goes up; za zo zc zO zC fold the heading, file or hunk's file at point; z1
+closes every heading, z2 opens headings with files collapsed, z3/z4/zr
+expand every file. Evidence: session::tests::magit_section_movement_and_folding.

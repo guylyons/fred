@@ -2260,6 +2260,69 @@ mod tests {
     }
 
     #[test]
+    fn magit_section_movement_and_folding() {
+        use crate::magit::{RowAction, Section};
+        let mut t = T::open(Some("f.txt"), Some("one\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        for f in ["a", "b", "c"] {
+            fs::write(t.dir.path().join(f), "1\n").unwrap();
+            repo.stage_file(Path::new(f)).unwrap();
+        }
+        repo.read(&["commit", "-qm", "base"]).unwrap();
+        for f in ["a", "b", "c"] {
+            fs::write(t.dir.path().join(f), "2\n").unwrap();
+        }
+        repo.stage_file(Path::new("c")).unwrap();
+        t.keys(" ms");
+        magit_settle(&mut t);
+        let at = |t: &T| t.s.ed.magit.as_ref().unwrap().action_at(t.s.ed.cur.line);
+        let goto = |t: &mut T, want: RowAction| {
+            let row =
+                t.s.ed
+                    .magit
+                    .as_ref()
+                    .unwrap()
+                    .rows
+                    .iter()
+                    .position(|r| r.action.as_ref() == Some(&want))
+                    .unwrap();
+            t.s.ed.set_cursor(row, 0);
+        };
+        let file = |p: &str, s| RowAction::File(PathBuf::from(p), s);
+        // gj / gk move between sibling files; gh goes up to the section.
+        goto(&mut t, file("a", Section::Unstaged));
+        t.keys("gj");
+        assert_eq!(at(&t), Some(file("b", Section::Unstaged)));
+        t.keys("gj");
+        // b is the last unstaged file: stays (no sibling in the next section).
+        assert_eq!(at(&t), Some(file("b", Section::Unstaged)));
+        t.keys("gk");
+        assert_eq!(at(&t), Some(file("a", Section::Unstaged)));
+        t.keys("gh");
+        assert_eq!(at(&t), Some(RowAction::Section(Section::Unstaged)));
+        // ] moves to the next section heading.
+        t.keys("]");
+        assert_eq!(at(&t), Some(RowAction::Section(Section::Staged)));
+        // z4 expands every file; zc on a hunk collapses its file; z1 closes all.
+        t.keys("z4");
+        magit_settle(&mut t);
+        let text = t.s.ed.buf.text();
+        assert!(text.contains("+2"), "{text}");
+        goto(&mut t, file("c", Section::Staged));
+        t.keys("<C-k><C-j>");
+        assert_eq!(at(&t), Some(file("c", Section::Staged)));
+        t.keys("z1");
+        magit_settle(&mut t);
+        let view = t.s.ed.magit.as_ref().unwrap();
+        assert!(view.closed.contains(&Section::Unstaged) && view.expanded.is_empty());
+        assert!(!t.s.ed.buf.text().contains("\na\n") && !t.s.ed.buf.text().contains("+2"));
+    }
+
+    #[test]
     fn magit_file_log_reads_deleted_parent_and_tracked_symlink_name() {
         use std::os::unix::fs::symlink;
         let mut t = T::open(Some("target"), Some("target contents\n"));

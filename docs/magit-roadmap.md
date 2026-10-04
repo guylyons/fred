@@ -246,3 +246,8 @@ October 4 todo-buffer checkpoint: the rebase todo buffer gains upstream's
 overriding keys (c w m S F A b z l t y M M, M t, Enter/SPC show commit); u
 stays undo as evil-collection binds it; commit/diff review fixes (10eb821).
 Ledger 512 partial / 261 missing commands. Score remains 3%.
+
+October 4 section checkpoint: Magit buffers gain evil-collection's section
+movement (C-j C-k, gj gk ] [ M-j M-k, gh) and folds (za zo zc zO zC z1-z4
+zr); z is a prefix in Magit buffers since Fred's Vim has no z commands.
+Ledger 526 partial / 247 missing commands. Score remains 3%.

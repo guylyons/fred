@@ -141,6 +141,8 @@ pub enum Action {
     Refresh,
     /// magit-diff-visit-worktree-file (C-j under evil-collection).
     VisitWorktree,
+    /// magit-section show/hide/children/levels (evil-collection z keys).
+    Fold(Fold),
     /// magit-diff-buffer-file.
     DiffBufferFile,
     /// magit-diff-while-committing (C-c C-d in a commit draft).
@@ -150,6 +152,16 @@ pub enum Action {
     Unstage,
     Visit,
     Return,
+}
+/// magit-section visibility commands.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Fold {
+    Show,
+    Hide,
+    ShowChildren,
+    HideChildren,
+    /// magit-section-show-level-N-all.
+    Level(u8),
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Section {
@@ -178,7 +190,7 @@ impl Section {
             Self::UnpulledUpstream => "Unpulled from @{upstream}",
         }
     }
-    fn contains(self, e: &repo::Entry) -> bool {
+    pub(crate) fn contains(self, e: &repo::Entry) -> bool {
         match self {
             Self::Conflicts => e.conflict,
             Self::Untracked => e.untracked,
@@ -680,6 +692,65 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             return true;
         }
     }
+    // magit-section movement (evil-collection): C-j/C-k sections, gj gk ] [
+    // M-j M-k siblings, gh parent; z folds.
+    if !k.ctrl || matches!(k.char(), Some('j' | 'k')) {
+        let pending = ed.vim.pending.clone();
+        let mv = match (pending.as_slice(), k.char(), k.ctrl, k.alt) {
+            ([], Some('j'), true, false) => {
+                // C-j on a file or hunk visits the worktree file (section maps).
+                let on_file = ed.magit.as_ref().is_some_and(|v| {
+                    matches!(
+                        v.action_at(ed.cur.line),
+                        Some(RowAction::File(..) | RowAction::Hunk(..))
+                    )
+                });
+                if on_file {
+                    ed.pending_effect = Some(ExEffect::Magit(Action::Visit));
+                    return true;
+                }
+                Some(Move::Next)
+            }
+            ([], Some('k'), true, false) => Some(Move::Prev),
+            ([], Some('j'), false, true) | ([], Some(']'), false, false) => Some(Move::NextSibling),
+            ([], Some('k'), false, true) | ([], Some('['), false, false) => Some(Move::PrevSibling),
+            ([g], Some('j'), false, false) if *g == Key::ch('g') => Some(Move::NextSibling),
+            ([g], Some('k'), false, false) if *g == Key::ch('g') => Some(Move::PrevSibling),
+            ([g], Some('h'), false, false) if *g == Key::ch('g') => Some(Move::Up),
+            _ => None,
+        };
+        if let Some(mv) = mv {
+            ed.vim.pending.clear();
+            section_move(ed, mv);
+            return true;
+        }
+        // Fred's Vim has no z commands: z is a prefix here.
+        if pending.is_empty() && k.char() == Some('z') && !k.ctrl && !k.alt {
+            ed.vim.pending = vec![k];
+            return true;
+        }
+        let fold = match (pending.as_slice(), k.char(), k.ctrl || k.alt) {
+            ([z], Some('a'), false) if *z == Key::ch('z') => Some(Action::Toggle),
+            ([z], Some('o'), false) if *z == Key::ch('z') => Some(Action::Fold(Fold::Show)),
+            ([z], Some('c'), false) if *z == Key::ch('z') => Some(Action::Fold(Fold::Hide)),
+            ([z], Some('O'), false) if *z == Key::ch('z') => Some(Action::Fold(Fold::ShowChildren)),
+            ([z], Some('C'), false) if *z == Key::ch('z') => Some(Action::Fold(Fold::HideChildren)),
+            ([z], Some('r'), false) if *z == Key::ch('z') => Some(Action::Fold(Fold::Level(4))),
+            ([z], Some(c @ '1'..='4'), false) if *z == Key::ch('z') => {
+                Some(Action::Fold(Fold::Level(c as u8 - b'0')))
+            }
+            _ => None,
+        };
+        if let Some(fold) = fold {
+            ed.vim.pending.clear();
+            ed.pending_effect = Some(ExEffect::Magit(fold));
+            return true;
+        }
+        if pending == [Key::ch('z')] {
+            ed.vim.pending.clear();
+            return true;
+        }
+    }
     if ed.vim.pending == [Key::ch('g')] && k.char() == Some('r') {
         ed.vim.pending.clear();
         ed.pending_effect = Some(ExEffect::Magit(Action::Refresh));
@@ -826,6 +897,60 @@ fn log_move_to_parent(ed: &mut Editor) {
             "Parent {} not found.  Try typing + first",
             &parent[..parent.len().min(8)]
         )),
+    }
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Move {
+    Next,
+    Prev,
+    NextSibling,
+    PrevSibling,
+    Up,
+}
+/// A section's depth: headings, then files/commits/stashes/modules, then hunks.
+fn level(a: &RowAction) -> u8 {
+    match a {
+        RowAction::Section(_) => 1,
+        RowAction::Hunk(..) => 3,
+        _ => 2,
+    }
+}
+/// magit-section-forward/backward/-sibling/up over the rows' sections: a
+/// section starts where a row's action differs from the row above.
+fn section_move(ed: &mut Editor, mv: Move) {
+    let Some(view) = ed.magit.as_ref() else {
+        return;
+    };
+    let rows = &view.rows;
+    let start =
+        |i: usize| rows[i].action.is_some() && (i == 0 || rows[i - 1].action != rows[i].action);
+    let cur = ed.cur.line.min(rows.len().saturating_sub(1));
+    // The section the cursor is in: the nearest start at or above it.
+    let here = (0..=cur).rev().find(|&i| start(i));
+    let lvl = here.and_then(|i| rows[i].action.as_ref()).map_or(1, level);
+    let target = match mv {
+        Move::Next => (cur + 1..rows.len()).find(|&i| start(i)),
+        // magit-section-backward: this section's start, else the previous one.
+        Move::Prev => match here {
+            Some(h) if h < cur => Some(h),
+            _ => (0..cur).rev().find(|&i| start(i)),
+        },
+        Move::NextSibling => (cur + 1..rows.len())
+            .filter(|&i| start(i))
+            .take_while(|&i| rows[i].action.as_ref().map_or(0, level) >= lvl)
+            .find(|&i| rows[i].action.as_ref().map(level) == Some(lvl)),
+        Move::PrevSibling => (0..here.unwrap_or(cur))
+            .rev()
+            .filter(|&i| start(i))
+            .take_while(|&i| rows[i].action.as_ref().map_or(0, level) >= lvl)
+            .find(|&i| rows[i].action.as_ref().map(level) == Some(lvl)),
+        Move::Up => (0..here.unwrap_or(cur))
+            .rev()
+            .find(|&i| start(i) && rows[i].action.as_ref().map_or(0, level) < lvl),
+    };
+    match target {
+        Some(i) => ed.set_cursor(i, 0),
+        None => ed.set_msg("No more sections"),
     }
 }
 #[cfg(test)]

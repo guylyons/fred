@@ -783,29 +783,29 @@ magit-section.el,184,option,magit-section-initial-visibility-alist,missing,,expl
 magit-section.el,212,option,magit-section-visibility-indicators,missing,,explicit
 magit-section.el,284,option,magit-section-keep-region-overlay,missing,,explicit
 magit-section.el,322,option,magit-section-disable-line-numbers,missing,,explicit
-magit-section.el,803,command,magit-section-forward,missing,,explicit
-magit-section.el,822,command,magit-section-backward,missing,,explicit
-magit-section.el,860,command,magit-section-up,missing,,explicit
-magit-section.el,867,command,magit-section-forward-sibling,missing,,explicit
-magit-section.el,879,command,magit-section-backward-sibling,missing,,explicit
+magit-section.el,803,command,magit-section-forward,partial,"C-j (on a file/hunk C-j visits the worktree file, as evil-collection section maps)",explicit
+magit-section.el,822,command,magit-section-backward,partial,C-k,explicit
+magit-section.el,860,command,magit-section-up,partial,gh in status,explicit
+magit-section.el,867,command,magit-section-forward-sibling,partial,gj ] M-j,explicit
+magit-section.el,879,command,magit-section-backward-sibling,partial,gk [ M-k,explicit
 magit-section.el,891,command,magit-mouse-set-point,missing,,explicit
-magit-section.el,945,command,magit-section-show,missing,,explicit
-magit-section.el,960,command,magit-section-hide,missing,,explicit
-magit-section.el,978,command,magit-section-toggle,missing,,explicit
+magit-section.el,945,command,magit-section-show,partial,zo,explicit
+magit-section.el,960,command,magit-section-hide,partial,zc (on a hunk: its file),explicit
+magit-section.el,978,command,magit-section-toggle,partial,Tab / za (files and headings; hunks always open),explicit
 magit-section.el,987,command,magit-section-toggle-children,missing,,explicit
-magit-section.el,996,command,magit-section-show-children,missing,,explicit
-magit-section.el,1013,command,magit-section-hide-children,missing,,explicit
+magit-section.el,996,command,magit-section-show-children,partial,zO,explicit
+magit-section.el,1013,command,magit-section-hide-children,partial,zC,explicit
 magit-section.el,1018,command,magit-section-show-headings,missing,,explicit
 magit-section.el,1033,command,magit-section-cycle,missing,,explicit
 magit-section.el,1064,command,magit-section-cycle-global,missing,,explicit
 magit-section.el,1124,command,magit-section-show-level-1,missing,,explicit
-magit-section.el,1129,command,magit-section-show-level-1-all,missing,,explicit
+magit-section.el,1129,command,magit-section-show-level-1-all,partial,z1,explicit
 magit-section.el,1134,command,magit-section-show-level-2,missing,,explicit
-magit-section.el,1139,command,magit-section-show-level-2-all,missing,,explicit
+magit-section.el,1139,command,magit-section-show-level-2-all,partial,z2,explicit
 magit-section.el,1144,command,magit-section-show-level-3,missing,,explicit
-magit-section.el,1149,command,magit-section-show-level-3-all,missing,,explicit
+magit-section.el,1149,command,magit-section-show-level-3-all,partial,z3 (expands every file),explicit
 magit-section.el,1154,command,magit-section-show-level-4,missing,,explicit
-magit-section.el,1159,command,magit-section-show-level-4-all,missing,,explicit
+magit-section.el,1159,command,magit-section-show-level-4-all,partial,z4 / zr,explicit
 magit-section.el,1164,command,magit-mouse-toggle-section,missing,,explicit
 magit-section.el,1182,command,magit-describe-section-briefly,missing,,explicit
 magit-section.el,1219,command,magit-describe-section,missing,,explicit
