@@ -215,3 +215,9 @@ arguments, g, switch range type, flip revisions); the diff menus gain -D -U
 -C -H -R =m =w; = + ~ change a diff buffer's context; bundle, clone, ignore
 and refs review fixes (9f79b8a; clone now runs in the terminal). Ledger 446
 partial / 327 missing commands. Score remains 3%.
+
+October 4 diff-visit checkpoint: Enter on a line of a diff, commit or stash
+buffer visits the blob at that revision (old side for removed lines) or the
+worktree file at that line; C-j visits the worktree file. Diffs use fixed
+a/ b/ prefixes so diff.noprefix cannot break this. Ledger 452 partial / 321
+missing commands. Score remains 3%.

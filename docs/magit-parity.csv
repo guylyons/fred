@@ -306,12 +306,12 @@ magit-diff.el,1748,command,magit-diff-more-context,partial,+ in a diff buffer,ex
 magit-diff.el,1753,command,magit-diff-default-context,partial,~ in a diff buffer (evil-collection),explicit
 magit-diff.el,1798,command,magit-diff-toggle-refine-hunk,missing,,explicit
 magit-diff.el,1820,command,magit-diff-toggle-fontify-hunk,missing,,explicit
-magit-diff.el,1845,command,magit-diff-visit-file,missing,,explicit
-magit-diff.el,1887,command,magit-diff-visit-file-other-window,missing,,explicit
-magit-diff.el,1896,command,magit-diff-visit-file-other-frame,missing,,explicit
-magit-diff.el,1907,command,magit-diff-visit-worktree-file,missing,,explicit
-magit-diff.el,1926,command,magit-diff-visit-worktree-file-other-window,missing,,explicit
-magit-diff.el,1932,command,magit-diff-visit-worktree-file-other-frame,missing,,explicit
+magit-diff.el,1845,command,magit-diff-visit-file,partial,"Enter on a diff line: the blob at that revision (old side for removed lines) or the worktree file, at the line",explicit
+magit-diff.el,1887,command,magit-diff-visit-file-other-window,partial,Fred has no windows: same as Enter,explicit
+magit-diff.el,1896,command,magit-diff-visit-file-other-frame,partial,Fred has no frames: same as Enter,explicit
+magit-diff.el,1907,command,magit-diff-visit-worktree-file,partial,"C-j in diff, commit and stash buffers: the worktree file at the line",explicit
+magit-diff.el,1926,command,magit-diff-visit-worktree-file-other-window,partial,Fred has no windows: same as C-j,explicit
+magit-diff.el,1932,command,magit-diff-visit-worktree-file-other-frame,partial,Fred has no frames: same as C-j,explicit
 magit-diff.el,2179,command,magit-diff-show-or-scroll-up,missing,,explicit
 magit-diff.el,2190,command,magit-diff-show-or-scroll-down,missing,,explicit
 magit-diff.el,2256,command,magit-section-cycle-diffs,missing,,explicit

@@ -131,6 +131,8 @@ pub enum Action {
     /// Branch picker result: the selected row and the typed text.
     Switch(Option<String>, String),
     Refresh,
+    /// magit-diff-visit-worktree-file (C-j under evil-collection).
+    VisitWorktree,
     Toggle,
     Stage,
     Unstage,
@@ -735,6 +737,17 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     let action = match k.code {
         KeyCode::Tab => Some(Action::Toggle),
         KeyCode::Enter => Some(Action::Visit),
+        KeyCode::Char('j')
+            if k.ctrl
+                && ed.magit.as_ref().is_some_and(|v| {
+                    matches!(
+                        v.kind,
+                        Kind::Diff(..) | Kind::Patch(_) | Kind::StashPatch(_)
+                    )
+                }) =>
+        {
+            Some(Action::VisitWorktree)
+        }
         KeyCode::Char('s') if !k.ctrl => Some(Action::Stage),
         KeyCode::Char('u') if !k.ctrl => Some(Action::Unstage),
         KeyCode::Char('q') if !k.ctrl => Some(Action::Return),

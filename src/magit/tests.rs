@@ -3364,3 +3364,26 @@ fn commit_reshelve_and_absorb_modules() {
     let subject = String::from_utf8(git(d.path(), &["log", "-1", "--format=%s"])).unwrap();
     assert_eq!(subject.trim(), "fixup! add lib");
 }
+
+#[test]
+fn diff_location_maps_lines_to_both_sides() {
+    use super::diff::{Location, location};
+    use std::path::PathBuf;
+    let patch = "diff --git a/f b/f\nindex 1..2 100644\n--- a/f\n+++ b/f\n@@ -3,4 +3,4 @@ ctx\n 3\n 4\n-five\n+5\n 6\ndiff --git a/gone b/gone\ndeleted file mode 100644\n--- a/gone\n+++ /dev/null\n@@ -1 +0,0 @@\n-x";
+    let lines: Vec<&str> = patch.lines().collect();
+    let at = |l| location(&lines, l);
+    let f = |line, removed| {
+        Some(Location {
+            file: PathBuf::from("f"),
+            line,
+            removed,
+        })
+    };
+    assert_eq!(at(6), f(4, false));
+    assert_eq!(at(7), f(5, true));
+    assert_eq!(at(8), f(5, false));
+    assert_eq!(at(9), f(6, false));
+    assert_eq!(at(3), f(1, false));
+    assert_eq!(at(15).unwrap().file, PathBuf::from("gone"));
+    assert_eq!(at(0), None);
+}

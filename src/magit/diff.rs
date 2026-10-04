@@ -124,6 +124,9 @@ impl Repo {
         // magit-insert-diff/revision always ask for the patch, even with --stat.
         argv.push("-p".into());
         argv.push("--no-color".into());
+        // Fixed prefixes so visiting can read file names (diff.noprefix etc.).
+        argv.push("--src-prefix=a/".into());
+        argv.push("--dst-prefix=b/".into());
         if *target == Target::Staged {
             argv.push("--cached".into());
         }
@@ -163,4 +166,75 @@ impl Repo {
             Err(String::from_utf8_lossy(&out.stderr).trim().to_owned())
         }
     }
+}
+
+/// Where a diff line points (magit-diff-visit-file): the file, its 1-based
+/// line on the side shown, and whether the line was removed (old side).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Location {
+    pub file: PathBuf,
+    pub line: usize,
+    pub removed: bool,
+}
+
+/// Read the location of LINE in a rendered patch (a/ and b/ prefixes).
+pub fn location(lines: &[&str], line: usize) -> Option<Location> {
+    let at = *lines.get(line)?;
+    let mut hunk = None;
+    let mut file = None;
+    for i in (0..=line).rev() {
+        let l = lines[i];
+        if hunk.is_none() && i < line && l.starts_with("@@ ") {
+            hunk = Some(i);
+        }
+        if let Some(p) = l.strip_prefix("+++ b/") {
+            file = Some(p.to_owned());
+            break;
+        }
+        if l == "+++ /dev/null" {
+            // A deletion: the old name.
+            file = lines
+                .get(i.wrapping_sub(1))?
+                .strip_prefix("--- a/")
+                .map(str::to_owned);
+            break;
+        }
+        if l.starts_with("diff --git ") && i < line {
+            return None;
+        }
+    }
+    let file = PathBuf::from(file?);
+    let removed = at.starts_with('-') && !at.starts_with("---");
+    let Some(h) = hunk else {
+        return Some(Location {
+            file,
+            line: 1,
+            removed: false,
+        });
+    };
+    // @@ -a,b +c,d @@
+    let header = lines[h];
+    let num = |sign: char| {
+        header
+            .split_whitespace()
+            .find_map(|w| w.strip_prefix(sign))
+            .and_then(|w| w.split(',').next())
+            .and_then(|n| n.parse::<usize>().ok())
+    };
+    let mut n = if removed { num('-')? } else { num('+')? };
+    for l in &lines[h + 1..line] {
+        let skip = if removed {
+            l.starts_with('+')
+        } else {
+            l.starts_with('-')
+        };
+        if !skip {
+            n += 1;
+        }
+    }
+    Some(Location {
+        file,
+        line: n.max(1),
+        removed,
+    })
 }

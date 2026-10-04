@@ -2113,6 +2113,27 @@ mod tests {
         t.keys(" mD-U1<Enter>g");
         magit_settle(&mut t);
         assert!(args(&t).1.contains(&"-U1".to_owned()), "{:?}", args(&t).1);
+        // Enter on a line visits that line of the revision's blob; C-j the file.
+        t.keys(" mD-U<Enter>");
+        t.keys("<Esc> mdr");
+        magit_settle(&mut t);
+        t.keys("HEAD~1..HEAD<Enter>");
+        magit_settle(&mut t);
+        let row =
+            t.s.ed
+                .buf
+                .text()
+                .lines()
+                .position(|l| l == "+five")
+                .unwrap();
+        t.keys(&format!("{}G<Enter>", row + 1));
+        magit_settle(&mut t);
+        let blob = t.s.ed.blob.as_ref().expect("blob buffer");
+        assert_eq!(blob.file, Path::new("f.txt"));
+        assert_eq!(
+            (t.s.ed.cur.line, t.s.ed.buf.line(t.s.ed.cur.line)),
+            (4, "five".to_owned())
+        );
     }
 
     #[test]

@@ -1370,6 +1370,17 @@ impl Session {
             };
             let selected = view.action_at(self.ed.cur.line);
             let fallback = self.ed.cur.line;
+            if matches!(action, Action::Visit | Action::VisitWorktree) && selected.is_none() {
+                // magit-diff-visit-file / -worktree-file on a diff line.
+                match diff_visit(&view, self.ed.cur.line, action == Action::VisitWorktree) {
+                    Some((rev, file, line)) => {
+                        let repo = view.repo.clone();
+                        self.start_magit(move || blob_outcome(repo, rev, file, line, None, None));
+                    }
+                    None => self.ed.set_err("Nothing to visit here"),
+                }
+                return;
+            }
             if action == Action::Visit {
                 match selected {
                     Some(RowAction::File(ref path, _))
@@ -2511,6 +2522,45 @@ fn branch_outcome(repo: Repo, next: crate::magit::branch::Next, origin: usize) -
             Err(e) => Outcome::Saved(repo, Err(e)),
         },
     }
+}
+/// The revision (or worktree) and 0-based line a diff line points to.
+fn diff_visit(view: &View, line: usize, worktree: bool) -> Option<(String, PathBuf, usize)> {
+    use crate::magit::blob::WORKTREE;
+    use crate::magit::diff::Target;
+    let lines: Vec<&str> = view.rows.iter().map(|r| r.text.as_str()).collect();
+    let loc = crate::magit::diff::location(&lines, line)?;
+    let side = |a: &str, b: &str| {
+        let r = if loc.removed { a } else { b };
+        if r.is_empty() {
+            "HEAD".to_owned()
+        } else {
+            r.to_owned()
+        }
+    };
+    let rev = match &view.kind {
+        _ if worktree && !loc.removed => WORKTREE.to_owned(),
+        Kind::Diff(Target::Unstaged | Target::Staged, _) => WORKTREE.to_owned(),
+        Kind::Diff(Target::Range(r), _) => match r.split_once("...").or_else(|| r.split_once(".."))
+        {
+            Some((a, b)) => side(a, b),
+            // One revision compared with the worktree.
+            None if loc.removed => r.clone(),
+            None => WORKTREE.to_owned(),
+        },
+        Kind::Diff(Target::Commit(id), _) | Kind::Patch(id) => {
+            if loc.removed {
+                format!("{id}^")
+            } else {
+                id.clone()
+            }
+        }
+        Kind::StashPatch(_) => WORKTREE.to_owned(),
+        _ => return None,
+    };
+    if worktree && loc.removed {
+        return None;
+    }
+    Some((rev, loc.file, loc.line - 1))
 }
 fn blob_outcome(
     repo: Repo,
