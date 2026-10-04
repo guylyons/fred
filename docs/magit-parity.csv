@@ -631,31 +631,31 @@ magit-notes.el,,command,magit-notes:--ref,missing,Runtime-expanded surface; sour
 magit-notes.el,,command,magit-notes:--strategy,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-notes.el,,command,transient:magit-notes:--dry-run,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-patch.el,35,option,magit-patch-save-arguments,missing,,explicit
-magit-patch.el,56,command,magit-patch,missing,,explicit
-magit-patch.el,66,command,magit-patch-create,missing,,explicit
-magit-patch.el,243,command,magit-patch-apply,missing,,explicit
-magit-patch.el,266,command,magit-patch-save,missing,,explicit
-magit-patch.el,311,command,magit-request-pull,missing,,explicit
-magit-patch.el,,command,magit-format-patch:--base,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-patch.el,,command,magit-format-patch:--cc,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-patch.el,,command,magit-format-patch:--cover-from-description,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-patch.el,,command,magit-format-patch:--from,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-patch.el,,command,magit-format-patch:--in-reply-to,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-patch.el,,command,magit-format-patch:--interdiff,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-patch.el,,command,magit-format-patch:--notes,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-patch.el,,command,magit-format-patch:--output-directory,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-patch.el,,command,magit-format-patch:--range-diff,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-patch.el,,command,magit-format-patch:--reroll-count,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-patch.el,,command,magit-format-patch:--subject-prefix,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-patch.el,,command,magit-format-patch:--thread,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-patch.el,,command,magit-format-patch:--to,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-patch.el,,command,transient:magit-patch-apply:--3way,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-patch.el,,command,transient:magit-patch-apply:--cached,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-patch.el,,command,transient:magit-patch-apply:--index,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-patch.el,,command,transient:magit-patch-create:--cover-letter,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-patch.el,,command,transient:magit-patch-create:--ignore-all-space,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-patch.el,,command,transient:magit-patch-create:--ignore-space-change,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-patch.el,,command,transient:magit-patch-create:--rfc,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-patch.el,56,command,magit-patch,partial,Space m W: c w a s r,explicit
+magit-patch.el,66,command,magit-patch-create,partial,W c menu K (C-m x keys are =x); range or commit (single commit = X^..X); in-process format-patch; visits cover letter; no -- files,explicit
+magit-patch.el,243,command,magit-patch-apply,partial,W a menu a: -i -c -3; file relative to the toplevel,explicit
+magit-patch.el,266,command,magit-patch-save,partial,W s in a diff buffer: buffer range and arguments; refuses an existing file; no magit-patch-save-arguments,explicit
+magit-patch.el,311,command,magit-request-pull,partial,"W r: remote url, start (default upstream), end; output in a view instead of a mail buffer",explicit
+magit-patch.el,,command,magit-format-patch:--base,partial,menu argument,runtime
+magit-patch.el,,command,magit-format-patch:--cc,partial,menu argument,runtime
+magit-patch.el,,command,magit-format-patch:--cover-from-description,partial,menu argument,runtime
+magit-patch.el,,command,magit-format-patch:--from,partial,menu argument,runtime
+magit-patch.el,,command,magit-format-patch:--in-reply-to,partial,menu argument,runtime
+magit-patch.el,,command,magit-format-patch:--interdiff,partial,menu argument,runtime
+magit-patch.el,,command,magit-format-patch:--notes,partial,menu argument,runtime
+magit-patch.el,,command,magit-format-patch:--output-directory,partial,menu argument,runtime
+magit-patch.el,,command,magit-format-patch:--range-diff,partial,menu argument,runtime
+magit-patch.el,,command,magit-format-patch:--reroll-count,partial,menu argument,runtime
+magit-patch.el,,command,magit-format-patch:--subject-prefix,partial,menu argument,runtime
+magit-patch.el,,command,magit-format-patch:--thread,partial,menu argument,runtime
+magit-patch.el,,command,magit-format-patch:--to,partial,menu argument,runtime
+magit-patch.el,,command,transient:magit-patch-apply:--3way,partial,menu argument,runtime
+magit-patch.el,,command,transient:magit-patch-apply:--cached,partial,menu argument,runtime
+magit-patch.el,,command,transient:magit-patch-apply:--index,partial,menu argument,runtime
+magit-patch.el,,command,transient:magit-patch-create:--cover-letter,partial,menu argument,runtime
+magit-patch.el,,command,transient:magit-patch-create:--ignore-all-space,partial,menu argument,runtime
+magit-patch.el,,command,transient:magit-patch-create:--ignore-space-change,partial,menu argument,runtime
+magit-patch.el,,command,transient:magit-patch-create:--rfc,partial,menu argument,runtime
 magit-process.el,52,option,magit-process-connection-type,missing,,explicit
 magit-process.el,61,option,magit-need-cygwin-noglob,missing,,explicit
 magit-process.el,85,option,magit-process-popup-time,missing,,explicit
@@ -822,12 +822,12 @@ magit-sequence.el,279,command,magit-cherry-spinoff,partial,Space m x s; new bran
 magit-sequence.el,374,command,magit-revert,partial,Space m v / V with -e (default) -E =s and V/v; V/s/a continue/skip/abort while reverting,explicit
 magit-sequence.el,402,command,magit-revert-and-commit,partial,Space m v V; --edit opens Fred draft from MERGE_MSG for single commits,explicit
 magit-sequence.el,411,command,magit-revert-no-commit,partial,Space m v v,explicit
-magit-sequence.el,431,command,magit-am,missing,,explicit
-magit-sequence.el,469,command,magit-am-apply-patches,missing,,explicit
-magit-sequence.el,485,command,magit-am-apply-maildir,missing,,explicit
-magit-sequence.el,493,command,magit-am-continue,missing,,explicit
-magit-sequence.el,504,command,magit-am-skip,missing,,explicit
-magit-sequence.el,512,command,magit-am-abort,missing,,explicit
+magit-sequence.el,431,command,magit-am,partial,"W w menu w: arguments, m/w/a, while applying w continue s skip a abort; seeded --3way",explicit
+magit-sequence.el,469,command,magit-am-apply-patches,partial,w w: one patch file (no region of files),explicit
+magit-sequence.el,485,command,magit-am-apply-maildir,partial,w m,explicit
+magit-sequence.el,493,command,magit-am-continue,partial,w w while applying; refuses unstaged changes,explicit
+magit-sequence.el,504,command,magit-am-skip,partial,w s,explicit
+magit-sequence.el,512,command,magit-am-abort,partial,w a while applying,explicit
 magit-sequence.el,526,command,magit-rebase,partial,Space m R with -k -r -u -d -t -a -A(default) -i -h and p/u/e/i/s/m/w/k/f; r/s/e/a continue/skip/edit/abort while rebasing; strategy/exec/gpg/signoff levels missing,explicit
 magit-sequence.el,594,command,magit-rebase-onto-pushremote,partial,Space m R p; requires a configured push-remote,explicit
 magit-sequence.el,608,command,magit-rebase-onto-upstream,partial,Space m R u; unset upstream is asked and set,explicit
@@ -845,13 +845,13 @@ magit-sequence.el,866,command,magit-rebase-abort,partial,Space m R a; guarded op
 magit-sequence.el,,command,magit-apply:-p,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-sequence.el,,command,magit-cherry-pick:--mainline,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-sequence.el,,command,magit-rebase:--exec,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-sequence.el,,command,transient:magit-am:--3way,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-sequence.el,,command,transient:magit-am:--committer-date-is-author-date,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-sequence.el,,command,transient:magit-am:--ignore-date,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-sequence.el,,command,transient:magit-am:--keep,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-sequence.el,,command,transient:magit-am:--keep-non-patch,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-sequence.el,,command,transient:magit-am:--reject,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-sequence.el,,command,transient:magit-am:--scissors,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sequence.el,,command,transient:magit-am:--3way,partial,menu argument,runtime
+magit-sequence.el,,command,transient:magit-am:--committer-date-is-author-date,partial,menu argument,runtime
+magit-sequence.el,,command,transient:magit-am:--ignore-date,partial,menu argument,runtime
+magit-sequence.el,,command,transient:magit-am:--keep,partial,menu argument,runtime
+magit-sequence.el,,command,transient:magit-am:--keep-non-patch,partial,menu argument,runtime
+magit-sequence.el,,command,transient:magit-am:--reject,partial,menu argument,runtime
+magit-sequence.el,,command,transient:magit-am:--scissors,partial,menu argument,runtime
 magit-sequence.el,,command,transient:magit-cherry-pick:--edit,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-sequence.el,,command,transient:magit-cherry-pick:--ff,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-sequence.el,,command,transient:magit-cherry-pick:-x,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime

@@ -52,6 +52,8 @@ pub enum Next {
     Status(std::path::PathBuf),
     /// Show a log, shortlog or cherry buffer.
     View(super::Kind),
+    /// Visit a file (a cover letter).
+    Visit(std::path::PathBuf),
 }
 
 fn name(v: &str) -> Result<&str, String> {

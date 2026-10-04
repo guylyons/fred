@@ -2767,8 +2767,10 @@ fn log_variants_arguments_and_merged() {
     assert!(r.log_step(Op::ShortlogRange, &s(&["--all"]), &[]).is_err());
     // magit-cherry: topic's commit is merged, so cherry from v1's parent.
     git(d.path(), &["checkout", "-qb", "pick", "HEAD~3"]);
-    git(d.path(), &["cherry-pick", &feature]);
+    // "own" first: a pick onto feature's own parent in the same second
+    // would recreate the identical commit.
     commit("own");
+    git(d.path(), &["cherry-pick", &feature]);
     let Next::View(super::Kind::Cherry(head, upstream)) =
         r.log_step(Op::Cherry, &s(&["pick", "topic"]), &[]).unwrap()
     else {
@@ -2776,7 +2778,7 @@ fn log_variants_arguments_and_merged() {
     };
     let cherries = r.cherry(&head, &upstream).unwrap();
     let signs: Vec<_> = cherries.iter().map(|c| (c.0, c.2.as_str())).collect();
-    assert_eq!(signs, vec![('+', "own"), ('-', "feature")]);
+    assert_eq!(signs, vec![('-', "feature"), ('+', "own")]);
     assert!(r.log_step(Op::Cherry, &s(&["pick", "-x"]), &[]).is_err());
 }
 
@@ -2917,6 +2919,109 @@ fn subtree_commands_take_prefix_from_arguments_or_answers() {
     }
     assert!(
         r.subtree_step(Op::Push, &s(&["lib", "--upload-pack=x", "main"]), &[])
+            .is_err()
+    );
+}
+
+#[test]
+fn patch_create_am_apply_save_and_request_pull() {
+    use super::branch::Next;
+    use super::patch::Op;
+    let (d, r) = setup();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    let commit = |name: &str| {
+        fs::write(d.path().join(name), name).unwrap();
+        git(d.path(), &["add", name]);
+        git(d.path(), &["commit", "-qm", name]);
+    };
+    commit("base");
+    commit("one");
+    commit("two");
+    // A single commit means just that commit; the cover letter is visited.
+    let out = d.path().join("out");
+    fs::create_dir(&out).unwrap();
+    let Next::Visit(cover) = r
+        .patch_step(
+            Op::Create,
+            &s(&["HEAD~1"]),
+            &s(&[
+                "--cover-letter",
+                "--output-directory=out",
+                "--reroll-count=2",
+            ]),
+        )
+        .unwrap()
+    else {
+        panic!()
+    };
+    assert_eq!(cover, r.root.join("out/v2-0000-cover-letter.patch"));
+    assert!(out.join("v2-0001-one.patch").exists());
+    assert!(!out.join("v2-0002-two.patch").exists());
+    assert!(r.patch_step(Op::Create, &s(&["--all"]), &[]).is_err());
+    // magit-am applies them elsewhere; continue/skip/abort need a session.
+    git(d.path(), &["checkout", "-qb", "other", "HEAD~2"]);
+    assert!(r.patch_resolve(Op::AmSkip).is_err());
+    assert_eq!(r.patch_resolve(Op::AmApply).unwrap(), Op::Apply);
+    let Next::GitEditor(argv) = r
+        .patch_step(
+            Op::AmPatches,
+            &s(&["out/v2-0001-one.patch"]),
+            &s(&["--3way"]),
+        )
+        .unwrap()
+    else {
+        panic!()
+    };
+    git(
+        d.path(),
+        &argv.iter().map(String::as_str).collect::<Vec<_>>(),
+    );
+    assert!(d.path().join("one").exists());
+    // A plain patch applies to the worktree only.
+    git(d.path(), &["diff", "HEAD~1", "HEAD", "--output=plain.diff"]);
+    git(d.path(), &["reset", "-q", "--hard", "HEAD~1"]);
+    r.patch_step(Op::Apply, &s(&["plain.diff"]), &[]).unwrap();
+    assert!(d.path().join("one").exists());
+    // Save the worktree diff; never over an existing file.
+    git(d.path(), &["add", "-N", "one"]);
+    let target = super::diff::Target::Unstaged;
+    r.patch_step(
+        Op::SaveDiff(target.clone(), vec![]),
+        &s(&["saved.patch"]),
+        &[],
+    )
+    .unwrap();
+    assert!(
+        fs::read_to_string(d.path().join("saved.patch"))
+            .unwrap()
+            .contains("+one")
+    );
+    assert!(
+        r.patch_step(Op::SaveDiff(target, vec![]), &s(&["saved.patch"]), &[])
+            .is_err()
+    );
+    // request-pull reads the remote's url.
+    git(
+        d.path(),
+        &["remote", "add", "up", &d.path().to_string_lossy()],
+    );
+    let Next::View(super::Kind::Output(_, argv)) = r
+        .patch_step(Op::RequestPull, &s(&["up", "main~2", "main"]), &[])
+        .unwrap()
+    else {
+        panic!()
+    };
+    let text = String::from_utf8(
+        r.read_network(&argv.iter().map(String::as_str).collect::<Vec<_>>())
+            .unwrap(),
+    )
+    .unwrap();
+    assert!(
+        text.contains("are available in the Git repository"),
+        "{text}"
+    );
+    assert!(
+        r.patch_step(Op::RequestPull, &s(&["nope", "a", "b"]), &[])
             .is_err()
     );
 }

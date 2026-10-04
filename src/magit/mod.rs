@@ -9,6 +9,7 @@ pub mod log;
 pub mod merge;
 pub mod network;
 pub mod notes;
+pub mod patch;
 pub mod rebase;
 pub mod remote;
 pub mod repo;
@@ -94,6 +95,8 @@ pub enum Action {
     Submodule(submodule::Op),
     /// A magit-subtree.el suffix.
     Subtree(subtree::Op),
+    /// A magit-patch.el or magit-am suffix.
+    Patch(patch::Op),
     /// magit-reflog-current / -head / -other (None asks for a ref).
     Reflog(Option<String>),
     /// ZZ / ZQ in a rebase todo buffer.
@@ -187,6 +190,8 @@ pub enum Kind {
     Reflog(String),
     /// magit-submodule-list-mode.
     Modules,
+    /// Output of a read-only Git command: title and arguments.
+    Output(String, Vec<String>),
     /// magit-cherry-mode: head and upstream.
     Cherry(String, String),
     /// *magit-shortlog*: revision or range and arguments.
@@ -248,6 +253,7 @@ impl View {
             Kind::Diff(target, _) => format!("Magit diff: {}", target.title()),
             Kind::Reflog(r) => format!("Magit reflog {}", label(std::path::Path::new(r))),
             Kind::Modules => "Magit modules".into(),
+            Kind::Output(title, _) => format!("Magit {}", label(std::path::Path::new(title))),
             Kind::Cherry(h, u) => format!(
                 "Magit cherry {}",
                 label(std::path::Path::new(&format!("{u}..{h}")))
@@ -766,6 +772,12 @@ fn menu_help(menu: char) -> Option<&'static str> {
             "Log: l current  o other  h HEAD  u related  L/b/a/R branches, all, reflog objects  B/T matching  m merged; = limit, + more in a log"
         }
         'u' => "Subtree: i import  e export",
+        'W' => {
+            "Patch: c create  w apply patches (am)  a apply plain patch  s save diff  r request pull"
+        }
+        'K' => "Create patches: c create; =x for upstream's C-m x arguments",
+        'a' => "Apply patch: a apply; -i index  -c cached  -3 3way",
+        'w' => "Am: m maildir  w patches  a plain patch; applying: w continue  s skip  a abort",
         'I' => {
             "Subtree import: a add  c add commit  m merge  f pull; -P prefix  -m message  -s squash"
         }
@@ -841,6 +853,7 @@ pub enum Question {
     Log(log::Op),
     Submodule(submodule::Op),
     Subtree(subtree::Op),
+    Patch(patch::Op),
     Net(network::Op),
     Diff(diff::Op),
     FindFile,
@@ -948,6 +961,10 @@ pub(crate) fn open_menu(ed: &mut Editor, menu: char) {
                 .insert(MenuOption::Switch('l', "--decorate"));
         }
     }
+    // magit-am :value '("--3way").
+    if menu == 'w' && ed.magit_seeded.insert('w') {
+        ed.magit_options.insert(MenuOption::Switch('w', "--3way"));
+    }
     // magit-shortlog :value '("--numbered" "--summary").
     if menu == 'S' && ed.magit_seeded.insert('S') {
         ed.magit_options
@@ -1010,6 +1027,7 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("Y", "Inspect", "Cherries", LogOp(log::Op::Cherry)),
             ("o", "Repository", "Submodules", Menu('o')),
             ("O", "Repository", "Subtrees", Menu('u')),
+            ("W", "Repository", "Patches", Menu('W')),
             // Upstream's B is the user's blame key, so bisect lives on G.
             ("G", "History", "Bisect", Menu('G')),
             ("b", "Branch", "Branch operations", Menu('b')),
@@ -1431,6 +1449,200 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                     "Fetch modules",
                     Net(network::Op::FetchModules),
                 ),
+            ]
+        }
+        'W' => vec![
+            ("c", "Actions", "Create patches", Menu('K')),
+            ("w", "Actions", "Apply patches", Menu('w')),
+            ("a", "Actions", "Apply plain patch", Menu('a')),
+            ("s", "Actions", "Save diff as patch", Patch(patch::Op::Save)),
+            (
+                "r",
+                "Actions",
+                "Request pull",
+                Patch(patch::Op::RequestPull),
+            ),
+        ],
+        // magit-patch-create: upstream's "C-m x" keys are "=x" here.
+        'K' => {
+            let sw = |a| ToggleOption(MenuOption::Switch('K', a));
+            vec![
+                (
+                    "=R",
+                    "Mail arguments",
+                    "In reply to",
+                    ReadOption("--in-reply-to="),
+                ),
+                (
+                    "=s",
+                    "Mail arguments",
+                    "Thread style",
+                    CycleOption("--thread="),
+                ),
+                ("=f", "Mail arguments", "From", ReadOption("--from=")),
+                ("=t", "Mail arguments", "To", ReadOption("--to=")),
+                ("=c", "Mail arguments", "CC", ReadOption("--cc=")),
+                (
+                    "=b",
+                    "Patch arguments",
+                    "Insert base commit",
+                    ReadOption("--base="),
+                ),
+                (
+                    "=v",
+                    "Patch arguments",
+                    "Reroll count",
+                    ReadOption("--reroll-count="),
+                ),
+                (
+                    "=i",
+                    "Patch arguments",
+                    "Insert interdiff",
+                    ReadOption("--interdiff="),
+                ),
+                (
+                    "=d",
+                    "Patch arguments",
+                    "Insert range-diff",
+                    ReadOption("--range-diff="),
+                ),
+                (
+                    "=p",
+                    "Patch arguments",
+                    "Subject Prefix",
+                    ReadOption("--subject-prefix="),
+                ),
+                ("=r", "Patch arguments", "RFC subject prefix", sw("--rfc")),
+                (
+                    "=l",
+                    "Patch arguments",
+                    "Add cover letter",
+                    sw("--cover-letter"),
+                ),
+                (
+                    "=D",
+                    "Patch arguments",
+                    "Use branch description",
+                    CycleOption("--cover-from-description="),
+                ),
+                (
+                    "=n",
+                    "Patch arguments",
+                    "Insert commentary from notes",
+                    ReadOption("--notes="),
+                ),
+                (
+                    "=o",
+                    "Patch arguments",
+                    "Output directory",
+                    ReadOption("--output-directory="),
+                ),
+                ("-U", "Diff arguments", "Context lines", ReadOption("-U")),
+                ("-M", "Diff arguments", "Detect renames", sw("-M")),
+                ("-C", "Diff arguments", "Detect copies", sw("-C")),
+                (
+                    "-A",
+                    "Diff arguments",
+                    "Diff algorithm",
+                    CycleOption("--diff-algorithm="),
+                ),
+                (
+                    "-b",
+                    "Diff arguments",
+                    "Ignore whitespace changes",
+                    sw("--ignore-space-change"),
+                ),
+                (
+                    "-w",
+                    "Diff arguments",
+                    "Ignore all whitespace",
+                    sw("--ignore-all-space"),
+                ),
+                ("c", "Actions", "Create patches", Patch(patch::Op::Create)),
+            ]
+        }
+        'a' => {
+            let sw = |a| ToggleOption(MenuOption::Switch('a', a));
+            vec![
+                ("-i", "Arguments", "Also apply to index", sw("--index")),
+                ("-c", "Arguments", "Only apply to index", sw("--cached")),
+                ("-3", "Arguments", "Fall back on 3way merge", sw("--3way")),
+                ("a", "Actions", "Apply patch", Patch(patch::Op::Apply)),
+            ]
+        }
+        // magit-am: w/a are continue/abort and s skips while applying.
+        'w' => {
+            let sw = |a| ToggleOption(MenuOption::Switch('w', a));
+            vec![
+                ("-3", "Arguments", "Fall back on 3way merge", sw("--3way")),
+                (
+                    "-R",
+                    "Arguments",
+                    "Reject only failed hunks",
+                    sw("--reject"),
+                ),
+                (
+                    "-p",
+                    "Arguments",
+                    "Remove leading slashes from paths",
+                    ReadOption("-p"),
+                ),
+                (
+                    "-c",
+                    "Arguments",
+                    "Remove text before scissors line",
+                    sw("--scissors"),
+                ),
+                (
+                    "-k",
+                    "Arguments",
+                    "Inhibit removal of email cruft",
+                    sw("--keep"),
+                ),
+                (
+                    "-b",
+                    "Arguments",
+                    "Limit removal of email cruft",
+                    sw("--keep-non-patch"),
+                ),
+                (
+                    "-d",
+                    "Arguments",
+                    "Use author date as committer date",
+                    sw("--committer-date-is-author-date"),
+                ),
+                (
+                    "-t",
+                    "Arguments",
+                    "Use current time as author date",
+                    sw("--ignore-date"),
+                ),
+                (
+                    "-S",
+                    "Arguments",
+                    "Sign using gpg",
+                    ReadOption("--gpg-sign="),
+                ),
+                (
+                    "-s",
+                    "Arguments",
+                    "Add Signed-off-by lines",
+                    sw("--signoff"),
+                ),
+                ("m", "Apply", "maildir", Patch(patch::Op::AmMaildir)),
+                (
+                    "w",
+                    "Apply",
+                    "patches / continue",
+                    Patch(patch::Op::AmPatches),
+                ),
+                (
+                    "a",
+                    "Apply",
+                    "plain patch / abort",
+                    Patch(patch::Op::AmApply),
+                ),
+                ("s", "Actions", "Skip", Patch(patch::Op::AmSkip)),
             ]
         }
         'u' => vec![
@@ -2268,6 +2480,8 @@ pub fn choices(menu: char, prefix: &str) -> &'static [&'static str] {
         "--rebase-merges=" => &["no-rebase-cousins", "rebase-cousins"],
         // "trailer:" takes a key Fred cannot read in a cycle.
         "--group=" => &["author", "committer"],
+        "--thread=" => &["deep", "shallow"],
+        "--cover-from-description=" => &["message", "subject", "auto", "none"],
         // magit-log:--*-order.
         "--" if menu == 'l' => &["topo-order", "author-date-order", "date-order"],
         _ => &[],

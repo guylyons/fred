@@ -234,6 +234,51 @@ impl Session {
             });
             return;
         }
+        if let Action::Answered(repo, Question::Patch(op), answers, defaults) = action {
+            let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, op.menu()));
+            self.start_magit(move || {
+                let merged = merge_answers(&answers, &defaults);
+                let next = repo
+                    .patch_step(op, &merged, &args)
+                    .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                Ok(branch_outcome(repo, next, origin))
+            });
+            return;
+        }
+        if let Action::Patch(op) = action {
+            use crate::magit::patch::Op as W;
+            let (origin, from) = (self.cur, self.magit_from());
+            let view = self.ed.magit.as_ref();
+            // magit-patch-save works on the diff buffer's range and arguments.
+            let op = match (op, view.map(|v| &v.kind)) {
+                (W::Save, Some(Kind::Diff(target, args))) => {
+                    W::SaveDiff(target.clone(), args.clone())
+                }
+                (op, _) => op,
+            };
+            let at_point = view.and_then(|v| match v.action_at(self.ed.cur.line) {
+                Some(RowAction::Commit(id)) => Some(id),
+                Some(RowAction::File(p, _)) | Some(RowAction::Hunk(p, ..)) => v
+                    .repo
+                    .root
+                    .join(&p)
+                    .is_file()
+                    .then(|| p.to_string_lossy().into_owned()),
+                _ => None,
+            });
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                let op = repo.patch_resolve(op)?;
+                let args = vec![];
+                let (prompts, defaults) = repo.patch_prompts(&op, at_point);
+                if prompts.is_empty() {
+                    let next = repo.patch_step(op, &[], &args)?;
+                    return Ok(branch_outcome(repo, next, origin));
+                }
+                Ok(Outcome::Ask(repo, Question::Patch(op), defaults, prompts))
+            });
+            return;
+        }
         if let Action::Answered(repo, Question::Subtree(op), answers, defaults) = action {
             let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, op.menu()));
             self.start_magit(move || {
@@ -771,7 +816,8 @@ impl Session {
                 | Question::Bisect(_)
                 | Question::Log(_)
                 | Question::Submodule(_)
-                | Question::Subtree(_) => {
+                | Question::Subtree(_)
+                | Question::Patch(_) => {
                     unreachable!("handled before the worker")
                 }
                 Question::FindFile => {
@@ -2179,6 +2225,7 @@ fn branch_outcome(repo: Repo, next: crate::magit::branch::Next, origin: usize) -
                 Err(e) => Outcome::Saved(repo, Err(e)),
             }
         }
+        Next::Visit(path) => Outcome::VisitFile(path, 0),
         Next::View(kind) => {
             let mut view = View::status(repo.clone(), Default::default());
             view.kind = kind;
@@ -2366,6 +2413,16 @@ fn refresh_view(view: &mut View) -> Result<(), String> {
         Kind::Log(..) | Kind::FileLog(..) | Kind::Reflog(_)
     ) {
         return refresh_log(view);
+    }
+    if let Kind::Output(title, argv) = &view.kind {
+        let mut rows = vec![Row {
+            text: format!("{} (gr refresh, q return)", label(Path::new(title))),
+            action: None,
+        }];
+        let argv: Vec<&str> = argv.iter().map(String::as_str).collect();
+        rows.extend(display_patch(&view.repo.read_network(&argv)?));
+        view.rows = rows;
+        return Ok(());
     }
     if view.kind == Kind::Modules {
         let mut rows = vec![Row {
