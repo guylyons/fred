@@ -93,6 +93,7 @@ pub fn by_name(name: &str) -> Option<Action> {
         "magit-push-implicitly" => Some(GitRun(&["push", "-v"])),
         "magit-run" => menu('!'),
         "magit-process-buffer" => Some(ProcessBuffer),
+        "magit-log-refresh" => menu('R'),
         "magit-wip-commit" => Some(Wip(wip::Op::Commit)),
         "magit-wip-log-index" => Some(Wip(wip::Op::LogIndex)),
         "magit-wip-log-worktree" => Some(Wip(wip::Op::LogWorktree)),

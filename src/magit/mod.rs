@@ -159,6 +159,8 @@ pub enum Action {
     Misc(misc::Op),
     /// magit-process-buffer.
     ProcessBuffer,
+    /// magit-log-refresh's g: the menu's arguments for this log buffer.
+    LogRefresh,
     /// A magit-wip.el command.
     Wip(wip::Op),
     /// magit-jump-to-*: a status section by name.
@@ -925,7 +927,29 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
                 _ => apply::Kind::UnstageAll,
             }))
         }
+        // On a commit, - is magit-revert-no-commit and a magit-cherry-apply.
+        KeyCode::Char(c @ ('-' | 'a'))
+            if !k.ctrl
+                && !k.alt
+                && ed.magit.as_ref().is_some_and(|v| {
+                    matches!(v.action_at(ed.cur.line), Some(RowAction::Commit(_)))
+                }) =>
+        {
+            Some(Action::Sequence(if c == '-' {
+                sequence::Op::RevertNoCommit
+            } else {
+                sequence::Op::Apply
+            }))
+        }
         KeyCode::Char('q') if !k.ctrl => Some(Action::Return),
+        // magit-mode-map's menu keys, as evil-collection leaves or moves them.
+        KeyCode::Char(c) if !k.ctrl && !k.alt => match direct_key(c) {
+            Some(Action::Menu(m)) => {
+                open_menu(ed, m);
+                return true;
+            }
+            other => other,
+        },
         _ => None,
     };
     if let Some(a) = action {
@@ -933,6 +957,48 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         return true;
     }
     false
+}
+/// magit-mode-map under evil-collection's defaults: upstream's single keys,
+/// with p push, O reset, ' submodule, " subtree, _ revert and X untrack where
+/// evil keeps v V P x k K n N g G : for itself.
+fn direct_key(c: char) -> Option<Action> {
+    use Action::Menu;
+    Some(match c {
+        'A' => Menu('x'),
+        'b' => Menu('b'),
+        'B' => Menu('G'),
+        'c' => Menu('C'),
+        'C' => Menu('k'),
+        'd' => Menu('d'),
+        'D' => Menu('D'),
+        'f' => Menu('f'),
+        'F' => Menu('P'),
+        'h' | '?' => Menu('*'),
+        'i' => Menu('g'),
+        'I' => Action::Init,
+        'J' => Action::Status,
+        'l' => Menu('l'),
+        'L' => Menu('R'),
+        'm' => Menu('M'),
+        'M' => Menu('O'),
+        'p' => Menu('p'),
+        'Q' => Action::Misc(misc::Op::GitCommand { topdir: false }),
+        'r' => Menu('r'),
+        'R' => Action::File(blob::FileOp::Rename),
+        't' => Menu('t'),
+        'T' => Menu('N'),
+        'w' => Menu('w'),
+        'W' => Menu('W'),
+        'O' => Menu('X'),
+        'X' => Action::File(blob::FileOp::Untrack),
+        '\'' => Menu('o'),
+        '"' => Menu('u'),
+        '_' => Menu('v'),
+        'Y' => Action::LogOp(log::Op::Cherry),
+        'z' => Menu('z'),
+        'Z' | '%' => Menu('Y'),
+        _ => return None,
+    })
 }
 fn log_move_to_parent(ed: &mut Editor) {
     let Some(view) = ed.magit.as_ref() else {
@@ -1321,7 +1387,7 @@ pub(crate) fn open_menu(ed: &mut Editor, menu: char) {
         }
     }
     // magit-log-buffer arguments, else the default ("-n256" "--graph" "--decorate").
-    if menu == 'l' {
+    if menu == 'l' || menu == 'R' {
         if let Some(Kind::Log(_, args)) = ed.magit.as_ref().map(|v| &v.kind) {
             let args = args.clone();
             let follow = ed.magit_options.contains(&MenuOption::LogFollow);
@@ -2237,6 +2303,15 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 Misc(misc::Op::GitCommand { topdir: false }),
             ),
         ],
+        // magit-log-refresh: the log arguments, then g applies them here.
+        'R' => {
+            let mut v: Vec<_> = menu_entries('l')
+                .into_iter()
+                .filter(|e| !matches!(e.1, "Log" | "Reflog" | "Other" | "Wiplog"))
+                .collect();
+            v.push(("g", "Refresh", "buffer", LogRefresh));
+            v
+        }
         'J' => vec![
             ("c", "Actions", "create", Menu('j')),
             ("v", "Actions", "verify", Bundle(bundle::Op::Verify)),
@@ -3738,7 +3813,12 @@ impl MenuOption {
 }
 /// Menus that share another menu's arguments (magit-diff-refresh uses magit-diff's).
 pub fn arg_menu(menu: char) -> char {
-    if menu == 'D' { 'd' } else { menu }
+    match menu {
+        'D' => 'd',
+        // magit-log-refresh shares magit-log's arguments.
+        'R' => 'l',
+        m => m,
+    }
 }
 pub fn current_choice(ed: &Editor, menu: char, prefix: &str) -> Option<&'static str> {
     ed.magit_options.iter().find_map(|o| match o {

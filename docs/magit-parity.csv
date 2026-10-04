@@ -482,7 +482,7 @@ magit-log.el,328,option,magit-cherry-margin,missing,,explicit
 magit-log.el,360,option,magit-log-section-commit-count,partial,default 10 used; not configurable,explicit
 magit-log.el,369,option,magit-log-merged-commit-count,missing,,explicit
 magit-log.el,525,command,magit-log,partial,"Space m l: upstream groups (commit limiting, history simplification, ordering, formatting) with free-form values; Log l/o/h/u/L/b/a/R/B/T/m and Reflog r/O/H; missing shortlog, wiplog, -- files, set/save",explicit
-magit-log.el,556,command,magit-log-refresh,missing,,explicit
+magit-log.el,556,command,magit-log-refresh,partial,"L in Magit buffers (evil default) / :Magit: log arguments shared with l; g applies them to this log buffer (no set/save, margin)",explicit
 magit-log.el,699,command,magit-log-current,partial,Space m l l: current branch (or HEAD) with menu arguments; inherits the file of a file-log buffer,explicit
 magit-log.el,707,command,magit-log-head,partial,Space m l h: HEAD with menu arguments,explicit
 magit-log.el,713,command,magit-log-related,partial,"Space m l u: current/rebased/previous branch, push target, upstream and its upstream",explicit
@@ -548,9 +548,9 @@ magit-log.el,,command,transient:magit-log-infix-arguments:--simplify-by-decorati
 magit-log.el,,command,transient:magit-log-infix-arguments:--simplify-merges,partial,switch passed to git log in log buffers (not file logs),runtime
 magit-log.el,,command,transient:magit-log-infix-arguments:--sparse,partial,switch passed to git log in log buffers (not file logs),runtime
 magit-log.el,,command,transient:magit-log-infix-arguments:--stat,partial,switch passed to git log in log buffers (not file logs),runtime
-magit-log.el,,command,transient:magit-log-refresh:--color,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,transient:magit-log-refresh:--decorate,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,transient:magit-log-refresh:--graph,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-log-refresh:--color,partial,L menu,runtime
+magit-log.el,,command,transient:magit-log-refresh:--decorate,partial,L menu,runtime
+magit-log.el,,command,transient:magit-log-refresh:--graph,partial,L menu,runtime
 magit-log.el,,command,transient:magit-shortlog:--email,partial,menu S argument,runtime
 magit-log.el,,command,transient:magit-shortlog:--format=,partial,menu S argument,runtime
 magit-log.el,,command,transient:magit-shortlog:--group=,partial,-g cycles author/committer only,runtime

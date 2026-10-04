@@ -293,3 +293,10 @@ October 4 wip checkpoint: magit-wip commit (index and worktree refs through a
 temporary index), wip logs (l i, l w, current) and purge; magit-wip-mode's
 automatic saving is not ported. Ledger 604 partial / 169 missing commands.
 Score remains 3%.
+
+October 4 magit-mode-map checkpoint: Magit buffers take upstream's single
+keys as evil-collection's defaults leave or move them (b c d f l m r t z ...,
+p push, O reset, ' submodule, " subtree, _ revert, X untrack, h/? dispatch,
+L log refresh; - and a on a commit revert-no-commit and cherry-apply), in
+addition to the Space m contract. Ledger 608 partial / 165 missing commands.
+Score remains 3%.

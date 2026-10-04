@@ -54,3 +54,11 @@ Implement B/L/d/i and convert network/log entries to source menus. Do not
 credit menu parity until its arguments and contextual suffix workflows work.
 Keep this personal binding map separate from the full upstream surface inventory;
 it steers the interface without reducing the required functionality.
+
+Inside Magit buffers (October 4): with the user's evil-collection defaults,
+upstream's magit-mode-map single keys are live, as evil-collection leaves or
+moves them: A b B c C d D f F h ? i I J l L m M Q r R t T w W Y z Z % plus the
+relocated p (push), O (reset), ' (submodule), " (subtree), _ (revert), X
+(untrack), x (discard), o (reset quickly), | (git command), ` (process), -
+(reverse / revert-no-commit) and = + (context). Vim keeps v V k n N g G : for
+itself. The Space m layout above is unchanged.

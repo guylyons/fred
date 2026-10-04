@@ -2587,6 +2587,33 @@ mod tests {
     }
 
     #[test]
+    fn magit_buffers_take_upstream_menu_keys() {
+        let mut t = T::open(Some("f.txt"), Some("one\n"));
+        magit_repo(&t);
+        t.keys(" ms");
+        magit_settle(&mut t);
+        // evil-collection's magit-mode-map: b l p ' " _ O and h for dispatch.
+        for (key, menu) in [
+            ("b", 'b'),
+            ("l", 'l'),
+            ("p", 'p'),
+            ("'", 'o'),
+            ("\"", 'u'),
+            ("_", 'v'),
+            ("O", 'X'),
+            ("h", '*'),
+            ("L", 'R'),
+        ] {
+            t.keys(key);
+            assert_eq!(t.s.ed.magit_menu, Some(menu), "{key}");
+            t.keys("<Esc>");
+        }
+        // Vim keeps j k for movement.
+        t.keys("j");
+        assert_eq!(t.s.ed.magit_menu, None);
+    }
+
+    #[test]
     fn magit_file_log_reads_deleted_parent_and_tracked_symlink_name() {
         use std::os::unix::fs::symlink;
         let mut t = T::open(Some("target"), Some("target contents\n"));

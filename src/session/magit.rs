@@ -536,6 +536,25 @@ impl Session {
             });
             return;
         }
+        if action == Action::LogRefresh {
+            let args = crate::magit::menu_arguments(&self.ed, 'l');
+            match self.ed.magit.as_mut().map(|v| &mut v.kind) {
+                Some(Kind::Log(_, buffer_args)) => *buffer_args = args,
+                Some(Kind::Reflog(_)) => {
+                    return self
+                        .ed
+                        .set_err("Cannot change log arguments in reflog buffers");
+                }
+                Some(Kind::Cherry(..)) => {
+                    return self
+                        .ed
+                        .set_err("Cannot change log arguments in cherry buffers");
+                }
+                _ => return self.ed.set_err("Not in a log buffer"),
+            }
+            self.magit_action(Action::Refresh);
+            return;
+        }
         if action == Action::ProcessBuffer {
             // magit-process-buffer: this repository's Git commands, newest last.
             let Ok(repo) = Repo::discover(&self.magit_from()) else {
