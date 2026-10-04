@@ -385,8 +385,8 @@ magit-extras.el,440,command,magit-reshelve-since,missing,,explicit
 magit-extras.el,530,option,magit-pop-revision-stack-format,missing,,explicit
 magit-extras.el,577,option,magit-copy-revision-abbreviated,missing,,explicit
 magit-extras.el,584,command,magit-pop-revision-stack,missing,,explicit
-magit-extras.el,651,command,magit-copy-section-value,missing,,explicit
-magit-extras.el,711,command,magit-copy-buffer-revision,missing,,explicit
+magit-extras.el,651,command,magit-copy-section-value,partial,"ys: commit, file, stash, module",explicit
+magit-extras.el,711,command,magit-copy-buffer-revision,partial,yb,explicit
 magit-extras.el,758,command,magit-display-repository-buffer,missing,,explicit
 magit-extras.el,766,command,magit-switch-to-repository-buffer,missing,,explicit
 magit-extras.el,773,command,magit-switch-to-repository-buffer-other-window,missing,,explicit
@@ -597,17 +597,17 @@ magit-mode.el,307,option,magit-refresh-buffer-hook,missing,,explicit
 magit-mode.el,313,option,magit-refresh-status-buffer,missing,,explicit
 magit-mode.el,327,option,magit-refresh-verbose,missing,,explicit
 magit-mode.el,333,option,magit-save-repository-buffers,missing,,explicit
-magit-mode.el,438,command,magit-delete-thing,missing,,explicit
-magit-mode.el,446,command,magit-visit-thing,missing,,explicit
+magit-mode.el,438,command,magit-delete-thing,partial,x in status = discard (evil-collection),explicit
+magit-mode.el,446,command,magit-visit-thing,partial,"Enter (file, hunk, commit, stash, module, diff line)",explicit
 magit-mode.el,459,command,magit-edit-thing,missing,,explicit
 magit-mode.el,470,command,magit-browse-thing,missing,,explicit
 magit-mode.el,480,command,magit-copy-thing,missing,,explicit
 magit-mode.el,490,command,magit-info,missing,,explicit
 magit-mode.el,958,command,magit-toggle-buffer-lock,missing,,explicit
-magit-mode.el,1005,command,magit-mode-bury-buffer,missing,,explicit
+magit-mode.el,1005,command,magit-mode-bury-buffer,partial,q returns to the previous buffer,explicit
 magit-mode.el,1046,command,magit-refresh,partial,Space m s / gr; selected view; full buffer refresh semantics missing,explicit
-magit-mode.el,1081,command,magit-refresh-all,missing,,explicit
-magit-mode.el,1097,command,magit-refresh-buffer,missing,,explicit
+magit-mode.el,1081,command,magit-refresh-all,partial,gR,explicit
+magit-mode.el,1097,command,magit-refresh-buffer,partial,gr,explicit
 magit-mode.el,1213,command,magit-profile-refresh-buffer,missing,,explicit
 magit-mode.el,1226,command,magit-toggle-profiling,missing,,explicit
 magit-mode.el,1334,command,magit-save-repository-buffers,missing,,explicit
@@ -789,8 +789,8 @@ magit-section.el,860,command,magit-section-up,partial,gh in status,explicit
 magit-section.el,867,command,magit-section-forward-sibling,partial,gj ] M-j,explicit
 magit-section.el,879,command,magit-section-backward-sibling,partial,gk [ M-k,explicit
 magit-section.el,891,command,magit-mouse-set-point,missing,,explicit
-magit-section.el,945,command,magit-section-show,partial,zo,explicit
-magit-section.el,960,command,magit-section-hide,partial,zc (on a hunk: its file),explicit
+magit-section.el,945,command,magit-section-show,partial,via levels; evil z keys are off by default,explicit
+magit-section.el,960,command,magit-section-hide,partial,via levels; evil z keys are off by default,explicit
 magit-section.el,978,command,magit-section-toggle,partial,Tab / za (files and headings; hunks always open),explicit
 magit-section.el,987,command,magit-section-toggle-children,missing,,explicit
 magit-section.el,996,command,magit-section-show-children,partial,zO,explicit
@@ -798,14 +798,14 @@ magit-section.el,1013,command,magit-section-hide-children,partial,zC,explicit
 magit-section.el,1018,command,magit-section-show-headings,missing,,explicit
 magit-section.el,1033,command,magit-section-cycle,missing,,explicit
 magit-section.el,1064,command,magit-section-cycle-global,missing,,explicit
-magit-section.el,1124,command,magit-section-show-level-1,missing,,explicit
-magit-section.el,1129,command,magit-section-show-level-1-all,partial,z1,explicit
-magit-section.el,1134,command,magit-section-show-level-2,missing,,explicit
-magit-section.el,1139,command,magit-section-show-level-2-all,partial,z2,explicit
-magit-section.el,1144,command,magit-section-show-level-3,missing,,explicit
-magit-section.el,1149,command,magit-section-show-level-3-all,partial,z3 (expands every file),explicit
-magit-section.el,1154,command,magit-section-show-level-4,missing,,explicit
-magit-section.el,1159,command,magit-section-show-level-4-all,partial,z4 / zr,explicit
+magit-section.el,1124,command,magit-section-show-level-1,partial,1 in status (top-level section at point),explicit
+magit-section.el,1129,command,magit-section-show-level-1-all,partial,M-1 in status,explicit
+magit-section.el,1134,command,magit-section-show-level-2,partial,2 in status,explicit
+magit-section.el,1139,command,magit-section-show-level-2-all,partial,M-2,explicit
+magit-section.el,1144,command,magit-section-show-level-3,partial,3 in status,explicit
+magit-section.el,1149,command,magit-section-show-level-3-all,partial,M-3,explicit
+magit-section.el,1154,command,magit-section-show-level-4,partial,4 in status,explicit
+magit-section.el,1159,command,magit-section-show-level-4-all,partial,M-4,explicit
 magit-section.el,1164,command,magit-mouse-toggle-section,missing,,explicit
 magit-section.el,1182,command,magit-describe-section-briefly,missing,,explicit
 magit-section.el,1219,command,magit-describe-section,missing,,explicit
