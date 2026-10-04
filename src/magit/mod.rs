@@ -17,6 +17,7 @@ pub mod sequence;
 pub mod stash;
 pub mod status;
 pub mod submodule;
+pub mod subtree;
 pub mod tag;
 pub mod workflows;
 pub mod worktree;
@@ -91,6 +92,8 @@ pub enum Action {
     LogOp(log::Op),
     /// A magit-submodule.el suffix.
     Submodule(submodule::Op),
+    /// A magit-subtree.el suffix.
+    Subtree(subtree::Op),
     /// magit-reflog-current / -head / -other (None asks for a ref).
     Reflog(Option<String>),
     /// ZZ / ZQ in a rebase todo buffer.
@@ -762,6 +765,13 @@ fn menu_help(menu: char) -> Option<&'static str> {
         'l' => {
             "Log: l current  o other  h HEAD  u related  L/b/a/R branches, all, reflog objects  B/T matching  m merged; = limit, + more in a log"
         }
+        'u' => "Subtree: i import  e export",
+        'I' => {
+            "Subtree import: a add  c add commit  m merge  f pull; -P prefix  -m message  -s squash"
+        }
+        'E' => {
+            "Subtree export: p push  s split; -P prefix  -a annotate  -b branch  -o onto  -i ignore joins  -j rejoin"
+        }
         'o' => {
             "Submodule: a add  r register  p populate  u update  s sync  d unpopulate  k remove  l list  f fetch"
         }
@@ -830,6 +840,7 @@ pub enum Question {
     Bisect(bisect::Op),
     Log(log::Op),
     Submodule(submodule::Op),
+    Subtree(subtree::Op),
     Net(network::Op),
     Diff(diff::Op),
     FindFile,
@@ -998,6 +1009,7 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("T", "Inspect", "Notes", Menu('N')),
             ("Y", "Inspect", "Cherries", LogOp(log::Op::Cherry)),
             ("o", "Repository", "Submodules", Menu('o')),
+            ("O", "Repository", "Subtrees", Menu('u')),
             // Upstream's B is the user's blame key, so bisect lives on G.
             ("G", "History", "Bisect", Menu('G')),
             ("b", "Branch", "Branch operations", Menu('b')),
@@ -1419,6 +1431,55 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                     "Fetch modules",
                     Net(network::Op::FetchModules),
                 ),
+            ]
+        }
+        'u' => vec![
+            ("i", "Subtree actions", "Import", Menu('I')),
+            ("e", "Subtree actions", "Export", Menu('E')),
+        ],
+        'I' => {
+            use subtree::Op as U;
+            vec![
+                ("-P", "Arguments", "Prefix", ReadOption("--prefix=")),
+                ("-m", "Arguments", "Message", ReadOption("--message=")),
+                (
+                    "-s",
+                    "Arguments",
+                    "Squash",
+                    ToggleOption(MenuOption::Switch('I', "--squash")),
+                ),
+                ("a", "Subtree import actions", "Add", Subtree(U::Add)),
+                (
+                    "c",
+                    "Subtree import actions",
+                    "Add commit",
+                    Subtree(U::AddCommit),
+                ),
+                ("m", "Subtree import actions", "Merge", Subtree(U::Merge)),
+                ("f", "Subtree import actions", "Pull", Subtree(U::Pull)),
+            ]
+        }
+        'E' => {
+            use subtree::Op as U;
+            vec![
+                ("-P", "Arguments", "Prefix", ReadOption("--prefix=")),
+                ("-a", "Arguments", "Annotate", ReadOption("--annotate=")),
+                ("-b", "Arguments", "Branch", ReadOption("--branch=")),
+                ("-o", "Arguments", "Onto", ReadOption("--onto=")),
+                (
+                    "-i",
+                    "Arguments",
+                    "Ignore joins",
+                    ToggleOption(MenuOption::Switch('E', "--ignore-joins")),
+                ),
+                (
+                    "-j",
+                    "Arguments",
+                    "Rejoin",
+                    ToggleOption(MenuOption::Switch('E', "--rejoin")),
+                ),
+                ("p", "Subtree export actions", "Push", Subtree(U::Push)),
+                ("s", "Subtree export actions", "Split", Subtree(U::Split)),
             ]
         }
         'S' => {

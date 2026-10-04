@@ -47,8 +47,8 @@ additional behavior reopens its row and lowers the score until it is covered.
 
 ## Execution queue
 
-Submodule batch done. Next: subtrees, then reference movement and
-log-select,
+Submodule and subtree batches done. Next: patches/format-patch/am and
+bundles, then reference movement and log-select,
 subtrees, patches/bundles, clone, refs view, sparse checkout and gitignore,
 recording each accepted gate's evidence here. The baseline's UI map and
 scenario matrix remain open.
@@ -175,3 +175,8 @@ October 4 submodule checkpoint: Space m o ports magit-submodule (add,
 register, populate, update, sync, unpopulate, remove with dirty-module
 safety, list and visit) ([scenarios](magit-submodule-acceptance.md)). Ledger
 305 partial / 468 missing commands. Score remains 3%.
+
+October 4 subtree checkpoint: Space m O ports magit-subtree (import add/add
+commit/merge/pull, export push/split) with its options; prefixes must lie
+inside the repository ([scenarios](magit-subtree-acceptance.md)). Ledger 322
+partial / 451 missing commands. Score remains 3%.

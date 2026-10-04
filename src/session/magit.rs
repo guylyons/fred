@@ -234,6 +234,27 @@ impl Session {
             });
             return;
         }
+        if let Action::Answered(repo, Question::Subtree(op), answers, defaults) = action {
+            let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, op.menu()));
+            self.start_magit(move || {
+                let merged = merge_answers(&answers, &defaults);
+                let next = repo
+                    .subtree_step(op, &merged, &args)
+                    .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                Ok(branch_outcome(repo, next, origin))
+            });
+            return;
+        }
+        if let Action::Subtree(op) = action {
+            let from = self.magit_from();
+            let args = crate::magit::menu_arguments(&self.ed, op.menu());
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                let (prompts, defaults) = repo.subtree_prompts(&op, &args);
+                Ok(Outcome::Ask(repo, Question::Subtree(op), defaults, prompts))
+            });
+            return;
+        }
         if let Action::Submodule(op) = action {
             let (origin, from) = (self.cur, self.magit_from());
             let args = crate::magit::menu_arguments(&self.ed, 'o');
@@ -749,7 +770,8 @@ impl Session {
                 | Question::Notes(_)
                 | Question::Bisect(_)
                 | Question::Log(_)
-                | Question::Submodule(_) => {
+                | Question::Submodule(_)
+                | Question::Subtree(_) => {
                     unreachable!("handled before the worker")
                 }
                 Question::FindFile => {

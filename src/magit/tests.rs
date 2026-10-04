@@ -2848,3 +2848,57 @@ fn submodule_add_populate_list_and_remove() {
     assert!(r.module_paths().unwrap().is_empty());
     assert!(!d.path().join("lib").exists());
 }
+
+#[test]
+fn subtree_commands_take_prefix_from_arguments_or_answers() {
+    use super::branch::Next;
+    use super::subtree::Op;
+    let (d, r) = setup();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    let (prompts, _) = r.subtree_prompts(&Op::Add, &[]);
+    assert_eq!(prompts.len(), 3);
+    let (prompts, _) = r.subtree_prompts(&Op::Split, &s(&["--prefix=lib"]));
+    assert_eq!(prompts, s(&["Commit: "]));
+    let Next::Git(argv) = r
+        .subtree_step(Op::Add, &s(&["lib/", "origin", "main"]), &s(&["--squash"]))
+        .unwrap()
+    else {
+        panic!()
+    };
+    assert_eq!(
+        argv,
+        s(&[
+            "subtree",
+            "add",
+            "--prefix=lib",
+            "--squash",
+            "origin",
+            "main"
+        ])
+    );
+    let abs = d.path().join("vendor").to_string_lossy().into_owned();
+    let Next::Git(argv) = r
+        .subtree_step(
+            Op::Split,
+            &s(&["HEAD"]),
+            &s(&[&format!("--prefix={abs}"), "--rejoin"]),
+        )
+        .unwrap()
+    else {
+        panic!()
+    };
+    assert_eq!(
+        argv,
+        s(&["subtree", "split", "--prefix=vendor", "--rejoin", "HEAD"])
+    );
+    for bad in ["../x", ".git", "-x", "/elsewhere"] {
+        assert!(
+            r.subtree_step(Op::Merge, &s(&[bad, "HEAD"]), &[]).is_err(),
+            "{bad}"
+        );
+    }
+    assert!(
+        r.subtree_step(Op::Push, &s(&["lib", "--upload-pack=x", "main"]), &[])
+            .is_err()
+    );
+}

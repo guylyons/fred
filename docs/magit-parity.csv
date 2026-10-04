@@ -948,23 +948,23 @@ magit-submodule.el,,command,transient:magit-submodule:--no-fetch,partial,menu o 
 magit-submodule.el,,command,transient:magit-submodule:--rebase,partial,menu o switch,runtime
 magit-submodule.el,,command,transient:magit-submodule:--recursive,partial,menu o switch,runtime
 magit-submodule.el,,command,transient:magit-submodule:--remote,partial,menu o switch,runtime
-magit-subtree.el,37,command,magit-subtree,missing,,explicit
-magit-subtree.el,45,command,magit-subtree-import,missing,,explicit
-magit-subtree.el,59,command,magit-subtree-export,missing,,explicit
-magit-subtree.el,129,command,magit-subtree-add,missing,,explicit
-magit-subtree.el,140,command,magit-subtree-add-commit,missing,,explicit
-magit-subtree.el,149,command,magit-subtree-merge,missing,,explicit
-magit-subtree.el,158,command,magit-subtree-pull,missing,,explicit
-magit-subtree.el,169,command,magit-subtree-push,missing,,explicit
-magit-subtree.el,178,command,magit-subtree-split,missing,,explicit
-magit-subtree.el,,command,magit-subtree:--annotate,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-subtree.el,,command,magit-subtree:--branch,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-subtree.el,,command,magit-subtree:--message,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-subtree.el,,command,magit-subtree:--onto,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-subtree.el,,command,magit-subtree:--prefix,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-subtree.el,,command,transient:magit-subtree-export:--ignore-joins,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-subtree.el,,command,transient:magit-subtree-export:--rejoin,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-subtree.el,,command,transient:magit-subtree-import:--squash,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-subtree.el,37,command,magit-subtree,partial,"Space m O: i import, e export",explicit
+magit-subtree.el,45,command,magit-subtree-import,partial,O i: -P -m -s; a c m f,explicit
+magit-subtree.el,59,command,magit-subtree-export,partial,O e: -P -a -b -o -i -j; p s,explicit
+magit-subtree.el,129,command,magit-subtree-add,partial,"O i a: prefix (unless -P), repository, ref; no remote/refspec completion",explicit
+magit-subtree.el,140,command,magit-subtree-add-commit,partial,O i c,explicit
+magit-subtree.el,149,command,magit-subtree-merge,partial,O i m,explicit
+magit-subtree.el,158,command,magit-subtree-pull,partial,O i f,explicit
+magit-subtree.el,169,command,magit-subtree-push,partial,O e p,explicit
+magit-subtree.el,178,command,magit-subtree-split,partial,O e s,explicit
+magit-subtree.el,,command,magit-subtree:--annotate,partial,-a,runtime
+magit-subtree.el,,command,magit-subtree:--branch,partial,-b,runtime
+magit-subtree.el,,command,magit-subtree:--message,partial,-m,runtime
+magit-subtree.el,,command,magit-subtree:--onto,partial,-o (no revision reader),runtime
+magit-subtree.el,,command,magit-subtree:--prefix,partial,-P reads a value (validated inside the repository),runtime
+magit-subtree.el,,command,transient:magit-subtree-export:--ignore-joins,partial,menu switch,runtime
+magit-subtree.el,,command,transient:magit-subtree-export:--rejoin,partial,menu switch,runtime
+magit-subtree.el,,command,transient:magit-subtree-import:--squash,partial,menu switch,runtime
 magit-tag.el,37,command,magit-tag,partial,Space m t menu with -f -e -a -s and t/r/k/p (plus Fred list l); --local-user option missing,explicit
 magit-tag.el,65,command,magit-tag-create,partial,Space m t t; name and revision prompts; annotate/sign/edit read the message in Fred (no Git editor) and pass -m,explicit
 magit-tag.el,78,command,magit-tag-delete,partial,Space m t k; default tag at point in the tags list; region multi-delete missing,explicit
