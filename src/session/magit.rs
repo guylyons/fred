@@ -580,6 +580,51 @@ impl Session {
             crate::magit::prompt(&mut self.ed, crate::magit::Prompt::Trailer(Some(key)));
             return;
         }
+        if let Action::Answered(repo, Question::Ediff(op), answers, defaults) = action {
+            let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, 'V'));
+            self.start_magit(move || {
+                let merged = merge_answers(&answers, &defaults);
+                let next = repo
+                    .ediff_step(op, &merged, &args)
+                    .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                Ok(branch_outcome(repo, next, origin))
+            });
+            return;
+        }
+        if matches!(action, Action::Ediff(_) | Action::EdiffDwim) {
+            use crate::magit::ediff::Op as E;
+            let from = self.magit_from();
+            let at = self
+                .ed
+                .magit
+                .as_ref()
+                .and_then(|v| v.action_at(self.ed.cur.line));
+            let (file, commit) = match &at {
+                Some(RowAction::File(p, _) | RowAction::Hunk(p, ..)) => {
+                    (Some(p.to_string_lossy().into_owned()), None)
+                }
+                Some(RowAction::Commit(id)) => (None, Some(id.clone())),
+                _ => (None, None),
+            };
+            // magit-ediff-dwim: by the section at point, else the menu.
+            let op = match (action, &at) {
+                (Action::Ediff(op), _) => op,
+                (_, Some(RowAction::File(_, Section::Conflicts))) => E::Resolve,
+                (_, Some(RowAction::File(_, Section::Staged) | RowAction::Hunk(_, true, ..))) => {
+                    E::ShowStaged
+                }
+                (_, Some(RowAction::File(..) | RowAction::Hunk(..))) => E::ShowUnstaged,
+                (_, Some(RowAction::Commit(_))) => E::ShowCommit,
+                (_, Some(RowAction::Stash(_))) => E::ShowStash,
+                _ => return crate::magit::open_menu(&mut self.ed, 'U'),
+            };
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                let (prompts, defaults) = repo.ediff_prompts(&op, file, commit);
+                Ok(Outcome::Ask(repo, Question::Ediff(op), defaults, prompts))
+            });
+            return;
+        }
         if action == Action::DiffUnmerged {
             let (origin, from) = (self.cur, self.magit_from());
             let args = crate::magit::menu_arguments(&self.ed, 'd');
@@ -1752,7 +1797,8 @@ impl Session {
                 | Question::Configure(_)
                 | Question::Apply(_)
                 | Question::Misc(_)
-                | Question::Wip(_) => {
+                | Question::Wip(_)
+                | Question::Ediff(_) => {
                     unreachable!("handled before the worker")
                 }
                 Question::FindFile => {

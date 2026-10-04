@@ -1,7 +1,7 @@
 //! `:Magit NAME`: upstream command names for Fred's actions, so commands
 //! reached through M-x in Emacs (and every menu) have a way in.
 use super::Action::{self, *};
-use super::{Fold, apply, diff, log, misc, refs, wip};
+use super::{Fold, apply, diff, ediff, log, misc, refs, wip};
 
 /// The action for an upstream command name.
 pub fn by_name(name: &str) -> Option<Action> {
@@ -95,6 +95,17 @@ pub fn by_name(name: &str) -> Option<Action> {
         "magit-push-implicitly" => Some(GitRun(&["push", "-v"])),
         "magit-run" => menu('!'),
         "magit-process-buffer" => Some(ProcessBuffer),
+        "magit-ediff" => menu('U'),
+        "magit-ediff-dwim" => Some(EdiffDwim),
+        "magit-ediff-resolve-rest" | "magit-ediff-resolve-all" | "magit-git-mergetool" => {
+            Some(Ediff(ediff::Op::Resolve))
+        }
+        "magit-ediff-show-unstaged" => Some(Ediff(ediff::Op::ShowUnstaged)),
+        "magit-ediff-show-staged" => Some(Ediff(ediff::Op::ShowStaged)),
+        "magit-ediff-show-working-tree" => Some(Ediff(ediff::Op::ShowWorktree)),
+        "magit-ediff-show-commit" => Some(Ediff(ediff::Op::ShowCommit)),
+        "magit-ediff-compare" => Some(Ediff(ediff::Op::Compare)),
+        "magit-ediff-show-stash" => Some(Ediff(ediff::Op::ShowStash)),
         "magit-diff-unmerged" => Some(DiffUnmerged),
         "magit-diff-toggle-file-filter" => Some(DiffRefresh(diff::Refresh::FileFilter)),
         "magit-clean" => Some(Misc(misc::Op::Clean(0))),

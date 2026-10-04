@@ -352,18 +352,18 @@ magit-ediff.el,44,option,magit-ediff-quit-hook,missing,,explicit
 magit-ediff.el,57,option,magit-ediff-dwim-resolve-function,missing,,explicit
 magit-ediff.el,65,option,magit-ediff-dwim-show-on-hunks,missing,,explicit
 magit-ediff.el,75,option,magit-ediff-show-stash-with-index,missing,,explicit
-magit-ediff.el,117,command,magit-ediff,missing,,explicit
-magit-ediff.el,134,command,magit-ediff-resolve-all,missing,,explicit
-magit-ediff.el,197,command,magit-ediff-resolve-rest,missing,,explicit
+magit-ediff.el,117,command,magit-ediff,partial,E in Magit buffers / Space m E: git difftool and mergetool in the terminal (no Ediff),explicit
+magit-ediff.el,134,command,magit-ediff-resolve-all,partial,E M: git mergetool -- FILE,explicit
+magit-ediff.el,197,command,magit-ediff-resolve-rest,partial,E m: git mergetool -- FILE,explicit
 magit-ediff.el,233,command,magit-ediff-stage,missing,,explicit
-magit-ediff.el,274,command,magit-ediff-compare,missing,,explicit
-magit-ediff.el,336,command,magit-ediff-dwim,missing,,explicit
-magit-ediff.el,410,command,magit-ediff-show-staged,missing,,explicit
-magit-ediff.el,426,command,magit-ediff-show-unstaged,missing,,explicit
-magit-ediff.el,442,command,magit-ediff-show-working-tree,missing,,explicit
-magit-ediff.el,454,command,magit-ediff-show-commit,missing,,explicit
-magit-ediff.el,464,command,magit-ediff-show-stash,missing,,explicit
-magit-extras.el,46,command,magit-git-mergetool,missing,,explicit
+magit-ediff.el,274,command,magit-ediff-compare,partial,E r: difftool A [B],explicit
+magit-ediff.el,336,command,magit-ediff-dwim,partial,e: by the section at point,explicit
+magit-ediff.el,410,command,magit-ediff-show-staged,partial,E i: difftool --cached,explicit
+magit-ediff.el,426,command,magit-ediff-show-unstaged,partial,E u: difftool,explicit
+magit-ediff.el,442,command,magit-ediff-show-working-tree,partial,E w: difftool HEAD,explicit
+magit-ediff.el,454,command,magit-ediff-show-commit,partial,E c: difftool C^ C,explicit
+magit-ediff.el,464,command,magit-ediff-show-stash,partial,E z: difftool S^ S,explicit
+magit-extras.el,46,command,magit-git-mergetool,partial,"E t menu: -t tool, m invoke (terminal, no --gui)",explicit
 magit-extras.el,127,command,magit-run-git-gui-blame,missing,,explicit
 magit-extras.el,154,option,magit-gitk-executable,missing,,explicit
 magit-extras.el,167,command,magit-run-git-gui,missing,,explicit
@@ -393,7 +393,7 @@ magit-extras.el,773,command,magit-switch-to-repository-buffer-other-window,parti
 magit-extras.el,780,command,magit-switch-to-repository-buffer-other-frame,partial,Fred has no frames: the status buffer,explicit
 magit-extras.el,807,command,magit-abort-dwim,missing,,explicit
 magit-extras.el,819,command,magit-back-to-indentation,partial,^ is magit-section-up; Vim 0/_ move to the line start,explicit
-magit-extras.el,,command,magit-git-mergetool:--tool,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-extras.el,,command,magit-git-mergetool:--tool,partial,-t,runtime
 magit-extras.el,,command,magit-merge.guitool,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-extras.el,,command,magit-merge.tool,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-extras.el,,command,magit-mergetool.hideResolved,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime

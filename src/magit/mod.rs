@@ -10,6 +10,7 @@ pub mod commands;
 pub mod commit;
 pub mod configure;
 pub mod diff;
+pub mod ediff;
 pub mod ignore;
 pub mod log;
 pub mod merge;
@@ -162,6 +163,10 @@ pub enum Action {
     ProcessBuffer,
     /// A git-commit trailer by key, read for the current draft.
     Trailer(&'static str),
+    /// A magit-ediff.el command (difftool / mergetool in the terminal).
+    Ediff(ediff::Op),
+    /// magit-ediff-dwim: by the thing at point.
+    EdiffDwim,
     /// magit-diff-unmerged: the changes a merge in progress brings in.
     DiffUnmerged,
     /// magit-log-refresh's g: the menu's arguments for this log buffer.
@@ -1011,6 +1016,8 @@ fn direct_key(c: char) -> Option<Action> {
     use Action::Menu;
     Some(match c {
         'A' => Menu('x'),
+        'e' => Action::EdiffDwim,
+        'E' => Menu('U'),
         'b' => Menu('b'),
         'B' => Menu('G'),
         'c' => Menu('C'),
@@ -1330,6 +1337,7 @@ pub enum Question {
     Apply(apply::Op),
     Misc(misc::Op),
     Wip(wip::Op),
+    Ediff(ediff::Op),
     Net(network::Op),
     Diff(diff::Op),
     FindFile,
@@ -1532,6 +1540,8 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("Y", "Inspect", "Cherries", LogOp(log::Op::Cherry)),
             ("y", "Inspect", "Show Refs", Menu('y')),
             ("D", "Inspect", "Diff (change)", Menu('D')),
+            ("e", "Inspect", "Ediff (dwim)", EdiffDwim),
+            ("E", "Inspect", "Ediff", Menu('U')),
             ("j", "Inspect", "Jump to section", Menu('h')),
             ("!", "Repository", "Run", Menu('!')),
             ("$", "Repository", "Show process buffer", ProcessBuffer),
@@ -2337,6 +2347,37 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 "Jump to",
                 "Skip-worktree files",
                 Jump("Skip-worktree files"),
+            ),
+        ],
+        // magit-ediff: Git's difftool and mergetool in the terminal (no Ediff).
+        'U' => {
+            use ediff::Op as E;
+            vec![
+                ("E", "Ediff", "Dwim", EdiffDwim),
+                ("m", "Resolve", "Resolve rest", Ediff(E::Resolve)),
+                ("M", "Resolve", "Resolve all conflicts", Ediff(E::Resolve)),
+                ("t", "Resolve", "Resolve using mergetool", Menu('V')),
+                ("u", "Show", "Show unstaged", Ediff(E::ShowUnstaged)),
+                ("i", "Show", "Show staged", Ediff(E::ShowStaged)),
+                ("w", "Show", "Show worktree", Ediff(E::ShowWorktree)),
+                ("c", "Show", "Show commit", Ediff(E::ShowCommit)),
+                ("r", "Show", "Show range", Ediff(E::Compare)),
+                ("z", "Show", "Show stash", Ediff(E::ShowStash)),
+            ]
+        }
+        // magit-git-mergetool.
+        'V' => vec![
+            (
+                "-t",
+                "Settings",
+                "Override mergetool",
+                ReadOption("--tool="),
+            ),
+            (
+                "m",
+                "Actions",
+                "Invoke mergetool",
+                Ediff(ediff::Op::Resolve),
             ),
         ],
         // magit-run: git subcommands (shell commands and GUI launchers are not

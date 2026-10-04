@@ -305,3 +305,9 @@ October 4 apply/smerge checkpoint: a and - apply and reverse hunks from diff,
 commit and stash buffers; C-c ^ u/b/l/a/RET keep a side of the conflict at
 point in a file buffer. Ledger 614 partial / 159 missing commands. Score
 remains 3%.
+
+October 4 ediff checkpoint: magit-ediff is adapted to Git's own tools (Fred
+has no Ediff): E opens the menu and e is dwim; comparisons run git difftool
+and conflicts git mergetool in the terminal with the user's configured tools;
+magit-ediff-stage has no equivalent. Also gd, diff file-filter toggle and
+diff-unmerged. Ledger 654 partial / 119 missing commands. Score remains 3%.

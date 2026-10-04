@@ -3397,7 +3397,7 @@ fn diff_location_maps_lines_to_both_sides() {
 
 #[test]
 fn menu_keys_are_unique_within_each_menu() {
-    for menu in "*OzFBbdpflMrxtCGNYXvSoukyJjWKawIEg>DceQP!h".chars() {
+    for menu in "*OzFBbdpflMrxtCGNYXvSoukyJjWKawIEg>DceQP!hUVR".chars() {
         let entries = super::menu_entries(menu);
         assert!(!entries.is_empty(), "menu {menu} is empty");
         let mut seen = std::collections::HashSet::new();
@@ -3762,4 +3762,34 @@ fn diffstat_and_diff_jump() {
     assert_eq!(stat_or_diff(&lines, 1), Some(5));
     assert_eq!(stat_or_diff(&lines, 15), Some(2));
     assert_eq!(stat_or_diff(&lines, 0), Some(1));
+}
+
+#[test]
+fn ediff_runs_difftool_and_mergetool() {
+    use super::branch::Next;
+    use super::ediff::Op;
+    let (d, r) = setup();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    fs::write(d.path().join("f"), "f").unwrap();
+    git(d.path(), &["add", "f"]);
+    git(d.path(), &["commit", "-qm", "f"]);
+    let argv = |op, a: &[&str], args: &[&str]| match r.ediff_step(op, &s(a), &s(args)).unwrap() {
+        Next::Git(v) => v,
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(
+        argv(Op::ShowStaged, &["f"], &[]),
+        s(&["difftool", "-y", "--cached", "--", "f"])
+    );
+    assert_eq!(
+        argv(Op::ShowCommit, &["HEAD"], &["--tool=vimdiff"]),
+        s(&["difftool", "-y", "--tool=vimdiff", "HEAD^", "HEAD", "--"])
+    );
+    assert!(
+        r.ediff_step(Op::Resolve, &s(&["f"]), &[]).is_err(),
+        "no conflict"
+    );
+    assert!(r.ediff_step(Op::ShowUnstaged, &s(&["-x"]), &[]).is_err());
+    let (_, def) = r.ediff_prompts(&Op::ShowCommit, None, None);
+    assert_eq!(def, s(&["HEAD"]));
 }
