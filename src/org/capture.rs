@@ -144,6 +144,11 @@ fn datetree_levels(y: i64, m: i64, d: i64, grouping: &[&str]) -> Vec<(String, &'
     out
 }
 
+/// The day datetree levels (year, month, day) for archiving.
+pub fn datetree_levels_pub(y: i64, m: i64, d: i64) -> Vec<(String, &'static str)> {
+    datetree_levels(y, m, d, &["year", "month", "day"])
+}
+
 /// org-datetree-find-create-hierarchy within lines `[lo, hi)` at
 /// `level`: the heading line of the innermost entry, and whether it existed.
 pub fn datetree_find_create(ed: &mut Editor, levels: &[(String, &str)], lo: usize, hi: usize, level: usize, add_ts: Option<String>) -> (usize, bool) {

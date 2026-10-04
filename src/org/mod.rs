@@ -22,6 +22,7 @@ pub mod keymap;
 pub mod options;
 pub mod props;
 pub mod re;
+pub mod refile;
 pub mod sexp;
 pub mod structure;
 pub mod syntax;
@@ -731,6 +732,7 @@ const MODULES: &[Module] = &[
     props::command,
     links::command,
     capture::command,
+    refile::command,
     table::command,
     list::command,
     time::command,
@@ -853,6 +855,11 @@ pub fn read_date_timestamp(s: &str, with_time: bool, inactive: bool) -> Option<S
     };
     let body = format!("{yy:04}-{mo:02}-{dd:02} {wd}{t}");
     Some(if inactive { format!("[{body}]") } else { format!("<{body}>") })
+}
+
+/// The running clock's heading as a refile target (org-refile with 2).
+pub fn clock_target(_s: &crate::session::Session) -> Option<refile::Target> {
+    None
 }
 
 /// Run a command by name from another command (context dispatchers).
