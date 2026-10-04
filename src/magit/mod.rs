@@ -46,6 +46,8 @@ pub enum Action {
     /// magit-blob-visit-file: the worktree file of this blob.
     BlobVisitFile,
     BlobQuit,
+    /// magit-file-stage/unstage/untrack/rename/delete/checkout.
+    File(blob::FileOp),
     BlameCycle,
     /// Directory to initialize, and whether nesting/reinitializing was confirmed.
     InitDir(PathBuf, bool),
@@ -305,7 +307,7 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             return true;
         }
         let entries = menu_entries(ed.magit_menu.unwrap_or('*'));
-        if !k.ctrl && ed.vim.pending.is_empty() && matches!(k.char(), Some('-' | '+' | '=')) {
+        if !k.ctrl && ed.vim.pending.is_empty() && matches!(k.char(), Some('-' | '+' | '=' | ',')) {
             ed.vim.pending = vec![k];
             return true;
         }
@@ -323,6 +325,7 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
                         [key] if *key == Key::ch('-') => "-",
                         [key] if *key == Key::ch('+') => "+",
                         [key] if *key == Key::ch('=') => "=",
+                        [key] if *key == Key::ch(',') => ",",
                         _ => "",
                     }
                 )
@@ -501,6 +504,7 @@ pub enum Question {
     Net(network::Op),
     Diff(diff::Op),
     FindFile,
+    File(blob::FileOp),
 }
 pub fn prompt(ed: &mut Editor, question: Prompt) {
     let text = match &question {
@@ -871,7 +875,14 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
         // magit-file-dispatch: the visited file or blob.
         'F' => {
             use blame::Kind as K;
+            use blob::FileOp as O;
             vec![
+                ("s", "File actions", "Stage", File(O::Stage)),
+                ("u", "File actions", "Unstage", File(O::Unstage)),
+                (",x", "File actions", "Untrack", File(O::Untrack)),
+                (",r", "File actions", "Rename", File(O::Rename)),
+                (",k", "File actions", "Delete", File(O::Delete)),
+                (",c", "File actions", "Checkout", File(O::Checkout)),
                 ("D", "Inspect", "Diff...", Menu('d')),
                 ("d", "Inspect", "Diff", Diff(diff::Op::Unstaged)),
                 ("L", "Log", "Log...", Menu('l')),

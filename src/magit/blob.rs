@@ -169,3 +169,130 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     ed.pending_effect = Some(ExEffect::Magit(action));
     true
 }
+
+/// magit-files.el file commands from the file dispatch.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FileOp {
+    Stage,
+    /// magit-file-stage on an ignored file, after confirmation.
+    StageIgnored,
+    Unstage,
+    Untrack,
+    Rename,
+    Delete,
+    /// Delete after confirming a recursive directory removal.
+    DeleteDir,
+    Checkout,
+}
+
+/// A repository-relative path from an answer (or its default).
+pub fn relative(answer: &str) -> Result<PathBuf, String> {
+    let path = PathBuf::from(answer.trim_end_matches('/'));
+    if path.as_os_str().is_empty()
+        || path
+            .components()
+            .any(|c| !matches!(c, std::path::Component::Normal(_)))
+    {
+        return Err(format!("{answer:?} is not a repository-relative path"));
+    }
+    Ok(path)
+}
+
+/// `root/rel` only if every component exists with exactly this on-disk name and
+/// no intermediate component is a symlink, so filesystem fallbacks cannot leave
+/// the repository or alias another file through case-insensitivity. Like
+/// upstream's require-match readers. With `must_exist` false, the last
+/// component may be absent, but not present under another spelling.
+pub fn exact(root: &Path, rel: &Path, must_exist: bool) -> Result<PathBuf, String> {
+    let parts: Vec<_> = rel.components().map(|c| c.as_os_str().to_owned()).collect();
+    let mut cur = root.to_path_buf();
+    for (i, name) in parts.iter().enumerate() {
+        let last = i + 1 == parts.len();
+        let present = std::fs::read_dir(&cur)
+            .map_err(|e| e.to_string())?
+            .flatten()
+            .any(|e| e.file_name() == *name);
+        cur.push(name);
+        if !present {
+            if last && !must_exist {
+                if cur.symlink_metadata().is_ok() {
+                    return Err(format!("{} already exists", super::repo::label(rel)));
+                }
+                return Ok(cur);
+            }
+            return Err(format!("{} does not exist", super::repo::label(rel)));
+        }
+        if !last
+            && cur
+                .symlink_metadata()
+                .is_ok_and(|m| m.file_type().is_symlink())
+        {
+            return Err(format!(
+                "{} is beyond a symbolic link",
+                super::repo::label(rel)
+            ));
+        }
+    }
+    Ok(cur)
+}
+
+impl Repo {
+    pub fn tracked(&self, file: &Path) -> bool {
+        let args = self.path_args(&["ls-files", "--error-unmatch"], file);
+        self.run(&args, None).is_ok()
+    }
+    pub fn ignored(&self, file: &Path) -> bool {
+        // check-ignore takes plain paths, not pathspec magic.
+        let args = [
+            "check-ignore".into(),
+            "-q".into(),
+            "--".into(),
+            file.as_os_str().to_owned(),
+        ];
+        self.run(&args, None).is_ok()
+    }
+    /// Run a file command; `answers` are already defaulted and validated.
+    pub fn file_op(&self, op: FileOp, answers: &[PathBuf], rev: &str) -> Result<(), String> {
+        let first = answers.first().ok_or("missing file")?;
+        let run =
+            |args: &[&str], file: &Path| self.run(&self.path_args(args, file), None).map(|_| ());
+        match op {
+            FileOp::Stage => run(&["add"], first),
+            FileOp::StageIgnored => run(&["add", "--force"], first),
+            FileOp::Unstage => self.unstage_file(first),
+            FileOp::Untrack => run(&["rm", "--cached"], first),
+            FileOp::Checkout => {
+                let rev = self.blob_rev(rev)?;
+                run(&["checkout", &rev], first)
+            }
+            // Both paths were resolved with `exact`; `to` is the final name.
+            FileOp::Rename => {
+                let to = answers.get(1).ok_or("missing destination")?;
+                let (from_abs, to_abs) = (self.root.join(first), self.root.join(to));
+                if self.tracked(first) {
+                    let mut args: Vec<std::ffi::OsString> = vec!["mv".into(), "--".into()];
+                    args.push(from_abs.into());
+                    args.push(to_abs.into());
+                    self.run(&args, None).map(|_| ())
+                } else {
+                    std::fs::rename(from_abs, to_abs).map_err(|e| e.to_string())
+                }
+            }
+            FileOp::Delete | FileOp::DeleteDir => {
+                let abs = self.root.join(first);
+                let dir = abs.is_dir();
+                if self.tracked(first) {
+                    let mut args = vec!["rm"];
+                    if dir {
+                        args.push("-r");
+                    }
+                    run(&args, first)
+                } else if dir {
+                    std::fs::remove_dir_all(abs).map_err(|e| e.to_string())
+                } else {
+                    std::fs::remove_file(abs).map_err(|e| e.to_string())
+                }
+            }
+        }
+    }
+}

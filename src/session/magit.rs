@@ -22,6 +22,8 @@ pub(super) enum Outcome {
         Option<String>,
         Option<crate::magit::blame::Kind>,
     ),
+    /// A rename finished: result, old and new absolute paths.
+    Moved(Repo, Result<(), String>, PathBuf, PathBuf),
     /// {worktree}: visit the file itself at a line.
     VisitFile(PathBuf, usize),
     Draft(Repo, crate::magit::CommitMode, Vec<u8>, Vec<String>),
@@ -153,10 +155,17 @@ impl Session {
             });
             return;
         }
+        if let Action::Answered(repo, Question::File(op), answers, args) = action {
+            return self.file_answered(repo, op, answers, args);
+        }
+        if let Action::File(op) = action {
+            return self.file_action(op);
+        }
         if let Action::Answered(repo, question, answers, args) = action {
             let origin = self.cur;
             let line = self.ed.cur.line;
             self.start_magit(move || match question {
+                Question::File(_) => unreachable!("handled before the worker"),
                 Question::FindFile => {
                     let pick = |i: usize| {
                         answers
@@ -779,6 +788,37 @@ impl Session {
                 self.ed.blame = Some(*blame);
                 self.ed.set_msg("Blaming...done");
             }
+            Ok(Outcome::Moved(repo, result, from, to)) => {
+                if result.is_ok() {
+                    // set-visited-file-name for buffers of the moved file.
+                    for ed in self.editors_mut() {
+                        // Buffers of the file, or inside a renamed directory.
+                        if let Some(rest) = ed
+                            .path
+                            .as_deref()
+                            .and_then(canonical_file)
+                            .and_then(|p| p.strip_prefix(&from).ok().map(Path::to_path_buf))
+                        {
+                            ed.path = Some(if rest.as_os_str().is_empty() {
+                                to.clone()
+                            } else {
+                                to.join(rest)
+                            });
+                        }
+                    }
+                }
+                self.finish_git(
+                    GitInvocation {
+                        expected_head: None,
+                        repo,
+                        args: vec![],
+                        input: None,
+                        draft: None,
+                        draft_stamp: None,
+                    },
+                    result,
+                );
+            }
             Ok(Outcome::VisitFile(path, line)) => self.open_pick(
                 path,
                 Some(Goto {
@@ -989,6 +1029,206 @@ impl Session {
             _ => return None,
         })
     }
+    /// The visited file (not a blob) for file-dispatch commands.
+    fn file_action(&mut self, op: crate::magit::blob::FileOp) {
+        use crate::magit::blob::FileOp as O;
+        let from = self.magit_from();
+        let blob = self.ed.blob.clone();
+        let path = self
+            .ed
+            .path
+            .clone()
+            .filter(|_| !self.ed.generated() && self.ed.dired.is_none());
+        let rev = blob.as_ref().map_or("HEAD".into(), |b| b.rev.clone());
+        self.start_magit(move || {
+            let repo = Repo::discover(&from)?;
+            let current = match (&blob, &path) {
+                (Some(b), _) => Some(b.file.clone()),
+                (None, Some(p)) => repo_relative(&repo, p).ok(),
+                _ => None,
+            };
+            let name = current
+                .as_deref()
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let ask = |prompts: Vec<String>, args: Vec<String>| {
+                Ok(Outcome::Ask(
+                    repo.clone(),
+                    Question::File(op),
+                    args,
+                    prompts,
+                ))
+            };
+            match op {
+                O::Stage | O::Unstage => {
+                    let (Some(file), Some(_)) = (current.clone(), path) else {
+                        return Err("Not visiting a file".into());
+                    };
+                    if op == O::Stage && repo.ignored(&file) {
+                        return Ok(Outcome::Ask(
+                            repo,
+                            Question::File(O::StageIgnored),
+                            vec![name],
+                            vec!["Visited file is ignored; stage anyway? (y or n) ".into()],
+                        ));
+                    }
+                    let result = repo.file_op(op, &[file], "");
+                    Ok(Outcome::Saved(repo, result))
+                }
+                O::Untrack => ask(vec![format!("Untrack file (default {name}): ")], vec![name]),
+                O::Delete => ask(vec![format!("Delete file (default {name}): ")], vec![name]),
+                O::Rename => ask(
+                    vec![
+                        format!("Rename file (default {name}): "),
+                        "Move to destination: ".into(),
+                    ],
+                    vec![name, String::new()],
+                ),
+                O::Checkout => {
+                    let rev = if rev.starts_with('{') {
+                        "HEAD".into()
+                    } else {
+                        rev
+                    };
+                    ask(
+                        vec![
+                            format!("Checkout from revision (default {rev}): "),
+                            format!("Checkout file (default {name}): "),
+                        ],
+                        vec![rev, name],
+                    )
+                }
+                O::StageIgnored | O::DeleteDir => Err("confirmation without a question".into()),
+            }
+        });
+    }
+    fn file_answered(
+        &mut self,
+        repo: Repo,
+        op: crate::magit::blob::FileOp,
+        answers: Vec<String>,
+        args: Vec<String>,
+    ) {
+        use crate::magit::blob::{FileOp as O, relative};
+        let pick = |i: usize| {
+            answers
+                .get(i)
+                .filter(|a| !a.is_empty())
+                .or(args.get(i))
+                .cloned()
+                .unwrap_or_default()
+        };
+        let confirmed = |a: &str| matches!(a.trim(), "y" | "yes");
+        let (file, rev) = match op {
+            O::StageIgnored | O::DeleteDir => {
+                let yes = answers.first().is_some_and(|a| confirmed(a))
+                    && (op == O::StageIgnored || answers[0].trim() == "yes");
+                if !yes {
+                    return self.ed.set_msg("Abort");
+                }
+                (args.first().cloned().unwrap_or_default(), String::new())
+            }
+            O::Checkout => (pick(1), pick(0)),
+            _ => (pick(0), String::new()),
+        };
+        let file = match relative(&file) {
+            Ok(f) => f,
+            Err(e) => return self.ed.set_err(e),
+        };
+        let root = repo.root.clone();
+        let checked = |rel: &Path, must_exist| crate::magit::blob::exact(&root, rel, must_exist);
+        let mut paths = vec![file.clone()];
+        if matches!(op, O::Rename | O::Delete | O::DeleteDir)
+            && let Err(e) = checked(&file, true)
+        {
+            return self.ed.set_err(e);
+        }
+        if op == O::Rename {
+            // magit-file-rename: a directory destination keeps the file name.
+            let raw = pick(1);
+            let dest = match raw.trim_end_matches('/') {
+                "" | "." => Ok(root.clone()),
+                d => relative(d).and_then(|d| checked(&d, false)),
+            };
+            let dest = dest.and_then(|d| {
+                let dir = d.symlink_metadata().is_ok_and(|m| m.is_dir());
+                if raw.ends_with('/') && !dir {
+                    return Err("Destination directory does not exist".into());
+                }
+                if !dir {
+                    return if d.symlink_metadata().is_ok() {
+                        Err(format!("{} already exists", label(&d)))
+                    } else {
+                        Ok(d)
+                    };
+                }
+                let rel = d
+                    .strip_prefix(&root)
+                    .unwrap_or(Path::new(""))
+                    .join(file.file_name().unwrap_or_default());
+                checked(&rel, false)
+            });
+            match dest {
+                Ok(d) => paths.push(d.strip_prefix(&root).unwrap_or(&d).to_path_buf()),
+                Err(e) => return self.ed.set_err(e),
+            }
+        }
+        // Never overwrite or orphan unsaved source buffers.
+        let abs = repo.root.join(&file);
+        if matches!(op, O::Rename | O::Delete | O::DeleteDir | O::Checkout)
+            && self.editors_mut().any(|ed| {
+                ed.buf.modified
+                    && ed
+                        .path
+                        .as_deref()
+                        .and_then(canonical_file)
+                        .is_some_and(|p| p.starts_with(&abs))
+            })
+        {
+            return self
+                .ed
+                .set_err(format!("Save {} before changing it", label(&file)));
+        }
+        // Fred has no trash: untracked files and directories need a typed "yes",
+        // and ignored files (outside upstream's completion list) are refused.
+        if op == O::Delete && (abs.is_dir() || !repo.tracked(&file)) {
+            if repo.ignored(&file) {
+                return self
+                    .ed
+                    .set_err(format!("{} is ignored; not deleting", label(&file)));
+            }
+            let question = if abs.is_dir() {
+                format!(
+                    "Recursively delete directory {}? (yes or no) ",
+                    label(&file)
+                )
+            } else {
+                format!(
+                    "Delete untracked {} permanently? (yes or no) ",
+                    label(&file)
+                )
+            };
+            return crate::magit::prompt(
+                &mut self.ed,
+                crate::magit::Prompt::Ask(
+                    repo,
+                    Question::File(O::DeleteDir),
+                    vec![file.to_string_lossy().into_owned()],
+                    vec![question],
+                    vec![],
+                ),
+            );
+        }
+        let op = if op == O::DeleteDir { O::Delete } else { op };
+        self.start_magit(move || {
+            let result = repo.file_op(op, &paths, &rev);
+            if op == O::Rename {
+                let (from, to) = (repo.root.join(&paths[0]), repo.root.join(&paths[1]));
+                return Ok(Outcome::Moved(repo, result, from, to));
+            }
+            Ok(Outcome::Saved(repo, result))
+        });
+    }
     fn install_blob(&mut self, blob: crate::magit::blob::Blob, bytes: &[u8], line: usize) {
         let text = String::from_utf8_lossy(bytes);
         if let Some(i) = (0..self.bufs.len()).find(|i| self.ed_at(*i).blob.as_ref() == Some(&blob))
@@ -1195,24 +1435,30 @@ fn blob_outcome(
     let blob = crate::magit::blob::Blob { repo, rev, file };
     Ok(Outcome::Blob(blob, bytes, line, message, then))
 }
+/// An absolute path with its directory aliases resolved (macOS /var -> /private/var),
+/// keeping the file's own name so a symlink is not followed.
+fn canonical_file(path: &Path) -> Option<PathBuf> {
+    let absolute = std::path::absolute(path).ok()?;
+    let parent = absolute.parent()?;
+    // Directories removed since (e.g. just renamed) are kept literally.
+    let existing = parent.ancestors().find(|p| p.is_dir())?;
+    let rest = parent.strip_prefix(existing).ok()?;
+    Some(
+        existing
+            .canonicalize()
+            .ok()?
+            .join(rest)
+            .join(absolute.file_name()?),
+    )
+}
 /// A visited path relative to its repository. Directory aliases resolve, a
 /// tracked symlink keeps its own name, and since-deleted directories stay literal.
 fn repo_relative(repo: &Repo, path: &Path) -> Result<PathBuf, String> {
-    let absolute = std::path::absolute(path).map_err(|e| e.to_string())?;
-    let parent = absolute.parent().ok_or("file has no parent")?;
-    let existing = parent
-        .ancestors()
-        .find(|p| p.is_dir())
-        .ok_or("file has no existing parent")?;
-    let parent = existing
-        .canonicalize()
-        .map_err(|e| e.to_string())?
-        .join(parent.strip_prefix(existing).unwrap_or(Path::new("")));
-    Ok(parent
-        .join(absolute.file_name().ok_or("file has no name")?)
+    canonical_file(path)
+        .ok_or("file has no existing parent")?
         .strip_prefix(&repo.root)
-        .map_err(|_| "file is outside the repository")?
-        .to_owned())
+        .map(Path::to_path_buf)
+        .map_err(|_| "file is outside the repository".into())
 }
 /// magit-diff--dwim and the at-point defaults of show-commit/stash-show.
 /// Ok is a diff target, Err a stash to show; None means ask.

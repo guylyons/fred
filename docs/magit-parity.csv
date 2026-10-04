@@ -423,19 +423,19 @@ magit-files.el,363,command,magit-update-index,missing,,explicit
 magit-files.el,401,command,magit-find-git-config-file,missing,,explicit
 magit-files.el,417,command,magit-find-git-config-file-other-window,missing,,explicit
 magit-files.el,433,command,magit-find-git-config-file-other-frame,missing,,explicit
-magit-files.el,452,command,magit-file-dispatch,partial,"Space m F; inspect/log/blame/navigate groups and status/commit; file actions s/u/x/r/k/c, t trace, e edit line, G missing",explicit
+magit-files.el,452,command,magit-file-dispatch,partial,"Space m F; file actions, inspect/log/blame/navigate groups and status/commit; t trace, e edit line, G, dired variants missing",explicit
 magit-files.el,536,command,magit-bury-buffer,missing,,explicit
 magit-files.el,548,command,magit-bury-or-kill-buffer,partial,q in blob buffers kills the buffer,explicit
 magit-files.el,564,command,magit-kill-this-buffer,missing,,explicit
 magit-files.el,569,command,magit-blob-previous,partial,p in blob buffers and Space m F p; {worktree}->{index}->HEAD->ancestors with --follow; message shows subject and age,explicit
 magit-files.el,583,command,magit-blob-next,partial,n in blob buffers and Space m F n; ends at the worktree file,explicit
 magit-files.el,597,command,magit-blob-visit-file,partial,Space m F V; worktree file at the same line,explicit
-magit-files.el,644,command,magit-file-stage,missing,,explicit
-magit-files.el,657,command,magit-file-unstage,missing,,explicit
-magit-files.el,666,command,magit-file-untrack,missing,,explicit
-magit-files.el,681,command,magit-file-rename,missing,,explicit
-magit-files.el,718,command,magit-file-delete,missing,,explicit
-magit-files.el,746,command,magit-file-checkout,missing,,explicit
+magit-files.el,644,command,magit-file-stage,partial,Space m F s; ignored files confirm then add --force,explicit
+magit-files.el,657,command,magit-file-unstage,partial,Space m F u,explicit
+magit-files.el,666,command,magit-file-untrack,partial,"Space m F ,x; one prompted file (default current); region selection and prefix --force missing",explicit
+magit-files.el,681,command,magit-file-rename,partial,"Space m F ,r; repository-relative source/destination, git mv or rename, open buffer paths follow; read-file-name completion missing",explicit
+magit-files.el,718,command,magit-file-delete,partial,"Space m F ,k; tracked via git rm, untracked removed; directories need ""yes""; unsaved buffers protect files; region selection and --force missing",explicit
+magit-files.el,746,command,magit-file-checkout,partial,"Space m F ,c; revision and file prompts with defaults; unsaved buffers refuse",explicit
 magit-files.el,,command,magit-blob-mode,partial,Read-only blob buffers with p/n/b/r/f/q and gr refresh; syntax from file name,runtime
 magit-files.el,,command,magit-stage-buffer-file,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-files.el,,command,magit-unstage-buffer-file,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime

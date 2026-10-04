@@ -1269,3 +1269,33 @@ fn blob_history_and_blame_handle_quoted_and_stage_like_names() {
     );
     assert!(!r.conflicted(Path::new("1:f")));
 }
+#[test]
+fn exact_paths_reject_symlinks_case_aliases_and_existing_targets() {
+    use super::blob::exact;
+    let (d, r) = setup();
+    let root = r.root.clone();
+    fs::create_dir(d.path().join("sub")).unwrap();
+    fs::write(d.path().join("sub/f.txt"), b"x").unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    fs::write(outside.path().join("x"), b"precious").unwrap();
+    std::os::unix::fs::symlink(outside.path(), d.path().join("out")).unwrap();
+    assert_eq!(
+        exact(&root, Path::new("sub/f.txt"), true).unwrap(),
+        root.join("sub/f.txt")
+    );
+    assert!(
+        exact(&root, Path::new("out/x"), true)
+            .unwrap_err()
+            .contains("symbolic link")
+    );
+    assert!(exact(&root, Path::new("out/new"), false).is_err());
+    assert!(exact(&root, Path::new("SUB/f.txt"), true).is_err());
+    assert!(exact(&root, Path::new("sub/F.TXT"), true).is_err());
+    assert!(exact(&root, Path::new("sub/new"), false).is_ok());
+    // An exact existing target is returned; callers decide (directory or clash).
+    assert!(exact(&root, Path::new("sub/f.txt"), false).is_ok());
+    assert!(exact(&root, Path::new("missing/new"), false).is_err());
+    // The link itself (last component) may be removed; its target is untouched.
+    assert!(exact(&root, Path::new("out"), true).is_ok());
+    assert_eq!(fs::read(outside.path().join("x")).unwrap(), b"precious");
+}

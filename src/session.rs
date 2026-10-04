@@ -2262,6 +2262,135 @@ mod tests {
         assert!(t.msg().contains("no further history"), "{}", t.msg());
     }
     #[test]
+    fn magit_file_dispatch_stages_renames_deletes_and_checks_out() {
+        let mut t = T::open(Some("f.txt"), Some("one\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        let staged = |repo: &crate::magit::repo::Repo| {
+            String::from_utf8(repo.read(&["diff", "--cached", "--name-only"]).unwrap()).unwrap()
+        };
+        t.keys(" mFs");
+        magit_settle(&mut t);
+        assert_eq!(staged(&repo), "f.txt\n", "{}", t.msg());
+        t.keys(" mFu");
+        magit_settle(&mut t);
+        assert_eq!(staged(&repo), "");
+        fs::write(t.dir.path().join(".gitignore"), "f.txt\n").unwrap();
+        t.keys(" mFs");
+        magit_settle(&mut t);
+        t.keys("n<Enter>");
+        assert_eq!(staged(&repo), "");
+        t.keys(" mFs");
+        magit_settle(&mut t);
+        t.keys("y<Enter>");
+        magit_settle(&mut t);
+        assert_eq!(staged(&repo), "f.txt\n", "{} {:?}", t.msg(), t.s.ed.mode);
+        fs::remove_file(t.dir.path().join(".gitignore")).unwrap();
+        repo.read(&["commit", "-qm", "one"]).unwrap();
+        t.keys(" mF,x");
+        magit_settle(&mut t);
+        t.keys("<Enter>");
+        magit_settle(&mut t);
+        assert!(!repo.tracked(Path::new("f.txt")), "{}", t.msg());
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        t.keys(" mF,r");
+        magit_settle(&mut t);
+        t.keys("<Enter>g.txt<Enter>");
+        magit_settle(&mut t);
+        assert!(t.dir.path().join("g.txt").exists() && !t.dir.path().join("f.txt").exists());
+        assert!(
+            t.s.ed.path.as_ref().unwrap().ends_with("g.txt"),
+            "{:?}",
+            t.s.ed.path
+        );
+        repo.read(&["commit", "-qm", "rename"]).unwrap();
+        fs::write(t.dir.path().join("g.txt"), "changed\n").unwrap();
+        t.keys(":e!<Enter> mF,c");
+        magit_settle(&mut t);
+        t.keys("<Enter><Enter>");
+        magit_settle(&mut t);
+        assert_eq!(
+            fs::read_to_string(t.dir.path().join("g.txt")).unwrap(),
+            "one\n"
+        );
+        t.keys(":e!<Enter>iedit<Esc> mF,k");
+        magit_settle(&mut t);
+        t.keys("<Enter>");
+        assert!(t.msg().contains("Save"), "{}", t.msg());
+        assert!(t.dir.path().join("g.txt").exists());
+        fs::create_dir(t.dir.path().join("d")).unwrap();
+        fs::write(t.dir.path().join("d/x"), "x").unwrap();
+        t.keys("u mF,k");
+        magit_settle(&mut t);
+        t.keys("d<Enter>");
+        t.keys("y<Enter>");
+        assert!(
+            t.dir.path().join("d").exists(),
+            "only 'yes' confirms recursive delete"
+        );
+        t.keys(" mF,k");
+        magit_settle(&mut t);
+        t.keys("d<Enter>yes<Enter>");
+        magit_settle(&mut t);
+        assert!(!t.dir.path().join("d").exists(), "{}", t.msg());
+        t.keys(" mF,r");
+        magit_settle(&mut t);
+        t.keys("../escape<Enter>x<Enter>");
+        assert!(t.msg().contains("repository-relative"), "{}", t.msg());
+        let outside = tempfile::tempdir().unwrap();
+        fs::write(outside.path().join("x"), "precious").unwrap();
+        std::os::unix::fs::symlink(outside.path(), t.dir.path().join("out")).unwrap();
+        t.keys(" mF,k");
+        magit_settle(&mut t);
+        t.keys("out/x<Enter>");
+        assert!(t.msg().contains("symbolic link"), "{}", t.msg());
+        assert!(outside.path().join("x").exists());
+        t.keys(" mF,r");
+        magit_settle(&mut t);
+        t.keys("g.txt<Enter>out/y<Enter>");
+        assert!(t.msg().contains("symbolic link"), "{}", t.msg());
+        t.keys(" mF,k");
+        magit_settle(&mut t);
+        t.keys("G.TXT<Enter>");
+        assert!(t.msg().contains("does not exist"), "{}", t.msg());
+        assert!(t.dir.path().join("g.txt").exists());
+        fs::write(t.dir.path().join("scratch"), "x").unwrap();
+        t.keys(" mF,k");
+        magit_settle(&mut t);
+        t.keys("scratch<Enter>");
+        t.keys("<Enter>");
+        assert!(
+            t.dir.path().join("scratch").exists(),
+            "untracked delete needs yes"
+        );
+        fs::write(t.dir.path().join(".gitignore"), "secret\n").unwrap();
+        fs::write(t.dir.path().join("secret"), "x").unwrap();
+        t.keys(" mF,k");
+        magit_settle(&mut t);
+        t.keys("secret<Enter>");
+        assert!(t.msg().contains("ignored"), "{}", t.msg());
+        assert!(t.dir.path().join("secret").exists());
+        fs::create_dir(t.dir.path().join("dir")).unwrap();
+        fs::write(t.dir.path().join("dir/in.txt"), "in\n").unwrap();
+        t.keys(&format!(
+            ":e {}<Enter>",
+            t.dir.path().join("dir/in.txt").display()
+        ));
+        t.keys(" mF,r");
+        magit_settle(&mut t);
+        t.keys("dir<Enter>moved<Enter>");
+        magit_settle(&mut t);
+        assert!(t.dir.path().join("moved/in.txt").exists(), "{}", t.msg());
+        assert!(
+            t.s.ed.path.as_ref().unwrap().ends_with("moved/in.txt"),
+            "{:?}",
+            t.s.ed.path
+        );
+    }
+    #[test]
     fn magit_file_log_rejects_buffers_without_a_source_file() {
         let mut t = T::open(None, None);
         t.keys(" mL");
