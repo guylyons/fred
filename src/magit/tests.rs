@@ -2779,3 +2779,72 @@ fn log_variants_arguments_and_merged() {
     assert_eq!(signs, vec![('+', "own"), ('-', "feature")]);
     assert!(r.log_step(Op::Cherry, &s(&["pick", "-x"]), &[]).is_err());
 }
+
+#[test]
+fn submodule_add_populate_list_and_remove() {
+    use super::branch::Next;
+    use super::submodule::Op;
+    let (d, r) = setup();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    let (sub, _) = setup();
+    fs::write(sub.path().join("x"), "x").unwrap();
+    git(sub.path(), &["add", "x"]);
+    git(sub.path(), &["commit", "-qm", "sub"]);
+    git(sub.path(), &["tag", "v9"]);
+    fs::write(d.path().join("f"), "f").unwrap();
+    git(d.path(), &["add", "f"]);
+    git(d.path(), &["commit", "-qm", "base"]);
+    // Terminal Git commands run here with local file transport allowed.
+    let run = |n: Next| match n {
+        Next::Git(argv) => {
+            let mut all = s(&["-c", "protocol.file.allow=always"]);
+            all.extend(argv);
+            git(
+                d.path(),
+                &all.iter().map(String::as_str).collect::<Vec<_>>(),
+            );
+        }
+        other => panic!("{other:?}"),
+    };
+    let url = sub.path().to_string_lossy().into_owned();
+    assert!(r.submodule_step(Op::Add, &s(&["-x"]), &[]).is_err());
+    assert!(
+        r.submodule_step(Op::Add, &s(&[&url, "../out"]), &[])
+            .is_err()
+    );
+    run(r
+        .submodule_step(
+            Op::Add,
+            &s(&[&url, "lib", ""]),
+            &s(&["--force", "--rebase"]),
+        )
+        .unwrap());
+    git(d.path(), &["commit", "-qm", "add lib"]);
+    assert_eq!(r.module_paths().unwrap(), s(&["lib"]));
+    let rows = r.module_rows().unwrap();
+    assert!(rows[0].0.contains("v9"), "{rows:?}");
+    // Populate only applies to unpopulated modules; unpopulate, then populate.
+    assert!(r.submodule_step(Op::Populate, &s(&["lib"]), &[]).is_err());
+    assert!(r.submodule_step(Op::Update, &s(&["nope"]), &[]).is_err());
+    run(r.submodule_step(Op::Unpopulate, &s(&["lib"]), &[]).unwrap());
+    assert!(r.module_rows().unwrap()[0].0.contains("(unpopulated)"));
+    run(r.submodule_step(Op::Populate, &s(&["lib"]), &[]).unwrap());
+    assert!(d.path().join("lib/x").exists());
+    // A dirty module is omitted without --force, and confirmed with it.
+    fs::write(d.path().join("lib/x"), "dirty").unwrap();
+    assert!(r.submodule_step(Op::Remove, &s(&["lib"]), &[]).is_err());
+    let Next::Ask(super::Question::Submodule(op), ..) = r
+        .submodule_step(Op::Remove, &s(&["lib"]), &s(&["--force"]))
+        .unwrap()
+    else {
+        panic!()
+    };
+    assert!(
+        r.submodule_step(op.clone(), &s(&["n"]), &s(&["--force"]))
+            .is_err()
+    );
+    assert!(d.path().join("lib/x").exists());
+    r.submodule_step(op, &s(&["y"]), &s(&["--force"])).unwrap();
+    assert!(r.module_paths().unwrap().is_empty());
+    assert!(!d.path().join("lib").exists());
+}

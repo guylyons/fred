@@ -16,6 +16,7 @@ pub mod reset;
 pub mod sequence;
 pub mod stash;
 pub mod status;
+pub mod submodule;
 pub mod tag;
 pub mod workflows;
 pub mod worktree;
@@ -88,6 +89,8 @@ pub enum Action {
     Bisect(bisect::Op),
     /// A magit-log.el suffix.
     LogOp(log::Op),
+    /// A magit-submodule.el suffix.
+    Submodule(submodule::Op),
     /// magit-reflog-current / -head / -other (None asks for a ref).
     Reflog(Option<String>),
     /// ZZ / ZQ in a rebase todo buffer.
@@ -158,6 +161,8 @@ pub enum RowAction {
     Hunk(PathBuf, bool, usize, usize),
     Stash(workflows::Stash),
     Commit(String),
+    /// A module path (magit-list-submodules).
+    Module(String),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Row {
@@ -177,6 +182,8 @@ pub enum Kind {
     Diff(diff::Target, Vec<String>),
     /// magit-reflog-mode for a ref.
     Reflog(String),
+    /// magit-submodule-list-mode.
+    Modules,
     /// magit-cherry-mode: head and upstream.
     Cherry(String, String),
     /// *magit-shortlog*: revision or range and arguments.
@@ -237,6 +244,7 @@ impl View {
             Kind::Patch(id) => format!("Magit {id}"),
             Kind::Diff(target, _) => format!("Magit diff: {}", target.title()),
             Kind::Reflog(r) => format!("Magit reflog {}", label(std::path::Path::new(r))),
+            Kind::Modules => "Magit modules".into(),
             Kind::Cherry(h, u) => format!(
                 "Magit cherry {}",
                 label(std::path::Path::new(&format!("{u}..{h}")))
@@ -754,6 +762,9 @@ fn menu_help(menu: char) -> Option<&'static str> {
         'l' => {
             "Log: l current  o other  h HEAD  u related  L/b/a/R branches, all, reflog objects  B/T matching  m merged; = limit, + more in a log"
         }
+        'o' => {
+            "Submodule: a add  r register  p populate  u update  s sync  d unpopulate  k remove  l list  f fetch"
+        }
         'S' => {
             "Shortlog: s since  r range; -n numbered  -s summary  -e email  -g group  -f format  -w wrap"
         }
@@ -818,6 +829,7 @@ pub enum Question {
     Notes(notes::Op),
     Bisect(bisect::Op),
     Log(log::Op),
+    Submodule(submodule::Op),
     Net(network::Op),
     Diff(diff::Op),
     FindFile,
@@ -985,6 +997,7 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("Z", "Repository", "Worktree", Menu('Y')),
             ("T", "Inspect", "Notes", Menu('N')),
             ("Y", "Inspect", "Cherries", LogOp(log::Op::Cherry)),
+            ("o", "Repository", "Submodules", Menu('o')),
             // Upstream's B is the user's blame key, so bisect lives on G.
             ("G", "History", "Bisect", Menu('G')),
             ("b", "Branch", "Branch operations", Menu('b')),
@@ -1344,6 +1357,68 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 ("O", "Reflog", "other", Reflog(None)),
                 ("H", "Reflog", "HEAD", Reflog(Some("HEAD".into()))),
                 ("s", "Other", "shortlog", Menu('S')),
+            ]
+        }
+        'o' => {
+            use submodule::Op as O;
+            let sw = |a| ToggleOption(MenuOption::Switch('o', a));
+            vec![
+                ("-f", "Arguments", "Force", sw("--force")),
+                ("-r", "Arguments", "Recursive", sw("--recursive")),
+                ("-N", "Arguments", "Do not fetch", sw("--no-fetch")),
+                ("-C", "Arguments", "Checkout tip", sw("--checkout")),
+                ("-R", "Arguments", "Rebase onto tip", sw("--rebase")),
+                ("-M", "Arguments", "Merge tip", sw("--merge")),
+                ("-U", "Arguments", "Use upstream tip", sw("--remote")),
+                (
+                    "a",
+                    "One module actions",
+                    "Add            git submodule add [--force]",
+                    Submodule(O::Add),
+                ),
+                (
+                    "r",
+                    "One module actions",
+                    "Register       git submodule init",
+                    Submodule(O::Register),
+                ),
+                (
+                    "p",
+                    "One module actions",
+                    "Populate       git submodule update --init [--recursive]",
+                    Submodule(O::Populate),
+                ),
+                (
+                    "u",
+                    "One module actions",
+                    "Update         git submodule update [--force] [--no-fetch] [--remote] [--recursive] [--checkout|--rebase|--merge]",
+                    Submodule(O::Update),
+                ),
+                (
+                    "s",
+                    "One module actions",
+                    "Synchronize    git submodule sync [--recursive]",
+                    Submodule(O::Synchronize),
+                ),
+                (
+                    "d",
+                    "One module actions",
+                    "Unpopulate     git submodule deinit [--force]",
+                    Submodule(O::Unpopulate),
+                ),
+                ("k", "One module actions", "Remove", Submodule(O::Remove)),
+                (
+                    "l",
+                    "Populated modules actions",
+                    "List modules",
+                    Submodule(O::List),
+                ),
+                (
+                    "f",
+                    "Populated modules actions",
+                    "Fetch modules",
+                    Net(network::Op::FetchModules),
+                ),
             ]
         }
         'S' => {

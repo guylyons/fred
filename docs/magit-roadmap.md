@@ -47,8 +47,8 @@ additional behavior reopens its row and lowers the score until it is covered.
 
 ## Execution queue
 
-Log batch done (shortlog, cherry, move-to-parent, review fixes). Next:
-reference movement and log-select; then submodules,
+Submodule batch done. Next: subtrees, then reference movement and
+log-select,
 subtrees, patches/bundles, clone, refs view, sparse checkout and gitignore,
 recording each accepted gate's evidence here. The baseline's UI map and
 scenario matrix remain open.
@@ -170,3 +170,8 @@ October 4 shortlog/cherry checkpoint: Space m l s (shortlog menu), Space m Y
 text is never parsed as a commit, typed option values survive in a log
 buffer's menu, + without a limit sets 256 and 0 means none). Ledger 288
 partial / 485 missing commands. Score remains 3%.
+
+October 4 submodule checkpoint: Space m o ports magit-submodule (add,
+register, populate, update, sync, unpopulate, remove with dirty-module
+safety, list and visit) ([scenarios](magit-submodule-acceptance.md)). Ledger
+305 partial / 468 missing commands. Score remains 3%.

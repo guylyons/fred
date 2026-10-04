@@ -223,6 +223,47 @@ impl Session {
             });
             return;
         }
+        if let Action::Answered(repo, Question::Submodule(op), answers, defaults) = action {
+            let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, 'o'));
+            self.start_magit(move || {
+                let merged = merge_answers(&answers, &defaults);
+                let next = repo
+                    .submodule_step(op, &merged, &args)
+                    .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                Ok(branch_outcome(repo, next, origin))
+            });
+            return;
+        }
+        if let Action::Submodule(op) = action {
+            let (origin, from) = (self.cur, self.magit_from());
+            let args = crate::magit::menu_arguments(&self.ed, 'o');
+            let at_point =
+                self.ed
+                    .magit
+                    .as_ref()
+                    .and_then(|v| match v.action_at(self.ed.cur.line) {
+                        Some(RowAction::Module(m)) => Some(m),
+                        Some(RowAction::File(p, _)) => Some(p.to_string_lossy().into_owned()),
+                        _ => None,
+                    });
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                let at_point =
+                    at_point.filter(|m| repo.module_paths().is_ok_and(|v| v.contains(m)));
+                let (prompts, defaults) = repo.submodule_prompts(&op, at_point);
+                if prompts.is_empty() {
+                    let next = repo.submodule_step(op, &[], &args)?;
+                    return Ok(branch_outcome(repo, next, origin));
+                }
+                Ok(Outcome::Ask(
+                    repo,
+                    Question::Submodule(op),
+                    defaults,
+                    prompts,
+                ))
+            });
+            return;
+        }
         if let Action::LogOp(op) = action {
             let (origin, from) = (self.cur, self.magit_from());
             let args = crate::magit::menu_arguments(&self.ed, 'l');
@@ -707,7 +748,8 @@ impl Session {
                 | Question::Reflog
                 | Question::Notes(_)
                 | Question::Bisect(_)
-                | Question::Log(_) => {
+                | Question::Log(_)
+                | Question::Submodule(_) => {
                     unreachable!("handled before the worker")
                 }
                 Question::FindFile => {
@@ -1075,6 +1117,17 @@ impl Session {
                         view.return_to = self.cur;
                         let origin = view.return_to;
                         self.start_magit(move || stash_view(view.repo, stash, origin));
+                    }
+                    Some(RowAction::Module(module)) => {
+                        let origin = self.cur;
+                        self.start_magit(move || {
+                            let dir = view.repo.module_dir(&module)?;
+                            Ok(branch_outcome(
+                                view.repo,
+                                crate::magit::branch::Next::Status(dir),
+                                origin,
+                            ))
+                        });
                     }
                     Some(RowAction::Commit(id)) => {
                         view.return_to = self.cur;
@@ -2291,6 +2344,26 @@ fn refresh_view(view: &mut View) -> Result<(), String> {
         Kind::Log(..) | Kind::FileLog(..) | Kind::Reflog(_)
     ) {
         return refresh_log(view);
+    }
+    if view.kind == Kind::Modules {
+        let mut rows = vec![Row {
+            text: "Modules (Enter visit, Space m o actions, gr refresh, q return)".into(),
+            action: None,
+        }];
+        for (text, module) in view.repo.module_rows()? {
+            rows.push(Row {
+                text: label(Path::new(&text)),
+                action: Some(RowAction::Module(module)),
+            });
+        }
+        if rows.len() == 1 {
+            rows.push(Row {
+                text: "No modules".into(),
+                action: None,
+            });
+        }
+        view.rows = rows;
+        return Ok(());
     }
     if let Kind::Cherry(head, upstream) = &view.kind {
         // magit-insert-cherry-headers and -commits.

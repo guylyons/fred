@@ -409,7 +409,7 @@ magit-fetch.el,127,command,magit-fetch-refspec,partial,Space m f r; remote or UR
 magit-fetch.el,137,command,magit-fetch-all,partial,Space m f a,explicit
 magit-fetch.el,143,command,magit-fetch-all-prune,missing,,explicit
 magit-fetch.el,152,command,magit-fetch-all-no-prune,missing,,explicit
-magit-fetch.el,159,command,magit-fetch-modules,partial,Space m f m runs with default --verbose --jobs=4; its own transient missing,explicit
+magit-fetch.el,159,command,magit-fetch-modules,partial,o f and Space m f m,explicit
 magit-fetch.el,,command,transient:magit-fetch-modules:--jobs=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-fetch.el,,command,transient:magit-fetch-modules:--verbose,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-fetch.el,,command,transient:magit-fetch:--force,partial,-F,runtime
@@ -931,23 +931,23 @@ magit-submodule.el,68,option,magit-submodule-list-columns,missing,,explicit
 magit-submodule.el,131,option,magit-submodule-list-sort-key,missing,,explicit
 magit-submodule.el,143,option,magit-submodule-list-predicate,missing,,explicit
 magit-submodule.el,154,option,magit-submodule-remove-trash-gitdirs,missing,,explicit
-magit-submodule.el,171,command,magit-submodule,missing,,explicit
-magit-submodule.el,218,command,magit-submodule-add,missing,,explicit
-magit-submodule.el,275,command,magit-submodule-register,missing,,explicit
-magit-submodule.el,294,command,magit-submodule-populate,missing,,explicit
-magit-submodule.el,313,command,magit-submodule-update,missing,,explicit
-magit-submodule.el,336,command,magit-submodule-synchronize,missing,,explicit
-magit-submodule.el,352,command,magit-submodule-unpopulate,missing,,explicit
-magit-submodule.el,375,command,magit-submodule-remove,missing,,explicit
-magit-submodule.el,541,command,magit-submodule-visit,missing,,explicit
-magit-submodule.el,648,command,magit-list-submodules,missing,,explicit
-magit-submodule.el,,command,transient:magit-submodule:--checkout,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-submodule.el,,command,transient:magit-submodule:--force,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-submodule.el,,command,transient:magit-submodule:--merge,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-submodule.el,,command,transient:magit-submodule:--no-fetch,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-submodule.el,,command,transient:magit-submodule:--rebase,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-submodule.el,,command,transient:magit-submodule:--recursive,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-submodule.el,,command,transient:magit-submodule:--remote,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-submodule.el,171,command,magit-submodule,partial,Space m o: upstream arguments and suffixes; modules read comma separated (no region/prefix-all),explicit
+magit-submodule.el,218,command,magit-submodule-add,partial,"o a: url, path (default from url), name (default path); --force; no gitdir reuse",explicit
+magit-submodule.el,275,command,magit-submodule-register,partial,o r: unpopulated modules,explicit
+magit-submodule.el,294,command,magit-submodule-populate,partial,o p: update --init [--recursive],explicit
+magit-submodule.el,313,command,magit-submodule-update,partial,o u: populated modules with update arguments,explicit
+magit-submodule.el,336,command,magit-submodule-synchronize,partial,o s: sync [--recursive],explicit
+magit-submodule.el,352,command,magit-submodule-unpopulate,partial,o d: deinit [--force],explicit
+magit-submodule.el,375,command,magit-submodule-remove,partial,"o k: dirty modules omitted, or with --force confirmed and stashed; absorbgitdirs, deinit, rm; no gitdir trashing",explicit
+magit-submodule.el,541,command,magit-submodule-visit,partial,Enter on a module in the list opens its status,explicit
+magit-submodule.el,648,command,magit-list-submodules,partial,"o l: path, branch or (detached)/(unpopulated), describe",explicit
+magit-submodule.el,,command,transient:magit-submodule:--checkout,partial,menu o switch,runtime
+magit-submodule.el,,command,transient:magit-submodule:--force,partial,menu o switch,runtime
+magit-submodule.el,,command,transient:magit-submodule:--merge,partial,menu o switch,runtime
+magit-submodule.el,,command,transient:magit-submodule:--no-fetch,partial,menu o switch,runtime
+magit-submodule.el,,command,transient:magit-submodule:--rebase,partial,menu o switch,runtime
+magit-submodule.el,,command,transient:magit-submodule:--recursive,partial,menu o switch,runtime
+magit-submodule.el,,command,transient:magit-submodule:--remote,partial,menu o switch,runtime
 magit-subtree.el,37,command,magit-subtree,missing,,explicit
 magit-subtree.el,45,command,magit-subtree-import,missing,,explicit
 magit-subtree.el,59,command,magit-subtree-export,missing,,explicit
