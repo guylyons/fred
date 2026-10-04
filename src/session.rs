@@ -1497,6 +1497,14 @@ mod tests {
         // :e on a directory too; wdired renames on :w.
         t.keys(&format!(":e {}<Enter>", d.display()));
         assert!(t.s.ed.buf.line(t.s.ed.cur.line).ends_with("old.txt"));
+        // Space j finds files in the listed directory, not its parent.
+        t.keys(" j");
+        let Mode::Pick(p) = &t.s.ed.mode else {
+            panic!("no picker")
+        };
+        let listed = &t.s.ed.dired.as_ref().unwrap().dir;
+        assert_eq!(p.query.text, crate::pick::browse::show(listed));
+        t.keys("<Esc>");
         t.keys("icwnew<Esc>:w<Enter>");
         assert!(d.join("new.txt").exists(), "{:?}", t.s.ed.msg);
         assert!(!t.s.ed.buf.modified);
