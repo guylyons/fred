@@ -6,7 +6,7 @@ Nothing below is excluded from the port.
 
 ## Percentage and accounting
 
-**Verified roadmap completion: 2 / 100 points = 2%. Remaining: 98%.**
+**Verified roadmap completion: 3 / 100 points = 3%. Remaining: 97%.**
 This deliberately measures accepted deliverables, not elapsed effort, lines of
 code, or how many familiar Git verbs run. Existing partial functionality is
 listed below but earns no full-family credit. This is a conservative completion
@@ -15,7 +15,7 @@ them only with an explicit explanation and preserve the prior score.
 
 The baseline's five one-point deliverables are: pinned source checkout (done),
 explicit command/customization inventory (done), generated commands and companion
-integration inventory (open), complete menu/key/section mapping (open), and an
+mode inventory (done; runtime snapshot and extractor), complete menu/key/section mapping (open), and an
 acceptance scenario matrix linked to every ledger entry (open).
 
 For every other row, its points are awarded together only when all five gates
@@ -27,7 +27,7 @@ additional behavior reopens its row and lowers the score until it is covered.
 
 | Order | Track | Points | Accepted | Existing partial work / remaining acceptance |
 | --- | --- | ---: | ---: | --- |
-| 1 | Source and acceptance baseline | 5 | 2 | Pin and explicit inventory done; generated commands, complete UI map and scenario matrix open |
+| 1 | Source and acceptance baseline | 5 | 3 | Pin, expanded command/option and companion-mode inventory done; full Fred UI map and scenario matrix open |
 | 2 | Transient menus and section framework | 7 | 0 | Basic panels/toggles; remaining arguments, persistence, help, navigation, selection and context |
 | 3 | Status and refresh | 7 | 0 | Basic status/conflicts; all upstream sections, hooks, contextual operations, auto-refresh |
 | 4 | Diff, staging, discard, reset and blobs | 10 | 0 | File/hunk stage/unstage; region operations, diff variants/options, reverse/discard/reset, revision/blob navigation |
@@ -42,15 +42,14 @@ additional behavior reopens its row and lowers the score until it is covered.
 | 13 | Worktrees, submodules and subtrees | 4 | 0 | All workflows, linked-worktree contexts and nested repository operations |
 | 14 | Repository/file dispatch and maintenance | 3 | 0 | Clone/init, repository lists, ignore, sparse checkout, file actions and maintenance |
 | 15 | Patches, mail and bundles | 3 | 0 | Format/apply/export, mail-related editor equivalents, bundles and interruption handling |
-| 16 | Configuration, process UI and integrations | 5 | 0 | 227 options plus hooks; process/history diagnostics, companion modes, WIP, autorevert and Fred equivalents |
-| | Total | 100 | 2 | |
+| 16 | Configuration, process UI and integrations | 5 | 0 | 237 options plus hooks; process/history diagnostics, companion modes, WIP, autorevert and Fred equivalents |
+| | Total | 100 | 3 | |
 
 ## Execution queue
 
-Continue the in-flight stash source work first (worktree-only save and the three
-snapshot variants), then finish the baseline's three open deliverables. This
-short exception to order completes the source work already underway; it does
-not award stash-family points early. Then work through rows in order, preserving
+The in-flight stash batch is committed. Next finish the baseline's two remaining
+deliverables: full Fred UI mapping and the acceptance scenario matrix, using the
+user's exact leader contract. Then work through rows in order, preserving
 cross-track prerequisites and recording each accepted gate's evidence here.
 
 At every implementation commit, update the command ledger and this queue. Report
@@ -65,3 +64,17 @@ ignored; format/diff checks, Clippy and release build passed. Independent review
 found two Important defects; both were reproduced and fixed. The stash row
 remains partial, so the accepted score remains 2%. Next: generated-command and
 companion inventory, full menu/section map, and acceptance scenario matrix.
+
+October 4 source/binding checkpoint: a clean Emacs process loaded the pinned
+checkout and captured 773 commands, 237 options, 51 transient prefixes, 565 menu
+entries, 53 keymaps and 25 modes. Provenance and representative generated/menu
+entries were checked; the generated-command/companion-mode inventory point is
+accepted. Score: 3%. Context-created dynamic layouts and version/platform
+branches remain a declared inventory limit and require source review in the UI
+mapping gate. This credit covers discovery, not implemented functionality.
+
+The user's exact leader contract is [recorded here](magit-user-bindings.md).
+b/c/r now route to branch/commit/revert menus, R is a nonconflicting rebase
+entry, and B is reserved for unported blame. Stash-view k again moves up; x/d
+request a confirmed drop. Next: complete the Fred UI mapping and acceptance
+scenario matrix, prioritizing B/L/d/i and menu semantics for network/log entries.

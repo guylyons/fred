@@ -1803,7 +1803,7 @@ mod tests {
         repo.read(&["config", "user.email", "fred@example.test"])
             .unwrap();
         repo.stage_file(Path::new("f.txt")).unwrap();
-        t.keys(" mc");
+        t.keys(" mcc");
         magit_settle(&mut t);
         assert!(t.s.ed.commit_repo.is_some());
         let path = t.s.ed.path.clone().unwrap();
@@ -1812,7 +1812,7 @@ mod tests {
         let hook = t.dir.path().join(".git/hooks/pre-commit");
         fs::write(&hook, "#!/bin/sh\nexit 1\n").unwrap();
         fs::set_permissions(&hook, fs::Permissions::from_mode(0o755)).unwrap();
-        t.keys(" mc");
+        t.keys(" mcc");
         let inv = t.s.pending_git.take().unwrap();
         let result = inv.repo.run(&inv.args, inv.input.as_deref()).map(|_| ());
         assert!(result.is_err());
@@ -1820,7 +1820,7 @@ mod tests {
         assert_eq!(t.s.ed.buf.line(0), "first message");
         assert_eq!(fs::read_to_string(&path).unwrap(), "first message\n");
         fs::remove_file(hook).unwrap();
-        t.keys(" mc");
+        t.keys(" mcc");
         let inv = t.s.pending_git.take().unwrap();
         let result = inv.repo.run(&inv.args, inv.input.as_deref()).map(|_| ());
         assert!(result.is_ok());
@@ -1828,7 +1828,7 @@ mod tests {
         magit_settle(&mut t);
         assert!(t.s.ed.magit.is_some());
         assert_eq!(fs::read(&path).unwrap(), b"");
-        t.keys(" mc");
+        t.keys(" mcc");
         magit_settle(&mut t);
         t.keys("inext message<Esc>:w<Enter>");
         assert_eq!(fs::read_to_string(&path).unwrap(), "next message\n");
@@ -1886,12 +1886,12 @@ mod tests {
     fn magit_commit_rejects_externally_changed_draft() {
         let mut t = T::open(Some("f.txt"), Some("original\n"));
         magit_repo(&t);
-        t.keys(" mc");
+        t.keys(" mcc");
         magit_settle(&mut t);
         t.keys("imy draft<Esc>:w<Enter>");
         let path = t.s.ed.path.clone().unwrap();
         fs::write(&path, "external draft\n").unwrap();
-        t.keys(" mc");
+        t.keys(" mcc");
         assert!(t.s.pending_git.is_none());
         assert!(t.msg().contains("changed"));
         assert_eq!(fs::read_to_string(path).unwrap(), "external draft\n");
@@ -1901,14 +1901,14 @@ mod tests {
     fn magit_recovered_commit_draft_keeps_submission_routing() {
         let mut t = T::open(Some("f.txt"), Some("original\n"));
         magit_repo(&t);
-        t.keys(" mc");
+        t.keys(" mcc");
         magit_settle(&mut t);
         t.keys("irecovered message<Esc>");
         t.s.write_swap();
         let info = swap::read(&t.s.swap_path).unwrap();
         t.s.recover(info);
         assert!(t.s.ed.commit_repo.is_some());
-        t.keys(" mc");
+        t.keys(" mcc");
         assert!(t.s.pending_git.is_some());
         assert_eq!(t.s.ed.buf.line(0), "recovered message");
     }
@@ -1939,7 +1939,7 @@ mod tests {
         repo.stage_file(Path::new("f.txt")).unwrap();
         repo.read(&["commit", "-qm", "initial"]).unwrap();
         repo.read(&["branch", "other"]).unwrap();
-        t.keys("iunsaved <Esc> mb");
+        t.keys("iunsaved <Esc> mbb");
         magit_settle(&mut t);
         t.keys("other<Enter>");
         let inv = t.s.pending_git.take().unwrap();
@@ -1959,9 +1959,9 @@ mod tests {
         repo.read(&["config", "user.email", "fred@example.test"])
             .unwrap();
         repo.stage_file(Path::new("f.txt")).unwrap();
-        t.keys(" mc");
+        t.keys(" mcc");
         magit_settle(&mut t);
-        t.keys("imy draft<Esc>:w<Enter> mc");
+        t.keys("imy draft<Esc>:w<Enter> mcc");
         let path = t.s.ed.path.clone().unwrap();
         let inv = t.s.pending_git.take().unwrap();
         let result = inv.repo.run(&inv.args, inv.input.as_deref()).map(|_| ());
@@ -2010,7 +2010,7 @@ mod tests {
     fn magit_workflow_prompt_and_failed_operation_refresh() {
         let mut t = T::open(Some("f.txt"), Some("original\n"));
         magit_repo(&t);
-        t.keys(" mBc");
+        t.keys(" mbc");
         magit_settle(&mut t);
         assert!(t.s.ed.magit_prompt.is_some());
         t.keys("topic<Esc>");
@@ -2051,7 +2051,7 @@ mod tests {
         for input in ["<Esc>", "i", ":"] {
             let mut t = T::open(Some("f.txt"), Some("source\n"));
             magit_repo(&t);
-            t.keys(" mBc");
+            t.keys(" mbc");
             t.keys(input);
             let mode = t.s.ed.mode.clone();
             magit_settle(&mut t);
@@ -2063,7 +2063,7 @@ mod tests {
     fn magit_delayed_prompt_cancelled_by_bracketed_paste() {
         let mut t = T::open(Some("f.txt"), Some("source\n"));
         magit_repo(&t);
-        t.keys(" mBc");
+        t.keys(" mbc");
         t.s.ed.paste("new input");
         magit_settle(&mut t);
         assert!(t.s.ed.magit_prompt.is_none());
@@ -2150,7 +2150,7 @@ mod tests {
     fn magit_amend_edits_message_and_staged_tree_without_clobbering_normal_draft() {
         let mut t = T::open(Some("f.txt"), Some("base\n"));
         let repo = magit_committed_fixture(&mut t);
-        t.keys(" mc");
+        t.keys(" mcc");
         magit_settle(&mut t);
         t.keys("inormal draft<Esc>:w<Enter>");
         let normal_path = t.s.ed.path.clone().unwrap();
@@ -2162,7 +2162,7 @@ mod tests {
         assert_eq!(fs::read_to_string(&normal_path).unwrap(), "normal draft\n");
         fs::write(t.dir.path().join("f.txt"), "amended tree\n").unwrap();
         repo.stage_file(Path::new("f.txt")).unwrap();
-        t.keys("ccamended message<Esc> mc");
+        t.keys("ccamended message<Esc> mcc");
         let inv = t.s.pending_git.take().expect("amend invocation");
         let result = inv.repo.run(&inv.args, inv.input.as_deref()).map(|_| ());
         assert!(result.is_ok(), "{result:?}");
@@ -2188,7 +2188,7 @@ mod tests {
         t.keys(" mCw");
         magit_settle(&mut t);
         assert!(t.s.ed.commit_repo.is_some());
-        t.keys("ccnew words<Esc> mc");
+        t.keys("ccnew words<Esc> mcc");
         let inv = t.s.pending_git.take().expect("reword invocation");
         let result = inv.repo.run(&inv.args, inv.input.as_deref()).map(|_| ());
         assert!(result.is_ok(), "{result:?}");
@@ -2199,7 +2199,7 @@ mod tests {
         t.keys(" mCa");
         magit_settle(&mut t);
         repo.read(&["commit", "-qm", "intervening"]).unwrap();
-        t.keys(" mc");
+        t.keys(" mcc");
         assert!(t.s.pending_git.is_none());
         assert!(format!("{:?}", t.s.ed.msg).contains("HEAD changed"));
     }
@@ -2312,7 +2312,7 @@ mod tests {
         t.keys("iunsaved <Esc> mC-ac");
         magit_settle(&mut t);
         assert!(t.s.ed.commit_repo.is_some());
-        t.keys("iwith all<Esc> mc");
+        t.keys("iwith all<Esc> mcc");
         let inv = t.s.pending_git.take().expect("commit --all invocation");
         let result = inv.repo.run(&inv.args, inv.input.as_deref()).map(|_| ());
         assert!(result.is_ok(), "{result:?}");
@@ -2340,7 +2340,7 @@ mod tests {
         t.s.write_swap();
         let info = swap::read(&t.s.swap_path).unwrap();
         t.s.recover(info);
-        t.keys(" mc");
+        t.keys(" mcc");
         let inv = t.s.pending_git.take().expect("recovered amendment");
         assert!(inv.validate().is_ok());
         repo.read(&["commit", "--allow-empty", "-qm", "intervening"])

@@ -24,8 +24,9 @@ missing, recreate it from the repository and check out the pinned revision.
 Do not silently replace Magit behavior with whatever the similarly named Git
 CLI command happens to do. Document behavior differences and keep them open.
 
-`docs/magit-parity.csv` records 514 explicit command declarations and 227
-customization options from the pinned Lisp sources. It is a lower bound,
+The first `docs/magit-parity.csv` scan recorded 514 apparent commands and 227
+options. The October 4 runtime expansion corrected two internal-helper false
+positives and expanded the inventory to 773 commands and 237 options. It is a lower bound,
 not a complete count of behaviors or a percentage estimate. Generated commands,
 section interactions, contextual operations, option menus, hooks and companion
 integrations need coverage too. Most source modules remain unported. Full parity
@@ -176,3 +177,35 @@ diff whitespace checks, Clippy with the existing allowance and release build
 passed. The source ledger now has 46 partial and 468 missing explicit commands;
 227 customization options remain missing. No whole family is yet accepted as
 full parity. Continue from the roadmap's next baseline deliverables.
+
+## User binding and stop/integration checkpoint
+
+Read the user's `~/.emacs.d/lisp/gl-keys.el`, gl-tools.el, gl-evil.el and
+gl-completion.el, plus the installed Evil-collection Magit binding source.
+`docs/magit-user-bindings.md` records the authoritative exact leader contract.
+b/c/r now open branch/commit/revert menus; R is an extra rebase entry; B is
+reserved for still-missing blame. Creating/submitting a commit is Space m c c;
+branch checkout is Space m b b. Stash-view k moves up; x/d ask to drop.
+Network/log menus and B/L/d/i remain incomplete.
+
+The read-only tools/magit-source-inventory.el helper runs a clean --batch -Q
+Emacs without initializing packages or reading user configuration. It loads the
+pinned Magit checkout and dependency paths, capturing commands/options, menus,
+raw inherited keymap candidates and companion modes. Independent review
+reproduced the artifact exactly and confirmed user-init-file was nil. Keymap
+shadow resolution and Evil-collection overrides belong in the open UI mapping
+gate. The generated inventory gate raises the roadmap's accepted score to 3%,
+with 97% remaining. Partial command counts remain 46 / 773.
+
+The user requested a stopping checkpoint: build, install, commit, push and merge
+the other worktree. Only other worktree: /Users/guy/github/fred-explain on
+feat/ai-explain. It contains the explanation overlay feature; commit it there,
+merge into feat-magit, test the combined tree and install/push feat-magit. Keep
+both worktrees and the user's notes.md. Do not start another parity increment
+after this integration checkpoint.
+
+Review of the explanation feature found invisible replies for full-viewport or
+multiscreen selections. Correct with an overlay fallback and regression before
+integration. Deferred minor: Visual K in read-only Magit views remains rejected
+by the Magit allowlist; the equivalent ranged :explain command works. Existing
+AI cancellation behavior is unchanged; wider full parity stays on the roadmap.

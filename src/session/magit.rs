@@ -546,13 +546,13 @@ impl Session {
                 self.attach_commit_repo();
                 self.ed.set_msg(match mode {
                     crate::magit::CommitMode::New => {
-                        "Commit draft: :w save; Space m c commit staged changes"
+                        "Commit draft: :w save; Space m c c commit staged changes"
                     }
                     crate::magit::CommitMode::Amend(_) => {
-                        "Amend draft: :w save; Space m c amend staged changes and message"
+                        "Amend draft: :w save; Space m c c amend staged changes and message"
                     }
                     crate::magit::CommitMode::Reword(_) => {
-                        "Reword draft: :w save; Space m c replace message, keep HEAD tree"
+                        "Reword draft: :w save; Space m c c replace message, keep HEAD tree"
                     }
                 });
             }

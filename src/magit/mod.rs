@@ -10,7 +10,7 @@ use repo::{Diff, Repo, Snapshot, label};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
-pub const HELP: &str = "Magit: s status  p push  P pull  f fetch  c commit  l log  b branches  z stash  B branch  t tag  C commit  M merge  r rebase  x cherry-pick  v revert";
+pub const HELP: &str = "Magit: s status  p push  P pull  f fetch  c commit menu  l log  b branch menu  r revert  z stash  t tag  C commit  M merge  R rebase  x cherry-pick";
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Action {
     Menu(char),
@@ -360,7 +360,7 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         let action = match k.char() {
             Some('a') if !k.ctrl => Some(workflows::StashAction::Apply),
             Some('p') if !k.ctrl => Some(workflows::StashAction::Pop),
-            Some('d' | 'k') if !k.ctrl => Some(workflows::StashAction::Drop),
+            Some('d' | 'x') if !k.ctrl => Some(workflows::StashAction::Drop),
             _ => None,
         };
         if let Some(action) = action {
@@ -472,17 +472,17 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
         '*' => vec![
             ("s", "Inspect", "Status", Status),
             ("l", "Inspect", "Log", Log),
-            ("b", "Branch", "Switch local branch", Branches),
-            ("c", "Commit", "Create commit", Commit),
+            ("b", "Branch", "Branch operations", Menu('B')),
+            ("c", "Commit", "Commit menu", Menu('C')),
             ("C", "Commit", "Amend / fixup", Menu('C')),
             ("p", "Network", "Push", Push),
             ("P", "Network", "Pull", Pull),
             ("f", "Network", "Fetch", Fetch),
             ("z", "Change", "Stash", Menu('z')),
-            ("B", "Branch", "Branch operations", Menu('B')),
             ("t", "Tag", "Tags", Menu('t')),
             ("M", "History", "Merge", Menu('M')),
-            ("r", "History", "Rebase", Menu('r')),
+            ("R", "History", "Rebase", Menu('r')),
+            ("r", "History", "Revert", Menu('v')),
             ("x", "History", "Cherry-pick", Menu('x')),
             ("v", "History", "Revert", Menu('v')),
         ],
@@ -525,6 +525,7 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("v", "Inspect", "Show selected stash", Visit),
         ],
         'B' => vec![
+            ("b", "Checkout", "Switch local branch", Branches),
             ("c", "Create", "create", Workflow(CreateBranch)),
             ("s", "Create", "create and switch", Workflow(CreateSwitch)),
             ("r", "Edit", "Rename current", Workflow(RenameBranch)),

@@ -1,742 +1,1011 @@
-source_file,source_line,kind,symbol,state,fred_behavior
-git-commit.el,142,option,git-commit-major-mode,missing,
-git-commit.el,169,option,git-commit-setup-hook,missing,
-git-commit.el,194,option,git-commit-finish-query-functions,missing,
-git-commit.el,211,option,git-commit-style-convention-checks,missing,
-git-commit.el,220,option,git-commit-summary-max-length,missing,
-git-commit.el,233,option,git-commit-trailers,missing,
-git-commit.el,253,option,git-commit-use-local-message-ring,missing,
-git-commit.el,262,option,git-commit-cd-to-toplevel,missing,
-git-commit.el,758,command,git-commit-prev-message,missing,
-git-commit.el,786,command,git-commit-next-message,missing,
-git-commit.el,792,command,git-commit-search-message-backward,missing,
-git-commit.el,803,command,git-commit-search-message-forward,missing,
-git-commit.el,814,command,git-commit-save-message,missing,
-git-commit.el,872,command,git-commit-insert-changelog-gnu,missing,
-git-commit.el,890,command,git-commit-insert-changelog-plain,missing,
-git-commit.el,909,command,git-commit-insert-trailer,missing,
-git-commit.el,933,command,git-commit-ack,missing,
-git-commit.el,938,command,git-commit-modified,missing,
-git-commit.el,943,command,git-commit-review,missing,
-git-commit.el,950,command,git-commit-signoff,missing,
-git-commit.el,956,command,git-commit-test,missing,
-git-commit.el,962,command,git-commit-cc,missing,
-git-commit.el,967,command,git-commit-reported,missing,
-git-commit.el,972,command,git-commit-suggested,missing,
-git-commit.el,977,command,git-commit-co-authored,missing,
-git-commit.el,982,command,git-commit-co-developed,missing,
-git-commit.el,1294,option,git-commit-post-finish-hook,missing,
-git-commit.el,1313,option,git-commit-post-finish-hook-timeout,missing,
-git-rebase.el,91,option,git-rebase-auto-advance,missing,
-git-rebase.el,96,option,git-rebase-show-instructions,missing,
-git-rebase.el,101,option,git-rebase-confirm-cancel,missing,
-git-rebase.el,236,command,git-rebase-pick,missing,
-git-rebase.el,242,command,git-rebase-drop,missing,
-git-rebase.el,248,command,git-rebase-reword,missing,
-git-rebase.el,254,command,git-rebase-edit,missing,
-git-rebase.el,260,command,git-rebase-squash,missing,
-git-rebase.el,266,command,git-rebase-squish,missing,
-git-rebase.el,274,command,git-rebase-fixup,missing,
-git-rebase.el,280,command,git-rebase-alter,missing,
-git-rebase.el,448,command,git-rebase-move-line-down,missing,
-git-rebase.el,491,command,git-rebase-move-line-up,missing,
-git-rebase.el,516,command,git-rebase-kill-line,missing,
-git-rebase.el,523,command,git-rebase-insert,missing,
-git-rebase.el,560,command,git-rebase-exec,missing,
-git-rebase.el,573,command,git-rebase-label,missing,
-git-rebase.el,595,command,git-rebase-reset,missing,
-git-rebase.el,610,command,git-rebase-update-ref,missing,
-git-rebase.el,624,command,git-rebase-merge,missing,
-git-rebase.el,639,command,git-rebase-merge-toggle-editmsg,missing,
-git-rebase.el,675,command,git-rebase-noop,missing,
-git-rebase.el,690,command,git-rebase-break,missing,
-git-rebase.el,704,command,git-rebase-undo,missing,
-git-rebase.el,726,command,git-rebase-show-commit,missing,
-git-rebase.el,731,command,git-rebase-show-or-scroll-up,missing,
-git-rebase.el,741,command,git-rebase-show-or-scroll-down,missing,
-git-rebase.el,751,command,git-rebase-backward-line,missing,
-magit-apply.el,55,option,magit-delete-by-moving-to-trash,missing,
-magit-apply.el,66,option,magit-unstage-committed,missing,
-magit-apply.el,82,option,magit-reverse-atomically,missing,
-magit-apply.el,94,option,magit-post-stage-hook,missing,
-magit-apply.el,102,option,magit-post-unstage-hook,missing,
-magit-apply.el,113,command,magit-apply,missing,
-magit-apply.el,285,command,magit-stage,partial,s; file/hunk only; region and section staging missing
-magit-apply.el,312,command,magit-stage-files,missing,
-magit-apply.el,331,command,magit-stage-modified,missing,
-magit-apply.el,410,command,magit-unstage,partial,u; file/hunk only; region and section unstaging missing
-magit-apply.el,437,command,magit-unstage-files,missing,
-magit-apply.el,463,command,magit-unstage-all,missing,
-magit-apply.el,488,command,magit-discard,missing,
-magit-apply.el,686,command,magit-reverse,missing,
-magit-apply.el,744,command,magit-reverse-in-index,missing,
-magit-apply.el,765,command,magit-copy-diff-as-kill,missing,
-magit-apply.el,792,command,magit-smerge-keep-current,missing,
-magit-apply.el,797,command,magit-smerge-keep-upper,missing,
-magit-apply.el,802,command,magit-smerge-keep-base,missing,
-magit-apply.el,807,command,magit-smerge-keep-lower,missing,
-magit-apply.el,812,command,magit-smerge-keep-all,missing,
-magit-autorevert.el,49,option,auto-revert-buffer-list-filter,missing,
-magit-autorevert.el,76,option,magit-auto-revert-tracked-only,missing,
-magit-autorevert.el,88,option,magit-auto-revert-immediately,missing,
-magit-base.el,60,option,magit-completing-read-function,missing,
-magit-base.el,78,option,magit-dwim-selection,missing,
-magit-base.el,156,option,magit-no-confirm,missing,
-magit-base.el,342,option,magit-slow-confirm,missing,
-magit-base.el,358,option,magit-no-message,missing,
-magit-base.el,381,option,magit-verbose-messages,missing,
-magit-base.el,401,option,magit-ellipsis,missing,
-magit-base.el,426,option,magit-update-other-window-delay,missing,
-magit-base.el,444,option,magit-view-git-manual-method,missing,
-magit-base.el,721,command,magit-whitespace-disallowed,missing,
-magit-base.el,865,command,magit-emacs-Q-command,missing,
-magit-bisect.el,33,option,magit-bisect-show-graph,missing,
-magit-bisect.el,57,command,magit-bisect,missing,
-magit-bisect.el,93,command,magit-bisect-start,missing,
-magit-bisect.el,141,command,magit-bisect-reset,missing,
-magit-bisect.el,151,command,magit-bisect-good,missing,
-magit-bisect.el,160,command,magit-bisect-bad,missing,
-magit-bisect.el,169,command,magit-bisect-mark,missing,
-magit-bisect.el,189,command,magit-bisect-skip,missing,
-magit-bisect.el,197,command,magit-bisect-run,missing,
-magit-blame.el,39,option,magit-blame-styles,missing,
-magit-blame.el,134,option,magit-blame-echo-style,missing,
-magit-blame.el,142,option,magit-blame-time-format,missing,
-magit-blame.el,147,option,magit-blame-read-only,missing,
-magit-blame.el,153,option,magit-blame-disable-modes,missing,
-magit-blame.el,160,option,magit-blame-mode-lighter,missing,
-magit-blame.el,165,option,magit-blame-goto-chunk-hook,missing,
-magit-blame.el,766,command,magit-blame-echo,missing,
-magit-blame.el,790,command,magit-blame-addition,missing,
-magit-blame.el,798,command,magit-blame-removal,missing,
-magit-blame.el,809,command,magit-blame-reverse,missing,
-magit-blame.el,845,command,magit-blame-visit-other-file,missing,
-magit-blame.el,858,command,magit-blame-visit-file,missing,
-magit-blame.el,868,command,magit-blame-quit,missing,
-magit-blame.el,878,command,magit-blame-next-chunk,missing,
-magit-blame.el,886,command,magit-blame-previous-chunk,missing,
-magit-blame.el,894,command,magit-blame-next-chunk-same-commit,missing,
-magit-blame.el,917,command,magit-blame-previous-chunk-same-commit,missing,
-magit-blame.el,922,command,magit-blame-cycle-style,missing,
-magit-blame.el,933,command,magit-blame-copy-hash,missing,
-magit-blame.el,946,command,magit-blame,missing,
-magit-branch.el,38,option,magit-branch-read-upstream-first,missing,
-magit-branch.el,53,option,magit-branch-name-suggestions,missing,
-magit-branch.el,60,option,magit-branch-prefer-remote-upstream,missing,
-magit-branch.el,107,option,magit-branch-adjust-remote-upstream-alist,missing,
-magit-branch.el,169,option,magit-branch-rename-push-target,missing,
-magit-branch.el,197,option,magit-branch-direct-configure,missing,
-magit-branch.el,206,option,magit-published-branches,missing,
-magit-branch.el,215,command,magit-branch,missing,
-magit-branch.el,265,command,magit-checkout,missing,
-magit-branch.el,285,command,magit-branch-create,partial,Space m B c; HEAD start point only
-magit-branch.el,298,command,magit-branch-and-checkout,partial,Space m B s; HEAD start point only
-magit-branch.el,314,command,magit-branch-or-checkout,missing,
-magit-branch.el,340,command,magit-branch-checkout,partial,Space m b; local branch picker; other ref modes missing
-magit-branch.el,428,command,magit-branch-orphan,missing,
-magit-branch.el,434,command,magit-checkout-remote-ref,missing,
-magit-branch.el,517,command,magit-branch-spinout,missing,
-magit-branch.el,527,command,magit-branch-spinoff,missing,
-magit-branch.el,602,command,magit-branch-reset,missing,
-magit-branch.el,643,command,magit-branch-delete,partial,Space m B d; merged-only; multi-select/force missing
-magit-branch.el,818,command,magit-branch-rename,partial,Space m B r; current branch only
-magit-branch.el,864,command,magit-branch-shelve,missing,
-magit-branch.el,879,command,magit-branch-unshelve,missing,
-magit-branch.el,906,command,magit-branch-configure,missing,
-magit-branch.el,939,command,magit-branch.<branch>.description,missing,
-magit-bundle.el,37,command,magit-bundle,missing,
-magit-bundle.el,46,command,magit-bundle-create,missing,
-magit-bundle.el,77,command,magit-bundle-create-tracked,missing,
-magit-bundle.el,100,command,magit-bundle-update-tracked,missing,
-magit-bundle.el,118,command,magit-bundle-verify,missing,
-magit-bundle.el,125,command,magit-bundle-list-heads,missing,
-magit-clone.el,33,option,magit-clone-set-remote-head,missing,
-magit-clone.el,39,option,magit-clone-set-remote.pushDefault,missing,
-magit-clone.el,50,option,magit-clone-default-directory,missing,
-magit-clone.el,61,option,magit-clone-always-transient,missing,
-magit-clone.el,70,option,magit-clone-name-alist,missing,
-magit-clone.el,96,option,magit-clone-url-format,missing,
-magit-clone.el,115,option,magit-post-clone-hook,missing,
-magit-clone.el,127,command,magit-clone,missing,
-magit-clone.el,172,command,magit-clone-regular,missing,
-magit-clone.el,179,command,magit-clone-shallow,missing,
-magit-clone.el,192,command,magit-clone-shallow-since,missing,
-magit-clone.el,204,command,magit-clone-shallow-exclude,missing,
-magit-clone.el,215,command,magit-clone-bare,missing,
-magit-clone.el,222,command,magit-clone-mirror,missing,
-magit-clone.el,229,command,magit-clone-sparse,missing,
-magit-commit.el,36,option,magit-commit-ask-to-stage,missing,
-magit-commit.el,45,option,magit-commit-show-diff,missing,
-magit-commit.el,51,option,magit-commit-extend-override-date,missing,
-magit-commit.el,57,option,magit-commit-reword-override-date,missing,
-magit-commit.el,63,option,magit-commit-squash-confirm,missing,
-magit-commit.el,74,option,magit-commit-diff-inhibit-same-window,missing,
-magit-commit.el,117,command,magit-commit,partial,Space m C; source create/edit groups and common switches; remaining commands/options missing
-magit-commit.el,208,command,magit-commit-create,partial,Space m c; drafts and staged commits; transient options missing
-magit-commit.el,222,command,magit-commit-extend,partial,Space m C e; no-message-edit amendment; prefix date customization missing
-magit-commit.el,243,command,magit-commit-amend,partial,"Space m C a; editable HEAD-pinned drafts, recovery, common switches; publication warnings/remaining options missing"
-magit-commit.el,250,command,magit-commit-reword,partial,Space m C w; editable HEAD-pinned message-only amendment; date customization missing
-magit-commit.el,273,command,magit-commit-fixup,partial,Space m C f; basic fixup; instant/autosquash variants missing
-magit-commit.el,289,command,magit-commit-squash,missing,
-magit-commit.el,306,command,magit-commit-alter,missing,
-magit-commit.el,324,command,magit-commit-augment,missing,
-magit-commit.el,342,command,magit-commit-revise,missing,
-magit-commit.el,361,command,magit-commit-instant-fixup,missing,
-magit-commit.el,376,command,magit-commit-instant-squash,missing,
-magit-commit.el,501,command,magit-commit-reshelve,missing,
-magit-commit.el,535,command,magit-commit-absorb-modules,missing,
-magit-commit.el,558,command,magit-commit-absorb,missing,
-magit-commit.el,601,command,magit-commit-autofixup,missing,
-magit-commit.el,773,command,magit-commit-add-log,missing,
-magit-commit.el,833,option,magit-post-commit-hook,missing,
-magit-diff.el,123,option,magit-diff-mode-hook,missing,
-magit-diff.el,128,option,magit-diff-sections-hook,missing,
-magit-diff.el,136,option,magit-diff-expansion-threshold,missing,
-magit-diff.el,154,option,magit-diff-highlight-hunk-body,missing,
-magit-diff.el,160,option,magit-diff-highlight-hunk-region-functions,missing,
-magit-diff.el,193,option,magit-diff-unmarked-lines-keep-foreground,missing,
-magit-diff.el,202,option,magit-diff-refine-hunk,missing,
-magit-diff.el,219,option,magit-diff-fontify-hunk,missing,
-magit-diff.el,246,option,magit-diff-refine-ignore-whitespace,missing,
-magit-diff.el,254,option,magit-diff-adjust-tab-width,missing,
-magit-diff.el,282,option,magit-diff-paint-whitespace,missing,
-magit-diff.el,305,option,magit-diff-paint-whitespace-lines,missing,
-magit-diff.el,318,option,magit-diff-highlight-trailing,missing,
-magit-diff.el,325,option,magit-diff-highlight-indentation,missing,
-magit-diff.el,343,option,magit-diff-hide-trailing-cr-characters,missing,
-magit-diff.el,350,option,magit-diff-extra-stat-arguments,missing,
-magit-diff.el,364,option,magit-format-file-function,missing,
-magit-diff.el,381,option,magit-diff-buffer-file-locked,missing,
-magit-diff.el,395,option,magit-revision-mode-hook,missing,
-magit-diff.el,404,option,magit-revision-sections-hook,missing,
-magit-diff.el,416,option,magit-revision-wash-message-hook,missing,
-magit-diff.el,434,option,magit-revision-headers-format,missing,
-magit-diff.el,451,option,magit-revision-insert-related-refs,missing,
-magit-diff.el,468,option,magit-revision-insert-related-refs-display-alist,missing,
-magit-diff.el,493,option,magit-revision-use-hash-sections,missing,
-magit-diff.el,517,option,magit-revision-show-gravatars,missing,
-magit-diff.el,545,option,magit-revision-fill-summary-line,missing,
-magit-diff.el,563,option,magit-revision-filter-files-on-follow,missing,
-magit-diff.el,580,option,magit-revision-use-dedicated-buffers,missing,
-magit-diff.el,602,option,magit-diff-visit-prefer-worktree,missing,
-magit-diff.el,622,option,magit-diff-visit-previous-blob,missing,
-magit-diff.el,771,option,magit-diff-specify-hunk-foreground,missing,
-magit-diff.el,896,option,magit-diff-use-indicator-faces,missing,
-magit-diff.el,1104,command,magit-diff,missing,
-magit-diff.el,1120,command,magit-diff-refresh,missing,
-magit-diff.el,1307,command,magit-diff-dwim,missing,
-magit-diff.el,1424,command,magit-diff--region-range,missing,
-magit-diff.el,1463,command,magit-diff-range,missing,
-magit-diff.el,1482,command,magit-diff-working-tree,missing,
-magit-diff.el,1493,command,magit-diff-staged,missing,
-magit-diff.el,1504,command,magit-diff-unstaged,missing,
-magit-diff.el,1510,command,magit-diff-unmerged,missing,
-magit-diff.el,1518,command,magit-diff-while-committing,missing,
-magit-diff.el,1529,command,magit-diff-buffer-file,missing,
-magit-diff.el,1560,command,magit-diff-paths,missing,
-magit-diff.el,1581,command,magit-show-commit,partial,Enter in log; patch only; detailed sections/options missing
-magit-diff.el,1627,command,magit-show-commit-removing-file,missing,
-magit-diff.el,1688,command,magit-diff-switch-range-type,missing,
-magit-diff.el,1704,command,magit-diff-flip-revs,missing,
-magit-diff.el,1718,command,magit-diff-toggle-file-filter,missing,
-magit-diff.el,1743,command,magit-diff-less-context,missing,
-magit-diff.el,1748,command,magit-diff-more-context,missing,
-magit-diff.el,1753,command,magit-diff-default-context,missing,
-magit-diff.el,1798,command,magit-diff-toggle-refine-hunk,missing,
-magit-diff.el,1820,command,magit-diff-toggle-fontify-hunk,missing,
-magit-diff.el,1845,command,magit-diff-visit-file,missing,
-magit-diff.el,1887,command,magit-diff-visit-file-other-window,missing,
-magit-diff.el,1896,command,magit-diff-visit-file-other-frame,missing,
-magit-diff.el,1907,command,magit-diff-visit-worktree-file,missing,
-magit-diff.el,1926,command,magit-diff-visit-worktree-file-other-window,missing,
-magit-diff.el,1932,command,magit-diff-visit-worktree-file-other-frame,missing,
-magit-diff.el,2179,command,magit-diff-show-or-scroll-up,missing,
-magit-diff.el,2190,command,magit-diff-show-or-scroll-down,missing,
-magit-diff.el,2256,command,magit-section-cycle-diffs,missing,
-magit-diff.el,2288,command,magit-revision-jump,missing,
-magit-diff.el,2316,command,magit-jump-to-revision-diffstat,missing,
-magit-diff.el,2335,command,magit-jump-to-revision-diff,missing,
-magit-diff.el,2349,command,magit-jump-to-diffstat-or-diff,missing,
-magit-dired.el,39,command,magit-dired-jump,missing,
-magit-dired.el,55,command,magit-dired-stage,missing,
-magit-dired.el,61,command,magit-dired-unstage,missing,
-magit-dired.el,67,command,magit-dired-log,missing,
-magit-dired.el,87,command,magit-dired-am-apply-patches,missing,
-magit-dired.el,101,command,magit-do-async-shell-command,missing,
-magit-ediff.el,44,option,magit-ediff-quit-hook,missing,
-magit-ediff.el,57,option,magit-ediff-dwim-resolve-function,missing,
-magit-ediff.el,65,option,magit-ediff-dwim-show-on-hunks,missing,
-magit-ediff.el,75,option,magit-ediff-show-stash-with-index,missing,
-magit-ediff.el,117,command,magit-ediff,missing,
-magit-ediff.el,134,command,magit-ediff-resolve-all,missing,
-magit-ediff.el,197,command,magit-ediff-resolve-rest,missing,
-magit-ediff.el,233,command,magit-ediff-stage,missing,
-magit-ediff.el,274,command,magit-ediff-compare,missing,
-magit-ediff.el,336,command,magit-ediff-dwim,missing,
-magit-ediff.el,410,command,magit-ediff-show-staged,missing,
-magit-ediff.el,426,command,magit-ediff-show-unstaged,missing,
-magit-ediff.el,442,command,magit-ediff-show-working-tree,missing,
-magit-ediff.el,454,command,magit-ediff-show-commit,missing,
-magit-ediff.el,464,command,magit-ediff-show-stash,missing,
-magit-extras.el,46,command,magit-git-mergetool,missing,
-magit-extras.el,127,command,magit-run-git-gui-blame,missing,
-magit-extras.el,154,option,magit-gitk-executable,missing,
-magit-extras.el,167,command,magit-run-git-gui,missing,
-magit-extras.el,173,command,magit-run-gitk,missing,
-magit-extras.el,179,command,magit-run-gitk-branches,missing,
-magit-extras.el,185,command,magit-run-gitk-all,missing,
-magit-extras.el,193,command,magit-project-status,missing,
-magit-extras.el,210,command,magit-project-dispatch,missing,
-magit-extras.el,241,command,magit-previous-line,missing,
-magit-extras.el,264,command,magit-next-line,missing,
-magit-extras.el,288,command,magit-clean,missing,
-magit-extras.el,307,command,magit-generate-changelog,missing,
-magit-extras.el,338,command,magit-add-change-log-entry,missing,
-magit-extras.el,351,command,magit-add-change-log-entry-other-window,missing,
-magit-extras.el,364,command,magit-edit-line-commit,missing,
-magit-extras.el,405,command,magit-diff-edit-hunk-commit,missing,
-magit-extras.el,432,option,magit-reshelve-since-committer-only,missing,
-magit-extras.el,440,command,magit-reshelve-since,missing,
-magit-extras.el,530,option,magit-pop-revision-stack-format,missing,
-magit-extras.el,577,option,magit-copy-revision-abbreviated,missing,
-magit-extras.el,584,command,magit-pop-revision-stack,missing,
-magit-extras.el,651,command,magit-copy-section-value,missing,
-magit-extras.el,711,command,magit-copy-buffer-revision,missing,
-magit-extras.el,758,command,magit-display-repository-buffer,missing,
-magit-extras.el,766,command,magit-switch-to-repository-buffer,missing,
-magit-extras.el,773,command,magit-switch-to-repository-buffer-other-window,missing,
-magit-extras.el,780,command,magit-switch-to-repository-buffer-other-frame,missing,
-magit-extras.el,807,command,magit-abort-dwim,missing,
-magit-extras.el,819,command,magit-back-to-indentation,missing,
-magit-fetch.el,34,command,magit-fetch,partial,Space m f; configured remote only; transient options missing
-magit-fetch.el,62,command,magit-fetch-from-pushremote,missing,
-magit-fetch.el,90,command,magit-fetch-from-upstream,missing,
-magit-fetch.el,110,command,magit-fetch-other,missing,
-magit-fetch.el,117,command,magit-fetch-branch,missing,
-magit-fetch.el,127,command,magit-fetch-refspec,missing,
-magit-fetch.el,137,command,magit-fetch-all,missing,
-magit-fetch.el,143,command,magit-fetch-all-prune,missing,
-magit-fetch.el,152,command,magit-fetch-all-no-prune,missing,
-magit-fetch.el,159,command,magit-fetch-modules,missing,
-magit-files.el,53,command,magit-find-file,missing,
-magit-files.el,63,command,magit-find-file-other-window,missing,
-magit-files.el,73,command,magit-find-file-other-frame,missing,
-magit-files.el,363,command,magit-update-index,missing,
-magit-files.el,401,command,magit-find-git-config-file,missing,
-magit-files.el,417,command,magit-find-git-config-file-other-window,missing,
-magit-files.el,433,command,magit-find-git-config-file-other-frame,missing,
-magit-files.el,452,command,magit-file-dispatch,missing,
-magit-files.el,536,command,magit-bury-buffer,missing,
-magit-files.el,548,command,magit-bury-or-kill-buffer,missing,
-magit-files.el,564,command,magit-kill-this-buffer,missing,
-magit-files.el,569,command,magit-blob-previous,missing,
-magit-files.el,583,command,magit-blob-next,missing,
-magit-files.el,597,command,magit-blob-visit-file,missing,
-magit-files.el,644,command,magit-file-stage,missing,
-magit-files.el,657,command,magit-file-unstage,missing,
-magit-files.el,666,command,magit-file-untrack,missing,
-magit-files.el,681,command,magit-file-rename,missing,
-magit-files.el,718,command,magit-file-delete,missing,
-magit-files.el,746,command,magit-file-checkout,missing,
-magit-git.el,88,option,magit-git-output-coding-system,missing,
-magit-git.el,113,option,magit-git-executable,missing,
-magit-git.el,150,option,magit-remote-git-executable,missing,
-magit-git.el,159,option,magit-run-hooks-from-githooks,missing,
-magit-git.el,172,option,magit-user-githook-file,missing,
-magit-git.el,211,option,magit-git-global-arguments,missing,
-magit-git.el,237,option,magit-prefer-remote-upstream,missing,
-magit-git.el,251,option,magit-list-refs-namespaces,missing,
-magit-git.el,265,option,magit-list-refs-sortby,missing,
-magit-git.el,293,option,magit-cygwin-mount-points,missing,
-magit-git.el,328,command,magit-toggle-git-debug,missing,
-magit-git.el,824,command,magit-debug-git-executable,missing,
-magit-gitignore.el,34,command,magit-gitignore,missing,
-magit-gitignore.el,52,command,magit-gitignore-in-topdir,missing,
-magit-gitignore.el,61,command,magit-gitignore-in-subdir,missing,
-magit-gitignore.el,78,command,magit-gitignore-in-gitdir,missing,
-magit-gitignore.el,89,command,magit-gitignore-on-system,missing,
-magit-gitignore.el,159,command,magit-skip-worktree,missing,
-magit-gitignore.el,171,command,magit-no-skip-worktree,missing,
-magit-gitignore.el,182,command,magit-assume-unchanged,missing,
-magit-gitignore.el,194,command,magit-no-assume-unchanged,missing,
-magit-log.el,76,option,magit-log-mode-hook,missing,
-magit-log.el,81,option,magit-log-remove-graph-args,missing,
-magit-log.el,95,option,magit-log-revision-headers-format,missing,
-magit-log.el,104,option,magit-log-auto-more,missing,
-magit-log.el,111,option,magit-log-margin,missing,
-magit-log.el,136,option,magit-log-margin-show-committer-date,missing,
-magit-log.el,148,option,magit-log-show-refname-after-summary,missing,
-magit-log.el,155,option,magit-log-wash-summary-hook,missing,
-magit-log.el,173,option,magit-log-trailer-labels,missing,
-magit-log.el,190,option,magit-log-header-line-function,missing,
-magit-log.el,198,option,magit-log-trace-definition-function,missing,
-magit-log.el,210,option,magit-log-color-graph-limit,missing,
-magit-log.el,220,option,magit-log-show-signatures-limit,missing,
-magit-log.el,267,option,magit-log-buffer-file-locked,missing,
-magit-log.el,276,option,magit-log-select-show-usage,missing,
-magit-log.el,288,option,magit-log-select-margin,missing,
-magit-log.el,320,option,magit-cherry-sections-hook,missing,
-magit-log.el,328,option,magit-cherry-margin,missing,
-magit-log.el,360,option,magit-log-section-commit-count,missing,
-magit-log.el,369,option,magit-log-merged-commit-count,missing,
-magit-log.el,525,command,magit-log,missing,
-magit-log.el,556,command,magit-log-refresh,missing,
-magit-log.el,699,command,magit-log-current,partial,Space m l; latest 100; graph/range/options missing
-magit-log.el,707,command,magit-log-head,missing,
-magit-log.el,713,command,magit-log-related,missing,
-magit-log.el,742,command,magit-log-other,missing,
-magit-log.el,753,command,magit-log-branches,missing,
-magit-log.el,762,command,magit-log-matching-branches,missing,
-magit-log.el,770,command,magit-log-matching-tags,missing,
-magit-log.el,778,command,magit-log-all-branches,missing,
-magit-log.el,787,command,magit-log-all,missing,
-magit-log.el,793,command,magit-log-reflog,missing,
-magit-log.el,799,command,magit-log-buffer-file,missing,
-magit-log.el,825,command,magit-log-trace-definition,missing,
-magit-log.el,854,command,magit-diff-trace-definition,missing,
-magit-log.el,862,command,magit-log-merged,missing,
-magit-log.el,911,command,magit-delete-shelved-branch,missing,
-magit-log.el,919,command,magit-log-toggle-commit-limit,missing,
-magit-log.el,926,command,magit-log-double-commit-limit,missing,
-magit-log.el,931,command,magit-log-half-commit-limit,missing,
-magit-log.el,955,command,magit-log-bury-buffer,missing,
-magit-log.el,972,command,magit-log-move-to-parent,missing,
-magit-log.el,989,command,magit-log-move-to-revision,missing,
-magit-log.el,1018,command,magit-shortlog,missing,
-magit-log.el,1046,command,magit-shortlog-since,missing,
-magit-log.el,1054,command,magit-shortlog-range,missing,
-magit-log.el,1083,command,magit-previous-reference,missing,
-magit-log.el,1094,command,magit-next-reference,missing,
-magit-log.el,1692,command,magit-toggle-log-margin-style,missing,
-magit-log.el,1870,command,magit-log-select-pick,missing,
-magit-log.el,1880,command,magit-log-select-quit,missing,
-magit-log.el,1930,command,magit-cherry,missing,
-magit-margin.el,76,command,magit-margin-settings,missing,
-magit-margin.el,85,command,magit-toggle-margin,missing,
-magit-margin.el,99,command,magit-cycle-margin-style,missing,
-magit-margin.el,118,command,magit-toggle-margin-details,missing,
-magit-merge.el,37,command,magit-merge,missing,
-magit-merge.el,89,command,magit-merge-plain,partial,Space m M m; basic revision; transient options missing
-magit-merge.el,108,command,magit-merge-editmsg,missing,
-magit-merge.el,124,command,magit-merge-nocommit,missing,
-magit-merge.el,140,command,magit-merge-dissolve,missing,
-magit-merge.el,164,command,magit-merge-absorb,missing,
-magit-merge.el,225,command,magit-merge-squash,partial,Space m M s; basic squash; options missing
-magit-merge.el,233,command,magit-merge-preview,missing,
-magit-merge.el,239,command,magit-merge-abort,partial,Space m M a; operation guard
-magit-merge.el,248,command,magit-checkout-stage,missing,
-magit-mode.el,60,option,magit-mode-hook,missing,
-magit-mode.el,67,option,magit-setup-buffer-hook,missing,
-magit-mode.el,83,option,magit-pre-refresh-hook,missing,
-magit-mode.el,98,option,magit-post-refresh-hook,missing,
-magit-mode.el,121,option,magit-display-buffer-function,missing,
-magit-mode.el,137,option,magit-pre-display-buffer-hook,missing,
-magit-mode.el,146,option,magit-post-display-buffer-hook,missing,
-magit-mode.el,154,option,magit-generate-buffer-name-function,missing,
-magit-mode.el,162,option,magit-buffer-name-format,missing,
-magit-mode.el,198,option,magit-uniquify-buffer-names,missing,
-magit-mode.el,204,option,magit-bury-buffer-function,missing,
-magit-mode.el,213,option,magit-prefix-use-buffer-arguments,missing,
-magit-mode.el,245,option,magit-direct-use-buffer-arguments,missing,
-magit-mode.el,278,option,magit-region-highlight-hook,missing,
-magit-mode.el,290,option,magit-create-buffer-hook,missing,
-magit-mode.el,298,option,magit-post-create-buffer-hook,missing,
-magit-mode.el,307,option,magit-refresh-buffer-hook,missing,
-magit-mode.el,313,option,magit-refresh-status-buffer,missing,
-magit-mode.el,327,option,magit-refresh-verbose,missing,
-magit-mode.el,333,option,magit-save-repository-buffers,missing,
-magit-mode.el,438,command,magit-delete-thing,missing,
-magit-mode.el,446,command,magit-visit-thing,missing,
-magit-mode.el,459,command,magit-edit-thing,missing,
-magit-mode.el,470,command,magit-browse-thing,missing,
-magit-mode.el,480,command,magit-copy-thing,missing,
-magit-mode.el,490,command,magit-info,missing,
-magit-mode.el,958,command,magit-toggle-buffer-lock,missing,
-magit-mode.el,1005,command,magit-mode-bury-buffer,missing,
-magit-mode.el,1046,command,magit-refresh,partial,Space m s / gr; selected view; full buffer refresh semantics missing
-magit-mode.el,1081,command,magit-refresh-all,missing,
-magit-mode.el,1097,command,magit-refresh-buffer,missing,
-magit-mode.el,1213,command,magit-profile-refresh-buffer,missing,
-magit-mode.el,1226,command,magit-toggle-profiling,missing,
-magit-mode.el,1334,command,magit-save-repository-buffers,missing,
-magit-mode.el,1407,command,magit-go-backward,missing,
-magit-mode.el,1414,command,magit-go-forward,missing,
-magit-mode.el,1562,command,magit-zap-caches,missing,
-magit-mode.el,1598,command,magit-toggle-verbose-refresh,missing,
-magit-notes.el,34,command,magit-notes,missing,
-magit-notes.el,110,command,magit-notes-edit,missing,
-magit-notes.el,121,command,magit-notes-remove,missing,
-magit-notes.el,132,command,magit-notes-merge,missing,
-magit-notes.el,145,command,magit-notes-merge-commit,missing,
-magit-notes.el,151,command,magit-notes-merge-abort,missing,
-magit-notes.el,157,command,magit-notes-prune,missing,
-magit-patch.el,35,option,magit-patch-save-arguments,missing,
-magit-patch.el,56,command,magit-patch,missing,
-magit-patch.el,66,command,magit-patch-create,missing,
-magit-patch.el,243,command,magit-patch-apply,missing,
-magit-patch.el,266,command,magit-patch-save,missing,
-magit-patch.el,311,command,magit-request-pull,missing,
-magit-process.el,52,option,magit-process-connection-type,missing,
-magit-process.el,61,option,magit-need-cygwin-noglob,missing,
-magit-process.el,85,option,magit-process-popup-time,missing,
-magit-process.el,92,option,magit-process-log-max,missing,
-magit-process.el,102,option,magit-process-error-tooltip-max-lines,missing,
-magit-process.el,114,option,magit-credential-cache-daemon-socket,missing,
-magit-process.el,146,option,magit-process-yes-or-no-prompt-regexp,missing,
-magit-process.el,160,option,magit-process-password-prompt-regexps,missing,
-magit-process.el,185,option,magit-process-find-password-functions,missing,
-magit-process.el,204,option,magit-process-username-prompt-regexps,missing,
-magit-process.el,211,option,magit-process-prompt-functions,missing,
-magit-process.el,240,option,magit-process-ensure-unix-line-ending,missing,
-magit-process.el,246,option,magit-process-display-mode-line-error,missing,
-magit-process.el,255,option,magit-show-process-buffer-hint,missing,
-magit-process.el,277,option,magit-process-apply-ansi-colors,missing,
-magit-process.el,295,option,magit-process-timestamp-format,missing,
-magit-process.el,367,command,magit-process-buffer,missing,
-magit-process.el,404,command,magit-process-kill,missing,
-magit-process.el,429,command,magit-toggle-subprocess-record,missing,
-magit-process.el,924,command,magit-process-make-keymap,missing,
-magit-pull.el,33,option,magit-pull-or-fetch,missing,
-magit-pull.el,42,command,magit-pull,partial,Space m P; ff-only; merge/rebase/refspec options missing
-magit-pull.el,95,command,magit-pull-from-pushremote,missing,
-magit-pull.el,123,command,magit-pull-from-upstream,missing,
-magit-pull.el,165,command,magit-pull-into-upstream,missing,
-magit-pull.el,195,command,magit-pull-branch,missing,
-magit-push.el,33,option,magit-push-options,missing,
-magit-push.el,42,command,magit-push,partial,Space m p; configured upstream only; targets/refspec/options missing
-magit-push.el,96,command,magit-push-current-to-pushremote,missing,
-magit-push.el,132,command,magit-push-current-to-upstream,missing,
-magit-push.el,194,command,magit-push-current,missing,
-magit-push.el,205,command,magit-push-other,missing,
-magit-push.el,226,command,magit-push-refspecs,missing,
-magit-push.el,243,command,magit-push-matching,missing,
-magit-push.el,253,command,magit-push-tags,missing,
-magit-push.el,264,command,magit-push-tag,missing,
-magit-push.el,274,command,magit-push-notes-ref,missing,
-magit-push.el,285,command,magit-push-implicitly,missing,
-magit-push.el,363,command,magit-push-to-remote,missing,
-magit-reflog.el,34,option,magit-reflog-limit,missing,
-magit-reflog.el,42,option,magit-reflog-margin,missing,
-magit-reflog.el,113,command,magit-reflog-current,missing,
-magit-reflog.el,120,command,magit-reflog-other,missing,
-magit-reflog.el,126,command,magit-reflog-head,missing,
-magit-refs.el,38,option,magit-refs-mode-hook,missing,
-magit-refs.el,44,option,magit-refs-sections-hook,missing,
-magit-refs.el,55,option,magit-refs-show-commit-count,missing,
-magit-refs.el,73,option,magit-refs-pad-commit-counts,missing,
-magit-refs.el,94,option,magit-refs-show-remote-prefix,missing,
-magit-refs.el,103,option,magit-refs-show-branch-descriptions,missing,
-magit-refs.el,112,option,magit-refs-margin,missing,
-magit-refs.el,143,option,magit-refs-margin-for-tags,missing,
-magit-refs.el,153,option,magit-refs-primary-column-width,missing,
-magit-refs.el,172,option,magit-refs-focus-column-width,missing,
-magit-refs.el,189,option,magit-refs-filter-alist,missing,
-magit-refs.el,214,option,magit-visit-ref-behavior,missing,
-magit-refs.el,336,command,magit-show-refs,missing,
-magit-refs.el,394,command,magit-show-refs-head,missing,
-magit-refs.el,401,command,magit-show-refs-current,missing,
-magit-refs.el,408,command,magit-show-refs-other,missing,
-magit-refs.el,415,command,magit-refs-set-show-commit-count,missing,
-magit-refs.el,429,command,magit-visit-ref,missing,
-magit-remote.el,33,option,magit-remote-add-set-remote.pushDefault,missing,
-magit-remote.el,48,option,magit-remote-direct-configure,missing,
-magit-remote.el,57,option,magit-prefer-push-default,missing,
-magit-remote.el,66,command,magit-remote,missing,
-magit-remote.el,100,command,magit-remote-add,missing,
-magit-remote.el,123,command,magit-remote-rename,missing,
-magit-remote.el,134,command,magit-remote-remove,missing,
-magit-remote.el,153,command,magit-remote-prune,missing,
-magit-remote.el,159,command,magit-remote-prune-refspecs,missing,
-magit-remote.el,237,command,magit-remote-set-head,missing,
-magit-remote.el,252,command,magit-remote-unset-head,missing,
-magit-remote.el,259,command,magit-update-default-branch,missing,
-magit-remote.el,291,command,magit-remote-unshallow,missing,
-magit-remote.el,311,command,magit-remote-configure,missing,
-magit-repos.el,40,option,magit-repository-directories,missing,
-magit-repos.el,60,option,magit-repolist-mode-hook,missing,
-magit-repos.el,68,option,magit-repolist-columns,missing,
-magit-repos.el,121,option,magit-repolist-column-flag-alist,missing,
-magit-repos.el,137,option,magit-repolist-sort-key,missing,
-magit-repos.el,152,command,magit-list-repositories,missing,
-magit-repos.el,162,command,magit-repolist-status,missing,
-magit-repos.el,169,command,magit-repolist-mark,missing,
-magit-repos.el,175,command,magit-repolist-unmark,missing,
-magit-repos.el,180,command,magit-repolist-fetch,missing,
-magit-repos.el,187,command,magit-repolist-find-file-other-frame,missing,
-magit-reset.el,34,command,magit-reset,missing,
-magit-reset.el,49,command,magit-reset-mixed,missing,
-magit-reset.el,56,command,magit-reset-soft,missing,
-magit-reset.el,63,command,magit-reset-hard,missing,
-magit-reset.el,72,command,magit-reset-keep,missing,
-magit-reset.el,79,command,magit-reset-index,missing,
-magit-reset.el,88,command,magit-reset-worktree,missing,
-magit-reset.el,99,command,magit-reset-quickly,missing,
-magit-section.el,145,option,magit-section-highlight-current,missing,
-magit-section.el,151,option,magit-section-highlight-selection,missing,
-magit-section.el,160,option,magit-section-show-child-count,missing,
-magit-section.el,167,option,magit-section-cache-visibility,missing,
-magit-section.el,184,option,magit-section-initial-visibility-alist,missing,
-magit-section.el,212,option,magit-section-visibility-indicators,missing,
-magit-section.el,284,option,magit-section-keep-region-overlay,missing,
-magit-section.el,322,option,magit-section-disable-line-numbers,missing,
-magit-section.el,803,command,magit-section-forward,missing,
-magit-section.el,822,command,magit-section-backward,missing,
-magit-section.el,860,command,magit-section-up,missing,
-magit-section.el,867,command,magit-section-forward-sibling,missing,
-magit-section.el,879,command,magit-section-backward-sibling,missing,
-magit-section.el,891,command,magit-mouse-set-point,missing,
-magit-section.el,945,command,magit-section-show,missing,
-magit-section.el,960,command,magit-section-hide,missing,
-magit-section.el,978,command,magit-section-toggle,missing,
-magit-section.el,987,command,magit-section-toggle-children,missing,
-magit-section.el,996,command,magit-section-show-children,missing,
-magit-section.el,1013,command,magit-section-hide-children,missing,
-magit-section.el,1018,command,magit-section-show-headings,missing,
-magit-section.el,1033,command,magit-section-cycle,missing,
-magit-section.el,1064,command,magit-section-cycle-global,missing,
-magit-section.el,1124,command,magit-section-show-level-1,missing,
-magit-section.el,1129,command,magit-section-show-level-1-all,missing,
-magit-section.el,1134,command,magit-section-show-level-2,missing,
-magit-section.el,1139,command,magit-section-show-level-2-all,missing,
-magit-section.el,1144,command,magit-section-show-level-3,missing,
-magit-section.el,1149,command,magit-section-show-level-3-all,missing,
-magit-section.el,1154,command,magit-section-show-level-4,missing,
-magit-section.el,1159,command,magit-section-show-level-4-all,missing,
-magit-section.el,1164,command,magit-mouse-toggle-section,missing,
-magit-section.el,1182,command,magit-describe-section-briefly,missing,
-magit-section.el,1219,command,magit-describe-section,missing,
-magit-sequence.el,96,command,magit-sequencer-continue,partial,Space m x/v c; guarded continuation
-magit-sequence.el,108,command,magit-sequencer-skip,partial,Space m x/v s; guarded skip
-magit-sequence.el,117,command,magit-sequencer-abort,partial,Space m x/v a; guarded abort
-magit-sequence.el,140,command,magit-cherry-pick,partial,Space m x p; one revision; range/options missing
-magit-sequence.el,210,command,magit-cherry-copy,missing,
-magit-sequence.el,219,command,magit-cherry-apply,missing,
-magit-sequence.el,228,command,magit-cherry-harvest,missing,
-magit-sequence.el,249,command,magit-cherry-donate,missing,
-magit-sequence.el,269,command,magit-cherry-spinout,missing,
-magit-sequence.el,279,command,magit-cherry-spinoff,missing,
-magit-sequence.el,374,command,magit-revert,partial,Space m v v; one revision; range/options missing
-magit-sequence.el,402,command,magit-revert-and-commit,missing,
-magit-sequence.el,411,command,magit-revert-no-commit,missing,
-magit-sequence.el,431,command,magit-am,missing,
-magit-sequence.el,469,command,magit-am-apply-patches,missing,
-magit-sequence.el,485,command,magit-am-apply-maildir,missing,
-magit-sequence.el,493,command,magit-am-continue,missing,
-magit-sequence.el,504,command,magit-am-skip,missing,
-magit-sequence.el,512,command,magit-am-abort,missing,
-magit-sequence.el,526,command,magit-rebase,missing,
-magit-sequence.el,594,command,magit-rebase-onto-pushremote,missing,
-magit-sequence.el,608,command,magit-rebase-onto-upstream,missing,
-magit-sequence.el,643,command,magit-rebase-branch,missing,
-magit-sequence.el,654,command,magit-rebase-subset,missing,
-magit-sequence.el,752,command,magit-rebase-interactive,missing,
-magit-sequence.el,762,command,magit-rebase-autosquash,missing,
-magit-sequence.el,778,command,magit-rebase-edit-commit,missing,
-magit-sequence.el,788,command,magit-rebase-reword-commit,missing,
-magit-sequence.el,797,command,magit-rebase-remove-commit,missing,
-magit-sequence.el,823,command,magit-rebase-continue,partial,Space m r c; no editor; options missing
-magit-sequence.el,850,command,magit-rebase-skip,partial,Space m r s; operation guard
-magit-sequence.el,858,command,magit-rebase-edit,missing,
-magit-sequence.el,866,command,magit-rebase-abort,partial,Space m r a; operation guard
-magit-sparse-checkout.el,58,command,magit-sparse-checkout,missing,
-magit-sparse-checkout.el,74,command,magit-sparse-checkout-enable,missing,
-magit-sparse-checkout.el,80,command,magit-sparse-checkout-set,missing,
-magit-sparse-checkout.el,95,command,magit-sparse-checkout-add,missing,
-magit-sparse-checkout.el,114,command,magit-sparse-checkout-reapply,missing,
-magit-sparse-checkout.el,123,command,magit-sparse-checkout-disable,missing,
-magit-stash.el,41,option,magit-stash-sections-hook,missing,
-magit-stash.el,53,option,magit-stashes-margin,missing,
-magit-stash.el,91,command,magit-stash,partial,Space m z; source menu groups and -u/-a switches; worktree/snapshot/transform groups still missing
-magit-stash.el,124,command,magit-stash-both,partial,Space m z z/u; Git push implementation; plumbing/options differ
-magit-stash.el,140,command,magit-stash-index,partial,Space m z i; Git --staged implementation; source edge cases need comparison
-magit-stash.el,150,command,magit-stash-worktree,partial,Space m z w; source commit-tree parents/private index; retains staged side; merge-state confirmation/context options remain open
-magit-stash.el,159,command,magit-stash-keep-index,partial,Space m z k; Git --keep-index implementation; options missing
-magit-stash.el,206,command,magit-snapshot-both,partial,Space m z Z; source tree/parents/untracked plumbing without cleanup; customization/context/error parity remains open
-magit-stash.el,215,command,magit-snapshot-index,partial,Space m z I; saves index-only tree without worktree cleanup; customization/context/error parity remains open
-magit-stash.el,222,command,magit-snapshot-worktree,partial,Space m z W; source pre-stash-index base and unstaged tree; customization/context/error parity remains open
-magit-stash.el,238,command,magit-stash-push,missing,
-magit-stash.el,265,command,magit-stash-apply,partial,selected a; index restoration then plain fallback retaining stash; 3way/reject negotiation still missing
-magit-stash.el,288,command,magit-stash-pop,partial,"selected p; index restoration, guarded reflog deletion, conflicts retained; additional fallbacks missing"
-magit-stash.el,370,command,magit-stash-drop,partial,selected d/k; yes confirmation and stale identity guard; multi-selection still missing
-magit-stash.el,387,command,magit-stash-clear,missing,
-magit-stash.el,396,command,magit-stash-branch,missing,
-magit-stash.el,405,command,magit-stash-branch-here,missing,
-magit-stash.el,417,command,magit-stash-format-patch,missing,
-magit-stash.el,543,command,magit-stash-list,partial,Space m z l; simple list; margins/options/autostash missing
-magit-stash.el,601,command,magit-stash-show,partial,Enter; notes/unstaged/staged/untracked diffs; section interactions and full diff options missing
-magit-status.el,40,option,magit-status-mode-hook,missing,
-magit-status.el,45,option,magit-status-headers-hook,missing,
-magit-status.el,69,option,magit-status-sections-hook,missing,
-magit-status.el,91,option,magit-status-initial-section,missing,
-magit-status.el,118,option,magit-status-goto-file-position,missing,
-magit-status.el,137,option,magit-status-show-hashes-in-headers,missing,
-magit-status.el,147,option,magit-status-show-untracked-files,missing,
-magit-status.el,184,option,magit-status-file-list-limit,missing,
-magit-status.el,192,option,magit-status-margin,missing,
-magit-status.el,222,option,magit-status-use-buffer-arguments,missing,
-magit-status.el,252,command,magit-init,missing,
-magit-status.el,280,command,magit-status,partial,"Space m s; status, sections, diffs; many status sections/options missing"
-magit-status.el,350,command,magit-status-here,missing,
-magit-status.el,363,command,magit-status-quick,missing,
-magit-status.el,397,command,magit-parent-status,missing,
-magit-status.el,425,command,magit-status-jump,missing,
-magit-submodule.el,35,option,magit-module-sections-hook,missing,
-magit-submodule.el,50,option,magit-module-sections-nested,missing,
-magit-submodule.el,60,option,magit-submodule-list-mode-hook,missing,
-magit-submodule.el,68,option,magit-submodule-list-columns,missing,
-magit-submodule.el,131,option,magit-submodule-list-sort-key,missing,
-magit-submodule.el,143,option,magit-submodule-list-predicate,missing,
-magit-submodule.el,154,option,magit-submodule-remove-trash-gitdirs,missing,
-magit-submodule.el,171,command,magit-submodule,missing,
-magit-submodule.el,218,command,magit-submodule-add,missing,
-magit-submodule.el,275,command,magit-submodule-register,missing,
-magit-submodule.el,294,command,magit-submodule-populate,missing,
-magit-submodule.el,313,command,magit-submodule-update,missing,
-magit-submodule.el,336,command,magit-submodule-synchronize,missing,
-magit-submodule.el,352,command,magit-submodule-unpopulate,missing,
-magit-submodule.el,375,command,magit-submodule-remove,missing,
-magit-submodule.el,541,command,magit-submodule-visit,missing,
-magit-submodule.el,648,command,magit-list-submodules,missing,
-magit-subtree.el,37,command,magit-subtree,missing,
-magit-subtree.el,45,command,magit-subtree-import,missing,
-magit-subtree.el,59,command,magit-subtree-export,missing,
-magit-subtree.el,129,command,magit-subtree-add,missing,
-magit-subtree.el,140,command,magit-subtree-add-commit,missing,
-magit-subtree.el,149,command,magit-subtree-merge,missing,
-magit-subtree.el,158,command,magit-subtree-pull,missing,
-magit-subtree.el,169,command,magit-subtree-push,missing,
-magit-subtree.el,178,command,magit-subtree-split,missing,
-magit-tag.el,37,command,magit-tag,missing,
-magit-tag.el,65,command,magit-tag-create,partial,Space m t c; lightweight only; signed/annotated missing
-magit-tag.el,78,command,magit-tag-delete,missing,
-magit-tag.el,91,command,magit-tag-prune,missing,
-magit-tag.el,148,command,magit-tag-release,missing,
-magit-wip.el,43,option,magit-wip-mode-lighter,missing,
-magit-wip.el,49,option,magit-wip-merge-branch,missing,
-magit-wip.el,71,option,magit-wip-namespace,missing,
-magit-wip.el,81,option,magit-wip-debug,missing,
-magit-wip.el,115,command,magit-wip-commit-buffer-file,missing,
-magit-wip.el,149,command,magit-wip-commit,missing,
-magit-wip.el,287,command,magit-wip-log-index,missing,
-magit-wip.el,292,command,magit-wip-log-worktree,missing,
-magit-wip.el,297,command,magit-wip-log-current,missing,
-magit-wip.el,308,command,magit-wip-log,missing,
-magit-wip.el,350,command,magit-wip-purge,missing,
-magit-worktree.el,33,option,magit-read-worktree-directory-function,missing,
-magit-worktree.el,46,option,magit-read-worktree-offsite-directory,missing,
-magit-worktree.el,128,command,magit-worktree,missing,
-magit-worktree.el,140,command,magit-worktree-checkout,missing,
-magit-worktree.el,155,command,magit-worktree-branch,missing,
-magit-worktree.el,169,command,magit-worktree-move,missing,
-magit-worktree.el,191,command,magit-worktree-delete,missing,
-magit-worktree.el,234,command,magit-worktree-status,missing,
-magit.el,77,option,magit-openpgp-default-signing-key,missing,
-magit.el,247,option,magit-define-global-key-bindings,missing,
-magit.el,327,command,magit-dispatch,partial,Space m; navigable command panels; full groups/options still missing
-magit.el,407,option,magit-shell-command-verbose-prompt,missing,
-magit.el,418,command,magit-run,missing,
-magit.el,434,command,magit-git-command,missing,
-magit.el,446,command,magit-git-command-topdir,missing,
-magit.el,458,command,magit-shell-command,missing,
-magit.el,468,command,magit-shell-command-topdir,missing,
-magit.el,587,command,magit-version,missing,
+source_file,source_line,kind,symbol,state,fred_behavior,origin
+git-commit.el,142,option,git-commit-major-mode,missing,,explicit
+git-commit.el,169,option,git-commit-setup-hook,missing,,explicit
+git-commit.el,194,option,git-commit-finish-query-functions,missing,,explicit
+git-commit.el,211,option,git-commit-style-convention-checks,missing,,explicit
+git-commit.el,220,option,git-commit-summary-max-length,missing,,explicit
+git-commit.el,233,option,git-commit-trailers,missing,,explicit
+git-commit.el,253,option,git-commit-use-local-message-ring,missing,,explicit
+git-commit.el,262,option,git-commit-cd-to-toplevel,missing,,explicit
+git-commit.el,758,command,git-commit-prev-message,missing,,explicit
+git-commit.el,786,command,git-commit-next-message,missing,,explicit
+git-commit.el,792,command,git-commit-search-message-backward,missing,,explicit
+git-commit.el,803,command,git-commit-search-message-forward,missing,,explicit
+git-commit.el,814,command,git-commit-save-message,missing,,explicit
+git-commit.el,872,command,git-commit-insert-changelog-gnu,missing,,explicit
+git-commit.el,890,command,git-commit-insert-changelog-plain,missing,,explicit
+git-commit.el,909,command,git-commit-insert-trailer,missing,,explicit
+git-commit.el,933,command,git-commit-ack,missing,,explicit
+git-commit.el,938,command,git-commit-modified,missing,,explicit
+git-commit.el,943,command,git-commit-review,missing,,explicit
+git-commit.el,950,command,git-commit-signoff,missing,,explicit
+git-commit.el,956,command,git-commit-test,missing,,explicit
+git-commit.el,962,command,git-commit-cc,missing,,explicit
+git-commit.el,967,command,git-commit-reported,missing,,explicit
+git-commit.el,972,command,git-commit-suggested,missing,,explicit
+git-commit.el,977,command,git-commit-co-authored,missing,,explicit
+git-commit.el,982,command,git-commit-co-developed,missing,,explicit
+git-commit.el,1294,option,git-commit-post-finish-hook,missing,,explicit
+git-commit.el,1313,option,git-commit-post-finish-hook-timeout,missing,,explicit
+git-commit.el,,command,git-commit-elisp-text-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+git-commit.el,,command,git-commit-insert-pseudo-header,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+git-commit.el,,command,git-commit-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+git-commit.el,,command,git-commit-mode-menu,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+git-commit.el,,command,global-git-commit-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+git-commit.el,,option,git-commit-mode-hook,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+git-commit.el,,option,global-git-commit-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+git-commit.el,,option,global-git-commit-mode-hook,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+git-rebase.el,91,option,git-rebase-auto-advance,missing,,explicit
+git-rebase.el,96,option,git-rebase-show-instructions,missing,,explicit
+git-rebase.el,101,option,git-rebase-confirm-cancel,missing,,explicit
+git-rebase.el,236,command,git-rebase-pick,missing,,explicit
+git-rebase.el,242,command,git-rebase-drop,missing,,explicit
+git-rebase.el,248,command,git-rebase-reword,missing,,explicit
+git-rebase.el,254,command,git-rebase-edit,missing,,explicit
+git-rebase.el,260,command,git-rebase-squash,missing,,explicit
+git-rebase.el,266,command,git-rebase-squish,missing,,explicit
+git-rebase.el,274,command,git-rebase-fixup,missing,,explicit
+git-rebase.el,280,command,git-rebase-alter,missing,,explicit
+git-rebase.el,448,command,git-rebase-move-line-down,missing,,explicit
+git-rebase.el,491,command,git-rebase-move-line-up,missing,,explicit
+git-rebase.el,516,command,git-rebase-kill-line,missing,,explicit
+git-rebase.el,523,command,git-rebase-insert,missing,,explicit
+git-rebase.el,560,command,git-rebase-exec,missing,,explicit
+git-rebase.el,573,command,git-rebase-label,missing,,explicit
+git-rebase.el,595,command,git-rebase-reset,missing,,explicit
+git-rebase.el,610,command,git-rebase-update-ref,missing,,explicit
+git-rebase.el,624,command,git-rebase-merge,missing,,explicit
+git-rebase.el,639,command,git-rebase-merge-toggle-editmsg,missing,,explicit
+git-rebase.el,675,command,git-rebase-noop,missing,,explicit
+git-rebase.el,690,command,git-rebase-break,missing,,explicit
+git-rebase.el,704,command,git-rebase-undo,missing,,explicit
+git-rebase.el,726,command,git-rebase-show-commit,missing,,explicit
+git-rebase.el,731,command,git-rebase-show-or-scroll-up,missing,,explicit
+git-rebase.el,741,command,git-rebase-show-or-scroll-down,missing,,explicit
+git-rebase.el,751,command,git-rebase-backward-line,missing,,explicit
+git-rebase.el,,command,git-rebase-mode-menu,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-apply.el,55,option,magit-delete-by-moving-to-trash,missing,,explicit
+magit-apply.el,66,option,magit-unstage-committed,missing,,explicit
+magit-apply.el,82,option,magit-reverse-atomically,missing,,explicit
+magit-apply.el,94,option,magit-post-stage-hook,missing,,explicit
+magit-apply.el,102,option,magit-post-unstage-hook,missing,,explicit
+magit-apply.el,113,command,magit-apply,missing,,explicit
+magit-apply.el,285,command,magit-stage,partial,s; file/hunk only; region and section staging missing,explicit
+magit-apply.el,312,command,magit-stage-files,missing,,explicit
+magit-apply.el,331,command,magit-stage-modified,missing,,explicit
+magit-apply.el,410,command,magit-unstage,partial,u; file/hunk only; region and section unstaging missing,explicit
+magit-apply.el,437,command,magit-unstage-files,missing,,explicit
+magit-apply.el,463,command,magit-unstage-all,missing,,explicit
+magit-apply.el,488,command,magit-discard,missing,,explicit
+magit-apply.el,686,command,magit-reverse,missing,,explicit
+magit-apply.el,744,command,magit-reverse-in-index,missing,,explicit
+magit-apply.el,765,command,magit-copy-diff-as-kill,missing,,explicit
+magit-apply.el,792,command,magit-smerge-keep-current,missing,,explicit
+magit-apply.el,797,command,magit-smerge-keep-upper,missing,,explicit
+magit-apply.el,802,command,magit-smerge-keep-base,missing,,explicit
+magit-apply.el,807,command,magit-smerge-keep-lower,missing,,explicit
+magit-apply.el,812,command,magit-smerge-keep-all,missing,,explicit
+magit-autorevert.el,49,option,auto-revert-buffer-list-filter,missing,,explicit
+magit-autorevert.el,76,option,magit-auto-revert-tracked-only,missing,,explicit
+magit-autorevert.el,88,option,magit-auto-revert-immediately,missing,,explicit
+magit-autorevert.el,,command,magit-auto-revert-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-autorevert.el,,option,magit-auto-revert-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-autorevert.el,,option,magit-auto-revert-mode-hook,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-base.el,60,option,magit-completing-read-function,missing,,explicit
+magit-base.el,78,option,magit-dwim-selection,missing,,explicit
+magit-base.el,156,option,magit-no-confirm,missing,,explicit
+magit-base.el,342,option,magit-slow-confirm,missing,,explicit
+magit-base.el,358,option,magit-no-message,missing,,explicit
+magit-base.el,381,option,magit-verbose-messages,missing,,explicit
+magit-base.el,401,option,magit-ellipsis,missing,,explicit
+magit-base.el,426,option,magit-update-other-window-delay,missing,,explicit
+magit-base.el,444,option,magit-view-git-manual-method,missing,,explicit
+magit-base.el,721,command,magit-whitespace-disallowed,missing,,explicit
+magit-base.el,865,command,magit-emacs-Q-command,missing,,explicit
+magit-bisect.el,33,option,magit-bisect-show-graph,missing,,explicit
+magit-bisect.el,57,command,magit-bisect,missing,,explicit
+magit-bisect.el,93,command,magit-bisect-start,missing,,explicit
+magit-bisect.el,141,command,magit-bisect-reset,missing,,explicit
+magit-bisect.el,151,command,magit-bisect-good,missing,,explicit
+magit-bisect.el,160,command,magit-bisect-bad,missing,,explicit
+magit-bisect.el,169,command,magit-bisect-mark,missing,,explicit
+magit-bisect.el,189,command,magit-bisect-skip,missing,,explicit
+magit-bisect.el,197,command,magit-bisect-run,missing,,explicit
+magit-bisect.el,,command,magit-bisect:--term-new,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-bisect.el,,command,magit-bisect:--term-old,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-bisect.el,,command,transient:magit-bisect:--first-parent,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-bisect.el,,command,transient:magit-bisect:--no-checkout,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-blame.el,39,option,magit-blame-styles,missing,,explicit
+magit-blame.el,134,option,magit-blame-echo-style,missing,,explicit
+magit-blame.el,142,option,magit-blame-time-format,missing,,explicit
+magit-blame.el,147,option,magit-blame-read-only,missing,,explicit
+magit-blame.el,153,option,magit-blame-disable-modes,missing,,explicit
+magit-blame.el,160,option,magit-blame-mode-lighter,missing,,explicit
+magit-blame.el,165,option,magit-blame-goto-chunk-hook,missing,,explicit
+magit-blame.el,766,command,magit-blame-echo,missing,,explicit
+magit-blame.el,790,command,magit-blame-addition,missing,,explicit
+magit-blame.el,798,command,magit-blame-removal,missing,,explicit
+magit-blame.el,809,command,magit-blame-reverse,missing,,explicit
+magit-blame.el,845,command,magit-blame-visit-other-file,missing,,explicit
+magit-blame.el,858,command,magit-blame-visit-file,missing,,explicit
+magit-blame.el,868,command,magit-blame-quit,missing,,explicit
+magit-blame.el,878,command,magit-blame-next-chunk,missing,,explicit
+magit-blame.el,886,command,magit-blame-previous-chunk,missing,,explicit
+magit-blame.el,894,command,magit-blame-next-chunk-same-commit,missing,,explicit
+magit-blame.el,917,command,magit-blame-previous-chunk-same-commit,missing,,explicit
+magit-blame.el,922,command,magit-blame-cycle-style,missing,,explicit
+magit-blame.el,933,command,magit-blame-copy-hash,missing,,explicit
+magit-blame.el,946,command,magit-blame,missing,,explicit
+magit-blame.el,,command,magit-blame-read-only-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-blame.el,,command,magit-blame:-C,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-blame.el,,command,magit-blame:-M,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-blame.el,,command,transient:magit-blame:--first-parent,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-blame.el,,command,transient:magit-blame:--root,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-blame.el,,command,transient:magit-blame:-w,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-blame.el,,option,magit-blame-mode-hook,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-blame.el,,option,magit-blame-read-only-mode-hook,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-branch.el,38,option,magit-branch-read-upstream-first,missing,,explicit
+magit-branch.el,53,option,magit-branch-name-suggestions,missing,,explicit
+magit-branch.el,60,option,magit-branch-prefer-remote-upstream,missing,,explicit
+magit-branch.el,107,option,magit-branch-adjust-remote-upstream-alist,missing,,explicit
+magit-branch.el,169,option,magit-branch-rename-push-target,missing,,explicit
+magit-branch.el,197,option,magit-branch-direct-configure,missing,,explicit
+magit-branch.el,206,option,magit-published-branches,missing,,explicit
+magit-branch.el,215,command,magit-branch,missing,,explicit
+magit-branch.el,265,command,magit-checkout,missing,,explicit
+magit-branch.el,285,command,magit-branch-create,partial,Space m b c; HEAD start point only,explicit
+magit-branch.el,298,command,magit-branch-and-checkout,partial,Space m b s; HEAD start point only,explicit
+magit-branch.el,314,command,magit-branch-or-checkout,missing,,explicit
+magit-branch.el,340,command,magit-branch-checkout,partial,Space m b b; local picker; other ref/options/context modes missing,explicit
+magit-branch.el,428,command,magit-branch-orphan,missing,,explicit
+magit-branch.el,434,command,magit-checkout-remote-ref,missing,,explicit
+magit-branch.el,517,command,magit-branch-spinout,missing,,explicit
+magit-branch.el,527,command,magit-branch-spinoff,missing,,explicit
+magit-branch.el,602,command,magit-branch-reset,missing,,explicit
+magit-branch.el,643,command,magit-branch-delete,partial,Space m b d; merged-only; selection/force options missing,explicit
+magit-branch.el,818,command,magit-branch-rename,partial,Space m b r; current branch only,explicit
+magit-branch.el,864,command,magit-branch-shelve,missing,,explicit
+magit-branch.el,879,command,magit-branch-unshelve,missing,,explicit
+magit-branch.el,906,command,magit-branch-configure,missing,,explicit
+magit-branch.el,939,command,magit-branch.<branch>.description,missing,,explicit
+magit-branch.el,,command,magit-branch.<branch>.merge/remote,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-branch.el,,command,magit-branch.<branch>.pushRemote,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-branch.el,,command,magit-branch.<branch>.rebase,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-branch.el,,command,magit-branch.autoSetupMerge,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-branch.el,,command,magit-branch.autoSetupRebase,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-branch.el,,command,magit-pull.rebase,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-branch.el,,command,magit-remote.pushDefault,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-branch.el,,command,transient:magit-branch:--merge,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-branch.el,,command,transient:magit-branch:--recurse-submodules,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-bundle.el,37,command,magit-bundle,missing,,explicit
+magit-bundle.el,46,command,magit-bundle-create,missing,,explicit
+magit-bundle.el,77,command,magit-bundle-create-tracked,missing,,explicit
+magit-bundle.el,100,command,magit-bundle-update-tracked,missing,,explicit
+magit-bundle.el,118,command,magit-bundle-verify,missing,,explicit
+magit-bundle.el,125,command,magit-bundle-list-heads,missing,,explicit
+magit-bundle.el,,command,transient:magit-bundle-create:--all,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-bundle.el,,command,transient:magit-bundle-create:--branches=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-bundle.el,,command,transient:magit-bundle-create:--exclude=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-bundle.el,,command,transient:magit-bundle-create:--glob=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-bundle.el,,command,transient:magit-bundle-create:--remotes=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-bundle.el,,command,transient:magit-bundle-create:--tags=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-clone.el,33,option,magit-clone-set-remote-head,missing,,explicit
+magit-clone.el,39,option,magit-clone-set-remote.pushDefault,missing,,explicit
+magit-clone.el,50,option,magit-clone-default-directory,missing,,explicit
+magit-clone.el,61,option,magit-clone-always-transient,missing,,explicit
+magit-clone.el,70,option,magit-clone-name-alist,missing,,explicit
+magit-clone.el,96,option,magit-clone-url-format,missing,,explicit
+magit-clone.el,115,option,magit-post-clone-hook,missing,,explicit
+magit-clone.el,127,command,magit-clone,missing,,explicit
+magit-clone.el,172,command,magit-clone-regular,missing,,explicit
+magit-clone.el,179,command,magit-clone-shallow,missing,,explicit
+magit-clone.el,192,command,magit-clone-shallow-since,missing,,explicit
+magit-clone.el,204,command,magit-clone-shallow-exclude,missing,,explicit
+magit-clone.el,215,command,magit-clone-bare,missing,,explicit
+magit-clone.el,222,command,magit-clone-mirror,missing,,explicit
+magit-clone.el,229,command,magit-clone-sparse,missing,,explicit
+magit-clone.el,,command,magit-clone:--filter,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-clone.el,,command,transient:magit-clone:--branch=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-clone.el,,command,transient:magit-clone:--no-hardlinks,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-clone.el,,command,transient:magit-clone:--no-local,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-clone.el,,command,transient:magit-clone:--no-tags,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-clone.el,,command,transient:magit-clone:--origin=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-clone.el,,command,transient:magit-clone:--recurse-submodules,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-clone.el,,command,transient:magit-clone:--separate-git-dir=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-clone.el,,command,transient:magit-clone:--shared,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-clone.el,,command,transient:magit-clone:--single-branch,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-clone.el,,command,transient:magit-clone:--template=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-commit.el,36,option,magit-commit-ask-to-stage,missing,,explicit
+magit-commit.el,45,option,magit-commit-show-diff,missing,,explicit
+magit-commit.el,51,option,magit-commit-extend-override-date,missing,,explicit
+magit-commit.el,57,option,magit-commit-reword-override-date,missing,,explicit
+magit-commit.el,63,option,magit-commit-squash-confirm,missing,,explicit
+magit-commit.el,74,option,magit-commit-diff-inhibit-same-window,missing,,explicit
+magit-commit.el,117,command,magit-commit,partial,Space m C; source create/edit groups and common switches; remaining commands/options missing,explicit
+magit-commit.el,208,command,magit-commit-create,partial,Space m c c; draft creation/submission; complete source options/editor behavior missing,explicit
+magit-commit.el,222,command,magit-commit-extend,partial,Space m C e; no-message-edit amendment; prefix date customization missing,explicit
+magit-commit.el,243,command,magit-commit-amend,partial,"Space m C a; editable HEAD-pinned drafts, recovery, common switches; publication warnings/remaining options missing",explicit
+magit-commit.el,250,command,magit-commit-reword,partial,Space m C w; editable HEAD-pinned message-only amendment; date customization missing,explicit
+magit-commit.el,273,command,magit-commit-fixup,partial,Space m C f; basic fixup; instant/autosquash variants missing,explicit
+magit-commit.el,289,command,magit-commit-squash,missing,,explicit
+magit-commit.el,306,command,magit-commit-alter,missing,,explicit
+magit-commit.el,324,command,magit-commit-augment,missing,,explicit
+magit-commit.el,342,command,magit-commit-revise,missing,,explicit
+magit-commit.el,361,command,magit-commit-instant-fixup,missing,,explicit
+magit-commit.el,376,command,magit-commit-instant-squash,missing,,explicit
+magit-commit.el,501,command,magit-commit-reshelve,missing,,explicit
+magit-commit.el,535,command,magit-commit-absorb-modules,missing,,explicit
+magit-commit.el,558,command,magit-commit-absorb,missing,,explicit
+magit-commit.el,601,command,magit-commit-autofixup,missing,,explicit
+magit-commit.el,773,command,magit-commit-add-log,missing,,explicit
+magit-commit.el,833,option,magit-post-commit-hook,missing,,explicit
+magit-commit.el,,command,magit-autofixup:--context,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-commit.el,,command,magit-autofixup:--strict,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-commit.el,,command,magit-commit:--date,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-commit.el,,command,magit-commit:--reedit-message,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-commit.el,,command,magit-commit:--reuse-message,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-commit.el,,command,transient:magit-commit-absorb:--force,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-commit.el,,command,transient:magit-commit-absorb:--verbose,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-commit.el,,command,transient:magit-commit-autofixup:-vv,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-commit.el,,command,transient:magit-commit:--all,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-commit.el,,command,transient:magit-commit:--allow-empty,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-commit.el,,command,transient:magit-commit:--no-verify,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-commit.el,,command,transient:magit-commit:--reset-author,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-commit.el,,command,transient:magit-commit:--verbose,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,123,option,magit-diff-mode-hook,missing,,explicit
+magit-diff.el,128,option,magit-diff-sections-hook,missing,,explicit
+magit-diff.el,136,option,magit-diff-expansion-threshold,missing,,explicit
+magit-diff.el,154,option,magit-diff-highlight-hunk-body,missing,,explicit
+magit-diff.el,160,option,magit-diff-highlight-hunk-region-functions,missing,,explicit
+magit-diff.el,193,option,magit-diff-unmarked-lines-keep-foreground,missing,,explicit
+magit-diff.el,202,option,magit-diff-refine-hunk,missing,,explicit
+magit-diff.el,219,option,magit-diff-fontify-hunk,missing,,explicit
+magit-diff.el,246,option,magit-diff-refine-ignore-whitespace,missing,,explicit
+magit-diff.el,254,option,magit-diff-adjust-tab-width,missing,,explicit
+magit-diff.el,282,option,magit-diff-paint-whitespace,missing,,explicit
+magit-diff.el,305,option,magit-diff-paint-whitespace-lines,missing,,explicit
+magit-diff.el,318,option,magit-diff-highlight-trailing,missing,,explicit
+magit-diff.el,325,option,magit-diff-highlight-indentation,missing,,explicit
+magit-diff.el,343,option,magit-diff-hide-trailing-cr-characters,missing,,explicit
+magit-diff.el,350,option,magit-diff-extra-stat-arguments,missing,,explicit
+magit-diff.el,364,option,magit-format-file-function,missing,,explicit
+magit-diff.el,381,option,magit-diff-buffer-file-locked,missing,,explicit
+magit-diff.el,395,option,magit-revision-mode-hook,missing,,explicit
+magit-diff.el,404,option,magit-revision-sections-hook,missing,,explicit
+magit-diff.el,416,option,magit-revision-wash-message-hook,missing,,explicit
+magit-diff.el,434,option,magit-revision-headers-format,missing,,explicit
+magit-diff.el,451,option,magit-revision-insert-related-refs,missing,,explicit
+magit-diff.el,468,option,magit-revision-insert-related-refs-display-alist,missing,,explicit
+magit-diff.el,493,option,magit-revision-use-hash-sections,missing,,explicit
+magit-diff.el,517,option,magit-revision-show-gravatars,missing,,explicit
+magit-diff.el,545,option,magit-revision-fill-summary-line,missing,,explicit
+magit-diff.el,563,option,magit-revision-filter-files-on-follow,missing,,explicit
+magit-diff.el,580,option,magit-revision-use-dedicated-buffers,missing,,explicit
+magit-diff.el,602,option,magit-diff-visit-prefer-worktree,missing,,explicit
+magit-diff.el,622,option,magit-diff-visit-previous-blob,missing,,explicit
+magit-diff.el,771,option,magit-diff-specify-hunk-foreground,missing,,explicit
+magit-diff.el,896,option,magit-diff-use-indicator-faces,missing,,explicit
+magit-diff.el,1104,command,magit-diff,missing,,explicit
+magit-diff.el,1120,command,magit-diff-refresh,missing,,explicit
+magit-diff.el,1307,command,magit-diff-dwim,missing,,explicit
+magit-diff.el,1463,command,magit-diff-range,missing,,explicit
+magit-diff.el,1482,command,magit-diff-working-tree,missing,,explicit
+magit-diff.el,1493,command,magit-diff-staged,missing,,explicit
+magit-diff.el,1504,command,magit-diff-unstaged,missing,,explicit
+magit-diff.el,1510,command,magit-diff-unmerged,missing,,explicit
+magit-diff.el,1518,command,magit-diff-while-committing,missing,,explicit
+magit-diff.el,1529,command,magit-diff-buffer-file,missing,,explicit
+magit-diff.el,1560,command,magit-diff-paths,missing,,explicit
+magit-diff.el,1581,command,magit-show-commit,partial,Enter in log; patch only; detailed sections/options missing,explicit
+magit-diff.el,1627,command,magit-show-commit-removing-file,missing,,explicit
+magit-diff.el,1688,command,magit-diff-switch-range-type,missing,,explicit
+magit-diff.el,1704,command,magit-diff-flip-revs,missing,,explicit
+magit-diff.el,1718,command,magit-diff-toggle-file-filter,missing,,explicit
+magit-diff.el,1743,command,magit-diff-less-context,missing,,explicit
+magit-diff.el,1748,command,magit-diff-more-context,missing,,explicit
+magit-diff.el,1753,command,magit-diff-default-context,missing,,explicit
+magit-diff.el,1798,command,magit-diff-toggle-refine-hunk,missing,,explicit
+magit-diff.el,1820,command,magit-diff-toggle-fontify-hunk,missing,,explicit
+magit-diff.el,1845,command,magit-diff-visit-file,missing,,explicit
+magit-diff.el,1887,command,magit-diff-visit-file-other-window,missing,,explicit
+magit-diff.el,1896,command,magit-diff-visit-file-other-frame,missing,,explicit
+magit-diff.el,1907,command,magit-diff-visit-worktree-file,missing,,explicit
+magit-diff.el,1926,command,magit-diff-visit-worktree-file-other-window,missing,,explicit
+magit-diff.el,1932,command,magit-diff-visit-worktree-file-other-frame,missing,,explicit
+magit-diff.el,2179,command,magit-diff-show-or-scroll-up,missing,,explicit
+magit-diff.el,2190,command,magit-diff-show-or-scroll-down,missing,,explicit
+magit-diff.el,2256,command,magit-section-cycle-diffs,missing,,explicit
+magit-diff.el,2288,command,magit-revision-jump,missing,,explicit
+magit-diff.el,2316,command,magit-jump-to-revision-diffstat,missing,,explicit
+magit-diff.el,2335,command,magit-jump-to-revision-diff,missing,,explicit
+magit-diff.el,2349,command,magit-jump-to-diffstat-or-diff,missing,,explicit
+magit-diff.el,,command,magit-diff:--color-moved,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,magit-diff:--color-moved-ws,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,magit-diff:--diff-algorithm,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,magit-diff:--diff-merges,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,magit-diff:--ignore-submodules,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,magit-diff:--no-ext-diff,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,magit-diff:--show-signature,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,magit-diff:--stat,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,magit-diff:-C,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,magit-diff:-M,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,magit-diff:-R,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,magit-diff:-U,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,magit-jump-to-revision-headers,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,magit-jump-to-revision-message,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,magit-jump-to-revision-notes,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,magit-jump-to-staged,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,magit-jump-to-unstaged,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,magit:--,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,transient:magit-diff-infix-arguments:--find-copies-harder,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,transient:magit-diff-infix-arguments:--function-context,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,transient:magit-diff-infix-arguments:--ignore-all-space,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,transient:magit-diff-infix-arguments:--ignore-space-change,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,transient:magit-diff-infix-arguments:--irreversible-delete,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-dired.el,39,command,magit-dired-jump,missing,,explicit
+magit-dired.el,55,command,magit-dired-stage,missing,,explicit
+magit-dired.el,61,command,magit-dired-unstage,missing,,explicit
+magit-dired.el,67,command,magit-dired-log,missing,,explicit
+magit-dired.el,87,command,magit-dired-am-apply-patches,missing,,explicit
+magit-dired.el,101,command,magit-do-async-shell-command,missing,,explicit
+magit-ediff.el,44,option,magit-ediff-quit-hook,missing,,explicit
+magit-ediff.el,57,option,magit-ediff-dwim-resolve-function,missing,,explicit
+magit-ediff.el,65,option,magit-ediff-dwim-show-on-hunks,missing,,explicit
+magit-ediff.el,75,option,magit-ediff-show-stash-with-index,missing,,explicit
+magit-ediff.el,117,command,magit-ediff,missing,,explicit
+magit-ediff.el,134,command,magit-ediff-resolve-all,missing,,explicit
+magit-ediff.el,197,command,magit-ediff-resolve-rest,missing,,explicit
+magit-ediff.el,233,command,magit-ediff-stage,missing,,explicit
+magit-ediff.el,274,command,magit-ediff-compare,missing,,explicit
+magit-ediff.el,336,command,magit-ediff-dwim,missing,,explicit
+magit-ediff.el,410,command,magit-ediff-show-staged,missing,,explicit
+magit-ediff.el,426,command,magit-ediff-show-unstaged,missing,,explicit
+magit-ediff.el,442,command,magit-ediff-show-working-tree,missing,,explicit
+magit-ediff.el,454,command,magit-ediff-show-commit,missing,,explicit
+magit-ediff.el,464,command,magit-ediff-show-stash,missing,,explicit
+magit-extras.el,46,command,magit-git-mergetool,missing,,explicit
+magit-extras.el,127,command,magit-run-git-gui-blame,missing,,explicit
+magit-extras.el,154,option,magit-gitk-executable,missing,,explicit
+magit-extras.el,167,command,magit-run-git-gui,missing,,explicit
+magit-extras.el,173,command,magit-run-gitk,missing,,explicit
+magit-extras.el,179,command,magit-run-gitk-branches,missing,,explicit
+magit-extras.el,185,command,magit-run-gitk-all,missing,,explicit
+magit-extras.el,193,command,magit-project-status,missing,,explicit
+magit-extras.el,210,command,magit-project-dispatch,missing,,explicit
+magit-extras.el,241,command,magit-previous-line,missing,,explicit
+magit-extras.el,264,command,magit-next-line,missing,,explicit
+magit-extras.el,288,command,magit-clean,missing,,explicit
+magit-extras.el,307,command,magit-generate-changelog,missing,,explicit
+magit-extras.el,338,command,magit-add-change-log-entry,missing,,explicit
+magit-extras.el,351,command,magit-add-change-log-entry-other-window,missing,,explicit
+magit-extras.el,364,command,magit-edit-line-commit,missing,,explicit
+magit-extras.el,405,command,magit-diff-edit-hunk-commit,missing,,explicit
+magit-extras.el,432,option,magit-reshelve-since-committer-only,missing,,explicit
+magit-extras.el,440,command,magit-reshelve-since,missing,,explicit
+magit-extras.el,530,option,magit-pop-revision-stack-format,missing,,explicit
+magit-extras.el,577,option,magit-copy-revision-abbreviated,missing,,explicit
+magit-extras.el,584,command,magit-pop-revision-stack,missing,,explicit
+magit-extras.el,651,command,magit-copy-section-value,missing,,explicit
+magit-extras.el,711,command,magit-copy-buffer-revision,missing,,explicit
+magit-extras.el,758,command,magit-display-repository-buffer,missing,,explicit
+magit-extras.el,766,command,magit-switch-to-repository-buffer,missing,,explicit
+magit-extras.el,773,command,magit-switch-to-repository-buffer-other-window,missing,,explicit
+magit-extras.el,780,command,magit-switch-to-repository-buffer-other-frame,missing,,explicit
+magit-extras.el,807,command,magit-abort-dwim,missing,,explicit
+magit-extras.el,819,command,magit-back-to-indentation,missing,,explicit
+magit-extras.el,,command,magit-git-mergetool:--tool,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-extras.el,,command,magit-merge.guitool,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-extras.el,,command,magit-merge.tool,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-extras.el,,command,magit-mergetool.hideResolved,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-extras.el,,command,magit-mergetool.keepBackup,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-extras.el,,command,magit-mergetool.keepTemporaries,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-extras.el,,command,magit-mergetool.writeToTemp,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-fetch.el,34,command,magit-fetch,partial,Space m f; configured remote only; transient options missing,explicit
+magit-fetch.el,62,command,magit-fetch-from-pushremote,missing,,explicit
+magit-fetch.el,90,command,magit-fetch-from-upstream,missing,,explicit
+magit-fetch.el,110,command,magit-fetch-other,missing,,explicit
+magit-fetch.el,117,command,magit-fetch-branch,missing,,explicit
+magit-fetch.el,127,command,magit-fetch-refspec,missing,,explicit
+magit-fetch.el,137,command,magit-fetch-all,missing,,explicit
+magit-fetch.el,143,command,magit-fetch-all-prune,missing,,explicit
+magit-fetch.el,152,command,magit-fetch-all-no-prune,missing,,explicit
+magit-fetch.el,159,command,magit-fetch-modules,missing,,explicit
+magit-fetch.el,,command,transient:magit-fetch-modules:--jobs=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-fetch.el,,command,transient:magit-fetch-modules:--verbose,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-fetch.el,,command,transient:magit-fetch:--force,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-fetch.el,,command,transient:magit-fetch:--prune,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-fetch.el,,command,transient:magit-fetch:--tags,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-fetch.el,,command,transient:magit-fetch:--unshallow,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-files.el,53,command,magit-find-file,missing,,explicit
+magit-files.el,63,command,magit-find-file-other-window,missing,,explicit
+magit-files.el,73,command,magit-find-file-other-frame,missing,,explicit
+magit-files.el,363,command,magit-update-index,missing,,explicit
+magit-files.el,401,command,magit-find-git-config-file,missing,,explicit
+magit-files.el,417,command,magit-find-git-config-file-other-window,missing,,explicit
+magit-files.el,433,command,magit-find-git-config-file-other-frame,missing,,explicit
+magit-files.el,452,command,magit-file-dispatch,missing,,explicit
+magit-files.el,536,command,magit-bury-buffer,missing,,explicit
+magit-files.el,548,command,magit-bury-or-kill-buffer,missing,,explicit
+magit-files.el,564,command,magit-kill-this-buffer,missing,,explicit
+magit-files.el,569,command,magit-blob-previous,missing,,explicit
+magit-files.el,583,command,magit-blob-next,missing,,explicit
+magit-files.el,597,command,magit-blob-visit-file,missing,,explicit
+magit-files.el,644,command,magit-file-stage,missing,,explicit
+magit-files.el,657,command,magit-file-unstage,missing,,explicit
+magit-files.el,666,command,magit-file-untrack,missing,,explicit
+magit-files.el,681,command,magit-file-rename,missing,,explicit
+magit-files.el,718,command,magit-file-delete,missing,,explicit
+magit-files.el,746,command,magit-file-checkout,missing,,explicit
+magit-files.el,,command,magit-blob-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-files.el,,command,magit-stage-buffer-file,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-files.el,,command,magit-unstage-buffer-file,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-files.el,,option,magit-blob-mode-hook,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-git.el,88,option,magit-git-output-coding-system,missing,,explicit
+magit-git.el,113,option,magit-git-executable,missing,,explicit
+magit-git.el,150,option,magit-remote-git-executable,missing,,explicit
+magit-git.el,159,option,magit-run-hooks-from-githooks,missing,,explicit
+magit-git.el,172,option,magit-user-githook-file,missing,,explicit
+magit-git.el,211,option,magit-git-global-arguments,missing,,explicit
+magit-git.el,237,option,magit-prefer-remote-upstream,missing,,explicit
+magit-git.el,251,option,magit-list-refs-namespaces,missing,,explicit
+magit-git.el,265,option,magit-list-refs-sortby,missing,,explicit
+magit-git.el,293,option,magit-cygwin-mount-points,missing,,explicit
+magit-git.el,328,command,magit-toggle-git-debug,missing,,explicit
+magit-git.el,824,command,magit-debug-git-executable,missing,,explicit
+magit-gitignore.el,34,command,magit-gitignore,missing,,explicit
+magit-gitignore.el,52,command,magit-gitignore-in-topdir,missing,,explicit
+magit-gitignore.el,61,command,magit-gitignore-in-subdir,missing,,explicit
+magit-gitignore.el,78,command,magit-gitignore-in-gitdir,missing,,explicit
+magit-gitignore.el,89,command,magit-gitignore-on-system,missing,,explicit
+magit-gitignore.el,159,command,magit-skip-worktree,missing,,explicit
+magit-gitignore.el,171,command,magit-no-skip-worktree,missing,,explicit
+magit-gitignore.el,182,command,magit-assume-unchanged,missing,,explicit
+magit-gitignore.el,194,command,magit-no-assume-unchanged,missing,,explicit
+magit-log.el,76,option,magit-log-mode-hook,missing,,explicit
+magit-log.el,81,option,magit-log-remove-graph-args,missing,,explicit
+magit-log.el,95,option,magit-log-revision-headers-format,missing,,explicit
+magit-log.el,104,option,magit-log-auto-more,missing,,explicit
+magit-log.el,111,option,magit-log-margin,missing,,explicit
+magit-log.el,136,option,magit-log-margin-show-committer-date,missing,,explicit
+magit-log.el,148,option,magit-log-show-refname-after-summary,missing,,explicit
+magit-log.el,155,option,magit-log-wash-summary-hook,missing,,explicit
+magit-log.el,173,option,magit-log-trailer-labels,missing,,explicit
+magit-log.el,190,option,magit-log-header-line-function,missing,,explicit
+magit-log.el,198,option,magit-log-trace-definition-function,missing,,explicit
+magit-log.el,210,option,magit-log-color-graph-limit,missing,,explicit
+magit-log.el,220,option,magit-log-show-signatures-limit,missing,,explicit
+magit-log.el,267,option,magit-log-buffer-file-locked,missing,,explicit
+magit-log.el,276,option,magit-log-select-show-usage,missing,,explicit
+magit-log.el,288,option,magit-log-select-margin,missing,,explicit
+magit-log.el,320,option,magit-cherry-sections-hook,missing,,explicit
+magit-log.el,328,option,magit-cherry-margin,missing,,explicit
+magit-log.el,360,option,magit-log-section-commit-count,missing,,explicit
+magit-log.el,369,option,magit-log-merged-commit-count,missing,,explicit
+magit-log.el,525,command,magit-log,missing,,explicit
+magit-log.el,556,command,magit-log-refresh,missing,,explicit
+magit-log.el,699,command,magit-log-current,partial,Space m l; latest 100; graph/range/options missing,explicit
+magit-log.el,707,command,magit-log-head,missing,,explicit
+magit-log.el,713,command,magit-log-related,missing,,explicit
+magit-log.el,742,command,magit-log-other,missing,,explicit
+magit-log.el,753,command,magit-log-branches,missing,,explicit
+magit-log.el,762,command,magit-log-matching-branches,missing,,explicit
+magit-log.el,770,command,magit-log-matching-tags,missing,,explicit
+magit-log.el,778,command,magit-log-all-branches,missing,,explicit
+magit-log.el,787,command,magit-log-all,missing,,explicit
+magit-log.el,793,command,magit-log-reflog,missing,,explicit
+magit-log.el,799,command,magit-log-buffer-file,missing,,explicit
+magit-log.el,825,command,magit-log-trace-definition,missing,,explicit
+magit-log.el,854,command,magit-diff-trace-definition,missing,,explicit
+magit-log.el,862,command,magit-log-merged,missing,,explicit
+magit-log.el,911,command,magit-delete-shelved-branch,missing,,explicit
+magit-log.el,919,command,magit-log-toggle-commit-limit,missing,,explicit
+magit-log.el,926,command,magit-log-double-commit-limit,missing,,explicit
+magit-log.el,931,command,magit-log-half-commit-limit,missing,,explicit
+magit-log.el,955,command,magit-log-bury-buffer,missing,,explicit
+magit-log.el,972,command,magit-log-move-to-parent,missing,,explicit
+magit-log.el,989,command,magit-log-move-to-revision,missing,,explicit
+magit-log.el,1018,command,magit-shortlog,missing,,explicit
+magit-log.el,1046,command,magit-shortlog-since,missing,,explicit
+magit-log.el,1054,command,magit-shortlog-range,missing,,explicit
+magit-log.el,1083,command,magit-previous-reference,missing,,explicit
+magit-log.el,1094,command,magit-next-reference,missing,,explicit
+magit-log.el,1692,command,magit-toggle-log-margin-style,missing,,explicit
+magit-log.el,1870,command,magit-log-select-pick,missing,,explicit
+magit-log.el,1880,command,magit-log-select-quit,missing,,explicit
+magit-log.el,1930,command,magit-cherry,missing,,explicit
+magit-log.el,,command,magit-jump-to-unpulled-from-pushremote,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,magit-jump-to-unpulled-from-upstream,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,magit-jump-to-unpushed-to-pushremote,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,magit-jump-to-unpushed-to-upstream,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,magit-log-select-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,magit-log:--*-order,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,magit-log:--graph-lane-limit,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,magit-log:--grep,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,magit-log:--since,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,magit-log:--until,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,magit-log:-G,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,magit-log:-L,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,magit-log:-S,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,magit-log:-n,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,magit:--author,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:++header,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--ancestry-path,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--color,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--decorate,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--dense,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--first-parent,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--follow,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--full-history,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--graph,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--invert-grep,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--merges,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--no-merges,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--patch,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--regexp-ignore-case,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--reverse,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--show-signature,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--simplify-by-decoration,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--simplify-merges,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--sparse,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-log-infix-arguments:--stat,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-log-refresh:--color,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-log-refresh:--decorate,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-log-refresh:--graph,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-shortlog:--email,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-shortlog:--format=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-shortlog:--group=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-shortlog:--numbered,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-shortlog:--summary,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,transient:magit-shortlog:-w,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-margin.el,76,command,magit-margin-settings,missing,,explicit
+magit-margin.el,85,command,magit-toggle-margin,missing,,explicit
+magit-margin.el,99,command,magit-cycle-margin-style,missing,,explicit
+magit-margin.el,118,command,magit-toggle-margin-details,missing,,explicit
+magit-merge.el,37,command,magit-merge,missing,,explicit
+magit-merge.el,89,command,magit-merge-plain,partial,Space m M m; basic revision; transient options missing,explicit
+magit-merge.el,108,command,magit-merge-editmsg,missing,,explicit
+magit-merge.el,124,command,magit-merge-nocommit,missing,,explicit
+magit-merge.el,140,command,magit-merge-dissolve,missing,,explicit
+magit-merge.el,164,command,magit-merge-absorb,missing,,explicit
+magit-merge.el,225,command,magit-merge-squash,partial,Space m M s; basic squash; options missing,explicit
+magit-merge.el,233,command,magit-merge-preview,missing,,explicit
+magit-merge.el,239,command,magit-merge-abort,partial,Space m M a; operation guard,explicit
+magit-merge.el,248,command,magit-checkout-stage,missing,,explicit
+magit-merge.el,,command,magit-merge:--strategy,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-merge.el,,command,magit-merge:--strategy-option,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-merge.el,,command,transient:magit-merge:--ff-only,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-merge.el,,command,transient:magit-merge:--no-ff,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-merge.el,,command,transient:magit-merge:-Xignore-all-space,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-merge.el,,command,transient:magit-merge:-Xignore-space-change,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-mode.el,60,option,magit-mode-hook,missing,,explicit
+magit-mode.el,67,option,magit-setup-buffer-hook,missing,,explicit
+magit-mode.el,83,option,magit-pre-refresh-hook,missing,,explicit
+magit-mode.el,98,option,magit-post-refresh-hook,missing,,explicit
+magit-mode.el,121,option,magit-display-buffer-function,missing,,explicit
+magit-mode.el,137,option,magit-pre-display-buffer-hook,missing,,explicit
+magit-mode.el,146,option,magit-post-display-buffer-hook,missing,,explicit
+magit-mode.el,154,option,magit-generate-buffer-name-function,missing,,explicit
+magit-mode.el,162,option,magit-buffer-name-format,missing,,explicit
+magit-mode.el,198,option,magit-uniquify-buffer-names,missing,,explicit
+magit-mode.el,204,option,magit-bury-buffer-function,missing,,explicit
+magit-mode.el,213,option,magit-prefix-use-buffer-arguments,missing,,explicit
+magit-mode.el,245,option,magit-direct-use-buffer-arguments,missing,,explicit
+magit-mode.el,278,option,magit-region-highlight-hook,missing,,explicit
+magit-mode.el,290,option,magit-create-buffer-hook,missing,,explicit
+magit-mode.el,298,option,magit-post-create-buffer-hook,missing,,explicit
+magit-mode.el,307,option,magit-refresh-buffer-hook,missing,,explicit
+magit-mode.el,313,option,magit-refresh-status-buffer,missing,,explicit
+magit-mode.el,327,option,magit-refresh-verbose,missing,,explicit
+magit-mode.el,333,option,magit-save-repository-buffers,missing,,explicit
+magit-mode.el,438,command,magit-delete-thing,missing,,explicit
+magit-mode.el,446,command,magit-visit-thing,missing,,explicit
+magit-mode.el,459,command,magit-edit-thing,missing,,explicit
+magit-mode.el,470,command,magit-browse-thing,missing,,explicit
+magit-mode.el,480,command,magit-copy-thing,missing,,explicit
+magit-mode.el,490,command,magit-info,missing,,explicit
+magit-mode.el,958,command,magit-toggle-buffer-lock,missing,,explicit
+magit-mode.el,1005,command,magit-mode-bury-buffer,missing,,explicit
+magit-mode.el,1046,command,magit-refresh,partial,Space m s / gr; selected view; full buffer refresh semantics missing,explicit
+magit-mode.el,1081,command,magit-refresh-all,missing,,explicit
+magit-mode.el,1097,command,magit-refresh-buffer,missing,,explicit
+magit-mode.el,1213,command,magit-profile-refresh-buffer,missing,,explicit
+magit-mode.el,1226,command,magit-toggle-profiling,missing,,explicit
+magit-mode.el,1334,command,magit-save-repository-buffers,missing,,explicit
+magit-mode.el,1407,command,magit-go-backward,missing,,explicit
+magit-mode.el,1414,command,magit-go-forward,missing,,explicit
+magit-mode.el,1562,command,magit-zap-caches,missing,,explicit
+magit-mode.el,1598,command,magit-toggle-verbose-refresh,missing,,explicit
+magit-mode.el,,command,magit-mode-menu,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-notes.el,34,command,magit-notes,missing,,explicit
+magit-notes.el,110,command,magit-notes-edit,missing,,explicit
+magit-notes.el,121,command,magit-notes-remove,missing,,explicit
+magit-notes.el,132,command,magit-notes-merge,missing,,explicit
+magit-notes.el,145,command,magit-notes-merge-commit,missing,,explicit
+magit-notes.el,151,command,magit-notes-merge-abort,missing,,explicit
+magit-notes.el,157,command,magit-notes-prune,missing,,explicit
+magit-notes.el,,command,magit-core.notesRef,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-notes.el,,command,magit-global-core.notesRef,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-notes.el,,command,magit-global-notes.displayRef,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-notes.el,,command,magit-notes.displayRef,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-notes.el,,command,magit-notes:--ref,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-notes.el,,command,magit-notes:--strategy,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-notes.el,,command,transient:magit-notes:--dry-run,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-patch.el,35,option,magit-patch-save-arguments,missing,,explicit
+magit-patch.el,56,command,magit-patch,missing,,explicit
+magit-patch.el,66,command,magit-patch-create,missing,,explicit
+magit-patch.el,243,command,magit-patch-apply,missing,,explicit
+magit-patch.el,266,command,magit-patch-save,missing,,explicit
+magit-patch.el,311,command,magit-request-pull,missing,,explicit
+magit-patch.el,,command,magit-format-patch:--base,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-patch.el,,command,magit-format-patch:--cc,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-patch.el,,command,magit-format-patch:--cover-from-description,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-patch.el,,command,magit-format-patch:--from,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-patch.el,,command,magit-format-patch:--in-reply-to,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-patch.el,,command,magit-format-patch:--interdiff,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-patch.el,,command,magit-format-patch:--notes,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-patch.el,,command,magit-format-patch:--output-directory,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-patch.el,,command,magit-format-patch:--range-diff,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-patch.el,,command,magit-format-patch:--reroll-count,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-patch.el,,command,magit-format-patch:--subject-prefix,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-patch.el,,command,magit-format-patch:--thread,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-patch.el,,command,magit-format-patch:--to,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-patch.el,,command,transient:magit-patch-apply:--3way,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-patch.el,,command,transient:magit-patch-apply:--cached,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-patch.el,,command,transient:magit-patch-apply:--index,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-patch.el,,command,transient:magit-patch-create:--cover-letter,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-patch.el,,command,transient:magit-patch-create:--ignore-all-space,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-patch.el,,command,transient:magit-patch-create:--ignore-space-change,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-patch.el,,command,transient:magit-patch-create:--rfc,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-process.el,52,option,magit-process-connection-type,missing,,explicit
+magit-process.el,61,option,magit-need-cygwin-noglob,missing,,explicit
+magit-process.el,85,option,magit-process-popup-time,missing,,explicit
+magit-process.el,92,option,magit-process-log-max,missing,,explicit
+magit-process.el,102,option,magit-process-error-tooltip-max-lines,missing,,explicit
+magit-process.el,114,option,magit-credential-cache-daemon-socket,missing,,explicit
+magit-process.el,146,option,magit-process-yes-or-no-prompt-regexp,missing,,explicit
+magit-process.el,160,option,magit-process-password-prompt-regexps,missing,,explicit
+magit-process.el,185,option,magit-process-find-password-functions,missing,,explicit
+magit-process.el,204,option,magit-process-username-prompt-regexps,missing,,explicit
+magit-process.el,211,option,magit-process-prompt-functions,missing,,explicit
+magit-process.el,240,option,magit-process-ensure-unix-line-ending,missing,,explicit
+magit-process.el,246,option,magit-process-display-mode-line-error,missing,,explicit
+magit-process.el,255,option,magit-show-process-buffer-hint,missing,,explicit
+magit-process.el,277,option,magit-process-apply-ansi-colors,missing,,explicit
+magit-process.el,295,option,magit-process-timestamp-format,missing,,explicit
+magit-process.el,367,command,magit-process-buffer,missing,,explicit
+magit-process.el,404,command,magit-process-kill,missing,,explicit
+magit-process.el,429,command,magit-toggle-subprocess-record,missing,,explicit
+magit-pull.el,33,option,magit-pull-or-fetch,missing,,explicit
+magit-pull.el,42,command,magit-pull,partial,Space m P; ff-only; merge/rebase/refspec options missing,explicit
+magit-pull.el,95,command,magit-pull-from-pushremote,missing,,explicit
+magit-pull.el,123,command,magit-pull-from-upstream,missing,,explicit
+magit-pull.el,165,command,magit-pull-into-upstream,missing,,explicit
+magit-pull.el,195,command,magit-pull-branch,missing,,explicit
+magit-pull.el,,command,magit-pull:--rebase,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-pull.el,,command,transient:magit-pull:--autostash,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-pull.el,,command,transient:magit-pull:--ff-only,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-pull.el,,command,transient:magit-pull:--force,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-push.el,33,option,magit-push-options,missing,,explicit
+magit-push.el,42,command,magit-push,partial,Space m p; configured upstream only; targets/refspec/options missing,explicit
+magit-push.el,96,command,magit-push-current-to-pushremote,missing,,explicit
+magit-push.el,132,command,magit-push-current-to-upstream,missing,,explicit
+magit-push.el,194,command,magit-push-current,missing,,explicit
+magit-push.el,205,command,magit-push-other,missing,,explicit
+magit-push.el,226,command,magit-push-refspecs,missing,,explicit
+magit-push.el,243,command,magit-push-matching,missing,,explicit
+magit-push.el,253,command,magit-push-tags,missing,,explicit
+magit-push.el,264,command,magit-push-tag,missing,,explicit
+magit-push.el,274,command,magit-push-notes-ref,missing,,explicit
+magit-push.el,285,command,magit-push-implicitly,missing,,explicit
+magit-push.el,363,command,magit-push-to-remote,missing,,explicit
+magit-push.el,,command,magit-push:--push-option,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-push.el,,command,transient:magit-push:--dry-run,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-push.el,,command,transient:magit-push:--follow-tags,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-push.el,,command,transient:magit-push:--force,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-push.el,,command,transient:magit-push:--force-with-lease,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-push.el,,command,transient:magit-push:--no-verify,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-push.el,,command,transient:magit-push:--set-upstream,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-push.el,,command,transient:magit-push:--tags,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-reflog.el,34,option,magit-reflog-limit,missing,,explicit
+magit-reflog.el,42,option,magit-reflog-margin,missing,,explicit
+magit-reflog.el,113,command,magit-reflog-current,missing,,explicit
+magit-reflog.el,120,command,magit-reflog-other,missing,,explicit
+magit-reflog.el,126,command,magit-reflog-head,missing,,explicit
+magit-refs.el,38,option,magit-refs-mode-hook,missing,,explicit
+magit-refs.el,44,option,magit-refs-sections-hook,missing,,explicit
+magit-refs.el,55,option,magit-refs-show-commit-count,missing,,explicit
+magit-refs.el,73,option,magit-refs-pad-commit-counts,missing,,explicit
+magit-refs.el,94,option,magit-refs-show-remote-prefix,missing,,explicit
+magit-refs.el,103,option,magit-refs-show-branch-descriptions,missing,,explicit
+magit-refs.el,112,option,magit-refs-margin,missing,,explicit
+magit-refs.el,143,option,magit-refs-margin-for-tags,missing,,explicit
+magit-refs.el,153,option,magit-refs-primary-column-width,missing,,explicit
+magit-refs.el,172,option,magit-refs-focus-column-width,missing,,explicit
+magit-refs.el,189,option,magit-refs-filter-alist,missing,,explicit
+magit-refs.el,214,option,magit-visit-ref-behavior,missing,,explicit
+magit-refs.el,336,command,magit-show-refs,missing,,explicit
+magit-refs.el,394,command,magit-show-refs-head,missing,,explicit
+magit-refs.el,401,command,magit-show-refs-current,missing,,explicit
+magit-refs.el,408,command,magit-show-refs-other,missing,,explicit
+magit-refs.el,415,command,magit-refs-set-show-commit-count,missing,,explicit
+magit-refs.el,429,command,magit-visit-ref,missing,,explicit
+magit-refs.el,,command,magit-for-each-ref:--contains,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-refs.el,,command,magit-for-each-ref:--sort,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-refs.el,,command,transient:magit-show-refs:--merged,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-refs.el,,command,transient:magit-show-refs:--merged=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-refs.el,,command,transient:magit-show-refs:--no-merged,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-refs.el,,command,transient:magit-show-refs:--no-merged=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-remote.el,33,option,magit-remote-add-set-remote.pushDefault,missing,,explicit
+magit-remote.el,48,option,magit-remote-direct-configure,missing,,explicit
+magit-remote.el,57,option,magit-prefer-push-default,missing,,explicit
+magit-remote.el,66,command,magit-remote,missing,,explicit
+magit-remote.el,100,command,magit-remote-add,missing,,explicit
+magit-remote.el,123,command,magit-remote-rename,missing,,explicit
+magit-remote.el,134,command,magit-remote-remove,missing,,explicit
+magit-remote.el,153,command,magit-remote-prune,missing,,explicit
+magit-remote.el,159,command,magit-remote-prune-refspecs,missing,,explicit
+magit-remote.el,237,command,magit-remote-set-head,missing,,explicit
+magit-remote.el,252,command,magit-remote-unset-head,missing,,explicit
+magit-remote.el,259,command,magit-update-default-branch,missing,,explicit
+magit-remote.el,291,command,magit-remote-unshallow,missing,,explicit
+magit-remote.el,311,command,magit-remote-configure,missing,,explicit
+magit-remote.el,,command,magit-remote.<remote>.fetch,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-remote.el,,command,magit-remote.<remote>.followremotehead,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-remote.el,,command,magit-remote.<remote>.push,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-remote.el,,command,magit-remote.<remote>.pushurl,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-remote.el,,command,magit-remote.<remote>.tagopt,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-remote.el,,command,magit-remote.<remote>.url,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-remote.el,,command,transient:magit-remote:-f,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-repos.el,40,option,magit-repository-directories,missing,,explicit
+magit-repos.el,60,option,magit-repolist-mode-hook,missing,,explicit
+magit-repos.el,68,option,magit-repolist-columns,missing,,explicit
+magit-repos.el,121,option,magit-repolist-column-flag-alist,missing,,explicit
+magit-repos.el,137,option,magit-repolist-sort-key,missing,,explicit
+magit-repos.el,152,command,magit-list-repositories,missing,,explicit
+magit-repos.el,162,command,magit-repolist-status,missing,,explicit
+magit-repos.el,169,command,magit-repolist-mark,missing,,explicit
+magit-repos.el,175,command,magit-repolist-unmark,missing,,explicit
+magit-repos.el,180,command,magit-repolist-fetch,missing,,explicit
+magit-repos.el,187,command,magit-repolist-find-file-other-frame,missing,,explicit
+magit-reset.el,34,command,magit-reset,missing,,explicit
+magit-reset.el,49,command,magit-reset-mixed,missing,,explicit
+magit-reset.el,56,command,magit-reset-soft,missing,,explicit
+magit-reset.el,63,command,magit-reset-hard,missing,,explicit
+magit-reset.el,72,command,magit-reset-keep,missing,,explicit
+magit-reset.el,79,command,magit-reset-index,missing,,explicit
+magit-reset.el,88,command,magit-reset-worktree,missing,,explicit
+magit-reset.el,99,command,magit-reset-quickly,missing,,explicit
+magit-section.el,145,option,magit-section-highlight-current,missing,,explicit
+magit-section.el,151,option,magit-section-highlight-selection,missing,,explicit
+magit-section.el,160,option,magit-section-show-child-count,missing,,explicit
+magit-section.el,167,option,magit-section-cache-visibility,missing,,explicit
+magit-section.el,184,option,magit-section-initial-visibility-alist,missing,,explicit
+magit-section.el,212,option,magit-section-visibility-indicators,missing,,explicit
+magit-section.el,284,option,magit-section-keep-region-overlay,missing,,explicit
+magit-section.el,322,option,magit-section-disable-line-numbers,missing,,explicit
+magit-section.el,803,command,magit-section-forward,missing,,explicit
+magit-section.el,822,command,magit-section-backward,missing,,explicit
+magit-section.el,860,command,magit-section-up,missing,,explicit
+magit-section.el,867,command,magit-section-forward-sibling,missing,,explicit
+magit-section.el,879,command,magit-section-backward-sibling,missing,,explicit
+magit-section.el,891,command,magit-mouse-set-point,missing,,explicit
+magit-section.el,945,command,magit-section-show,missing,,explicit
+magit-section.el,960,command,magit-section-hide,missing,,explicit
+magit-section.el,978,command,magit-section-toggle,missing,,explicit
+magit-section.el,987,command,magit-section-toggle-children,missing,,explicit
+magit-section.el,996,command,magit-section-show-children,missing,,explicit
+magit-section.el,1013,command,magit-section-hide-children,missing,,explicit
+magit-section.el,1018,command,magit-section-show-headings,missing,,explicit
+magit-section.el,1033,command,magit-section-cycle,missing,,explicit
+magit-section.el,1064,command,magit-section-cycle-global,missing,,explicit
+magit-section.el,1124,command,magit-section-show-level-1,missing,,explicit
+magit-section.el,1129,command,magit-section-show-level-1-all,missing,,explicit
+magit-section.el,1134,command,magit-section-show-level-2,missing,,explicit
+magit-section.el,1139,command,magit-section-show-level-2-all,missing,,explicit
+magit-section.el,1144,command,magit-section-show-level-3,missing,,explicit
+magit-section.el,1149,command,magit-section-show-level-3-all,missing,,explicit
+magit-section.el,1154,command,magit-section-show-level-4,missing,,explicit
+magit-section.el,1159,command,magit-section-show-level-4-all,missing,,explicit
+magit-section.el,1164,command,magit-mouse-toggle-section,missing,,explicit
+magit-section.el,1182,command,magit-describe-section-briefly,missing,,explicit
+magit-section.el,1219,command,magit-describe-section,missing,,explicit
+magit-sequence.el,96,command,magit-sequencer-continue,partial,Space m x/v c; guarded continuation,explicit
+magit-sequence.el,108,command,magit-sequencer-skip,partial,Space m x/v s; guarded skip,explicit
+magit-sequence.el,117,command,magit-sequencer-abort,partial,Space m x/v a; guarded abort,explicit
+magit-sequence.el,140,command,magit-cherry-pick,partial,Space m x p; one revision; range/options missing,explicit
+magit-sequence.el,210,command,magit-cherry-copy,missing,,explicit
+magit-sequence.el,219,command,magit-cherry-apply,missing,,explicit
+magit-sequence.el,228,command,magit-cherry-harvest,missing,,explicit
+magit-sequence.el,249,command,magit-cherry-donate,missing,,explicit
+magit-sequence.el,269,command,magit-cherry-spinout,missing,,explicit
+magit-sequence.el,279,command,magit-cherry-spinoff,missing,,explicit
+magit-sequence.el,374,command,magit-revert,partial,Space m r; revert menu with partial suffix/options behavior; v alias retained,explicit
+magit-sequence.el,402,command,magit-revert-and-commit,missing,,explicit
+magit-sequence.el,411,command,magit-revert-no-commit,missing,,explicit
+magit-sequence.el,431,command,magit-am,missing,,explicit
+magit-sequence.el,469,command,magit-am-apply-patches,missing,,explicit
+magit-sequence.el,485,command,magit-am-apply-maildir,missing,,explicit
+magit-sequence.el,493,command,magit-am-continue,missing,,explicit
+magit-sequence.el,504,command,magit-am-skip,missing,,explicit
+magit-sequence.el,512,command,magit-am-abort,missing,,explicit
+magit-sequence.el,526,command,magit-rebase,missing,,explicit
+magit-sequence.el,594,command,magit-rebase-onto-pushremote,missing,,explicit
+magit-sequence.el,608,command,magit-rebase-onto-upstream,missing,,explicit
+magit-sequence.el,643,command,magit-rebase-branch,missing,,explicit
+magit-sequence.el,654,command,magit-rebase-subset,missing,,explicit
+magit-sequence.el,752,command,magit-rebase-interactive,missing,,explicit
+magit-sequence.el,762,command,magit-rebase-autosquash,missing,,explicit
+magit-sequence.el,778,command,magit-rebase-edit-commit,missing,,explicit
+magit-sequence.el,788,command,magit-rebase-reword-commit,missing,,explicit
+magit-sequence.el,797,command,magit-rebase-remove-commit,missing,,explicit
+magit-sequence.el,823,command,magit-rebase-continue,partial,Space m R c; no editor; source options missing,explicit
+magit-sequence.el,850,command,magit-rebase-skip,partial,Space m R s; guarded operation,explicit
+magit-sequence.el,858,command,magit-rebase-edit,missing,,explicit
+magit-sequence.el,866,command,magit-rebase-abort,partial,Space m R a; guarded operation,explicit
+magit-sequence.el,,command,magit-apply:-p,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sequence.el,,command,magit-cherry-pick:--mainline,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sequence.el,,command,magit-rebase:--exec,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sequence.el,,command,transient:magit-am:--3way,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sequence.el,,command,transient:magit-am:--committer-date-is-author-date,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sequence.el,,command,transient:magit-am:--ignore-date,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sequence.el,,command,transient:magit-am:--keep,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sequence.el,,command,transient:magit-am:--keep-non-patch,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sequence.el,,command,transient:magit-am:--reject,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sequence.el,,command,transient:magit-am:--scissors,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sequence.el,,command,transient:magit-cherry-pick:--edit,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sequence.el,,command,transient:magit-cherry-pick:--ff,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sequence.el,,command,transient:magit-cherry-pick:-x,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sequence.el,,command,transient:magit-rebase:--autosquash,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sequence.el,,command,transient:magit-rebase:--autostash,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sequence.el,,command,transient:magit-rebase:--committer-date-is-author-date,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sequence.el,,command,transient:magit-rebase:--force-rebase,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sequence.el,,command,transient:magit-rebase:--ignore-date,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sequence.el,,command,transient:magit-rebase:--interactive,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sequence.el,,command,transient:magit-rebase:--keep-empty,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sequence.el,,command,transient:magit-rebase:--no-verify,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sequence.el,,command,transient:magit-rebase:--preserve-merges,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sequence.el,,command,transient:magit-rebase:--rebase-merges=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sequence.el,,command,transient:magit-rebase:--update-refs,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sequence.el,,command,transient:magit-revert:--edit,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sequence.el,,command,transient:magit-revert:--no-edit,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-sparse-checkout.el,58,command,magit-sparse-checkout,missing,,explicit
+magit-sparse-checkout.el,74,command,magit-sparse-checkout-enable,missing,,explicit
+magit-sparse-checkout.el,80,command,magit-sparse-checkout-set,missing,,explicit
+magit-sparse-checkout.el,95,command,magit-sparse-checkout-add,missing,,explicit
+magit-sparse-checkout.el,114,command,magit-sparse-checkout-reapply,missing,,explicit
+magit-sparse-checkout.el,123,command,magit-sparse-checkout-disable,missing,,explicit
+magit-sparse-checkout.el,,command,transient:magit-sparse-checkout:--sparse-index,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-stash.el,41,option,magit-stash-sections-hook,missing,,explicit
+magit-stash.el,53,option,magit-stashes-margin,missing,,explicit
+magit-stash.el,91,command,magit-stash,partial,Space m z; source menu groups and -u/-a switches; worktree/snapshot/transform groups still missing,explicit
+magit-stash.el,124,command,magit-stash-both,partial,Space m z z/u; Git push implementation; plumbing/options differ,explicit
+magit-stash.el,140,command,magit-stash-index,partial,Space m z i; Git --staged implementation; source edge cases need comparison,explicit
+magit-stash.el,150,command,magit-stash-worktree,partial,Space m z w; source commit-tree parents/private index; retains staged side; merge-state confirmation/context options remain open,explicit
+magit-stash.el,159,command,magit-stash-keep-index,partial,Space m z k; Git --keep-index implementation; options missing,explicit
+magit-stash.el,206,command,magit-snapshot-both,partial,Space m z Z; source tree/parents/untracked plumbing without cleanup; customization/context/error parity remains open,explicit
+magit-stash.el,215,command,magit-snapshot-index,partial,Space m z I; saves index-only tree without worktree cleanup; customization/context/error parity remains open,explicit
+magit-stash.el,222,command,magit-snapshot-worktree,partial,Space m z W; source pre-stash-index base and unstaged tree; customization/context/error parity remains open,explicit
+magit-stash.el,238,command,magit-stash-push,missing,,explicit
+magit-stash.el,265,command,magit-stash-apply,partial,selected a; index restoration then plain fallback retaining stash; 3way/reject negotiation still missing,explicit
+magit-stash.el,288,command,magit-stash-pop,partial,"selected p; index restoration, guarded reflog deletion, conflicts retained; additional fallbacks missing",explicit
+magit-stash.el,370,command,magit-stash-drop,partial,selected d/k; yes confirmation and stale identity guard; multi-selection still missing,explicit
+magit-stash.el,387,command,magit-stash-clear,missing,,explicit
+magit-stash.el,396,command,magit-stash-branch,missing,,explicit
+magit-stash.el,405,command,magit-stash-branch-here,missing,,explicit
+magit-stash.el,417,command,magit-stash-format-patch,missing,,explicit
+magit-stash.el,543,command,magit-stash-list,partial,Space m z l; simple list; margins/options/autostash missing,explicit
+magit-stash.el,601,command,magit-stash-show,partial,Enter; notes/unstaged/staged/untracked diffs; section interactions and full diff options missing,explicit
+magit-stash.el,,command,magit-jump-to-stashes,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-stash.el,,command,transient:magit-stash-push:--all,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-stash.el,,command,transient:magit-stash-push:--include-untracked,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-stash.el,,command,transient:magit-stash-push:--keep-index,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-stash.el,,command,transient:magit-stash-push:--no-keep-index,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-stash.el,,command,transient:magit-stash:--all,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-stash.el,,command,transient:magit-stash:--include-untracked,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-status.el,40,option,magit-status-mode-hook,missing,,explicit
+magit-status.el,45,option,magit-status-headers-hook,missing,,explicit
+magit-status.el,69,option,magit-status-sections-hook,missing,,explicit
+magit-status.el,91,option,magit-status-initial-section,missing,,explicit
+magit-status.el,118,option,magit-status-goto-file-position,missing,,explicit
+magit-status.el,137,option,magit-status-show-hashes-in-headers,missing,,explicit
+magit-status.el,147,option,magit-status-show-untracked-files,missing,,explicit
+magit-status.el,184,option,magit-status-file-list-limit,missing,,explicit
+magit-status.el,192,option,magit-status-margin,missing,,explicit
+magit-status.el,222,option,magit-status-use-buffer-arguments,missing,,explicit
+magit-status.el,252,command,magit-init,missing,,explicit
+magit-status.el,280,command,magit-status,partial,"Space m s; status, sections, diffs; many status sections/options missing",explicit
+magit-status.el,350,command,magit-status-here,missing,,explicit
+magit-status.el,363,command,magit-status-quick,missing,,explicit
+magit-status.el,397,command,magit-parent-status,missing,,explicit
+magit-status.el,425,command,magit-status-jump,missing,,explicit
+magit-status.el,,command,magit,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-status.el,,command,magit-jump-to-assume-unchanged,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-status.el,,command,magit-jump-to-ignored,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-status.el,,command,magit-jump-to-skip-worktree,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-status.el,,command,magit-jump-to-tracked,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-status.el,,command,magit-jump-to-untracked,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-submodule.el,35,option,magit-module-sections-hook,missing,,explicit
+magit-submodule.el,50,option,magit-module-sections-nested,missing,,explicit
+magit-submodule.el,60,option,magit-submodule-list-mode-hook,missing,,explicit
+magit-submodule.el,68,option,magit-submodule-list-columns,missing,,explicit
+magit-submodule.el,131,option,magit-submodule-list-sort-key,missing,,explicit
+magit-submodule.el,143,option,magit-submodule-list-predicate,missing,,explicit
+magit-submodule.el,154,option,magit-submodule-remove-trash-gitdirs,missing,,explicit
+magit-submodule.el,171,command,magit-submodule,missing,,explicit
+magit-submodule.el,218,command,magit-submodule-add,missing,,explicit
+magit-submodule.el,275,command,magit-submodule-register,missing,,explicit
+magit-submodule.el,294,command,magit-submodule-populate,missing,,explicit
+magit-submodule.el,313,command,magit-submodule-update,missing,,explicit
+magit-submodule.el,336,command,magit-submodule-synchronize,missing,,explicit
+magit-submodule.el,352,command,magit-submodule-unpopulate,missing,,explicit
+magit-submodule.el,375,command,magit-submodule-remove,missing,,explicit
+magit-submodule.el,541,command,magit-submodule-visit,missing,,explicit
+magit-submodule.el,648,command,magit-list-submodules,missing,,explicit
+magit-submodule.el,,command,transient:magit-submodule:--checkout,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-submodule.el,,command,transient:magit-submodule:--force,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-submodule.el,,command,transient:magit-submodule:--merge,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-submodule.el,,command,transient:magit-submodule:--no-fetch,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-submodule.el,,command,transient:magit-submodule:--rebase,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-submodule.el,,command,transient:magit-submodule:--recursive,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-submodule.el,,command,transient:magit-submodule:--remote,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-subtree.el,37,command,magit-subtree,missing,,explicit
+magit-subtree.el,45,command,magit-subtree-import,missing,,explicit
+magit-subtree.el,59,command,magit-subtree-export,missing,,explicit
+magit-subtree.el,129,command,magit-subtree-add,missing,,explicit
+magit-subtree.el,140,command,magit-subtree-add-commit,missing,,explicit
+magit-subtree.el,149,command,magit-subtree-merge,missing,,explicit
+magit-subtree.el,158,command,magit-subtree-pull,missing,,explicit
+magit-subtree.el,169,command,magit-subtree-push,missing,,explicit
+magit-subtree.el,178,command,magit-subtree-split,missing,,explicit
+magit-subtree.el,,command,magit-subtree:--annotate,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-subtree.el,,command,magit-subtree:--branch,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-subtree.el,,command,magit-subtree:--message,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-subtree.el,,command,magit-subtree:--onto,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-subtree.el,,command,magit-subtree:--prefix,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-subtree.el,,command,transient:magit-subtree-export:--ignore-joins,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-subtree.el,,command,transient:magit-subtree-export:--rejoin,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-subtree.el,,command,transient:magit-subtree-import:--squash,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-tag.el,37,command,magit-tag,missing,,explicit
+magit-tag.el,65,command,magit-tag-create,partial,Space m t c; lightweight only; signed/annotated missing,explicit
+magit-tag.el,78,command,magit-tag-delete,missing,,explicit
+magit-tag.el,91,command,magit-tag-prune,missing,,explicit
+magit-tag.el,148,command,magit-tag-release,missing,,explicit
+magit-tag.el,,command,magit-tag:--local-user,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-tag.el,,command,transient:magit-tag:--annotate,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-tag.el,,command,transient:magit-tag:--edit,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-tag.el,,command,transient:magit-tag:--force,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-tag.el,,command,transient:magit-tag:--sign,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-wip.el,43,option,magit-wip-mode-lighter,missing,,explicit
+magit-wip.el,49,option,magit-wip-merge-branch,missing,,explicit
+magit-wip.el,71,option,magit-wip-namespace,missing,,explicit
+magit-wip.el,81,option,magit-wip-debug,missing,,explicit
+magit-wip.el,115,command,magit-wip-commit-buffer-file,missing,,explicit
+magit-wip.el,149,command,magit-wip-commit,missing,,explicit
+magit-wip.el,287,command,magit-wip-log-index,missing,,explicit
+magit-wip.el,292,command,magit-wip-log-worktree,missing,,explicit
+magit-wip.el,297,command,magit-wip-log-current,missing,,explicit
+magit-wip.el,308,command,magit-wip-log,missing,,explicit
+magit-wip.el,350,command,magit-wip-purge,missing,,explicit
+magit-wip.el,,command,magit-wip-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-wip.el,,option,magit-wip-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-wip.el,,option,magit-wip-mode-hook,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-worktree.el,33,option,magit-read-worktree-directory-function,missing,,explicit
+magit-worktree.el,46,option,magit-read-worktree-offsite-directory,missing,,explicit
+magit-worktree.el,128,command,magit-worktree,missing,,explicit
+magit-worktree.el,140,command,magit-worktree-checkout,missing,,explicit
+magit-worktree.el,155,command,magit-worktree-branch,missing,,explicit
+magit-worktree.el,169,command,magit-worktree-move,missing,,explicit
+magit-worktree.el,191,command,magit-worktree-delete,missing,,explicit
+magit-worktree.el,234,command,magit-worktree-status,missing,,explicit
+magit.el,77,option,magit-openpgp-default-signing-key,missing,,explicit
+magit.el,247,option,magit-define-global-key-bindings,missing,,explicit
+magit.el,327,command,magit-dispatch,partial,Space m; navigable command panels; full groups/options still missing,explicit
+magit.el,407,option,magit-shell-command-verbose-prompt,missing,,explicit
+magit.el,418,command,magit-run,missing,,explicit
+magit.el,434,command,magit-git-command,missing,,explicit
+magit.el,446,command,magit-git-command-topdir,missing,,explicit
+magit.el,458,command,magit-shell-command,missing,,explicit
+magit.el,468,command,magit-shell-command-topdir,missing,,explicit
+magit.el,587,command,magit-version,missing,,explicit
+magit.el,,command,magit:--gpg-sign,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit.el,,command,magit:--signoff,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime

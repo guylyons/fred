@@ -251,15 +251,15 @@ argument switches, including their on/off state:
 | `Space m p` | push to the configured upstream |
 | `Space m P` | pull, fast-forward only |
 | `Space m f` | fetch |
-| `Space m c` | edit a commit message; press again in the draft to commit |
+| `Space m c` | commit menu; `c` creates or submits a draft |
 | `Space m l` | recent commits; `Enter` opens a commit's patch |
-| `Space m b` | pick a local branch to switch to |
+| `Space m b` | branch menu; `b` picks a local branch to switch to |
 | `Space m z` | stash menu: save/index/keep index, apply/pop/drop, list/inspect |
-| `Space m B` | branch menu: create, create and switch, rename, delete merged |
 | `Space m t` | tag menu: create lightweight tag, list and inspect |
 | `Space m C` | commit menu: create, amend, extend, reword, fixup and argument switches |
 | `Space m M` | merge menu: merge, squash, continue, abort |
-| `Space m r` | rebase menu: onto revision, continue, skip, abort |
+| `Space m r` | revert menu |
+| `Space m R` | rebase menu: onto revision, continue, skip, abort |
 | `Space m x` | cherry-pick menu: pick, continue, skip, abort |
 | `Space m v` | revert menu: revert, continue, skip, abort |
 
@@ -273,7 +273,7 @@ work in these views, and your other buffers keep their unsaved edits.
 
 Git operations use **saved files and the index**; they do not automatically
 save source buffers. In a commit draft, `:w` saves the message for later and
-`Space m c` commits staged changes by default. In `Space m C`, `-a` includes
+`Space m c c` commits staged changes by default. In the commit menu, `-a` includes
 saved tracked changes, `-e` allows an empty commit, `-n` disables hooks, `-R`
 resets the author and `+s` adds a Signed-off-by trailer. Options selected before
 opening a draft remain attached to that draft across buffer switches and
@@ -294,7 +294,7 @@ The stash menu follows upstream keys: `z` saves both sides, `i` saves the index,
 `k` drops, and `l` lists. `Z`, `I`, and `W` create snapshots of both sides,
 the index, or the worktree without cleaning files. `-u` includes
 untracked files and `-a` includes untracked and ignored files. In the list,
-`a` applies the selected entry, `p` pops it, `d` or `k` asks for `yes` to drop it,
+`a` applies the selected entry, `p` pops it, `d` or `x` asks for `yes` to drop it,
 Enter inspects, `gr` refreshes and `q` returns. Stash inspection separates notes,
 unstaged, staged and untracked changes. Apply/pop first restore the saved index;
 if index restoration fails, the fallback always retains the stash. Conflicted

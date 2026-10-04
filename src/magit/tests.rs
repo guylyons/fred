@@ -182,13 +182,13 @@ fn hunk_added_and_deleted_files() {
 fn leader_m_routes_and_cancels() {
     use crate::{buffer::Buffer, editor::Editor, key::parse_keys};
     for (suffix, action) in [
-        ('s', "Status"),
-        ('p', "Push"),
-        ('P', "Pull"),
-        ('f', "Fetch"),
-        ('c', "Commit"),
-        ('l', "Log"),
-        ('b', "Branches"),
+        ("s", "Status"),
+        ("p", "Push"),
+        ("P", "Pull"),
+        ("f", "Fetch"),
+        ("cc", "Commit"),
+        ("l", "Log"),
+        ("bb", "Branches"),
     ] {
         let mut e = Editor::new(Buffer::from_text("source"));
         for k in parse_keys(&format!(" m{suffix}")) {
@@ -599,9 +599,9 @@ fn workflow_menu_dispatch_and_prompt_cancel() {
     };
     for (keys, expected) in [
         (" mzz", "Stash"),
-        (" mBc", "CreateBranch"),
+        (" mbc", "CreateBranch"),
         (" mMm", "Merge"),
-        (" mrr", "Rebase"),
+        (" mRr", "Rebase"),
         (" mCa", "Amend"),
     ] {
         let mut e = Editor::new(Buffer::from_text("source"));
@@ -632,6 +632,43 @@ fn workflow_menu_dispatch_and_prompt_cancel() {
         assert!(e.magit_prompt.is_none());
         assert!(e.pending_effect.is_none());
     }
+}
+
+#[test]
+fn user_leader_bindings_open_branch_commit_and_revert_menus() {
+    use crate::{
+        buffer::Buffer,
+        editor::{Editor, Mode},
+        key::parse_keys,
+    };
+    for (keys, menu) in [(" mb", 'B'), (" mc", 'C'), (" mr", 'v')] {
+        let mut e = Editor::new(Buffer::from_text("source"));
+        for key in parse_keys(keys) {
+            e.handle_key(key);
+        }
+        assert!(matches!(e.mode, Mode::Pick(_)), "{keys}: {:?}", e.mode);
+        assert_eq!(e.magit_menu, Some(menu));
+        assert!(
+            e.pending_effect.is_none(),
+            "a prefix must open its menu, not run a command"
+        );
+    }
+}
+
+#[test]
+fn stash_view_k_moves_up_without_requesting_a_drop() {
+    use crate::{buffer::Buffer, editor::Editor, key::parse_keys};
+    let (_d, repo) = setup();
+    let mut e = Editor::new(Buffer::from_text("heading\nstash row\n"));
+    let mut view = super::View::status(repo, Snapshot::default());
+    view.kind = super::Kind::Stashes;
+    e.magit = Some(Box::new(view));
+    e.set_cursor(1, 0);
+    for key in parse_keys("k") {
+        e.handle_key(key);
+    }
+    assert_eq!(e.cur.line, 0);
+    assert!(e.pending_effect.is_none());
 }
 #[test]
 fn workflow_merge_conflict_and_abort_in_linked_worktree() {
@@ -820,7 +857,7 @@ fn workflow_menu_is_visible_navigable_and_cancelled() {
     }
     assert_eq!(ed.mode, Mode::Normal);
     assert!(ed.pending_effect.is_none());
-    for key in parse_keys(" mB<Down><Enter>") {
+    for key in parse_keys(" mb<Down><Down><Enter>") {
         ed.handle_key(key);
     }
     assert!(format!("{:?}", ed.pending_effect).contains("CreateSwitch"));

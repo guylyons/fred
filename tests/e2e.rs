@@ -1176,9 +1176,9 @@ fn magit_commit_hook_interruption_restores_editor_and_draft() {
     fs::set_permissions(&hook, fs::Permissions::from_mode(0o755)).unwrap();
     let mut p = env.fred(&["-f", "f.txt"]);
     p.wait_for("editor", |s| s.contains("NORMAL"));
-    p.keys(&[" mc"]);
+    p.keys(&[" mcc"]);
     p.wait_for("draft", |s| s.contains("COMMIT_EDITMSG"));
-    p.keys(&["ikeep this message\x1b", " mc"]);
+    p.keys(&["ikeep this message\x1b", " mcc"]);
     p.wait_for("hook", |s| s.contains("hook-waiting"));
     p.keys(&["\x03"]);
     p.wait_for("restored draft", |s| {
@@ -1196,7 +1196,7 @@ fn magit_workflow_menu_prompt_and_terminal_return() {
     magit_init(&env);
     let mut p = env.fred(&["-f", "f.txt"]);
     p.wait_for("editor", |s| s.contains("NORMAL"));
-    p.keys(&[" mB"]);
+    p.keys(&[" mb"]);
     p.wait_for("branch menu", |s| s.contains("create and switch"));
     p.keys(&["c"]);
     p.wait_for("branch prompt", |s| s.contains("Branch name:"));
