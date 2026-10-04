@@ -226,13 +226,13 @@ magit-commit.el,208,command,magit-commit-create,partial,Space m c c; draft creat
 magit-commit.el,222,command,magit-commit-extend,partial,Space m C e; no-message-edit amendment; prefix date customization missing,explicit
 magit-commit.el,243,command,magit-commit-amend,partial,"Space m C a; editable HEAD-pinned drafts, recovery, common switches; publication warnings/remaining options missing",explicit
 magit-commit.el,250,command,magit-commit-reword,partial,Space m C w; editable HEAD-pinned message-only amendment; date customization missing,explicit
-magit-commit.el,273,command,magit-commit-fixup,partial,Space m C f; basic fixup; instant/autosquash variants missing,explicit
-magit-commit.el,289,command,magit-commit-squash,missing,,explicit
-magit-commit.el,306,command,magit-commit-alter,missing,,explicit
-magit-commit.el,324,command,magit-commit-augment,missing,,explicit
-magit-commit.el,342,command,magit-commit-revise,missing,,explicit
-magit-commit.el,361,command,magit-commit-instant-fixup,missing,,explicit
-magit-commit.el,376,command,magit-commit-instant-squash,missing,,explicit
+magit-commit.el,273,command,magit-commit-fixup,partial,"Space m C f; at-point default, commit-assert (stage-all question), published confirmation",explicit
+magit-commit.el,289,command,magit-commit-squash,partial,Space m C s,explicit
+magit-commit.el,306,command,magit-commit-alter,partial,Space m C A (Fred as Git editor),explicit
+magit-commit.el,324,command,magit-commit-augment,partial,Space m C n (Fred as Git editor),explicit
+magit-commit.el,342,command,magit-commit-revise,partial,Space m C W; no patch needed,explicit
+magit-commit.el,361,command,magit-commit-instant-fixup,partial,Space m C F; commit then autosquash rebase,explicit
+magit-commit.el,376,command,magit-commit-instant-squash,partial,Space m C S,explicit
 magit-commit.el,501,command,magit-commit-reshelve,missing,,explicit
 magit-commit.el,535,command,magit-commit-absorb-modules,missing,,explicit
 magit-commit.el,558,command,magit-commit-absorb,missing,,explicit

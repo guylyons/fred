@@ -2267,3 +2267,74 @@ fn rebase_captures_and_replays_todo_lists() {
             .is_err()
     );
 }
+#[test]
+fn commit_fixup_family_follows_magit_commit() {
+    use super::Question as Q;
+    use super::branch::Next;
+    use super::commit::Op;
+    let (d, r) = setup();
+    committed(d.path(), b"one\n");
+    let target = String::from_utf8(git(d.path(), &["rev-parse", "HEAD"]))
+        .unwrap()
+        .trim()
+        .to_owned();
+    committed(d.path(), b"two\n");
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    // Nothing staged at all.
+    assert!(r.commit_step(Op::Fixup, &s(&[&target]), &[]).is_err());
+    // Unstaged only: ask to commit everything.
+    fs::write(d.path().join("f"), b"three\n").unwrap();
+    let op = match r.commit_step(Op::Fixup, &s(&[&target]), &[]).unwrap() {
+        Next::Ask(Q::Commit(op @ Op::StageAll(..)), _, _) => op,
+        other => panic!("{other:?}"),
+    };
+    match r.commit_step(op, &s(&["y"]), &[]).unwrap() {
+        Next::GitEditor(argv) => {
+            assert_eq!(
+                argv,
+                ["commit", "--all", &format!("--fixup={target}"), "--no-edit"]
+            );
+            r.run(&argv.into_iter().map(Into::into).collect::<Vec<_>>(), None)
+                .unwrap();
+        }
+        other => panic!("{other:?}"),
+    }
+    assert!(
+        String::from_utf8(git(d.path(), &["log", "-1", "--format=%s"]))
+            .unwrap()
+            .starts_with("fixup! initial")
+    );
+    // Revise needs no patch and edits the message.
+    match r.commit_step(Op::Revise, &s(&[&target]), &[]).unwrap() {
+        Next::GitEditor(argv) => assert_eq!(
+            argv[1..],
+            [format!("--fixup=reword:{target}"), "--edit".into()]
+        ),
+        other => panic!("{other:?}"),
+    }
+    // Instant fixup commits and then autosquashes into the target.
+    fs::write(d.path().join("g"), b"g1\n").unwrap();
+    git(d.path(), &["add", "g"]);
+    git(d.path(), &["commit", "-qm", "adds g"]);
+    let target = String::from_utf8(git(d.path(), &["rev-parse", "HEAD"]))
+        .unwrap()
+        .trim()
+        .to_owned();
+    fs::write(d.path().join("g"), b"g2\n").unwrap();
+    git(d.path(), &["add", "g"]);
+    let before = git(d.path(), &["rev-list", "--count", "HEAD"]);
+    match r
+        .commit_step(Op::InstantFixup, &s(&[&target]), &[])
+        .unwrap()
+    {
+        Next::GitEditor(argv) => {
+            assert!(argv.contains(&"--autosquash".to_string()));
+            r.run(&argv.into_iter().map(Into::into).collect::<Vec<_>>(), None)
+                .unwrap();
+        }
+        other => panic!("{other:?}"),
+    }
+    // The new fixup was folded in, so the commit count did not grow.
+    assert_eq!(git(d.path(), &["rev-list", "--count", "HEAD"]), before);
+    assert!(r.commit_step(Op::Squash, &s(&["--all"]), &[]).is_err());
+}

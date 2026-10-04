@@ -202,6 +202,37 @@ impl Session {
             });
             return;
         }
+        if let Action::Answered(repo, Question::Commit(op), answers, defaults) = action {
+            let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, 'C'));
+            self.start_magit(move || {
+                let merged = merge_answers(&answers, &defaults);
+                let next = repo
+                    .commit_step(op, &merged, &args)
+                    .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                Ok(branch_outcome(repo, next, origin))
+            });
+            return;
+        }
+        if let Action::CommitEdit(op) = action {
+            let from = self.magit_from();
+            let at_point =
+                self.ed
+                    .magit
+                    .as_ref()
+                    .and_then(|v| match v.action_at(self.ed.cur.line) {
+                        Some(RowAction::Commit(id)) => Some(id),
+                        _ => match &v.kind {
+                            Kind::Patch(id) | Kind::Diff(Target::Commit(id), _) => Some(id.clone()),
+                            _ => None,
+                        },
+                    });
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                let (prompts, defaults) = repo.commit_prompts(&op, at_point);
+                Ok(Outcome::Ask(repo, Question::Commit(op), defaults, prompts))
+            });
+            return;
+        }
         if let Action::Answered(repo, Question::Rebase(op), answers, defaults) = action {
             let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, 'r'));
             self.start_magit(move || {
@@ -459,7 +490,8 @@ impl Session {
                 | Question::Reset(_)
                 | Question::Remote(_)
                 | Question::Sequence(_)
-                | Question::Rebase(_) => {
+                | Question::Rebase(_)
+                | Question::Commit(_) => {
                     unreachable!("handled before the worker")
                 }
                 Question::FindFile => {

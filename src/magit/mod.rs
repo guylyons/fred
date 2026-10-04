@@ -2,6 +2,7 @@
 pub mod blame;
 pub mod blob;
 pub mod branch;
+pub mod commit;
 pub mod diff;
 pub mod merge;
 pub mod network;
@@ -68,6 +69,8 @@ pub enum Action {
     Sequence(sequence::Op),
     /// A rebase suffix from magit-sequence.el.
     Rebase(rebase::Op),
+    /// A fixup/squash suffix from magit-commit.el.
+    CommitEdit(commit::Op),
     /// ZZ / ZQ in a rebase todo buffer.
     RebaseFinish,
     RebaseCancel,
@@ -686,6 +689,7 @@ pub enum Question {
     Remote(remote::Op),
     Sequence(sequence::Op),
     Rebase(rebase::Op),
+    Commit(commit::Op),
     Net(network::Op),
     Diff(diff::Op),
     FindFile,
@@ -1241,7 +1245,23 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 ToggleOption(MenuOption::CommitSignoff),
             ),
             ("a", "Commit", "Amend", AmendDraft),
-            ("f", "Commit", "Fixup", Workflow(Fixup)),
+            ("f", "Edit", "Fixup", CommitEdit(commit::Op::Fixup)),
+            ("s", "Edit", "Squash", CommitEdit(commit::Op::Squash)),
+            ("A", "Edit", "Alter", CommitEdit(commit::Op::Alter)),
+            ("n", "Edit", "Augment", CommitEdit(commit::Op::Augment)),
+            ("W", "Edit", "Revise", CommitEdit(commit::Op::Revise)),
+            (
+                "F",
+                "Edit and rebase",
+                "Instant fixup",
+                CommitEdit(commit::Op::InstantFixup),
+            ),
+            (
+                "S",
+                "Edit and rebase",
+                "Instant squash",
+                CommitEdit(commit::Op::InstantSquash),
+            ),
             ("e", "Edit HEAD", "Extend (keep message)", Workflow(Amend)),
             ("w", "Edit HEAD", "Reword (keep tree)", RewordDraft),
             ("c", "Create", "Commit", Commit),
