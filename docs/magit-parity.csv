@@ -293,8 +293,8 @@ magit-diff.el,1482,command,magit-diff-working-tree,partial,Space m d w (HEAD); p
 magit-diff.el,1493,command,magit-diff-staged,partial,Space m d s; prefix-arg revision missing,explicit
 magit-diff.el,1504,command,magit-diff-unstaged,partial,Space m d u,explicit
 magit-diff.el,1510,command,magit-diff-unmerged,missing,,explicit
-magit-diff.el,1518,command,magit-diff-while-committing,missing,,explicit
-magit-diff.el,1529,command,magit-diff-buffer-file,missing,,explicit
+magit-diff.el,1518,command,magit-diff-while-committing,partial,C-c C-d in a commit draft: staged changes (amend: since HEAD^); no toggling,explicit
+magit-diff.el,1529,command,magit-diff-buffer-file,partial,"Space m F d: the visited file since HEAD, or a blob buffer's commit, limited to the file",explicit
 magit-diff.el,1560,command,magit-diff-paths,partial,Space m d p; repository-relative files via --no-index; file completion missing,explicit
 magit-diff.el,1581,command,magit-show-commit,partial,"Enter in log and Space m d c (at point or prompted) with diff args; revision sections, buffer locking and dedicated buffers missing",explicit
 magit-diff.el,1627,command,magit-show-commit-removing-file,missing,,explicit
@@ -336,7 +336,7 @@ magit-diff.el,,command,magit-jump-to-revision-message,missing,Runtime-expanded s
 magit-diff.el,,command,magit-jump-to-revision-notes,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-diff.el,,command,magit-jump-to-staged,partial,gs in status,runtime
 magit-diff.el,,command,magit-jump-to-unstaged,partial,gu in status,runtime
-magit-diff.el,,command,magit:--,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,magit:--,partial,-- in the diff menus: one file (literal pathspec),runtime
 magit-diff.el,,command,transient:magit-diff-infix-arguments:--find-copies-harder,partial,-H,runtime
 magit-diff.el,,command,transient:magit-diff-infix-arguments:--function-context,partial,-W,runtime
 magit-diff.el,,command,transient:magit-diff-infix-arguments:--ignore-all-space,partial,-w,runtime

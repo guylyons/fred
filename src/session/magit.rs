@@ -234,6 +234,70 @@ impl Session {
             });
             return;
         }
+        if matches!(action, Action::DiffBufferFile | Action::DiffWhileCommitting) {
+            use crate::magit::diff::Target;
+            let origin = self.cur;
+            let mut args = crate::magit::menu_arguments(&self.ed, 'd');
+            args.retain(|a| !a.starts_with("-- "));
+            if action == Action::DiffWhileCommitting {
+                // Staged changes; while amending, everything since HEAD's parent.
+                let Some(repo) = self.ed.commit_repo.clone() else {
+                    return self.ed.set_err("No commit in progress");
+                };
+                let amend = self.ed.commit_mode != crate::magit::CommitMode::New;
+                self.start_magit(move || {
+                    let target =
+                        if amend && repo.read(&["rev-parse", "--verify", "-q", "HEAD^"]).is_ok() {
+                            args.push("--cached".into());
+                            Target::Range("HEAD^".into())
+                        } else {
+                            Target::Staged
+                        };
+                    diff_view(repo, target, args, origin)
+                });
+                return;
+            }
+            // A blob shows its commit; a file its changes since HEAD.
+            let blob = self
+                .ed
+                .blob
+                .as_ref()
+                .map(|b| (b.repo.clone(), b.rev.clone(), b.file.clone()));
+            let (from, path) = (self.magit_from(), self.ed.path.clone());
+            self.start_magit(move || {
+                let (repo, target, file) = match blob {
+                    Some((repo, rev, file)) => {
+                        let id = repo
+                            .read(&[
+                                "rev-parse",
+                                "--verify",
+                                "-q",
+                                "--end-of-options",
+                                &format!("{rev}^{{commit}}"),
+                            ])
+                            .map_err(|_| format!("{rev} is not a commit"))?;
+                        (
+                            repo,
+                            Target::Commit(String::from_utf8_lossy(&id).trim().into()),
+                            file,
+                        )
+                    }
+                    None => {
+                        let repo = Repo::discover(&from)?;
+                        let file = path
+                            .as_deref()
+                            .ok_or("Buffer isn't visiting a file")
+                            .and_then(|p| {
+                                repo_relative(&repo, p).map_err(|_| "Buffer isn't visiting a file")
+                            })?;
+                        (repo, Target::Range("HEAD".into()), file)
+                    }
+                };
+                args.push(format!("-- {}", file.to_string_lossy()));
+                diff_view(repo, target, args, origin)
+            });
+            return;
+        }
         if let Action::DiffRefresh(how) = action {
             use crate::magit::diff::Refresh;
             let args = crate::magit::menu_arguments(&self.ed, 'd');

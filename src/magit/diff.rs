@@ -133,9 +133,12 @@ impl Repo {
         if matches!(target, Target::Paths(..)) {
             argv.push("--no-index".into());
         }
+        // "-- FILE" entries (magit:--) limit the diff to files.
+        let files: Vec<&str> = args.iter().filter_map(|a| a.strip_prefix("-- ")).collect();
         // --show-signature only applies to commits.
         argv.extend(
             args.iter()
+                .filter(|a| !a.starts_with("-- "))
                 .filter(|a| show || *a != "--show-signature")
                 // magit-diff-paths passes no transient arguments.
                 .filter(|_| !matches!(target, Target::Paths(..)))
@@ -147,6 +150,9 @@ impl Repo {
             _ => (),
         }
         argv.push("--".into());
+        for f in files {
+            argv.push(format!(":(literal){f}").into());
+        }
         if let Target::Paths(a, b) = target {
             argv.push(a.into());
             argv.push(b.into());

@@ -221,3 +221,7 @@ buffer visits the blob at that revision (old side for removed lines) or the
 worktree file at that line; C-j visits the worktree file. Diffs use fixed
 a/ b/ prefixes so diff.noprefix cannot break this. Ledger 452 partial / 321
 missing commands. Score remains 3%.
+
+October 4 file-diff checkpoint: Space m F d ports magit-diff-buffer-file, C-c
+C-d in a draft ports magit-diff-while-committing, and the diff menus gain the
+-- file limit. Ledger 455 partial / 318 missing commands. Score remains 3%.

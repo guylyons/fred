@@ -133,6 +133,10 @@ pub enum Action {
     Refresh,
     /// magit-diff-visit-worktree-file (C-j under evil-collection).
     VisitWorktree,
+    /// magit-diff-buffer-file.
+    DiffBufferFile,
+    /// magit-diff-while-committing (C-c C-d in a commit draft).
+    DiffWhileCommitting,
     Toggle,
     Stage,
     Unstage,
@@ -605,6 +609,20 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         ed.vim.pending.clear();
         open_menu(ed, '*');
         return true;
+    }
+    // magit-diff-while-committing: C-c C-d in a commit message draft.
+    if ed.commit_repo.is_some() && ed.magit.is_none() {
+        if ed.vim.pending.is_empty() && k == Key::ctrl('c') {
+            ed.vim.pending = vec![k];
+            return true;
+        }
+        if ed.vim.pending == [Key::ctrl('c')] {
+            ed.vim.pending.clear();
+            if k == Key::ctrl('d') {
+                ed.pending_effect = Some(ExEffect::Magit(Action::DiffWhileCommitting));
+            }
+            return true;
+        }
     }
     if ed.magit.is_none() {
         return false;
@@ -1356,6 +1374,7 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                     "Whitespace for moved lines",
                     CycleOption("--color-moved-ws="),
                 ),
+                ("--", "Limit arguments", "Limit to files", ReadOption("-- ")),
                 ("d", "Actions", "Dwim", Diff(Dwim)),
                 ("r", "Actions", "Diff range", Diff(Range)),
                 ("p", "Actions", "Diff paths", Diff(Paths)),
@@ -2196,7 +2215,7 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 (",k", "File actions", "Delete", File(O::Delete)),
                 (",c", "File actions", "Checkout", File(O::Checkout)),
                 ("D", "Inspect", "Diff...", Menu('d')),
-                ("d", "Inspect", "Diff", Diff(diff::Op::Unstaged)),
+                ("d", "Inspect", "Diff", DiffBufferFile),
                 ("L", "Log", "Log...", Menu('l')),
                 ("l", "Log", "Log", FileLog),
                 ("B", "Blame", "Blame...", Menu('B')),

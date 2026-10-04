@@ -2137,6 +2137,37 @@ mod tests {
     }
 
     #[test]
+    fn magit_diff_buffer_file_and_while_committing() {
+        let mut t = T::open(Some("f.txt"), Some("one\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        fs::write(t.dir.path().join("g.txt"), "g\n").unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.stage_file(Path::new("g.txt")).unwrap();
+        repo.read(&["commit", "-qm", "one"]).unwrap();
+        fs::write(t.dir.path().join("f.txt"), "two\n").unwrap();
+        fs::write(t.dir.path().join("g.txt"), "other\n").unwrap();
+        // F d: this file's changes since HEAD only.
+        t.keys(" mFd");
+        magit_settle(&mut t);
+        let text = t.s.ed.buf.text();
+        assert!(text.contains("+two") && !text.contains("+other"), "{text}");
+        // C-c C-d in a draft shows what is staged.
+        t.keys("q");
+        repo.stage_file(Path::new("g.txt")).unwrap();
+        t.keys(" mcc");
+        magit_settle(&mut t);
+        assert!(t.s.ed.commit_repo.is_some());
+        t.keys("<C-c><C-d>");
+        magit_settle(&mut t);
+        let text = t.s.ed.buf.text();
+        assert!(text.contains("+other") && !text.contains("+two"), "{text}");
+    }
+
+    #[test]
     fn magit_file_log_reads_deleted_parent_and_tracked_symlink_name() {
         use std::os::unix::fs::symlink;
         let mut t = T::open(Some("target"), Some("target contents\n"));
