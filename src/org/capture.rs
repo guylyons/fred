@@ -475,9 +475,10 @@ fn fill_interactive(ed: &mut Editor, text: String, strings: Vec<String>, all: Ve
             // t T u U: a date (and time) prompt, via the timestamp module.
             let with_time = k == "T" || k == "U";
             let inactive = k == "u" || k == "U";
-            let p = prompt.unwrap_or_else(|| "Date".into());
-            super::read(ed, &format!("{p}: "), "", move |ed, v| {
-                let ts = super::read_date_timestamp(&v, with_time, inactive).unwrap_or_else(|| super::timestamp(super::now(), with_time, inactive));
+            let o = super::time::ReadOpts { prompt: prompt.clone(), with_time, inactive, ..Default::default() };
+            super::time::read_date(ed, o, move |ed, a| {
+                let extra = super::time::stamp::end_time_extra(a.end_time.as_deref());
+                let ts = super::time::stamp::stamp_text(a.tm, a.time_given || with_time, inactive, &extra);
                 next(ed, ts, false);
             });
         }

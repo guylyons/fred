@@ -670,6 +670,7 @@ fn change_state(ed: &mut Editor, target: Target, force_log: bool, no_block: bool
     let now_done = new.as_deref().is_some_and(|n| st.is_done(n)) && !this.as_deref().is_some_and(|t| st.is_done(t));
     // Logging.
     let lg = logging(ed, &st, h);
+    let mut logged: Option<How> = None;
     let set_change = matches!(target, Target::NextSet | Target::PrevSet);
     if (!lg.states.is_empty() || lg.done.is_some()) && inhibit != Some(How::Time) && !set_change || force_log {
         let mut dolog = if force_log {
@@ -692,13 +693,15 @@ fn change_state(ed: &mut Editor, target: Target, force_log: bool, no_block: bool
         if now_done && let Some(how) = lg.done {
             set_planning(ed, h, "CLOSED", Some(super::timestamp(time, true, true)));
             if dolog.is_none() && how == How::Note {
-                add_log(ed, h, Note { purpose: "done".into(), state: new.clone(), prev: this.clone(), how: How::Note, extra: None, time });
+                logged = Some(How::Note);
+                pending_log(ed, h, Note { purpose: "done".into(), state: new.clone(), prev: this.clone(), how: How::Note, extra: None, time });
             }
         }
         if new.is_some()
             && let Some(how) = dolog
         {
-            add_log(ed, h, Note { purpose: "state".into(), state: new.clone(), prev: this.clone(), how, extra: None, time });
+            logged = Some(how);
+            pending_log(ed, h, Note { purpose: "state".into(), state: new.clone(), prev: this.clone(), how, extra: None, time });
         }
     }
     // Tag triggers.
@@ -713,8 +716,9 @@ fn change_state(ed: &mut Editor, target: Target, force_log: bool, no_block: bool
         if super::options::bool("org-clock-out-when-done", true) {
             let _ = call(ed, "org-clock-out-if-current", Prefix::None);
         }
-        repeat_hook(ed, h, new.as_deref(), &lg)?;
+        repeat_hook(ed, h, new.as_deref(), this.clone(), &lg, &mut logged)?;
     }
+    flush_log(ed, h);
     // Fix up the cursor near the keyword.
     if cursor_in {
         let line = ed.buf.line(h);
@@ -731,9 +735,84 @@ fn change_state(ed: &mut Editor, target: Target, force_log: bool, no_block: bool
     Ok(())
 }
 
-/// org-auto-repeat-maybe: the timestamps module shifts repeaters.
-fn repeat_hook(ed: &mut Editor, h: usize, state: Option<&str>, _lg: &Logging) -> Result<(), String> {
-    let _ = (ed, h, state);
+thread_local! {
+    /// A log set up by the current command (org-log-setup), stored when
+    /// the command finishes (post-command-hook).
+    static PENDING: std::cell::RefCell<Option<Note>> = const { std::cell::RefCell::new(None) };
+}
+
+/// org-add-log-setup: remember the note; [`flush_log`] stores it.
+fn pending_log(_ed: &mut Editor, _h: usize, n: Note) {
+    PENDING.with(|p| *p.borrow_mut() = Some(n));
+}
+
+/// org-add-log-note, run after the command.
+fn flush_log(ed: &mut Editor, h: usize) {
+    if let Some(n) = PENDING.with(|p| p.borrow_mut().take()) {
+        // The heading may have moved by the planning-line edits.
+        let h = if ctx::at_heading(ed, h) { h } else { fold::back_to_heading(ed, h).unwrap_or(h) };
+        add_log(ed, h, n);
+    }
+}
+
+/// org-get-repeat: the first repeater of an active timestamp in the entry.
+pub fn get_repeat(ed: &Editor, h: usize) -> Option<String> {
+    let re = crate::org_re!(r"<\d{4}-\d\d-\d\d [^>\n]*?([.+]?\+\d+[hdwmy](/\d+[hdwmy])?)");
+    let end = syntax::entry_end(&ed.buf, h);
+    (h..end).find_map(|l| re.captures(&ed.buf.line(l)).map(|c| c[1].to_owned()))
+}
+
+/// org-auto-repeat-maybe.
+fn repeat_hook(ed: &mut Editor, h: usize, done_word: Option<&str>, last: Option<String>, lg: &Logging, logged: &mut Option<How>) -> Result<(), String> {
+    let Some(rep) = get_repeat(ed, h) else { return Ok(()) };
+    let n: i64 = rep.trim_start_matches(['.', '+']).trim_end_matches(|c: char| !c.is_ascii_digit()).split('/').next().unwrap_or("0").trim_end_matches(|c: char| c.is_alphabetic()).parse().unwrap_or(0);
+    if n == 0 {
+        return Ok(());
+    }
+    let st = super::settings(ed);
+    let seq = last.as_deref().and_then(|l| st.seq_of(l));
+    let head = seq.and_then(|s| s.names().next()).map(str::to_owned);
+    let is_type = seq.is_some_and(|s| s.is_type);
+    let to_state = props::get(ed, Some(h), "REPEAT_TO_STATE", Inherit::Selective).or_else(|| match super::sexp::option("org-todo-repeat-to-state") {
+        Some(Sexp::Str(s)) => Some(s),
+        Some(v) if v.truthy() => last.clone(),
+        _ => None,
+    });
+    let target = match to_state {
+        Some(t) if st.is_todo(&t) => Some(t),
+        _ if is_type => last.clone(),
+        _ => head,
+    };
+    // The reset itself is not logged (org-log-done and states bound to nil).
+    let saved = ed.cur;
+    ed.set_cursor(h, 0);
+    change_state(ed, Target::State(target), false, true, Some(How::Time))?;
+    ed.cur = saved;
+    set_planning(ed, h, "CLOSED", None);
+    let log_repeat = lg.repeat;
+    let end = syntax::entry_end(&ed.buf, h);
+    let has_clock = (h..end).any(|l| ed.buf.line(l).trim_start().starts_with("CLOCK:"));
+    if log_repeat.is_some() || has_clock {
+        props::put(ed, Some(h), "LAST_REPEAT", &super::timestamp(super::now(), true, true))?;
+    }
+    if let Some(how) = log_repeat {
+        if logged.is_some() {
+            if how == How::Note {
+                PENDING.with(|p| {
+                    if let Some(n) = p.borrow_mut().as_mut() {
+                        n.how = How::Note;
+                    }
+                });
+            }
+        } else {
+            *logged = Some(how);
+            let state = done_word.map(str::to_owned).or_else(|| st.done_names().first().map(|s| s.to_string()));
+            pending_log(ed, h, Note { purpose: "state".into(), state, prev: last, how, extra: None, time: super::now() });
+        }
+    }
+    if let Some(msg) = super::time::auto_repeat(ed, h)? {
+        ed.set_msg(msg);
+    }
     Ok(())
 }
 
@@ -1247,6 +1326,16 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
             super::set_now(None);
             r
         }
+        "org-add-log-setup" => {
+            // A reschedule/redeadline note requested by the time module.
+            if let Some(r) = super::time::take_log_request() {
+                let how = if r.how == "note" { How::Note } else { How::Time };
+                let note = Note { purpose: r.purpose.into(), state: r.state, prev: Some(r.previous), how, extra: None, time: super::now() };
+                let h = r.heading;
+                add_log(ed, h, note);
+            }
+            Ok(())
+        }
         "org-add-note" => {
             let h = fold::back_to_heading(ed, ed.cur.line).ok_or_else(|| "Before first headline".to_owned());
             h.map(|h| add_log(ed, h, Note { purpose: "note".into(), state: None, prev: None, how: How::Note, extra: None, time: super::now() }))
@@ -1378,5 +1467,23 @@ mod tests {
     fn escapes() {
         assert_eq!(replace_escapes("State %-12s from %-12S", &[('s', "\"A\"".into()), ('S', "\"B\"".into())]), "State \"A\"          from \"B\"         ");
         assert_eq!(percent_cookie(1, 300), "[1%]");
+    }
+}
+
+#[cfg(test)]
+mod repeat_tests {
+    use super::super::tests::org;
+
+    #[test]
+    fn repeating_task_returns_to_todo_and_logs() {
+        super::super::set_now(Some(1_780_000_000));
+        let e = org("* TODO A\nSCHEDULED: <2026-10-04 Sun +1w>", "<C-c><C-t>");
+        let ts = super::super::timestamp(1_780_000_000, true, true);
+        assert_eq!(e.buf.line(0), "* TODO A");
+        assert_eq!(e.buf.line(1), "SCHEDULED: <2026-10-11 Sun +1w>");
+        assert_eq!(e.buf.line(2), ":PROPERTIES:");
+        assert_eq!(e.buf.line(3), format!(":LAST_REPEAT: {ts}"));
+        assert_eq!(e.buf.line(5), format!("- State \"DONE\"       from \"TODO\"       {ts}"));
+        super::super::set_now(None);
     }
 }
