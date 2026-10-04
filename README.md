@@ -247,22 +247,27 @@ argument switches, including their on/off state:
 
 | Keys | Action |
 |---|---|
-| `Space m s` | repository status |
-| `Space m p` | push to the configured upstream |
-| `Space m P` | pull, fast-forward only |
-| `Space m f` | fetch |
+| `Space m s` | repository status: headers, files, stashes, unpushed/unpulled sections; `gz gn gu gs gpu gfu` jump |
+| `Space m p` | push menu (pushRemote, upstream, elsewhere, other, refspecs, matching, tags) |
+| `Space m P` | pull menu (pushRemote, upstream, elsewhere; `-r` rebase choices) |
+| `Space m f` | fetch menu (pushRemote, current remote, elsewhere, all, branch, refspec, submodules) |
 | `Space m c` | commit menu; `c` creates or submits a draft |
+| `Space m d` | diff menu: dwim, range, paths, unstaged, staged, worktree, commit, stash |
 | `Space m l` | log menu: `l` current history, `h` HEAD; `-f` follows renames in file history |
 | `Space m L` | current file history; `Enter` inspects a commit, `gr` refreshes, `q` returns |
-| `Space m b` | branch menu; `b` picks a local branch to switch to |
+| `Space m B` | blame menu: addition, removal/reverse (blob buffers), echo, styles, chunk keys |
+| `Space m F` | file menu: stage, unstage, untrack, rename, delete, checkout, blobs, blame |
+| `Space m i` | initialize a repository |
+| `Space m b` | branch menu: checkout, local, create, spin-off/out, rename, reset, delete |
+| `Space m m` | merge menu: merge, edit message, no commit, absorb, preview, squash, dissolve |
+| `Space m M` | remote menu: add, rename, remove, prune branches/refspecs |
+| `Space m X` | reset menu: branch, file, mixed, soft, hard, keep, index, worktree |
 | `Space m z` | stash menu: save/index/keep index, apply/pop/drop, list/inspect |
-| `Space m t` | tag menu: create lightweight tag, list and inspect |
+| `Space m t` | tag menu: create, release, delete, prune |
 | `Space m C` | commit menu: create, amend, extend, reword, fixup and argument switches |
-| `Space m M` | merge menu: merge, squash, continue, abort |
-| `Space m r` | revert menu |
+| `Space m r` / `V` / `v` | revert menu: revert commits or changes; continue, skip, abort |
 | `Space m R` | rebase menu: onto revision, continue, skip, abort |
-| `Space m x` | cherry-pick menu: pick, continue, skip, abort |
-| `Space m v` | revert menu: revert, continue, skip, abort |
+| `Space m x` / `A` | cherry-pick menu: pick, apply, harvest, squash, donate, spinout, spinoff |
 
 Status is a read-only buffer with separate untracked, unstaged, staged, and
 conflict sections. `Tab` collapses a section or expands a tracked file's diff.
