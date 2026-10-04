@@ -382,3 +382,138 @@ fn hunk_staging_ignores_user_diff_prefix_settings() {
     r.apply_hunk(&diff, 0).unwrap();
     assert_eq!(git(d.path(), &["show", ":f"]), b"changed\n");
 }
+
+#[test]
+fn workflow_refs_validate_and_stash_roundtrip() {
+    use super::workflows::Operation;
+    let (d, r) = setup();
+    committed(d.path(), b"base\n");
+    let inv = r.operation(Operation::CreateBranch, "topic").unwrap();
+    r.run(&inv.args, None).unwrap();
+    assert!(r.branches().unwrap().contains(&"topic".into()));
+    assert!(r.operation(Operation::CreateBranch, "--help").is_err());
+    assert!(r.operation(Operation::Merge, "--help").is_err());
+    fs::write(d.path().join("f"), "dirty\n").unwrap();
+    let inv = r.operation(Operation::Stash, "draft").unwrap();
+    r.run(&inv.args, None).unwrap();
+    assert_eq!(fs::read_to_string(d.path().join("f")).unwrap(), "base\n");
+    let inv = r.operation(Operation::StashApply, "stash@{0}").unwrap();
+    r.run(&inv.args, None).unwrap();
+    assert_eq!(fs::read_to_string(d.path().join("f")).unwrap(), "dirty\n");
+}
+#[test]
+fn workflow_continuation_requires_matching_operation() {
+    use super::workflows::Operation;
+    let (_d, r) = setup();
+    assert!(r.operation(Operation::RebaseContinue, "").is_err());
+    assert!(r.operation(Operation::MergeAbort, "").is_err());
+}
+
+#[test]
+fn workflow_menu_dispatch_and_prompt_cancel() {
+    use crate::{
+        buffer::Buffer,
+        editor::{Editor, Mode},
+        key::parse_keys,
+    };
+    for (keys, expected) in [
+        (" mzz", "Stash"),
+        (" mBc", "CreateBranch"),
+        (" mMm", "Merge"),
+        (" mrr", "Rebase"),
+        (" mCa", "Amend"),
+    ] {
+        let mut e = Editor::new(Buffer::from_text("source"));
+        for k in parse_keys(keys) {
+            e.handle_key(k);
+        }
+        assert!(
+            format!("{:?}", e.pending_effect).contains(expected),
+            "{keys}: {:?}",
+            e.pending_effect
+        );
+        assert!(e.vim.pending.is_empty());
+    }
+    for cancel in ["<Esc>", "<C-g>", "<C-c>"] {
+        let mut e = Editor::new(Buffer::from_text("source"));
+        e.magit_prompt = Some((
+            Repo {
+                root: "/tmp".into(),
+            },
+            super::workflows::Operation::CreateBranch,
+        ));
+        e.open_cmdline('=', "topic");
+        for k in parse_keys(cancel) {
+            e.handle_key(k);
+        }
+        assert_eq!(e.mode, Mode::Normal);
+        assert!(e.magit_prompt.is_none());
+        assert!(e.pending_effect.is_none());
+    }
+}
+#[test]
+fn workflow_merge_conflict_and_abort_in_linked_worktree() {
+    use super::workflows::Operation;
+    let (d, r) = setup();
+    committed(d.path(), b"base\n");
+    git(d.path(), &["checkout", "-qb", "topic"]);
+    fs::write(d.path().join("f"), "topic\n").unwrap();
+    git(d.path(), &["commit", "-qam", "topic"]);
+    git(d.path(), &["checkout", "-q", "main"]);
+    fs::write(d.path().join("f"), "main\n").unwrap();
+    git(d.path(), &["commit", "-qam", "main"]);
+    let other = d.path().join("linked");
+    git(
+        d.path(),
+        &["worktree", "add", "-qb", "linked", other.to_str().unwrap()],
+    );
+    let linked = Repo::discover(&other).unwrap();
+    let inv = linked.operation(Operation::Merge, "topic").unwrap();
+    assert!(linked.run(&inv.args, None).is_err());
+    assert_eq!(linked.active_workflow().unwrap(), Some("merge"));
+    assert!(linked.status().unwrap().entries.iter().any(|e| e.conflict));
+    assert_eq!(r.active_workflow().unwrap(), None);
+    let inv = linked.operation(Operation::MergeAbort, "").unwrap();
+    linked.run(&inv.args, None).unwrap();
+    assert_eq!(linked.active_workflow().unwrap(), None);
+    assert_eq!(fs::read_to_string(other.join("f")).unwrap(), "main\n");
+}
+
+#[test]
+fn workflow_command_owns_git_editor() {
+    let (_d, r) = setup();
+    let mut command = r.command();
+    command.args(["var", "GIT_EDITOR"]);
+    let out = command.output().unwrap();
+    assert!(out.status.success());
+    assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "true");
+}
+
+#[test]
+fn workflow_rebase_cherry_pick_revert_and_fixup() {
+    use super::workflows::Operation;
+    let (d, r) = setup();
+    committed(d.path(), b"base\n");
+    git(d.path(), &["config", "user.name", "Fred"]);
+    git(d.path(), &["config", "user.email", "fred@example.test"]);
+    git(d.path(), &["checkout", "-qb", "topic"]);
+    fs::write(d.path().join("added"), "topic\n").unwrap();
+    git(d.path(), &["add", "added"]);
+    git(d.path(), &["commit", "-qm", "topic"]);
+    let topic = String::from_utf8(git(d.path(), &["rev-parse", "HEAD"])).unwrap();
+    git(d.path(), &["checkout", "-q", "main"]);
+    let inv = r.operation(Operation::CherryPick, topic.trim()).unwrap();
+    r.run(&inv.args, None).unwrap();
+    assert!(d.path().join("added").exists());
+    let inv = r.operation(Operation::Revert, "HEAD").unwrap();
+    r.run(&inv.args, None).unwrap();
+    assert!(!d.path().join("added").exists());
+    fs::write(d.path().join("f"), "fixed\n").unwrap();
+    git(d.path(), &["add", "f"]);
+    let inv = r.operation(Operation::Fixup, "HEAD").unwrap();
+    r.run(&inv.args, None).unwrap();
+    assert!(r.history().unwrap()[0].subject.starts_with("fixup! "));
+    let inv = r.operation(Operation::Rebase, "HEAD~1").unwrap();
+    r.run(&inv.args, None).unwrap();
+    assert_eq!(r.active_workflow().unwrap(), None);
+}

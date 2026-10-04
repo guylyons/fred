@@ -11,6 +11,7 @@ pub struct Repo {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Snapshot {
+    pub operation: Option<String>,
     pub branch: String,
     pub upstream: Option<String>,
     pub ahead_behind: Option<String>,
@@ -73,6 +74,8 @@ impl Repo {
     pub fn command(&self) -> Command {
         let mut c = Command::new("git");
         c.arg("--literal-pathspecs").arg("-C").arg(&self.root);
+        // Fred owns commit-message editing; continuations accept the existing message.
+        c.env("GIT_EDITOR", "true");
         c
     }
     pub fn run(&self, args: &[OsString], input: Option<&[u8]>) -> Result<Vec<u8>, String> {
@@ -107,7 +110,9 @@ impl Repo {
     }
     pub fn status(&self) -> Result<Snapshot, String> {
         let data = self.read(&["status", "--porcelain=v2", "--branch", "-z"])?;
-        Self::parse_status(&data)
+        let mut snapshot = Self::parse_status(&data)?;
+        snapshot.operation = self.active_workflow()?.map(str::to_owned);
+        Ok(snapshot)
     }
     pub fn parse_status(data: &[u8]) -> Result<Snapshot, String> {
         let mut records = data.split(|b| *b == 0);

@@ -1187,3 +1187,29 @@ fn magit_commit_hook_interruption_restores_editor_and_draft() {
     p.keys(&[":q!\r"]);
     assert_eq!(p.wait_exit(), 0);
 }
+
+#[test]
+fn magit_workflow_menu_prompt_and_terminal_return() {
+    let env = Env::new();
+    env.write("f.txt", "original\n");
+    magit_init(&env);
+    let mut p = env.fred(&["-f", "f.txt"]);
+    p.wait_for("editor", |s| s.contains("NORMAL"));
+    p.keys(&[" mB"]);
+    p.wait_for("branch menu", |s| s.contains("create and switch"));
+    p.keys(&["c"]);
+    p.wait_for("branch prompt", |s| s.contains("Branch name:"));
+    p.keys(&["cancelled\x1b"]);
+    p.wait_for("cancel prompt", |s| s.contains("NORMAL"));
+    p.keys(&[" mtc"]);
+    p.wait_for("tag prompt", |s| s.contains("Tag name:"));
+    p.keys(&["test-tag\r"]);
+    // An unborn repository cannot create a tag: failure still restores the editor.
+    p.wait_for("Git terminal", |s| s.contains("Press Enter to continue"));
+    p.keys(&["\r"]);
+    p.wait_for("restored editor", |s| {
+        s.contains("NORMAL") && s.contains("original")
+    });
+    p.keys(&[":q\r"]);
+    assert_eq!(p.wait_exit(), 0);
+}

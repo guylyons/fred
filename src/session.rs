@@ -1993,4 +1993,66 @@ mod tests {
         assert!(t.s.ed.magit.is_none());
         assert_eq!(t.s.ed.cur.line, 15);
     }
+    #[test]
+    fn magit_workflow_prompt_and_failed_operation_refresh() {
+        let mut t = T::open(Some("f.txt"), Some("original\n"));
+        magit_repo(&t);
+        t.keys(" mBc");
+        magit_settle(&mut t);
+        assert!(t.s.ed.magit_prompt.is_some());
+        t.keys("topic<Esc>");
+        assert!(t.s.ed.magit_prompt.is_none());
+        assert!(t.s.pending_git.is_none());
+        t.keys(" ms");
+        magit_settle(&mut t);
+        fs::write(t.dir.path().join("later"), "new").unwrap();
+        let repo = t.s.ed.magit.as_ref().unwrap().repo.clone();
+        let inv = crate::magit::repo::GitInvocation {
+            repo,
+            args: vec!["fetch".into()],
+            input: None,
+            draft: None,
+            draft_stamp: None,
+        };
+        t.s.finish_git(inv, Err("test operation failure".into()));
+        magit_settle(&mut t);
+        assert!(t.s.ed.buf.to_bytes().windows(5).any(|b| b == b"later"));
+        assert!(format!("{:?}", t.s.ed.msg).contains("test operation failure"));
+        t.keys(" mzl");
+        magit_settle(&mut t);
+        assert_eq!(
+            t.s.ed.magit.as_ref().unwrap().kind,
+            crate::magit::Kind::Stashes
+        );
+        assert!(
+            t.s.ed
+                .buf
+                .to_bytes()
+                .windows(10)
+                .any(|b| b == b"No entries")
+        );
+    }
+    #[test]
+    fn magit_delayed_prompt_does_not_replace_newer_input() {
+        for input in ["<Esc>", "i", ":"] {
+            let mut t = T::open(Some("f.txt"), Some("source\n"));
+            magit_repo(&t);
+            t.keys(" mBc");
+            t.keys(input);
+            let mode = t.s.ed.mode.clone();
+            magit_settle(&mut t);
+            assert_eq!(t.s.ed.mode, mode);
+            assert!(t.s.ed.magit_prompt.is_none());
+        }
+    }
+    #[test]
+    fn magit_delayed_prompt_cancelled_by_bracketed_paste() {
+        let mut t = T::open(Some("f.txt"), Some("source\n"));
+        magit_repo(&t);
+        t.keys(" mBc");
+        t.s.ed.paste("new input");
+        magit_settle(&mut t);
+        assert!(t.s.ed.magit_prompt.is_none());
+        assert_eq!(t.s.ed.mode, Mode::Normal);
+    }
 }

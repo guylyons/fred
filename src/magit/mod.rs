@@ -1,5 +1,6 @@
 //! A status-centered Git component; rendered text is never used as an operation path.
 pub mod repo;
+pub mod workflows;
 use crate::{
     editor::{Editor, Mode},
     ex::ExEffect,
@@ -9,9 +10,13 @@ use repo::{Diff, Repo, Snapshot, label};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
-pub const HELP: &str = "Magit: s status  p push  P pull  f fetch  c commit  l log  b branches";
+pub const HELP: &str = "Magit: s status  p push  P pull  f fetch  c commit  l log  b branches  z stash  B branch  t tag  C commit  M merge  r rebase  x cherry-pick  v revert";
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Action {
+    Stashes,
+    Tags,
+    Workflow(workflows::Operation),
+    Submit(repo::Repo, workflows::Operation, String),
     Status,
     Push,
     Pull,
@@ -68,6 +73,8 @@ pub struct Row {
 pub enum Kind {
     Status,
     Log,
+    Stashes,
+    Tags,
     Patch(String),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -100,6 +107,8 @@ impl View {
         match &self.kind {
             Kind::Status => "Magit status".into(),
             Kind::Log => "Magit log".into(),
+            Kind::Stashes => "Magit stashes".into(),
+            Kind::Tags => "Magit tags".into(),
             Kind::Patch(id) => format!("Magit {id}"),
         }
     }
@@ -122,6 +131,12 @@ impl View {
             text: format!("Head: {}", self.snapshot.branch),
             action: None,
         });
+        if let Some(operation) = &self.snapshot.operation {
+            self.rows.push(Row {
+                text: format!("In progress: {operation}"),
+                action: None,
+            });
+        }
         if let Some(u) = &self.snapshot.upstream {
             self.rows.push(Row {
                 text: format!(
@@ -241,12 +256,37 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     if ed.mode != Mode::Normal {
         return false;
     }
+    if ed.vim.pending.len() == 3 && ed.vim.pending[..2] == [Key::ch(' '), Key::ch('m')] {
+        let menu = ed.vim.pending[2].char().unwrap_or_default();
+        ed.vim.pending.clear();
+        if k.is(KeyCode::Esc) || k == Key::ctrl('g') || k == Key::ctrl('c') {
+            ed.msg = None;
+            return true;
+        }
+        if k.char() == Some('l') && matches!(menu, 'z' | 't') {
+            ed.pending_effect = Some(ExEffect::Magit(if menu == 'z' {
+                Action::Stashes
+            } else {
+                Action::Tags
+            }));
+        } else if let Some(operation) = workflow_key(menu, k.char().unwrap_or_default()) {
+            ed.pending_effect = Some(ExEffect::Magit(Action::Workflow(operation)));
+        } else {
+            ed.set_err("unknown Git menu key");
+        }
+        return true;
+    }
     if ed.vim.pending == [Key::ch(' ')] && k.char() == Some('m') {
         ed.vim.pending.push(k);
         ed.set_msg(HELP);
         return true;
     }
     if ed.vim.pending == [Key::ch(' '), Key::ch('m')] {
+        if let Some(help) = k.char().and_then(menu_help) {
+            ed.vim.pending.push(k);
+            ed.set_msg(help);
+            return true;
+        }
         ed.vim.pending.clear();
         if k.is(KeyCode::Esc) || k == Key::ctrl('g') || k == Key::ctrl('c') {
             ed.msg = None;
@@ -296,3 +336,51 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
 }
 #[cfg(test)]
 mod tests;
+
+fn menu_help(menu: char) -> Option<&'static str> {
+    Some(match menu {
+        'z' => "Stash: z save  u include untracked  i staged  k keep index  a apply  l list",
+        'B' => "Branch: c create  s create and switch  r rename current  d delete merged",
+        't' => "Tag: c create lightweight tag  l list",
+        'C' => "Commit: a amend without editing message  f fixup",
+        'M' => "Merge: m merge  s squash  c continue  a abort",
+        'r' => "Rebase: r onto revision  c continue  s skip  a abort",
+        'x' => "Cherry-pick: p pick  c continue  s skip  a abort",
+        'v' => "Revert: v revert  c continue  s skip  a abort",
+        _ => return None,
+    })
+}
+fn workflow_key(menu: char, key: char) -> Option<workflows::Operation> {
+    use workflows::Operation::*;
+    Some(match (menu, key) {
+        ('z', 'z') => Stash,
+        ('z', 'u') => StashUntracked,
+        ('z', 'i') => StashStaged,
+        ('z', 'k') => StashKeepIndex,
+        ('z', 'a') => StashApply,
+        ('B', 'c') => CreateBranch,
+        ('B', 's') => CreateSwitch,
+        ('B', 'r') => RenameBranch,
+        ('B', 'd') => DeleteBranch,
+        ('t', 'c') => Tag,
+        ('C', 'a') => Amend,
+        ('C', 'f') => Fixup,
+        ('M', 'm') => Merge,
+        ('M', 's') => Squash,
+        ('M', 'c') => MergeContinue,
+        ('M', 'a') => MergeAbort,
+        ('r', 'r') => Rebase,
+        ('r', 'c') => RebaseContinue,
+        ('r', 's') => RebaseSkip,
+        ('r', 'a') => RebaseAbort,
+        ('x', 'p') => CherryPick,
+        ('x', 'c') => CherryContinue,
+        ('x', 's') => CherrySkip,
+        ('x', 'a') => CherryAbort,
+        ('v', 'v') => Revert,
+        ('v', 'c') => RevertContinue,
+        ('v', 's') => RevertSkip,
+        ('v', 'a') => RevertAbort,
+        _ => return None,
+    })
+}

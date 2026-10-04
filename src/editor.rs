@@ -113,6 +113,8 @@ pub struct Editor {
     /// This buffer lists a directory (see `dired`).
     pub dired: Option<Box<crate::dired::Dired>>,
     pub magit: Option<Box<crate::magit::View>>,
+    pub magit_input_generation: u64,
+    pub magit_prompt: Option<(crate::magit::repo::Repo, crate::magit::workflows::Operation)>,
     pub commit_repo: Option<crate::magit::repo::Repo>,
     /// File operation requested by an ex command, performed by the app.
     pub pending_effect: Option<ExEffect>,
@@ -158,6 +160,8 @@ impl Editor {
             readonly: false,
             dired: None,
             magit: None,
+            magit_input_generation: 0,
+            magit_prompt: None,
             commit_repo: None,
             pending_effect: None,
             win_height: 12,
@@ -192,6 +196,7 @@ impl Editor {
     }
 
     pub fn handle_key(&mut self, k: Key) {
+        self.magit_input_generation = self.magit_input_generation.wrapping_add(1);
         if crate::magit::key(self, k) {
             return;
         }
@@ -292,6 +297,7 @@ impl Editor {
 
     /// Bracketed paste: insert text as-is (no autoindent or completion).
     pub fn paste(&mut self, text: &str) {
+        self.magit_input_generation = self.magit_input_generation.wrapping_add(1);
         if self.magit.is_some()
             && matches!(
                 self.mode,
@@ -451,6 +457,11 @@ impl Editor {
         let Mode::Command(cl) = &mut self.mode else {
             return;
         };
+        if cl.kind == '=' && k == Key::ctrl('g') {
+            self.magit_prompt = None;
+            self.mode = Mode::Normal;
+            return;
+        }
         if k.is(KeyCode::Esc) && cl.comp.take().is_some() {
             return;
         }
@@ -461,6 +472,7 @@ impl Editor {
             || k == Key::ctrl('c')
             || (k.code == KeyCode::Backspace && cl.text.is_empty());
         if leaving {
+            self.magit_prompt = None;
             self.vim.pending_op = None;
         }
         let hist = if cl.kind == ':' {
@@ -477,7 +489,7 @@ impl Editor {
                 self.run_cmdline(cl.kind, &cl.text);
             }
             KeyCode::Backspace if cl.text.is_empty() => self.mode = Mode::Normal,
-            KeyCode::Up | KeyCode::Down => {
+            KeyCode::Up | KeyCode::Down if cl.kind != '=' => {
                 let len = hist.len();
                 let next = match (k.code, cl.hist) {
                     (KeyCode::Up, None) if len > 0 => Some(len - 1),
@@ -533,6 +545,16 @@ impl Editor {
     }
 
     fn run_cmdline(&mut self, kind: char, text: &str) {
+        if kind == '=' {
+            if let Some((repo, operation)) = self.magit_prompt.take() {
+                self.pending_effect = Some(ExEffect::Magit(crate::magit::Action::Submit(
+                    repo,
+                    operation,
+                    text.into(),
+                )));
+            }
+            return;
+        }
         if kind == '@' {
             return crate::dired::answer(self, text);
         }

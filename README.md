@@ -252,6 +252,14 @@ shows up the next time you open it.
 | `Space m c` | edit a commit message; press again in the draft to commit |
 | `Space m l` | recent commits; `Enter` opens a commit's patch |
 | `Space m b` | pick a local branch to switch to |
+| `Space m z` | stash menu: save, include untracked, staged, keep index, apply, list |
+| `Space m B` | branch menu: create, create and switch, rename, delete merged |
+| `Space m t` | tag menu: create lightweight tag, list and inspect |
+| `Space m C` | commit menu: amend with existing message, fixup |
+| `Space m M` | merge menu: merge, squash, continue, abort |
+| `Space m r` | rebase menu: onto revision, continue, skip, abort |
+| `Space m x` | cherry-pick menu: pick, continue, skip, abort |
+| `Space m v` | revert menu: revert, continue, skip, abort |
 
 Status is a read-only buffer with separate untracked, unstaged, staged, and
 conflict sections. `Tab` collapses a section or expands a tracked file's diff.
@@ -347,3 +355,16 @@ The design spec is in `docs/superpowers/specs/2026-10-01-fred-design.md`.
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+Workflow menus show their suffix keys in the message area. Revision and reference
+prompts stay anchored to the repository where they opened; Escape, Ctrl-G, or
+Ctrl-C cancels. Stash and tag lists use Enter to inspect, `gr` to refresh, and `q`
+to return. Stash apply accepts a stash reference such as `stash@{0}` and preserves
+the stash. Branch deletion uses Git's merged-only check. Amend uses the existing
+HEAD message. Merge and rebase failures refresh status to expose conflicts; edit
+and save the conflicted files, stage their resolutions, then continue the operation.
+
+The port remains incomplete: line-region staging, discard/reset, stash pop/drop,
+editable amend drafts, interactive rebase, richer log/diff/ref views, blame/reflog/
+bisect, remote configuration, worktrees/submodules, patch/mail workflows, and
+repository administration still need implementation.

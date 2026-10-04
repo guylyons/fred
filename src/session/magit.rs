@@ -8,11 +8,13 @@ use std::thread::JoinHandle;
 pub(super) enum Outcome {
     ErrorView(Box<View>, String, Option<RowAction>, usize),
     View(Box<View>, Option<RowAction>, usize),
+    Prompt(Repo, crate::magit::workflows::Operation),
     Draft(Repo),
     Branches(Repo, Vec<String>),
     Git(GitInvocation),
 }
 pub(super) struct Job {
+    input_generation: u64,
     slot: usize,
     clock: u64,
     work: JoinHandle<Result<Outcome, String>>,
@@ -31,6 +33,7 @@ impl Session {
     fn start_magit(&mut self, work: impl FnOnce() -> Result<Outcome, String> + Send + 'static) {
         self.ed.set_msg("Git: working…");
         self.magit_job = Some(Job {
+            input_generation: self.ed.magit_input_generation,
             slot: self.cur,
             clock: self.clock,
             work: std::thread::spawn(work),
@@ -52,6 +55,10 @@ impl Session {
         }
         if self.magit_job.is_some() || self.pending_git.is_some() || self.git_busy {
             self.ed.set_err("Git operation in progress");
+            return;
+        }
+        if let Action::Submit(repo, operation, value) = action {
+            self.start_magit(move || Ok(Outcome::Git(repo.operation(operation, &value)?)));
             return;
         }
         if action == Action::Commit
@@ -218,6 +225,17 @@ impl Session {
                         Ok(Outcome::View(Box::new(view), None, 0))
                     }
                 }
+                Action::Stashes | Action::Tags => {
+                    let mut view = View::status(repo.clone(), repo.status()?);
+                    view.kind = if action == Action::Stashes {
+                        Kind::Stashes
+                    } else {
+                        Kind::Tags
+                    };
+                    view.return_to = origin;
+                    refresh_refs(&mut view)?;
+                    Ok(Outcome::View(Box::new(view), None, 0))
+                }
                 Action::Log => {
                     let mut view = View::status(repo.clone(), repo.status()?);
                     view.kind = Kind::Log;
@@ -245,6 +263,13 @@ impl Session {
                         });
                     }
                     Ok(Outcome::View(Box::new(view), None, 0))
+                }
+                Action::Workflow(operation) => {
+                    if operation.prompt().is_some() {
+                        Ok(Outcome::Prompt(repo, operation))
+                    } else {
+                        Ok(Outcome::Git(repo.operation(operation, "")?))
+                    }
                 }
                 Action::Commit => Ok(Outcome::Draft(repo)),
                 Action::Branches => {
@@ -294,6 +319,19 @@ impl Session {
             Ok(Outcome::ErrorView(view, error, selected, fallback)) => {
                 self.install_magit(*view, selected, fallback);
                 self.ed.set_err(error);
+            }
+            Ok(Outcome::Prompt(repo, operation)) => {
+                if self.ed.magit_input_generation != job.input_generation
+                    || self.ed.mode != Mode::Normal
+                {
+                    self.ed.set_msg("Git prompt cancelled");
+                    return true;
+                }
+                self.ed.magit_prompt = Some((repo, operation));
+                self.ed.open_cmdline('=', "");
+                if let Mode::Command(cl) = &mut self.ed.mode {
+                    cl.prompt = operation.prompt().unwrap_or("").into();
+                }
             }
             Ok(Outcome::Draft(repo)) => {
                 let mut h = std::collections::hash_map::DefaultHasher::new();
@@ -410,7 +448,16 @@ impl Session {
         self.git_busy = false;
         self.refresh_gutters();
         if let Err(e) = result {
-            self.ed.set_err(e);
+            if let Some(mut view) = self.ed.magit.as_deref().cloned() {
+                let selected = view.action_at(self.ed.cur.line);
+                let fallback = self.ed.cur.line;
+                self.start_magit(move || {
+                    refresh_view(&mut view)?;
+                    Ok(Outcome::ErrorView(Box::new(view), e, selected, fallback))
+                });
+            } else {
+                self.ed.set_err(e);
+            }
             return;
         }
         if let Some(path) = inv.draft {
@@ -452,6 +499,9 @@ impl Session {
     }
 }
 fn refresh_view(view: &mut View) -> Result<(), String> {
+    if matches!(view.kind, Kind::Stashes | Kind::Tags) {
+        return refresh_refs(view);
+    }
     if view.kind != Kind::Status {
         return Ok(());
     }
@@ -490,4 +540,37 @@ fn display_patch(bytes: &[u8]) -> Vec<Row> {
         });
     }
     rows
+}
+
+fn refresh_refs(view: &mut View) -> Result<(), String> {
+    let bytes = if view.kind == Kind::Stashes {
+        view.repo
+            .read(&["stash", "list", "--format=%H%x00%gd %gs"])?
+    } else {
+        view.repo.read(&[
+            "for-each-ref",
+            "--format=%(objectname)%00%(refname:short)",
+            "refs/tags/",
+        ])?
+    };
+    view.rows = vec![Row {
+        text: "Enter inspect  gr refresh  q return".into(),
+        action: None,
+    }];
+    for line in bytes.split(|b| *b == b'\n').filter(|l| !l.is_empty()) {
+        let mut parts = line.splitn(2, |b| *b == 0);
+        let id = String::from_utf8_lossy(parts.next().unwrap_or_default()).to_string();
+        let name = String::from_utf8_lossy(parts.next().ok_or("invalid reference listing")?);
+        view.rows.push(Row {
+            text: label(Path::new(name.as_ref())),
+            action: Some(RowAction::Commit(id)),
+        });
+    }
+    if view.rows.len() == 1 {
+        view.rows.push(Row {
+            text: "No entries".into(),
+            action: None,
+        });
+    }
+    Ok(())
 }
