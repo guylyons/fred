@@ -1,7 +1,7 @@
 //! `:Magit NAME`: upstream command names for Fred's actions, so commands
 //! reached through M-x in Emacs (and every menu) have a way in.
 use super::Action::{self, *};
-use super::{Fold, apply, diff, log, refs};
+use super::{Fold, apply, diff, log, misc, refs};
 
 /// The action for an upstream command name.
 pub fn by_name(name: &str) -> Option<Action> {
@@ -91,6 +91,12 @@ pub fn by_name(name: &str) -> Option<Action> {
         "magit-fetch-all-no-prune" => Some(GitRun(&["remote", "update"])),
         // magit-push-implicitly: git push -v with no refspec.
         "magit-push-implicitly" => Some(GitRun(&["push", "-v"])),
+        "magit-run" => menu('!'),
+        "magit-git-command" => Some(Misc(misc::Op::GitCommand { topdir: false })),
+        "magit-git-command-topdir" => Some(Misc(misc::Op::GitCommand { topdir: true })),
+        "magit-reset-quickly" => Some(Misc(misc::Op::ResetQuickly)),
+        "magit-remote-set-head" => Some(Misc(misc::Op::RemoteSetHead)),
+        "magit-remote-unset-head" => Some(Misc(misc::Op::RemoteUnsetHead)),
         "magit-section-show-level-1-all" => Some(Fold(Fold::Level(1))),
         "magit-section-show-level-2-all" => Some(Fold(Fold::Level(2))),
         "magit-section-show-level-3-all" => Some(Fold(Fold::Level(3))),

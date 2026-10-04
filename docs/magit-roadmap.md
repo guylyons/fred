@@ -273,3 +273,9 @@ October 4 M-x checkpoint: `:Magit NAME` runs upstream commands by name (the
 Fred equivalent of M-x for commands upstream leaves unbound): menus, common
 suffixes, fetch-all-prune/no-prune, push-implicitly, refresh-all and section
 levels. Ledger 575 partial / 198 missing commands. Score remains 3%.
+
+October 4 run checkpoint: magit-run (!) and magit-git-command (| and Q) run
+git subcommands in the terminal; o resets quickly (mixed); x on a conflicted
+file checks out a side (magit-checkout-stage); remote set/unset-head by name;
+M-w copies a blame chunk's hash. Ledger 585 partial / 188 missing commands.
+Score remains 3%.

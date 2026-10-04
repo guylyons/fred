@@ -134,7 +134,7 @@ magit-blame.el,886,command,magit-blame-previous-chunk,partial,p,explicit
 magit-blame.el,894,command,magit-blame-next-chunk-same-commit,partial,N,explicit
 magit-blame.el,917,command,magit-blame-previous-chunk-same-commit,partial,P,explicit
 magit-blame.el,922,command,magit-blame-cycle-style,partial,"c / Space m B c over headings (left margin), highlight, lines",explicit
-magit-blame.el,933,command,magit-blame-copy-hash,missing,,explicit
+magit-blame.el,933,command,magit-blame-copy-hash,partial,M-w in a blame buffer,explicit
 magit-blame.el,946,command,magit-blame,partial,Space m B menu with -w (default) -r -P -M -C and b/m/q/c; r/f report missing blob buffers; numeric -M/-C values missing,explicit
 magit-blame.el,,command,magit-blame-read-only-mode,partial,"Keys n/p/N/P/RET/b/c/q/B; SPC/DEL are Fred leader, M-w copy missing; Fred readonly blocks writes only, edits drop blame",runtime
 magit-blame.el,,command,magit-blame:-C,partial,-C without value,runtime
@@ -570,7 +570,7 @@ magit-merge.el,164,command,magit-merge-absorb,partial,Space m M a; main branch n
 magit-merge.el,225,command,magit-merge-squash,partial,Space m M s,explicit
 magit-merge.el,233,command,magit-merge-preview,partial,Space m M p; merge-tree --write-tree result shown as a diff view,explicit
 magit-merge.el,239,command,magit-merge-abort,partial,Space m M a while merging; y/n confirmation,explicit
-magit-merge.el,248,command,magit-checkout-stage,missing,,explicit
+magit-merge.el,248,command,magit-checkout-stage,partial,"x on a conflicted file: [o]urs, [t]heirs (staged) or [c]onflict restored; deleted sides removed",explicit
 magit-merge.el,,command,magit-merge:--strategy,partial,Space m M argument,runtime
 magit-merge.el,,command,magit-merge:--strategy-option,partial,-X reads a value,runtime
 magit-merge.el,,command,transient:magit-merge:--ff-only,partial,Space m M argument,runtime
@@ -744,8 +744,8 @@ magit-remote.el,123,command,magit-remote-rename,partial,Space m M r; push variab
 magit-remote.el,134,command,magit-remote-remove,partial,Space m M k; push variables cleaned,explicit
 magit-remote.el,153,command,magit-remote-prune,partial,Space m M p (remote prune via terminal),explicit
 magit-remote.el,159,command,magit-remote-prune-refspecs,partial,"Space m M P; ls-remote comparison, confirm stale refspecs and their branches, all-stale default/remove/abort",explicit
-magit-remote.el,237,command,magit-remote-set-head,missing,,explicit
-magit-remote.el,252,command,magit-remote-unset-head,missing,,explicit
+magit-remote.el,237,command,magit-remote-set-head,partial,:Magit magit-remote-set-head (--auto),explicit
+magit-remote.el,252,command,magit-remote-unset-head,partial,:Magit magit-remote-unset-head,explicit
 magit-remote.el,259,command,magit-update-default-branch,missing,,explicit
 magit-remote.el,291,command,magit-remote-unshallow,partial,M z: offers the standard refspec for a single non-wildcard one,explicit
 magit-remote.el,311,command,magit-remote-configure,partial,Space m M C: current remote,explicit
@@ -774,7 +774,7 @@ magit-reset.el,63,command,magit-reset-hard,partial,Space m X h; refuses to repla
 magit-reset.el,72,command,magit-reset-keep,partial,Space m X k,explicit
 magit-reset.el,79,command,magit-reset-index,partial,Space m X i (git reset COMMIT -- .),explicit
 magit-reset.el,88,command,magit-reset-worktree,partial,Space m X w via temporary index checkout-index --all --force,explicit
-magit-reset.el,99,command,magit-reset-quickly,missing,,explicit
+magit-reset.el,99,command,magit-reset-quickly,partial,"o in Magit buffers (evil-collection): reset --mixed, default commit at point",explicit
 magit-section.el,145,option,magit-section-highlight-current,missing,,explicit
 magit-section.el,151,option,magit-section-highlight-selection,missing,,explicit
 magit-section.el,160,option,magit-section-show-child-count,partial,default t behavior; not configurable,explicit
@@ -1001,11 +1001,11 @@ magit.el,77,option,magit-openpgp-default-signing-key,missing,,explicit
 magit.el,247,option,magit-define-global-key-bindings,missing,,explicit
 magit.el,327,command,magit-dispatch,partial,Space m; navigable command panels; full groups/options still missing,explicit
 magit.el,407,option,magit-shell-command-verbose-prompt,missing,,explicit
-magit.el,418,command,magit-run,missing,,explicit
-magit.el,434,command,magit-git-command,missing,,explicit
-magit.el,446,command,magit-git-command-topdir,missing,,explicit
+magit.el,418,command,magit-run,partial,Space m ! / ! in Magit buffers: git subcommand in root or working directory (shell and GUI launchers not ported),explicit
+magit.el,434,command,magit-git-command,partial,"| in Magit buffers (evil-collection), Space m Q: quote-aware words, terminal Git",explicit
+magit.el,446,command,magit-git-command-topdir,partial,! !,explicit
 magit.el,458,command,magit-shell-command,missing,,explicit
 magit.el,468,command,magit-shell-command-topdir,missing,,explicit
 magit.el,587,command,magit-version,missing,,explicit
-magit.el,,command,magit:--gpg-sign,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit.el,,command,magit:--signoff,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit.el,,command,magit:--gpg-sign,partial,"-S in commit, rebase, cherry-pick, revert, merge and am menus",runtime
+magit.el,,command,magit:--signoff,partial,"+s in commit, rebase, cherry-pick, revert and merge menus",runtime

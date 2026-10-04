@@ -46,11 +46,16 @@ impl Op {
             (Kind::StageModified, _) => return Ok(None),
             (Kind::UnstageAll, _) => "Unstage all changes? (y or n) ".into(),
             (_, None) => return Err("Nothing at point".into()),
+            // magit-discard-files--resolve: magit-checkout-stage.
+            (Kind::Discard, Some(Thing::File(p, Section::Conflicts, _))) => format!(
+                "Resolve {}: checkout [o]urs, [t]heirs or restore the [c]onflict? ",
+                name(p)
+            ),
             (
                 _,
                 Some(Thing::File(_, Section::Conflicts, _) | Thing::Section(Section::Conflicts, _)),
             ) => {
-                return Err("Resolve conflicts with the file's own commands".into());
+                return Err("Resolve conflicts one file at a time".into());
             }
             (Kind::Discard, Some(Thing::Hunk(..))) => "Discard hunk? (y or n) ".into(),
             (Kind::Reverse, Some(Thing::Hunk(..))) => "Reverse hunk? (y or n) ".into(),
@@ -178,7 +183,48 @@ impl Repo {
             _ => Err("Resolve conflicts with the file's own commands".into()),
         }
     }
+    /// magit-checkout-stage: take one side of a conflicted file (and stage
+    /// it), or restore the conflict.
+    pub fn checkout_stage(&self, p: &Path, xy: &str, side: &str) -> Result<Next, String> {
+        let arg = match side {
+            "o" | "ours" => "--ours",
+            "t" | "theirs" => "--theirs",
+            "c" | "conflict" => "--merge",
+            _ => return Err("Answer o, t or c".into()),
+        };
+        let b = xy.as_bytes();
+        let (x, y) = (
+            b.first().copied().unwrap_or(b' '),
+            b.get(1).copied().unwrap_or(b' '),
+        );
+        let run = |args: &[&str]| self.run(&self.path_args(args, p), None).map(|_| ());
+        // A side that deleted the file resolves by removing it.
+        let deleted = matches!(
+            (arg, x, y),
+            ("--ours", b'D', _)
+                | ("--ours", b'U', b'A')
+                | ("--theirs", _, b'D')
+                | ("--theirs", b'A', b'U')
+        );
+        if deleted {
+            run(&["rm", "-q"])?;
+        } else if arg == "--merge" {
+            run(&["checkout", "--merge"])?;
+        } else {
+            run(&["checkout", arg])?;
+            run(&["add", "-u"])?;
+        }
+        Ok(Next::Done(Ok(format!(
+            "Checked out {} of {}",
+            &arg[2..],
+            label(p)
+        ))))
+    }
     pub fn apply_step(&self, op: Op, answer: &str) -> Result<Next, String> {
+        if let (Kind::Discard, Some(Thing::File(p, Section::Conflicts, xy))) = (op.kind, &op.thing)
+        {
+            return self.checkout_stage(p, xy, answer.trim());
+        }
         if op.question()?.is_some() && !matches!(answer.trim(), "y" | "yes") {
             return Err("Abort".into());
         }

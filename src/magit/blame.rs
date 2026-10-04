@@ -292,6 +292,23 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     let Some(blame) = &ed.blame else {
         return false;
     };
+    // magit-blame-copy-hash (M-w): the chunk's commit.
+    if k.alt
+        && k.code == crate::key::KeyCode::Char('w')
+        && ed.mode == Mode::Normal
+        && let Some(c) = blame.chunk_at(ed.cur.line)
+    {
+        let rev = c.rev.clone();
+        ed.set_msg(rev.clone());
+        crate::vim::ops::set_reg(
+            ed,
+            crate::editor::Register {
+                text: rev,
+                linewise: false,
+            },
+        );
+        return true;
+    }
     // Overlays that keep Normal mode (word-jump, explain) own their keys.
     if ed.mode != Mode::Normal
         || !ed.vim.pending.is_empty()

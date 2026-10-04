@@ -14,6 +14,7 @@ pub mod ignore;
 pub mod log;
 pub mod merge;
 pub mod message;
+pub mod misc;
 pub mod network;
 pub mod notes;
 pub mod patch;
@@ -153,6 +154,8 @@ pub enum Action {
     GitRun(&'static [&'static str]),
     /// magit-stash-push with menu Q's arguments.
     StashPush,
+    /// magit-git-command, reset-quickly, remote set/unset-head.
+    Misc(misc::Op),
     /// magit-diff-while-committing (C-c C-d in a commit draft).
     DiffWhileCommitting,
     Toggle,
@@ -874,6 +877,15 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         }
         KeyCode::Char('s') if !k.ctrl => Some(Action::Stage),
         KeyCode::Char('u') if !k.ctrl => Some(Action::Unstage),
+        // evil-collection: o reset quickly, ! run, | git command.
+        KeyCode::Char('o') if !k.ctrl && !k.alt => Some(Action::Misc(misc::Op::ResetQuickly)),
+        KeyCode::Char('!') if !k.ctrl && !k.alt => {
+            open_menu(ed, '!');
+            return true;
+        }
+        KeyCode::Char('|') if !k.ctrl && !k.alt => {
+            Some(Action::Misc(misc::Op::GitCommand { topdir: false }))
+        }
         // evil-collection: x discard (magit-delete-thing), - reverse,
         // S stage all modified, U unstage all.
         KeyCode::Char(c @ ('x' | '-' | 'S' | 'U'))
@@ -1177,6 +1189,7 @@ pub enum Question {
     Ignore(ignore::Op),
     Configure(configure::Op),
     Apply(apply::Op),
+    Misc(misc::Op),
     Net(network::Op),
     Diff(diff::Op),
     FindFile,
@@ -1379,6 +1392,13 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("Y", "Inspect", "Cherries", LogOp(log::Op::Cherry)),
             ("y", "Inspect", "Show Refs", Menu('y')),
             ("D", "Inspect", "Diff (change)", Menu('D')),
+            ("!", "Repository", "Run", Menu('!')),
+            (
+                "Q",
+                "Repository",
+                "Command",
+                Misc(misc::Op::GitCommand { topdir: false }),
+            ),
             // Upstream's i is the user's init key: gitignore takes upstream's I.
             ("I", "Repository", "Ignore", Menu('g')),
             (">", "Repository", "Sparse checkout", Menu('>')),
@@ -2123,6 +2143,22 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 ToggleOption(MenuOption::Switch('Q', "--no-keep-index")),
             ),
             ("P", "Actions", "push", StashPush),
+        ],
+        // magit-run: git subcommands (shell commands and GUI launchers are not
+        // ported; Fred runs Git in the terminal).
+        '!' => vec![
+            (
+                "!",
+                "Run git subcommand",
+                "in repository root",
+                Misc(misc::Op::GitCommand { topdir: true }),
+            ),
+            (
+                "p",
+                "Run git subcommand",
+                "in working directory",
+                Misc(misc::Op::GitCommand { topdir: false }),
+            ),
         ],
         'J' => vec![
             ("c", "Actions", "create", Menu('j')),

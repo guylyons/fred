@@ -3397,7 +3397,7 @@ fn diff_location_maps_lines_to_both_sides() {
 
 #[test]
 fn menu_keys_are_unique_within_each_menu() {
-    for menu in "*OzFBbdpflMrxtCGNYXvSoukyJjWKawIEg>DceQP".chars() {
+    for menu in "*OzFBbdpflMrxtCGNYXvSoukyJjWKawIEg>DceQP!".chars() {
         let entries = super::menu_entries(menu);
         assert!(!entries.is_empty(), "menu {menu} is empty");
         let mut seen = std::collections::HashSet::new();
@@ -3583,4 +3583,64 @@ fn discard_keeps_unrelated_work_by_status() {
     assert_eq!(read("x").as_deref(), Some("two\n"));
     // A file whose status changed since the buffer was drawn is refused.
     assert!(discard(Thing::File("src/x".into(), Section::Staged, "A ".into())).is_err());
+}
+
+#[test]
+fn misc_git_command_reset_quickly_and_checkout_stage() {
+    use super::Section;
+    use super::apply::{Kind, Op as A, Thing};
+    use super::branch::Next;
+    use super::misc::{Op, split_words};
+    let (d, r) = setup();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    assert_eq!(
+        split_words(r#"git log -1 --format="%s by %an" 'a b' c\ d"#).unwrap(),
+        s(&["git", "log", "-1", "--format=%s by %an", "a b", "c d"])
+    );
+    assert!(split_words("log 'oops").is_err());
+    let Next::GitEditor(argv) = r
+        .misc_step(Op::GitCommand { topdir: true }, &s(&["git status -s"]))
+        .unwrap()
+    else {
+        panic!()
+    };
+    assert_eq!(argv, s(&["status", "-s"]));
+    fs::write(d.path().join("f"), "base\n").unwrap();
+    git(d.path(), &["add", "f"]);
+    git(d.path(), &["commit", "-qm", "base"]);
+    fs::write(d.path().join("f"), "two\n").unwrap();
+    git(d.path(), &["commit", "-qam", "two"]);
+    // reset --mixed keeps the worktree.
+    r.misc_step(Op::ResetQuickly, &s(&["HEAD~1"])).unwrap();
+    assert_eq!(fs::read_to_string(d.path().join("f")).unwrap(), "two\n");
+    assert!(r.misc_step(Op::ResetQuickly, &s(&["--hard"])).is_err());
+    // A conflict: x on the file takes theirs (and stages it).
+    git(d.path(), &["checkout", "-q", "--", "f"]);
+    git(d.path(), &["checkout", "-qb", "side"]);
+    fs::write(d.path().join("f"), "side\n").unwrap();
+    git(d.path(), &["commit", "-qam", "side"]);
+    git(d.path(), &["checkout", "-q", "main"]);
+    fs::write(d.path().join("f"), "main\n").unwrap();
+    git(d.path(), &["commit", "-qam", "main"]);
+    let _ = std::process::Command::new("git")
+        .arg("-C")
+        .arg(d.path())
+        .args(["merge", "-q", "side"])
+        .output();
+    let xy = r
+        .status()
+        .unwrap()
+        .entries
+        .into_iter()
+        .find(|e| e.conflict)
+        .unwrap()
+        .xy;
+    let op = A {
+        kind: Kind::Discard,
+        thing: Some(Thing::File("f".into(), Section::Conflicts, xy)),
+    };
+    assert!(op.question().unwrap().unwrap().contains("[t]heirs"));
+    r.apply_step(op, "t").unwrap();
+    assert_eq!(fs::read_to_string(d.path().join("f")).unwrap(), "side\n");
+    assert!(r.status().unwrap().entries.iter().all(|e| !e.conflict));
 }

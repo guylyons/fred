@@ -327,6 +327,46 @@ impl Session {
             });
             return;
         }
+        if let Action::Answered(repo, Question::Misc(op), answers, defaults) = action {
+            let origin = self.cur;
+            self.start_magit(move || {
+                let merged = merge_answers(&answers, &defaults);
+                let next = repo
+                    .misc_step(op, &merged)
+                    .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                Ok(branch_outcome(repo, next, origin))
+            });
+            return;
+        }
+        if let Action::Misc(op) = action {
+            let from = self.magit_from();
+            // magit-git-command runs in the current file's directory.
+            let here = self
+                .ed
+                .path
+                .as_ref()
+                .filter(|_| self.ed.magit.is_none())
+                .and_then(|p| p.parent().map(Path::to_path_buf));
+            let at_point =
+                self.ed
+                    .magit
+                    .as_ref()
+                    .and_then(|v| match v.action_at(self.ed.cur.line) {
+                        Some(RowAction::Commit(id)) => Some(id),
+                        _ => None,
+                    });
+            self.start_magit(move || {
+                let mut repo = Repo::discover(&from)?;
+                if op == (crate::magit::misc::Op::GitCommand { topdir: false })
+                    && let Some(dir) = here
+                {
+                    repo = Repo { root: dir };
+                }
+                let (prompts, defaults) = repo.misc_prompts(&op, at_point);
+                Ok(Outcome::Ask(repo, Question::Misc(op), defaults, prompts))
+            });
+            return;
+        }
         if action == Action::StashPush {
             let (origin, from) = (self.cur, self.magit_from());
             let args = crate::magit::menu_arguments(&self.ed, 'Q');
@@ -1389,7 +1429,8 @@ impl Session {
                 | Question::Refs(_)
                 | Question::Ignore(_)
                 | Question::Configure(_)
-                | Question::Apply(_) => {
+                | Question::Apply(_)
+                | Question::Misc(_) => {
                     unreachable!("handled before the worker")
                 }
                 Question::FindFile => {
