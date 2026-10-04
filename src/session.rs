@@ -2431,6 +2431,24 @@ mod tests {
     }
 
     #[test]
+    fn magit_ex_command_runs_upstream_names() {
+        let mut t = T::open(Some("f.txt"), Some("one\n"));
+        magit_repo(&t);
+        t.keys(":Magit magit-status<Enter>");
+        magit_settle(&mut t);
+        assert!(
+            t.s.ed
+                .magit
+                .as_ref()
+                .is_some_and(|v| v.kind == crate::magit::Kind::Status)
+        );
+        t.keys(":Magit magit-show-refs<Enter>");
+        assert_eq!(t.s.ed.magit_menu, Some('y'));
+        t.keys("<Esc>:Magit no-such-command<Enter>");
+        assert!(t.msg().contains("unknown Magit command"), "{}", t.msg());
+    }
+
+    #[test]
     fn magit_file_log_reads_deleted_parent_and_tracked_symlink_name() {
         use std::os::unix::fs::symlink;
         let mut t = T::open(Some("target"), Some("target contents\n"));

@@ -407,8 +407,8 @@ magit-fetch.el,110,command,magit-fetch-other,partial,Space m f e; remote must ex
 magit-fetch.el,117,command,magit-fetch-branch,partial,Space m f o; remote or URL then branch,explicit
 magit-fetch.el,127,command,magit-fetch-refspec,partial,Space m f r; remote or URL then refspec; refspec completion missing,explicit
 magit-fetch.el,137,command,magit-fetch-all,partial,Space m f a,explicit
-magit-fetch.el,143,command,magit-fetch-all-prune,partial,Space m P F (remote update --prune),explicit
-magit-fetch.el,152,command,magit-fetch-all-no-prune,partial,Space m P f,explicit
+magit-fetch.el,143,command,magit-fetch-all-prune,partial,Space m P F (remote update --prune); also :Magit magit-fetch-all-prune,explicit
+magit-fetch.el,152,command,magit-fetch-all-no-prune,partial,Space m P f; also :Magit magit-fetch-all-no-prune,explicit
 magit-fetch.el,159,command,magit-fetch-modules,partial,o f and Space m f m,explicit
 magit-fetch.el,,command,transient:magit-fetch-modules:--jobs=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-fetch.el,,command,transient:magit-fetch-modules:--verbose,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
@@ -696,7 +696,7 @@ magit-push.el,243,command,magit-push-matching,partial,Space m p m; single remote
 magit-push.el,253,command,magit-push-tags,partial,Space m p t; single remote used without prompt; default remote missing,explicit
 magit-push.el,264,command,magit-push-tag,partial,Space m p T; tag validated; completion missing,explicit
 magit-push.el,274,command,magit-push-notes-ref,missing,,explicit
-magit-push.el,285,command,magit-push-implicitly,missing,,explicit
+magit-push.el,285,command,magit-push-implicitly,partial,":Magit magit-push-implicitly (git push -v, no arguments menu)",explicit
 magit-push.el,363,command,magit-push-to-remote,missing,,explicit
 magit-push.el,,command,magit-push:--push-option,partial,-o reads a value,runtime
 magit-push.el,,command,transient:magit-push:--dry-run,partial,-n,runtime
@@ -914,11 +914,11 @@ magit-status.el,192,option,magit-status-margin,missing,,explicit
 magit-status.el,222,option,magit-status-use-buffer-arguments,missing,,explicit
 magit-status.el,252,command,magit-init,partial,"Space m i; directory prompt (default current, ~ expansion), nested/reinitialize y-or-n confirmation, status after init; directory completion missing",explicit
 magit-status.el,280,command,magit-status,partial,"Space m s; headers (Head/Merge|Rebase/Push/Tags), file sections, stashes, unpushed/recent and unpulled log sections, jumpers; sequence/bisect sections and options missing",explicit
-magit-status.el,350,command,magit-status-here,missing,,explicit
-magit-status.el,363,command,magit-status-quick,missing,,explicit
+magit-status.el,350,command,magit-status-here,partial,:Magit magit-status-here (status; point not moved to the file),explicit
+magit-status.el,363,command,magit-status-quick,partial,":Magit magit-status-quick (status, reusing the buffer)",explicit
 magit-status.el,397,command,magit-parent-status,missing,,explicit
 magit-status.el,425,command,magit-status-jump,missing,,explicit
-magit-status.el,,command,magit,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-status.el,,command,magit,partial,:Magit magit (status),runtime
 magit-status.el,,command,magit-jump-to-assume-unchanged,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-status.el,,command,magit-jump-to-ignored,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-status.el,,command,magit-jump-to-skip-worktree,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime

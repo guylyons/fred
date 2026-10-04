@@ -254,6 +254,7 @@ argument switches, including their on/off state:
 | `Space m c` | commit menu; `c` creates or submits a draft |
 | `Space m d` | diff menu: dwim, range, paths, unstaged, staged, worktree, commit, stash |
 | `Space m l` | log menu: `l` current, `o` other, `h` HEAD, `u` related, `L`/`b`/`a`/`R` branches, all, reflog objects, `B`/`T` matching, `m` merged; Magit's log arguments (values are typed); `=`/`+` change the limit in a log |
+| `:Magit NAME` | run an upstream Magit command by name (e.g. `:Magit magit-fetch-all-prune`), Fred's M-x for Magit |
 | `Space m L` | current file history; `Enter` inspects a commit, `gr` refreshes, `q` returns |
 | `Space m B` | blame menu: addition, removal/reverse (blob buffers), echo, styles, chunk keys |
 | `Space m F` | file menu: stage, unstage, untrack, rename, delete, checkout, blobs, blame |

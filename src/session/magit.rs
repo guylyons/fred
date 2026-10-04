@@ -310,6 +310,10 @@ impl Session {
             });
             return;
         }
+        if let Action::Menu(menu) = action {
+            crate::magit::open_menu(&mut self.ed, menu);
+            return;
+        }
         if let Action::GitRun(words) = action {
             let (origin, from) = (self.cur, self.magit_from());
             self.start_magit(move || {

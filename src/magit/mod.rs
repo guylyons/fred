@@ -6,6 +6,7 @@ pub mod blob;
 pub mod branch;
 pub mod bundle;
 pub mod clone;
+pub mod commands;
 pub mod commit;
 pub mod configure;
 pub mod diff;

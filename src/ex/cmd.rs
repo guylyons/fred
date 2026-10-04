@@ -321,6 +321,10 @@ fn file_command(st: &mut ExState, rest: &str, range: Option<Range>) -> Result<Ex
         "e" | "edit" => Ok(ExEffect::Edit { path, force }),
         "pwd" => no_arg(ExEffect::Pwd),
         "cd" => Ok(ExEffect::Cd(path)),
+        // :Magit NAME runs an upstream Magit command by name (like M-x).
+        "Magit" => crate::magit::commands::by_name(arg)
+            .map(ExEffect::Magit)
+            .ok_or_else(|| format!("unknown Magit command: {arg}")),
         _ => Err(format!("unknown command: {name}")),
     }
 }

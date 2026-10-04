@@ -268,3 +268,8 @@ default (the user's config keeps defaults); ys/yb/yr and gR.
 October 4 arguments checkpoint: fetch -u/C, pull -A/f/F/C, push -o/C, merge
 -X -b -w -A -S +s, tag -u, bisect =o =n, and the stash push menu (z P).
 Ledger 571 partial / 202 missing commands. Score remains 3%.
+
+October 4 M-x checkpoint: `:Magit NAME` runs upstream commands by name (the
+Fred equivalent of M-x for commands upstream leaves unbound): menus, common
+suffixes, fetch-all-prune/no-prune, push-implicitly, refresh-all and section
+levels. Ledger 575 partial / 198 missing commands. Score remains 3%.
