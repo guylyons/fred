@@ -889,10 +889,10 @@ magit-stash.el,238,command,magit-stash-push,missing,,explicit
 magit-stash.el,265,command,magit-stash-apply,partial,selected a; index restoration then plain fallback retaining stash; 3way/reject negotiation still missing,explicit
 magit-stash.el,288,command,magit-stash-pop,partial,"selected p; index restoration, guarded reflog deletion, conflicts retained; additional fallbacks missing",explicit
 magit-stash.el,370,command,magit-stash-drop,partial,selected d/k; yes confirmation and stale identity guard; multi-selection still missing,explicit
-magit-stash.el,387,command,magit-stash-clear,missing,,explicit
-magit-stash.el,396,command,magit-stash-branch,missing,,explicit
-magit-stash.el,405,command,magit-stash-branch-here,missing,,explicit
-magit-stash.el,417,command,magit-stash-format-patch,missing,,explicit
+magit-stash.el,387,command,magit-stash-clear,partial,Space m z C with y/n; deletes refs/stash,explicit
+magit-stash.el,396,command,magit-stash-branch,partial,Space m z b; git stash branch (drops when clean),explicit
+magit-stash.el,405,command,magit-stash-branch-here,partial,"Space m z B; new branch here, then index-preserving apply (keeps stash, as upstream code)",explicit
+magit-stash.el,417,command,magit-stash-format-patch,partial,Space m z f; 0001-<subject>.patch at the repository root; refuses to overwrite,explicit
 magit-stash.el,543,command,magit-stash-list,partial,Space m z l; simple list; margins/options/autostash missing,explicit
 magit-stash.el,601,command,magit-stash-show,partial,Enter and Space m d t (at point or prompted); notes/unstaged/staged/untracked diffs; diff options and section interactions missing,explicit
 magit-stash.el,,command,magit-jump-to-stashes,partial,gz in status,runtime

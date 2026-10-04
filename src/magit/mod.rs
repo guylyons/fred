@@ -11,6 +11,7 @@ pub mod remote;
 pub mod repo;
 pub mod reset;
 pub mod sequence;
+pub mod stash;
 pub mod status;
 pub mod tag;
 pub mod workflows;
@@ -71,6 +72,8 @@ pub enum Action {
     Rebase(rebase::Op),
     /// A fixup/squash suffix from magit-commit.el.
     CommitEdit(commit::Op),
+    /// A stash transform from magit-stash.el.
+    StashOp(stash::Op),
     /// ZZ / ZQ in a rebase todo buffer.
     RebaseFinish,
     RebaseCancel,
@@ -690,6 +693,7 @@ pub enum Question {
     Sequence(sequence::Op),
     Rebase(rebase::Op),
     Commit(commit::Op),
+    Stash(stash::Op),
     Net(network::Op),
     Diff(diff::Op),
     FindFile,
@@ -1083,6 +1087,25 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ),
             ("l", "Inspect", "List", Stashes),
             ("v", "Inspect", "Show selected stash", Visit),
+            ("b", "Transform", "Branch", StashOp(stash::Op::Branch)),
+            (
+                "B",
+                "Transform",
+                "Branch here",
+                StashOp(stash::Op::BranchHere),
+            ),
+            (
+                "f",
+                "Transform",
+                "Format patch",
+                StashOp(stash::Op::FormatPatch),
+            ),
+            (
+                "C",
+                "Transform",
+                "Clear all (Fred)",
+                StashOp(stash::Op::Clear),
+            ),
         ],
         // magit-file-dispatch: the visited file or blob.
         'F' => {

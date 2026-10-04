@@ -16,6 +16,8 @@ pub enum Op {
     StageAll(Box<Op>, String),
     /// The target is published: confirm rewriting it.
     Published(Box<Op>, String, bool),
+    /// Merges in the instant rebase range would be flattened: confirm.
+    Merges(Box<Op>, String, bool),
 }
 
 impl Op {
@@ -29,7 +31,7 @@ impl Op {
             Op::Revise => ("--fixup=reword:", true, true, false),
             Op::InstantFixup => ("--fixup=", false, false, true),
             Op::InstantSquash => ("--squash=", false, false, true),
-            Op::StageAll(op, _) | Op::Published(op, ..) => op.shape(),
+            Op::StageAll(op, _) | Op::Published(op, ..) | Op::Merges(op, ..) => op.shape(),
         }
     }
     fn verb(&self) -> &'static str {
@@ -39,12 +41,17 @@ impl Op {
             Op::Alter => "Alter",
             Op::Augment => "Augment",
             Op::Revise => "Revise",
-            Op::StageAll(op, _) | Op::Published(op, ..) => op.verb(),
+            Op::StageAll(op, _) | Op::Published(op, ..) | Op::Merges(op, ..) => op.verb(),
         }
     }
 }
 
 impl Repo {
+    fn git_path_exists(&self, name: &str) -> bool {
+        self.read(&["rev-parse", "--git-path", name])
+            .map(|p| self.root.join(String::from_utf8_lossy(&p).trim()).exists())
+            .unwrap_or(false)
+    }
     pub fn commit_prompts(&self, op: &Op, at_point: Option<String>) -> (Vec<String>, Vec<String>) {
         let d = at_point.unwrap_or_default();
         (
@@ -55,7 +62,7 @@ impl Repo {
 
     pub fn commit_step(&self, op: Op, a: &[String], args: &[String]) -> Result<Next, String> {
         let at = |i: usize| a.get(i).map(String::as_str).unwrap_or("");
-        let (op, target, mut args, confirmed) = match op {
+        let (op, target, args, confirmed) = match op {
             Op::StageAll(op, target) => {
                 if !matches!(at(0), "y" | "yes") {
                     return Err("Abort".into());
@@ -73,6 +80,16 @@ impl Repo {
                     args.push("--all".into());
                 }
                 (*op, target, args, true)
+            }
+            Op::Merges(op, target, all) => {
+                if !matches!(at(0), "y" | "yes") {
+                    return Err("Abort".into());
+                }
+                let mut args = args.to_vec();
+                if all {
+                    args.push("--all".into());
+                }
+                return self.commit_now(*op, target, args);
             }
             op => (op, at(0).to_owned(), args.to_vec(), false),
         };
@@ -92,7 +109,7 @@ impl Repo {
         )
         .trim()
         .to_owned();
-        let (option, edit, nopatch, rebase) = op.shape();
+        let (_, edit, nopatch, rebase) = op.shape();
         // magit-commit-assert.
         if !nopatch && !self.commit_ready(&args, !edit)? {
             return Ok(Next::Ask(
@@ -101,32 +118,42 @@ impl Repo {
                 vec![String::new()],
             ));
         }
-        if rebase
-            && self
+        if rebase {
+            // An instant rebase must not run inside another operation: the
+            // in-process commit would become a merge commit that autosquash drops.
+            if self.merge_in_progress() || self.sequencer().is_some() || self.rebase_in_progress() {
+                return Err("Finish the merge, sequence or rebase in progress first".into());
+            }
+            if self
                 .read(&["merge-base", "--is-ancestor", &id, "HEAD"])
                 .is_err()
-        {
-            return Err(format!("{target} isn't an ancestor of HEAD"));
+            {
+                return Err(format!("{target} isn't an ancestor of HEAD"));
+            }
         }
+        let all = args.iter().any(|x| x == "--all");
         // magit-rebase-interactive-assert: rewriting published history asks.
         if !confirmed {
             let published = self
                 .read(&[
                     "branch",
                     "-r",
-                    "--format=%(refname:short)",
+                    "--format=%(refname:short) %(objectname)",
                     "--contains",
                     &id,
                 ])
                 .map(|o| {
+                    // delay-edit-confirm: branches exactly at the target are not
+                    // modified by adding a fixup after it.
                     String::from_utf8_lossy(&o)
                         .lines()
-                        .map(str::to_owned)
+                        .filter_map(|l| l.split_once(' '))
+                        .filter(|(name, oid)| !name.ends_with("/HEAD") && *oid != id)
+                        .map(|(name, _)| name.to_owned())
                         .collect::<Vec<_>>()
                 })
                 .unwrap_or_default();
             if !published.is_empty() {
-                let all = args.iter().any(|x| x == "--all");
                 return Ok(Next::Ask(
                     Question::Commit(Op::Published(Box::new(op), id, all)),
                     vec![format!(
@@ -141,6 +168,23 @@ impl Repo {
                 ));
             }
         }
+        // Instant rebases would flatten merges in their range: ask first.
+        if rebase
+            && self
+                .read(&["rev-list", "--merges", &format!("{id}..HEAD")])
+                .is_ok_and(|o| !o.is_empty())
+        {
+            return Ok(Next::Ask(
+                Question::Commit(Op::Merges(Box::new(op), id, all)),
+                vec!["Proceed despite merge in rebase range? (y or n) ".into()],
+                vec![String::new()],
+            ));
+        }
+        self.commit_now(op, id, args)
+    }
+    /// Create the fixup/squash commit; instant variants then autosquash it.
+    fn commit_now(&self, op: Op, id: String, mut args: Vec<String>) -> Result<Next, String> {
+        let (option, edit, _, rebase) = op.shape();
         args.retain(|x| x != "--");
         let mut commit = vec!["commit".to_owned()];
         if rebase {
@@ -195,7 +239,8 @@ impl Repo {
         {
             return Ok(true);
         }
-        if self.merge_in_progress() {
+        // magit-commit-assert checks MERGE_MSG (merges, cherry-picks, reverts).
+        if self.git_path_exists("MERGE_MSG") {
             let unmerged = self
                 .read(&["ls-files", "--unmerged"])
                 .is_ok_and(|o| !o.is_empty());

@@ -202,6 +202,37 @@ impl Session {
             });
             return;
         }
+        if let Action::Answered(repo, Question::Stash(op), answers, defaults) = action {
+            let origin = self.cur;
+            self.start_magit(move || {
+                let merged = merge_answers(&answers, &defaults);
+                let next = repo
+                    .stash_step(op, &merged)
+                    .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                Ok(branch_outcome(repo, next, origin))
+            });
+            return;
+        }
+        if let Action::StashOp(op) = action {
+            let from = self.magit_from();
+            let at_point =
+                self.ed
+                    .magit
+                    .as_ref()
+                    .and_then(|v| match v.action_at(self.ed.cur.line) {
+                        Some(RowAction::Stash(stash)) => Some(stash.selector),
+                        _ => match &v.kind {
+                            Kind::StashPatch(stash) => Some(stash.selector.clone()),
+                            _ => None,
+                        },
+                    });
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                let (prompts, defaults) = repo.stash_prompts(&op, at_point);
+                Ok(Outcome::Ask(repo, Question::Stash(op), defaults, prompts))
+            });
+            return;
+        }
         if let Action::Answered(repo, Question::Commit(op), answers, defaults) = action {
             let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, 'C'));
             self.start_magit(move || {
@@ -491,7 +522,8 @@ impl Session {
                 | Question::Remote(_)
                 | Question::Sequence(_)
                 | Question::Rebase(_)
-                | Question::Commit(_) => {
+                | Question::Commit(_)
+                | Question::Stash(_) => {
                     unreachable!("handled before the worker")
                 }
                 Question::FindFile => {

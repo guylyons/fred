@@ -2351,4 +2351,82 @@ fn commit_fixup_family_follows_magit_commit() {
     // The new fixup was folded in, so the commit count did not grow.
     assert_eq!(git(d.path(), &["rev-list", "--count", "HEAD"]), before);
     assert!(r.commit_step(Op::Squash, &s(&["--all"]), &[]).is_err());
+    // Instant variants refuse during another operation and ask about merges.
+    let target = String::from_utf8(git(d.path(), &["rev-parse", "HEAD"]))
+        .unwrap()
+        .trim()
+        .to_owned();
+    git(d.path(), &["checkout", "-qb", "side"]);
+    fs::write(d.path().join("side"), b"s").unwrap();
+    git(d.path(), &["add", "side"]);
+    git(d.path(), &["commit", "-qm", "side"]);
+    git(d.path(), &["checkout", "-q", "main"]);
+    git(
+        d.path(),
+        &["merge", "-q", "--no-ff", "-m", "merge side", "side"],
+    );
+    fs::write(d.path().join("g"), b"g3\n").unwrap();
+    git(d.path(), &["add", "g"]);
+    match r
+        .commit_step(Op::InstantFixup, &s(&[&target]), &[])
+        .unwrap()
+    {
+        Next::Ask(Q::Commit(op @ Op::Merges(..)), _, _) => {
+            assert!(r.commit_step(op, &s(&["n"]), &[]).is_err());
+        }
+        other => panic!("{other:?}"),
+    }
+    let merge_parents =
+        String::from_utf8(git(d.path(), &["rev-list", "--parents", "-1", "HEAD"])).unwrap();
+    assert_eq!(merge_parents.split_whitespace().count(), 3, "merge intact");
+}
+#[test]
+fn stash_transforms_branch_patch_and_clear() {
+    use super::branch::Next;
+    use super::stash::Op;
+    let (d, r) = setup();
+    committed(d.path(), b"base\n");
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    let ok = |n: Next| match n {
+        Next::Done(res) => res,
+        other => Err(format!("{other:?}")),
+    };
+    fs::write(d.path().join("f"), b"stashed\n").unwrap();
+    git(d.path(), &["stash", "push", "-qm", "parked"]);
+    committed(d.path(), b"moved on\n");
+    // b: branch from where the stash was made, dropping it when clean.
+    ok(r.stash_step(Op::Branch, &s(&["stash@{0}", "from-stash"]))
+        .unwrap())
+    .unwrap();
+    assert_eq!(r.current_branch().unwrap(), "from-stash");
+    assert_eq!(fs::read(d.path().join("f")).unwrap(), b"stashed\n");
+    assert!(r.stashes().unwrap().is_empty());
+    git(d.path(), &["checkout", "-q", "--", "f"]);
+    git(d.path(), &["checkout", "-q", "main"]);
+    fs::write(d.path().join("f"), b"again\n").unwrap();
+    git(d.path(), &["stash", "push", "-qm", "again"]);
+    // B: branch here and apply, keeping the stash.
+    assert!(
+        r.stash_step(Op::BranchHere, &s(&["stash@{0}", "-x"]))
+            .is_err()
+    );
+    ok(r.stash_step(Op::BranchHere, &s(&["stash@{0}", "here"]))
+        .unwrap())
+    .unwrap();
+    assert_eq!(r.current_branch().unwrap(), "here");
+    assert_eq!(r.stashes().unwrap().len(), 1);
+    git(d.path(), &["checkout", "-q", "--", "f"]);
+    // f: patch file named like format-patch.
+    ok(r.stash_step(Op::FormatPatch, &s(&["stash@{0}"])).unwrap()).unwrap();
+    let patch = fs::read_dir(d.path())
+        .unwrap()
+        .flatten()
+        .find(|e| e.file_name().to_string_lossy().ends_with(".patch"))
+        .expect("patch file");
+    assert!(fs::read_to_string(patch.path()).unwrap().contains("+again"));
+    // Clear asks first, then drops every stash.
+    assert!(r.stash_step(Op::Clear, &s(&["n"])).is_err());
+    ok(r.stash_step(Op::Clear, &s(&["y"])).unwrap()).unwrap();
+    assert!(r.stashes().unwrap().is_empty());
+    assert!(r.stash_step(Op::FormatPatch, &s(&["stash@{0}"])).is_err());
 }
