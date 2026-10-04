@@ -580,6 +580,24 @@ impl Session {
             crate::magit::prompt(&mut self.ed, crate::magit::Prompt::Trailer(Some(key)));
             return;
         }
+        if action == Action::DiffUnmerged {
+            let (origin, from) = (self.cur, self.magit_from());
+            let args = crate::magit::menu_arguments(&self.ed, 'd');
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                if !repo.merge_in_progress() {
+                    return Err("No merge is in progress".into());
+                }
+                // magit--merge-range: merge base .. MERGE_HEAD.
+                diff_view(
+                    repo,
+                    crate::magit::diff::Target::Range("HEAD...MERGE_HEAD".into()),
+                    args,
+                    origin,
+                )
+            });
+            return;
+        }
         if action == Action::LogRefresh {
             let args = crate::magit::menu_arguments(&self.ed, 'l');
             match self.ed.magit.as_mut().map(|v| &mut v.kind) {
@@ -820,6 +838,36 @@ impl Session {
         }
         if let Action::DiffRefresh(how) = action {
             use crate::magit::diff::Refresh;
+            // magit-diff-toggle-file-filter: swap the "-- file" limit with
+            // the suspended one.
+            if how == Refresh::FileFilter {
+                let toggled = match self.ed.magit.as_mut() {
+                    Some(view) => match &mut view.kind {
+                        Kind::Diff(_, args) => {
+                            let current: Vec<String> = args
+                                .iter()
+                                .filter(|a| a.starts_with("-- "))
+                                .cloned()
+                                .collect();
+                            if current.is_empty() && view.suspended.is_empty() {
+                                Err("No file filter to toggle; set one with -- in the diff menu")
+                            } else {
+                                args.retain(|a| !a.starts_with("-- "));
+                                args.extend(std::mem::take(&mut view.suspended));
+                                view.suspended = current;
+                                Ok(())
+                            }
+                        }
+                        _ => Err("Not in a diff buffer"),
+                    },
+                    None => Err("Not in a diff buffer"),
+                };
+                match toggled {
+                    Ok(()) => self.magit_action(Action::Refresh),
+                    Err(e) => self.ed.set_err(e),
+                }
+                return;
+            }
             let args = crate::magit::menu_arguments(&self.ed, 'd');
             let changed = match self.ed.magit.as_mut().map(|v| &mut v.kind) {
                 Some(Kind::Diff(target, buffer_args)) => match how {

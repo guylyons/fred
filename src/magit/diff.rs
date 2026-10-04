@@ -20,6 +20,8 @@ pub enum Refresh {
     Buffer,
     SwitchRange,
     Flip,
+    /// magit-diff-toggle-file-filter.
+    FileFilter,
 }
 
 impl Target {
@@ -40,7 +42,7 @@ impl Target {
                 format!("{a}{}{b}", if dots == ".." { "..." } else { ".." })
             }
             Refresh::Flip => format!("{b}{dots}{a}"),
-            Refresh::Buffer => r.clone(),
+            Refresh::Buffer | Refresh::FileFilter => r.clone(),
         }))
     }
 }
@@ -306,4 +308,33 @@ pub fn hunk_patch(lines: &[&str], line: usize) -> Option<String> {
         patch.push('\n');
     }
     Some(patch)
+}
+
+/// A --stat line: " path | 3 ++-" (path first, "|" then a count or "Bin").
+fn stat_path(l: &str) -> Option<&str> {
+    let (path, rest) = l.split_once(" | ")?;
+    let rest = rest.trim_start();
+    (rest.starts_with(|c: char| c.is_ascii_digit()) || rest.starts_with("Bin")).then(|| path.trim())
+}
+
+/// magit-jump-to-diffstat-or-diff: from a stat line to its file's diff,
+/// otherwise to the stat line of the file at point (or the first one).
+pub fn stat_or_diff(lines: &[&str], line: usize) -> Option<usize> {
+    if let Some(path) = lines.get(line).and_then(|l| stat_path(l)) {
+        let header = format!("+++ b/{path}");
+        let at = lines.iter().position(|l| *l == header)?;
+        return (0..=at).rev().find(|&i| lines[i].starts_with("diff "));
+    }
+    let file = location(lines, line).map(|l| l.file.to_string_lossy().into_owned());
+    let stats: Vec<usize> = (0..lines.len())
+        .filter(|&i| stat_path(lines[i]).is_some())
+        .collect();
+    stats
+        .iter()
+        .copied()
+        .find(|&i| {
+            file.as_deref()
+                .is_some_and(|f| stat_path(lines[i]) == Some(f))
+        })
+        .or_else(|| stats.first().copied())
 }

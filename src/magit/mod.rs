@@ -162,6 +162,8 @@ pub enum Action {
     ProcessBuffer,
     /// A git-commit trailer by key, read for the current draft.
     Trailer(&'static str),
+    /// magit-diff-unmerged: the changes a merge in progress brings in.
+    DiffUnmerged,
     /// magit-log-refresh's g: the menu's arguments for this log buffer.
     LogRefresh,
     /// magit-apply / magit-reverse of the diff hunk or file at point (true
@@ -286,6 +288,9 @@ pub struct View {
     pub closed: HashSet<Section>,
     pub expanded: HashSet<(PathBuf, bool)>,
     pub diffs: HashMap<(PathBuf, bool), Diff>,
+    /// magit-buffer-diff-files-suspended: a diff buffer's file limit while
+    /// toggled off.
+    pub suspended: Vec<String>,
 }
 impl View {
     /// A new status buffer: sections start hidden as upstream inserts them
@@ -313,6 +318,7 @@ impl View {
             closed: HashSet::new(),
             expanded: HashSet::new(),
             diffs: HashMap::new(),
+            suspended: vec![],
         };
         v.rebuild();
         v
@@ -807,6 +813,23 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             Some('r') => open_menu(ed, 'y'),
             Some('s') => copy_value(ed, section_value(ed)),
             _ => copy_value(ed, buffer_revision(ed)),
+        }
+        return true;
+    }
+    // magit-jump-to-diffstat-or-diff (gd in diff and commit buffers).
+    if ed.vim.pending == [Key::ch('g')]
+        && k.char() == Some('d')
+        && ed
+            .magit
+            .as_ref()
+            .is_some_and(|v| matches!(v.kind, Kind::Diff(..) | Kind::Patch(_)))
+    {
+        ed.vim.pending.clear();
+        let view = ed.magit.as_ref().unwrap();
+        let lines: Vec<&str> = view.rows.iter().map(|r| r.text.as_str()).collect();
+        match diff::stat_or_diff(&lines, ed.cur.line) {
+            Some(i) => ed.set_cursor(i, 0),
+            None => ed.set_msg("No diffstat here"),
         }
         return true;
     }
@@ -1828,6 +1851,12 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                     "Do",
                     "flip revisions",
                     DiffRefresh(diff::Refresh::Flip),
+                ),
+                (
+                    "F",
+                    "Toggle",
+                    "file filter",
+                    DiffRefresh(diff::Refresh::FileFilter),
                 ),
             ]);
             v

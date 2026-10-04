@@ -292,7 +292,7 @@ magit-diff.el,1463,command,magit-diff-range,partial,"Space m d r; validated rang
 magit-diff.el,1482,command,magit-diff-working-tree,partial,Space m d w (HEAD); prefix-arg revision missing,explicit
 magit-diff.el,1493,command,magit-diff-staged,partial,Space m d s; prefix-arg revision missing,explicit
 magit-diff.el,1504,command,magit-diff-unstaged,partial,Space m d u,explicit
-magit-diff.el,1510,command,magit-diff-unmerged,missing,,explicit
+magit-diff.el,1510,command,magit-diff-unmerged,partial,:Magit magit-diff-unmerged: HEAD...MERGE_HEAD while merging,explicit
 magit-diff.el,1518,command,magit-diff-while-committing,partial,C-c C-d in a commit draft: staged changes (amend: since HEAD^); no toggling,explicit
 magit-diff.el,1529,command,magit-diff-buffer-file,partial,"Space m F d: the visited file since HEAD, or a blob buffer's commit, limited to the file",explicit
 magit-diff.el,1560,command,magit-diff-paths,partial,Space m d p; repository-relative files via --no-index; file completion missing,explicit
@@ -300,7 +300,7 @@ magit-diff.el,1581,command,magit-show-commit,partial,"Enter in log and Space m d
 magit-diff.el,1627,command,magit-show-commit-removing-file,missing,,explicit
 magit-diff.el,1688,command,magit-diff-switch-range-type,partial,D r: A..B <-> A...B,explicit
 magit-diff.el,1704,command,magit-diff-flip-revs,partial,D f: B..A,explicit
-magit-diff.el,1718,command,magit-diff-toggle-file-filter,missing,,explicit
+magit-diff.el,1718,command,magit-diff-toggle-file-filter,partial,Space m D F: swaps the buffer's -- file limit with a suspended one,explicit
 magit-diff.el,1743,command,magit-diff-less-context,partial,= in a diff buffer (evil-collection),explicit
 magit-diff.el,1748,command,magit-diff-more-context,partial,+ in a diff buffer,explicit
 magit-diff.el,1753,command,magit-diff-default-context,partial,~ in a diff buffer (evil-collection),explicit
@@ -312,13 +312,13 @@ magit-diff.el,1896,command,magit-diff-visit-file-other-frame,partial,Fred has no
 magit-diff.el,1907,command,magit-diff-visit-worktree-file,partial,"C-j in diff, commit and stash buffers: the worktree file at the line",explicit
 magit-diff.el,1926,command,magit-diff-visit-worktree-file-other-window,partial,Fred has no windows: same as C-j,explicit
 magit-diff.el,1932,command,magit-diff-visit-worktree-file-other-frame,partial,Fred has no frames: same as C-j,explicit
-magit-diff.el,2179,command,magit-diff-show-or-scroll-up,missing,,explicit
-magit-diff.el,2190,command,magit-diff-show-or-scroll-down,missing,,explicit
+magit-diff.el,2179,command,magit-diff-show-or-scroll-up,partial,Enter shows the commit at point (no scrolling of another window),explicit
+magit-diff.el,2190,command,magit-diff-show-or-scroll-down,partial,Enter shows the commit at point (no scrolling of another window),explicit
 magit-diff.el,2256,command,magit-section-cycle-diffs,missing,,explicit
 magit-diff.el,2288,command,magit-revision-jump,missing,,explicit
 magit-diff.el,2316,command,magit-jump-to-revision-diffstat,missing,,explicit
 magit-diff.el,2335,command,magit-jump-to-revision-diff,missing,,explicit
-magit-diff.el,2349,command,magit-jump-to-diffstat-or-diff,missing,,explicit
+magit-diff.el,2349,command,magit-jump-to-diffstat-or-diff,partial,gd in diff and commit buffers (evil-collection),explicit
 magit-diff.el,,command,magit-diff:--color-moved,partial,=m cycles values; Fred draws no colors,runtime
 magit-diff.el,,command,magit-diff:--color-moved-ws,partial,=w cycles values; Fred draws no colors,runtime
 magit-diff.el,,command,magit-diff:--diff-algorithm,partial,-A cycles default/minimal/patience/histogram,runtime

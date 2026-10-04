@@ -80,7 +80,9 @@ pub fn by_name(name: &str) -> Option<Action> {
         "magit-show-refs-head" => Some(Refs(refs::Op::Head)),
         "magit-show-refs-current" => Some(Refs(refs::Op::Current)),
         "magit-show-refs-other" => Some(Refs(refs::Op::Other)),
-        "magit-find-file" | "magit-find-file-other-window" | "magit-find-file-other-frame" => Some(FindFile),
+        "magit-find-file" | "magit-find-file-other-window" | "magit-find-file-other-frame" => {
+            Some(FindFile)
+        }
         "magit-refresh" => Some(Refresh),
         "magit-refresh-all" => Some(RefreshAll),
         "magit-stage-modified" => Some(ApplyOp(apply::Kind::StageModified)),
@@ -93,6 +95,8 @@ pub fn by_name(name: &str) -> Option<Action> {
         "magit-push-implicitly" => Some(GitRun(&["push", "-v"])),
         "magit-run" => menu('!'),
         "magit-process-buffer" => Some(ProcessBuffer),
+        "magit-diff-unmerged" => Some(DiffUnmerged),
+        "magit-diff-toggle-file-filter" => Some(DiffRefresh(diff::Refresh::FileFilter)),
         "magit-clean" => Some(Misc(misc::Op::Clean(0))),
         "magit-clean-ignored" => Some(Misc(misc::Op::Clean(1))),
         "magit-find-git-config-file"

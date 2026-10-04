@@ -3752,3 +3752,14 @@ fn clean_config_file_and_notes_ref() {
         &s(&["notes", "--ref=refs/notes/review", "remove"])
     );
 }
+
+#[test]
+fn diffstat_and_diff_jump() {
+    use super::diff::stat_or_diff;
+    let text = "header\n a | 2 +-\n b | 1 +\n 2 files changed\n\ndiff --git a/a b/a\n--- a/a\n+++ b/a\n@@ -1 +1 @@\n-x\n+y\ndiff --git a/b b/b\n--- /dev/null\n+++ b/b\n@@ -0,0 +1 @@\n+z";
+    let lines: Vec<&str> = text.lines().collect();
+    assert_eq!(stat_or_diff(&lines, 2), Some(11));
+    assert_eq!(stat_or_diff(&lines, 1), Some(5));
+    assert_eq!(stat_or_diff(&lines, 15), Some(2));
+    assert_eq!(stat_or_diff(&lines, 0), Some(1));
+}

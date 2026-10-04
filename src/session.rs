@@ -2167,6 +2167,17 @@ mod tests {
         magit_settle(&mut t);
         let text = t.s.ed.buf.text();
         assert!(text.contains("+two") && !text.contains("+other"), "{text}");
+        // D F toggles the file filter off and back on.
+        t.keys(" mDF");
+        magit_settle(&mut t);
+        assert!(
+            t.s.ed.buf.text().contains("+other"),
+            "{}",
+            t.s.ed.buf.text()
+        );
+        t.keys(" mDF");
+        magit_settle(&mut t);
+        assert!(!t.s.ed.buf.text().contains("+other"));
         // C-c C-d in a draft shows what is staged.
         t.keys("q");
         repo.stage_file(Path::new("g.txt")).unwrap();
