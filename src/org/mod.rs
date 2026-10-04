@@ -71,6 +71,8 @@ pub struct Org {
     pub sparse_hits: Vec<usize>,
     /// org-link--search-failed.
     pub link_search_failed: bool,
+    /// org-display-custom-times toggled in this buffer (None: option).
+    pub custom_times: Option<bool>,
 }
 
 /// Emacs prefix argument.
@@ -589,7 +591,7 @@ pub fn wants_alt(ed: &Editor) -> bool {
 
 /// Org keys before Vim: menus, the `Space o` leader and org-mode-map.
 pub fn key(ed: &mut Editor, k: Key) -> bool {
-    if picker_key(ed, k) {
+    if time::prompt_key(ed, k) || picker_key(ed, k) {
         return true;
     }
     if ed.zap.is_some() || ed.explain.is_some() {
