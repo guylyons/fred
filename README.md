@@ -241,7 +241,9 @@ lines, yellow for changed ones, and a red mark where lines were removed.
 The line number takes the same color. Staging a file elsewhere (`git add`)
 shows up the next time you open it.
 
-`Space m` opens the Magit command prefix:
+`Space m` opens a command panel. Suffix keys select commands; arrow keys and
+Enter also work. Escape or Ctrl-G cancels. Submenus group commands and display
+argument switches, including their on/off state:
 
 | Keys | Action |
 |---|---|
@@ -252,10 +254,10 @@ shows up the next time you open it.
 | `Space m c` | edit a commit message; press again in the draft to commit |
 | `Space m l` | recent commits; `Enter` opens a commit's patch |
 | `Space m b` | pick a local branch to switch to |
-| `Space m z` | stash menu: save, include untracked, staged, keep index, apply, list |
+| `Space m z` | stash menu: save/index/keep index, apply/pop/drop, list/inspect |
 | `Space m B` | branch menu: create, create and switch, rename, delete merged |
 | `Space m t` | tag menu: create lightweight tag, list and inspect |
-| `Space m C` | commit menu: amend with existing message, fixup |
+| `Space m C` | commit menu: create, amend, extend, reword, fixup and argument switches |
 | `Space m M` | merge menu: merge, squash, continue, abort |
 | `Space m r` | rebase menu: onto revision, continue, skip, abort |
 | `Space m x` | cherry-pick menu: pick, continue, skip, abort |
@@ -271,15 +273,38 @@ work in these views, and your other buffers keep their unsaved edits.
 
 Git operations use **saved files and the index**; they do not automatically
 save source buffers. In a commit draft, `:w` saves the message for later and
-`Space m c` commits exactly the staged changes. Drafts are stored in Fred's
+`Space m c` commits staged changes by default. In `Space m C`, `-a` includes
+saved tracked changes, `-e` allows an empty commit, `-n` disables hooks, `-R`
+resets the author and `+s` adds a Signed-off-by trailer. Options selected before
+opening a draft remain attached to that draft across buffer switches and
+in-session swap recovery. Crash-restart option metadata is not yet persisted;
+that remaining work is recorded in the parity notes. Drafts are stored in Fred's
 state directory and support swap recovery; a failed commit keeps the message.
 Push, pull, fetch, branch switches, and commits hand the terminal to Git for
 credentials or hooks, then return to Fred. Push never forces or automatically
 creates an upstream, and pull refuses divergent history.
 
-This first slice covers the status/stage/commit workflow, history, local branch
-switching, and remotes. Rebase, stash, merge resolution, and line-level staging
-are not included.
+`Space m C a` opens an editable amendment initialized from HEAD. `e` extends
+HEAD without editing its message; `w` edits only the message and keeps HEAD's
+tree, preserving staged changes. Amend/reword drafts have separate identities
+from ordinary commit drafts and reject submission if HEAD has moved.
+
+The stash menu follows upstream keys: `z` saves both sides, `i` saves the index,
+`x` keeps the index, `a` applies, `p` pops, `k` drops, and `l` lists. `-u` includes
+untracked files and `-a` includes untracked and ignored files. In the list,
+`a` applies the selected entry, `p` pops it, `d` or `k` asks for `yes` to drop it,
+Enter inspects, `gr` refreshes and `q` returns. Stash inspection separates notes,
+unstaged, staged and untracked changes. Apply/pop first restore the saved index;
+if index restoration fails, the fallback always retains the stash. Conflicted
+applications retain the stash and report that status needs resolution. Pop/drop
+check the selected object's identity against its reflog position before removing
+it. Source buffers keep unsaved edits throughout.
+
+The binding goal is full menu and behavior parity with upstream Magit, adapted
+from Emacs to Fred. Current coverage is still partial. The pinned source baseline,
+command/option inventory and remaining work are tracked in
+[the parity ledger](docs/magit-parity.md) and
+[continuation notes](docs/magit-port-notes.md).
 
 ## Highlighting
 
@@ -355,16 +380,3 @@ The design spec is in `docs/superpowers/specs/2026-10-01-fred-design.md`.
 ## License
 
 MIT. See [LICENSE](LICENSE).
-
-Workflow menus show their suffix keys in the message area. Revision and reference
-prompts stay anchored to the repository where they opened; Escape, Ctrl-G, or
-Ctrl-C cancels. Stash and tag lists use Enter to inspect, `gr` to refresh, and `q`
-to return. Stash apply accepts a stash reference such as `stash@{0}` and preserves
-the stash. Branch deletion uses Git's merged-only check. Amend uses the existing
-HEAD message. Merge and rebase failures refresh status to expose conflicts; edit
-and save the conflicted files, stage their resolutions, then continue the operation.
-
-The port remains incomplete: line-region staging, discard/reset, stash pop/drop,
-editable amend drafts, interactive rebase, richer log/diff/ref views, blame/reflog/
-bisect, remote configuration, worktrees/submodules, patch/mail workflows, and
-repository administration still need implementation.

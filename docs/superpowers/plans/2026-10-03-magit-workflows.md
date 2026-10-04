@@ -52,3 +52,35 @@ defects; both fixed with regression tests. Real Git covers stash round trips,
 refs, linked-worktree merge conflict/abort, cherry-pick, revert, fixup and rebase.
 Session tests cover prompt cancellation and failed operation refresh. A PTY test
 covers menu/prompt cancellation, terminal failure and restoration.
+
+## Source-parity continuation (binding user clarification)
+
+The user requires all of upstream Magit: menus, arguments, command behavior and
+edge cases, adapted from Emacs to Fred under `Space m`. The partial increments
+are not the agreed finish line. `docs/magit-port-notes.md` supersedes any earlier
+subset interpretation and records the pinned source baseline and continuation
+requirements. `docs/magit-parity.csv` is the explicit-command/option lower-bound
+inventory; `docs/magit-parity.md` explains its limitations.
+
+This continuation implements navigable menu panels and typed argument switches,
+source stash use/drop keys with stable reflog identities, index-preserving
+application and plain fallback retaining the stash, dedicated notes/staged/
+unstaged/untracked stash diffs, confirmed drop and pop through the list, and
+separate HEAD-pinned editable amend/reword drafts. Common commit flags remain
+attached through draft creation and swap recovery. Draft outcomes reject newer
+key/paste input, and terminal execution validates the target HEAD again.
+
+An integration test exposed that the global `--literal-pathspecs` flag interferes
+with Git stash's internal cleanup. Ruling: protect file operations using raw
+`:(literal)` pathspec arguments instead of a global flag, so Git's own subprocess
+pathspecs retain their intended interpretation. Existing unusual-path/hunk tests
+continue to verify safety. Tests specifically cover saving and removing ignored
+files through `-a`, keeping staged versus unstaged stash sides, retaining conflicts,
+stale drop confirmation, cancelled drop, recoverable amend mode/options, HEAD
+movement and two-mode PTY workflows.
+
+Further source differences remain open: stash worktree-only, snapshots, transforms,
+3way/reject fallback negotiation, customizable refs/autostash and section-level
+interaction; remaining commit options, publication warnings, richer commit
+editing and rewrite variants; annotated/deleted tags, tracking-branch creation,
+and the wider source inventory. These remain implementation work, not exclusions.

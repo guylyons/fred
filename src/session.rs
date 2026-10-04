@@ -84,7 +84,14 @@ pub struct Session {
     pub git_busy: bool,
     magit_job: Option<magit::Job>,
     magit_picker_repo: Option<crate::magit::repo::Repo>,
-    magit_drafts: std::collections::HashMap<PathBuf, crate::magit::repo::Repo>,
+    magit_drafts: std::collections::HashMap<
+        PathBuf,
+        (
+            crate::magit::repo::Repo,
+            crate::magit::CommitMode,
+            Vec<String>,
+        ),
+    >,
     /// A swap write running in the background, and the version it holds.
     swap_job: Option<(u64, std::thread::JoinHandle<Result<(), String>>)>,
     /// `:ai`: the lines and the prompt, for the app to ask Claude.
@@ -916,6 +923,9 @@ impl Session {
         ed.path = self.ed.path.clone();
         ed.readonly = self.ed.readonly;
         ed.commit_repo = self.ed.commit_repo.clone();
+        ed.commit_mode = self.ed.commit_mode.clone();
+        ed.commit_args = self.ed.commit_args.clone();
+        crate::magit::sync_commit_options(&mut ed);
         ed.saved_state = u64::MAX;
         ed.buf.modified = true;
         ed.set_msg("recovered unsaved changes; :w to save them");
@@ -2008,6 +2018,7 @@ mod tests {
         fs::write(t.dir.path().join("later"), "new").unwrap();
         let repo = t.s.ed.magit.as_ref().unwrap().repo.clone();
         let inv = crate::magit::repo::GitInvocation {
+            expected_head: None,
             repo,
             args: vec!["fetch".into()],
             input: None,
@@ -2054,5 +2065,246 @@ mod tests {
         magit_settle(&mut t);
         assert!(t.s.ed.magit_prompt.is_none());
         assert_eq!(t.s.ed.mode, Mode::Normal);
+    }
+    fn magit_stash_fixture(t: &mut T) -> crate::magit::repo::Repo {
+        magit_repo(t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "base"]).unwrap();
+        fs::write(t.dir.path().join("f.txt"), "stashed\n").unwrap();
+        repo.read(&["stash", "push", "-qm", "saved"]).unwrap();
+        t.keys(" mzl");
+        magit_settle(t);
+        t.s.ed.set_cursor(1, 0);
+        repo
+    }
+    #[test]
+    fn magit_stash_list_drop_requires_yes_and_preserves_source() {
+        let mut t = T::open(Some("f.txt"), Some("base\n"));
+        t.keys("iunsaved <Esc>");
+        let repo = magit_stash_fixture(&mut t);
+        t.keys("d");
+        assert!(matches!(t.s.ed.mode, Mode::Command(_)));
+        t.keys("no<Enter>");
+        magit_settle(&mut t);
+        assert_eq!(repo.stashes().unwrap().len(), 1);
+        t.keys("dyes<Enter>");
+        magit_settle(&mut t);
+        assert!(repo.stashes().unwrap().is_empty());
+        assert!(
+            t.s.ed
+                .buf
+                .to_bytes()
+                .windows(10)
+                .any(|b| b == b"No entries")
+        );
+        t.keys("q");
+        assert_eq!(t.s.ed.buf.line(0), "unsaved base");
+    }
+    #[test]
+    fn magit_stash_pop_and_inspect_use_saved_stash_identity() {
+        let mut t = T::open(Some("f.txt"), Some("base\n"));
+        let repo = magit_stash_fixture(&mut t);
+        t.keys("<Enter>");
+        magit_settle(&mut t);
+        assert!(t.s.ed.buf.to_bytes().windows(8).any(|b| b == b"+stashed"));
+        t.keys("q");
+        t.s.ed.set_cursor(1, 0);
+        t.keys("p");
+        magit_settle(&mut t);
+        assert!(repo.stashes().unwrap().is_empty());
+        assert_eq!(
+            fs::read_to_string(t.dir.path().join("f.txt")).unwrap(),
+            "stashed\n"
+        );
+    }
+    #[test]
+    fn magit_stash_drop_rejects_stale_confirmation() {
+        let mut t = T::open(Some("f.txt"), Some("base\n"));
+        let repo = magit_stash_fixture(&mut t);
+        t.keys("d");
+        fs::write(t.dir.path().join("f.txt"), "new stash\n").unwrap();
+        repo.read(&["stash", "push", "-qm", "new"]).unwrap();
+        t.keys("yes<Enter>");
+        magit_settle(&mut t);
+        assert_eq!(repo.stashes().unwrap().len(), 2);
+        assert!(format!("{:?}", t.s.ed.msg).contains("stash list changed"));
+    }
+    fn magit_committed_fixture(t: &mut T) -> crate::magit::repo::Repo {
+        magit_repo(t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "original message"]).unwrap();
+        repo
+    }
+    #[test]
+    fn magit_amend_edits_message_and_staged_tree_without_clobbering_normal_draft() {
+        let mut t = T::open(Some("f.txt"), Some("base\n"));
+        let repo = magit_committed_fixture(&mut t);
+        t.keys(" mc");
+        magit_settle(&mut t);
+        t.keys("inormal draft<Esc>:w<Enter>");
+        let normal_path = t.s.ed.path.clone().unwrap();
+        t.keys(" mCa");
+        magit_settle(&mut t);
+        assert!(t.s.ed.commit_repo.is_some());
+        assert_eq!(t.s.ed.buf.line(0), "original message");
+        assert_ne!(t.s.ed.path.as_ref(), Some(&normal_path));
+        assert_eq!(fs::read_to_string(&normal_path).unwrap(), "normal draft\n");
+        fs::write(t.dir.path().join("f.txt"), "amended tree\n").unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        t.keys("ccamended message<Esc> mc");
+        let inv = t.s.pending_git.take().expect("amend invocation");
+        let result = inv.repo.run(&inv.args, inv.input.as_deref()).map(|_| ());
+        assert!(result.is_ok(), "{result:?}");
+        t.s.finish_git(inv, result);
+        magit_settle(&mut t);
+        assert_eq!(
+            String::from_utf8_lossy(&repo.read(&["log", "-1", "--format=%s"]).unwrap()).trim(),
+            "amended message"
+        );
+        assert_eq!(
+            repo.read(&["show", "HEAD:f.txt"]).unwrap(),
+            b"amended tree\n"
+        );
+        assert_eq!(repo.history().unwrap().len(), 1);
+        assert_eq!(fs::read_to_string(normal_path).unwrap(), "normal draft\n");
+    }
+    #[test]
+    fn magit_reword_preserves_staged_changes_and_rejects_moved_head() {
+        let mut t = T::open(Some("f.txt"), Some("base\n"));
+        let repo = magit_committed_fixture(&mut t);
+        fs::write(t.dir.path().join("f.txt"), "staged\n").unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        t.keys(" mCw");
+        magit_settle(&mut t);
+        assert!(t.s.ed.commit_repo.is_some());
+        t.keys("ccnew words<Esc> mc");
+        let inv = t.s.pending_git.take().expect("reword invocation");
+        let result = inv.repo.run(&inv.args, inv.input.as_deref()).map(|_| ());
+        assert!(result.is_ok(), "{result:?}");
+        t.s.finish_git(inv, result);
+        magit_settle(&mut t);
+        assert_eq!(repo.read(&["show", "HEAD:f.txt"]).unwrap(), b"base\n");
+        assert_eq!(repo.read(&["show", ":f.txt"]).unwrap(), b"staged\n");
+        t.keys(" mCa");
+        magit_settle(&mut t);
+        repo.read(&["commit", "-qm", "intervening"]).unwrap();
+        t.keys(" mc");
+        assert!(t.s.pending_git.is_none());
+        assert!(format!("{:?}", t.s.ed.msg).contains("HEAD changed"));
+    }
+    #[test]
+    fn magit_stash_menu_all_option_saves_ignored_files() {
+        let mut t = T::open(Some("f.txt"), Some("base\n"));
+        let repo = magit_committed_fixture(&mut t);
+        fs::write(t.dir.path().join(".gitignore"), "ignored\n").unwrap();
+        fs::write(t.dir.path().join("ignored"), "keep me\n").unwrap();
+        t.keys(" mz-az");
+        magit_settle(&mut t);
+        assert!(t.s.ed.magit_prompt.is_some());
+        t.keys("with ignored<Enter>");
+        magit_settle(&mut t);
+        let inv = t.s.pending_git.take().expect("stash --all invocation");
+        let result = inv.repo.run(&inv.args, inv.input.as_deref()).map(|_| ());
+        assert!(result.is_ok(), "{result:?}");
+        t.s.finish_git(inv, result);
+        assert!(!t.dir.path().join("ignored").exists());
+        assert_eq!(
+            repo.read(&["show", "stash@{0}^3:ignored"]).unwrap(),
+            b"keep me\n"
+        );
+    }
+    #[test]
+    fn magit_commit_menu_all_option_uses_saved_files() {
+        let mut t = T::open(Some("f.txt"), Some("base\n"));
+        let repo = magit_committed_fixture(&mut t);
+        fs::write(t.dir.path().join("f.txt"), "saved tree\n").unwrap();
+        t.keys("iunsaved <Esc> mC-ac");
+        magit_settle(&mut t);
+        assert!(t.s.ed.commit_repo.is_some());
+        t.keys("iwith all<Esc> mc");
+        let inv = t.s.pending_git.take().expect("commit --all invocation");
+        let result = inv.repo.run(&inv.args, inv.input.as_deref()).map(|_| ());
+        assert!(result.is_ok(), "{result:?}");
+        t.s.finish_git(inv, result);
+        magit_settle(&mut t);
+        assert_eq!(repo.read(&["show", "HEAD:f.txt"]).unwrap(), b"saved tree\n");
+    }
+    #[test]
+    fn magit_delayed_amend_draft_does_not_replace_newer_input() {
+        let mut t = T::open(Some("f.txt"), Some("base\n"));
+        magit_committed_fixture(&mut t);
+        t.keys(" mCa");
+        t.keys("i");
+        magit_settle(&mut t);
+        assert_eq!(t.s.ed.mode, Mode::Insert);
+        assert!(t.s.ed.commit_repo.is_none());
+    }
+    #[test]
+    fn magit_recovered_amend_keeps_mode_options_and_head_guard() {
+        let mut t = T::open(Some("f.txt"), Some("base\n"));
+        let repo = magit_committed_fixture(&mut t);
+        t.keys(" mC+sa");
+        magit_settle(&mut t);
+        t.keys("ccrecovered amend<Esc>");
+        t.s.write_swap();
+        let info = swap::read(&t.s.swap_path).unwrap();
+        t.s.recover(info);
+        t.keys(" mc");
+        let inv = t.s.pending_git.take().expect("recovered amendment");
+        assert!(inv.validate().is_ok());
+        repo.read(&["commit", "--allow-empty", "-qm", "intervening"])
+            .unwrap();
+        assert!(inv.validate().unwrap_err().contains("HEAD changed"));
+        // The recovered mode must still amend the original commit; options survive.
+        assert!(inv.args.iter().any(|arg| arg == "--amend"));
+        assert!(inv.args.iter().any(|arg| arg == "--signoff"));
+        assert_eq!(t.s.ed.buf.line(0), "recovered amend");
+    }
+    #[test]
+    fn magit_draft_menu_options_match_display_and_real_commit() {
+        use std::os::unix::fs::PermissionsExt;
+        let mut t = T::open(Some("f.txt"), Some("base\n"));
+        let repo = magit_committed_fixture(&mut t);
+        let hook = t.dir.path().join(".git/hooks/pre-commit");
+        fs::write(&hook, "#!/bin/sh\nexit 1\n").unwrap();
+        fs::set_permissions(&hook, fs::Permissions::from_mode(0o755)).unwrap();
+        t.keys(" mC-n-ec");
+        magit_settle(&mut t);
+        t.keys("idraft message<Esc> mC");
+        let Mode::Pick(p) = &t.s.ed.mode else {
+            panic!("commit menu");
+        };
+        assert!(
+            p.rows
+                .iter()
+                .any(|r| r.text.contains("Disable hooks") && r.text.contains("[on]"))
+        );
+        t.keys("+sc");
+        let inv =
+            t.s.pending_git
+                .take()
+                .expect("commit with new signoff option");
+        let result = inv.repo.run(&inv.args, inv.input.as_deref()).map(|_| ());
+        assert!(result.is_ok(), "{result:?}");
+        t.s.finish_git(inv, result);
+        magit_settle(&mut t);
+        assert!(
+            String::from_utf8_lossy(&repo.read(&["log", "-1", "--format=%B"]).unwrap())
+                .contains("Signed-off-by: Fred <fred@example.test>")
+        );
+        t.keys(" mC-n-ec");
+        magit_settle(&mut t);
+        t.keys("isecond draft<Esc> mC-nc");
+        let inv = t.s.pending_git.take().expect("commit with hooks restored");
+        assert!(inv.repo.run(&inv.args, inv.input.as_deref()).is_err());
+        assert_eq!(t.s.ed.buf.line(0), "second draft");
     }
 }

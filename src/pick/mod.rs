@@ -145,6 +145,7 @@ pub enum Kind {
     Recent,
     Buffers,
     Branches,
+    MagitMenu,
     /// Lines of every buffer (`Space B`).
     AllLines,
     /// Definitions of the word at the cursor (`Space d`, `gd`).
@@ -243,6 +244,7 @@ impl Picker {
             Kind::Recent => "recent> ",
             Kind::Buffers => "buffer> ",
             Kind::Branches => "branch> ",
+            Kind::MagitMenu => "Magit menu: ",
             Kind::AllLines => "all lines> ",
             Kind::Def => "definition> ",
         }
@@ -251,6 +253,7 @@ impl Picker {
     /// Bring `rows` up to date; true if anything shown changed.
     fn update(&mut self, project: &Project, buf: &Buffer, now: Instant) -> bool {
         match self.kind {
+            Kind::MagitMenu => false,
             Kind::Recent | Kind::Buffers | Kind::Branches => {
                 let q = &self.query.text;
                 if self.seen_files.as_ref().is_some_and(|s| s.0 == *q) {
@@ -588,7 +591,12 @@ fn auto_jump(ed: &mut Editor) {
         return;
     };
     let r = ed.project.grep.results();
-    if p.kind != Kind::Def || !p.jump || p.err || !r.done || r.generation != p.seen_grep.0 {
+    if p.kind != Kind::Def
+        || !p.jump
+        || p.err
+        || !r.done
+        || p.seen_grep != (r.generation, r.hits.len(), r.done)
+    {
         return;
     }
     drop(r);
@@ -837,3 +845,31 @@ pub fn tick(ed: &mut Editor) -> bool {
 
 #[cfg(test)]
 mod tests;
+
+/// A command panel: rows retain their suffix key rather than a source-file path.
+pub fn magit_menu(ed: &mut Editor, menu: char) {
+    let mut picker = Picker::new(Kind::MagitMenu, &ed.project, ed.cur.line);
+    picker.rows = crate::magit::menu_entries(menu)
+        .into_iter()
+        .enumerate()
+        .map(|(index, (key, group, label, action))| Row {
+            text: format!(
+                "{group}: {key}  {label}{}",
+                match action {
+                    crate::magit::Action::ToggleOption(option)
+                        if ed.magit_options.contains(&option) =>
+                        " [on]",
+                    crate::magit::Action::ToggleOption(_) => " [off]",
+                    _ => "",
+                }
+            ),
+            hl: vec![],
+            path: PathBuf::new(),
+            line: index,
+            col: 0,
+            code: None,
+        })
+        .collect();
+    picker.status = "suffix key / arrows + Enter; Esc or Ctrl-G cancels".into();
+    ed.mode = Mode::Pick(Box::new(picker));
+}

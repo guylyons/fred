@@ -169,6 +169,7 @@ impl Repo {
             }
         }
         Ok(GitInvocation {
+            expected_head: None,
             repo: self.clone(),
             args: args.into_iter().map(OsString::from).collect(),
             input: None,
@@ -178,3 +179,122 @@ impl Repo {
     }
 }
 use std::os::unix::ffi::OsStringExt;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Stash {
+    pub id: String,
+    pub selector: String,
+    pub subject: String,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StashAction {
+    Apply,
+    Pop,
+    Drop,
+}
+impl Repo {
+    pub fn stashes(&self) -> Result<Vec<Stash>, String> {
+        let bytes = self.read(&["stash", "list", "--format=%H%x00%gd%x00%gs"])?;
+        bytes
+            .split(|b| *b == b'\n')
+            .filter(|l| !l.is_empty())
+            .map(|line| {
+                let mut fields = line.splitn(3, |b| *b == 0);
+                let id = String::from_utf8_lossy(fields.next().ok_or("invalid stash listing")?)
+                    .into_owned();
+                let selector =
+                    String::from_utf8_lossy(fields.next().ok_or("invalid stash listing")?)
+                        .into_owned();
+                let subject =
+                    String::from_utf8_lossy(fields.next().ok_or("invalid stash listing")?)
+                        .into_owned();
+                Ok(Stash {
+                    id,
+                    selector,
+                    subject,
+                })
+            })
+            .collect()
+    }
+    fn check_stash(&self, stash: &Stash) -> Result<(), String> {
+        if self
+            .stashes()?
+            .iter()
+            .any(|s| s.selector == stash.selector && s.id == stash.id)
+        {
+            Ok(())
+        } else {
+            Err("stash list changed; refresh and select again".into())
+        }
+    }
+    pub fn stash_patch(&self, stash: &Stash) -> Result<Vec<u8>, String> {
+        let mut patch = format!("{} {}\n", stash.selector, stash.subject).into_bytes();
+        if let Ok(notes) = self.read(&["notes", "show", &stash.id]) {
+            patch.extend_from_slice(b"\nNotes\n");
+            patch.extend(notes);
+        }
+        for (heading, from, to) in [
+            ("Unstaged", format!("{}^2", stash.id), stash.id.clone()),
+            (
+                "Staged",
+                format!("{}^1", stash.id),
+                format!("{}^2", stash.id),
+            ),
+        ] {
+            patch.extend_from_slice(format!("\n{heading}\n").as_bytes());
+            patch.extend(self.read(&[
+                "diff",
+                "--no-ext-diff",
+                "--no-textconv",
+                "--no-color",
+                &from,
+                &to,
+                "--",
+            ])?);
+        }
+        let untracked = format!("{}^3", stash.id);
+        if self.read(&["rev-parse", "--verify", &untracked]).is_ok() {
+            patch.extend_from_slice(b"\nUntracked files\n");
+            patch.extend(self.read(&[
+                "show",
+                "--format=",
+                "--root",
+                "--no-ext-diff",
+                "--no-textconv",
+                "--no-color",
+                &untracked,
+                "--",
+            ])?);
+        }
+        Ok(patch)
+    }
+    pub fn stash_action(&self, stash: &Stash, action: StashAction) -> Result<&'static str, String> {
+        if action != StashAction::Apply {
+            self.check_stash(stash)?;
+        }
+        if action != StashAction::Drop {
+            // Restore the saved index as Magit's normal apply/pop path does.
+            // Failed application retains the stash, including installed conflicts.
+            if let Err(index_error) = self.read(&["stash", "apply", "--index", &stash.id]) {
+                // An installed conflict is already a useful result. Do not apply again.
+                if self.status()?.entries.iter().any(|e| e.conflict) {
+                    return Err(index_error);
+                }
+                match self.read(&["stash", "apply", &stash.id]) {
+                    Ok(_) => return Ok("Stash applied without its saved index; stash retained"),
+                    Err(error) => return Err(format!("{index_error}\n{error}\nStash retained")),
+                }
+            }
+        }
+        if action != StashAction::Apply {
+            // Applying may take time; verify the reflog position again before removing it.
+            self.check_stash(stash)?;
+            self.read(&["stash", "drop", &stash.selector])?;
+        }
+        Ok(match action {
+            StashAction::Apply => "Stash applied; saved index restored",
+            StashAction::Pop => "Stash popped; saved index restored",
+            StashAction::Drop => "Stash dropped",
+        })
+    }
+}

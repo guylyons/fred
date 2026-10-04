@@ -152,6 +152,7 @@ fn mode_name(m: &Mode) -> &'static str {
             Kind::Buffers => "BUFFERS",
             Kind::Def => "DEFINITION",
             Kind::Branches => "BRANCHES",
+            Kind::MagitMenu => "MAGIT MENU",
         },
     }
 }

@@ -1,7 +1,7 @@
 //! Git operations use original path bytes and never shell interpolation.
 use std::ffi::OsString;
 use std::io::Write;
-use std::os::unix::ffi::OsStringExt;
+use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -73,7 +73,7 @@ impl Repo {
     }
     pub fn command(&self) -> Command {
         let mut c = Command::new("git");
-        c.arg("--literal-pathspecs").arg("-C").arg(&self.root);
+        c.arg("-C").arg(&self.root);
         // Fred owns commit-message editing; continuations accept the existing message.
         c.env("GIT_EDITOR", "true");
         c
@@ -169,7 +169,7 @@ impl Repo {
     pub fn path_args(&self, args: &[&str], path: &Path) -> Vec<OsString> {
         let mut a: Vec<_> = args.iter().map(OsString::from).collect();
         a.push("--".into());
-        a.push(path.as_os_str().to_owned());
+        a.push(literal_pathspec(path));
         a
     }
 }
@@ -201,7 +201,7 @@ impl Repo {
                 .find(|e| e.path == path)
                 .and_then(|e| e.old_path.clone())
             {
-                args.push(old.into_os_string());
+                args.push(literal_pathspec(&old));
             }
             self.run(&args, None).map(|_| ())
         } else {
@@ -304,6 +304,7 @@ pub struct Commit {
 }
 #[derive(Clone, Debug)]
 pub struct GitInvocation {
+    pub expected_head: Option<String>,
     pub repo: Repo,
     pub args: Vec<OsString>,
     pub input: Option<Vec<u8>>,
@@ -370,6 +371,7 @@ impl Repo {
         }
         let draft_stamp = crate::fileio::load(&draft)?.stamp;
         Ok(GitInvocation {
+            expected_head: None,
             draft_stamp,
             repo: self.clone(),
             args: ["commit", "-F", "-"].iter().map(OsString::from).collect(),
@@ -377,4 +379,22 @@ impl Repo {
             draft: Some(draft),
         })
     }
+}
+
+impl GitInvocation {
+    pub fn validate(&self) -> Result<(), String> {
+        if let Some(expected) = &self.expected_head {
+            let head = self.repo.read(&["rev-parse", "--verify", "HEAD"])?;
+            if String::from_utf8_lossy(&head).trim() != expected {
+                return Err("HEAD changed; reopen amend/reword for the current commit".into());
+            }
+        }
+        Ok(())
+    }
+}
+
+fn literal_pathspec(path: &Path) -> OsString {
+    let mut bytes = b":(literal)".to_vec();
+    bytes.extend_from_slice(path.as_os_str().as_bytes());
+    OsString::from_vec(bytes)
 }

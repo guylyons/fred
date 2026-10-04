@@ -482,6 +482,7 @@ fn run_git(ui: &mut Ui, s: &mut Session, inv: crate::magit::repo::GitInvocation)
             std::process::Stdio::inherit()
         });
         result = (|| {
+            inv.validate()?;
             let mut child = cmd.spawn().map_err(|e| format!("git: {e}"))?;
             let writer = inv.input.as_ref().map(|bytes| {
                 let data = bytes.clone();

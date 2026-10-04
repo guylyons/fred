@@ -436,11 +436,12 @@ fn workflow_menu_dispatch_and_prompt_cancel() {
     }
     for cancel in ["<Esc>", "<C-g>", "<C-c>"] {
         let mut e = Editor::new(Buffer::from_text("source"));
-        e.magit_prompt = Some((
+        e.magit_prompt = Some(super::Prompt::Workflow(
             Repo {
                 root: "/tmp".into(),
             },
             super::workflows::Operation::CreateBranch,
+            vec![],
         ));
         e.open_cmdline('=', "topic");
         for k in parse_keys(cancel) {
@@ -516,4 +517,144 @@ fn workflow_rebase_cherry_pick_revert_and_fixup() {
     let inv = r.operation(Operation::Rebase, "HEAD~1").unwrap();
     r.run(&inv.args, None).unwrap();
     assert_eq!(r.active_workflow().unwrap(), None);
+}
+
+#[test]
+fn stash_pop_removes_only_selected_entry_and_restores_untracked() {
+    use super::workflows::StashAction;
+    let (d, r) = setup();
+    committed(d.path(), b"base\n");
+    fs::write(d.path().join("f"), "first\n").unwrap();
+    fs::write(d.path().join("untracked"), "saved\n").unwrap();
+    git(d.path(), &["stash", "push", "-qu", "-m", "first"]);
+    fs::write(d.path().join("f"), "second\n").unwrap();
+    git(d.path(), &["stash", "push", "-qm", "second"]);
+    let list = r.stashes().unwrap();
+    assert_eq!(list.len(), 2);
+    r.stash_action(&list[1], StashAction::Pop).unwrap();
+    assert_eq!(fs::read_to_string(d.path().join("f")).unwrap(), "first\n");
+    assert_eq!(
+        fs::read_to_string(d.path().join("untracked")).unwrap(),
+        "saved\n"
+    );
+    assert_eq!(r.stashes().unwrap()[0].id, list[0].id);
+}
+#[test]
+fn stash_stale_selection_cannot_drop_renumbered_entry() {
+    use super::workflows::StashAction;
+    let (d, r) = setup();
+    committed(d.path(), b"base\n");
+    fs::write(d.path().join("f"), "first\n").unwrap();
+    git(d.path(), &["stash", "push", "-qm", "first"]);
+    let selected = r.stashes().unwrap()[0].clone();
+    fs::write(d.path().join("f"), "second\n").unwrap();
+    git(d.path(), &["stash", "push", "-qm", "second"]);
+    let before = r.stashes().unwrap();
+    assert!(r.stash_action(&selected, StashAction::Drop).is_err());
+    assert!(r.stash_action(&selected, StashAction::Pop).is_err());
+    assert_eq!(r.stashes().unwrap(), before);
+    assert_eq!(fs::read_to_string(d.path().join("f")).unwrap(), "base\n");
+    r.stash_action(&selected, StashAction::Apply).unwrap();
+    assert_eq!(fs::read_to_string(d.path().join("f")).unwrap(), "first\n");
+    assert_eq!(r.stashes().unwrap(), before);
+}
+#[test]
+fn stash_conflicted_pop_keeps_stash_and_patch_includes_saved_changes() {
+    use super::workflows::StashAction;
+    let (d, r) = setup();
+    committed(d.path(), b"base\n");
+    fs::write(d.path().join("f"), "stashed\n").unwrap();
+    git(d.path(), &["stash", "push", "-qm", "saved"]);
+    let selected = r.stashes().unwrap()[0].clone();
+    assert!(String::from_utf8_lossy(&r.stash_patch(&selected).unwrap()).contains("+stashed"));
+    fs::write(d.path().join("f"), "committed\n").unwrap();
+    git(d.path(), &["add", "f"]);
+    git(d.path(), &["commit", "-qm", "conflicting change"]);
+    assert!(r.stash_action(&selected, StashAction::Pop).is_err());
+    assert_eq!(r.stashes().unwrap(), vec![selected]);
+    assert!(r.status().unwrap().entries.iter().any(|e| e.conflict));
+}
+
+#[test]
+fn stash_pop_restores_staged_and_unstaged_sides() {
+    use super::workflows::StashAction;
+    let (d, r) = setup();
+    committed(d.path(), b"base\n");
+    fs::write(d.path().join("index-file"), "staged\n").unwrap();
+    git(d.path(), &["add", "index-file"]);
+    fs::write(d.path().join("f"), "unstaged\n").unwrap();
+    git(d.path(), &["stash", "push", "-qm", "both"]);
+    let stash = r.stashes().unwrap()[0].clone();
+    r.stash_action(&stash, StashAction::Pop).unwrap();
+    let status = r.status().unwrap();
+    assert!(
+        status
+            .entries
+            .iter()
+            .any(|e| e.path == Path::new("index-file") && e.staged && !e.unstaged)
+    );
+    assert!(
+        status
+            .entries
+            .iter()
+            .any(|e| e.path == Path::new("f") && e.unstaged && !e.staged)
+    );
+    let patch = String::from_utf8(r.stash_patch(&stash).unwrap()).unwrap();
+    assert!(patch.contains("Staged\n") && patch.contains("Unstaged\n"));
+}
+#[test]
+fn stash_index_failure_falls_back_and_retains_stash() {
+    use super::workflows::StashAction;
+    let (d, r) = setup();
+    committed(d.path(), b"base\n");
+    fs::write(d.path().join("f"), "saved staged\n").unwrap();
+    git(d.path(), &["add", "f"]);
+    git(d.path(), &["stash", "push", "-qm", "index"]);
+    let stash = r.stashes().unwrap()[0].clone();
+    fs::write(d.path().join("f"), "other committed\n").unwrap();
+    git(d.path(), &["add", "f"]);
+    git(d.path(), &["commit", "-qm", "other"]);
+    assert!(r.stash_action(&stash, StashAction::Pop).is_err());
+    assert!(r.status().unwrap().entries.iter().any(|e| e.conflict));
+    assert_eq!(r.stashes().unwrap(), vec![stash]);
+}
+
+#[test]
+fn workflow_menu_is_visible_navigable_and_cancelled() {
+    use crate::{
+        buffer::Buffer,
+        editor::{Editor, Mode},
+        key::parse_keys,
+    };
+    let mut ed = Editor::new(Buffer::from_text("source"));
+    for key in parse_keys(" mz") {
+        ed.handle_key(key);
+    }
+    let Mode::Pick(picker) = &ed.mode else {
+        panic!("expected visible menu");
+    };
+    assert!(picker.rows.iter().any(|r| r.text.contains("Apply")));
+    for key in parse_keys("<C-g>") {
+        ed.handle_key(key);
+    }
+    assert_eq!(ed.mode, Mode::Normal);
+    assert!(ed.pending_effect.is_none());
+    for key in parse_keys(" mB<Down><Enter>") {
+        ed.handle_key(key);
+    }
+    assert!(format!("{:?}", ed.pending_effect).contains("CreateSwitch"));
+    assert_eq!(ed.buf.line(0), "source");
+}
+
+#[test]
+fn stash_drop_uses_ordinal_identity_with_configured_log_dates() {
+    use super::workflows::StashAction;
+    let (d, r) = setup();
+    committed(d.path(), b"base\n");
+    fs::write(d.path().join("f"), "changed\n").unwrap();
+    git(d.path(), &["stash", "push", "-qm", "saved"]);
+    git(d.path(), &["config", "log.date", "iso"]);
+    let stash = r.stashes().unwrap()[0].clone();
+    r.stash_action(&stash, StashAction::Drop).unwrap();
+    assert!(r.stashes().unwrap().is_empty());
 }

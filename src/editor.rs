@@ -114,7 +114,11 @@ pub struct Editor {
     pub dired: Option<Box<crate::dired::Dired>>,
     pub magit: Option<Box<crate::magit::View>>,
     pub magit_input_generation: u64,
-    pub magit_prompt: Option<(crate::magit::repo::Repo, crate::magit::workflows::Operation)>,
+    pub magit_options: std::collections::HashSet<crate::magit::MenuOption>,
+    pub commit_args: Vec<String>,
+    pub magit_menu: Option<char>,
+    pub magit_prompt: Option<crate::magit::Prompt>,
+    pub commit_mode: crate::magit::CommitMode,
     pub commit_repo: Option<crate::magit::repo::Repo>,
     /// File operation requested by an ex command, performed by the app.
     pub pending_effect: Option<ExEffect>,
@@ -161,7 +165,11 @@ impl Editor {
             dired: None,
             magit: None,
             magit_input_generation: 0,
+            magit_options: std::collections::HashSet::new(),
+            commit_args: vec![],
+            magit_menu: None,
             magit_prompt: None,
+            commit_mode: crate::magit::CommitMode::New,
             commit_repo: None,
             pending_effect: None,
             win_height: 12,
@@ -546,14 +554,7 @@ impl Editor {
 
     fn run_cmdline(&mut self, kind: char, text: &str) {
         if kind == '=' {
-            if let Some((repo, operation)) = self.magit_prompt.take() {
-                self.pending_effect = Some(ExEffect::Magit(crate::magit::Action::Submit(
-                    repo,
-                    operation,
-                    text.into(),
-                )));
-            }
-            return;
+            return crate::magit::answer(self, text);
         }
         if kind == '@' {
             return crate::dired::answer(self, text);

@@ -312,6 +312,7 @@ fn fullscreen_for_a_big_file_and_screen_restored_on_exit() {
     c.args(["-c", "echo before-marker; exec \"$0\" \"$@\"", BIN, "f.txt"]);
     let mut p = Pty::spawn(c);
     p.wait_text("secret contents");
+    p.wait_text("NORMAL");
     let s = p.screen();
     assert!(!s.contains("before-marker"), "not fullscreen:\n{s}");
     // The status line is on the terminal's last-but-one row.
@@ -1212,4 +1213,51 @@ fn magit_workflow_menu_prompt_and_terminal_return() {
     });
     p.keys(&[":q\r"]);
     assert_eq!(p.wait_exit(), 0);
+}
+
+#[test]
+fn magit_stash_pop_restores_index_and_drop_cancel_in_both_modes() {
+    for mode in ["-f", "-i"] {
+        let env = Env::new();
+        env.write("f.txt", "base\n");
+        magit_init(&env);
+        let git = |args: &[&str]| {
+            let out = std::process::Command::new("git")
+                .arg("-C")
+                .arg(env.dir.path())
+                .args(args)
+                .env("GIT_AUTHOR_NAME", "Fred Test")
+                .env("GIT_AUTHOR_EMAIL", "fred@example.test")
+                .env("GIT_COMMITTER_NAME", "Fred Test")
+                .env("GIT_COMMITTER_EMAIL", "fred@example.test")
+                .output()
+                .unwrap();
+            assert!(
+                out.status.success(),
+                "{}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+            out.stdout
+        };
+        git(&["add", "f.txt"]);
+        git(&["commit", "-qm", "base"]);
+        env.write("f.txt", "saved index\n");
+        git(&["add", "f.txt"]);
+        git(&["stash", "push", "-qm", "saved"]);
+        let mut p = env.fred(&[mode, "f.txt"]);
+        p.wait_for("editor", |s| s.contains("NORMAL"));
+        p.keys(&["iunsaved \x1b", " mzl"]);
+        p.wait_for("stash list", |s| s.contains("stash@{0}"));
+        p.keys(&["j", "d"]);
+        p.wait_for("drop confirmation", |s| s.contains("Type yes:"));
+        p.keys(&["\x1b", "p"]);
+        p.wait_for("popped stash", |s| s.contains("No entries"));
+        p.keys(&["q"]);
+        p.wait_for("preserved source", |s| s.contains("unsaved base"));
+        p.keys(&[":q!\r"]);
+        assert_eq!(p.wait_exit(), 0);
+        assert_eq!(env.read("f.txt"), "saved index\n");
+        assert_eq!(git(&["show", ":f.txt"]), b"saved index\n");
+        assert!(git(&["stash", "list"]).is_empty());
+    }
 }

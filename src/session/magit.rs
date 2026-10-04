@@ -6,10 +6,11 @@ use std::hash::{Hash, Hasher};
 use std::thread::JoinHandle;
 
 pub(super) enum Outcome {
+    NoticeView(Box<View>, String, Option<RowAction>, usize),
     ErrorView(Box<View>, String, Option<RowAction>, usize),
     View(Box<View>, Option<RowAction>, usize),
-    Prompt(Repo, crate::magit::workflows::Operation),
-    Draft(Repo),
+    Prompt(Repo, crate::magit::workflows::Operation, Vec<String>),
+    Draft(Repo, crate::magit::CommitMode, Vec<u8>, Vec<String>),
     Branches(Repo, Vec<String>),
     Git(GitInvocation),
 }
@@ -57,8 +58,89 @@ impl Session {
             self.ed.set_err("Git operation in progress");
             return;
         }
-        if let Action::Submit(repo, operation, value) = action {
-            self.start_magit(move || Ok(Outcome::Git(repo.operation(operation, &value)?)));
+        if let Action::Stash(operation) = action {
+            let Some(mut view) = self.ed.magit.as_deref().cloned() else {
+                self.magit_action(Action::Stashes);
+                return;
+            };
+            if !matches!(view.kind, Kind::Stashes | Kind::StashPatch(_)) {
+                self.magit_action(Action::Stashes);
+                return;
+            }
+            let stash = match &view.kind {
+                Kind::StashPatch(stash) => Some(stash.clone()),
+                _ => match view.action_at(self.ed.cur.line) {
+                    Some(RowAction::Stash(stash)) => Some(stash),
+                    _ => None,
+                },
+            };
+            let Some(stash) = stash else {
+                self.ed.set_err("select a stash first");
+                return;
+            };
+            if operation == crate::magit::workflows::StashAction::Drop {
+                crate::magit::prompt(
+                    &mut self.ed,
+                    crate::magit::Prompt::DropStash(view.repo, stash),
+                );
+                return;
+            }
+            let selected = view.action_at(self.ed.cur.line);
+            let fallback = self.ed.cur.line;
+            self.start_magit(move || {
+                let result = view.repo.stash_action(&stash, operation);
+                refresh_view(&mut view)?;
+                match result {
+                    Ok(message) => Ok(Outcome::NoticeView(
+                        Box::new(view),
+                        message.into(),
+                        selected,
+                        fallback,
+                    )),
+                    Err(error) => Ok(Outcome::ErrorView(
+                        Box::new(view),
+                        error,
+                        selected,
+                        fallback,
+                    )),
+                }
+            });
+            return;
+        }
+        if let Action::DropStash(repo, stash) = action {
+            let Some(mut view) = self.ed.magit.as_deref().cloned().filter(|v| v.repo == repo)
+            else {
+                self.ed.set_err("stash view changed; select again");
+                return;
+            };
+            let selected = view.action_at(self.ed.cur.line);
+            let fallback = self.ed.cur.line;
+            self.start_magit(move || {
+                let result = repo.stash_action(&stash, crate::magit::workflows::StashAction::Drop);
+                refresh_view(&mut view)?;
+                match result {
+                    Ok(message) => Ok(Outcome::NoticeView(
+                        Box::new(view),
+                        message.into(),
+                        selected,
+                        fallback,
+                    )),
+                    Err(error) => Ok(Outcome::ErrorView(
+                        Box::new(view),
+                        error,
+                        selected,
+                        fallback,
+                    )),
+                }
+            });
+            return;
+        }
+        if let Action::Submit(repo, operation, value, args) = action {
+            self.start_magit(move || {
+                let mut inv = repo.operation(operation, &value)?;
+                inv.args.extend(args.into_iter().map(OsString::from));
+                Ok(Outcome::Git(inv))
+            });
             return;
         }
         if action == Action::Commit
@@ -78,10 +160,32 @@ impl Session {
                     .set_err("commit draft changed on disk; reload before submitting");
                 return;
             }
+            if let Some(target) = self.ed.commit_mode.target() {
+                match repo.read(&["rev-parse", "--verify", "HEAD"]) {
+                    Ok(head) if String::from_utf8_lossy(&head).trim() == target => (),
+                    _ => {
+                        self.ed
+                            .set_err("HEAD changed; reopen amend/reword for the current commit");
+                        return;
+                    }
+                }
+            }
             let message = self.ed.buf.to_bytes();
             let draft = self.ed.path.clone().unwrap_or_default();
             match repo.commit_invocation(message, draft) {
-                Ok(inv) => self.pending_git = Some(inv),
+                Ok(mut inv) => {
+                    inv.args
+                        .extend(self.ed.commit_args.iter().map(OsString::from));
+                    if let Some(target) = self.ed.commit_mode.target() {
+                        inv.args.push("--amend".into());
+                        inv.expected_head = Some(target.into());
+                    }
+                    if matches!(self.ed.commit_mode, crate::magit::CommitMode::Reword(_)) {
+                        inv.args.push("--only".into());
+                        inv.args.push("--allow-empty".into());
+                    }
+                    self.pending_git = Some(inv);
+                }
                 Err(e) => self.ed.set_err(e),
             }
             return;
@@ -90,6 +194,7 @@ impl Session {
             if let Some(repo) = self.magit_picker_repo.take() {
                 self.ed.mode = Mode::Normal;
                 self.pending_git = Some(GitInvocation {
+                    expected_head: None,
                     repo,
                     args: vec!["switch".into(), "--".into(), name.into()],
                     input: None,
@@ -128,6 +233,15 @@ impl Session {
                                 pattern: None,
                             }),
                         );
+                    }
+                    Some(RowAction::Stash(stash)) => {
+                        view.return_to = self.cur;
+                        self.start_magit(move || {
+                            let bytes = view.repo.stash_patch(&stash)?;
+                            view.kind = Kind::StashPatch(stash);
+                            view.rows = display_patch(&bytes);
+                            Ok(Outcome::View(Box::new(view), None, 0))
+                        });
                     }
                     Some(RowAction::Commit(id)) => {
                         view.return_to = self.cur;
@@ -199,6 +313,8 @@ impl Session {
             });
             return;
         }
+        let commit_args = crate::magit::menu_arguments(&self.ed, 'C');
+        let stash_args = crate::magit::menu_arguments(&self.ed, 'z');
         let from = self.magit_from();
         let origin = self.cur;
         let prior: Vec<_> = (0..self.bufs.len())
@@ -266,12 +382,46 @@ impl Session {
                 }
                 Action::Workflow(operation) => {
                     if operation.prompt().is_some() {
-                        Ok(Outcome::Prompt(repo, operation))
+                        let args = if matches!(
+                            operation,
+                            crate::magit::workflows::Operation::Stash
+                                | crate::magit::workflows::Operation::StashUntracked
+                                | crate::magit::workflows::Operation::StashKeepIndex
+                        ) {
+                            stash_args
+                        } else if operation == crate::magit::workflows::Operation::Fixup {
+                            commit_args
+                        } else {
+                            vec![]
+                        };
+                        Ok(Outcome::Prompt(repo, operation, args))
                     } else {
-                        Ok(Outcome::Git(repo.operation(operation, "")?))
+                        let mut inv = repo.operation(operation, "")?;
+                        if operation == crate::magit::workflows::Operation::Amend {
+                            inv.args.extend(commit_args.into_iter().map(OsString::from));
+                        }
+                        Ok(Outcome::Git(inv))
                     }
                 }
-                Action::Commit => Ok(Outcome::Draft(repo)),
+                Action::Commit => Ok(Outcome::Draft(
+                    repo,
+                    crate::magit::CommitMode::New,
+                    vec![],
+                    commit_args,
+                )),
+                Action::AmendDraft | Action::RewordDraft => {
+                    let head =
+                        String::from_utf8_lossy(&repo.read(&["rev-parse", "--verify", "HEAD"])?)
+                            .trim()
+                            .to_owned();
+                    let message = repo.read(&["log", "-1", "--format=%B", &head])?;
+                    let mode = if action == Action::AmendDraft {
+                        crate::magit::CommitMode::Amend(head)
+                    } else {
+                        crate::magit::CommitMode::Reword(head)
+                    };
+                    Ok(Outcome::Draft(repo, mode, message, commit_args))
+                }
                 Action::Branches => {
                     let names = repo.branches()?;
                     Ok(Outcome::Branches(repo, names))
@@ -283,6 +433,7 @@ impl Session {
                         _ => vec!["fetch".into()],
                     };
                     Ok(Outcome::Git(GitInvocation {
+                        expected_head: None,
                         repo,
                         args,
                         input: None,
@@ -316,39 +467,75 @@ impl Session {
             Ok(Outcome::View(view, selected, fallback)) => {
                 self.install_magit(*view, selected, fallback)
             }
+            Ok(Outcome::NoticeView(view, message, selected, fallback)) => {
+                self.install_magit(*view, selected, fallback);
+                self.ed.set_msg(message);
+            }
             Ok(Outcome::ErrorView(view, error, selected, fallback)) => {
                 self.install_magit(*view, selected, fallback);
                 self.ed.set_err(error);
             }
-            Ok(Outcome::Prompt(repo, operation)) => {
+            Ok(Outcome::Prompt(repo, operation, args)) => {
                 if self.ed.magit_input_generation != job.input_generation
                     || self.ed.mode != Mode::Normal
                 {
                     self.ed.set_msg("Git prompt cancelled");
                     return true;
                 }
-                self.ed.magit_prompt = Some((repo, operation));
-                self.ed.open_cmdline('=', "");
-                if let Mode::Command(cl) = &mut self.ed.mode {
-                    cl.prompt = operation.prompt().unwrap_or("").into();
-                }
+                crate::magit::prompt(
+                    &mut self.ed,
+                    crate::magit::Prompt::Workflow(repo, operation, args),
+                );
             }
-            Ok(Outcome::Draft(repo)) => {
+            Ok(Outcome::Draft(repo, mode, message, args)) => {
+                if self.ed.magit_input_generation != job.input_generation
+                    || self.ed.mode != Mode::Normal
+                {
+                    self.ed.set_msg("Git draft request cancelled");
+                    return true;
+                }
                 let mut h = std::collections::hash_map::DefaultHasher::new();
                 repo.root.hash(&mut h);
-                let dir = self
+                let mut dir = self
                     .swap_dir
                     .with_file_name("magit")
                     .join(format!("{:016x}", h.finish()));
+                if let Some(target) = mode.target() {
+                    dir = dir
+                        .join(if matches!(mode, crate::magit::CommitMode::Amend(_)) {
+                            "amend"
+                        } else {
+                            "reword"
+                        })
+                        .join(target);
+                }
                 if let Err(e) = std::fs::create_dir_all(&dir) {
                     self.ed.set_err(e.to_string());
                     return true;
                 }
                 let path = dir.join("COMMIT_EDITMSG");
-                self.magit_drafts.insert(path.clone(), repo.clone());
+                if mode.target().is_some()
+                    && !path.exists()
+                    && let Err(error) = fileio::write(&path, &message, None, false)
+                {
+                    self.ed.set_err(error);
+                    return true;
+                }
+                self.magit_drafts
+                    .insert(path.clone(), (repo.clone(), mode.clone(), args));
                 self.open_pick(path, None);
                 self.attach_commit_repo();
-                self.ed.set_msg("Commit draft: :w save draft; Space m c commit staged changes (unsaved source edits excluded)");
+                self.ed.set_msg(match mode {
+                    crate::magit::CommitMode::New => {
+                        "Commit draft: :w save; Space m c commit staged changes"
+                    }
+                    crate::magit::CommitMode::Amend(_) => {
+                        "Amend draft: :w save; Space m c amend staged changes and message"
+                    }
+                    crate::magit::CommitMode::Reword(_) => {
+                        "Reword draft: :w save; Space m c replace message, keep HEAD tree"
+                    }
+                });
             }
             Ok(Outcome::Branches(repo, names)) => {
                 self.magit_picker_repo = Some(repo);
@@ -359,8 +546,13 @@ impl Session {
         true
     }
     pub(super) fn attach_commit_repo(&mut self) {
-        if let Some(repo) = self.ed.path.as_ref().and_then(|p| self.magit_drafts.get(p)) {
+        if let Some((repo, mode, args)) =
+            self.ed.path.as_ref().and_then(|p| self.magit_drafts.get(p))
+        {
             self.ed.commit_repo = Some(repo.clone());
+            self.ed.commit_mode = mode.clone();
+            self.ed.commit_args = args.clone();
+            crate::magit::sync_commit_options(&mut self.ed);
         }
     }
     fn install_magit(&mut self, mut view: View, selected: Option<RowAction>, fallback: usize) {
@@ -499,7 +691,12 @@ impl Session {
     }
 }
 fn refresh_view(view: &mut View) -> Result<(), String> {
+    if let Kind::StashPatch(stash) = &view.kind {
+        view.rows = display_patch(&view.repo.stash_patch(stash)?);
+        return Ok(());
+    }
     if matches!(view.kind, Kind::Stashes | Kind::Tags) {
+        view.snapshot = view.repo.status()?;
         return refresh_refs(view);
     }
     if view.kind != Kind::Status {
@@ -543,16 +740,37 @@ fn display_patch(bytes: &[u8]) -> Vec<Row> {
 }
 
 fn refresh_refs(view: &mut View) -> Result<(), String> {
-    let bytes = if view.kind == Kind::Stashes {
-        view.repo
-            .read(&["stash", "list", "--format=%H%x00%gd %gs"])?
-    } else {
-        view.repo.read(&[
-            "for-each-ref",
-            "--format=%(objectname)%00%(refname:short)",
-            "refs/tags/",
-        ])?
-    };
+    if view.kind == Kind::Stashes {
+        view.rows = vec![Row {
+            text: "a apply  p pop  d drop  Enter inspect  gr refresh  q return".into(),
+            action: None,
+        }];
+        for stash in view.repo.stashes()? {
+            view.rows.push(Row {
+                text: format!("{} {}", stash.selector, label(Path::new(&stash.subject))),
+                action: Some(RowAction::Stash(stash)),
+            });
+        }
+        if view.rows.len() == 1 {
+            view.rows.push(Row {
+                text: "No entries".into(),
+                action: None,
+            });
+        }
+        let conflicts = view.snapshot.entries.iter().filter(|e| e.conflict).count();
+        if conflicts > 0 {
+            view.rows.push(Row {
+                text: format!("Conflicts: {conflicts}; Space m s to resolve"),
+                action: None,
+            });
+        }
+        return Ok(());
+    }
+    let bytes = view.repo.read(&[
+        "for-each-ref",
+        "--format=%(objectname)%00%(refname:short)",
+        "refs/tags/",
+    ])?;
     view.rows = vec![Row {
         text: "Enter inspect  gr refresh  q return".into(),
         action: None,

@@ -423,3 +423,32 @@ fn no_definition_says_so() {
     let msg = ed.msg.as_ref().map_or("", |m| m.0.as_str());
     assert!(msg.ends_with("no definition of nothing found"), "{msg}");
 }
+
+#[test]
+fn definition_jump_waits_for_the_rendered_results_snapshot() {
+    let (dir, mut ed) = setup(&[("a.rs", "fn run() {}\n"), ("b.rs", "fn run() {}\n")]);
+    ed.path = Some(dir.path().join("main.rs"));
+    ed.buf = Buffer::from_text("run();\n");
+    keys(&mut ed, "gd");
+    let generation = ed.project.grep.results().generation;
+    ed.project.grep.wait(generation);
+    let Mode::Pick(p) = &mut ed.mode else {
+        panic!("definition picker");
+    };
+    p.update(&ed.project, &ed.buf, Instant::now());
+    // The worker finished after an earlier frame had seen only the first match.
+    p.rows.truncate(1);
+    p.ranks.truncate(1);
+    p.seen_grep = (generation, 1, false);
+    auto_jump(&mut ed);
+    assert!(
+        ed.pending_effect.is_none(),
+        "must not choose from stale partial results"
+    );
+    tick(&mut ed);
+    assert_eq!(picker(&ed).rows.len(), 2);
+    assert!(
+        ed.pending_effect.is_none(),
+        "equal completed definitions require selection"
+    );
+}
