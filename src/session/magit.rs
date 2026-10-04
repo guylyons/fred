@@ -38,6 +38,52 @@ pub(super) enum Outcome {
     Saved(Repo, Result<(), String>),
     /// Text for the unnamed register (the kill ring) and a message.
     Copy(String, String),
+    /// Answer a question without asking (the commit at point).
+    Answer(Repo, Question, Vec<String>, Vec<String>),
+}
+/// magit-log-select: the current branch's log, in which picking a commit
+/// answers QUESTION (after ANSWERS). INITIAL is the commit to start on;
+/// otherwise the first that is not a fixup!, squash! or amend! commit.
+fn log_select(
+    repo: Repo,
+    question: Question,
+    answers: Vec<String>,
+    defaults: Vec<String>,
+    message: String,
+    initial: Option<String>,
+    origin: usize,
+) -> Result<Outcome, String> {
+    let head = repo.current_branch().unwrap_or_else(|_| "HEAD".into());
+    let mut view = View::status(repo, Default::default());
+    // magit-log-select-mode's magit-log-default-arguments.
+    view.kind = Kind::Log(
+        vec![head],
+        vec!["--graph".into(), "-n256".into(), "--decorate".into()],
+    );
+    view.rows.clear();
+    view.return_to = origin;
+    view.select = Some(Box::new(crate::magit::Select {
+        question,
+        answers,
+        defaults,
+        message,
+    }));
+    refresh_view(&mut view)?;
+    let fallback = view
+        .rows
+        .iter()
+        .position(|r| {
+            matches!(r.action, Some(RowAction::Commit(_)))
+                && !["fixup! ", "squash! ", "amend! "]
+                    .iter()
+                    .any(|p| r.text.contains(p))
+        })
+        .unwrap_or(0);
+    Ok(Outcome::View(
+        Box::new(view),
+        initial.map(RowAction::Commit),
+        fallback,
+    ))
 }
 /// What a hunk patch at point is used for.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -353,6 +399,15 @@ impl Session {
             });
             return;
         }
+        if let Action::Answered(
+            repo,
+            Question::Misc(crate::magit::misc::Op::LogJump),
+            answers,
+            defaults,
+        ) = action
+        {
+            return self.log_jump(repo, merge_answers(&answers, &defaults));
+        }
         if let Action::Answered(repo, Question::Misc(op), answers, defaults) = action {
             let origin = self.cur;
             self.start_magit(move || {
@@ -375,7 +430,9 @@ impl Session {
                 .and_then(|p| p.parent().map(Path::to_path_buf));
             let files = matches!(
                 op,
-                crate::magit::misc::Op::StageFiles(_) | crate::magit::misc::Op::UnstageFiles
+                crate::magit::misc::Op::StageFiles(_)
+                    | crate::magit::misc::Op::UnstageFiles
+                    | crate::magit::misc::Op::RemovingFile
             );
             let at_point =
                 self.ed
@@ -599,6 +656,144 @@ impl Session {
         }
         if action == Action::CopyDiff {
             return self.copy_diff();
+        }
+        if let Action::Margin(what) = action {
+            let Some(view) = self.ed.magit.as_mut() else {
+                return self
+                    .ed
+                    .set_err("Magit margin isn't supported in this buffer");
+            };
+            if view.margin.is_none() {
+                view.margin = crate::magit::margin::Margin::for_kind(&view.kind);
+            }
+            let Some(m) = view.margin.as_mut() else {
+                return self
+                    .ed
+                    .set_err("Magit margin isn't supported in this buffer");
+            };
+            match what {
+                'L' => m.shown = !m.shown,
+                'l' => m.cycle_style(),
+                'd' => m.details = !m.details,
+                _ => m.shortstat = !m.shortstat,
+            }
+            // Load stamps (and shortstats) the buffer does not have yet.
+            return self.magit_action(Action::Refresh);
+        }
+        if let Action::DiffToggle(what) = action {
+            let Some(view) = self.ed.magit.as_mut() else {
+                return;
+            };
+            let on = if what == 't' {
+                view.refine = !view.refine;
+                view.refine
+            } else {
+                view.fontify = !view.fontify;
+                view.fontify
+            };
+            let name = if what == 't' {
+                "Hunk refinement"
+            } else {
+                "Hunk fontification"
+            };
+            return self
+                .ed
+                .set_msg(format!("{name} {}", if on { "on" } else { "off" }));
+        }
+        if action == Action::LogMoveTo {
+            return self.magit_action(Action::Misc(crate::magit::misc::Op::LogJump));
+        }
+        if let Action::NextReference(previous) = action {
+            return self.next_reference(previous);
+        }
+        if action == Action::CycleDiffs {
+            return self.cycle_diffs();
+        }
+        if let Action::Go(backward) = action {
+            let Some(mut view) = self.ed.magit.as_deref().cloned() else {
+                return;
+            };
+            let (from, to) = if backward {
+                (&mut view.back, &mut view.forward)
+            } else {
+                (&mut view.forward, &mut view.back)
+            };
+            let Some(kind) = from.pop() else {
+                return self.ed.set_err(if backward {
+                    "No previous entry in buffer's history"
+                } else {
+                    "No next entry in buffer's history"
+                });
+            };
+            to.push(std::mem::replace(&mut view.kind, kind));
+            view.rows.clear();
+            self.start_magit(move || {
+                refresh_view(&mut view)?;
+                Ok(Outcome::View(Box::new(view), None, 0))
+            });
+            return;
+        }
+        if let Action::DescribeSection(full) = action {
+            let Some(view) = self.ed.magit.as_deref() else {
+                return self.ed.set_err("Not in a Magit buffer");
+            };
+            let line = self.ed.cur.line;
+            let text = match view.action_at(line) {
+                Some(a) if full => format!("{a:?} at line {} in {:?}", line + 1, view.kind),
+                Some(a) => format!("{a:?}"),
+                None => format!("No section at line {}", line + 1),
+            };
+            return self.ed.set_msg(text);
+        }
+        if matches!(action, Action::SelectPick | Action::SelectQuit) {
+            let Some(view) = self.ed.magit.as_deref() else {
+                return;
+            };
+            let Some(select) = view.select.clone() else {
+                return self.ed.set_err("Not selecting a commit");
+            };
+            let repo = view.repo.clone();
+            let picked = match view.action_at(self.ed.cur.line) {
+                Some(RowAction::Commit(id)) => Some(id),
+                _ => None,
+            };
+            if action == Action::SelectPick && picked.is_none() {
+                return self.ed.set_err("No commit at point");
+            }
+            // magit-mode-bury-buffer 'kill: back to where the selection
+            // started, then delete the selection buffer.
+            let (back, me) = (view.return_to, self.cur);
+            if back < self.bufs.len() && back != me {
+                self.show(back);
+            }
+            self.buffer(BufCmd::Delete, &(me + 1).to_string(), true);
+            let Some(id) = picked.filter(|_| action == Action::SelectPick) else {
+                return self.ed.set_msg("Abort");
+            };
+            let mut answers = select.answers;
+            answers.push(id);
+            return self.magit_action(Action::Answered(
+                repo,
+                select.question,
+                answers,
+                select.defaults,
+            ));
+        }
+        if action == Action::BufferLock {
+            let Some(view) = self.ed.magit.as_mut() else {
+                return;
+            };
+            // Upstream cannot lock a status buffer either.
+            if matches!(view.kind, Kind::Status) {
+                return self.ed.set_err("Buffer locking is not supported here");
+            }
+            view.locked = !view.locked;
+            let msg = if view.locked {
+                "Locked buffer to its value"
+            } else {
+                "Unlocked buffer"
+            };
+            return self.ed.set_msg(msg);
         }
         if action == Action::SaveMessage {
             return crate::magit::message::save_message(&mut self.ed);
@@ -1722,10 +1917,66 @@ impl Session {
                             _ => None,
                         },
                     });
+            let origin = self.cur;
             self.start_magit(move || {
+                use crate::magit::commit::Op as C;
                 let repo = Repo::discover(&from)?;
-                let (prompts, defaults) = repo.commit_prompts(&op, at_point);
-                Ok(Outcome::Ask(repo, Question::Commit(op), defaults, prompts))
+                let (prompts, defaults) = repo.commit_prompts(&op, at_point.clone());
+                let pick =
+                    |verb: &str| format!("Type . or C-c C-c on a commit to {verb}, or q to abort");
+                match &op {
+                    // magit-commit-squash-internal: the commit at point, else
+                    // magit-log-select.
+                    C::Fixup
+                    | C::Squash
+                    | C::Alter
+                    | C::Augment
+                    | C::Revise
+                    | C::InstantFixup
+                    | C::InstantSquash => match at_point {
+                        Some(id) => Ok(Outcome::Answer(
+                            repo,
+                            Question::Commit(op),
+                            vec![id.clone()],
+                            vec![id],
+                        )),
+                        None => {
+                            let msg = pick(&format!("{} it", op_verb(&op)));
+                            log_select(
+                                repo,
+                                Question::Commit(op),
+                                vec![],
+                                defaults,
+                                msg,
+                                None,
+                                origin,
+                            )
+                        }
+                    },
+                    // Absorb into commits since the one picked, starting at the
+                    // upstream's merge base.
+                    C::Autofixup | C::Absorb | C::AbsorbModules => {
+                        let initial = defaults
+                            .first()
+                            .filter(|d| !d.is_empty())
+                            .and_then(|d| {
+                                repo.read(&["merge-base", "--end-of-options", d, "HEAD"])
+                                    .ok()
+                            })
+                            .map(|o| String::from_utf8_lossy(&o).trim().to_owned());
+                        let msg = pick("absorb into commits since it");
+                        log_select(
+                            repo,
+                            Question::Commit(op),
+                            vec![],
+                            defaults,
+                            msg,
+                            initial,
+                            origin,
+                        )
+                    }
+                    _ => Ok(Outcome::Ask(repo, Question::Commit(op), defaults, prompts)),
+                }
             });
             return;
         }
@@ -1770,6 +2021,40 @@ impl Session {
                     (false, R::Continue | R::Abort) => return Err("No rebase in progress".into()),
                     (false, op) => op,
                 };
+                // magit-rebase-interactive-1: the commit at point, else
+                // magit-log-select.
+                if matches!(
+                    op,
+                    R::Interactive | R::EditCommit | R::RewordCommit | R::RemoveCommit
+                ) {
+                    return match at_point {
+                        Some(id) => Ok(Outcome::Answer(
+                            repo,
+                            Question::Rebase(op),
+                            vec![id.clone()],
+                            vec![id],
+                        )),
+                        None => {
+                            let verb = match op {
+                                R::Interactive => "rebase it and all commits above it",
+                                R::EditCommit => "edit it",
+                                R::RewordCommit => "reword its message",
+                                _ => "remove it",
+                            };
+                            let msg =
+                                format!("Type . or C-c C-c on a commit to {verb}, or q to abort");
+                            log_select(
+                                repo,
+                                Question::Rebase(op),
+                                vec![],
+                                vec![String::new()],
+                                msg,
+                                None,
+                                origin,
+                            )
+                        }
+                    };
+                }
                 let (prompts, defaults) = repo.rebase_prompts(&op, at_point)?;
                 if prompts.is_empty() {
                     let next = repo
@@ -2798,6 +3083,9 @@ impl Session {
                     self.magit_action(Action::Blame(kind));
                 }
             }
+            Ok(Outcome::Answer(repo, question, answers, defaults)) => {
+                self.magit_action(Action::Answered(repo, question, answers, defaults));
+            }
             Ok(Outcome::Copy(text, message)) => {
                 crate::vim::ops::set_reg(
                     &mut self.ed,
@@ -3092,6 +3380,135 @@ impl Session {
                 .into()
             }));
             Ok(branch_outcome(repo, next, origin))
+        });
+    }
+    /// magit-log-move-to-revision: in this log buffer, else the log of all
+    /// branches.
+    fn log_jump(&mut self, repo: Repo, answers: Vec<String>) {
+        let rev = answers.first().cloned().unwrap_or_default();
+        let in_log = self
+            .ed
+            .magit
+            .as_deref()
+            .filter(|v| v.repo == repo && matches!(v.kind, Kind::Log(..)))
+            .cloned();
+        let origin = self.cur;
+        let args = crate::magit::menu_arguments(&self.ed, 'l');
+        self.start_magit(move || {
+            if rev.is_empty() || rev.starts_with('-') || rev.chars().any(char::is_control) {
+                return Err(format!("invalid revision {rev:?}"));
+            }
+            let id = repo
+                .read(&[
+                    "rev-parse",
+                    "--verify",
+                    "-q",
+                    "--end-of-options",
+                    &format!("{rev}^{{commit}}"),
+                ])
+                .map_err(|_| format!("unknown revision {rev:?}"))?;
+            let id = String::from_utf8_lossy(&id).trim().to_owned();
+            let view = match in_log {
+                Some(v) => v,
+                None => {
+                    let mut v = View::status(repo.clone(), Default::default());
+                    v.kind = Kind::Log(vec!["--branches".into()], args);
+                    v.rows.clear();
+                    v.return_to = origin;
+                    refresh_view(&mut v)?;
+                    v
+                }
+            };
+            if !view
+                .rows
+                .iter()
+                .any(|r| r.action == Some(RowAction::Commit(id.clone())))
+            {
+                return Err(format!("{rev} isn't visible in the current log buffer"));
+            }
+            Ok(Outcome::View(
+                Box::new(view),
+                Some(RowAction::Commit(id)),
+                0,
+            ))
+        });
+    }
+    /// magit-next-reference: the next line naming a ref (a log's
+    /// decorations, a refs buffer's refs, status headers).
+    fn next_reference(&mut self, previous: bool) {
+        let Some(view) = self.ed.magit.as_deref() else {
+            return;
+        };
+        let is_ref = |i: usize| {
+            let text = view.rows.get(i).map_or("", |r| r.text.as_str());
+            match &view.kind {
+                Kind::Refs(..) => matches!(view.rows[i].action, Some(RowAction::Commit(_))),
+                Kind::Status => ["Head:", "Merge:", "Rebase:", "Push:", "Tag:"]
+                    .iter()
+                    .any(|p| text.starts_with(p)),
+                _ => {
+                    // "hash (refs) subject", after any graph.
+                    let t = text.trim_start_matches(|c: char| "*|/\\ _-.".contains(c));
+                    t.split_once(' ').is_some_and(|(h, rest)| {
+                        h.len() >= 7
+                            && h.bytes().all(|b| b.is_ascii_hexdigit())
+                            && rest.starts_with('(')
+                    })
+                }
+            }
+        };
+        let cur = self.ed.cur.line;
+        let found = if previous {
+            (0..cur).rev().find(|&i| is_ref(i))
+        } else {
+            (cur + 1..view.rows.len()).find(|&i| is_ref(i))
+        };
+        match found {
+            Some(i) => self.ed.set_cursor(i, 0),
+            None => self.ed.set_msg("No more references"),
+        }
+    }
+    /// magit-section-cycle-diffs: in status, show every staged and unstaged
+    /// file's diff, or hide them all when they are all shown.
+    fn cycle_diffs(&mut self) {
+        let Some(mut view) = self.ed.magit.as_deref().cloned() else {
+            return;
+        };
+        if view.kind != Kind::Status {
+            return self.ed.set_msg("No diff sections to cycle here");
+        }
+        let files: Vec<(PathBuf, bool)> = view
+            .snapshot
+            .entries
+            .iter()
+            .flat_map(|e| {
+                let mut v = vec![];
+                if e.staged && !e.conflict {
+                    v.push((e.path.clone(), true));
+                }
+                if e.unstaged && !e.conflict && !e.untracked {
+                    v.push((e.path.clone(), false));
+                }
+                v
+            })
+            .collect();
+        let selected = view.action_at(self.ed.cur.line);
+        let fallback = self.ed.cur.line;
+        view.closed.remove(&Section::Staged);
+        view.closed.remove(&Section::Unstaged);
+        if files.iter().all(|f| view.expanded.contains(f)) {
+            view.expanded.clear();
+            view.rebuild();
+            return self.install_magit(view, selected, fallback);
+        }
+        self.start_magit(move || {
+            for key in files {
+                let diff = view.repo.diff(&key.0, key.1)?;
+                view.diffs.insert(key.clone(), diff);
+                view.expanded.insert(key);
+            }
+            view.rebuild();
+            Ok(Outcome::View(Box::new(view), selected, fallback))
         });
     }
     /// The file and function (from the hunk header) of the change at point.
@@ -3505,17 +3922,19 @@ impl Session {
         self.reloaded = true;
     }
     fn install_magit(&mut self, mut view: View, selected: Option<RowAction>, fallback: usize) {
-        // Like magit-diff-mode, one diff buffer per repository is refreshed in place.
-        let slot = |kind: &Kind| match kind {
-            Kind::Diff(..) => "Diff".to_owned(),
+        // Like magit-diff-mode, one diff buffer per repository is refreshed in
+        // place, unless locked to its value (magit-toggle-buffer-lock).
+        let slot = |v: &View| match &v.kind {
+            _ if v.select.is_some() => "Select".to_owned(),
+            Kind::Diff(..) if !v.locked => "Diff".to_owned(),
             kind => format!("{kind:?}"),
         };
-        let kind = slot(&view.kind);
+        let kind = slot(&view);
         let repo = view.repo.clone();
         let same = |ed: &Editor| {
             ed.magit
                 .as_ref()
-                .is_some_and(|v| v.repo == repo && slot(&v.kind) == kind)
+                .is_some_and(|v| v.repo == repo && slot(v) == kind)
         };
         if !same(&self.ed) {
             if let Some(i) = self
@@ -3553,6 +3972,25 @@ impl Session {
             }
         } else if let Some(old) = &self.ed.magit {
             view.return_to = old.return_to;
+        }
+        // A reused buffer keeps its settings and records the value it showed
+        // (magit-go-backward), unless this is that navigation.
+        if let Some(old) = self
+            .ed
+            .magit
+            .as_deref()
+            .filter(|o| o.repo == repo && slot(o) == kind)
+        {
+            if old.kind != view.kind && view.back.is_empty() && view.forward.is_empty() {
+                view.back = old.back.clone();
+                view.back.push(old.kind.clone());
+            }
+            view.refine = old.refine;
+            view.fontify = old.fontify;
+            view.locked |= old.locked;
+            if old.margin.is_some() {
+                view.margin = old.margin.clone();
+            }
         }
         self.no_swap = true;
         self.ed.git = crate::git::Gutter::default();
@@ -3982,6 +4420,10 @@ fn stash_view(
     Ok(Outcome::View(Box::new(view), None, 0))
 }
 fn refresh_view(view: &mut View) -> Result<(), String> {
+    refresh_rows(view)?;
+    view.load_stamps()
+}
+fn refresh_rows(view: &mut View) -> Result<(), String> {
     view.dirty = false;
     if let Kind::Diff(target, args) = &view.kind {
         let mut rows = vec![Row {
@@ -4175,17 +4617,21 @@ fn refresh_log(view: &mut View) -> Result<(), String> {
         return Ok(());
     }
     if let Kind::Log(revs, args) = &view.kind {
-        // magit-log-refresh-buffer: header line, then the washed log.
+        // magit-log-refresh-buffer: header line, then the washed log; a
+        // magit-log-select buffer shows its usage instead.
         let mut rows = vec![Row {
-            text: format!(
-                "Commits in {}{} (Enter inspect, = limit, + more, gr refresh, q return)",
-                label(Path::new(&revs.join(" "))),
-                if args.is_empty() {
-                    String::new()
-                } else {
-                    format!(" {}", label(Path::new(&args.join(" "))))
-                }
-            ),
+            text: match &view.select {
+                Some(select) => select.message.clone(),
+                None => format!(
+                    "Commits in {}{} (Enter inspect, = limit, + more, gr refresh, q return)",
+                    label(Path::new(&revs.join(" "))),
+                    if args.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" {}", label(Path::new(&args.join(" "))))
+                    }
+                ),
+            },
             action: None,
         }];
         let lines = view.repo.log_lines(revs, args, &[])?;
@@ -4223,10 +4669,8 @@ fn refresh_log(view: &mut View) -> Result<(), String> {
     for c in commits {
         view.rows.push(Row {
             text: format!(
-                "{} {} {} {}",
+                "{} {}",
                 &c.id[..c.id.len().min(8)],
-                c.date,
-                label(Path::new(&c.author)),
                 label(Path::new(&c.subject))
             ),
             action: Some(RowAction::Commit(c.id)),
@@ -4312,4 +4756,16 @@ fn refresh_refs(view: &mut View) -> Result<(), String> {
         });
     }
     Ok(())
+}
+
+/// The verb magit-commit-squash-internal's log-select message uses.
+fn op_verb(op: &crate::magit::commit::Op) -> &'static str {
+    use crate::magit::commit::Op as C;
+    match op {
+        C::Fixup | C::InstantFixup => "fixup",
+        C::Squash | C::InstantSquash => "squash into",
+        C::Alter => "alter",
+        C::Augment => "augment",
+        _ => "revise",
+    }
 }

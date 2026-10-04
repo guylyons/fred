@@ -13,6 +13,7 @@ pub mod diff;
 pub mod ediff;
 pub mod ignore;
 pub mod log;
+pub mod margin;
 pub mod merge;
 pub mod message;
 pub mod misc;
@@ -190,6 +191,26 @@ pub enum Action {
     CopyDiff,
     /// git-commit-save-message.
     SaveMessage,
+    /// magit-margin-settings' suffixes: L toggle, l cycle style, d details,
+    /// x shortstat (magit-toggle-log-margin-style).
+    Margin(char),
+    /// magit-toggle-buffer-lock.
+    BufferLock,
+    /// magit-log-select-pick and -quit.
+    SelectPick,
+    SelectQuit,
+    /// magit-next-reference (false) / magit-previous-reference (true).
+    NextReference(bool),
+    /// magit-log-move-to-revision.
+    LogMoveTo,
+    /// magit-section-cycle-diffs.
+    CycleDiffs,
+    /// magit-go-backward (true) / magit-go-forward.
+    Go(bool),
+    /// magit-describe-section (true) / -briefly.
+    DescribeSection(bool),
+    /// magit-diff-toggle-refine-hunk (t) and -fontify-hunk (T).
+    DiffToggle(char),
     /// git-commit-insert-changelog-gnu (true) / -plain.
     Changelog(bool),
     /// magit-commit-add-log: the hunk at point as a draft changelog entry.
@@ -318,6 +339,30 @@ pub struct View {
     /// magit-buffer-diff-files-suspended: a diff buffer's file limit while
     /// toggled off.
     pub suspended: Vec<String>,
+    /// magit--right-margin-config, once the buffer has been set up.
+    pub margin: Option<margin::Margin>,
+    /// Author and date of the commits (and stashes) shown, by object id.
+    pub stamps: HashMap<String, margin::Stamp>,
+    /// magit-diff-refine-hunk (default nil) and magit-diff-fontify-hunk (t).
+    pub refine: bool,
+    pub fontify: bool,
+    /// magit-toggle-buffer-lock: never reused to show another value.
+    pub locked: bool,
+    /// magit-log-select-mode: the question the picked commit answers.
+    pub select: Option<Box<Select>>,
+    /// magit-go-backward / -forward: values this buffer showed before (and
+    /// after, once gone back).
+    pub back: Vec<Kind>,
+    pub forward: Vec<Kind>,
+}
+/// magit-log-select's pick function: answer QUESTION with the commit, after
+/// the answers already given.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Select {
+    pub question: Question,
+    pub answers: Vec<String>,
+    pub defaults: Vec<String>,
+    pub message: String,
 }
 impl View {
     /// A new status buffer: sections start hidden as upstream inserts them
@@ -346,6 +391,14 @@ impl View {
             expanded: HashSet::new(),
             diffs: HashMap::new(),
             suspended: vec![],
+            margin: None,
+            stamps: HashMap::new(),
+            refine: false,
+            fontify: true,
+            locked: false,
+            select: None,
+            back: vec![],
+            forward: vec![],
         };
         v.rebuild();
         v
@@ -383,6 +436,56 @@ impl View {
     }
     pub fn action_at(&self, line: usize) -> Option<RowAction> {
         self.rows.get(line).and_then(|r| r.action.clone())
+    }
+    /// The margin text for a line, when the margin is shown.
+    pub fn margin_at(&self, line: usize, now: i64) -> Option<String> {
+        let m = self.margin.as_ref().filter(|m| m.shown)?;
+        let id = match &self.rows.get(line)?.action {
+            Some(RowAction::Commit(id)) => id,
+            Some(RowAction::Stash(s)) => &s.id,
+            _ => return None,
+        };
+        Some(m.text(self.stamps.get(id)?, now))
+    }
+    /// The margin's width when it is shown.
+    pub fn margin_width(&self) -> usize {
+        self.margin
+            .as_ref()
+            .filter(|m| m.shown)
+            .map_or(0, margin::Margin::width)
+    }
+    /// magit-set-buffer-margins: the defaults for this kind of buffer, then
+    /// the author and date of every commit row while the margin is shown.
+    pub fn load_stamps(&mut self) -> Result<(), String> {
+        if self.margin.is_none() {
+            self.margin = margin::Margin::for_kind(&self.kind);
+        }
+        let Some(m) = self.margin.clone().filter(|m| m.shown) else {
+            return Ok(());
+        };
+        let ids: Vec<String> = self
+            .rows
+            .iter()
+            .filter_map(|r| match &r.action {
+                Some(RowAction::Commit(id)) => Some(id.clone()),
+                Some(RowAction::Stash(s)) => Some(s.id.clone()),
+                _ => None,
+            })
+            .filter(|id| {
+                self.stamps
+                    .get(id)
+                    .is_none_or(|s| m.shortstat && s.stat.is_none())
+            })
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect();
+        // magit-refs--maybe-format-margin uses the committer.
+        let committer = matches!(self.kind, Kind::Refs(..));
+        for chunk in ids.chunks(500) {
+            self.stamps
+                .extend(self.repo.stamps(chunk, committer, m.shortstat)?);
+        }
+        Ok(())
     }
     pub fn rebuild(&mut self) {
         if self.kind != Kind::Status {
@@ -871,12 +974,14 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         ed.pending_effect = Some(ExEffect::Magit(Action::Refresh));
         return true;
     }
-    // magit-log-move-to-parent (C-c C-n).
+    // magit-log-move-to-parent (C-c C-n); in magit-log-select-mode C-c C-c
+    // picks and C-c C-k aborts.
     if ed
         .magit
         .as_ref()
         .is_some_and(|v| matches!(v.kind, Kind::Log(..)))
     {
+        let selecting = ed.magit.as_ref().is_some_and(|v| v.select.is_some());
         if ed.vim.pending.is_empty() && k == Key::ctrl('c') {
             ed.vim.pending = vec![k];
             return true;
@@ -885,9 +990,60 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             ed.vim.pending.clear();
             if k == Key::ctrl('n') {
                 log_move_to_parent(ed);
+            } else if k == Key::ctrl('r') {
+                ed.pending_effect = Some(ExEffect::Magit(Action::NextReference(false)));
+            } else if !selecting && (k == Key::ctrl('b') || k == Key::ctrl('f')) {
+                ed.pending_effect = Some(ExEffect::Magit(Action::Go(k == Key::ctrl('b'))));
+            } else if selecting && k == Key::ctrl('c') {
+                ed.pending_effect = Some(ExEffect::Magit(Action::SelectPick));
+            } else if selecting && k == Key::ctrl('k') {
+                ed.pending_effect = Some(ExEffect::Magit(Action::SelectQuit));
             }
             return true;
         }
+        if selecting && ed.vim.pending.is_empty() && !k.ctrl && !k.alt {
+            match k.char() {
+                Some('.' | 'e') => {
+                    ed.pending_effect = Some(ExEffect::Magit(Action::SelectPick));
+                    return true;
+                }
+                Some('q') => {
+                    ed.pending_effect = Some(ExEffect::Magit(Action::SelectQuit));
+                    return true;
+                }
+                _ => {}
+            }
+        }
+    }
+    // magit-diff-mode-map and magit-mode-map: C-c C-b / C-c C-f go back
+    // and forward, C-c C-r to the next reference; M-Tab cycles diffs.
+    if ed
+        .magit
+        .as_ref()
+        .is_some_and(|v| !matches!(v.kind, Kind::Log(..)))
+    {
+        if ed.vim.pending.is_empty() && k == Key::ctrl('c') {
+            ed.vim.pending = vec![k];
+            return true;
+        }
+        if ed.vim.pending == [Key::ctrl('c')] {
+            ed.vim.pending.clear();
+            let action = if k == Key::ctrl('r') {
+                Some(Action::NextReference(false))
+            } else if k == Key::ctrl('b') || k == Key::ctrl('f') {
+                Some(Action::Go(k == Key::ctrl('b')))
+            } else {
+                None
+            };
+            if let Some(a) = action {
+                ed.pending_effect = Some(ExEffect::Magit(a));
+            }
+            return true;
+        }
+    }
+    if ed.magit.is_some() && k.alt && k.code == KeyCode::Tab {
+        ed.pending_effect = Some(ExEffect::Magit(Action::CycleDiffs));
+        return true;
     }
     if !ed.vim.pending.is_empty() {
         return false;
@@ -961,6 +1117,17 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
                 }) =>
         {
             Some(Action::VisitWorktree)
+        }
+        // magit-reflog-, refs- and cherry-mode-map: L is magit-margin-settings.
+        KeyCode::Char('L')
+            if !k.ctrl
+                && !k.alt
+                && ed.magit.as_ref().is_some_and(|v| {
+                    matches!(v.kind, Kind::Reflog(_) | Kind::Refs(..) | Kind::Cherry(..))
+                }) =>
+        {
+            open_menu(ed, 'L');
+            return true;
         }
         // magit-diff-section-map: C on a file or hunk adds a changelog entry.
         KeyCode::Char('C')
@@ -1593,6 +1760,13 @@ pub(crate) fn open_menu(ed: &mut Editor, menu: char) {
         ed.set_msg(HELP);
     }
 }
+fn margin_entries() -> Vec<(&'static str, &'static str, &'static str, Action)> {
+    vec![
+        ("L", "Margin", "Toggle visibility", Action::Margin('L')),
+        ("l", "Margin", "Cycle style", Action::Margin('l')),
+        ("d", "Margin", "Toggle details", Action::Margin('d')),
+    ]
+}
 pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Action)> {
     use Action::*;
     use workflows::{Operation::*, StashAction};
@@ -1971,12 +2145,15 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                     "flip revisions",
                     DiffRefresh(diff::Refresh::Flip),
                 ),
+                ("t", "Toggle", "hunk refinement", DiffToggle('t')),
+                ("T", "Toggle", "hunk fontification", DiffToggle('T')),
                 (
                     "F",
                     "Toggle",
                     "file filter",
                     DiffRefresh(diff::Refresh::FileFilter),
                 ),
+                ("b", "Toggle", "buffer lock", BufferLock),
             ]);
             v
         }
@@ -2098,6 +2275,12 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 ("-r", "Commit ordering", "Reverse order", sw("--reverse")),
                 ("-g", "Formatting", "Show graph", sw("--graph")),
                 ("-c", "Formatting", "Show graph in color", sw("--color")),
+                (
+                    "=g",
+                    "Formatting",
+                    "Show graph lanes",
+                    ReadOption("--graph-lane-limit="),
+                ),
                 ("-d", "Formatting", "Show refnames", sw("--decorate")),
                 (
                     "=S",
@@ -2512,6 +2695,15 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 .filter(|e| !matches!(e.1, "Log" | "Reflog" | "Other" | "Wiplog"))
                 .collect();
             v.push(("g", "Refresh", "buffer", LogRefresh));
+            v.extend(margin_entries());
+            v.push(("x", "Margin", "Toggle shortstat", Margin('x')));
+            v.push(("b", "Toggle", "buffer lock", BufferLock));
+            v
+        }
+        // magit-margin-settings.
+        'L' => {
+            let mut v = margin_entries();
+            v.push(("v", "Margin", "Change verbosity", Refs(refs::Op::Count)));
             v
         }
         'J' => vec![

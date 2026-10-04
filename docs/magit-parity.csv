@@ -297,15 +297,15 @@ magit-diff.el,1518,command,magit-diff-while-committing,partial,C-c C-d in a comm
 magit-diff.el,1529,command,magit-diff-buffer-file,partial,"Space m F d: the visited file since HEAD, or a blob buffer's commit, limited to the file",explicit
 magit-diff.el,1560,command,magit-diff-paths,partial,Space m d p; repository-relative files via --no-index; file completion missing,explicit
 magit-diff.el,1581,command,magit-show-commit,partial,"Enter in log and Space m d c (at point or prompted) with diff args; revision sections, buffer locking and dedicated buffers missing",explicit
-magit-diff.el,1627,command,magit-show-commit-removing-file,missing,,explicit
+magit-diff.el,1627,command,magit-show-commit-removing-file,partial,:Magit name; default the file at point,explicit
 magit-diff.el,1688,command,magit-diff-switch-range-type,partial,D r: A..B <-> A...B,explicit
 magit-diff.el,1704,command,magit-diff-flip-revs,partial,D f: B..A,explicit
 magit-diff.el,1718,command,magit-diff-toggle-file-filter,partial,Space m D F: swaps the buffer's -- file limit with a suspended one,explicit
 magit-diff.el,1743,command,magit-diff-less-context,partial,= in a diff buffer (evil-collection),explicit
 magit-diff.el,1748,command,magit-diff-more-context,partial,+ in a diff buffer,explicit
 magit-diff.el,1753,command,magit-diff-default-context,partial,~ in a diff buffer (evil-collection),explicit
-magit-diff.el,1798,command,magit-diff-toggle-refine-hunk,missing,,explicit
-magit-diff.el,1820,command,magit-diff-toggle-fontify-hunk,missing,,explicit
+magit-diff.el,1798,command,magit-diff-toggle-refine-hunk,partial,t in the diff refresh menu; word-level reverse video for paired -/+ lines (all hunks at once),explicit
+magit-diff.el,1820,command,magit-diff-toggle-fontify-hunk,partial,T in the diff refresh menu; syntax colors by file extension over an added/removed tint,explicit
 magit-diff.el,1845,command,magit-diff-visit-file,partial,"Enter on a diff line: the blob at that revision (old side for removed lines) or the worktree file, at the line",explicit
 magit-diff.el,1887,command,magit-diff-visit-file-other-window,partial,Fred has no windows: same as Enter,explicit
 magit-diff.el,1896,command,magit-diff-visit-file-other-frame,partial,Fred has no frames: same as Enter,explicit
@@ -314,7 +314,7 @@ magit-diff.el,1926,command,magit-diff-visit-worktree-file-other-window,partial,F
 magit-diff.el,1932,command,magit-diff-visit-worktree-file-other-frame,partial,Fred has no frames: same as C-j,explicit
 magit-diff.el,2179,command,magit-diff-show-or-scroll-up,partial,Enter shows the commit at point (no scrolling of another window),explicit
 magit-diff.el,2190,command,magit-diff-show-or-scroll-down,partial,Enter shows the commit at point (no scrolling of another window),explicit
-magit-diff.el,2256,command,magit-section-cycle-diffs,missing,,explicit
+magit-diff.el,2256,command,magit-section-cycle-diffs,partial,"M-Tab in status: every staged/unstaged file diff, or none",explicit
 magit-diff.el,2288,command,magit-revision-jump,partial,:Magit: headers (no transient),explicit
 magit-diff.el,2316,command,magit-jump-to-revision-diffstat,partial,:Magit (also gd),explicit
 magit-diff.el,2335,command,magit-jump-to-revision-diff,partial,:Magit (also gd),explicit
@@ -503,23 +503,23 @@ magit-log.el,926,command,magit-log-double-commit-limit,partial,+ in a log buffer
 magit-log.el,931,command,magit-log-half-commit-limit,partial,:Magit (evil-collection leaves - to revert),explicit
 magit-log.el,955,command,magit-log-bury-buffer,partial,q in log buffers returns,explicit
 magit-log.el,972,command,magit-log-move-to-parent,partial,C-c C-n in a log buffer,explicit
-magit-log.el,989,command,magit-log-move-to-revision,missing,,explicit
+magit-log.el,989,command,magit-log-move-to-revision,partial,":Magit name (Vim keeps j); this log, else all branches",explicit
 magit-log.el,1018,command,magit-shortlog,partial,Space m l s opens menu S: -n -s -e -g (author/committer; trailer: missing) -f -w; seeded --numbered --summary,explicit
 magit-log.el,1046,command,magit-shortlog-since,partial,S s: REV.. default current tag,explicit
 magit-log.el,1054,command,magit-shortlog-range,partial,"S r: revision or range, default at point",explicit
-magit-log.el,1083,command,magit-previous-reference,missing,,explicit
-magit-log.el,1094,command,magit-next-reference,missing,,explicit
-magit-log.el,1692,command,magit-toggle-log-margin-style,missing,,explicit
-magit-log.el,1870,command,magit-log-select-pick,missing,,explicit
-magit-log.el,1880,command,magit-log-select-quit,missing,,explicit
+magit-log.el,1083,command,magit-previous-reference,partial,:Magit name,explicit
+magit-log.el,1094,command,magit-next-reference,partial,"C-c C-r; decorated log rows, refs rows, status ref headers",explicit
+magit-log.el,1692,command,magit-toggle-log-margin-style,partial,x in the log refresh menu: shortstat margin,explicit
+magit-log.el,1870,command,magit-log-select-pick,partial,. e C-c C-c in a selection log,explicit
+magit-log.el,1880,command,magit-log-select-quit,partial,q C-c C-k in a selection log,explicit
 magit-log.el,1930,command,magit-cherry,partial,"Space m Y: head/upstream headers and +/- cherry commits, newest first; upstream default is the current branch's",explicit
 magit-log.el,,command,magit-jump-to-unpulled-from-pushremote,partial,gfp in status,runtime
 magit-log.el,,command,magit-jump-to-unpulled-from-upstream,partial,gfu in status,runtime
 magit-log.el,,command,magit-jump-to-unpushed-to-pushremote,partial,gpp in status,runtime
 magit-log.el,,command,magit-jump-to-unpushed-to-upstream,partial,gpu in status (also recent commits),runtime
-magit-log.el,,command,magit-log-select-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,magit-log-select-mode,partial,"commit fixup/squash/alter/augment/revise/instant, absorb/autofixup and rebase i/m/w/k without a commit at point",runtime
 magit-log.el,,command,magit-log:--*-order,partial,-o cycles topo/author-date/date,runtime
-magit-log.el,,command,magit-log:--graph-lane-limit,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,magit-log:--graph-lane-limit,partial,=g in the log menu,runtime
 magit-log.el,,command,magit-log:--grep,partial,-F reads a value,runtime
 magit-log.el,,command,magit-log:--since,partial,=s reads a value (no date reader),runtime
 magit-log.el,,command,magit-log:--until,partial,=u reads a value (no date reader),runtime
@@ -557,10 +557,10 @@ magit-log.el,,command,transient:magit-shortlog:--group=,partial,-g cycles author
 magit-log.el,,command,transient:magit-shortlog:--numbered,partial,menu S argument,runtime
 magit-log.el,,command,transient:magit-shortlog:--summary,partial,menu S argument,runtime
 magit-log.el,,command,transient:magit-shortlog:-w,partial,menu S argument,runtime
-magit-margin.el,76,command,magit-margin-settings,missing,,explicit
-magit-margin.el,85,command,magit-toggle-margin,missing,,explicit
-magit-margin.el,99,command,magit-cycle-margin-style,missing,,explicit
-magit-margin.el,118,command,magit-toggle-margin-details,missing,,explicit
+magit-margin.el,76,command,magit-margin-settings,partial,L in reflog/refs/cherry buffers; :Magit; L l d (and v in refs),explicit
+magit-margin.el,85,command,magit-toggle-margin,partial,L in the margin menu and log refresh menu; right-aligned author and age per commit/stash row,explicit
+magit-margin.el,99,command,magit-cycle-margin-style,partial,"l: age, abbreviated age, %Y-%m-%d %H:%M",explicit
+magit-margin.el,118,command,magit-toggle-margin-details,partial,"d: author column (18 wide, ellipsis)",explicit
 magit-merge.el,37,command,magit-merge,partial,"Space m M with -f/-n (incompatible) and -s strategy choices; m/a resolve to commit/abort while merging; -X options, gpg-sign, signoff missing",explicit
 magit-merge.el,89,command,magit-merge-plain,partial,"Space m M m; --no-edit, octopus via commas, dirty worktree refused; prefix nocommit missing",explicit
 magit-merge.el,108,command,magit-merge-editmsg,partial,Space m M e; merge --no-commit --no-ff then Fred commit draft with MERGE_MSG (no Git editor),explicit
@@ -603,7 +603,7 @@ magit-mode.el,459,command,magit-edit-thing,missing,,explicit
 magit-mode.el,470,command,magit-browse-thing,missing,,explicit
 magit-mode.el,480,command,magit-copy-thing,missing,,explicit
 magit-mode.el,490,command,magit-info,missing,,explicit
-magit-mode.el,958,command,magit-toggle-buffer-lock,missing,,explicit
+magit-mode.el,958,command,magit-toggle-buffer-lock,partial,b in log/diff refresh menus; a locked diff buffer is not reused (Fred log buffers are always per value),explicit
 magit-mode.el,1005,command,magit-mode-bury-buffer,partial,q returns to the previous buffer,explicit
 magit-mode.el,1046,command,magit-refresh,partial,Space m s / gr; selected view; full buffer refresh semantics missing,explicit
 magit-mode.el,1081,command,magit-refresh-all,partial,gR,explicit
@@ -611,8 +611,8 @@ magit-mode.el,1097,command,magit-refresh-buffer,partial,gr,explicit
 magit-mode.el,1213,command,magit-profile-refresh-buffer,missing,,explicit
 magit-mode.el,1226,command,magit-toggle-profiling,missing,,explicit
 magit-mode.el,1334,command,magit-save-repository-buffers,missing,,explicit
-magit-mode.el,1407,command,magit-go-backward,missing,,explicit
-magit-mode.el,1414,command,magit-go-forward,missing,,explicit
+magit-mode.el,1407,command,magit-go-backward,partial,C-c C-b in diff buffers (reused buffers keep a history),explicit
+magit-mode.el,1414,command,magit-go-forward,partial,C-c C-f,explicit
 magit-mode.el,1562,command,magit-zap-caches,missing,,explicit
 magit-mode.el,1598,command,magit-toggle-verbose-refresh,missing,,explicit
 magit-mode.el,,command,magit-mode-menu,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
@@ -807,8 +807,8 @@ magit-section.el,1149,command,magit-section-show-level-3-all,partial,M-3,explici
 magit-section.el,1154,command,magit-section-show-level-4,partial,4 in status,explicit
 magit-section.el,1159,command,magit-section-show-level-4-all,partial,M-4,explicit
 magit-section.el,1164,command,magit-mouse-toggle-section,missing,,explicit
-magit-section.el,1182,command,magit-describe-section-briefly,missing,,explicit
-magit-section.el,1219,command,magit-describe-section,missing,,explicit
+magit-section.el,1182,command,magit-describe-section-briefly,partial,:Magit name,explicit
+magit-section.el,1219,command,magit-describe-section,partial,:Magit name; section value and buffer in the echo area,explicit
 magit-sequence.el,96,command,magit-sequencer-continue,partial,Space m x/v c; guarded continuation,explicit
 magit-sequence.el,108,command,magit-sequencer-skip,partial,Space m x/v s; guarded skip,explicit
 magit-sequence.el,117,command,magit-sequencer-abort,partial,Space m x/v a; guarded abort,explicit

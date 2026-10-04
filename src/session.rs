@@ -2754,6 +2754,118 @@ mod tests {
     }
 
     #[test]
+    fn magit_log_select_navigation_and_history() {
+        let mut t = T::open(Some("f.txt"), Some("one\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        for msg in ["first", "second"] {
+            fs::write(t.dir.path().join("f.txt"), msg).unwrap();
+            repo.stage_file(Path::new("f.txt")).unwrap();
+            repo.read(&["commit", "-qm", msg]).unwrap();
+        }
+        repo.read(&["tag", "v1", "HEAD~1"]).unwrap();
+        // c f without a commit at point opens magit-log-select; . picks.
+        fs::write(t.dir.path().join("f.txt"), "fix").unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        t.keys(":e!<Enter> mcf");
+        magit_settle(&mut t);
+        let sel = t.s.ed.magit.as_ref().unwrap();
+        assert!(sel.select.is_some());
+        assert!(sel.rows[0].text.contains("C-c C-c"), "{}", sel.rows[0].text);
+        let row =
+            t.s.ed
+                .buf
+                .text()
+                .lines()
+                .position(|l| l.ends_with(" first"))
+                .unwrap();
+        // C-c C-r moves from ref to ref: HEAD's branch, then the tag.
+        t.keys("gg<C-c><C-r>");
+        assert_eq!(t.s.ed.cur.line, 1);
+        t.keys("<C-c><C-r>");
+        assert_eq!(t.s.ed.cur.line, row, "{}", t.s.ed.buf.text());
+        t.keys(".");
+        magit_settle(&mut t);
+        // The terminal runs the commit (hooks, editor).
+        let inv = t.s.pending_git.take().expect("fixup commit");
+        inv.repo.run(&inv.args, None).unwrap();
+        let subject = repo.read(&["log", "-1", "--format=%s"]).unwrap();
+        assert_eq!(String::from_utf8_lossy(&subject).trim(), "fixup! first");
+        assert!(t.s.ed.magit.as_ref().is_none_or(|v| v.select.is_none()));
+        // q aborts a selection without acting.
+        t.keys(" mcf");
+        magit_settle(&mut t);
+        t.keys("q");
+        assert_eq!(t.msg(), "Abort");
+        // magit-log-move-to-revision in a log buffer.
+        t.keys(" mll");
+        magit_settle(&mut t);
+        t.keys(":Magit magit-log-move-to-revision<Enter>v1<Enter>");
+        magit_settle(&mut t);
+        assert!(t.s.ed.buf.line(t.s.ed.cur.line).ends_with(" first"));
+        // A diff buffer remembers what it showed: C-c C-b and C-c C-f.
+        t.keys(" mdu");
+        magit_settle(&mut t);
+        t.keys(" mds");
+        magit_settle(&mut t);
+        let shown = |t: &T| t.s.ed.magit.as_ref().map(|v| v.kind.clone());
+        assert!(matches!(
+            shown(&t),
+            Some(crate::magit::Kind::Diff(
+                crate::magit::diff::Target::Staged,
+                _
+            ))
+        ));
+        t.keys("<C-c><C-b>");
+        magit_settle(&mut t);
+        assert!(matches!(
+            shown(&t),
+            Some(crate::magit::Kind::Diff(
+                crate::magit::diff::Target::Unstaged,
+                _
+            ))
+        ));
+        t.keys("<C-c><C-f>");
+        magit_settle(&mut t);
+        assert!(matches!(
+            shown(&t),
+            Some(crate::magit::Kind::Diff(
+                crate::magit::diff::Target::Staged,
+                _
+            ))
+        ));
+        t.keys("<C-c><C-f>");
+        assert!(t.msg().contains("No next entry"), "{}", t.msg());
+        // M-Tab in status shows every file's diff, then hides them.
+        fs::write(t.dir.path().join("f.txt"), "fix more").unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        fs::write(t.dir.path().join("f.txt"), "fix more again").unwrap();
+        t.keys(" ms");
+        magit_settle(&mut t);
+        t.keys("gr");
+        magit_settle(&mut t);
+        let m_tab = crate::key::Key {
+            code: crate::key::KeyCode::Tab,
+            ctrl: false,
+            alt: true,
+        };
+        t.s.handle_key(m_tab);
+        magit_settle(&mut t);
+        assert_eq!(
+            t.s.ed.magit.as_ref().unwrap().expanded.len(),
+            2,
+            "{}",
+            t.s.ed.buf.text()
+        );
+        t.s.handle_key(m_tab);
+        magit_settle(&mut t);
+        assert!(t.s.ed.magit.as_ref().unwrap().expanded.is_empty());
+    }
+
+    #[test]
     fn magit_dired_stage_and_log_marked_files() {
         let mut t = T::open(Some("f.txt"), Some("one\n"));
         magit_repo(&t);
@@ -3371,7 +3483,15 @@ mod tests {
         }
         t.keys(":e!<Enter> mRi");
         magit_settle(&mut t);
-        t.keys("HEAD~2<Enter>");
+        // magit-log-select: pick HEAD~2 with `.`.
+        let row =
+            t.s.ed
+                .buf
+                .text()
+                .lines()
+                .position(|l| l.ends_with(" first"))
+                .unwrap();
+        t.keys(&format!("{}G.", row + 1));
         magit_settle(&mut t);
         assert!(t.s.ed.rebase_todo.is_some(), "{}", t.msg());
         let verb = |t: &T, l: usize| t.s.ed.buf.line(l);
@@ -3445,7 +3565,15 @@ mod tests {
         }
         t.keys(":e!<Enter> mRi");
         magit_settle(&mut t);
-        t.keys("HEAD~1<Enter>");
+        // magit-log-select: pick HEAD~1 with `.`.
+        let row =
+            t.s.ed
+                .buf
+                .text()
+                .lines()
+                .position(|l| l.ends_with(" second"))
+                .unwrap();
+        t.keys(&format!("{}G.", row + 1));
         magit_settle(&mut t);
         assert!(t.s.ed.rebase_todo.is_some(), "{}", t.msg());
         assert!(
@@ -3479,7 +3607,8 @@ mod tests {
         assert!(!t.dir.path().join("b").exists(), "third was dropped");
         t.keys(" mRi");
         magit_settle(&mut t);
-        t.keys("HEAD<Enter>");
+        // The newest commit is the first row after the usage line.
+        t.keys("2G.");
         magit_settle(&mut t);
         t.keys("ZQ");
         assert!(t.msg().contains("cancelled"), "{}", t.msg());

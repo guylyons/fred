@@ -4046,3 +4046,116 @@ fn stage_and_unstage_files_and_absorb_needs_its_tool() {
     }
     let _ = Next::Done(Ok(String::new()));
 }
+#[test]
+fn margin_ages_widths_stamps_and_refinement() {
+    use super::margin::*;
+    assert_eq!(age(1, false), (1, "second".into()));
+    assert_eq!(age(90, false), (2, "minutes".into()));
+    assert_eq!(age(3 * 86_400, true), (3, "d".into()));
+    assert_eq!(age(400 * 86_400, false), (1, "year".into()));
+    let mut m = Margin::for_kind(&super::Kind::Log(vec![], vec![])).unwrap();
+    assert!(m.shown && m.details);
+    assert!(!Margin::for_kind(&super::Kind::Status).unwrap().shown);
+    assert!(Margin::for_kind(&super::Kind::Modules).is_none());
+    // magit-log-margin-width: 18 + 1 author, 2 + 1 + 1 + 7 ("minutes").
+    assert_eq!(m.width(), 30);
+    let st = Stamp {
+        author: "A very long author name indeed".into(),
+        time: 1000,
+        stat: Some("   3+    1-   2".into()),
+    };
+    let t = m.text(&st, 1000 + 2 * 3600);
+    assert_eq!(t.chars().count(), m.width());
+    assert!(t.starts_with("A very long autho… "), "{t:?}");
+    assert!(t.ends_with(" 2 hours   "), "{t:?}");
+    m.cycle_style();
+    assert!(
+        m.text(&st, 1000 + 7200).ends_with(" 2h "),
+        "{:?}",
+        m.text(&st, 8200)
+    );
+    m.cycle_style();
+    assert_eq!(m.style, Style::Format("%Y-%m-%d %H:%M ".into()));
+    m.cycle_style();
+    assert_eq!(m.style, Style::Age);
+    m.shortstat = true;
+    assert_eq!(m.width(), 16);
+    assert_eq!(m.text(&st, 0), "   3+    1-   2");
+    assert_eq!(
+        shortstat("2 files changed, 3 insertions(+), 1 deletion(-)"),
+        "   3+    1-   2"
+    );
+    assert_eq!(
+        shortstat("1 file changed, 4 deletions(-)"),
+        "         4-   1"
+    );
+    // Author and date of commits in one call, with shortstats on request.
+    let (d, r) = setup();
+    committed(d.path(), b"one\n");
+    let id = String::from_utf8_lossy(&git(d.path(), &["rev-parse", "HEAD"]))
+        .trim()
+        .to_owned();
+    let stamps = r.stamps(std::slice::from_ref(&id), false, true).unwrap();
+    assert_eq!(stamps.len(), 1);
+    assert_eq!(stamps[0].0, id);
+    assert_eq!(stamps[0].1.author, "Fred Test");
+    assert!(stamps[0].1.time > 0);
+    assert!(
+        stamps[0]
+            .1
+            .stat
+            .as_deref()
+            .is_some_and(|s| s.contains("1+"))
+    );
+    // Hunk refinement: changed words, and each line's partner in its run.
+    let (a, b) = super::diff::refine("let x = 1;", "let y = 1;");
+    assert_eq!((a.len(), b.len(), a[0].clone(), b[0].clone()), (1, 1, 4..5, 4..5));
+    let lines = [" ctx", "-a", "-b", "+A", "+B", "+C", " ctx"];
+    let p = |l| super::diff::refine_partner(&lines, l);
+    assert_eq!(
+        (p(1), p(2), p(3), p(4), p(5), p(0)),
+        (Some(3), Some(4), Some(1), Some(2), None, None)
+    );
+}
+#[test]
+fn removing_file_and_fixup_target() {
+    use super::branch::Next;
+    use super::misc::Op;
+    let (d, r) = setup();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    committed(d.path(), b"one\n");
+    fs::write(d.path().join("gone"), "x").unwrap();
+    git(d.path(), &["add", "gone"]);
+    git(d.path(), &["commit", "-qm", "add gone"]);
+    git(d.path(), &["rm", "-q", "gone"]);
+    git(d.path(), &["commit", "-qm", "remove gone"]);
+    let removed = String::from_utf8_lossy(&git(d.path(), &["rev-parse", "HEAD"]))
+        .trim()
+        .to_owned();
+    let Next::Show(super::diff::Target::Commit(id)) =
+        r.misc_step(Op::RemovingFile, &s(&["gone"])).unwrap()
+    else {
+        panic!()
+    };
+    assert_eq!(id, removed);
+    assert!(
+        r.misc_step(Op::RemovingFile, &s(&["f"]))
+            .unwrap_err()
+            .contains("not been removed")
+    );
+    git(
+        d.path(),
+        &["commit", "-q", "--allow-empty", "-m", "fixup! add gone"],
+    );
+    let target = r.fixup_target("HEAD").unwrap();
+    assert!(
+        removed.starts_with(&target) || {
+            let add = String::from_utf8_lossy(&git(d.path(), &["rev-parse", "--short", "HEAD~2"]))
+                .trim()
+                .to_owned();
+            target == add
+        },
+        "{target}"
+    );
+    assert_eq!(r.fixup_target("HEAD~1").as_deref(), Some("HEAD~1"));
+}

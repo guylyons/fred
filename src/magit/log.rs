@@ -358,8 +358,7 @@ impl Repo {
         let mut argv: Vec<std::ffi::OsString> = vec![
             "log".into(),
             "--no-color".into(),
-            "--format=%x1e%H%x1f%D%x1f%ad%x1f%an%x1f%s".into(),
-            "--date=short".into(),
+            "--format=%x1e%H%x1f%D%x1f%s".into(),
         ];
         argv.extend(git_args(args)?.into_iter().map(Into::into));
         argv.extend(revs.iter().map(Into::into));
@@ -391,13 +390,13 @@ impl Repo {
                             String::new()
                         };
                         let id = get(0);
+                        // magit-log-wash-rev: hash, refs, then the summary;
+                        // author and date go in the margin.
                         Line {
                             text: label(std::path::Path::new(&format!(
-                                "{graph}{} {} {} {refs}{}",
+                                "{graph}{} {refs}{}",
                                 &id[..8],
-                                get(2),
-                                get(3),
-                                get(4)
+                                get(2)
                             ))),
                             commit: Some(id.to_owned()).filter(|i| !i.is_empty()),
                         }

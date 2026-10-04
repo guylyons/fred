@@ -332,3 +332,11 @@ autofixup's, as C-u x does upstream), F s/u read files when no file is
 visited, drafts save messages with C-c M-s and insert GNU/plain changelogs
 built from Git's hunk-header function context, and ChangeLog files get
 dated entries. Ledger 693 partial / 80 missing commands. Score remains 3%.
+
+October 4 margin/log-select checkpoint: log, reflog, stash, cherry, refs
+and status buffers get magit-margin's right-aligned author and age (L, l,
+d, x; per-buffer defaults), diffs gain hunk fontification (on) and word
+refinement (t), commit fixup/squash/absorb and rebase i/m/w/k pick their
+commit in magit-log-select-mode when none is at point, and logs gain
+=g, C-c C-r references, move-to-revision, history (C-c C-b/C-f) and M-Tab
+diff cycling. Ledger 714 partial / 59 missing commands. Score remains 3%.

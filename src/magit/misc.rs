@@ -21,6 +21,10 @@ pub enum Op {
     /// magit-stage-files (ignored files too when true) / magit-unstage-files.
     StageFiles(bool),
     UnstageFiles,
+    /// magit-show-commit-removing-file.
+    RemovingFile,
+    /// magit-log-move-to-revision's question (answered by the session).
+    LogJump,
 }
 
 /// magit-completing-read-multiple: comma-separated repository-relative files.
@@ -113,6 +117,26 @@ impl Repo {
                 )
             }
             Op::GitConfigFile => (vec![], vec![]),
+            Op::RemovingFile => {
+                let d = at_point.unwrap_or_default();
+                let suffix = if d.is_empty() {
+                    String::new()
+                } else {
+                    format!(" (default {d})")
+                };
+                (
+                    vec![format!("Show commit removing file{suffix}: ")],
+                    vec![d],
+                )
+            }
+            Op::LogJump => {
+                // The commit at point (its fixup target), else the branch.
+                let d = at_point
+                    .and_then(|c| self.fixup_target(&c))
+                    .or_else(|| self.current_branch().ok())
+                    .unwrap_or_default();
+                (vec![format!("In log, jump to (default {d}): ")], vec![d])
+            }
             Op::StageFiles(_) | Op::UnstageFiles => {
                 let d = at_point.unwrap_or_default();
                 let verb = match op {
@@ -197,6 +221,28 @@ impl Repo {
                     self.root.join(String::from_utf8_lossy(&p).trim()),
                 ))
             }
+            Op::RemovingFile => {
+                let file = super::blob::relative(at(0))?;
+                let out = self.run(
+                    &[
+                        "log".into(),
+                        "--format=%H".into(),
+                        "--diff-filter=D".into(),
+                        "--full-history".into(),
+                        "-n".into(),
+                        "1".into(),
+                        "--".into(),
+                        super::repo::literal_pathspec(&file),
+                    ],
+                    None,
+                )?;
+                let id = String::from_utf8_lossy(&out).trim().to_owned();
+                if id.is_empty() {
+                    return Err(format!("{} has not been removed", at(0)));
+                }
+                Ok(Next::Show(super::diff::Target::Commit(id)))
+            }
+            Op::LogJump => Err("answered by the log buffer".into()),
             Op::StageFiles(force) => {
                 let mut argv: Vec<std::ffi::OsString> = vec!["add".into()];
                 if force {
@@ -238,5 +284,35 @@ impl Repo {
                 ]))
             }
         }
+    }
+}
+
+impl Repo {
+    /// magit-rev-fixup-target: the commit a fixup!/squash!/amend! commit
+    /// targets (by its subject), else the commit itself.
+    pub fn fixup_target(&self, commit: &str) -> Option<String> {
+        let subject = self
+            .read(&["log", "-1", "--format=%s", "--end-of-options", commit, "--"])
+            .ok()?;
+        let subject = String::from_utf8_lossy(&subject).trim().to_owned();
+        let target = ["fixup! ", "squash! ", "amend! "]
+            .iter()
+            .find_map(|p| subject.strip_prefix(p));
+        let Some(target) = target else {
+            return Some(commit.to_owned());
+        };
+        let out = self
+            .read(&[
+                "log",
+                "-1",
+                "--format=%h",
+                "--fixed-strings",
+                &format!("--grep={target}"),
+                "--end-of-options",
+                &format!("{commit}~"),
+                "--",
+            ])
+            .ok()?;
+        Some(String::from_utf8_lossy(&out).trim().to_owned()).filter(|s| !s.is_empty())
     }
 }
