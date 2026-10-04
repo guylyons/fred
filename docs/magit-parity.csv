@@ -177,18 +177,18 @@ magit-branch.el,,command,magit-pull.rebase,missing,Runtime-expanded surface; sou
 magit-branch.el,,command,magit-remote.pushDefault,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-branch.el,,command,transient:magit-branch:--merge,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-branch.el,,command,transient:magit-branch:--recurse-submodules,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-bundle.el,37,command,magit-bundle,missing,,explicit
-magit-bundle.el,46,command,magit-bundle-create,missing,,explicit
-magit-bundle.el,77,command,magit-bundle-create-tracked,missing,,explicit
-magit-bundle.el,100,command,magit-bundle-update-tracked,missing,,explicit
-magit-bundle.el,118,command,magit-bundle-verify,missing,,explicit
-magit-bundle.el,125,command,magit-bundle-list-heads,missing,,explicit
-magit-bundle.el,,command,transient:magit-bundle-create:--all,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-bundle.el,,command,transient:magit-bundle-create:--branches=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-bundle.el,,command,transient:magit-bundle-create:--exclude=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-bundle.el,,command,transient:magit-bundle-create:--glob=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-bundle.el,,command,transient:magit-bundle-create:--remotes=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-bundle.el,,command,transient:magit-bundle-create:--tags=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-bundle.el,37,command,magit-bundle,partial,Space m & (no upstream dispatch key): c v l,explicit
+magit-bundle.el,46,command,magit-bundle-create,partial,"& c menu j: file (default TOP.bundle), refnames; arguments; --branches= etc. need a typed value",explicit
+magit-bundle.el,77,command,magit-bundle-create-tracked,partial,"j t: tag, branch, refs, file; upstream tag message format",explicit
+magit-bundle.el,100,command,magit-bundle-update-tracked,partial,j u: reads upstream tag format; only menu arguments accepted from the tag,explicit
+magit-bundle.el,118,command,magit-bundle-verify,partial,& v,explicit
+magit-bundle.el,125,command,magit-bundle-list-heads,partial,& l: output view,explicit
+magit-bundle.el,,command,transient:magit-bundle-create:--all,partial,menu argument,runtime
+magit-bundle.el,,command,transient:magit-bundle-create:--branches=,partial,menu argument,runtime
+magit-bundle.el,,command,transient:magit-bundle-create:--exclude=,partial,menu argument,runtime
+magit-bundle.el,,command,transient:magit-bundle-create:--glob=,partial,menu argument,runtime
+magit-bundle.el,,command,transient:magit-bundle-create:--remotes=,partial,menu argument,runtime
+magit-bundle.el,,command,transient:magit-bundle-create:--tags=,partial,menu argument,runtime
 magit-clone.el,33,option,magit-clone-set-remote-head,missing,,explicit
 magit-clone.el,39,option,magit-clone-set-remote.pushDefault,missing,,explicit
 magit-clone.el,50,option,magit-clone-default-directory,missing,,explicit
@@ -196,25 +196,25 @@ magit-clone.el,61,option,magit-clone-always-transient,missing,,explicit
 magit-clone.el,70,option,magit-clone-name-alist,missing,,explicit
 magit-clone.el,96,option,magit-clone-url-format,missing,,explicit
 magit-clone.el,115,option,magit-post-clone-hook,missing,,explicit
-magit-clone.el,127,command,magit-clone,missing,,explicit
-magit-clone.el,172,command,magit-clone-regular,missing,,explicit
-magit-clone.el,179,command,magit-clone-shallow,missing,,explicit
-magit-clone.el,192,command,magit-clone-shallow-since,missing,,explicit
-magit-clone.el,204,command,magit-clone-shallow-exclude,missing,,explicit
-magit-clone.el,215,command,magit-clone-bare,missing,,explicit
-magit-clone.el,222,command,magit-clone-mirror,missing,,explicit
-magit-clone.el,229,command,magit-clone-sparse,missing,,explicit
-magit-clone.el,,command,magit-clone:--filter,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-clone.el,,command,transient:magit-clone:--branch=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-clone.el,,command,transient:magit-clone:--no-hardlinks,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-clone.el,,command,transient:magit-clone:--no-local,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-clone.el,,command,transient:magit-clone:--no-tags,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-clone.el,,command,transient:magit-clone:--origin=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-clone.el,,command,transient:magit-clone:--recurse-submodules,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-clone.el,,command,transient:magit-clone:--separate-git-dir=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-clone.el,,command,transient:magit-clone:--shared,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-clone.el,,command,transient:magit-clone:--single-branch,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-clone.el,,command,transient:magit-clone:--template=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-clone.el,127,command,magit-clone,partial,Space m C (dispatch C; commit stays on c): fetch/setup/sharing arguments,explicit
+magit-clone.el,172,command,magit-clone-regular,partial,"C C: background clone (no credential prompts), then status; remote HEAD unset; pushDefault question skipped",explicit
+magit-clone.el,179,command,magit-clone-shallow,partial,C s: --depth=1 (no prefix depth),explicit
+magit-clone.el,192,command,magit-clone-shallow-since,partial,C d,explicit
+magit-clone.el,204,command,magit-clone-shallow-exclude,partial,C e,explicit
+magit-clone.el,215,command,magit-clone-bare,partial,C b,explicit
+magit-clone.el,222,command,magit-clone-mirror,partial,C m,explicit
+magit-clone.el,229,command,magit-clone-sparse,partial,"C >: --no-checkout, sparse-checkout init --cone, checkout",explicit
+magit-clone.el,,command,magit-clone:--filter,partial,-f reads a value,runtime
+magit-clone.el,,command,transient:magit-clone:--branch=,partial,menu argument,runtime
+magit-clone.el,,command,transient:magit-clone:--no-hardlinks,partial,menu argument,runtime
+magit-clone.el,,command,transient:magit-clone:--no-local,partial,menu argument,runtime
+magit-clone.el,,command,transient:magit-clone:--no-tags,partial,menu argument,runtime
+magit-clone.el,,command,transient:magit-clone:--origin=,partial,menu argument,runtime
+magit-clone.el,,command,transient:magit-clone:--recurse-submodules,partial,menu argument,runtime
+magit-clone.el,,command,transient:magit-clone:--separate-git-dir=,partial,menu argument,runtime
+magit-clone.el,,command,transient:magit-clone:--shared,partial,menu argument,runtime
+magit-clone.el,,command,transient:magit-clone:--single-branch,partial,menu argument,runtime
+magit-clone.el,,command,transient:magit-clone:--template=,partial,menu argument,runtime
 magit-commit.el,36,option,magit-commit-ask-to-stage,missing,,explicit
 magit-commit.el,45,option,magit-commit-show-diff,missing,,explicit
 magit-commit.el,51,option,magit-commit-extend-override-date,missing,,explicit

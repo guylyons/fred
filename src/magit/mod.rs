@@ -3,6 +3,8 @@ pub mod bisect;
 pub mod blame;
 pub mod blob;
 pub mod branch;
+pub mod bundle;
+pub mod clone;
 pub mod commit;
 pub mod diff;
 pub mod log;
@@ -97,6 +99,10 @@ pub enum Action {
     Subtree(subtree::Op),
     /// A magit-patch.el or magit-am suffix.
     Patch(patch::Op),
+    /// A magit-bundle.el suffix.
+    Bundle(bundle::Op),
+    /// A magit-clone.el suffix.
+    Clone(clone::Op),
     /// magit-reflog-current / -head / -other (None asks for a ref).
     Reflog(Option<String>),
     /// ZZ / ZQ in a rebase todo buffer.
@@ -772,6 +778,9 @@ fn menu_help(menu: char) -> Option<&'static str> {
             "Log: l current  o other  h HEAD  u related  L/b/a/R branches, all, reflog objects  B/T matching  m merged; = limit, + more in a log"
         }
         'u' => "Subtree: i import  e export",
+        'k' => "Clone: C regular  s shallow  d since  e excluding  > sparse  b bare  m mirror",
+        'J' => "Bundle: c create  v verify  l list-heads",
+        'j' => "Bundle create: c regular  t tracked  u update tracked",
         'W' => {
             "Patch: c create  w apply patches (am)  a apply plain patch  s save diff  r request pull"
         }
@@ -854,6 +863,8 @@ pub enum Question {
     Submodule(submodule::Op),
     Subtree(subtree::Op),
     Patch(patch::Op),
+    Bundle(bundle::Op),
+    Clone(clone::Op),
     Net(network::Op),
     Diff(diff::Op),
     FindFile,
@@ -1033,7 +1044,9 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("b", "Branch", "Branch operations", Menu('b')),
             ("B", "Inspect", "Blame", Menu('B')),
             ("c", "Commit", "Commit menu", Menu('C')),
-            ("C", "Commit", "Amend / fixup", Menu('C')),
+            ("C", "Repository", "Clone", Menu('k')),
+            ("&", "Repository", "Bundle (M-x upstream)", Menu('J')),
+            ("w", "Repository", "Apply patches", Menu('w')),
             ("p", "Network", "Push", Menu('p')),
             ("P", "Network", "Pull", Menu('P')),
             ("f", "Network", "Fetch", Menu('f')),
@@ -1451,6 +1464,144 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 ),
             ]
         }
+        'k' => {
+            use clone::Op as K;
+            let sw = |a| ToggleOption(MenuOption::Switch('k', a));
+            vec![
+                (
+                    "-B",
+                    "Fetch arguments",
+                    "Clone a single branch",
+                    sw("--single-branch"),
+                ),
+                (
+                    "-n",
+                    "Fetch arguments",
+                    "Do not clone tags",
+                    sw("--no-tags"),
+                ),
+                (
+                    "-S",
+                    "Fetch arguments",
+                    "Clones submodules",
+                    sw("--recurse-submodules"),
+                ),
+                ("-l", "Fetch arguments", "Do not optimize", sw("--no-local")),
+                (
+                    "-o",
+                    "Setup arguments",
+                    "Set name of remote",
+                    ReadOption("--origin="),
+                ),
+                (
+                    "-b",
+                    "Setup arguments",
+                    "Set HEAD branch",
+                    ReadOption("--branch="),
+                ),
+                (
+                    "-f",
+                    "Setup arguments",
+                    "Filter some objects",
+                    ReadOption("--filter="),
+                ),
+                (
+                    "-g",
+                    "Setup arguments",
+                    "Separate git directory",
+                    ReadOption("--separate-git-dir="),
+                ),
+                (
+                    "-t",
+                    "Setup arguments",
+                    "Use template directory",
+                    ReadOption("--template="),
+                ),
+                (
+                    "-s",
+                    "Local sharing arguments",
+                    "Share objects",
+                    sw("--shared"),
+                ),
+                (
+                    "-h",
+                    "Local sharing arguments",
+                    "Do not use hardlinks",
+                    sw("--no-hardlinks"),
+                ),
+                ("C", "Clone", "regular", Clone(K::Regular)),
+                ("s", "Clone", "shallow", Clone(K::Shallow)),
+                ("d", "Clone", "shallow since date", Clone(K::ShallowSince)),
+                ("e", "Clone", "shallow excluding", Clone(K::ShallowExclude)),
+                (">", "Clone", "sparse checkout", Clone(K::Sparse)),
+                ("b", "Clone", "bare", Clone(K::Bare)),
+                ("m", "Clone", "mirror", Clone(K::Mirror)),
+            ]
+        }
+        'J' => vec![
+            ("c", "Actions", "create", Menu('j')),
+            ("v", "Actions", "verify", Bundle(bundle::Op::Verify)),
+            ("l", "Actions", "list-heads", Bundle(bundle::Op::ListHeads)),
+        ],
+        'j' => vec![
+            (
+                "-a",
+                "Arguments",
+                "Include all refs",
+                ToggleOption(MenuOption::Switch('j', "--all")),
+            ),
+            (
+                "-b",
+                "Arguments",
+                "Include branches",
+                ReadOption("--branches="),
+            ),
+            ("-t", "Arguments", "Include tags", ReadOption("--tags=")),
+            (
+                "-r",
+                "Arguments",
+                "Include remotes",
+                ReadOption("--remotes="),
+            ),
+            ("-g", "Arguments", "Include refs", ReadOption("--glob=")),
+            ("-e", "Arguments", "Exclude refs", ReadOption("--exclude=")),
+            (
+                "-n",
+                "Arguments",
+                "Limit number of commits",
+                ReadOption("-n"),
+            ),
+            (
+                "=s",
+                "Arguments",
+                "Limit to commits since",
+                ReadOption("--since="),
+            ),
+            (
+                "=u",
+                "Arguments",
+                "Limit to commits until",
+                ReadOption("--until="),
+            ),
+            (
+                "c",
+                "Actions",
+                "create regular bundle",
+                Bundle(bundle::Op::Create),
+            ),
+            (
+                "t",
+                "Actions",
+                "create tracked bundle",
+                Bundle(bundle::Op::CreateTracked),
+            ),
+            (
+                "u",
+                "Actions",
+                "update tracked bundle",
+                Bundle(bundle::Op::UpdateTracked),
+            ),
+        ],
         'W' => vec![
             ("c", "Actions", "Create patches", Menu('K')),
             ("w", "Actions", "Apply patches", Menu('w')),

@@ -2983,7 +2983,7 @@ mod tests {
         magit_settle(&mut t);
         t.keys("inormal draft<Esc>:w<Enter>");
         let normal_path = t.s.ed.path.clone().unwrap();
-        t.keys(" mCa");
+        t.keys(" mca");
         magit_settle(&mut t);
         assert!(t.s.ed.commit_repo.is_some());
         assert_eq!(t.s.ed.buf.line(0), "original message");
@@ -3014,7 +3014,7 @@ mod tests {
         let repo = magit_committed_fixture(&mut t);
         fs::write(t.dir.path().join("f.txt"), "staged\n").unwrap();
         repo.stage_file(Path::new("f.txt")).unwrap();
-        t.keys(" mCw");
+        t.keys(" mcw");
         magit_settle(&mut t);
         assert!(t.s.ed.commit_repo.is_some());
         t.keys("ccnew words<Esc> mcc");
@@ -3025,7 +3025,7 @@ mod tests {
         magit_settle(&mut t);
         assert_eq!(repo.read(&["show", "HEAD:f.txt"]).unwrap(), b"base\n");
         assert_eq!(repo.read(&["show", ":f.txt"]).unwrap(), b"staged\n");
-        t.keys(" mCa");
+        t.keys(" mca");
         magit_settle(&mut t);
         repo.read(&["commit", "-qm", "intervening"]).unwrap();
         t.keys(" mcc");
@@ -3138,7 +3138,7 @@ mod tests {
         let mut t = T::open(Some("f.txt"), Some("base\n"));
         let repo = magit_committed_fixture(&mut t);
         fs::write(t.dir.path().join("f.txt"), "saved tree\n").unwrap();
-        t.keys("iunsaved <Esc> mC-ac");
+        t.keys("iunsaved <Esc> mc-ac");
         magit_settle(&mut t);
         assert!(t.s.ed.commit_repo.is_some());
         t.keys("iwith all<Esc> mcc");
@@ -3153,7 +3153,7 @@ mod tests {
     fn magit_delayed_amend_draft_does_not_replace_newer_input() {
         let mut t = T::open(Some("f.txt"), Some("base\n"));
         magit_committed_fixture(&mut t);
-        t.keys(" mCa");
+        t.keys(" mca");
         t.keys("i");
         magit_settle(&mut t);
         assert_eq!(t.s.ed.mode, Mode::Insert);
@@ -3163,7 +3163,7 @@ mod tests {
     fn magit_recovered_amend_keeps_mode_options_and_head_guard() {
         let mut t = T::open(Some("f.txt"), Some("base\n"));
         let repo = magit_committed_fixture(&mut t);
-        t.keys(" mC+sa");
+        t.keys(" mc+sa");
         magit_settle(&mut t);
         t.keys("ccrecovered amend<Esc>");
         t.s.write_swap();
@@ -3188,9 +3188,9 @@ mod tests {
         let hook = t.dir.path().join(".git/hooks/pre-commit");
         fs::write(&hook, "#!/bin/sh\nexit 1\n").unwrap();
         fs::set_permissions(&hook, fs::Permissions::from_mode(0o755)).unwrap();
-        t.keys(" mC-n-ec");
+        t.keys(" mc-n-ec");
         magit_settle(&mut t);
-        t.keys("idraft message<Esc> mC");
+        t.keys("idraft message<Esc> mc");
         let Mode::Pick(p) = &t.s.ed.mode else {
             panic!("commit menu");
         };
@@ -3212,9 +3212,9 @@ mod tests {
             String::from_utf8_lossy(&repo.read(&["log", "-1", "--format=%B"]).unwrap())
                 .contains("Signed-off-by: Fred <fred@example.test>")
         );
-        t.keys(" mC-n-ec");
+        t.keys(" mc-n-ec");
         magit_settle(&mut t);
-        t.keys("isecond draft<Esc> mC-nc");
+        t.keys("isecond draft<Esc> mc-nc");
         let inv = t.s.pending_git.take().expect("commit with hooks restored");
         assert!(inv.repo.run(&inv.args, inv.input.as_deref()).is_err());
         assert_eq!(t.s.ed.buf.line(0), "second draft");

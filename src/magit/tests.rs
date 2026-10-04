@@ -602,7 +602,7 @@ fn workflow_menu_dispatch_and_prompt_cancel() {
         (" mbc", "CreateCheckout"),
         (" mmm", "Merge"),
         (" mRr", "Rebase"),
-        (" mCa", "Amend"),
+        (" mca", "Amend"),
     ] {
         let mut e = Editor::new(Buffer::from_text("source"));
         for k in parse_keys(keys) {
@@ -3022,6 +3022,104 @@ fn patch_create_am_apply_save_and_request_pull() {
     );
     assert!(
         r.patch_step(Op::RequestPull, &s(&["nope", "a", "b"]), &[])
+            .is_err()
+    );
+}
+
+#[test]
+fn bundle_create_tracked_update_verify_and_heads() {
+    use super::branch::Next;
+    use super::bundle::{Op, Tracked};
+    let (d, r) = setup();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    let commit = |name: &str| {
+        fs::write(d.path().join(name), name).unwrap();
+        git(d.path(), &["add", name]);
+        git(d.path(), &["commit", "-qm", name]);
+    };
+    commit("one");
+    r.bundle_step(Op::Create, &s(&["all.bundle", ""]), &s(&["--all"]))
+        .unwrap();
+    r.bundle_step(Op::Verify, &s(&["all.bundle"]), &[]).unwrap();
+    let Next::View(super::Kind::Output(_, argv)) = r
+        .bundle_step(Op::ListHeads, &s(&["all.bundle"]), &[])
+        .unwrap()
+    else {
+        panic!()
+    };
+    let heads = r
+        .read_network(&argv.iter().map(String::as_str).collect::<Vec<_>>())
+        .unwrap();
+    assert!(
+        String::from_utf8(heads)
+            .unwrap()
+            .contains("refs/heads/main")
+    );
+    assert!(
+        r.bundle_step(Op::Create, &s(&["x.bundle", "--all"]), &[])
+            .is_err()
+    );
+    // Tracked: the tag records the bundle; an update bundles only what's new.
+    r.bundle_step(Op::CreateTracked, &s(&["snap", "main", "", ""]), &[])
+        .unwrap();
+    let msg = String::from_utf8(git(
+        d.path(),
+        &["for-each-ref", "--format=%(contents)", "refs/tags/snap"],
+    ))
+    .unwrap();
+    let t = Tracked::parse(&msg).unwrap();
+    assert_eq!((t.branch.as_str(), t.refs.clone()), ("main", s(&["HEAD"])));
+    assert!(t.file.ends_with("snap.bundle"));
+    commit("two");
+    r.bundle_step(Op::UpdateTracked, &s(&["snap"]), &[])
+        .unwrap();
+    let heads = String::from_utf8(git(d.path(), &["bundle", "list-heads", &t.file])).unwrap();
+    let two = String::from_utf8(git(d.path(), &["rev-parse", "HEAD"])).unwrap();
+    assert!(heads.contains(two.trim()), "{heads}");
+    // Upstream's own pp-to-string output parses too.
+    let upstream = ";; git-bundle tracking\n((file . \"/tmp/a \\\"b\\\".bundle\")\n (branch . \"main\")\n (refs)\n (args \"--all\"))\n";
+    let t = Tracked::parse(upstream).unwrap();
+    assert_eq!(t.file, "/tmp/a \"b\".bundle");
+    assert_eq!((t.refs.len(), t.args.clone()), (0, s(&["--all"])));
+    assert_eq!(Tracked::parse(&t.message()), Some(t));
+}
+
+#[test]
+fn clone_regular_sparse_and_into_non_empty_directory() {
+    use super::branch::Next;
+    use super::clone::Op;
+    let (src, _) = setup();
+    fs::write(src.path().join("f"), "f").unwrap();
+    git(src.path(), &["add", "f"]);
+    git(src.path(), &["commit", "-qm", "f"]);
+    let base = tempfile::tempdir().unwrap();
+    let r = Repo {
+        root: base.path().to_path_buf(),
+    };
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    let url = src.path().to_string_lossy().into_owned();
+    let Next::Status(dir) = r.clone_step(Op::Regular, &s(&[&url, "copy"]), &[]).unwrap() else {
+        panic!()
+    };
+    assert!(dir.join("f").exists());
+    // An existing non-empty directory gets the repository's name inside it.
+    let name = super::clone::url_to_name(&url).unwrap();
+    let Next::Status(dir) = r
+        .clone_step(Op::Sparse, &s(&[&url, "copy"]), &s(&["--origin=up"]))
+        .unwrap()
+    else {
+        panic!()
+    };
+    assert_eq!(dir, base.path().join("copy").join(&name));
+    let cone = String::from_utf8(git(&dir, &["config", "core.sparseCheckoutCone"])).unwrap();
+    assert_eq!(cone.trim(), "true");
+    assert!(git(&dir, &["remote"]).starts_with(b"up"));
+    assert!(
+        r.clone_step(Op::Regular, &s(&["--upload-pack=x", "y"]), &[])
+            .is_err()
+    );
+    assert!(
+        r.clone_step(Op::ShallowSince, &s(&[&url, "z", ""]), &[])
             .is_err()
     );
 }

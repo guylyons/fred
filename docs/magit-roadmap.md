@@ -47,8 +47,9 @@ additional behavior reopens its row and lowers the score until it is covered.
 
 ## Execution queue
 
-Submodule, subtree and patch/am batches done. Next: bundles and clone,
-then reference movement and log-select,
+Submodule, subtree and patch/am batches done. Bundles and clone done.
+Next: patch review fixes, refs view (y), then reference movement and
+log-select,
 subtrees, patches/bundles, clone, refs view, sparse checkout and gitignore,
 recording each accepted gate's evidence here. The baseline's UI map and
 scenario matrix remain open.
@@ -186,3 +187,9 @@ mail/patch/diff arguments, apply, save, request-pull) and magit-am (apply
 patches/maildir; continue, skip, abort while applying)
 ([scenarios](magit-patch-acceptance.md)). Submodule review fixes (33938d6).
 Ledger 360 partial / 413 missing commands. Score remains 3%.
+
+October 4 bundle/clone checkpoint: Space m & ports magit-bundle (tracked
+bundles keep upstream's tag format, so Emacs and Fred share them) and Space m
+C ports magit-clone (dispatch C; the duplicate commit binding moved to c
+only). ([scenarios](magit-bundle-clone-acceptance.md)). Ledger 391 partial /
+382 missing commands. Score remains 3%.

@@ -234,6 +234,67 @@ impl Session {
             });
             return;
         }
+        if let Action::Answered(repo, Question::Bundle(op), answers, defaults) = action {
+            let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, 'j'));
+            self.start_magit(move || {
+                let merged = merge_answers(&answers, &defaults);
+                let next = repo
+                    .bundle_step(op, &merged, &args)
+                    .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                Ok(branch_outcome(repo, next, origin))
+            });
+            return;
+        }
+        if let Action::Bundle(op) = action {
+            let from = self.magit_from();
+            let at_point =
+                self.ed
+                    .magit
+                    .as_ref()
+                    .and_then(|v| match v.action_at(self.ed.cur.line) {
+                        Some(RowAction::File(p, _)) => Some(p.to_string_lossy().into_owned()),
+                        _ => None,
+                    });
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                let (prompts, defaults) = repo.bundle_prompts(&op, at_point);
+                Ok(Outcome::Ask(repo, Question::Bundle(op), defaults, prompts))
+            });
+            return;
+        }
+        if let Action::Answered(base, Question::Clone(op), answers, defaults) = action {
+            let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, 'k'));
+            self.start_magit(move || {
+                let merged = merge_answers(&answers, &defaults);
+                let next = base
+                    .clone_step(op, &merged, &args)
+                    .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                Ok(branch_outcome(base, next, origin))
+            });
+            return;
+        }
+        if let Action::Clone(op) = action {
+            // magit-clone reads relative to the current buffer's directory.
+            let from = self.magit_from();
+            let base = if from.is_dir() {
+                from
+            } else {
+                from.parent().map(Path::to_path_buf).unwrap_or_default()
+            };
+            let base = std::path::absolute(&base).unwrap_or(base);
+            let (prompts, defaults) = Repo::clone_prompts(&op);
+            crate::magit::prompt(
+                &mut self.ed,
+                crate::magit::Prompt::Ask(
+                    Repo { root: base },
+                    Question::Clone(op),
+                    defaults,
+                    prompts,
+                    vec![],
+                ),
+            );
+            return;
+        }
         if let Action::Answered(repo, Question::Patch(op), answers, defaults) = action {
             let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, op.menu()));
             self.start_magit(move || {
@@ -817,7 +878,9 @@ impl Session {
                 | Question::Log(_)
                 | Question::Submodule(_)
                 | Question::Subtree(_)
-                | Question::Patch(_) => {
+                | Question::Patch(_)
+                | Question::Bundle(_)
+                | Question::Clone(_) => {
                     unreachable!("handled before the worker")
                 }
                 Question::FindFile => {
