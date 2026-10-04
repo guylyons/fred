@@ -245,3 +245,11 @@ Checkpoint fixes before committing the file-log slice: the log menu now seeds
 magit-mode.el:213), and repository discovery/path resolution walk to the
 nearest existing ancestor so files in since-deleted directories still resolve.
 Verification: 394 passed / 18 ignored; fmt, diff check and Clippy passed.
+
+## Network menus
+
+src/magit/network.rs ports push/fetch/pull suffixes. Prompts are computed
+in the worker from config (pushRemote/upstream/remote count) and chained via
+Prompt::Net; answers that look like options or contain control characters are
+rejected before Git runs. Config is written only after the answer validates.
+Remaining gaps are listed in docs/magit-network-acceptance.md.

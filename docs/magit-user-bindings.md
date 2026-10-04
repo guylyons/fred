@@ -8,14 +8,14 @@ The prefix is `Space m`. This exact layout governs the Fred port.
 | --- | --- | --- | --- |
 | B | magit-blame | Blame menu/modes | Reserved; blame missing |
 | L | magit-log-buffer-file | Current file's history | Literal file filtering and follow toggle implemented; region/revision/custom arguments remain partial |
-| P | magit-pull | Pull menu and contextual variants | Direct ff-only pull is partial |
+| P | magit-pull | Pull menu and contextual variants | Menu with -f/-r/-F and p/u/e; -A, U, configure and dynamic descriptions remain |
 | b | magit-branch | Branch menu | Menu routing corrected; full branch options/context remain partial |
 | c | magit-commit | Commit menu | Menu routing corrected; full commit options/context remain partial |
 | d | magit-diff | Diff menu | Missing global diff entry |
-| f | magit-fetch | Fetch menu and variants | Direct fetch is partial |
+| f | magit-fetch | Fetch menu and variants | Menu with -p/-t/-F and p/u/e/a/o/r/m; unshallow, configure, modules transient remain |
 | i | magit-init | Init workflow | Missing |
 | l | magit-log | Log menu and variants | Partial log menu with l/h and follow toggle; other arguments/suffixes remain missing |
-| p | magit-push | Push menu and variants | Direct configured push is partial |
+| p | magit-push | Push menu and variants | Menu with seven arguments and p/u/e/o/r/m/T/t; -o, notes ref, configure and completion remain |
 | r | magit-revert | Revert menu | Routing corrected; full variants/options remain partial |
 | s | magit-status | Status view | Existing partial status view |
 

@@ -1947,6 +1947,55 @@ mod tests {
         assert_eq!(t.s.ed.buf.line(0), "target contents");
     }
     #[test]
+    fn magit_push_menu_collects_arguments_and_prompts_before_git() {
+        let mut t = T::open(Some("f.txt"), Some("original\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "initial"]).unwrap();
+        let bare = tempfile::tempdir().unwrap();
+        repo.read(&["init", "--bare", "-q", bare.path().to_str().unwrap()])
+            .unwrap();
+        repo.read(&["remote", "add", "origin", bare.path().to_str().unwrap()])
+            .unwrap();
+        t.keys(" mp");
+        assert!(t.s.magit_job.is_none() && t.s.pending_git.is_none());
+        t.keys("-n-hp");
+        magit_settle(&mut t);
+        assert!(t.s.pending_git.is_none());
+        t.keys("origin<Enter>");
+        magit_settle(&mut t);
+        let inv = t.s.pending_git.take().expect("push invocation");
+        let args: Vec<_> = inv.args.iter().map(|a| a.to_string_lossy()).collect();
+        assert_eq!(
+            args,
+            [
+                "push",
+                "-v",
+                "--dry-run",
+                "--no-verify",
+                "origin",
+                "refs/heads/main:refs/heads/main"
+            ]
+        );
+        t.keys(" mP-f-r");
+        assert!(
+            !t.s.ed
+                .magit_options
+                .contains(&crate::magit::MenuOption::PullFfOnly)
+        );
+        t.keys("-r-r");
+        assert_eq!(
+            crate::magit::menu_arguments(&t.s.ed, 'P'),
+            ["--rebase=interactive"]
+        );
+        t.keys("-r-r");
+        assert!(crate::magit::menu_arguments(&t.s.ed, 'P').is_empty());
+    }
+    #[test]
     fn magit_file_log_rejects_buffers_without_a_source_file() {
         let mut t = T::open(None, None);
         t.keys(" mL");

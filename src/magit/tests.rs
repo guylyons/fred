@@ -183,9 +183,9 @@ fn leader_m_routes_and_cancels() {
     use crate::{buffer::Buffer, editor::Editor, key::parse_keys};
     for (suffix, action) in [
         ("s", "Status"),
-        ("p", "Push"),
-        ("P", "Pull"),
-        ("f", "Fetch"),
+        ("pu", "PushUpstream"),
+        ("Pu", "PullUpstream"),
+        ("fa", "FetchAll"),
         ("cc", "Commit"),
         ("ll", "Log"),
         ("bb", "Branches"),
@@ -906,4 +906,153 @@ fn file_history_filters_literal_paths_and_follows_renames() {
     }
     assert!(repo.file_history(Path::new("../outside"), false).is_err());
     assert!(repo.file_history(d.path(), false).is_err());
+}
+
+fn with_remote() -> (tempfile::TempDir, Repo, tempfile::TempDir) {
+    let (d, r) = setup();
+    committed(d.path(), b"base\n");
+    let bare = tempfile::tempdir().unwrap();
+    git(bare.path(), &["init", "--bare", "-q", "-b", "main"]);
+    git(
+        d.path(),
+        &["remote", "add", "origin", bare.path().to_str().unwrap()],
+    );
+    (d, r, bare)
+}
+fn run_net(r: &Repo, op: super::network::Op, answers: &[&str], args: &[&str]) -> Vec<String> {
+    let answers: Vec<String> = answers.iter().map(|s| s.to_string()).collect();
+    let args: Vec<String> = args.iter().map(|s| s.to_string()).collect();
+    let inv = r.network(op, &answers, &args).unwrap();
+    r.run(&inv.args, None).unwrap();
+    inv.args
+        .iter()
+        .map(|a| a.to_string_lossy().into_owned())
+        .collect()
+}
+#[test]
+fn push_remote_sets_unconfigured_push_remote_then_pushes() {
+    use super::network::Op::*;
+    let (d, r, bare) = with_remote();
+    let prompts = r.network_prompts(PushRemote).unwrap();
+    assert_eq!(prompts, ["Set branch.main.pushRemote and push there: "]);
+    assert!(r.network(PushRemote, &["nope".into()], &[]).is_err());
+    let args = run_net(&r, PushRemote, &["origin"], &[]);
+    assert_eq!(
+        args,
+        ["push", "-v", "origin", "refs/heads/main:refs/heads/main"]
+    );
+    assert_eq!(
+        git(d.path(), &["config", "branch.main.pushRemote"]),
+        b"origin\n"
+    );
+    git(bare.path(), &["rev-parse", "--verify", "main"]);
+    assert!(r.network_prompts(PushRemote).unwrap().is_empty());
+    assert!(r.network_prompts(FetchRemote).unwrap().is_empty());
+}
+#[test]
+fn push_upstream_sets_upstream_or_uses_configured_one() {
+    use super::network::Op::*;
+    let (d, r, bare) = with_remote();
+    assert_eq!(
+        r.network_prompts(PushUpstream).unwrap(),
+        ["Set upstream of main and push there: "]
+    );
+    let args = run_net(&r, PushUpstream, &["origin/trunk"], &["--dry-run"]);
+    assert_eq!(
+        args,
+        [
+            "push",
+            "-v",
+            "--dry-run",
+            "--set-upstream",
+            "origin",
+            "main:refs/heads/trunk"
+        ]
+    );
+    assert!(git(bare.path(), &["branch"]).is_empty());
+    run_net(&r, PushUpstream, &["origin/trunk"], &[]);
+    assert_eq!(
+        git(d.path(), &["config", "branch.main.merge"]),
+        b"refs/heads/trunk\n"
+    );
+    assert!(r.network_prompts(PushUpstream).unwrap().is_empty());
+    committed(d.path(), b"next\n");
+    let args = run_net(&r, PushUpstream, &[], &[]);
+    assert_eq!(args, ["push", "-v", "origin", "main:refs/heads/trunk"]);
+    assert_eq!(
+        git(bare.path(), &["rev-parse", "trunk"]),
+        git(d.path(), &["rev-parse", "HEAD"])
+    );
+}
+#[test]
+fn push_elsewhere_other_tag_and_matching_targets() {
+    use super::network::Op::*;
+    let (d, r, bare) = with_remote();
+    let args = run_net(&r, PushElsewhere, &["origin/topic"], &[]);
+    assert_eq!(args, ["push", "-v", "origin", "main:refs/heads/topic"]);
+    git(d.path(), &["fetch", "-q", "origin"]);
+    let args = run_net(&r, PushOther, &["HEAD", "origin/topic"], &["--force"]);
+    assert_eq!(args, ["push", "-v", "--force", "origin", "HEAD:topic"]);
+    git(d.path(), &["tag", "v1"]);
+    assert_eq!(r.network_prompts(PushTag).unwrap(), ["Push tag: "]);
+    run_net(&r, PushTag, &["v1"], &[]);
+    git(bare.path(), &["rev-parse", "--verify", "refs/tags/v1"]);
+    assert!(r.network(PushTag, &["missing".into()], &[]).is_err());
+    assert!(r.network_prompts(PushMatching).unwrap().is_empty());
+    let args = run_net(&r, PushMatching, &[], &["--dry-run"]);
+    assert_eq!(args, ["push", "-v", "--dry-run", "origin", ":"]);
+    let args = run_net(&r, PushRefspecs, &["origin", "main:a, main:b"], &[]);
+    assert_eq!(args, ["push", "-v", "origin", "main:a", "main:b"]);
+    git(bare.path(), &["rev-parse", "--verify", "b"]);
+    assert!(
+        r.network(PushRefspecs, &["origin".into(), "--mirror".into()], &[])
+            .is_err()
+    );
+    assert!(r.network(PushElsewhere, &["--exec=x".into()], &[]).is_err());
+    let injected = ["origin/--upload-pack=touch pwned".to_owned()];
+    assert!(r.network(PullElsewhere, &injected, &[]).is_err());
+    assert!(r.network(PushUpstream, &injected, &[]).is_err());
+    git(d.path(), &["remote", "add", "upstream", "/nonexistent"]);
+    let inv = r.network(FetchUpstream, &[], &[]).unwrap();
+    assert_eq!(inv.args[1], "upstream");
+}
+#[test]
+fn fetch_and_pull_suffixes_use_current_remote_and_upstream() {
+    use super::network::Op::*;
+    let (d, r, bare) = with_remote();
+    git(d.path(), &["push", "-q", "origin", "main"]);
+    let other = tempfile::tempdir().unwrap();
+    git(
+        other.path(),
+        &["clone", "-q", bare.path().to_str().unwrap(), "."],
+    );
+    fs::write(other.path().join("f"), b"remote\n").unwrap();
+    git(other.path(), &["commit", "-qam", "remote"]);
+    git(other.path(), &["push", "-q"]);
+    let args = run_net(&r, FetchUpstream, &[], &["--prune"]);
+    assert_eq!(args, ["fetch", "origin", "--prune"]);
+    assert_eq!(fs::read(d.path().join("f")).unwrap(), b"base\n");
+    assert_eq!(
+        r.network_prompts(PullUpstream).unwrap(),
+        ["Set upstream of main and pull from there: "]
+    );
+    let args = run_net(&r, PullUpstream, &["origin/main"], &["--ff-only"]);
+    assert_eq!(args, ["pull", "--ff-only", "origin", "refs/heads/main"]);
+    assert_eq!(fs::read(d.path().join("f")).unwrap(), b"remote\n");
+    assert_eq!(
+        git(d.path(), &["config", "branch.main.remote"]),
+        b"origin\n"
+    );
+    let args = run_net(&r, PullElsewhere, &["origin/main"], &[]);
+    assert_eq!(args, ["pull", "origin", "main"]);
+    let args = run_net(&r, FetchAll, &[], &["--tags"]);
+    assert_eq!(args, ["fetch", "--all", "--tags"]);
+    let args = run_net(&r, FetchBranch, &["origin", "main"], &[]);
+    assert_eq!(args, ["fetch", "origin", "main"]);
+    assert!(
+        r.network(FetchElsewhere, &["elsewhere".into()], &[])
+            .is_err()
+    );
+    git(d.path(), &["checkout", "-q", "--detach"]);
+    assert!(r.network_prompts(PullRemote).is_err());
 }

@@ -86,3 +86,12 @@ prerequisite, not acceptance of the log family or either open baseline gate.
 Score remains 3%. Next finish source-linked UI mapping and acceptance scenarios;
 continue missing B/d/i and full log/network menu semantics. The file-log gaps
 include region tracing, revision/blob context and inherited arguments/settings.
+
+October 4 network checkpoint: committed the file-log slice (625f834) after
+fixing two failing tests. Space m p/P/f are now source-style push/pull/fetch
+menus with upstream argument switches and configured/elsewhere/other/refspec/
+tag suffixes ([scenarios](magit-network-acceptance.md)). Row 10 remains partial
+(remote editing, refspec configuration, completion, prefix-arg variants, hidden
+levels, dynamic descriptions), so the accepted score stays 3%. Ledger: 80
+partial / 693 missing commands. Next: d diff menu, i init, B blame, then the
+UI map and acceptance-matrix baseline gates.

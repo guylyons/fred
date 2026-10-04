@@ -1132,7 +1132,11 @@ fn magit_failed_fetch_restores_terminal() {
     magit_init(&env);
     let mut p = env.fred(&["-f", "f.txt"]);
     p.wait_for("editor", |s| s.contains("NORMAL"));
-    p.keys(&[" mf"]);
+    p.keys(&[" mfo"]);
+    p.wait_for("remote prompt", |s| s.contains("Fetch from remote or url"));
+    p.keys(&["nowhere\r"]);
+    p.wait_for("branch prompt", |s| s.contains("Fetch branch"));
+    p.keys(&["main\r"]);
     p.wait_for("Git terminal", |s| s.contains("Press Enter to continue"));
     p.keys(&["\r"]);
     p.wait_for("returned editor", |s| {

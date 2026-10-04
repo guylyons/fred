@@ -10,9 +10,12 @@ pub(super) enum Outcome {
     ErrorView(Box<View>, String, Option<RowAction>, usize),
     View(Box<View>, Option<RowAction>, usize),
     Prompt(Repo, crate::magit::workflows::Operation, Vec<String>),
+    NetPrompt(Repo, crate::magit::network::Op, Vec<String>, Vec<String>),
     Draft(Repo, crate::magit::CommitMode, Vec<u8>, Vec<String>),
     Branches(Repo, Vec<String>),
     Git(GitInvocation),
+    /// A network command whose configuration was already written.
+    ConfiguredGit(GitInvocation),
     Saved(Repo, Result<(), String>),
 }
 pub(super) struct Job {
@@ -133,6 +136,12 @@ impl Session {
                         fallback,
                     )),
                 }
+            });
+            return;
+        }
+        if let Action::NetSubmit(repo, op, answers, args) = action {
+            self.start_magit(move || {
+                Ok(Outcome::ConfiguredGit(repo.network(op, &answers, &args)?))
             });
             return;
         }
@@ -352,6 +361,10 @@ impl Session {
             .contains(&crate::magit::MenuOption::LogFollow);
         let commit_args = crate::magit::menu_arguments(&self.ed, 'C');
         let stash_args = crate::magit::menu_arguments(&self.ed, 'z');
+        let net_args = match action {
+            Action::Net(op) => crate::magit::menu_arguments(&self.ed, op.menu()),
+            _ => vec![],
+        };
         let from = self.magit_from();
         let origin = self.cur;
         let prior: Vec<_> = (0..self.bufs.len())
@@ -473,20 +486,13 @@ impl Session {
                     let names = repo.branches()?;
                     Ok(Outcome::Branches(repo, names))
                 }
-                Action::Push | Action::Pull | Action::Fetch => {
-                    let args: Vec<OsString> = match action {
-                        Action::Push => vec!["push".into()],
-                        Action::Pull => vec!["pull".into(), "--ff-only".into()],
-                        _ => vec!["fetch".into()],
-                    };
-                    Ok(Outcome::Git(GitInvocation {
-                        expected_head: None,
-                        repo,
-                        args,
-                        input: None,
-                        draft: None,
-                        draft_stamp: None,
-                    }))
+                Action::Net(op) => {
+                    let prompts = repo.network_prompts(op)?;
+                    if prompts.is_empty() {
+                        Ok(Outcome::Git(repo.network(op, &[], &net_args)?))
+                    } else {
+                        Ok(Outcome::NetPrompt(repo, op, net_args, prompts))
+                    }
                 }
                 _ => Err("unsupported Git action".into()),
             }
@@ -509,7 +515,7 @@ impl Session {
         // Saved mutations have already run: unlike stale read/draft requests,
         // their completion and errors must survive a buffer switch.
         if (self.cur != job.slot || self.clock != job.clock)
-            && !matches!(result, Ok(Outcome::Saved(..)))
+            && !matches!(result, Ok(Outcome::Saved(..) | Outcome::ConfiguredGit(_)))
         {
             return false;
         }
@@ -536,6 +542,18 @@ impl Session {
                 crate::magit::prompt(
                     &mut self.ed,
                     crate::magit::Prompt::Workflow(repo, operation, args),
+                );
+            }
+            Ok(Outcome::NetPrompt(repo, op, args, prompts)) => {
+                if self.ed.magit_input_generation != job.input_generation
+                    || self.ed.mode != Mode::Normal
+                {
+                    self.ed.set_msg("Git prompt cancelled");
+                    return true;
+                }
+                crate::magit::prompt(
+                    &mut self.ed,
+                    crate::magit::Prompt::Net(repo, op, args, prompts, vec![]),
                 );
             }
             Ok(Outcome::Draft(repo, mode, message, args)) => {
@@ -592,7 +610,7 @@ impl Session {
                 self.magit_picker_repo = Some(repo);
                 crate::pick::branches(&mut self.ed, names);
             }
-            Ok(Outcome::Git(inv)) => self.pending_git = Some(inv),
+            Ok(Outcome::Git(inv) | Outcome::ConfiguredGit(inv)) => self.pending_git = Some(inv),
             Ok(Outcome::Saved(repo, result)) => self.finish_git(
                 GitInvocation {
                     expected_head: None,

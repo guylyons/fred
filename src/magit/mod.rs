@@ -1,4 +1,5 @@
 //! A status-centered Git component; rendered text is never used as an operation path.
+pub mod network;
 pub mod repo;
 pub mod workflows;
 use crate::{
@@ -24,9 +25,8 @@ pub enum Action {
     Workflow(workflows::Operation),
     Submit(repo::Repo, workflows::Operation, String, Vec<String>),
     Status,
-    Push,
-    Pull,
-    Fetch,
+    Net(network::Op),
+    NetSubmit(repo::Repo, network::Op, Vec<String>, Vec<String>),
     Commit,
     Log,
     FileLog,
@@ -308,8 +308,20 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             ed.vim.pending.clear();
             if let Some((_, _, _, action)) = entries.into_iter().find(|(key, ..)| *key == suffix) {
                 if let Action::ToggleOption(option) = action {
-                    if !ed.magit_options.remove(&option) {
+                    if let MenuOption::PullRebase(_) = option {
+                        cycle_rebase(ed);
+                    } else if !ed.magit_options.remove(&option) {
                         ed.magit_options.insert(option);
+                    }
+                    // magit-pull :incompatible --ff-only with rebasing choices.
+                    if option == MenuOption::PullFfOnly {
+                        ed.magit_options.retain(|o| {
+                            !matches!(o, MenuOption::PullRebase(c) if *c != RebaseChoice::False)
+                        });
+                    }
+                    if matches!(ed.magit_options.iter().find(|o| matches!(o, MenuOption::PullRebase(_))), Some(MenuOption::PullRebase(c)) if *c != RebaseChoice::False)
+                    {
+                        ed.magit_options.remove(&MenuOption::PullFfOnly);
                     }
                     if option == MenuOption::StashAll {
                         ed.magit_options.remove(&MenuOption::StashUntracked);
@@ -395,6 +407,13 @@ fn menu_help(menu: char) -> Option<&'static str> {
             "Stash: z both  i index  w worktree  x keep index; Snapshot: Z both  I index  W worktree"
         }
         'B' => "Branch: c create  s create and switch  r rename current  d delete merged",
+        'p' => {
+            "Push: p pushRemote  u upstream  e elsewhere  o other  r refspecs  m matching  T tag  t tags"
+        }
+        'f' => {
+            "Fetch: p pushRemote  u current remote  e elsewhere  a all  o branch  r refspec  m submodules"
+        }
+        'P' => "Pull: p pushRemote  u upstream  e elsewhere; -r cycles --rebase choices",
         'l' => "Log: l current  h HEAD  -f follow renames for file log; Space m L current file",
         't' => "Tag: c create lightweight tag  l list",
         'C' => "Commit: a amend  e extend  w reword  f fixup",
@@ -424,10 +443,12 @@ impl CommitMode {
 pub enum Prompt {
     Workflow(Repo, workflows::Operation, Vec<String>),
     DropStash(Repo, workflows::Stash),
+    Net(Repo, network::Op, Vec<String>, Vec<String>, Vec<String>),
 }
 pub fn prompt(ed: &mut Editor, question: Prompt) {
     let text = match &question {
         Prompt::Workflow(_, operation, _) => operation.prompt().unwrap_or("").to_owned(),
+        Prompt::Net(_, _, _, prompts, answers) => prompts[answers.len()].clone(),
         Prompt::DropStash(_, stash) => format!(
             "Drop {} ({})? Type yes: ",
             stash.selector,
@@ -454,6 +475,15 @@ pub fn answer(ed: &mut Editor, text: &str) {
             ed.pending_effect = Some(ExEffect::Magit(Action::DropStash(repo, stash)))
         }
         Some(Prompt::DropStash(..)) => ed.set_msg("Stash drop cancelled"),
+        Some(Prompt::Net(repo, op, args, prompts, mut answers)) => {
+            answers.push(text.trim().to_owned());
+            if answers.len() < prompts.len() {
+                prompt(ed, Prompt::Net(repo, op, args, prompts, answers));
+            } else {
+                ed.pending_effect =
+                    Some(ExEffect::Magit(Action::NetSubmit(repo, op, answers, args)));
+            }
+        }
         None => (),
     }
 }
@@ -491,9 +521,9 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("b", "Branch", "Branch operations", Menu('B')),
             ("c", "Commit", "Commit menu", Menu('C')),
             ("C", "Commit", "Amend / fixup", Menu('C')),
-            ("p", "Network", "Push", Push),
-            ("P", "Network", "Pull", Pull),
-            ("f", "Network", "Fetch", Fetch),
+            ("p", "Network", "Push", Menu('p')),
+            ("P", "Network", "Pull", Menu('P')),
+            ("f", "Network", "Fetch", Menu('f')),
             ("z", "Change", "Stash", Menu('z')),
             ("t", "Tag", "Tags", Menu('t')),
             ("M", "History", "Merge", Menu('M')),
@@ -502,6 +532,127 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("x", "History", "Cherry-pick", Menu('x')),
             ("v", "History", "Revert", Menu('v')),
         ],
+        'p' => {
+            use network::Op::*;
+            vec![
+                (
+                    "-f",
+                    "Arguments",
+                    "Force with lease",
+                    ToggleOption(MenuOption::PushForceWithLease),
+                ),
+                (
+                    "-F",
+                    "Arguments",
+                    "Force",
+                    ToggleOption(MenuOption::PushForce),
+                ),
+                (
+                    "-h",
+                    "Arguments",
+                    "Disable hooks",
+                    ToggleOption(MenuOption::PushNoVerify),
+                ),
+                (
+                    "-n",
+                    "Arguments",
+                    "Dry run",
+                    ToggleOption(MenuOption::PushDryRun),
+                ),
+                (
+                    "-u",
+                    "Arguments",
+                    "Set upstream",
+                    ToggleOption(MenuOption::PushSetUpstream),
+                ),
+                (
+                    "-T",
+                    "Arguments",
+                    "Include all tags",
+                    ToggleOption(MenuOption::PushTags),
+                ),
+                (
+                    "-t",
+                    "Arguments",
+                    "Include related annotated tags",
+                    ToggleOption(MenuOption::PushFollowTags),
+                ),
+                ("p", "Push current to", "pushRemote", Net(PushRemote)),
+                ("u", "Push current to", "@{upstream}", Net(PushUpstream)),
+                ("e", "Push current to", "elsewhere", Net(PushElsewhere)),
+                ("o", "Push", "another branch", Net(PushOther)),
+                ("r", "Push", "explicit refspecs", Net(PushRefspecs)),
+                ("m", "Push", "matching branches", Net(PushMatching)),
+                ("T", "Push", "a tag", Net(PushTag)),
+                ("t", "Push", "all tags", Net(PushTags)),
+            ]
+        }
+        'f' => {
+            use network::Op::*;
+            vec![
+                (
+                    "-p",
+                    "Arguments",
+                    "Prune deleted branches",
+                    ToggleOption(MenuOption::FetchPrune),
+                ),
+                (
+                    "-t",
+                    "Arguments",
+                    "Fetch all tags",
+                    ToggleOption(MenuOption::FetchTags),
+                ),
+                (
+                    "-F",
+                    "Arguments",
+                    "Force",
+                    ToggleOption(MenuOption::FetchForce),
+                ),
+                ("p", "Fetch from", "pushRemote", Net(FetchRemote)),
+                ("u", "Fetch from", "current remote", Net(FetchUpstream)),
+                ("e", "Fetch from", "elsewhere", Net(FetchElsewhere)),
+                ("a", "Fetch from", "all remotes", Net(FetchAll)),
+                ("o", "Fetch", "another branch", Net(FetchBranch)),
+                ("r", "Fetch", "explicit refspec", Net(FetchRefspec)),
+                ("m", "Fetch", "submodules", Net(FetchModules)),
+            ]
+        }
+        'P' => {
+            use network::Op::*;
+            vec![
+                (
+                    "-f",
+                    "Arguments",
+                    "Fast-forward only",
+                    ToggleOption(MenuOption::PullFfOnly),
+                ),
+                (
+                    "-r",
+                    "Arguments",
+                    "Rebase local commits",
+                    ToggleOption(MenuOption::PullRebase(RebaseChoice::True)),
+                ),
+                (
+                    "-F",
+                    "Arguments",
+                    "Force",
+                    ToggleOption(MenuOption::PullForce),
+                ),
+                ("p", "Pull into current from", "pushRemote", Net(PullRemote)),
+                (
+                    "u",
+                    "Pull into current from",
+                    "@{upstream}",
+                    Net(PullUpstream),
+                ),
+                (
+                    "e",
+                    "Pull into current from",
+                    "elsewhere",
+                    Net(PullElsewhere),
+                ),
+            ]
+        }
         'l' => vec![
             (
                 "-f",
@@ -636,10 +787,36 @@ pub enum MenuOption {
     CommitNoVerify,
     CommitResetAuthor,
     CommitSignoff,
+    PushForceWithLease,
+    PushForce,
+    PushNoVerify,
+    PushDryRun,
+    PushSetUpstream,
+    PushTags,
+    PushFollowTags,
+    FetchPrune,
+    FetchTags,
+    FetchForce,
+    PullFfOnly,
+    PullRebase(RebaseChoice),
+    PullForce,
+}
+/// magit-pull:--rebase is a transient-option cycling through its choices.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum RebaseChoice {
+    True,
+    Merges,
+    Interactive,
+    False,
 }
 impl MenuOption {
     pub fn menu(self) -> char {
+        use MenuOption::*;
         match self {
+            PushForceWithLease | PushForce | PushNoVerify | PushDryRun | PushSetUpstream
+            | PushTags | PushFollowTags => 'p',
+            FetchPrune | FetchTags | FetchForce => 'f',
+            PullFfOnly | PullRebase(_) | PullForce => 'P',
             Self::LogFollow => 'l',
             Self::StashUntracked | Self::StashAll => 'z',
             _ => 'C',
@@ -655,7 +832,39 @@ impl MenuOption {
             Self::CommitNoVerify => "--no-verify",
             Self::CommitResetAuthor => "--reset-author",
             Self::CommitSignoff => "--signoff",
+            Self::PushForceWithLease => "--force-with-lease",
+            Self::PushForce | Self::FetchForce | Self::PullForce => "--force",
+            Self::PushNoVerify => "--no-verify",
+            Self::PushDryRun => "--dry-run",
+            Self::PushSetUpstream => "--set-upstream",
+            Self::PushTags | Self::FetchTags => "--tags",
+            Self::PushFollowTags => "--follow-tags",
+            Self::FetchPrune => "--prune",
+            Self::PullFfOnly => "--ff-only",
+            Self::PullRebase(RebaseChoice::True) => "--rebase=true",
+            Self::PullRebase(RebaseChoice::Merges) => "--rebase=merges",
+            Self::PullRebase(RebaseChoice::Interactive) => "--rebase=interactive",
+            Self::PullRebase(RebaseChoice::False) => "--rebase=false",
         }
+    }
+}
+fn cycle_rebase(ed: &mut Editor) {
+    use RebaseChoice::*;
+    let current = ed.magit_options.iter().find_map(|o| match o {
+        MenuOption::PullRebase(c) => Some(*c),
+        _ => None,
+    });
+    let next = match current {
+        None => Some(True),
+        Some(True) => Some(Merges),
+        Some(Merges) => Some(Interactive),
+        Some(Interactive) => Some(False),
+        Some(False) => None,
+    };
+    ed.magit_options
+        .retain(|o| !matches!(o, MenuOption::PullRebase(_)));
+    if let Some(next) = next {
+        ed.magit_options.insert(MenuOption::PullRebase(next));
     }
 }
 pub fn menu_arguments(ed: &Editor, menu: char) -> Vec<String> {
