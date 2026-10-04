@@ -372,8 +372,8 @@ magit-extras.el,179,command,magit-run-gitk-branches,missing,,explicit
 magit-extras.el,185,command,magit-run-gitk-all,missing,,explicit
 magit-extras.el,193,command,magit-project-status,missing,,explicit
 magit-extras.el,210,command,magit-project-dispatch,missing,,explicit
-magit-extras.el,241,command,magit-previous-line,missing,,explicit
-magit-extras.el,264,command,magit-next-line,missing,,explicit
+magit-extras.el,241,command,magit-previous-line,partial,k (evil),explicit
+magit-extras.el,264,command,magit-next-line,partial,j (evil),explicit
 magit-extras.el,288,command,magit-clean,partial,:Magit magit-clean (typed yes; magit-clean-ignored for -x),explicit
 magit-extras.el,307,command,magit-generate-changelog,missing,,explicit
 magit-extras.el,338,command,magit-add-change-log-entry,missing,,explicit
@@ -389,10 +389,10 @@ magit-extras.el,651,command,magit-copy-section-value,partial,"ys: commit, file, 
 magit-extras.el,711,command,magit-copy-buffer-revision,partial,yb,explicit
 magit-extras.el,758,command,magit-display-repository-buffer,partial,F G: the repository's status buffer (no buffer choice),explicit
 magit-extras.el,766,command,magit-switch-to-repository-buffer,partial,:Magit name: the status buffer,explicit
-magit-extras.el,773,command,magit-switch-to-repository-buffer-other-window,missing,,explicit
-magit-extras.el,780,command,magit-switch-to-repository-buffer-other-frame,missing,,explicit
+magit-extras.el,773,command,magit-switch-to-repository-buffer-other-window,partial,Fred has no windows: the status buffer,explicit
+magit-extras.el,780,command,magit-switch-to-repository-buffer-other-frame,partial,Fred has no frames: the status buffer,explicit
 magit-extras.el,807,command,magit-abort-dwim,missing,,explicit
-magit-extras.el,819,command,magit-back-to-indentation,missing,,explicit
+magit-extras.el,819,command,magit-back-to-indentation,partial,^ is magit-section-up; Vim 0/_ move to the line start,explicit
 magit-extras.el,,command,magit-git-mergetool:--tool,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-extras.el,,command,magit-merge.guitool,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-extras.el,,command,magit-merge.tool,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
@@ -417,16 +417,16 @@ magit-fetch.el,,command,transient:magit-fetch:--prune,partial,-p,runtime
 magit-fetch.el,,command,transient:magit-fetch:--tags,partial,-t,runtime
 magit-fetch.el,,command,transient:magit-fetch:--unshallow,partial,-u,runtime
 magit-files.el,53,command,magit-find-file,partial,"Space m F v; revision and file prompts with defaults; {index}; position kept by line number, not mapped through diffs; completion missing",explicit
-magit-files.el,63,command,magit-find-file-other-window,missing,,explicit
-magit-files.el,73,command,magit-find-file-other-frame,missing,,explicit
+magit-files.el,63,command,magit-find-file-other-window,partial,Fred has no windows: same as magit-find-file (Space m F v),explicit
+magit-files.el,73,command,magit-find-file-other-frame,partial,Fred has no frames: same as magit-find-file,explicit
 magit-files.el,363,command,magit-update-index,missing,,explicit
 magit-files.el,401,command,magit-find-git-config-file,partial,:Magit: visits the repository config file,explicit
 magit-files.el,417,command,magit-find-git-config-file-other-window,partial,Fred has no windows: same as magit-find-git-config-file,explicit
 magit-files.el,433,command,magit-find-git-config-file-other-frame,partial,Fred has no frames: same as magit-find-git-config-file,explicit
 magit-files.el,452,command,magit-file-dispatch,partial,"Space m F; file actions, inspect/log/blame/navigate groups and status/commit; t trace, e edit line, G, dired variants missing",explicit
-magit-files.el,536,command,magit-bury-buffer,missing,,explicit
+magit-files.el,536,command,magit-bury-buffer,partial,q in blob buffers returns (magit-bury-buffer),explicit
 magit-files.el,548,command,magit-bury-or-kill-buffer,partial,q in blob buffers kills the buffer,explicit
-magit-files.el,564,command,magit-kill-this-buffer,missing,,explicit
+magit-files.el,564,command,magit-kill-this-buffer,partial,q in blob buffers closes them,explicit
 magit-files.el,569,command,magit-blob-previous,partial,p in blob buffers and Space m F p; {worktree}->{index}->HEAD->ancestors with --follow; message shows subject and age,explicit
 magit-files.el,583,command,magit-blob-next,partial,n in blob buffers and Space m F n; ends at the worktree file,explicit
 magit-files.el,597,command,magit-blob-visit-file,partial,Space m F V; worktree file at the same line,explicit
@@ -501,7 +501,7 @@ magit-log.el,911,command,magit-delete-shelved-branch,missing,,explicit
 magit-log.el,919,command,magit-log-toggle-commit-limit,partial,= in a log buffer (default 256),explicit
 magit-log.el,926,command,magit-log-double-commit-limit,partial,+ in a log buffer,explicit
 magit-log.el,931,command,magit-log-half-commit-limit,missing,,explicit
-magit-log.el,955,command,magit-log-bury-buffer,missing,,explicit
+magit-log.el,955,command,magit-log-bury-buffer,partial,q in log buffers returns,explicit
 magit-log.el,972,command,magit-log-move-to-parent,partial,C-c C-n in a log buffer,explicit
 magit-log.el,989,command,magit-log-move-to-revision,missing,,explicit
 magit-log.el,1018,command,magit-shortlog,partial,Space m l s opens menu S: -n -s -e -g (author/committer; trailer: missing) -f -w; seeded --numbered --summary,explicit
@@ -792,12 +792,12 @@ magit-section.el,891,command,magit-mouse-set-point,missing,,explicit
 magit-section.el,945,command,magit-section-show,partial,via levels; evil z keys are off by default,explicit
 magit-section.el,960,command,magit-section-hide,partial,via levels; evil z keys are off by default,explicit
 magit-section.el,978,command,magit-section-toggle,partial,Tab / za (files and headings; hunks always open),explicit
-magit-section.el,987,command,magit-section-toggle-children,missing,,explicit
+magit-section.el,987,command,magit-section-toggle-children,partial,zO/zC are off by default; M-1..M-4 levels,explicit
 magit-section.el,996,command,magit-section-show-children,partial,zO,explicit
 magit-section.el,1013,command,magit-section-hide-children,partial,zC,explicit
-magit-section.el,1018,command,magit-section-show-headings,missing,,explicit
-magit-section.el,1033,command,magit-section-cycle,missing,,explicit
-magit-section.el,1064,command,magit-section-cycle-global,missing,,explicit
+magit-section.el,1018,command,magit-section-show-headings,partial,M-1 shows headings only,explicit
+magit-section.el,1033,command,magit-section-cycle,partial,Tab toggles the section at point,explicit
+magit-section.el,1064,command,magit-section-cycle-global,partial,M-1 / M-4 for all sections,explicit
 magit-section.el,1124,command,magit-section-show-level-1,partial,1 in status (top-level section at point),explicit
 magit-section.el,1129,command,magit-section-show-level-1-all,partial,M-1 in status,explicit
 magit-section.el,1134,command,magit-section-show-level-2,partial,2 in status,explicit
