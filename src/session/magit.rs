@@ -1,6 +1,7 @@
 use super::*;
+use crate::magit::diff::{Op as DiffOp, Target};
 use crate::magit::repo::{GitInvocation, Repo, label};
-use crate::magit::{Action, Kind, Row, RowAction, Section, View};
+use crate::magit::{Action, Kind, Question, Row, RowAction, Section, View};
 use std::ffi::OsString;
 use std::hash::{Hash, Hasher};
 use std::thread::JoinHandle;
@@ -10,7 +11,7 @@ pub(super) enum Outcome {
     ErrorView(Box<View>, String, Option<RowAction>, usize),
     View(Box<View>, Option<RowAction>, usize),
     Prompt(Repo, crate::magit::workflows::Operation, Vec<String>),
-    NetPrompt(Repo, crate::magit::network::Op, Vec<String>, Vec<String>),
+    Ask(Repo, crate::magit::Question, Vec<String>, Vec<String>),
     Draft(Repo, crate::magit::CommitMode, Vec<u8>, Vec<String>),
     Branches(Repo, Vec<String>),
     Git(GitInvocation),
@@ -139,9 +140,50 @@ impl Session {
             });
             return;
         }
-        if let Action::NetSubmit(repo, op, answers, args) = action {
+        if let Action::Answered(repo, question, answers, args) = action {
+            let origin = self.cur;
+            self.start_magit(move || match question {
+                Question::Net(op) => Ok(Outcome::ConfiguredGit(repo.network(op, &answers, &args)?)),
+                Question::Diff(DiffOp::ShowStash) => {
+                    let wanted = answers.first().map(String::as_str).unwrap_or("");
+                    let stash = repo
+                        .stashes()?
+                        .into_iter()
+                        .find(|s| s.selector == wanted || s.id == wanted)
+                        .ok_or_else(|| format!("no stash {wanted:?}"))?;
+                    stash_view(repo, stash, origin)
+                }
+                Question::Diff(op) => {
+                    let target = repo.diff_target(op, &answers)?;
+                    diff_view(repo, target, args, origin)
+                }
+            });
+            return;
+        }
+        if let Action::Diff(op) = action {
+            let args = crate::magit::menu_arguments(&self.ed, 'd');
+            let resolved = diff_context(
+                op,
+                self.ed.magit.as_deref().map(|v| &v.kind),
+                self.ed
+                    .magit
+                    .as_deref()
+                    .and_then(|v| v.action_at(self.ed.cur.line)),
+            );
+            let from = self.magit_from();
+            let origin = self.cur;
             self.start_magit(move || {
-                Ok(Outcome::ConfiguredGit(repo.network(op, &answers, &args)?))
+                let repo = Repo::discover(&from)?;
+                match resolved {
+                    Some(Ok(target)) => diff_view(repo, target, args, origin),
+                    Some(Err(stash)) => stash_view(repo, stash, origin),
+                    None => Ok(Outcome::Ask(
+                        repo,
+                        Question::Diff(op),
+                        args,
+                        Repo::diff_prompts(op),
+                    )),
+                }
             });
             return;
         }
@@ -250,12 +292,8 @@ impl Session {
                     }
                     Some(RowAction::Stash(stash)) => {
                         view.return_to = self.cur;
-                        self.start_magit(move || {
-                            let bytes = view.repo.stash_patch(&stash)?;
-                            view.kind = Kind::StashPatch(stash);
-                            view.rows = display_patch(&bytes);
-                            Ok(Outcome::View(Box::new(view), None, 0))
-                        });
+                        let origin = view.return_to;
+                        self.start_magit(move || stash_view(view.repo, stash, origin));
                     }
                     Some(RowAction::Commit(id)) => {
                         view.return_to = self.cur;
@@ -491,7 +529,7 @@ impl Session {
                     if prompts.is_empty() {
                         Ok(Outcome::Git(repo.network(op, &[], &net_args)?))
                     } else {
-                        Ok(Outcome::NetPrompt(repo, op, net_args, prompts))
+                        Ok(Outcome::Ask(repo, Question::Net(op), net_args, prompts))
                     }
                 }
                 _ => Err("unsupported Git action".into()),
@@ -544,7 +582,7 @@ impl Session {
                     crate::magit::Prompt::Workflow(repo, operation, args),
                 );
             }
-            Ok(Outcome::NetPrompt(repo, op, args, prompts)) => {
+            Ok(Outcome::Ask(repo, question, args, prompts)) => {
                 if self.ed.magit_input_generation != job.input_generation
                     || self.ed.mode != Mode::Normal
                 {
@@ -553,7 +591,7 @@ impl Session {
                 }
                 crate::magit::prompt(
                     &mut self.ed,
-                    crate::magit::Prompt::Net(repo, op, args, prompts, vec![]),
+                    crate::magit::Prompt::Ask(repo, question, args, prompts, vec![]),
                 );
             }
             Ok(Outcome::Draft(repo, mode, message, args)) => {
@@ -636,12 +674,17 @@ impl Session {
         }
     }
     fn install_magit(&mut self, mut view: View, selected: Option<RowAction>, fallback: usize) {
-        let kind = view.kind.clone();
+        // Like magit-diff-mode, one diff buffer per repository is refreshed in place.
+        let slot = |kind: &Kind| match kind {
+            Kind::Diff(..) => "Diff".to_owned(),
+            kind => format!("{kind:?}"),
+        };
+        let kind = slot(&view.kind);
         let repo = view.repo.clone();
         let same = |ed: &Editor| {
             ed.magit
                 .as_ref()
-                .is_some_and(|v| v.repo == repo && v.kind == kind)
+                .is_some_and(|v| v.repo == repo && slot(&v.kind) == kind)
         };
         if !same(&self.ed) {
             if let Some(i) = self
@@ -658,7 +701,7 @@ impl Session {
                 // Synthetic state-directory identity, not a repository source path.
                 let mut h = std::collections::hash_map::DefaultHasher::new();
                 repo.root.hash(&mut h);
-                format!("{kind:?}").hash(&mut h);
+                kind.hash(&mut h);
                 let path = self
                     .swap_dir
                     .with_file_name("magit-views")
@@ -777,8 +820,86 @@ impl Session {
         }
     }
 }
+/// magit-diff--dwim and the at-point defaults of show-commit/stash-show.
+/// Ok is a diff target, Err a stash to show; None means ask.
+fn diff_context(
+    op: DiffOp,
+    kind: Option<&Kind>,
+    selected: Option<RowAction>,
+) -> Option<Result<Target, crate::magit::workflows::Stash>> {
+    let commit = |id: &str| Ok(Target::Range(format!("{id}^..{id}")));
+    match op {
+        DiffOp::Unstaged => Some(Ok(Target::Unstaged)),
+        DiffOp::Staged => Some(Ok(Target::Staged)),
+        DiffOp::Worktree => Some(Ok(Target::Range("HEAD".into()))),
+        DiffOp::Range | DiffOp::Paths => None,
+        DiffOp::ShowCommit => match (selected.as_ref(), kind) {
+            (Some(RowAction::Commit(id)), _) | (_, Some(Kind::Patch(id))) => {
+                Some(Ok(Target::Commit(id.clone())))
+            }
+            (_, Some(Kind::Diff(Target::Commit(id), _))) => Some(Ok(Target::Commit(id.clone()))),
+            _ => None,
+        },
+        DiffOp::ShowStash => match (selected, kind) {
+            (Some(RowAction::Stash(stash)), _) => Some(Err(stash)),
+            (_, Some(Kind::StashPatch(stash))) => Some(Err(stash.clone())),
+            _ => None,
+        },
+        DiffOp::Dwim => match (selected, kind) {
+            (Some(RowAction::Commit(id)), _) => Some(commit(&id)),
+            (Some(RowAction::Stash(stash)), _) => Some(Err(stash)),
+            (Some(RowAction::Section(Section::Staged)), _)
+            | (Some(RowAction::File(_, Section::Staged)), _)
+            | (Some(RowAction::Hunk(_, true, ..)), _) => Some(Ok(Target::Staged)),
+            // magit-diff--dwim has no untracked case: fall through to the range prompt.
+            (Some(RowAction::Section(Section::Untracked)), _)
+            | (Some(RowAction::File(_, Section::Untracked)), _) => None,
+            // ponytail: conflicts show the unstaged diff; magit-diff-unmerged's merge range is open.
+            (Some(RowAction::Section(_) | RowAction::File(..) | RowAction::Hunk(..)), _) => {
+                Some(Ok(Target::Unstaged))
+            }
+            (_, Some(Kind::Patch(id))) => Some(commit(id)),
+            // In magit-stash-mode dwim is (commit . stash): the worktree part.
+            (_, Some(Kind::StashPatch(stash))) => Some(commit(&stash.id)),
+            (_, Some(Kind::Diff(target, _))) => Some(Ok(target.clone())),
+            _ => None,
+        },
+    }
+}
+fn diff_view(
+    repo: Repo,
+    target: Target,
+    args: Vec<String>,
+    origin: usize,
+) -> Result<Outcome, String> {
+    let mut view = View::status(repo.clone(), repo.status()?);
+    view.kind = Kind::Diff(target, args);
+    view.return_to = origin;
+    refresh_view(&mut view)?;
+    Ok(Outcome::View(Box::new(view), None, 0))
+}
+fn stash_view(
+    repo: Repo,
+    stash: crate::magit::workflows::Stash,
+    origin: usize,
+) -> Result<Outcome, String> {
+    let mut view = View::status(repo.clone(), repo.status()?);
+    view.rows = display_patch(&repo.stash_patch(&stash)?);
+    view.kind = Kind::StashPatch(stash);
+    view.return_to = origin;
+    Ok(Outcome::View(Box::new(view), None, 0))
+}
 fn refresh_view(view: &mut View) -> Result<(), String> {
     view.dirty = false;
+    if let Kind::Diff(target, args) = &view.kind {
+        let mut rows = vec![Row {
+            text: format!("{} (gr refresh, q return)", target.title()),
+            action: None,
+        }];
+        rows.extend(display_patch(&view.repo.diff_output(target, args)?));
+        view.rows = rows;
+        return Ok(());
+    }
     if matches!(view.kind, Kind::Log | Kind::FileLog(..)) {
         return refresh_log(view);
     }

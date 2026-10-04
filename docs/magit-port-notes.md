@@ -253,3 +253,11 @@ in the worker from config (pushRemote/upstream/remote count) and chained via
 Prompt::Net; answers that look like options or contain control characters are
 rejected before Git runs. Config is written only after the answer validates.
 Remaining gaps are listed in docs/magit-network-acceptance.md.
+
+## Diff menu
+
+src/magit/diff.rs holds diff targets and argv building (always -p, as upstream).
+Context resolution (dwim, commit/stash at point) is diff_context in
+src/session/magit.rs. Kind::Diff stores target and args so gr and the menu
+can reuse them. Work for this branch now happens in the linked worktree
+/Users/guy/github/fred-magit; the main checkout is on another branch.

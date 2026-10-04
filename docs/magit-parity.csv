@@ -285,18 +285,18 @@ magit-diff.el,602,option,magit-diff-visit-prefer-worktree,missing,,explicit
 magit-diff.el,622,option,magit-diff-visit-previous-blob,missing,,explicit
 magit-diff.el,771,option,magit-diff-specify-hunk-foreground,missing,,explicit
 magit-diff.el,896,option,magit-diff-use-indicator-faces,missing,,explicit
-magit-diff.el,1104,command,magit-diff,missing,,explicit
+magit-diff.el,1104,command,magit-diff,partial,"Space m d menu; -b -w -i -W -A -X -M -x -s =g and d/r/p/u/s/w/c/t; -- files, -U, level-5 args, persistence (set/save) missing",explicit
 magit-diff.el,1120,command,magit-diff-refresh,missing,,explicit
-magit-diff.el,1307,command,magit-diff-dwim,missing,,explicit
-magit-diff.el,1463,command,magit-diff-range,missing,,explicit
-magit-diff.el,1482,command,magit-diff-working-tree,missing,,explicit
-magit-diff.el,1493,command,magit-diff-staged,missing,,explicit
-magit-diff.el,1504,command,magit-diff-unstaged,missing,,explicit
+magit-diff.el,1307,command,magit-diff-dwim,partial,"Space m d d; status section/file/hunk, log commit, stash, revision/diff buffers; region ranges, unmerged, module contexts missing",explicit
+magit-diff.el,1463,command,magit-diff-range,partial,"Space m d r; validated range or revision; completion, region endpoints and prefix ... variant missing",explicit
+magit-diff.el,1482,command,magit-diff-working-tree,partial,Space m d w (HEAD); prefix-arg revision missing,explicit
+magit-diff.el,1493,command,magit-diff-staged,partial,Space m d s; prefix-arg revision missing,explicit
+magit-diff.el,1504,command,magit-diff-unstaged,partial,Space m d u,explicit
 magit-diff.el,1510,command,magit-diff-unmerged,missing,,explicit
 magit-diff.el,1518,command,magit-diff-while-committing,missing,,explicit
 magit-diff.el,1529,command,magit-diff-buffer-file,missing,,explicit
-magit-diff.el,1560,command,magit-diff-paths,missing,,explicit
-magit-diff.el,1581,command,magit-show-commit,partial,Enter in log; patch only; detailed sections/options missing,explicit
+magit-diff.el,1560,command,magit-diff-paths,partial,Space m d p; repository-relative files via --no-index; file completion missing,explicit
+magit-diff.el,1581,command,magit-show-commit,partial,"Enter in log and Space m d c (at point or prompted) with diff args; revision sections, buffer locking and dedicated buffers missing",explicit
 magit-diff.el,1627,command,magit-show-commit-removing-file,missing,,explicit
 magit-diff.el,1688,command,magit-diff-switch-range-type,missing,,explicit
 magit-diff.el,1704,command,magit-diff-flip-revs,missing,,explicit
@@ -321,14 +321,14 @@ magit-diff.el,2335,command,magit-jump-to-revision-diff,missing,,explicit
 magit-diff.el,2349,command,magit-jump-to-diffstat-or-diff,missing,,explicit
 magit-diff.el,,command,magit-diff:--color-moved,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-diff.el,,command,magit-diff:--color-moved-ws,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-diff.el,,command,magit-diff:--diff-algorithm,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-diff.el,,command,magit-diff:--diff-merges,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-diff.el,,command,magit-diff:--ignore-submodules,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-diff.el,,command,magit-diff:--no-ext-diff,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-diff.el,,command,magit-diff:--show-signature,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-diff.el,,command,magit-diff:--stat,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,magit-diff:--diff-algorithm,partial,-A cycles default/minimal/patience/histogram,runtime
+magit-diff.el,,command,magit-diff:--diff-merges,partial,-X cycles off/first-parent/combined/dense-combined,runtime
+magit-diff.el,,command,magit-diff:--ignore-submodules,partial,-i cycles none/untracked/dirty/all,runtime
+magit-diff.el,,command,magit-diff:--no-ext-diff,partial,-x (default on),runtime
+magit-diff.el,,command,magit-diff:--show-signature,partial,=g (show commit only),runtime
+magit-diff.el,,command,magit-diff:--stat,partial,-s (default on),runtime
 magit-diff.el,,command,magit-diff:-C,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-diff.el,,command,magit-diff:-M,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,magit-diff:-M,partial,-M without similarity index; magit-read-similarity-index missing,runtime
 magit-diff.el,,command,magit-diff:-R,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-diff.el,,command,magit-diff:-U,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-diff.el,,command,magit-jump-to-revision-headers,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
@@ -894,7 +894,7 @@ magit-stash.el,396,command,magit-stash-branch,missing,,explicit
 magit-stash.el,405,command,magit-stash-branch-here,missing,,explicit
 magit-stash.el,417,command,magit-stash-format-patch,missing,,explicit
 magit-stash.el,543,command,magit-stash-list,partial,Space m z l; simple list; margins/options/autostash missing,explicit
-magit-stash.el,601,command,magit-stash-show,partial,Enter; notes/unstaged/staged/untracked diffs; section interactions and full diff options missing,explicit
+magit-stash.el,601,command,magit-stash-show,partial,Enter and Space m d t (at point or prompted); notes/unstaged/staged/untracked diffs; diff options and section interactions missing,explicit
 magit-stash.el,,command,magit-jump-to-stashes,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-stash.el,,command,transient:magit-stash-push:--all,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-stash.el,,command,transient:magit-stash-push:--include-untracked,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime

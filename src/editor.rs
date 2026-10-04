@@ -115,6 +115,8 @@ pub struct Editor {
     pub magit: Option<Box<crate::magit::View>>,
     pub magit_input_generation: u64,
     pub magit_options: std::collections::HashSet<crate::magit::MenuOption>,
+    /// Menus whose default arguments have been applied in this buffer.
+    pub magit_seeded: std::collections::HashSet<char>,
     pub commit_args: Vec<String>,
     pub magit_menu: Option<char>,
     pub magit_prompt: Option<crate::magit::Prompt>,
@@ -169,6 +171,7 @@ impl Editor {
             magit: None,
             magit_input_generation: 0,
             magit_options: std::collections::HashSet::new(),
+            magit_seeded: std::collections::HashSet::new(),
             commit_args: vec![],
             magit_menu: None,
             magit_prompt: None,

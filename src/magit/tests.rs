@@ -1056,3 +1056,40 @@ fn fetch_and_pull_suffixes_use_current_remote_and_upstream() {
     git(d.path(), &["checkout", "-q", "--detach"]);
     assert!(r.network_prompts(PullRemote).is_err());
 }
+#[test]
+fn diff_targets_render_index_worktree_range_commit_and_paths() {
+    use super::diff::{Op, Target};
+    let (d, r) = setup();
+    committed(d.path(), b"one\n");
+    committed(d.path(), b"two\n");
+    fs::write(d.path().join("f"), b"three\n").unwrap();
+    git(d.path(), &["add", "f"]);
+    fs::write(d.path().join("f"), b"three \n").unwrap();
+    let text = |t: &Target, args: &[&str]| {
+        let args: Vec<String> = args.iter().map(|s| s.to_string()).collect();
+        String::from_utf8(r.diff_output(t, &args).unwrap()).unwrap()
+    };
+    assert!(text(&Target::Staged, &[]).contains("+three\n"));
+    assert!(text(&Target::Unstaged, &[]).contains("+three \n"));
+    assert!(text(&Target::Unstaged, &["--ignore-all-space"]).is_empty());
+    assert!(text(&Target::Range("HEAD".into()), &[]).contains("+three \n"));
+    let range = r.diff_target(Op::Range, &["HEAD~1..HEAD".into()]).unwrap();
+    assert!(text(&range, &["--stat"]).contains("1 file changed"));
+    assert!(r.diff_target(Op::Range, &["-p".into()]).is_err());
+    let bad = r.diff_target(Op::Range, &["nope..HEAD".into()]).unwrap();
+    assert!(r.diff_output(&bad, &[]).is_err());
+    let one = r.diff_target(Op::Range, &["HEAD^!".into()]).unwrap();
+    assert!(text(&one, &[]).contains("+two\n"));
+    let commit = r.diff_target(Op::ShowCommit, &["HEAD~1".into()]).unwrap();
+    assert!(text(&commit, &[]).contains("+one\n"));
+    assert!(r.diff_target(Op::ShowCommit, &["--all".into()]).is_err());
+    fs::write(d.path().join("a"), b"left\n").unwrap();
+    fs::write(d.path().join("b"), b"right\n").unwrap();
+    let paths = r.diff_target(Op::Paths, &["a".into(), "b".into()]).unwrap();
+    let out = text(&paths, &["--diff-merges=off"]);
+    assert!(out.contains("-left") && out.contains("+right"), "{out}");
+    assert!(
+        r.diff_target(Op::Paths, &["a".into(), "missing".into()])
+            .is_err()
+    );
+}

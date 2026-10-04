@@ -11,7 +11,7 @@ The prefix is `Space m`. This exact layout governs the Fred port.
 | P | magit-pull | Pull menu and contextual variants | Menu with -f/-r/-F and p/u/e; -A, U, configure and dynamic descriptions remain |
 | b | magit-branch | Branch menu | Menu routing corrected; full branch options/context remain partial |
 | c | magit-commit | Commit menu | Menu routing corrected; full commit options/context remain partial |
-| d | magit-diff | Diff menu | Missing global diff entry |
+| d | magit-diff | Diff menu | Menu with ten arguments and d/r/p/u/s/w/c/t; -- files, -U, level-5 args, region/unmerged dwim and refresh menu remain |
 | f | magit-fetch | Fetch menu and variants | Menu with -p/-t/-F and p/u/e/a/o/r/m; unshallow, configure, modules transient remain |
 | i | magit-init | Init workflow | Missing |
 | l | magit-log | Log menu and variants | Partial log menu with l/h and follow toggle; other arguments/suffixes remain missing |

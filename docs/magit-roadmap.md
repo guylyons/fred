@@ -95,3 +95,10 @@ tag suffixes ([scenarios](magit-network-acceptance.md)). Row 10 remains partial
 levels, dynamic descriptions), so the accepted score stays 3%. Ledger: 80
 partial / 693 missing commands. Next: d diff menu, i init, B blame, then the
 UI map and acceptance-matrix baseline gates.
+
+October 4 diff checkpoint (worktree /Users/guy/github/fred-magit): Space m d
+is a source-style diff menu with ten arguments, d/r/p/u/s/w/c/t suffixes,
+seeded defaults and buffer-argument seeding ([scenarios](magit-diff-acceptance.md)).
+Pull -r and diff choices now share one cycling Choice option; prompts are a
+generic Ask chain. Row 4 stays partial, so the score remains 3%. Ledger: 94
+partial / 679 missing commands. Next: i init, B blame, then baseline gates.

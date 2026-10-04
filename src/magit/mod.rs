@@ -1,4 +1,5 @@
 //! A status-centered Git component; rendered text is never used as an operation path.
+pub mod diff;
 pub mod network;
 pub mod repo;
 pub mod workflows;
@@ -16,6 +17,7 @@ pub const HELP: &str = "Magit: s status  p push  P pull  f fetch  c commit menu 
 pub enum Action {
     Menu(char),
     ToggleOption(MenuOption),
+    CycleOption(&'static str),
     AmendDraft,
     RewordDraft,
     Stash(workflows::StashAction),
@@ -26,7 +28,9 @@ pub enum Action {
     Submit(repo::Repo, workflows::Operation, String, Vec<String>),
     Status,
     Net(network::Op),
-    NetSubmit(repo::Repo, network::Op, Vec<String>, Vec<String>),
+    Diff(diff::Op),
+    /// All of a question's prompts answered: repo, question, answers, arguments.
+    Answered(repo::Repo, Question, Vec<String>, Vec<String>),
     Commit,
     Log,
     FileLog,
@@ -87,6 +91,7 @@ pub enum Kind {
     Tags,
     StashPatch(workflows::Stash),
     Patch(String),
+    Diff(diff::Target, Vec<String>),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct View {
@@ -125,6 +130,7 @@ impl View {
             Kind::Tags => "Magit tags".into(),
             Kind::StashPatch(stash) => format!("Magit {}", stash.selector),
             Kind::Patch(id) => format!("Magit {id}"),
+            Kind::Diff(target, _) => format!("Magit diff: {}", target.title()),
         }
     }
     pub fn text(&self) -> String {
@@ -279,7 +285,7 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             return true;
         }
         let entries = menu_entries(ed.magit_menu.unwrap_or('*'));
-        if !k.ctrl && matches!(k.char(), Some('-' | '+')) {
+        if !k.ctrl && ed.vim.pending.is_empty() && matches!(k.char(), Some('-' | '+' | '=')) {
             ed.vim.pending = vec![k];
             return true;
         }
@@ -296,6 +302,7 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
                     match ed.vim.pending.as_slice() {
                         [key] if *key == Key::ch('-') => "-",
                         [key] if *key == Key::ch('+') => "+",
+                        [key] if *key == Key::ch('=') => "=",
                         _ => "",
                     }
                 )
@@ -307,21 +314,27 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             let menu = ed.magit_menu.unwrap_or('*');
             ed.vim.pending.clear();
             if let Some((_, _, _, action)) = entries.into_iter().find(|(key, ..)| *key == suffix) {
-                if let Action::ToggleOption(option) = action {
-                    if let MenuOption::PullRebase(_) = option {
-                        cycle_rebase(ed);
-                    } else if !ed.magit_options.remove(&option) {
-                        ed.magit_options.insert(option);
-                    }
+                if let Action::CycleOption(prefix) = action {
+                    cycle_choice(ed, prefix);
                     // magit-pull :incompatible --ff-only with rebasing choices.
-                    if option == MenuOption::PullFfOnly {
-                        ed.magit_options.retain(|o| {
-                            !matches!(o, MenuOption::PullRebase(c) if *c != RebaseChoice::False)
-                        });
-                    }
-                    if matches!(ed.magit_options.iter().find(|o| matches!(o, MenuOption::PullRebase(_))), Some(MenuOption::PullRebase(c)) if *c != RebaseChoice::False)
+                    if ed
+                        .magit_options
+                        .iter()
+                        .any(|o| matches!(o, MenuOption::Choice("--rebase=", v) if *v != "false"))
                     {
                         ed.magit_options.remove(&MenuOption::PullFfOnly);
+                    }
+                    crate::pick::magit_menu(ed, menu);
+                    return true;
+                }
+                if let Action::ToggleOption(option) = action {
+                    if !ed.magit_options.remove(&option) {
+                        ed.magit_options.insert(option);
+                    }
+                    if option == MenuOption::PullFfOnly {
+                        ed.magit_options.retain(
+                            |o| !matches!(o, MenuOption::Choice("--rebase=", v) if *v != "false"),
+                        );
                     }
                     if option == MenuOption::StashAll {
                         ed.magit_options.remove(&MenuOption::StashUntracked);
@@ -407,6 +420,9 @@ fn menu_help(menu: char) -> Option<&'static str> {
             "Stash: z both  i index  w worktree  x keep index; Snapshot: Z both  I index  W worktree"
         }
         'B' => "Branch: c create  s create and switch  r rename current  d delete merged",
+        'd' => {
+            "Diff: d dwim  r range  p paths  u unstaged  s staged  w worktree  c commit  t stash"
+        }
         'p' => {
             "Push: p pushRemote  u upstream  e elsewhere  o other  r refspecs  m matching  T tag  t tags"
         }
@@ -443,12 +459,18 @@ impl CommitMode {
 pub enum Prompt {
     Workflow(Repo, workflows::Operation, Vec<String>),
     DropStash(Repo, workflows::Stash),
-    Net(Repo, network::Op, Vec<String>, Vec<String>, Vec<String>),
+    /// A chain of prompts: repo, question, arguments, prompts, answers so far.
+    Ask(Repo, Question, Vec<String>, Vec<String>, Vec<String>),
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Question {
+    Net(network::Op),
+    Diff(diff::Op),
 }
 pub fn prompt(ed: &mut Editor, question: Prompt) {
     let text = match &question {
         Prompt::Workflow(_, operation, _) => operation.prompt().unwrap_or("").to_owned(),
-        Prompt::Net(_, _, _, prompts, answers) => prompts[answers.len()].clone(),
+        Prompt::Ask(_, _, _, prompts, answers) => prompts[answers.len()].clone(),
         Prompt::DropStash(_, stash) => format!(
             "Drop {} ({})? Type yes: ",
             stash.selector,
@@ -475,13 +497,14 @@ pub fn answer(ed: &mut Editor, text: &str) {
             ed.pending_effect = Some(ExEffect::Magit(Action::DropStash(repo, stash)))
         }
         Some(Prompt::DropStash(..)) => ed.set_msg("Stash drop cancelled"),
-        Some(Prompt::Net(repo, op, args, prompts, mut answers)) => {
+        Some(Prompt::Ask(repo, question, args, prompts, mut answers)) => {
             answers.push(text.trim().to_owned());
             if answers.len() < prompts.len() {
-                prompt(ed, Prompt::Net(repo, op, args, prompts, answers));
+                prompt(ed, Prompt::Ask(repo, question, args, prompts, answers));
             } else {
-                ed.pending_effect =
-                    Some(ExEffect::Magit(Action::NetSubmit(repo, op, answers, args)));
+                ed.pending_effect = Some(ExEffect::Magit(Action::Answered(
+                    repo, question, answers, args,
+                )));
             }
         }
         None => (),
@@ -502,6 +525,17 @@ fn open_menu(ed: &mut Editor, menu: char) {
             ed.magit_options.remove(&MenuOption::LogFollow);
         }
     }
+    if menu == 'd' {
+        let args = match ed.magit.as_ref().map(|v| &v.kind) {
+            Some(Kind::Diff(_, args)) => Some(args.clone()),
+            // magit-diff-mode's default arguments, applied once per buffer.
+            _ if ed.magit_seeded.insert('d') => Some(vec!["--stat".into(), "--no-ext-diff".into()]),
+            _ => None,
+        };
+        if let Some(args) = args {
+            set_menu_arguments(ed, 'd', &args);
+        }
+    }
     ed.magit_menu = Some(menu);
     crate::pick::magit_menu(ed, menu);
     if let Some(help) = menu_help(menu) {
@@ -518,6 +552,7 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("s", "Inspect", "Status", Status),
             ("l", "Inspect", "Log menu", Menu('l')),
             ("L", "Inspect", "Current file log", FileLog),
+            ("d", "Inspect", "Diff", Menu('d')),
             ("b", "Branch", "Branch operations", Menu('B')),
             ("c", "Commit", "Commit menu", Menu('C')),
             ("C", "Commit", "Amend / fixup", Menu('C')),
@@ -630,7 +665,7 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                     "-r",
                     "Arguments",
                     "Rebase local commits",
-                    ToggleOption(MenuOption::PullRebase(RebaseChoice::True)),
+                    CycleOption("--rebase="),
                 ),
                 (
                     "-F",
@@ -651,6 +686,79 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                     "elsewhere",
                     Net(PullElsewhere),
                 ),
+            ]
+        }
+        'd' => {
+            use diff::Op::*;
+            vec![
+                (
+                    "-b",
+                    "Limit arguments",
+                    "Ignore whitespace changes",
+                    ToggleOption(MenuOption::DiffIgnoreSpace),
+                ),
+                (
+                    "-w",
+                    "Limit arguments",
+                    "Ignore all whitespace",
+                    ToggleOption(MenuOption::DiffIgnoreAllSpace),
+                ),
+                (
+                    "-i",
+                    "Limit arguments",
+                    "Ignore submodules",
+                    CycleOption("--ignore-submodules="),
+                ),
+                (
+                    "-W",
+                    "Context arguments",
+                    "Show surrounding functions",
+                    ToggleOption(MenuOption::DiffFunctionContext),
+                ),
+                (
+                    "-A",
+                    "Tune arguments",
+                    "Diff algorithm",
+                    CycleOption("--diff-algorithm="),
+                ),
+                (
+                    "-X",
+                    "Tune arguments",
+                    "Diff merges",
+                    CycleOption("--diff-merges="),
+                ),
+                (
+                    "-M",
+                    "Tune arguments",
+                    "Detect renames",
+                    ToggleOption(MenuOption::DiffRenames),
+                ),
+                (
+                    "-x",
+                    "Tune arguments",
+                    "Disallow external diff drivers",
+                    ToggleOption(MenuOption::DiffNoExt),
+                ),
+                (
+                    "-s",
+                    "Tune arguments",
+                    "Show stats",
+                    ToggleOption(MenuOption::DiffStat),
+                ),
+                (
+                    "=g",
+                    "Tune arguments",
+                    "Show signature",
+                    ToggleOption(MenuOption::DiffSignature),
+                ),
+                ("d", "Actions", "Dwim", Diff(Dwim)),
+                ("r", "Actions", "Diff range", Diff(Range)),
+                ("p", "Actions", "Diff paths", Diff(Paths)),
+                ("u", "Actions", "Diff unstaged", Diff(Unstaged)),
+                ("s", "Actions", "Diff staged", Diff(Staged)),
+                ("w", "Actions", "Diff worktree", Diff(Worktree)),
+                ("c", "Actions", "Show commit", Diff(ShowCommit)),
+                ("t", "Actions", "Show stash", Diff(ShowStash)),
             ]
         }
         'l' => vec![
@@ -798,16 +906,26 @@ pub enum MenuOption {
     FetchTags,
     FetchForce,
     PullFfOnly,
-    PullRebase(RebaseChoice),
     PullForce,
+    DiffIgnoreSpace,
+    DiffIgnoreAllSpace,
+    DiffFunctionContext,
+    DiffRenames,
+    DiffNoExt,
+    DiffStat,
+    DiffSignature,
+    /// A transient-option with fixed choices: argument prefix and selected value.
+    Choice(&'static str, &'static str),
 }
-/// magit-pull:--rebase is a transient-option cycling through its choices.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum RebaseChoice {
-    True,
-    Merges,
-    Interactive,
-    False,
+/// Fred cycles a transient-option's choices instead of reading one, then turns it off.
+pub fn choices(prefix: &str) -> &'static [&'static str] {
+    match prefix {
+        "--rebase=" => &["true", "merges", "interactive", "false"],
+        "--diff-algorithm=" => &["default", "minimal", "patience", "histogram"],
+        "--diff-merges=" => &["off", "first-parent", "combined", "dense-combined"],
+        "--ignore-submodules=" => &["none", "untracked", "dirty", "all"],
+        _ => &[],
+    }
 }
 impl MenuOption {
     pub fn menu(self) -> char {
@@ -816,13 +934,18 @@ impl MenuOption {
             PushForceWithLease | PushForce | PushNoVerify | PushDryRun | PushSetUpstream
             | PushTags | PushFollowTags => 'p',
             FetchPrune | FetchTags | FetchForce => 'f',
-            PullFfOnly | PullRebase(_) | PullForce => 'P',
+            PullFfOnly | PullForce | Choice("--rebase=", _) => 'P',
+            DiffIgnoreSpace | DiffIgnoreAllSpace | DiffFunctionContext | DiffRenames
+            | DiffNoExt | DiffStat | DiffSignature | Choice(..) => 'd',
             Self::LogFollow => 'l',
             Self::StashUntracked | Self::StashAll => 'z',
             _ => 'C',
         }
     }
-    pub fn argument(self) -> &'static str {
+    pub fn argument(self) -> String {
+        if let Self::Choice(prefix, value) = self {
+            return format!("{prefix}{value}");
+        }
         match self {
             Self::LogFollow => "--follow",
             Self::StashUntracked => "--include-untracked",
@@ -841,30 +964,34 @@ impl MenuOption {
             Self::PushFollowTags => "--follow-tags",
             Self::FetchPrune => "--prune",
             Self::PullFfOnly => "--ff-only",
-            Self::PullRebase(RebaseChoice::True) => "--rebase=true",
-            Self::PullRebase(RebaseChoice::Merges) => "--rebase=merges",
-            Self::PullRebase(RebaseChoice::Interactive) => "--rebase=interactive",
-            Self::PullRebase(RebaseChoice::False) => "--rebase=false",
+            Self::DiffIgnoreSpace => "--ignore-space-change",
+            Self::DiffIgnoreAllSpace => "--ignore-all-space",
+            Self::DiffFunctionContext => "--function-context",
+            Self::DiffRenames => "-M",
+            Self::DiffNoExt => "--no-ext-diff",
+            Self::DiffStat => "--stat",
+            Self::DiffSignature => "--show-signature",
+            Self::Choice(..) => unreachable!(),
         }
+        .into()
     }
 }
-fn cycle_rebase(ed: &mut Editor) {
-    use RebaseChoice::*;
-    let current = ed.magit_options.iter().find_map(|o| match o {
-        MenuOption::PullRebase(c) => Some(*c),
+pub fn current_choice(ed: &Editor, prefix: &str) -> Option<&'static str> {
+    ed.magit_options.iter().find_map(|o| match o {
+        MenuOption::Choice(p, v) if *p == prefix => Some(*v),
         _ => None,
-    });
-    let next = match current {
-        None => Some(True),
-        Some(True) => Some(Merges),
-        Some(Merges) => Some(Interactive),
-        Some(Interactive) => Some(False),
-        Some(False) => None,
+    })
+}
+fn cycle_choice(ed: &mut Editor, prefix: &'static str) {
+    let all = choices(prefix);
+    let next = match current_choice(ed, prefix) {
+        None => all.first(),
+        Some(v) => all.iter().skip_while(|c| **c != v).nth(1),
     };
     ed.magit_options
-        .retain(|o| !matches!(o, MenuOption::PullRebase(_)));
+        .retain(|o| !matches!(o, MenuOption::Choice(p, _) if *p == prefix));
     if let Some(next) = next {
-        ed.magit_options.insert(MenuOption::PullRebase(next));
+        ed.magit_options.insert(MenuOption::Choice(prefix, next));
     }
 }
 pub fn menu_arguments(ed: &Editor, menu: char) -> Vec<String> {
@@ -872,20 +999,34 @@ pub fn menu_arguments(ed: &Editor, menu: char) -> Vec<String> {
         .magit_options
         .iter()
         .filter(|option| option.menu() == menu)
-        .map(|option| option.argument().to_owned())
+        .map(|option| option.argument())
         .collect();
     args.sort();
     args
 }
 
-/// A draft's execution arguments are also its displayed transient state.
-pub fn sync_commit_options(ed: &mut Editor) {
-    ed.magit_options.retain(|option| option.menu() != 'C');
-    for (_, _, _, action) in menu_entries('C') {
-        if let Action::ToggleOption(option) = action
-            && ed.commit_args.iter().any(|arg| arg == option.argument())
-        {
-            ed.magit_options.insert(option);
+/// Make a menu's displayed switches and choices match explicit arguments.
+pub fn set_menu_arguments(ed: &mut Editor, menu: char, args: &[String]) {
+    ed.magit_options.retain(|option| option.menu() != menu);
+    for (_, _, _, action) in menu_entries(menu) {
+        match action {
+            Action::ToggleOption(option) if args.contains(&option.argument()) => {
+                ed.magit_options.insert(option);
+            }
+            Action::CycleOption(prefix) => {
+                if let Some(value) = choices(prefix)
+                    .iter()
+                    .find(|v| args.contains(&format!("{prefix}{v}")))
+                {
+                    ed.magit_options.insert(MenuOption::Choice(prefix, value));
+                }
+            }
+            _ => (),
         }
     }
+}
+/// A draft's execution arguments are also its displayed transient state.
+pub fn sync_commit_options(ed: &mut Editor) {
+    let args = ed.commit_args.clone();
+    set_menu_arguments(ed, 'C', &args);
 }

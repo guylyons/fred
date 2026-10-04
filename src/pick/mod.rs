@@ -856,11 +856,9 @@ pub fn magit_menu(ed: &mut Editor, menu: char) {
             text: format!(
                 "{group}: {key}  {label}{}",
                 match action {
-                    crate::magit::Action::ToggleOption(crate::magit::MenuOption::PullRebase(_)) => {
-                        ed.magit_options
-                            .iter()
-                            .find(|o| matches!(o, crate::magit::MenuOption::PullRebase(_)))
-                            .map_or(" [off]".into(), |o| format!(" [{}]", o.argument()))
+                    crate::magit::Action::CycleOption(prefix) => {
+                        crate::magit::current_choice(ed, prefix)
+                            .map_or(" [off]".into(), |v| format!(" [{prefix}{v}]"))
                     }
                     crate::magit::Action::ToggleOption(option)
                         if ed.magit_options.contains(&option) =>

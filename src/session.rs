@@ -1996,6 +1996,91 @@ mod tests {
         assert!(crate::magit::menu_arguments(&t.s.ed, 'P').is_empty());
     }
     #[test]
+    fn magit_diff_menu_dwim_prompts_and_refreshes_with_buffer_arguments() {
+        let mut t = T::open(Some("f.txt"), Some("original\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "initial"]).unwrap();
+        fs::write(t.dir.path().join("f.txt"), "staged\n").unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        fs::write(t.dir.path().join("f.txt"), "worktree\n").unwrap();
+        t.keys(" md");
+        assert!(t.s.magit_job.is_none());
+        assert_eq!(
+            crate::magit::menu_arguments(&t.s.ed, 'd'),
+            ["--no-ext-diff", "--stat"]
+        );
+        t.keys("-s-AAs");
+        magit_settle(&mut t);
+        let text = t.s.ed.buf.text();
+        assert!(
+            text.contains("+staged") && !text.contains("+worktree"),
+            "{text}"
+        );
+        assert!(matches!(
+            &t.s.ed.magit.as_ref().unwrap().kind,
+            crate::magit::Kind::Diff(crate::magit::diff::Target::Staged, args)
+                if args == &["--diff-algorithm=default", "--no-ext-diff"]
+        ));
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        t.keys("gr");
+        magit_settle(&mut t);
+        assert!(t.s.ed.buf.text().contains("+worktree"));
+        t.keys(" md");
+        assert_eq!(
+            crate::magit::menu_arguments(&t.s.ed, 'd'),
+            ["--diff-algorithm=default", "--no-ext-diff"]
+        );
+        t.keys("<Esc>q mdr");
+        magit_settle(&mut t);
+        t.keys("HEAD<Enter>");
+        magit_settle(&mut t);
+        assert!(t.s.ed.buf.text().contains("+worktree"), "{}", t.msg());
+        t.keys("q ms");
+        magit_settle(&mut t);
+        let staged =
+            t.s.ed
+                .buf
+                .text()
+                .lines()
+                .position(|l| l.starts_with("v Staged"))
+                .unwrap();
+        t.keys(&format!("{}G mdd", staged + 1));
+        magit_settle(&mut t);
+        assert!(matches!(
+            &t.s.ed.magit.as_ref().unwrap().kind,
+            crate::magit::Kind::Diff(crate::magit::diff::Target::Staged, _)
+        ));
+        t.keys("q q ml");
+        t.keys("l");
+        magit_settle(&mut t);
+        t.keys("j mdc");
+        magit_settle(&mut t);
+        assert!(
+            t.s.ed.buf.text().contains("+original"),
+            "{}",
+            t.s.ed.buf.text()
+        );
+        let diff_buffers = |t: &T| {
+            (0..t.s.bufs.len())
+                .filter(|i| {
+                    t.s.ed_at(*i)
+                        .magit
+                        .as_ref()
+                        .is_some_and(|v| matches!(v.kind, crate::magit::Kind::Diff(..)))
+                })
+                .count()
+        };
+        let before = diff_buffers(&t);
+        t.keys(" md-ws");
+        magit_settle(&mut t);
+        assert_eq!(diff_buffers(&t), before, "diff buffer reused in place");
+    }
+    #[test]
     fn magit_file_log_rejects_buffers_without_a_source_file() {
         let mut t = T::open(None, None);
         t.keys(" mL");
