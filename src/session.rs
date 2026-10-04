@@ -80,8 +80,8 @@ pub struct Session {
     pub pending_shell: Option<String>,
     /// A swap write running in the background, and the version it holds.
     swap_job: Option<(u64, std::thread::JoinHandle<Result<(), String>>)>,
-    /// `:ai`: the lines and the prompt, for the app to ask Claude.
-    pub pending_ai: Option<(crate::ex::addr::Range, String)>,
+    /// `:ai` / `:explain`: the lines, the prompt and whether it explains.
+    pub pending_ai: Option<(crate::ex::addr::Range, String, bool)>,
     lossy: bool,
     cfg: Config,
     seen_version: u64,
@@ -329,7 +329,11 @@ impl Session {
             ExEffect::Buffer { cmd, arg, force } => self.buffer(cmd, &arg, force),
             ExEffect::Edit { path, force } => self.edit(path.as_deref(), force),
             ExEffect::Shell(cmd) => self.pending_shell = Some(cmd),
-            ExEffect::Ai { range, prompt } => self.pending_ai = Some((range, prompt)),
+            ExEffect::Ai {
+                range,
+                prompt,
+                explain,
+            } => self.pending_ai = Some((range, prompt, explain)),
             ExEffect::Pwd => match std::env::current_dir() {
                 Ok(d) => self.ed.set_msg(d.display().to_string()),
                 Err(e) => self.ed.set_err(fileio::err_msg(&e)),

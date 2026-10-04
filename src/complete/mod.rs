@@ -101,6 +101,7 @@ const COMMANDS: &[&str] = &[
     "cd",
     "d",
     "edit",
+    "explain",
     "files",
     "g",
     "j",

@@ -289,7 +289,7 @@ pub use insert::insert_key;
 
 /// Keys that act on the selection in Visual-line mode.
 const VISUAL: &[char] = &[
-    'd', 'x', 'X', 'D', 'y', 'Y', 'c', 's', 'S', 'C', 'J', ':', 'V', 'o',
+    'd', 'x', 'X', 'D', 'y', 'Y', 'c', 's', 'S', 'C', 'J', ':', 'V', 'o', 'K',
 ];
 
 fn visual(ed: &mut Editor, anchor: usize, c: char) {
@@ -307,6 +307,11 @@ fn visual(ed: &mut Editor, anchor: usize, c: char) {
             ed.marks.insert('<', lo);
             ed.marks.insert('>', hi);
             ed.open_cmdline(':', "'<,'>");
+        }
+        'K' => {
+            ed.marks.insert('<', lo);
+            ed.marks.insert('>', hi);
+            ed.run_ex("'<,'>explain");
         }
         'J' => {
             ed.undo.begin(ed.cur.pos());

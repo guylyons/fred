@@ -125,6 +125,9 @@ pub struct Editor {
     pub(crate) vim: vim::State,
     /// Completion menu (Insert mode).
     pub popup: Option<Popup>,
+    /// `:explain`: Claude's explanation of these lines, shown over them
+    /// until Esc or a click outside it (or on its ✕).
+    pub explain: Option<(ex::addr::Range, String)>,
     pub autocomplete: bool,
     /// Share yanks and puts with the system clipboard.
     pub clipboard: bool,
@@ -164,6 +167,7 @@ impl Editor {
             saved_state: 0,
             vim: vim::State::default(),
             popup: None,
+            explain: None,
             autocomplete: true,
             clipboard: false,
             nearby: Arc::default(),
@@ -251,6 +255,14 @@ impl Editor {
                 }
                 _ => {}
             }
+        }
+        if self.explain.is_some()
+            && self.mode == Mode::Normal
+            && self.vim.pending.is_empty()
+            && k.is(KeyCode::Esc)
+        {
+            self.explain = None;
+            return;
         }
         if !matches!(self.mode, Mode::Command(_)) {
             self.msg = None;
