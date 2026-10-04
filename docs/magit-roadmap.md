@@ -114,3 +114,9 @@ Every user-binding key now opens its source menu or workflow. Row 12 stays
 partial (blob buffers, bisect), so the score remains 3%. Next: revision/blob
 buffers (unblocks removal/reverse/recursive blame and the open file-log gap),
 then the full UI map and acceptance-matrix baseline gates.
+
+October 4 blob checkpoint: revision/blob buffers, blob navigation, find-file,
+file dispatch (Space m F) and removal/reverse/recursive blame
+([scenarios](magit-files-acceptance.md)). Ledger 120 partial / 653 missing;
+score remains 3%. Next: file actions in the file dispatch, then status
+sections and the remaining families in ledger order.

@@ -1107,7 +1107,9 @@ fn blame_attributes_chunks_and_commit_info() {
     git(d.path(), &["commit", "-qm", "first"]);
     fs::write(d.path().join("f"), b"a\nB  \nc\n").unwrap();
     git(d.path(), &["commit", "-qam", "second"]);
-    let (chunks, info) = r.blame(Path::new("f"), &[]).unwrap();
+    let (chunks, info) = r
+        .blame(Path::new("f"), None, super::blame::Kind::Addition, &[])
+        .unwrap();
     let lines: Vec<_> = chunks.iter().map(|c| (c.line, c.lines)).collect();
     assert_eq!(lines, [(0, 1), (1, 1), (2, 1)]);
     assert_eq!(info[&chunks[1].rev].summary, "second");
@@ -1120,7 +1122,8 @@ fn blame_attributes_chunks_and_commit_info() {
         chunks,
         info,
         style: 0,
-        echo: false,
+        kind: super::blame::Kind::Addition,
+        rev: None,
         version: 0,
         was_readonly: false,
     };
@@ -1130,7 +1133,15 @@ fn blame_attributes_chunks_and_commit_info() {
         heading.starts_with("Fred Test") && heading.ends_with("second"),
         "{heading}"
     );
-    assert!(r.blame(Path::new("missing"), &[]).is_err());
+    assert!(
+        r.blame(
+            Path::new("missing"),
+            None,
+            super::blame::Kind::Addition,
+            &[]
+        )
+        .is_err()
+    );
 }
 #[test]
 fn blame_time_uses_commit_zone() {
@@ -1154,7 +1165,8 @@ fn blame_time_uses_commit_zone() {
         }],
         info: [("a".repeat(40), info(1_700_000_000, "+0100"))].into(),
         style: 0,
-        echo: false,
+        kind: super::blame::Kind::Addition,
+        rev: None,
         version: 0,
         was_readonly: false,
     };
@@ -1164,9 +1176,96 @@ fn blame_time_uses_commit_zone() {
     assert_eq!(blame.margin(1).unwrap().1, "");
     blame.style = 2;
     assert_eq!(blame.margin(0).unwrap(), (1, "┌".into()));
-    blame.echo = true;
+    blame.kind = super::blame::Kind::Echo;
     assert_eq!((blame.margin(0), blame.width()), (None, 0));
     assert!(blame.message(0).is_some());
-    blame.echo = false;
+    blame.kind = super::blame::Kind::Addition;
     assert_eq!(blame.margin(1).unwrap(), (1, "│".into()));
+}
+#[test]
+fn blob_history_walks_index_commits_and_renames() {
+    use super::blob::{INDEX, WORKTREE};
+    let (d, r) = setup();
+    committed(d.path(), b"one\n");
+    committed(d.path(), b"two\n");
+    git(d.path(), &["mv", "f", "g"]);
+    git(d.path(), &["commit", "-qm", "rename"]);
+    let g = Path::new("g");
+    let head = r.blob_rev("HEAD").unwrap();
+    assert_eq!(r.blob_ancestor(WORKTREE, g), Some((head.clone(), g.into())));
+    fs::write(d.path().join("g"), b"staged\n").unwrap();
+    git(d.path(), &["add", "g"]);
+    assert_eq!(r.blob_ancestor(WORKTREE, g), Some((INDEX.into(), g.into())));
+    assert_eq!(r.blob_bytes(INDEX, g).unwrap(), b"staged\n");
+    let (older, file) = r.blob_ancestor(&head, g).unwrap();
+    assert_eq!(file, Path::new("f"));
+    assert_eq!(r.blob_bytes(&older, &file).unwrap(), b"two\n");
+    let (oldest, _) = r.blob_ancestor(&older, &file).unwrap();
+    assert_eq!(r.blob_bytes(&oldest, Path::new("f")).unwrap(), b"one\n");
+    assert_eq!(r.blob_ancestor(&oldest, Path::new("f")), None);
+    assert_eq!(r.blob_successor(&oldest, g).unwrap().0, older);
+    assert_eq!(r.blob_successor(&head, g), Some((INDEX.into(), g.into())));
+    assert_eq!(
+        r.blob_successor(INDEX, g),
+        Some((WORKTREE.into(), g.into()))
+    );
+    assert_eq!(r.blob_successor(WORKTREE, g), None);
+    assert!(r.blob_rev("--all").is_err());
+    assert!(r.blob_bytes("HEAD", Path::new("missing")).is_err());
+}
+#[test]
+fn blame_removal_and_reverse_on_revisions() {
+    use super::blame::Kind;
+    let (d, r) = setup();
+    fs::write(d.path().join("f"), b"a\nb\nc\n").unwrap();
+    git(d.path(), &["add", "f"]);
+    git(d.path(), &["commit", "-qm", "first"]);
+    let first = r.blob_rev("HEAD").unwrap();
+    fs::write(d.path().join("f"), b"a\nc\n").unwrap();
+    git(d.path(), &["commit", "-qam", "drop b"]);
+    let (chunks, info) = r
+        .blame(Path::new("f"), Some(&first), Kind::Removal, &[])
+        .unwrap();
+    let b = chunks.iter().find(|c| c.line == 1).unwrap();
+    assert_eq!(info[&b.rev].summary, "drop b", "{chunks:?}");
+    let (chunks, info) = r
+        .blame(Path::new("f"), Some(&first), Kind::Reverse, &[])
+        .unwrap();
+    let b = chunks.iter().find(|c| c.line == 1).unwrap();
+    assert_eq!(info[&b.rev].summary, "first");
+    assert!(
+        r.blame(Path::new("f"), Some("-x"), Kind::Addition, &[])
+            .is_err()
+    );
+}
+#[test]
+fn blob_history_and_blame_handle_quoted_and_stage_like_names() {
+    use super::blame::{Kind, unquote};
+    assert_eq!(
+        unquote(r#""caf\303\251 \"x\"\\.txt""#),
+        Path::new("café \"x\"\\.txt")
+    );
+    assert_eq!(unquote("plain name"), Path::new("plain name"));
+    let (d, r) = setup();
+    let name = Path::new("café \"x\".txt");
+    fs::write(d.path().join(name), b"one\n").unwrap();
+    git(d.path(), &["add", "."]);
+    git(d.path(), &["commit", "-qm", "one"]);
+    fs::write(d.path().join(name), b"two\n").unwrap();
+    git(d.path(), &["commit", "-qam", "two"]);
+    let head = r.blob_rev("HEAD").unwrap();
+    let (older, file) = r.blob_ancestor(&head, name).unwrap();
+    assert_eq!(file, name);
+    assert_eq!(r.blob_bytes(&older, &file).unwrap(), b"one\n");
+    assert_eq!(r.blob_successor(&older, name).unwrap().0, head);
+    let (chunks, _) = r.blame(name, Some(&head), Kind::Addition, &[]).unwrap();
+    assert_eq!(chunks[0].orig_file, name);
+    assert_eq!(chunks[0].prev.as_ref().unwrap().1, name);
+    fs::write(d.path().join("1:f"), b"stage-like\n").unwrap();
+    git(d.path(), &["add", "1:f"]);
+    assert_eq!(
+        r.blob_bytes(super::blob::INDEX, Path::new("1:f")).unwrap(),
+        b"stage-like\n"
+    );
+    assert!(!r.conflicted(Path::new("1:f")));
 }

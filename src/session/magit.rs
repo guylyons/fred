@@ -14,6 +14,16 @@ pub(super) enum Outcome {
     Ask(Repo, crate::magit::Question, Vec<String>, Vec<String>),
     InitConfirm(PathBuf, String),
     Blame(Box<crate::magit::blame::Blame>),
+    /// A blob to show at a line, a message, then optionally blame it.
+    Blob(
+        crate::magit::blob::Blob,
+        Vec<u8>,
+        usize,
+        Option<String>,
+        Option<crate::magit::blame::Kind>,
+    ),
+    /// {worktree}: visit the file itself at a line.
+    VisitFile(PathBuf, usize),
     Draft(Repo, crate::magit::CommitMode, Vec<u8>, Vec<String>),
     Branches(Repo, Vec<String>),
     Git(GitInvocation),
@@ -33,6 +43,7 @@ impl Session {
             .magit
             .as_ref()
             .map(|v| v.repo.root.clone())
+            .or_else(|| self.ed.blob.as_ref().map(|b| b.repo.root.clone()))
             .or_else(|| self.ed.commit_repo.as_ref().map(|r| r.root.clone()))
             .or_else(|| self.ed.dired.as_ref().map(|d| d.dir.clone()))
             .or_else(|| self.ed.path.clone())
@@ -144,7 +155,28 @@ impl Session {
         }
         if let Action::Answered(repo, question, answers, args) = action {
             let origin = self.cur;
+            let line = self.ed.cur.line;
             self.start_magit(move || match question {
+                Question::FindFile => {
+                    let pick = |i: usize| {
+                        answers
+                            .get(i)
+                            .filter(|a| !a.is_empty())
+                            .or(args.get(i))
+                            .cloned()
+                            .unwrap_or_default()
+                    };
+                    let rev = repo.blob_rev(&pick(0))?;
+                    let file = PathBuf::from(pick(1));
+                    if file.as_os_str().is_empty()
+                        || file
+                            .components()
+                            .any(|c| !matches!(c, std::path::Component::Normal(_)))
+                    {
+                        return Err("file must be repository-relative".into());
+                    }
+                    blob_outcome(repo, rev, file, line, None, None)
+                }
                 Question::Net(op) => Ok(Outcome::ConfiguredGit(repo.network(op, &answers, &args)?)),
                 Question::Diff(DiffOp::ShowStash) => {
                     let wanted = answers.first().map(String::as_str).unwrap_or("");
@@ -162,14 +194,57 @@ impl Session {
             });
             return;
         }
-        if let Action::Blame(echo) = action {
-            let Some(path) = self.ed.path.clone().filter(|_| {
+        if let Action::Blame(kind) = action {
+            use crate::magit::blame::Kind;
+            // magit-blame--pre-blame-setup: the same type recurses from any entry point.
+            if let Some(b) = self
+                .ed
+                .blame
+                .as_ref()
+                .filter(|b| b.kind == kind && !b.echo())
+            {
+                match b.chunk_at(self.ed.cur.line).cloned() {
+                    Some(crate::magit::blame::Chunk {
+                        prev: Some((rev, file)),
+                        orig_line,
+                        ..
+                    }) => {
+                        return self.magit_action(Action::BlobVisitBlame(
+                            rev,
+                            file,
+                            kind,
+                            orig_line.saturating_sub(1),
+                        ));
+                    }
+                    _ => return self.ed.set_err("Chunk has no further history"),
+                }
+            }
+            let blob = self.ed.blob.clone();
+            if blob
+                .as_ref()
+                .is_some_and(|b| b.rev == crate::magit::blob::INDEX)
+                && matches!(kind, Kind::Removal | Kind::Reverse)
+            {
+                return self
+                    .ed
+                    .set_err("The index cannot be blamed in reverse; visit a commit's blob");
+            }
+            let path = if blob.is_some() {
+                None
+            } else if let Some(path) = self.ed.path.clone().filter(|_| {
                 self.ed.magit.is_none() && self.ed.dired.is_none() && self.ed.commit_repo.is_none()
-            }) else {
+            }) {
+                Some(path)
+            } else {
                 self.ed.set_err("Buffer isn't visiting a file");
                 return;
             };
-            if self.ed.buf.modified {
+            if blob.is_none() && matches!(kind, Kind::Removal | Kind::Reverse) {
+                self.ed
+                    .set_err("Only blob buffers can be blamed in reverse");
+                return;
+            }
+            if blob.is_none() && self.ed.buf.modified {
                 // ponytail: Git blames the saved file; unsaved lines would be misattributed.
                 self.ed.set_err("Save the buffer before blaming");
                 return;
@@ -182,19 +257,21 @@ impl Session {
                 .as_ref()
                 .map_or(self.ed.readonly, |b| b.was_readonly);
             self.start_magit(move || {
-                let repo = Repo::discover(&path)?;
-                let absolute = std::path::absolute(&path).map_err(|e| e.to_string())?;
-                let parent = absolute
-                    .parent()
-                    .ok_or("file has no parent")?
-                    .canonicalize()
-                    .map_err(|e| e.to_string())?;
-                let file = parent
-                    .join(absolute.file_name().ok_or("file has no name")?)
-                    .strip_prefix(&repo.root)
-                    .map_err(|_| "Buffer isn't visiting a tracked file")?
-                    .to_owned();
-                let (chunks, info) = repo.blame(&file, &args)?;
+                let (repo, file, rev) = match (blob, path) {
+                    // magit-blame--run: the index blob blames without a revision.
+                    (Some(b), _) => (
+                        b.repo,
+                        b.file,
+                        Some(b.rev).filter(|r| r != crate::magit::blob::INDEX),
+                    ),
+                    (None, Some(ref path)) => {
+                        let repo = Repo::discover(path)?;
+                        let file = repo_relative(&repo, path)?;
+                        (repo, file, None)
+                    }
+                    (None, None) => return Err("Buffer isn't visiting a file".into()),
+                };
+                let (chunks, info) = repo.blame(&file, rev.as_deref(), kind, &args)?;
                 Ok(Outcome::Blame(Box::new(crate::magit::blame::Blame {
                     repo,
                     file,
@@ -202,11 +279,21 @@ impl Session {
                     chunks,
                     info,
                     style: 0,
-                    echo,
+                    kind,
+                    rev,
                     version,
                     was_readonly,
                 })))
             });
+            return;
+        }
+        if let Some(outcome) = self.blob_action(&action) {
+            let origin_line = self.ed.cur.line;
+            self.start_magit(move || outcome(origin_line));
+            return;
+        }
+        if action == Action::BlobQuit {
+            self.buffer(BufCmd::Delete, "", false);
             return;
         }
         if action == Action::Init {
@@ -489,6 +576,7 @@ impl Session {
                     Kind::FileLog(path, _) => Some(view.repo.root.join(path)),
                     _ => None,
                 })
+                .or_else(|| self.ed.blob.as_ref().map(|b| b.repo.root.join(&b.file)))
                 .or_else(|| {
                     if self.ed.magit.is_none()
                         && self.ed.dired.is_none()
@@ -558,23 +646,7 @@ impl Session {
                 Action::Log | Action::FileLog | Action::LogHead => {
                     let mut view = View::status(repo.clone(), repo.status()?);
                     view.kind = if let Some(file) = file {
-                        let absolute = std::path::absolute(file).map_err(|e| e.to_string())?;
-                        // Resolve directory aliases, but keep a tracked symlink's own name.
-                        // Directories removed since the file was visited are kept literally.
-                        let parent = absolute.parent().ok_or("file has no parent")?;
-                        let existing = parent
-                            .ancestors()
-                            .find(|p| p.is_dir())
-                            .ok_or("file has no existing parent")?;
-                        let parent = existing
-                            .canonicalize()
-                            .map_err(|e| e.to_string())?
-                            .join(parent.strip_prefix(existing).unwrap_or(Path::new("")));
-                        let absolute = parent.join(absolute.file_name().ok_or("file has no name")?);
-                        let relative = absolute
-                            .strip_prefix(&repo.root)
-                            .map_err(|_| "file is outside the repository")?
-                            .to_owned();
+                        let relative = repo_relative(&repo, &file)?;
                         Kind::FileLog(relative, follow)
                     } else {
                         Kind::Log
@@ -703,9 +775,26 @@ impl Session {
                     return true;
                 }
                 // magit-blame-read-only, except for echo.
-                self.ed.readonly = blame.was_readonly || !blame.echo;
+                self.ed.readonly = blame.was_readonly || !blame.echo();
                 self.ed.blame = Some(*blame);
                 self.ed.set_msg("Blaming...done");
+            }
+            Ok(Outcome::VisitFile(path, line)) => self.open_pick(
+                path,
+                Some(Goto {
+                    line,
+                    col: 0,
+                    pattern: None,
+                }),
+            ),
+            Ok(Outcome::Blob(blob, bytes, line, message, then)) => {
+                self.install_blob(blob, &bytes, line);
+                if let Some(message) = message {
+                    self.ed.set_msg(message);
+                }
+                if let Some(kind) = then {
+                    self.magit_action(Action::Blame(kind));
+                }
             }
             Ok(Outcome::InitConfirm(dir, question)) => {
                 if self.ed.magit_input_generation != job.input_generation
@@ -809,6 +898,136 @@ impl Session {
             self.ed.commit_args = args.clone();
             crate::magit::sync_commit_options(&mut self.ed);
         }
+    }
+    /// Worker closures for blob-mode commands, resolved against this buffer.
+    #[allow(clippy::type_complexity)]
+    fn blob_action(
+        &mut self,
+        action: &Action,
+    ) -> Option<Box<dyn FnOnce(usize) -> Result<Outcome, String> + Send>> {
+        use crate::magit::blob::WORKTREE;
+        let from = self.magit_from();
+        let current = self.ed.blob.clone();
+        let path = self.ed.path.clone().filter(|_| {
+            current.is_none()
+                && self.ed.magit.is_none()
+                && self.ed.dired.is_none()
+                && self.ed.commit_repo.is_none()
+        });
+        // The visited blob, or the worktree file of a file buffer.
+        let here = move || -> Result<(Repo, String, PathBuf), String> {
+            match (&current, &path) {
+                (Some(b), _) => Ok((b.repo.clone(), b.rev.clone(), b.file.clone())),
+                (None, Some(p)) => {
+                    let repo = Repo::discover(p)?;
+                    let file = repo_relative(&repo, p)?;
+                    Ok((repo, WORKTREE.into(), file))
+                }
+                _ => Err("Buffer isn't visiting a file or blob".into()),
+            }
+        };
+        Some(match action.clone() {
+            Action::FindFile => Box::new(move |_| {
+                let (repo, rev, file) = match here() {
+                    Ok((repo, rev, file)) => (repo, rev, file.to_string_lossy().into_owned()),
+                    Err(_) => (Repo::discover(&from)?, String::new(), String::new()),
+                };
+                let rev = if rev.is_empty() || rev == WORKTREE {
+                    "HEAD".into()
+                } else {
+                    rev
+                };
+                Ok(Outcome::Ask(
+                    repo,
+                    Question::FindFile,
+                    vec![rev.clone(), file.clone()],
+                    vec![
+                        format!("Find file from revision (default {rev}): "),
+                        format!("Find file (default {file}): "),
+                    ],
+                ))
+            }),
+            Action::BlobVisit(rev, file) => Box::new(move |line| {
+                let repo = here().map(|h| h.0).or_else(|_| Repo::discover(&from))?;
+                blob_outcome(repo, rev, file, line, None, None)
+            }),
+            // magit-blame-visit-other-file goes to the chunk's orig-line.
+            Action::BlobVisitBlame(rev, file, kind, line) => Box::new(move |_| {
+                let repo = here().map(|h| h.0).or_else(|_| Repo::discover(&from))?;
+                let rev = repo.blob_rev(&rev)?;
+                blob_outcome(repo, rev, file, line, None, Some(kind))
+            }),
+            Action::BlobPrevious | Action::BlobNext => {
+                let previous = *action == Action::BlobPrevious;
+                Box::new(move |line| {
+                    let (repo, rev, file) = here()?;
+                    let next = if previous {
+                        repo.blob_ancestor(&rev, &file)
+                            .ok_or("You have reached the beginning of time")?
+                    } else {
+                        repo.blob_successor(&rev, &file)
+                            .ok_or("You have reached the end of time")?
+                    };
+                    // magit-blob-visit: report the commit being shown.
+                    let message = (!next.0.starts_with('{'))
+                        .then(|| {
+                            repo.read(&["log", "-1", "--format=%s (%cr)", &next.0, "--"])
+                                .ok()
+                                .map(|o| label(Path::new(String::from_utf8_lossy(&o).trim())))
+                        })
+                        .flatten();
+                    blob_outcome(repo, next.0, next.1, line, message, None)
+                })
+            }
+            Action::BlobVisitFile => {
+                let blob = self.ed.blob.clone();
+                Box::new(move |line| match blob {
+                    Some(b) => Ok(Outcome::VisitFile(b.repo.root.join(b.file), line)),
+                    None => Err("Not visiting a blob".into()),
+                })
+            }
+            _ => return None,
+        })
+    }
+    fn install_blob(&mut self, blob: crate::magit::blob::Blob, bytes: &[u8], line: usize) {
+        let text = String::from_utf8_lossy(bytes);
+        if let Some(i) = (0..self.bufs.len()).find(|i| self.ed_at(*i).blob.as_ref() == Some(&blob))
+        {
+            self.show(i);
+        } else {
+            // Synthetic identity; the real file name keeps syntax highlighting.
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            blob.repo.root.hash(&mut h);
+            blob.rev.hash(&mut h);
+            blob.file.hash(&mut h);
+            let path = self
+                .swap_dir
+                .with_file_name("magit-blobs")
+                .join(format!("{:016x}", h.finish()))
+                .join(blob.file.file_name().unwrap_or_default());
+            let mut ed = make_editor(Buffer::default(), &self.cfg);
+            ed.path = Some(path);
+            let swap = swap::swap_path_in(&self.swap_dir, ed.path.as_deref());
+            self.switch_to(
+                Opened {
+                    ed,
+                    stamp: None,
+                    lossy: false,
+                },
+                swap,
+            );
+        }
+        self.no_swap = true;
+        self.ed.git = crate::git::Gutter::default();
+        self.ed.buf = Buffer::from_text(&text);
+        self.ed.undo = crate::undo::Undo::default();
+        self.ed.saved_state = 0;
+        self.ed.readonly = true;
+        self.ed.blame = None;
+        self.ed.blob = Some(blob);
+        let last = self.ed.line_count().saturating_sub(1);
+        self.ed.set_cursor(line.min(last), 0);
+        self.reloaded = true;
     }
     fn install_magit(&mut self, mut view: View, selected: Option<RowAction>, fallback: usize) {
         // Like magit-diff-mode, one diff buffer per repository is refreshed in place.
@@ -956,6 +1175,44 @@ impl Session {
             self.ed.set_msg("Git operation completed");
         }
     }
+}
+fn blob_outcome(
+    repo: Repo,
+    rev: String,
+    file: PathBuf,
+    line: usize,
+    message: Option<String>,
+    then: Option<crate::magit::blame::Kind>,
+) -> Result<Outcome, String> {
+    if rev == crate::magit::blob::WORKTREE {
+        return Ok(Outcome::VisitFile(repo.root.join(file), line));
+    }
+    // magit-find-file-noselect: a conflicted index has no single blob.
+    if rev == crate::magit::blob::INDEX && repo.conflicted(&file) {
+        return Ok(Outcome::VisitFile(repo.root.join(file), line));
+    }
+    let bytes = repo.blob_bytes(&rev, &file)?;
+    let blob = crate::magit::blob::Blob { repo, rev, file };
+    Ok(Outcome::Blob(blob, bytes, line, message, then))
+}
+/// A visited path relative to its repository. Directory aliases resolve, a
+/// tracked symlink keeps its own name, and since-deleted directories stay literal.
+fn repo_relative(repo: &Repo, path: &Path) -> Result<PathBuf, String> {
+    let absolute = std::path::absolute(path).map_err(|e| e.to_string())?;
+    let parent = absolute.parent().ok_or("file has no parent")?;
+    let existing = parent
+        .ancestors()
+        .find(|p| p.is_dir())
+        .ok_or("file has no existing parent")?;
+    let parent = existing
+        .canonicalize()
+        .map_err(|e| e.to_string())?
+        .join(parent.strip_prefix(existing).unwrap_or(Path::new("")));
+    Ok(parent
+        .join(absolute.file_name().ok_or("file has no name")?)
+        .strip_prefix(&repo.root)
+        .map_err(|_| "file is outside the repository")?
+        .to_owned())
 }
 /// magit-diff--dwim and the at-point defaults of show-commit/stash-show.
 /// Ok is a diff target, Err a stash to show; None means ask.

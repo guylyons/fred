@@ -119,6 +119,8 @@ pub struct Editor {
     pub magit_seeded: std::collections::HashSet<char>,
     /// magit-blame-mode on this file buffer.
     pub blame: Option<crate::magit::blame::Blame>,
+    /// magit-blob-mode: this buffer shows REV:FILE.
+    pub blob: Option<crate::magit::blob::Blob>,
     pub commit_args: Vec<String>,
     pub magit_menu: Option<char>,
     pub magit_prompt: Option<crate::magit::Prompt>,
@@ -175,6 +177,7 @@ impl Editor {
             magit_options: std::collections::HashSet::new(),
             magit_seeded: std::collections::HashSet::new(),
             blame: None,
+            blob: None,
             commit_args: vec![],
             magit_menu: None,
             magit_prompt: None,
@@ -215,7 +218,10 @@ impl Editor {
 
     pub fn handle_key(&mut self, k: Key) {
         self.magit_input_generation = self.magit_input_generation.wrapping_add(1);
-        if crate::magit::key(self, k) || crate::magit::blame::key(self, k) {
+        if crate::magit::key(self, k)
+            || crate::magit::blame::key(self, k)
+            || crate::magit::blob::key(self, k)
+        {
             return;
         }
         if self.zap.is_some() {
@@ -321,10 +327,15 @@ impl Editor {
         }
     }
 
+    /// Generated Git text (status/log/diff views and blobs) is never edited or saved.
+    pub fn generated(&self) -> bool {
+        self.magit.is_some() || self.blob.is_some()
+    }
+
     /// Bracketed paste: insert text as-is (no autoindent or completion).
     pub fn paste(&mut self, text: &str) {
         self.magit_input_generation = self.magit_input_generation.wrapping_add(1);
-        if self.magit.is_some()
+        if self.generated()
             && matches!(
                 self.mode,
                 Mode::Normal | Mode::Insert | Mode::VisualLine { .. }
@@ -602,7 +613,7 @@ impl Editor {
 
     /// Run an ex command line.
     pub fn run_ex(&mut self, text: &str) {
-        if self.magit.is_some() {
+        if self.generated() {
             let mut buf = self.buf.clone();
             let mut undo = Undo::default();
             let mut st = ExState::new(

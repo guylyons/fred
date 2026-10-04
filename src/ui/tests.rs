@@ -1380,7 +1380,8 @@ fn blame_margin_headings_and_lines_shift_text_and_show_message() {
         )]
         .into(),
         style: 0,
-        echo: false,
+        kind: crate::magit::blame::Kind::Addition,
+        rev: None,
         version: e.buf.version,
         was_readonly: false,
     });

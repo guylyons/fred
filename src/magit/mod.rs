@@ -1,5 +1,6 @@
 //! A status-centered Git component; rendered text is never used as an operation path.
 pub mod blame;
+pub mod blob;
 pub mod diff;
 pub mod network;
 pub mod repo;
@@ -31,11 +32,20 @@ pub enum Action {
     Net(network::Op),
     Diff(diff::Op),
     Init,
-    /// Blame the visited file: echo (not read-only) or addition.
-    Blame(bool),
-    /// magit-blame-removal/reverse require revision (blob) buffers.
-    BlameNeedsBlob,
+    /// Blame the visited file or blob.
+    Blame(blame::Kind),
     BlameQuit,
+    /// magit-find-file: prompt for revision and file.
+    FindFile,
+    /// Visit REV:FILE ({worktree} visits the file itself).
+    BlobVisit(String, PathBuf),
+    /// magit-blame-visit-other-file, then blame that blob the same way.
+    BlobVisitBlame(String, PathBuf, blame::Kind, usize),
+    BlobPrevious,
+    BlobNext,
+    /// magit-blob-visit-file: the worktree file of this blob.
+    BlobVisitFile,
+    BlobQuit,
     BlameCycle,
     /// Directory to initialize, and whether nesting/reinitializing was confirmed.
     InitDir(PathBuf, bool),
@@ -364,8 +374,6 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
                     blame::quit(ed);
                 } else if action == Action::BlameCycle {
                     blame::cycle(ed);
-                } else if action == Action::BlameNeedsBlob {
-                    ed.set_err("Only blob buffers can be blamed in reverse (not yet ported)");
                 } else if let Action::Menu(menu) = action {
                     open_menu(ed, menu);
                 } else {
@@ -435,6 +443,9 @@ fn menu_help(menu: char) -> Option<&'static str> {
         'z' => {
             "Stash: z both  i index  w worktree  x keep index; Snapshot: Z both  I index  W worktree"
         }
+        'F' => {
+            "File: d diff  l log  b blame  r removal  f reverse  p/n prev/next blob  v goto blob  V goto file  g status"
+        }
         'B' => {
             "Blame: b addition  m echo  q quit  c cycle style; in blame n/p chunks  N/P same commit  RET commit"
         }
@@ -489,6 +500,7 @@ pub enum Prompt {
 pub enum Question {
     Net(network::Op),
     Diff(diff::Op),
+    FindFile,
 }
 pub fn prompt(ed: &mut Editor, question: Prompt) {
     let text = match &question {
@@ -598,6 +610,7 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("L", "Inspect", "Current file log", FileLog),
             ("d", "Inspect", "Diff", Menu('d')),
             ("i", "Repository", "Init", Init),
+            ("F", "Inspect", "File dispatch", Menu('F')),
             ("b", "Branch", "Branch operations", Menu('b')),
             ("B", "Inspect", "Blame", Menu('B')),
             ("c", "Commit", "Commit menu", Menu('C')),
@@ -855,6 +868,28 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("l", "Inspect", "List", Stashes),
             ("v", "Inspect", "Show selected stash", Visit),
         ],
+        // magit-file-dispatch: the visited file or blob.
+        'F' => {
+            use blame::Kind as K;
+            vec![
+                ("D", "Inspect", "Diff...", Menu('d')),
+                ("d", "Inspect", "Diff", Diff(diff::Op::Unstaged)),
+                ("L", "Log", "Log...", Menu('l')),
+                ("l", "Log", "Log", FileLog),
+                ("B", "Blame", "Blame...", Menu('B')),
+                ("b", "Blame", "Blame", Blame(K::Addition)),
+                ("r", "Blame", "...removal", Blame(K::Removal)),
+                ("f", "Blame", "...reverse", Blame(K::Reverse)),
+                ("m", "Blame", "Blame echo", Blame(K::Echo)),
+                ("q", "Blame", "Quit blame", BlameQuit),
+                ("p", "Navigate", "Prev blob", BlobPrevious),
+                ("n", "Navigate", "Next blob", BlobNext),
+                ("v", "Navigate", "Goto blob", FindFile),
+                ("V", "Navigate", "Goto file", BlobVisitFile),
+                ("g", "Navigate", "Goto status", Status),
+                ("c", "More actions", "Commit", Menu('C')),
+            ]
+        }
         'B' => vec![
             (
                 "-w",
@@ -886,20 +921,25 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 "Detect lines moved or copied between files",
                 ToggleOption(MenuOption::BlameCopied),
             ),
-            ("b", "Actions", "Show commits adding lines", Blame(false)),
+            (
+                "b",
+                "Actions",
+                "Show commits adding lines",
+                Blame(blame::Kind::Addition),
+            ),
             (
                 "r",
                 "Actions",
                 "Show commits removing lines",
-                BlameNeedsBlob,
+                Blame(blame::Kind::Removal),
             ),
             (
                 "f",
                 "Actions",
                 "Show last commits that still have lines",
-                BlameNeedsBlob,
+                Blame(blame::Kind::Reverse),
             ),
-            ("m", "Actions", "Blame echo", Blame(true)),
+            ("m", "Actions", "Blame echo", Blame(blame::Kind::Echo)),
             ("q", "Actions", "Quit blaming", BlameQuit),
             ("c", "Refresh", "Cycle style", BlameCycle),
         ],

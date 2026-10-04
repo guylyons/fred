@@ -282,7 +282,7 @@ impl Session {
     /// where the cursor was when it was last left, and fetch its staged
     /// version for the git marks.
     fn arrived(&mut self) {
-        if self.ed.magit.is_some() {
+        if self.ed.generated() {
             return;
         }
         let Some(p) = self.ed.path.clone() else {
@@ -299,7 +299,7 @@ impl Session {
 
     /// Remember where the cursor is in this file, for next time.
     pub fn remember_place(&self) {
-        if self.ed.magit.is_some() {
+        if self.ed.generated() {
             return;
         }
         if let Some(p) = &self.ed.path {
@@ -387,7 +387,7 @@ impl Session {
     }
 
     fn write(&mut self, path: Option<String>, force: bool, range: Option<Range>) -> bool {
-        if self.ed.magit.is_some() {
+        if self.ed.generated() {
             self.ed.set_err("generated Git buffer is read-only");
             return false;
         }
@@ -495,6 +495,10 @@ impl Session {
     /// `:e`: reload this file, or open (or go to) another one; this one
     /// stays open as a buffer (unless `:e!` discards its changes).
     fn edit(&mut self, path: Option<&str>, force: bool) {
+        if path.is_none() && self.ed.blob.is_some() {
+            self.ed.set_err("blob buffer: use gr to refresh");
+            return;
+        }
         let p = match (path, &self.ed.path) {
             (Some(path), _) => expand_tilde(path),
             (None, Some(own)) => own.clone(),
@@ -967,7 +971,7 @@ impl Session {
             self.seen_version = v;
             self.last_change = Some(now);
         }
-        if self.no_swap || self.ed.magit.is_some() {
+        if self.no_swap || self.ed.generated() {
             return;
         }
         if !self.ed.buf.modified {
@@ -2173,7 +2177,7 @@ mod tests {
         assert!(t.s.ed.blame.is_none() && !t.s.ed.readonly);
         t.keys(" mBm");
         magit_settle(&mut t);
-        assert!(t.s.ed.blame.as_ref().is_some_and(|b| b.echo) && !t.s.ed.readonly);
+        assert!(t.s.ed.blame.as_ref().is_some_and(|b| b.echo()) && !t.s.ed.readonly);
         t.keys("gg");
         assert!(t.s.ed.blame.as_ref().unwrap().message(0).is_some());
         t.keys("ix<Esc>");
@@ -2181,6 +2185,81 @@ mod tests {
         assert!(t.s.ed.blame.is_none());
         t.keys(" mBb");
         assert!(t.msg().contains("Save the buffer"), "{}", t.msg());
+    }
+    #[test]
+    fn magit_blob_buffers_navigate_history_and_blame_revisions() {
+        let mut t = T::open(Some("f.txt"), Some("one\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "first"]).unwrap();
+        fs::write(t.dir.path().join("f.txt"), "two\n").unwrap();
+        repo.read(&["commit", "-qam", "second"]).unwrap();
+        t.keys(":e!<Enter>");
+        assert_eq!(t.s.ed.buf.line(0), "two");
+        t.keys(" mFp");
+        magit_settle(&mut t);
+        let blob = t.s.ed.blob.clone().expect("blob buffer");
+        assert_eq!(blob.file, Path::new("f.txt"));
+        assert_eq!(t.s.ed.buf.line(0), "two");
+        assert!(t.s.ed.readonly);
+        t.keys(":w!<Enter>");
+        assert!(t.msg().contains("read-only"), "{}", t.msg());
+        t.keys("ix<Esc>");
+        assert_eq!(t.s.ed.buf.line(0), "two");
+        t.keys(" ms");
+        magit_settle(&mut t);
+        assert_eq!(
+            t.s.ed.magit.as_ref().map(|v| v.repo.root.clone()),
+            Some(repo.root.clone()),
+            "{}",
+            t.msg()
+        );
+        t.keys("q");
+        assert!(t.s.ed.blob.is_some());
+        t.keys("p");
+        magit_settle(&mut t);
+        assert_eq!(t.s.ed.buf.line(0), "one");
+        assert!(t.msg().contains("first"), "{}", t.msg());
+        t.keys("p");
+        magit_settle(&mut t);
+        assert!(t.msg().contains("beginning of time"));
+        t.keys("b");
+        magit_settle(&mut t);
+        assert!(
+            t.s.ed.blame.as_ref().is_some_and(|b| b.rev.is_some()),
+            "{}",
+            t.msg()
+        );
+        t.keys("qn");
+        magit_settle(&mut t);
+        assert_eq!(t.s.ed.buf.line(0), "two");
+        t.keys("n");
+        magit_settle(&mut t);
+        assert!(t.s.ed.blob.is_none());
+        assert!(t.s.ed.path.as_ref().is_some_and(|p| p.ends_with("f.txt")));
+        assert_eq!(t.s.ed.buf.line(0), "two");
+        t.keys(" mFv");
+        magit_settle(&mut t);
+        t.keys("HEAD~1<Enter><Enter>");
+        magit_settle(&mut t);
+        assert_eq!(t.s.ed.buf.line(0), "one", "{}", t.msg());
+        t.keys("q");
+        assert!(t.s.ed.blob.is_none());
+        t.keys(" mBr");
+        assert!(t.msg().contains("Only blob buffers"));
+        t.keys(" mBb");
+        magit_settle(&mut t);
+        t.keys("b");
+        magit_settle(&mut t);
+        assert!(t.s.ed.blob.is_some(), "{}", t.msg());
+        assert_eq!(t.s.ed.buf.line(0), "one");
+        assert!(t.s.ed.blame.as_ref().is_some_and(|b| b.rev.is_some()));
+        t.keys("b");
+        assert!(t.msg().contains("no further history"), "{}", t.msg());
     }
     #[test]
     fn magit_file_log_rejects_buffers_without_a_source_file() {

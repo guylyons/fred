@@ -28,6 +28,15 @@ pub struct Info {
 pub const STYLES: [&str; 3] = ["headings", "highlight", "lines"];
 pub const HEADING_WIDTH: usize = 48;
 
+/// magit-blame-type plus echo, which is addition without read-only keys.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Kind {
+    Addition,
+    Echo,
+    Removal,
+    Reverse,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Blame {
     pub repo: Repo,
@@ -36,7 +45,9 @@ pub struct Blame {
     pub chunks: Vec<Chunk>,
     pub info: HashMap<String, Info>,
     pub style: usize,
-    pub echo: bool,
+    pub kind: Kind,
+    /// The blamed revision (blob buffers); None blames the worktree file.
+    pub rev: Option<String>,
     /// Buffer version the line numbers belong to.
     pub version: u64,
     pub was_readonly: bool,
@@ -47,10 +58,22 @@ impl Repo {
     pub fn blame(
         &self,
         file: &Path,
+        rev: Option<&str>,
+        kind: Kind,
         args: &[String],
     ) -> Result<(Vec<Chunk>, HashMap<String, Info>), String> {
         let mut argv: Vec<std::ffi::OsString> = vec!["blame".into(), "--incremental".into()];
+        // magit-blame--run: final and removal blame run in reverse.
+        if matches!(kind, Kind::Removal | Kind::Reverse) {
+            argv.push("--reverse".into());
+        }
         argv.extend(args.iter().map(Into::into));
+        if let Some(rev) = rev {
+            if rev.is_empty() || rev.starts_with('-') || rev.chars().any(char::is_control) {
+                return Err(format!("invalid revision {rev:?}"));
+            }
+            argv.push(rev.into());
+        }
         argv.push("--".into());
         argv.push(file.into());
         let out = self.run(&argv, None)?;
@@ -81,12 +104,12 @@ impl Repo {
                 let (key, value) = l.split_once(' ').unwrap_or((l, ""));
                 match key {
                     "filename" => {
-                        chunk.orig_file = value.into();
+                        chunk.orig_file = unquote(value);
                         break;
                     }
                     "previous" => {
                         if let Some((r, f)) = value.split_once(' ') {
-                            chunk.prev = Some((r.into(), f.into()));
+                            chunk.prev = Some((r.into(), unquote(f)));
                         }
                     }
                     "summary" => entry.summary = value.into(),
@@ -96,11 +119,84 @@ impl Repo {
                     _ => (),
                 }
             }
+            // magit-blame--parse-chunk: removal shows the commit that removed lines.
+            if kind == Kind::Removal
+                && let Some((prev, prev_file)) = chunk.prev.take()
+            {
+                chunk.prev = Some((
+                    std::mem::replace(&mut chunk.rev, prev),
+                    chunk.orig_file.clone(),
+                ));
+                chunk.orig_file = prev_file;
+            }
             chunks.push(chunk);
+        }
+        // magit-blame--commit-alist for revisions without inline headers.
+        for chunk in &chunks {
+            if info.get(&chunk.rev).is_none_or(|i| i.summary.is_empty())
+                && !chunk.rev.bytes().all(|b| b == b'0')
+                && let Ok(out) = self.read(&[
+                    "log",
+                    "-1",
+                    "--format=%s%x00%an%x00%ct%x00%cd",
+                    "--date=format:%z",
+                    &chunk.rev,
+                    "--",
+                ])
+            {
+                let text = String::from_utf8_lossy(&out);
+                let mut f = text.trim_end().split('\0');
+                info.insert(
+                    chunk.rev.clone(),
+                    Info {
+                        summary: f.next().unwrap_or("").into(),
+                        author: f.next().unwrap_or("").into(),
+                        committer_time: f.next().and_then(|t| t.parse().ok()).unwrap_or(0),
+                        committer_tz: f.next().unwrap_or("").into(),
+                    },
+                );
+            }
         }
         chunks.sort_by_key(|c| c.line);
         Ok((chunks, info))
     }
+}
+
+/// Undo Git's C-style path quoting ("caf\303\251 \"x\".txt").
+pub fn unquote(s: &str) -> PathBuf {
+    use std::os::unix::ffi::OsStringExt;
+    let Some(inner) = s.strip_prefix('"').and_then(|s| s.strip_suffix('"')) else {
+        return s.into();
+    };
+    let (mut out, bytes) = (vec![], inner.as_bytes());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] != b'\\' || i + 1 == bytes.len() {
+            out.push(bytes[i]);
+            i += 1;
+            continue;
+        }
+        let c = bytes[i + 1];
+        i += 2;
+        out.push(match c {
+            b'n' => b'\n',
+            b't' => b'\t',
+            b'a' => 7,
+            b'b' => 8,
+            b'f' => 12,
+            b'v' => 11,
+            b'r' => b'\r',
+            b'0'..=b'7' => {
+                let digits = &bytes[i - 1..(i + 2).min(bytes.len())];
+                i += digits.len() - 1;
+                digits
+                    .iter()
+                    .fold(0u8, |n, d| n.wrapping_mul(8).wrapping_add(d - b'0'))
+            }
+            other => other,
+        });
+    }
+    PathBuf::from(std::ffi::OsString::from_vec(out))
 }
 
 /// "%F %H:%M" in the commit's own zone.
@@ -130,6 +226,9 @@ fn time(secs: i64, tz: &str) -> String {
 }
 
 impl Blame {
+    pub fn echo(&self) -> bool {
+        self.kind == Kind::Echo
+    }
     pub fn style(&self) -> &'static str {
         STYLES[self.style % STYLES.len()]
     }
@@ -153,7 +252,7 @@ impl Blame {
     }
     /// The gutter text for a buffer line, if this style draws one.
     pub fn margin(&self, line: usize) -> Option<(usize, String)> {
-        if self.echo {
+        if self.echo() {
             return None;
         }
         let chunk = self.chunk_at(line)?;
@@ -171,7 +270,7 @@ impl Blame {
         }
     }
     pub fn width(&self) -> usize {
-        if self.echo {
+        if self.echo() {
             return 0;
         }
         match self.style() {
@@ -183,7 +282,7 @@ impl Blame {
     /// show-message: the summary of the chunk at point.
     pub fn message(&self, line: usize) -> Option<String> {
         // magit-blame-echo shows only the message.
-        (self.echo || self.style() == "lines")
+        (self.echo() || self.style() == "lines")
             .then(|| self.chunk_at(line).map(|c| self.heading(c)))?
     }
 }
@@ -209,7 +308,7 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         ed.set_msg("Blame removed: buffer changed");
         return false;
     }
-    if blame.echo {
+    if blame.echo() {
         return false;
     }
     let line = ed.cur.line;
@@ -265,6 +364,31 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
                 super::menu_arguments(ed, 'd'),
             )
         }),
+        KeyCode::Char(c @ ('b' | 'r' | 'f')) => {
+            let kind = match c {
+                'b' => Kind::Addition,
+                'r' => Kind::Removal,
+                _ => Kind::Reverse,
+            };
+            // magit-blame--pre-blame-setup: the same type recurses into the chunk's
+            // previous blob; another type re-blames this buffer.
+            if kind == blame.kind {
+                match here.and_then(|c| c.prev.map(|p| (p, c.orig_line))) {
+                    Some(((rev, file), line)) => Some(super::Action::BlobVisitBlame(
+                        rev,
+                        file,
+                        kind,
+                        line.saturating_sub(1),
+                    )),
+                    None => {
+                        ed.set_err("Chunk has no further history");
+                        return true;
+                    }
+                }
+            } else {
+                Some(super::Action::Blame(kind))
+            }
+        }
         KeyCode::Char('c') => {
             cycle(ed);
             return true;
@@ -285,7 +409,7 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     true
 }
 pub fn cycle(ed: &mut Editor) {
-    if ed.blame.as_ref().is_some_and(|b| b.echo) {
+    if ed.blame.as_ref().is_some_and(|b| b.echo()) {
         ed.set_msg("Blame echo has a single style");
         return;
     }

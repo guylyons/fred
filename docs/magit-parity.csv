@@ -124,9 +124,9 @@ magit-blame.el,160,option,magit-blame-mode-lighter,missing,,explicit
 magit-blame.el,165,option,magit-blame-goto-chunk-hook,missing,,explicit
 magit-blame.el,766,command,magit-blame-echo,partial,"Space m B m; lines style, message row shows chunk; editing allowed",explicit
 magit-blame.el,790,command,magit-blame-addition,partial,Space m B b; gutter margin styles; recursive blame on a blamed chunk needs blob buffers,explicit
-magit-blame.el,798,command,magit-blame-removal,missing,,explicit
-magit-blame.el,809,command,magit-blame-reverse,missing,,explicit
-magit-blame.el,845,command,magit-blame-visit-other-file,missing,,explicit
+magit-blame.el,798,command,magit-blame-removal,partial,Blob buffers r / Space m B r; --reverse with orig/prev swap; recursion into previous blob,explicit
+magit-blame.el,809,command,magit-blame-reverse,partial,Blob buffers f / Space m B f; --reverse,explicit
+magit-blame.el,845,command,magit-blame-visit-other-file,partial,"Same-type b/r/f in a blamed buffer opens the previous blob and blames it; line position kept, not mapped",explicit
 magit-blame.el,858,command,magit-blame-visit-file,missing,,explicit
 magit-blame.el,868,command,magit-blame-quit,partial,q in blame or Space m B q; restores read-only state,explicit
 magit-blame.el,878,command,magit-blame-next-chunk,partial,n,explicit
@@ -416,27 +416,27 @@ magit-fetch.el,,command,transient:magit-fetch:--force,partial,-F,runtime
 magit-fetch.el,,command,transient:magit-fetch:--prune,partial,-p,runtime
 magit-fetch.el,,command,transient:magit-fetch:--tags,partial,-t,runtime
 magit-fetch.el,,command,transient:magit-fetch:--unshallow,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-files.el,53,command,magit-find-file,missing,,explicit
+magit-files.el,53,command,magit-find-file,partial,"Space m F v; revision and file prompts with defaults; {index}; position kept by line number, not mapped through diffs; completion missing",explicit
 magit-files.el,63,command,magit-find-file-other-window,missing,,explicit
 magit-files.el,73,command,magit-find-file-other-frame,missing,,explicit
 magit-files.el,363,command,magit-update-index,missing,,explicit
 magit-files.el,401,command,magit-find-git-config-file,missing,,explicit
 magit-files.el,417,command,magit-find-git-config-file-other-window,missing,,explicit
 magit-files.el,433,command,magit-find-git-config-file-other-frame,missing,,explicit
-magit-files.el,452,command,magit-file-dispatch,missing,,explicit
+magit-files.el,452,command,magit-file-dispatch,partial,"Space m F; inspect/log/blame/navigate groups and status/commit; file actions s/u/x/r/k/c, t trace, e edit line, G missing",explicit
 magit-files.el,536,command,magit-bury-buffer,missing,,explicit
-magit-files.el,548,command,magit-bury-or-kill-buffer,missing,,explicit
+magit-files.el,548,command,magit-bury-or-kill-buffer,partial,q in blob buffers kills the buffer,explicit
 magit-files.el,564,command,magit-kill-this-buffer,missing,,explicit
-magit-files.el,569,command,magit-blob-previous,missing,,explicit
-magit-files.el,583,command,magit-blob-next,missing,,explicit
-magit-files.el,597,command,magit-blob-visit-file,missing,,explicit
+magit-files.el,569,command,magit-blob-previous,partial,p in blob buffers and Space m F p; {worktree}->{index}->HEAD->ancestors with --follow; message shows subject and age,explicit
+magit-files.el,583,command,magit-blob-next,partial,n in blob buffers and Space m F n; ends at the worktree file,explicit
+magit-files.el,597,command,magit-blob-visit-file,partial,Space m F V; worktree file at the same line,explicit
 magit-files.el,644,command,magit-file-stage,missing,,explicit
 magit-files.el,657,command,magit-file-unstage,missing,,explicit
 magit-files.el,666,command,magit-file-untrack,missing,,explicit
 magit-files.el,681,command,magit-file-rename,missing,,explicit
 magit-files.el,718,command,magit-file-delete,missing,,explicit
 magit-files.el,746,command,magit-file-checkout,missing,,explicit
-magit-files.el,,command,magit-blob-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-files.el,,command,magit-blob-mode,partial,Read-only blob buffers with p/n/b/r/f/q and gr refresh; syntax from file name,runtime
 magit-files.el,,command,magit-stage-buffer-file,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-files.el,,command,magit-unstage-buffer-file,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-files.el,,option,magit-blob-mode-hook,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
