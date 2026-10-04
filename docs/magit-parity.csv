@@ -38,19 +38,19 @@ git-commit.el,,option,global-git-commit-mode-hook,missing,Runtime-expanded surfa
 git-rebase.el,91,option,git-rebase-auto-advance,missing,,explicit
 git-rebase.el,96,option,git-rebase-show-instructions,missing,,explicit
 git-rebase.el,101,option,git-rebase-confirm-cancel,missing,,explicit
-git-rebase.el,236,command,git-rebase-pick,missing,,explicit
+git-rebase.el,236,command,git-rebase-pick,partial,p in todo buffers,explicit
 git-rebase.el,242,command,git-rebase-drop,missing,,explicit
-git-rebase.el,248,command,git-rebase-reword,missing,,explicit
-git-rebase.el,254,command,git-rebase-edit,missing,,explicit
-git-rebase.el,260,command,git-rebase-squash,missing,,explicit
+git-rebase.el,248,command,git-rebase-reword,partial,r,explicit
+git-rebase.el,254,command,git-rebase-edit,partial,e,explicit
+git-rebase.el,260,command,git-rebase-squash,partial,s,explicit
 git-rebase.el,266,command,git-rebase-squish,missing,,explicit
-git-rebase.el,274,command,git-rebase-fixup,missing,,explicit
+git-rebase.el,274,command,git-rebase-fixup,partial,f,explicit
 git-rebase.el,280,command,git-rebase-alter,missing,,explicit
-git-rebase.el,448,command,git-rebase-move-line-down,missing,,explicit
-git-rebase.el,491,command,git-rebase-move-line-up,missing,,explicit
-git-rebase.el,516,command,git-rebase-kill-line,missing,,explicit
+git-rebase.el,448,command,git-rebase-move-line-down,partial,M-j / M-n,explicit
+git-rebase.el,491,command,git-rebase-move-line-up,partial,M-k / M-p,explicit
+git-rebase.el,516,command,git-rebase-kill-line,partial,d (drop),explicit
 git-rebase.el,523,command,git-rebase-insert,missing,,explicit
-git-rebase.el,560,command,git-rebase-exec,missing,,explicit
+git-rebase.el,560,command,git-rebase-exec,partial,x prompts for a command,explicit
 git-rebase.el,573,command,git-rebase-label,missing,,explicit
 git-rebase.el,595,command,git-rebase-reset,missing,,explicit
 git-rebase.el,610,command,git-rebase-update-ref,missing,,explicit
@@ -58,7 +58,7 @@ git-rebase.el,624,command,git-rebase-merge,missing,,explicit
 git-rebase.el,639,command,git-rebase-merge-toggle-editmsg,missing,,explicit
 git-rebase.el,675,command,git-rebase-noop,missing,,explicit
 git-rebase.el,690,command,git-rebase-break,missing,,explicit
-git-rebase.el,704,command,git-rebase-undo,missing,,explicit
+git-rebase.el,704,command,git-rebase-undo,partial,u (Fred undo),explicit
 git-rebase.el,726,command,git-rebase-show-commit,missing,,explicit
 git-rebase.el,731,command,git-rebase-show-or-scroll-up,missing,,explicit
 git-rebase.el,741,command,git-rebase-show-or-scroll-down,missing,,explicit
@@ -828,19 +828,19 @@ magit-sequence.el,485,command,magit-am-apply-maildir,missing,,explicit
 magit-sequence.el,493,command,magit-am-continue,missing,,explicit
 magit-sequence.el,504,command,magit-am-skip,missing,,explicit
 magit-sequence.el,512,command,magit-am-abort,missing,,explicit
-magit-sequence.el,526,command,magit-rebase,missing,,explicit
-magit-sequence.el,594,command,magit-rebase-onto-pushremote,missing,,explicit
-magit-sequence.el,608,command,magit-rebase-onto-upstream,missing,,explicit
-magit-sequence.el,643,command,magit-rebase-branch,missing,,explicit
-magit-sequence.el,654,command,magit-rebase-subset,missing,,explicit
-magit-sequence.el,752,command,magit-rebase-interactive,missing,,explicit
-magit-sequence.el,762,command,magit-rebase-autosquash,missing,,explicit
-magit-sequence.el,778,command,magit-rebase-edit-commit,missing,,explicit
-magit-sequence.el,788,command,magit-rebase-reword-commit,missing,,explicit
-magit-sequence.el,797,command,magit-rebase-remove-commit,missing,,explicit
+magit-sequence.el,526,command,magit-rebase,partial,Space m R with -k -r -u -d -t -a -A(default) -i -h and p/u/e/i/s/m/w/k/f; r/s/e/a continue/skip/edit/abort while rebasing; strategy/exec/gpg/signoff levels missing,explicit
+magit-sequence.el,594,command,magit-rebase-onto-pushremote,partial,Space m R p; requires a configured push-remote,explicit
+magit-sequence.el,608,command,magit-rebase-onto-upstream,partial,Space m R u; unset upstream is asked and set,explicit
+magit-sequence.el,643,command,magit-rebase-branch,partial,Space m R e,explicit
+magit-sequence.el,654,command,magit-rebase-subset,partial,Space m R s; new base and first commit prompts (log-select missing),explicit
+magit-sequence.el,752,command,magit-rebase-interactive,partial,"Space m R i; todo captured from Git, edited in Fred (git-rebase keys), replayed; published and merge-range confirmations",explicit
+magit-sequence.el,762,command,magit-rebase-autosquash,partial,Space m R f; merge-base with upstream; no-upstream selection missing,explicit
+magit-sequence.el,778,command,magit-rebase-edit-commit,partial,Space m R m,explicit
+magit-sequence.el,788,command,magit-rebase-reword-commit,partial,Space m R w (Fred is Git's editor),explicit
+magit-sequence.el,797,command,magit-rebase-remove-commit,partial,Space m R k (drop),explicit
 magit-sequence.el,823,command,magit-rebase-continue,partial,Space m R c; no editor; source options missing,explicit
 magit-sequence.el,850,command,magit-rebase-skip,partial,Space m R s; guarded operation,explicit
-magit-sequence.el,858,command,magit-rebase-edit,missing,,explicit
+magit-sequence.el,858,command,magit-rebase-edit,partial,Space m R e while rebasing (Fred as editor),explicit
 magit-sequence.el,866,command,magit-rebase-abort,partial,Space m R a; guarded operation,explicit
 magit-sequence.el,,command,magit-apply:-p,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-sequence.el,,command,magit-cherry-pick:--mainline,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime

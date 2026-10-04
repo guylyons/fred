@@ -2488,6 +2488,55 @@ mod tests {
         );
     }
     #[test]
+    fn magit_rebase_todo_buffer_keys_edit_and_run_the_list() {
+        let mut t = T::open(Some("f.txt"), Some("one\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        for (file, msg) in [("f.txt", "first"), ("a", "second"), ("b", "third")] {
+            fs::write(t.dir.path().join(file), msg).unwrap();
+            repo.stage_file(Path::new(file)).unwrap();
+            repo.read(&["commit", "-qm", msg]).unwrap();
+        }
+        t.keys(":e!<Enter> mRi");
+        magit_settle(&mut t);
+        t.keys("HEAD~1<Enter>");
+        magit_settle(&mut t);
+        assert!(t.s.ed.rebase_todo.is_some(), "{}", t.msg());
+        assert!(
+            t.s.ed.buf.line(0).starts_with("pick "),
+            "{}",
+            t.s.ed.buf.line(0)
+        );
+        t.keys("gg<M-j>");
+        assert!(
+            t.s.ed.buf.line(1).contains("# second"),
+            "{}",
+            t.s.ed.buf.text()
+        );
+        t.keys("ggd");
+        assert!(t.s.ed.buf.line(0).starts_with("drop "));
+        t.keys("ggx");
+        t.keys("true<Enter>");
+        assert_eq!(t.s.ed.buf.line(1), "exec true");
+        t.keys("ZZ");
+        let inv = t.s.pending_git.take().expect("rebase replay");
+        assert!(inv.editor);
+        let result = inv.repo.run(&inv.args, None).map(|_| ());
+        assert!(result.is_ok(), "{result:?}");
+        assert!(t.dir.path().join("a").exists());
+        assert!(!t.dir.path().join("b").exists(), "third was dropped");
+        t.keys(" mRi");
+        magit_settle(&mut t);
+        t.keys("HEAD<Enter>");
+        magit_settle(&mut t);
+        t.keys("ZQ");
+        assert!(t.msg().contains("cancelled"), "{}", t.msg());
+        assert!(t.s.pending_git.is_none());
+    }
+    #[test]
     fn magit_file_log_rejects_buffers_without_a_source_file() {
         let mut t = T::open(None, None);
         t.keys(" mL");
@@ -2696,6 +2745,7 @@ mod tests {
             input: None,
             draft: None,
             draft_stamp: None,
+            editor: false,
         };
         t.s.finish_git(inv, Err("test operation failure".into()));
         magit_settle(&mut t);

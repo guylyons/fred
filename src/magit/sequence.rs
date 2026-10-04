@@ -24,6 +24,10 @@ pub enum Op {
     RevertNoCommit,
     /// Merge commits need a mainline: the pending op and its commits.
     Mainline(Box<Op>, String),
+    /// While a sequence runs: continue, skip, or abort after confirmation.
+    Continue,
+    Skip,
+    Abort,
 }
 
 fn rev(v: &str) -> Result<&str, String> {
@@ -60,11 +64,20 @@ impl Repo {
             _ => None,
         }
     }
-    /// The commits named by an answer: one commit, or A..B in order.
+    /// The commits named by an answer: one commit, or A..B oldest first
+    /// (reverts go newest first, as git revert does with a range).
     fn cherries(&self, answer: &str) -> Result<Vec<String>, String> {
+        self.cherries_ordered(answer, true)
+    }
+    fn cherries_ordered(&self, answer: &str, oldest_first: bool) -> Result<Vec<String>, String> {
         let answer = rev(answer.trim())?;
+        let order = if oldest_first {
+            "--reverse"
+        } else {
+            "--topo-order"
+        };
         let out = if answer.contains("..") {
-            self.read(&["rev-list", "--reverse", "--end-of-options", answer])
+            self.read(&["rev-list", order, "--end-of-options", answer])
         } else {
             self.read(&[
                 "rev-parse",
@@ -107,6 +120,13 @@ impl Repo {
             Op::Spinoff => "Spinoff cherry",
             Op::Revert => "Revert commit",
             Op::RevertNoCommit => "Revert changes",
+            Op::Abort => {
+                let kind = self.sequencer().unwrap_or("sequence");
+                return Ok((
+                    vec![format!("Really abort {kind}? (y or n) ")],
+                    vec![String::new()],
+                ));
+            }
             _ => return Err("not a menu suffix".into()),
         };
         Ok((vec![format!("{what} (default {d}): ")], vec![d]))
@@ -118,7 +138,8 @@ impl Repo {
         let current = self.current_branch().ok();
         match op {
             Op::Pick | Op::Apply | Op::Revert | Op::RevertNoCommit => {
-                let commits = self.cherries(at(0))?;
+                let revert = matches!(op, Op::Revert | Op::RevertNoCommit);
+                let commits = self.cherries_ordered(at(0), !revert)?;
                 self.pick(op, at(0), &commits, args, None)
             }
             Op::Mainline(op, answer) => {
@@ -126,7 +147,8 @@ impl Repo {
                 if n.is_empty() || !n.bytes().all(|b| b.is_ascii_digit()) || n == "0" {
                     return Err("Mainline must be a positive number".into());
                 }
-                let commits = self.cherries(&answer)?;
+                let revert = matches!(*op, Op::Revert | Op::RevertNoCommit);
+                let commits = self.cherries_ordered(&answer, !revert)?;
                 self.pick(*op, &answer, &commits, args, Some(n))
             }
             Op::Harvest | Op::Donate | Op::Spinout | Op::Spinoff => {
@@ -173,11 +195,20 @@ impl Repo {
                             ),
                         }
                     }
-                    Op::Donate => Next::Ask(
-                        Question::Sequence(Op::DonateTo(range)),
-                        vec![format!("Move {} to branch: ", plural(commits.len()))],
-                        vec![String::new()],
-                    ),
+                    Op::Donate => {
+                        let previous = self
+                            .read(&["rev-parse", "--abbrev-ref", "@{-1}"])
+                            .map(|o| String::from_utf8_lossy(&o).trim().to_owned())
+                            .unwrap_or_default();
+                        Next::Ask(
+                            Question::Sequence(Op::DonateTo(range)),
+                            vec![format!(
+                                "Move {} to branch (default {previous}): ",
+                                plural(commits.len())
+                            )],
+                            vec![previous],
+                        )
+                    }
                     _ => {
                         let upstream = current
                             .as_deref()
@@ -190,6 +221,7 @@ impl Repo {
                                 .ok()
                             })
                             .map(|o| String::from_utf8_lossy(&o).trim().to_owned())
+                            .or_else(|| current.clone())
                             .unwrap_or_default();
                         Next::Ask(
                             Question::Sequence(Op::NewBranch(range, op == Op::Spinoff)),
@@ -202,9 +234,30 @@ impl Repo {
                     }
                 })
             }
+            Op::Continue | Op::Skip | Op::Abort => {
+                let kind = self
+                    .sequencer()
+                    .ok_or("No cherry-pick or revert in progress")?;
+                let flag = match op {
+                    Op::Continue => "--continue",
+                    Op::Skip => "--skip",
+                    _ => {
+                        // magit-sequencer-abort asks first.
+                        if !matches!(at(0), "y" | "yes") {
+                            return Err("Abort".into());
+                        }
+                        "--abort"
+                    }
+                };
+                Ok(Next::GitEditor(vec![kind.into(), flag.into()]))
+            }
             Op::HarvestFrom(range) => {
                 let commits = self.cherries(&range)?;
                 let from = rev(at(0))?.to_owned();
+                // magit-completing-read requires one of the containing branches.
+                if !self.containing(&commits[0]).contains(&from) {
+                    return Err(format!("{from} does not contain these cherries"));
+                }
                 let dst = current.ok_or("Cannot harvest cherries while HEAD is detached")?;
                 // magit-cherry-harvest stays on the current branch.
                 self.cherry_move(&commits, Some(&from), &dst, args, None, true)
@@ -291,24 +344,17 @@ impl Repo {
                 }
             }
         }
-        // Fred has no editor for git: a single --edit pick/revert stops before
-        // committing and the commit draft edits MERGE_MSG.
+        // --edit runs Fred as Git's editor (like with-editor), which keeps the
+        // original author and works for every commit of a series.
         let edit = args.iter().any(|a| a == "--edit");
-        args.retain(|a| a != "--edit");
-        if edit && commits.len() == 1 && !args.iter().any(|a| a == "--no-commit") {
-            args.retain(|a| a != "--ff");
-            argv.push("--no-commit".into());
-            argv.extend(args);
-            argv.push("--end-of-options".into());
-            argv.extend(commits.iter().cloned());
-            let full: Vec<std::ffi::OsString> = argv.into_iter().map(Into::into).collect();
-            self.run(&full, None)?;
-            return Ok(Next::Draft(self.merge_message()));
-        }
         argv.extend(args);
         argv.push("--end-of-options".into());
         argv.extend(commits.iter().cloned());
-        Ok(Next::Git(argv))
+        Ok(if edit {
+            Next::GitEditor(argv)
+        } else {
+            Next::Git(argv)
+        })
     }
     /// magit--cherry-move: pick onto DST, then drop the cherries from SRC.
     // ponytail: commits are a contiguous range, so `rebase --onto` replaces
@@ -323,6 +369,21 @@ impl Repo {
         checkout_dst: bool,
     ) -> Result<Next, String> {
         let current = self.current_branch().ok();
+        // Refuse before changing anything: rebase cannot run over local edits,
+        // and merges would need a mainline.
+        if src.is_some()
+            && (self
+                .read(&["diff", "--quiet", "--ignore-submodules"])
+                .is_err()
+                || self
+                    .read(&["diff", "--cached", "--quiet", "--ignore-submodules"])
+                    .is_err())
+        {
+            return Err("Commit or stash local changes before moving cherries".into());
+        }
+        if commits.iter().any(|c| self.is_merge(c)) {
+            return Err("Cannot move merge commits".into());
+        }
         if self
             .read(&["show-ref", "--verify", "-q", &format!("refs/heads/{dst}")])
             .is_err()
@@ -350,30 +411,35 @@ impl Repo {
         let src_tip = String::from_utf8_lossy(&self.read(&["rev-parse", src])?)
             .trim()
             .to_owned();
+        let branch = self
+            .read(&["show-ref", "--verify", "-q", &format!("refs/heads/{src}")])
+            .is_ok();
+        let moved = format!("Moved {} to {dst}", plural(commits.len()));
         if *tip == src_tip {
-            if self
-                .read(&["show-ref", "--verify", "-q", &format!("refs/heads/{src}")])
-                .is_ok()
-            {
-                self.read(&[
-                    "update-ref",
-                    "-m",
-                    &format!("reset: moving to {keep}"),
-                    &format!("refs/heads/{src}"),
-                    &keep,
-                    tip,
-                ])?;
+            if !branch {
+                // A detached source ends on the commit before the cherries.
+                self.read(&["checkout", "--detach", &keep, "--"])?;
+                return Ok(Next::Done(Ok(moved)));
             }
+            self.read(&[
+                "update-ref",
+                "-m",
+                &format!("reset: moving to {keep}"),
+                &format!("refs/heads/{src}"),
+                &keep,
+                tip,
+            ])?;
         } else {
             self.read(&["checkout", src, "--"])?;
             self.read(&["rebase", "--onto", &keep, tip, src])?;
+            if !branch {
+                // The rebased detached HEAD is the result; stay on it.
+                return Ok(Next::Done(Ok(moved)));
+            }
         }
         let back = if checkout_dst { dst } else { src };
         self.read(&["checkout", back, "--"])?;
-        Ok(Next::Done(Ok(format!(
-            "Moved {} to {dst}",
-            plural(commits.len())
-        ))))
+        Ok(Next::Done(Ok(moved)))
     }
 }
 

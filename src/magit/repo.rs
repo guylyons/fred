@@ -135,8 +135,21 @@ impl Repo {
             format!("core.sshCommand={ssh} -o BatchMode=yes"),
         ];
         full.extend(args.iter().map(|s| s.to_string()));
-        let full: Vec<OsString> = full.into_iter().map(Into::into).collect();
-        self.run(&full, None)
+        let mut cmd = self.command();
+        cmd.env("GIT_TERMINAL_PROMPT", "0").args(&full);
+        // GIT_SSH_COMMAND outranks core.sshCommand: extend it the same way.
+        if let Ok(env) = std::env::var("GIT_SSH_COMMAND") {
+            cmd.env("GIT_SSH_COMMAND", format!("{env} -o BatchMode=yes"));
+        }
+        let out = cmd
+            .stdin(Stdio::null())
+            .output()
+            .map_err(|e| format!("git: {e}"))?;
+        if out.status.success() {
+            Ok(out.stdout)
+        } else {
+            Err(String::from_utf8_lossy(&out.stderr).trim().to_owned())
+        }
     }
     pub fn read(&self, args: &[&str]) -> Result<Vec<u8>, String> {
         self.run(&args.iter().map(OsString::from).collect::<Vec<_>>(), None)
@@ -343,6 +356,8 @@ pub struct GitInvocation {
     pub input: Option<Vec<u8>>,
     pub draft: Option<PathBuf>,
     pub draft_stamp: Option<crate::fileio::FileStamp>,
+    /// Let Git open an editor (Fred itself, like with-editor) in the terminal.
+    pub editor: bool,
 }
 impl Repo {
     pub fn file_history(&self, file: &Path, follow: bool) -> Result<Vec<Commit>, String> {
@@ -434,6 +449,7 @@ impl Repo {
             args: ["commit", "-F", "-"].iter().map(OsString::from).collect(),
             input: Some(message),
             draft: Some(draft),
+            editor: false,
         })
     }
 }

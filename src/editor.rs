@@ -121,6 +121,8 @@ pub struct Editor {
     pub blame: Option<crate::magit::blame::Blame>,
     /// magit-blob-mode: this buffer shows REV:FILE.
     pub blob: Option<crate::magit::blob::Blob>,
+    /// git-rebase-mode: this buffer is an interactive rebase's todo list.
+    pub rebase_todo: Option<crate::magit::rebase::Plan>,
     pub commit_args: Vec<String>,
     pub magit_menu: Option<char>,
     pub magit_prompt: Option<crate::magit::Prompt>,
@@ -178,6 +180,7 @@ impl Editor {
             magit_seeded: std::collections::HashSet::new(),
             blame: None,
             blob: None,
+            rebase_todo: None,
             commit_args: vec![],
             magit_menu: None,
             magit_prompt: None,
@@ -221,6 +224,7 @@ impl Editor {
         if crate::magit::key(self, k)
             || crate::magit::blame::key(self, k)
             || crate::magit::blob::key(self, k)
+            || crate::magit::rebase::key(self, k)
         {
             return;
         }

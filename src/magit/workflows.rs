@@ -323,6 +323,7 @@ impl Repo {
             input: None,
             draft: None,
             draft_stamp: None,
+            editor: false,
         })
     }
 }

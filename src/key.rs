@@ -80,6 +80,15 @@ pub fn parse_keys(s: &str) -> Vec<Key> {
 }
 
 fn named(name: &str) -> Option<Key> {
+    if let Some(c) = name.strip_prefix("M-") {
+        let mut it = c.chars();
+        let ch = it.next()?;
+        return it.next().is_none().then_some(Key {
+            code: KeyCode::Char(ch),
+            ctrl: false,
+            alt: true,
+        });
+    }
     if let Some(c) = name.strip_prefix("C-") {
         let mut it = c.chars();
         let ch = it.next()?;

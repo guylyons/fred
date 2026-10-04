@@ -483,6 +483,15 @@ fn run_git(ui: &mut Ui, s: &mut Session, inv: crate::magit::repo::GitInvocation)
                 .join(" ")
         );
         let mut cmd = inv.repo.command();
+        if inv.editor
+            && let Ok(exe) = std::env::current_exe()
+        {
+            // GIT_EDITOR is run by a shell: quote Fred's own path.
+            let quoted = format!("'{}'", exe.to_string_lossy().replace('\'', "'\\''"));
+            cmd.env("GIT_EDITOR", quoted);
+            // Fred's -c sequence.editor must win over an inherited override.
+            cmd.env_remove("GIT_SEQUENCE_EDITOR");
+        }
         cmd.args(&inv.args);
         cmd.stdin(if inv.input.is_some() {
             std::process::Stdio::piped()

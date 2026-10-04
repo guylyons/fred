@@ -42,6 +42,12 @@ pub enum Next {
     Draft(Vec<u8>),
     /// Show a diff (merge preview).
     Show(super::diff::Target),
+    /// A terminal Git command that may open an editor (Fred, like with-editor).
+    GitEditor(Vec<String>),
+    /// An interactive rebase's captured todo list to edit.
+    Todo(super::rebase::Plan),
+    /// Run an interactive rebase with its prepared todo list.
+    Replay(super::rebase::Plan),
 }
 
 fn name(v: &str) -> Result<&str, String> {

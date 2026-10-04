@@ -2063,16 +2063,24 @@ fn cherry_pick_and_revert_suffixes_follow_magit_sequence() {
         ),
         other => panic!("{other:?}"),
     }
-    // V with --edit stops before committing and opens a draft with the message.
+    // V with --edit lets Git run Fred as its editor (keeps authorship).
     match r
         .sequence_step(Op::Revert, &s(&["HEAD"]), &s(&["--edit"]))
         .unwrap()
     {
-        Next::Draft(msg) => assert!(String::from_utf8_lossy(&msg).starts_with("Revert \"a\"")),
+        Next::GitEditor(argv) => assert_eq!(argv[..2], ["revert", "--edit"]),
         other => panic!("{other:?}"),
     }
-    assert_eq!(r.sequencer(), Some("revert"));
-    git(d.path(), &["revert", "--abort"]);
+    // Reverting a range goes newest first, like git revert A..B.
+    match r
+        .sequence_step(Op::Revert, &s(&["main~1..main"]), &s(&["--no-edit"]))
+        .unwrap()
+    {
+        Next::Git(argv) => assert_eq!(argv.len(), 4, "{argv:?}"),
+        other => panic!("{other:?}"),
+    }
+    // Abort needs a running sequence and asks first.
+    assert!(r.sequence_step(Op::Abort, &s(&["y"]), &[]).is_err());
     // Merge commits ask for a mainline.
     git(
         d.path(),
@@ -2119,6 +2127,23 @@ fn cherry_pick_and_revert_suffixes_follow_magit_sequence() {
     assert!(git(d.path(), &["show", "side:e"]) == b"e");
     // Moving cherries away requires them to be reachable from HEAD.
     assert!(r.sequence_step(Op::Spinoff, &s(&[&b]), &[]).is_err());
+    // Harvesting names a branch that contains the cherries.
+    git(d.path(), &["branch", "unrelated", "main"]);
+    assert!(
+        r.sequence_step(Op::HarvestFrom(b.clone()), &s(&["unrelated"]), &[])
+            .unwrap_err()
+            .contains("does not contain")
+    );
+    // Moving cherries refuses a dirty worktree before changing anything.
+    fs::write(d.path().join("f"), b"dirty\n").unwrap();
+    git(d.path(), &["branch", "dest2", "HEAD~1"]);
+    let tip = String::from_utf8(git(d.path(), &["rev-parse", "HEAD"])).unwrap();
+    assert!(
+        r.sequence_step(Op::DonateTo(tip.trim().to_owned()), &s(&["dest2"]), &[])
+            .is_err()
+    );
+    assert_eq!(r.current_branch().unwrap(), "main");
+    git(d.path(), &["checkout", "-q", "--", "f"]);
     // h: harvest from a branch onto the current one.
     match r.sequence_step(Op::Harvest, &s(&[&b]), &[]).unwrap() {
         Next::Done(Ok(_)) => (),
@@ -2126,4 +2151,119 @@ fn cherry_pick_and_revert_suffixes_follow_magit_sequence() {
     }
     assert!(d.path().join("b").exists());
     assert_eq!(r.current_branch().unwrap(), "main");
+}
+#[test]
+fn rebase_captures_and_replays_todo_lists() {
+    use super::Question as Q;
+    use super::branch::Next;
+    use super::rebase::Op;
+    let (d, r) = setup();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    let commit = |file: &str| {
+        fs::write(d.path().join(file), file.as_bytes()).unwrap();
+        git(d.path(), &["add", file]);
+        git(d.path(), &["commit", "-qm", file]);
+        String::from_utf8(git(d.path(), &["rev-parse", "HEAD"]))
+            .unwrap()
+            .trim()
+            .to_owned()
+    };
+    let one = commit("one");
+    let two = commit("two");
+    let _three = commit("three");
+    let run = |inv: super::repo::GitInvocation| {
+        inv.validate().unwrap();
+        r.run(&inv.args, None).unwrap();
+    };
+    // i: capture Git's todo without starting a rebase; autostash survives.
+    fs::write(d.path().join("one"), b"dirty").unwrap();
+    let plan = match r
+        .rebase_step(Op::Interactive, &s(&[&two]), &s(&["--autostash"]))
+        .unwrap()
+    {
+        Next::Todo(plan) => plan,
+        other => panic!("{other:?}"),
+    };
+    assert!(!r.rebase_in_progress());
+    assert_eq!(fs::read(d.path().join("one")).unwrap(), b"dirty");
+    let todo = fs::read_to_string(&plan.todo).unwrap();
+    assert!(
+        todo.starts_with("pick ") && todo.contains("# two") && todo.contains("# three"),
+        "{todo}"
+    );
+    git(d.path(), &["checkout", "-q", "--", "one"]);
+    // Replay with "two" dropped.
+    let edited = todo.replacen("pick", "drop", 1);
+    fs::write(&plan.todo, edited).unwrap();
+    run(plan.replay().unwrap());
+    assert!(!d.path().join("two").exists() && d.path().join("three").exists());
+    // A plan whose HEAD moved refuses to replay.
+    let plan = match r.rebase_step(Op::Interactive, &s(&[&one]), &[]).unwrap() {
+        Next::Todo(plan) => plan,
+        other => panic!("{other:?}"),
+    };
+    commit("four");
+    assert!(plan.replay().is_err());
+    // k: remove a commit; the root commit uses --root.
+    match r
+        .rebase_step(Op::RemoveCommit, &s(&["HEAD~1"]), &[])
+        .unwrap()
+    {
+        Next::Replay(plan) => run(plan.replay().unwrap()),
+        other => panic!("{other:?}"),
+    }
+    assert!(!d.path().join("three").exists() && d.path().join("four").exists());
+    match r.rebase_step(Op::Interactive, &s(&[&one]), &[]).unwrap() {
+        Next::Todo(plan) => assert_eq!(plan.base, ["--root"]),
+        other => panic!("{other:?}"),
+    }
+    // m: stop at a commit; continue goes through Git with Fred as editor.
+    match r.rebase_step(Op::EditCommit, &s(&["HEAD~1"]), &[]).unwrap() {
+        Next::Replay(plan) => run(plan.replay().unwrap()),
+        other => panic!("{other:?}"),
+    }
+    assert!(r.rebase_in_progress());
+    assert!(matches!(
+        r.rebase_step(Op::Continue, &[], &[]).unwrap(),
+        Next::GitEditor(a) if a == ["rebase", "--continue"]
+    ));
+    assert!(r.rebase_step(Op::Abort, &s(&["n"]), &[]).is_err());
+    match r.rebase_step(Op::Abort, &s(&["y"]), &[]).unwrap() {
+        Next::Git(argv) => r
+            .run(&argv.into_iter().map(Into::into).collect::<Vec<_>>(), None)
+            .map(|_| ())
+            .unwrap(),
+        other => panic!("{other:?}"),
+    }
+    assert!(!r.rebase_in_progress());
+    // Published commits ask first.
+    let bare = tempfile::tempdir().unwrap();
+    git(bare.path(), &["init", "--bare", "-q", "-b", "main"]);
+    git(
+        d.path(),
+        &["remote", "add", "origin", bare.path().to_str().unwrap()],
+    );
+    git(d.path(), &["push", "-qu", "origin", "main"]);
+    match r.rebase_step(Op::RewordCommit, &s(&["HEAD"]), &[]).unwrap() {
+        Next::Ask(Q::Rebase(op @ Op::Published(..)), p, _) => {
+            assert!(p[0].contains("origin/main"));
+            assert!(r.rebase_step(op, &s(&["n"]), &[]).is_err());
+        }
+        other => panic!("{other:?}"),
+    }
+    // Non-interactive rebases run in the terminal with their arguments.
+    match r
+        .rebase_step(Op::Elsewhere, &s(&["HEAD~1"]), &s(&["--autostash"]))
+        .unwrap()
+    {
+        Next::GitEditor(argv) => assert_eq!(
+            argv,
+            ["rebase", "--autostash", "--end-of-options", "HEAD~1"]
+        ),
+        other => panic!("{other:?}"),
+    }
+    assert!(
+        r.rebase_step(Op::Elsewhere, &s(&["--exec=x"]), &[])
+            .is_err()
+    );
 }

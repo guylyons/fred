@@ -5,6 +5,7 @@ pub mod branch;
 pub mod diff;
 pub mod merge;
 pub mod network;
+pub mod rebase;
 pub mod remote;
 pub mod repo;
 pub mod reset;
@@ -65,6 +66,11 @@ pub enum Action {
     Remote(remote::Op),
     /// A cherry-pick or revert suffix from magit-sequence.el.
     Sequence(sequence::Op),
+    /// A rebase suffix from magit-sequence.el.
+    Rebase(rebase::Op),
+    /// ZZ / ZQ in a rebase todo buffer.
+    RebaseFinish,
+    RebaseCancel,
     /// magit-file-stage/unstage/untrack/rename/delete/checkout.
     File(blob::FileOp),
     BlameCycle,
@@ -633,7 +639,9 @@ fn menu_help(menu: char) -> Option<&'static str> {
         'M' => {
             "Merge: m merge  e edit msg  n no commit  a absorb  p preview  s squash  d dissolve; merging: m commit  a abort"
         }
-        'r' => "Rebase: r onto revision  c continue  s skip  a abort",
+        'r' => {
+            "Rebase onto: p pushRemote  u upstream  e elsewhere; i interactive  s subset  m modify  w reword  k remove  f autosquash; rebasing: r continue  s skip  e edit  a abort"
+        }
         'x' => {
             "Cherry-pick: A pick  a apply  h harvest  m squash  d donate  n spinout  s spinoff; picking: A continue  s skip  a abort"
         }
@@ -666,6 +674,8 @@ pub enum Prompt {
     InitConfirm(PathBuf, String),
     /// A chain of prompts: repo, question, arguments, prompts, answers so far.
     Ask(Repo, Question, Vec<String>, Vec<String>, Vec<String>),
+    /// git-rebase-exec: the command to add below the current todo line.
+    RebaseExec,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Question {
@@ -675,6 +685,7 @@ pub enum Question {
     Reset(reset::Op),
     Remote(remote::Op),
     Sequence(sequence::Op),
+    Rebase(rebase::Op),
     Net(network::Op),
     Diff(diff::Op),
     FindFile,
@@ -685,6 +696,7 @@ pub fn prompt(ed: &mut Editor, question: Prompt) {
         Prompt::Workflow(_, operation, _) => operation.prompt().unwrap_or("").to_owned(),
         Prompt::Ask(_, _, _, prompts, answers) => prompts[answers.len()].clone(),
         Prompt::InitDir(_) => "Create repository in: ".into(),
+        Prompt::RebaseExec => "Execute: ".into(),
         Prompt::InitConfirm(_, question) => question.clone(),
         Prompt::DropStash(_, stash) => format!(
             "Drop {} ({})? Type yes: ",
@@ -727,6 +739,7 @@ pub fn answer(ed: &mut Editor, text: &str) {
             ed.pending_effect = Some(ExEffect::Magit(Action::InitDir(dir, true)))
         }
         Some(Prompt::InitConfirm(..)) => ed.set_msg("Abort"),
+        Some(Prompt::RebaseExec) => rebase::insert_exec(ed, text),
         Some(Prompt::Ask(repo, question, args, prompts, mut answers)) => {
             answers.push(text.trim().to_owned());
             if answers.len() < prompts.len() {
@@ -754,6 +767,10 @@ pub(crate) fn open_menu(ed: &mut Editor, menu: char) {
         } else {
             ed.magit_options.remove(&MenuOption::LogFollow);
         }
+    }
+    // magit-rebase :value '("--autostash").
+    if menu == 'r' && ed.magit_seeded.insert('r') {
+        ed.magit_options.insert(MenuOption::RebaseAutostash);
     }
     // magit-cherry-pick :value '("--ff") and magit-revert :value '("--edit").
     if menu == 'x' && ed.magit_seeded.insert('x') {
@@ -1345,12 +1362,123 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 ("d", "Actions", "Dissolve", Action::Merge(O::Dissolve)),
             ]
         }
-        'r' => vec![
-            ("r", "Rebase", "Onto revision", Workflow(Rebase)),
-            ("c", "Sequence", "Continue", Workflow(RebaseContinue)),
-            ("s", "Sequence", "Skip", Workflow(RebaseSkip)),
-            ("a", "Sequence", "Abort", Workflow(RebaseAbort)),
-        ],
+        // magit-rebase; while rebasing, r continues, s skips, e edits the
+        // todo list and a aborts (resolved when run).
+        'r' => {
+            use rebase::Op as O;
+            vec![
+                (
+                    "-k",
+                    "Arguments",
+                    "Keep empty commits",
+                    ToggleOption(MenuOption::RebaseKeepEmpty),
+                ),
+                (
+                    "-r",
+                    "Arguments",
+                    "Rebase merges",
+                    CycleOption("--rebase-merges="),
+                ),
+                (
+                    "-u",
+                    "Arguments",
+                    "Update branches",
+                    ToggleOption(MenuOption::RebaseUpdateRefs),
+                ),
+                (
+                    "-d",
+                    "Arguments",
+                    "Use author date as committer date",
+                    ToggleOption(MenuOption::RebaseAuthorDate),
+                ),
+                (
+                    "-t",
+                    "Arguments",
+                    "Use current time as author date",
+                    ToggleOption(MenuOption::RebaseIgnoreDate),
+                ),
+                (
+                    "-a",
+                    "Arguments",
+                    "Autosquash",
+                    ToggleOption(MenuOption::RebaseAutosquash),
+                ),
+                (
+                    "-A",
+                    "Arguments",
+                    "Autostash",
+                    ToggleOption(MenuOption::RebaseAutostash),
+                ),
+                (
+                    "-i",
+                    "Arguments",
+                    "Interactive",
+                    ToggleOption(MenuOption::RebaseInteractive),
+                ),
+                (
+                    "-h",
+                    "Arguments",
+                    "Disable hooks",
+                    ToggleOption(MenuOption::RebaseNoVerify),
+                ),
+                (
+                    "p",
+                    "Rebase onto",
+                    "pushRemote",
+                    Action::Rebase(O::OntoPushRemote),
+                ),
+                (
+                    "u",
+                    "Rebase onto",
+                    "@{upstream}",
+                    Action::Rebase(O::OntoUpstream),
+                ),
+                (
+                    "e",
+                    "Rebase onto",
+                    "elsewhere / edit todo",
+                    Action::Rebase(O::Elsewhere),
+                ),
+                (
+                    "i",
+                    "Rebase",
+                    "interactively",
+                    Action::Rebase(O::Interactive),
+                ),
+                ("s", "Rebase", "a subset / skip", Action::Rebase(O::Subset)),
+                (
+                    "m",
+                    "Rebase",
+                    "to modify a commit",
+                    Action::Rebase(O::EditCommit),
+                ),
+                (
+                    "w",
+                    "Rebase",
+                    "to reword a commit",
+                    Action::Rebase(O::RewordCommit),
+                ),
+                (
+                    "k",
+                    "Rebase",
+                    "to remove a commit",
+                    Action::Rebase(O::RemoveCommit),
+                ),
+                (
+                    "f",
+                    "Rebase",
+                    "to autosquash",
+                    Action::Rebase(O::Autosquash),
+                ),
+                (
+                    "r",
+                    "Actions (rebasing)",
+                    "Continue",
+                    Action::Rebase(O::Continue),
+                ),
+                ("a", "Actions (rebasing)", "Abort", Action::Rebase(O::Abort)),
+            ]
+        }
         // magit-cherry-pick; while a sequence runs, A continues, s skips, a aborts.
         'x' => {
             use sequence::Op as O;
@@ -1442,8 +1570,8 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                     "Revert changes",
                     Action::Sequence(O::RevertNoCommit),
                 ),
-                ("s", "Sequence", "Skip", Workflow(RevertSkip)),
-                ("a", "Sequence", "Abort", Workflow(RevertAbort)),
+                ("s", "Sequence", "Skip", Action::Sequence(O::Skip)),
+                ("a", "Sequence", "Abort", Action::Sequence(O::Abort)),
             ]
         }
         _ => vec![],
@@ -1480,6 +1608,14 @@ pub enum MenuOption {
     DiffStat,
     DiffSignature,
     RemoteFetch,
+    RebaseKeepEmpty,
+    RebaseUpdateRefs,
+    RebaseAuthorDate,
+    RebaseIgnoreDate,
+    RebaseAutosquash,
+    RebaseAutostash,
+    RebaseInteractive,
+    RebaseNoVerify,
     CherryFf,
     CherryX,
     CherryEdit,
@@ -1507,6 +1643,7 @@ pub fn choices(prefix: &str) -> &'static [&'static str] {
         "--diff-merges=" => &["off", "first-parent", "combined", "dense-combined"],
         "--ignore-submodules=" => &["none", "untracked", "dirty", "all"],
         "--strategy=" => &["resolve", "recursive", "octopus", "ours", "subtree"],
+        "--rebase-merges=" => &["no-rebase-cousins", "rebase-cousins"],
         _ => &[],
     }
 }
@@ -1520,6 +1657,8 @@ impl MenuOption {
             MergeFfOnly | MergeNoFf => 'M',
             RemoteFetch => 'O',
             CherryFf | CherryX | CherryEdit => 'x',
+            RebaseKeepEmpty | RebaseUpdateRefs | RebaseAuthorDate | RebaseIgnoreDate
+            | RebaseAutosquash | RebaseAutostash | RebaseInteractive | RebaseNoVerify => 'r',
             RevertEdit | RevertNoEdit => 'v',
             PullFfOnly | PullForce => 'P',
             Choice(menu, ..) => menu,
@@ -1562,6 +1701,14 @@ impl MenuOption {
             Self::DiffStat => "--stat",
             Self::DiffSignature => "--show-signature",
             Self::RemoteFetch => "-f",
+            Self::RebaseKeepEmpty => "--keep-empty",
+            Self::RebaseUpdateRefs => "--update-refs",
+            Self::RebaseAuthorDate => "--committer-date-is-author-date",
+            Self::RebaseIgnoreDate => "--ignore-date",
+            Self::RebaseAutosquash => "--autosquash",
+            Self::RebaseAutostash => "--autostash",
+            Self::RebaseInteractive => "--interactive",
+            Self::RebaseNoVerify => "--no-verify",
             Self::CherryFf => "--ff",
             Self::CherryX => "-x",
             Self::CherryEdit | Self::RevertEdit => "--edit",

@@ -13,6 +13,8 @@ pub(super) enum Outcome {
     Prompt(Repo, crate::magit::workflows::Operation, Vec<String>),
     Ask(Repo, crate::magit::Question, Vec<String>, Vec<String>),
     InitConfirm(PathBuf, String),
+    /// An interactive rebase todo list to open for editing.
+    Todo(crate::magit::rebase::Plan),
     Blame(Box<crate::magit::blame::Blame>),
     /// A blob to show at a line, a message, then optionally blame it.
     Blob(
@@ -200,6 +202,85 @@ impl Session {
             });
             return;
         }
+        if let Action::Answered(repo, Question::Rebase(op), answers, defaults) = action {
+            let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, 'r'));
+            self.start_magit(move || {
+                let merged = merge_answers(&answers, &defaults);
+                let next = repo
+                    .rebase_step(op, &merged, &args)
+                    .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                Ok(branch_outcome(repo, next, origin))
+            });
+            return;
+        }
+        if let Action::Rebase(op) = action {
+            use crate::magit::rebase::Op as R;
+            let (origin, from) = (self.cur, self.magit_from());
+            let args = crate::magit::menu_arguments(&self.ed, 'r');
+            let at_point =
+                self.ed
+                    .magit
+                    .as_ref()
+                    .and_then(|v| match v.action_at(self.ed.cur.line) {
+                        Some(RowAction::Commit(id)) => Some(id),
+                        _ => match &v.kind {
+                            Kind::Patch(id) | Kind::Diff(Target::Commit(id), _) => Some(id.clone()),
+                            _ => None,
+                        },
+                    });
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                // Upstream's in-progress group: r continue, s skip, e edit todo, a abort.
+                let op = match (repo.rebase_in_progress(), op) {
+                    (true, op @ (R::Continue | R::Abort)) => op,
+                    (true, R::Subset) => R::Skip,
+                    (true, R::Elsewhere) => R::EditTodo,
+                    (true, _) => {
+                        return Err(
+                            "A rebase is in progress: r continue, s skip, e edit, a abort".into(),
+                        );
+                    }
+                    (false, R::Continue | R::Abort) => return Err("No rebase in progress".into()),
+                    (false, op) => op,
+                };
+                let (prompts, defaults) = repo.rebase_prompts(&op, at_point)?;
+                if prompts.is_empty() {
+                    let next = repo
+                        .rebase_step(op, &[], &args)
+                        .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                    return Ok(branch_outcome(repo, next, origin));
+                }
+                Ok(Outcome::Ask(repo, Question::Rebase(op), defaults, prompts))
+            });
+            return;
+        }
+        if action == Action::RebaseFinish || action == Action::RebaseCancel {
+            let Some(plan) = self.ed.rebase_todo.take() else {
+                return self.ed.set_err("Not a rebase todo buffer");
+            };
+            if action == Action::RebaseCancel {
+                let _ = std::fs::remove_file(&plan.todo);
+                self.buffer(BufCmd::Delete, "", true);
+                return self.ed.set_msg("Rebase cancelled");
+            }
+            // with-editor-finish: save the list, then let Git run it.
+            if let Err(e) = std::fs::write(&plan.todo, self.ed.buf.to_bytes()) {
+                self.ed.rebase_todo = Some(plan);
+                return self.ed.set_err(e.to_string());
+            }
+            self.ed.buf.modified = false;
+            match plan.replay() {
+                Ok(inv) => {
+                    self.buffer(BufCmd::Delete, "", true);
+                    self.pending_git = Some(inv);
+                }
+                Err(e) => {
+                    self.ed.rebase_todo = Some(plan);
+                    self.ed.set_err(e);
+                }
+            }
+            return;
+        }
         if let Action::Answered(repo, Question::Sequence(op), answers, defaults) = action {
             let menu = sequence_menu(&op);
             let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, menu));
@@ -214,7 +295,7 @@ impl Session {
         }
         if let Action::Sequence(op) = action {
             use crate::magit::sequence::Op as S;
-            use crate::magit::workflows::Operation as W;
+            let origin = self.cur;
             let from = self.magit_from();
             let at_point =
                 self.ed
@@ -230,19 +311,26 @@ impl Session {
             self.start_magit(move || {
                 let repo = Repo::discover(&from)?;
                 // Upstream's in-progress group shares keys with the suffixes.
-                if let Some(kind) = repo.sequencer() {
-                    let operation = match (kind, &op) {
-                        ("cherry-pick", S::Pick) => W::CherryContinue,
-                        ("cherry-pick", S::Spinoff) => W::CherrySkip,
-                        ("cherry-pick", S::Apply) => W::CherryAbort,
-                        ("revert", S::Revert) => W::RevertContinue,
-                        _ => {
-                            return Err(format!(
-                                "A {kind} is in progress: continue, skip or abort it first"
-                            ));
-                        }
-                    };
-                    return Ok(Outcome::Git(repo.operation(operation, "")?));
+                // The in-progress group acts on whichever sequence is running.
+                let op = match (repo.sequencer(), op) {
+                    (Some(_), S::Pick | S::Revert | S::Continue) => S::Continue,
+                    (Some(_), S::Spinoff | S::Skip) => S::Skip,
+                    (Some(_), S::Apply | S::Abort) => S::Abort,
+                    (Some(kind), _) => {
+                        return Err(format!(
+                            "A {kind} is in progress: continue, skip or abort it first"
+                        ));
+                    }
+                    (None, S::Continue | S::Skip | S::Abort) => {
+                        return Err("No cherry-pick or revert in progress".into());
+                    }
+                    (None, op) => op,
+                };
+                if matches!(op, S::Continue | S::Skip) {
+                    let next = repo
+                        .sequence_step(op, &[], &[])
+                        .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                    return Ok(branch_outcome(repo, next, origin));
                 }
                 let (prompts, defaults) = repo.sequence_prompts(&op, at_point)?;
                 Ok(Outcome::Ask(
@@ -370,7 +458,8 @@ impl Session {
                 | Question::Merge(_)
                 | Question::Reset(_)
                 | Question::Remote(_)
-                | Question::Sequence(_) => {
+                | Question::Sequence(_)
+                | Question::Rebase(_) => {
                     unreachable!("handled before the worker")
                 }
                 Question::FindFile => {
@@ -701,6 +790,7 @@ impl Session {
                     input: None,
                     draft: None,
                     draft_stamp: None,
+                    editor: false,
                 });
             }
             return;
@@ -1047,6 +1137,7 @@ impl Session {
                         input: None,
                         draft: None,
                         draft_stamp: None,
+                        editor: false,
                     },
                     result,
                 );
@@ -1067,6 +1158,13 @@ impl Session {
                 if let Some(kind) = then {
                     self.magit_action(Action::Blame(kind));
                 }
+            }
+            Ok(Outcome::Todo(plan)) => {
+                self.open_pick(plan.todo.clone(), None);
+                self.ed.rebase_todo = Some(plan);
+                self.ed.set_msg(
+                    "Rebase todo: p r e s f d set action  x exec  M-j/M-k move  ZZ run  ZQ cancel",
+                );
             }
             Ok(Outcome::InitConfirm(dir, question)) => {
                 if self.ed.magit_input_generation != job.input_generation
@@ -1168,6 +1266,7 @@ impl Session {
                     input: None,
                     draft: None,
                     draft_stamp: None,
+                    editor: false,
                 },
                 result,
             ),
@@ -1693,7 +1792,22 @@ fn branch_outcome(repo: Repo, next: crate::magit::branch::Next, origin: usize) -
             input: None,
             draft: None,
             draft_stamp: None,
+            editor: false,
         }),
+        Next::GitEditor(args) => Outcome::Git(GitInvocation {
+            expected_head: None,
+            repo,
+            args: args.into_iter().map(OsString::from).collect(),
+            input: None,
+            draft: None,
+            draft_stamp: None,
+            editor: true,
+        }),
+        Next::Todo(plan) => Outcome::Todo(plan),
+        Next::Replay(plan) => match plan.replay() {
+            Ok(inv) => Outcome::Git(inv),
+            Err(e) => Outcome::Saved(repo, Err(e)),
+        },
         Next::Draft(message) => {
             Outcome::Draft(repo, crate::magit::CommitMode::New, message, vec![])
         }

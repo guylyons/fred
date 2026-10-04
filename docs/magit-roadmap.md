@@ -141,3 +141,9 @@ partial / 610 missing commands. Score remains 3%.
 October 4 remote checkpoint: Space m M ports magit-remote; Space m m is merge
 as in magit-dispatch ([scenarios](magit-remote-acceptance.md)); reset review
 fixes. Ledger 170 partial / 603 missing commands. Score remains 3%.
+
+October 4 rebase checkpoint: Space m R ports magit-rebase with interactive
+todo editing ([scenarios](magit-rebase-acceptance.md)); Git can now use Fred as
+its editor in the terminal (GitInvocation.editor); cherry-pick review fixes.
+Ledger 199 partial / 574 missing commands. Score remains 3%. Next: transient
+popup rendering (user request), then stash variants and the commit menu.
