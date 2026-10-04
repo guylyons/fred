@@ -50,6 +50,8 @@ pub fn by_name(name: &str) -> Option<Action> {
         "magit-blame" => menu('B'),
         "magit-init" => Some(Init),
         "magit-commit-create" => Some(Commit),
+        "magit-commit-absorb" => menu('A'),
+        "magit-commit-autofixup" => menu('H'),
         "magit-commit-amend" => Some(AmendDraft),
         "magit-commit-reword" => Some(RewordDraft),
         "magit-log-current" => Some(Log),
@@ -89,6 +91,17 @@ pub fn by_name(name: &str) -> Option<Action> {
         "magit-unstage-all" => Some(ApplyOp(apply::Kind::UnstageAll)),
         "magit-discard" => Some(ApplyOp(apply::Kind::Discard)),
         "magit-reverse" => Some(ApplyOp(apply::Kind::Reverse)),
+        "magit-reverse-in-index" => Some(ReverseInIndex),
+        "magit-stage-files" => Some(Misc(misc::Op::StageFiles(false))),
+        "git-commit-save-message" => Some(SaveMessage),
+        "git-commit-insert-changelog-gnu" | "magit-generate-changelog" => Some(Changelog(true)),
+        "git-commit-insert-changelog-plain" => Some(Changelog(false)),
+        "magit-commit-add-log" => Some(CommitAddLog),
+        "magit-add-change-log-entry" | "magit-add-change-log-entry-other-window" => {
+            Some(AddChangeLogEntry)
+        }
+        "magit-unstage-files" => Some(Misc(misc::Op::UnstageFiles)),
+        "magit-copy-diff-as-kill" => Some(CopyDiff),
         "magit-fetch-all-prune" => Some(GitRun(&["remote", "update", "--prune"])),
         "magit-fetch-all-no-prune" => Some(GitRun(&["remote", "update"])),
         // magit-push-implicitly: git push -v with no refspec.

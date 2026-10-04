@@ -36,6 +36,32 @@ pub(super) enum Outcome {
     /// A network command whose configuration was already written.
     ConfiguredGit(GitInvocation),
     Saved(Repo, Result<(), String>),
+    /// Text for the unnamed register (the kill ring) and a message.
+    Copy(String, String),
+}
+/// What a hunk patch at point is used for.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PatchUse {
+    Apply,
+    Reverse,
+    ReverseIndex,
+}
+/// The patch for the hunk (or file) at LINE of a diff, commit or stash buffer.
+fn diff_patch_at(view: &View, line: usize) -> Result<Vec<u8>, String> {
+    let repo = &view.repo;
+    // The raw output and the rows before it (a diff buffer's title).
+    let (bytes, offset) = match &view.kind {
+        Kind::Diff(target, args) => (repo.diff_output(target, args)?, 1),
+        Kind::Patch(id) => (repo.commit_patch(id)?, 0),
+        Kind::StashPatch(stash) => (repo.stash_patch(stash)?, 0),
+        _ => return Err("Not in a diff buffer".into()),
+    };
+    if bytes.len() > 1024 * 1024 {
+        return Err("Diff too large to apply from here".into());
+    }
+    let lines: Vec<&[u8]> = bytes.split(|b| *b == b'\n').collect();
+    let at = line.checked_sub(offset).ok_or("No hunk or file at point")?;
+    crate::magit::diff::hunk_patch(&lines, at)
 }
 pub(super) struct Job {
     input_generation: u64,
@@ -347,16 +373,34 @@ impl Session {
                 .as_ref()
                 .filter(|_| self.ed.magit.is_none())
                 .and_then(|p| p.parent().map(Path::to_path_buf));
+            let files = matches!(
+                op,
+                crate::magit::misc::Op::StageFiles(_) | crate::magit::misc::Op::UnstageFiles
+            );
             let at_point =
                 self.ed
                     .magit
                     .as_ref()
                     .and_then(|v| match v.action_at(self.ed.cur.line) {
-                        Some(RowAction::Commit(id)) => Some(id),
+                        Some(RowAction::Commit(id)) if !files => Some(id),
+                        Some(RowAction::File(p, _) | RowAction::Hunk(p, ..)) if files => {
+                            Some(p.to_string_lossy().into_owned())
+                        }
                         _ => None,
                     });
+            // The visited file is the default file (magit-file-relative-name).
+            let visited = self
+                .ed
+                .path
+                .clone()
+                .filter(|_| files && !self.ed.generated());
             self.start_magit(move || {
                 let repo = Repo::discover(&from)?;
+                let at_point = at_point.or_else(|| {
+                    visited
+                        .and_then(|p| repo_relative(&repo, &p).ok())
+                        .map(|p| p.to_string_lossy().into_owned())
+                });
                 let op = match (op, here) {
                     (crate::magit::misc::Op::GitCommand { topdir: false }, Some(dir)) => {
                         crate::magit::misc::Op::GitCommandIn(
@@ -542,11 +586,56 @@ impl Session {
             });
             return;
         }
-        if let Action::Answered(_, Question::ReverseDiff(line), answers, _) = action {
+        if let Action::Answered(_, Question::ReverseDiff(line, index), answers, _) = action {
             if !matches!(answers.first().map(|a| a.trim()), Some("y" | "yes")) {
                 return self.ed.set_msg("Abort");
             }
-            return self.apply_diff(true, line);
+            let how = if index {
+                PatchUse::ReverseIndex
+            } else {
+                PatchUse::Reverse
+            };
+            return self.apply_diff(how, line);
+        }
+        if action == Action::CopyDiff {
+            return self.copy_diff();
+        }
+        if action == Action::SaveMessage {
+            return crate::magit::message::save_message(&mut self.ed);
+        }
+        if let Action::Changelog(gnu) = action {
+            return crate::magit::message::insert_changelog(&mut self.ed, gnu);
+        }
+        if matches!(action, Action::CommitAddLog | Action::AddChangeLogEntry) {
+            let Some((file, defun)) = self.hunk_defun() else {
+                return self.ed.set_err("No file or hunk at point");
+            };
+            if action == Action::AddChangeLogEntry {
+                return self.add_change_log_entry(file, defun);
+            }
+            self.pending_add_log = Some((file, defun));
+            return self.magit_action(Action::Commit);
+        }
+        if action == Action::ReverseInIndex {
+            let Some(view) = self.ed.magit.as_deref() else {
+                return;
+            };
+            // magit-unstage-committed: only committed changes are reversed here.
+            if !crate::magit::committed_diff(&view.kind) {
+                return self.ed.set_err("Cannot reverse this change in the index");
+            }
+            let (repo, line) = (view.repo.clone(), self.ed.cur.line);
+            crate::magit::prompt(
+                &mut self.ed,
+                crate::magit::Prompt::Ask(
+                    repo,
+                    Question::ReverseDiff(line, true),
+                    vec![],
+                    vec!["Reverse this change in the index? (y or n) ".into()],
+                    vec![],
+                ),
+            );
+            return;
         }
         if let Action::ApplyDiff(reverse) = action {
             use crate::magit::diff::Target;
@@ -573,7 +662,7 @@ impl Session {
                     &mut self.ed,
                     crate::magit::Prompt::Ask(
                         repo,
-                        Question::ReverseDiff(line),
+                        Question::ReverseDiff(line, false),
                         vec![],
                         vec!["Reverse this change in the worktree? (y or n) ".into()],
                         vec![],
@@ -581,7 +670,7 @@ impl Session {
                 );
                 return;
             }
-            return self.apply_diff(false, line);
+            return self.apply_diff(PatchUse::Apply, line);
         }
         if let Action::Trailer(key) = action {
             if self.ed.commit_repo.is_none() {
@@ -1606,7 +1695,11 @@ impl Session {
             return;
         }
         if let Action::Answered(repo, Question::Commit(op), answers, defaults) = action {
-            let (origin, args) = (self.cur, crate::magit::commit_arguments(&self.ed));
+            let args = match op.arg_menu() {
+                Some(menu) => crate::magit::menu_arguments(&self.ed, menu),
+                None => crate::magit::commit_arguments(&self.ed),
+            };
+            let origin = self.cur;
             self.start_magit(move || {
                 let merged = merge_answers(&answers, &defaults);
                 let next = repo
@@ -1918,7 +2011,7 @@ impl Session {
                 | Question::Misc(_)
                 | Question::Wip(_)
                 | Question::Ediff(_)
-                | Question::ReverseDiff(_) => {
+                | Question::ReverseDiff(..) => {
                     unreachable!("handled before the worker")
                 }
                 Question::FindFile => {
@@ -2705,6 +2798,16 @@ impl Session {
                     self.magit_action(Action::Blame(kind));
                 }
             }
+            Ok(Outcome::Copy(text, message)) => {
+                crate::vim::ops::set_reg(
+                    &mut self.ed,
+                    crate::editor::Register {
+                        text,
+                        linewise: false,
+                    },
+                );
+                self.ed.set_msg(message);
+            }
             Ok(Outcome::Done(repo, message)) => {
                 self.finish_git(
                     GitInvocation {
@@ -2814,6 +2917,17 @@ impl Session {
                     .insert(path.clone(), (repo.clone(), mode.clone(), args));
                 self.open_pick(path, None);
                 self.attach_commit_repo();
+                if let Some((file, defun)) = self.pending_add_log.take() {
+                    let (text, line) = crate::magit::message::add_log_insert(
+                        &self.ed.buf.text(),
+                        &file,
+                        defun.as_deref(),
+                    );
+                    crate::magit::message::replace_text(&mut self.ed, &text);
+                    let len = self.ed.buf.line(line).len();
+                    self.ed.set_cursor(line, len);
+                    return true;
+                }
                 self.ed.set_msg(match mode {
                     crate::magit::CommitMode::New => {
                         "Commit draft: :w save; Space m c c commit staged changes"
@@ -2950,29 +3064,19 @@ impl Session {
     /// The visited file (not a blob) for file-dispatch commands.
     /// Apply or reverse the hunk (or file) at LINE of this diff, commit or
     /// stash buffer, from Git's raw output (display text is escaped).
-    fn apply_diff(&mut self, reverse: bool, line: usize) {
+    fn apply_diff(&mut self, how: PatchUse, line: usize) {
         let Some(view) = self.ed.magit.as_deref().cloned() else {
             return;
         };
         let origin = self.cur;
         self.start_magit(move || {
             let repo = view.repo.clone();
-            // The raw output and the rows before it (a diff buffer's title).
-            let (bytes, offset) = match &view.kind {
-                Kind::Diff(target, args) => (repo.diff_output(target, args)?, 1),
-                Kind::Patch(id) => (repo.commit_patch(id)?, 0),
-                Kind::StashPatch(stash) => (repo.stash_patch(stash)?, 0),
-                _ => return Err("Not in a diff buffer".into()),
-            };
-            if bytes.len() > 1024 * 1024 {
-                return Err("Diff too large to apply from here".into());
-            }
-            let lines: Vec<&[u8]> = bytes.split(|b| *b == b'\n').collect();
-            let at = line.checked_sub(offset).ok_or("No hunk or file at point")?;
-            let patch = crate::magit::diff::hunk_patch(&lines, at)?;
+            let patch = diff_patch_at(&view, line)?;
             let mut argv: Vec<OsString> = vec!["apply".into(), "--whitespace=nowarn".into()];
-            if reverse {
-                argv.push("--reverse".into());
+            match how {
+                PatchUse::Reverse => argv.push("--reverse".into()),
+                PatchUse::ReverseIndex => argv.extend(["--reverse".into(), "--cached".into()]),
+                _ => {}
             }
             let mut check = argv.clone();
             check.push("--check".into());
@@ -2980,18 +3084,169 @@ impl Session {
                 .run(&check, Some(&patch))
                 .and_then(|_| repo.run(&argv, Some(&patch)));
             let next = crate::magit::branch::Next::Done(r.map(|_| {
-                if reverse {
-                    "Reversed in the worktree"
-                } else {
-                    "Applied to the worktree"
+                match how {
+                    PatchUse::Reverse => "Reversed in the worktree",
+                    PatchUse::ReverseIndex => "Reversed in the index",
+                    _ => "Applied to the worktree",
                 }
                 .into()
             }));
             Ok(branch_outcome(repo, next, origin))
         });
     }
+    /// The file and function (from the hunk header) of the change at point.
+    fn hunk_defun(&self) -> Option<(String, Option<String>)> {
+        let view = self.ed.magit.as_deref()?;
+        let line = self.ed.cur.line;
+        match view.action_at(line) {
+            Some(RowAction::Hunk(path, staged, hunk, _)) => {
+                let diff = view.diffs.get(&(path.clone(), staged))?;
+                let h = diff.hunks.get(hunk)?;
+                let text = String::from_utf8_lossy(&diff.bytes[h.start..h.end]);
+                let ctx = crate::magit::message::hunk_defun(text.lines());
+                return Some((path.to_string_lossy().into_owned(), ctx));
+            }
+            Some(RowAction::File(path, _)) => {
+                return Some((path.to_string_lossy().into_owned(), None));
+            }
+            _ => {}
+        }
+        // A diff buffer's raw lines: the nearest hunk header and file above.
+        let rows = &view.rows;
+        let mut defun = None;
+        for i in (0..=line.min(rows.len().checked_sub(1)?)).rev() {
+            let t = rows[i].text.as_str();
+            if defun.is_none() && t.starts_with("@@") {
+                defun = Some(crate::magit::message::hunk_defun(
+                    rows[i..]
+                        .iter()
+                        .map(|r| r.text.as_str())
+                        .take_while(|l| !l.starts_with("diff ")),
+                ));
+            }
+            if let Some(f) = t.strip_prefix("+++ b/") {
+                return Some((f.to_owned(), defun.flatten()));
+            }
+            if let Some(rest) = t.strip_prefix("diff --git a/") {
+                let f = rest.rsplit_once(" b/").map_or(rest, |(_, b)| b);
+                return Some((f.to_owned(), defun.flatten()));
+            }
+        }
+        None
+    }
+    /// magit-add-change-log-entry: a dated ChangeLog item for the change at
+    /// point, in the nearest ChangeLog (add-log's find-change-log).
+    fn add_change_log_entry(&mut self, file: String, defun: Option<String>) {
+        let Some(view) = self.ed.magit.as_deref() else {
+            return;
+        };
+        let repo = view.repo.clone();
+        let dir = repo.root.join(&file);
+        let log = dir
+            .ancestors()
+            .skip(1)
+            .take_while(|d| d.starts_with(&repo.root))
+            .map(|d| d.join("ChangeLog"))
+            .find(|p| p.is_file())
+            .unwrap_or_else(|| repo.root.join("ChangeLog"));
+        let rel = log
+            .parent()
+            .and_then(|d| {
+                repo.root
+                    .join(&file)
+                    .strip_prefix(d)
+                    .ok()
+                    .map(Path::to_path_buf)
+            })
+            .unwrap_or_else(|| PathBuf::from(&file));
+        let ident = crate::magit::message::ident(&repo);
+        let (name, email) = ident
+            .rsplit_once(" <")
+            .map(|(n, e)| (n.to_owned(), e.trim_end_matches('>').to_owned()))
+            .unwrap_or((ident.clone(), String::new()));
+        let today = crate::magit::message::today();
+        let old = std::fs::read_to_string(&log).unwrap_or_default();
+        let text = crate::magit::message::change_log_add(
+            &old,
+            &format!("{today}  {name}  <{email}>"),
+            &rel.to_string_lossy(),
+            defun.as_deref(),
+        );
+        if let Err(e) = crate::fileio::write(&log, text.as_bytes(), None, false) {
+            return self.ed.set_err(e);
+        }
+        self.open_pick(log, None);
+        if let Some(i) = self
+            .ed
+            .buf
+            .text()
+            .lines()
+            .position(|l| l.starts_with('\t') && l.ends_with(": "))
+        {
+            let len = self.ed.buf.line(i).len();
+            self.ed.set_cursor(i, len);
+        }
+    }
+    /// magit-copy-diff-as-kill: the hunk or file diff at point, else the
+    /// commit at point (or the buffer's revision) as a patch.
+    fn copy_diff(&mut self) {
+        let Some(view) = self.ed.magit.as_deref().cloned() else {
+            return self.ed.set_err("Cannot copy this as a diff");
+        };
+        let line = self.ed.cur.line;
+        let revision = crate::magit::buffer_revision(&self.ed)
+            .filter(|_| matches!(view.kind, Kind::Patch(_) | Kind::Diff(Target::Commit(_), _)));
+        self.start_magit(move || {
+            let repo = view.repo.clone();
+            let text = match view.action_at(line) {
+                Some(RowAction::Hunk(path, staged, hunk, _)) => {
+                    let diff = view
+                        .diffs
+                        .get(&(path, staged))
+                        .ok_or("refresh the diff first")?;
+                    let h = diff.hunks.get(hunk).ok_or("Cannot copy this as a diff")?;
+                    let header = diff.hunks.first().map_or(0, |h| h.start);
+                    let mut patch = diff.bytes[..header].to_vec();
+                    patch.extend_from_slice(&diff.bytes[h.start..h.end]);
+                    patch
+                }
+                Some(RowAction::File(_, Section::Untracked | Section::Conflicts)) => {
+                    return Err("Cannot copy this as a diff".into());
+                }
+                Some(RowAction::File(path, section)) => {
+                    repo.diff(&path, section == Section::Staged)?.bytes
+                }
+                Some(RowAction::Commit(id)) => repo.read(&["show", "-p", "--format=", &id])?,
+                _ => match diff_patch_at(&view, line) {
+                    Ok(patch) => patch,
+                    Err(_) => match &revision {
+                        Some(rev) => repo.read(&["show", "-p", "--format=", rev])?,
+                        None => return Err("Cannot copy this as a diff".into()),
+                    },
+                },
+            };
+            Ok(Outcome::Copy(
+                String::from_utf8_lossy(&text).into_owned(),
+                "Copied diff".into(),
+            ))
+        });
+    }
     fn file_action(&mut self, op: crate::magit::blob::FileOp) {
         use crate::magit::blob::FileOp as O;
+        use crate::magit::misc::Op as M;
+        // magit-file-dispatch offers magit-stage-files / -unstage-files when
+        // no file is visited.
+        let visiting = self.ed.blob.is_some()
+            || self.ed.dired.is_some()
+            || (self.ed.path.is_some() && !self.ed.generated());
+        if !visiting && matches!(op, O::Stage | O::Unstage) {
+            let files = if op == O::Stage {
+                M::StageFiles(false)
+            } else {
+                M::UnstageFiles
+            };
+            return self.magit_action(Action::Misc(files));
+        }
         // magit-dired-stage / -unstage: the marked files or the one at point.
         if self.ed.dired.is_some() && matches!(op, O::Stage | O::Unstage) {
             let files = crate::dired::selection(&self.ed);

@@ -3936,3 +3936,113 @@ fn pull_into_upstream_and_push_to_remote() {
     assert_eq!(inv.args, ["push", "-v", "--dry-run", "origin"]);
     assert!(r.network(PushToRemote, &["nope".into()], &[]).is_err());
 }
+#[test]
+fn changelog_entries_and_message_ring() {
+    use super::message::*;
+    let diff = b"diff --git a/src/x.rs b/src/x.rs\n--- a/src/x.rs\n+++ b/src/x.rs\n@@ -3 +3 @@ pub fn alpha(x: u8) -> u8 {\n-a\n+b\n@@ -9 +9 @@ (defun magit-foo (x)\n-c\n+d\n@@ -12 +12 @@ pub fn alpha(x: u8) -> u8 {\n-e\n+f\ndiff --git a/gone b/gone\ndeleted file mode 100644\n--- a/gone\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n";
+    let defs = modified_defuns(diff);
+    assert_eq!(
+        defs,
+        vec![
+            ("src/x.rs".into(), vec!["alpha".into(), "magit-foo".into()]),
+            ("gone".into(), vec![]),
+        ]
+    );
+    assert_eq!(
+        changelog(&defs, true),
+        ["* src/x.rs (alpha):", "(magit-foo):", "* gone:"]
+    );
+    assert_eq!(
+        changelog(&defs, false),
+        ["src/x.rs:", "  `alpha'", "  `magit-foo'", "gone:"]
+    );
+    assert_eq!(defun_name("class Foo:").as_deref(), Some("class Foo"));
+    // magit-commit-add-log-insert: a new entry after the summary, a defun
+    // added to an existing entry, and trailers and comments kept below.
+    let (t, line) = add_log_insert(
+        "Summary\n\nSigned-off-by: A <a@b>\n# comment\n",
+        "f",
+        Some("g"),
+    );
+    assert_eq!(
+        t,
+        "Summary\n\n* f (g): \n\nSigned-off-by: A <a@b>\n# comment\n"
+    );
+    assert_eq!(line, 2);
+    let (t, line) = add_log_insert(&t, "f", Some("h"));
+    assert_eq!(
+        t,
+        "Summary\n\n* f (g): \n(h): \n\nSigned-off-by: A <a@b>\n# comment\n"
+    );
+    assert_eq!(line, 3);
+    let (t2, _) = add_log_insert(&t, "f", Some("h"));
+    assert_eq!(t2, t);
+    let (t, _) = add_log_insert(&t, "other", None);
+    assert!(t.contains("(h): \n* other: \n"), "{t:?}");
+    let (t, line) = add_log_insert("", "f", None);
+    assert_eq!((t.as_str(), line), ("* f: \n", 0));
+    // ChangeLog files: today's heading per author, items under it.
+    let h = "2026-10-04  Fred  <f@x>";
+    let log = change_log_add("", h, "a.c", Some("main"));
+    assert_eq!(log, format!("{h}\n\n\t* a.c (main): \n"));
+    let log = change_log_add(&log, h, "a.c", Some("util"));
+    assert_eq!(log, format!("{h}\n\n\t* a.c (main): \n\t(util): \n"));
+    let log = change_log_add(&log, "2026-10-05  Fred  <f@x>", "b.c", None);
+    assert!(
+        log.starts_with("2026-10-05  Fred  <f@x>\n\n\t* b.c: \n\n2026-10-04"),
+        "{log:?}"
+    );
+    // git-commit-buffer-message drops comments and the scissors section.
+    assert_eq!(
+        buffer_message(
+            "\n\nmsg\n# c\n\n# ------------------------ >8 ------------------------\ndiff"
+        )
+        .as_deref(),
+        Some("msg\n")
+    );
+    assert_eq!(buffer_message("# only\n \n"), None);
+}
+#[test]
+fn stage_and_unstage_files_and_absorb_needs_its_tool() {
+    use super::branch::Next;
+    use super::misc::Op;
+    let (d, r) = setup();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    fs::write(d.path().join("a"), "a").unwrap();
+    fs::write(d.path().join("*"), "star").unwrap();
+    // Before the first commit, unstaging is git rm --cached.
+    r.misc_step(Op::StageFiles(false), &s(&["a, *"])).unwrap();
+    let staged = || {
+        String::from_utf8_lossy(&git(d.path(), &["diff", "--cached", "--name-only"])).into_owned()
+    };
+    assert_eq!(staged(), "*\na\n");
+    r.misc_step(Op::UnstageFiles, &s(&["*"])).unwrap();
+    assert_eq!(staged(), "a\n");
+    git(d.path(), &["commit", "-qm", "base"]);
+    fs::write(d.path().join("a"), "b").unwrap();
+    r.misc_step(Op::StageFiles(false), &s(&["a"])).unwrap();
+    assert_eq!(staged(), "a\n");
+    r.misc_step(Op::UnstageFiles, &s(&["a"])).unwrap();
+    assert_eq!(staged(), "");
+    assert!(r.misc_step(Op::StageFiles(false), &s(&["../x"])).is_err());
+    assert!(r.misc_step(Op::StageFiles(false), &s(&[" , "])).is_err());
+    // Ignored files need the force variant.
+    fs::write(d.path().join(".gitignore"), "ign\n").unwrap();
+    fs::write(d.path().join("ign"), "i").unwrap();
+    assert!(r.misc_step(Op::StageFiles(false), &s(&["ign"])).is_err());
+    r.misc_step(Op::StageFiles(true), &s(&["ign"])).unwrap();
+    assert!(staged().contains("ign"));
+    let has = |t: &str| {
+        Command::new("sh")
+            .args(["-c", &format!("command -v {t}")])
+            .status()
+            .is_ok_and(|s| s.success())
+    };
+    if !has("git-absorb") {
+        let e = r
+            .commit_step(super::commit::Op::Absorb, &s(&["HEAD"]), &[])
+            .unwrap_err();
+        assert!(e.contains("git-absorb"), "{e}");
+    }
+    let _ = Next::Done(Ok(String::new()));
+}

@@ -488,7 +488,7 @@ impl GitInvocation {
     }
 }
 
-fn literal_pathspec(path: &Path) -> OsString {
+pub fn literal_pathspec(path: &Path) -> OsString {
     let mut bytes = b":(literal)".to_vec();
     bytes.extend_from_slice(path.as_os_str().as_bytes());
     OsString::from_vec(bytes)

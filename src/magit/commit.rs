@@ -24,6 +24,10 @@ pub enum Op {
     AbsorbModules,
     /// magit-commit-autofixup (needs git-autofixup).
     Autofixup,
+    /// magit-commit-absorb (needs git-absorb).
+    Absorb,
+    /// Nothing staged: confirm absorbing all unstaged changes.
+    AbsorbAll(String),
 }
 
 impl Op {
@@ -38,7 +42,9 @@ impl Op {
             Op::InstantFixup => ("--fixup=", false, false, true),
             Op::InstantSquash => ("--squash=", false, false, true),
             Op::StageAll(op, _) | Op::Published(op, ..) | Op::Merges(op, ..) => op.shape(),
-            Op::Reshelve | Op::AbsorbModules | Op::Autofixup => ("", false, true, false),
+            Op::Reshelve | Op::AbsorbModules | Op::Autofixup | Op::Absorb | Op::AbsorbAll(_) => {
+                ("", false, true, false)
+            }
         }
     }
     fn verb(&self) -> &'static str {
@@ -50,9 +56,32 @@ impl Op {
             Op::Revise => "Revise",
             Op::StageAll(op, _) | Op::Published(op, ..) | Op::Merges(op, ..) => op.verb(),
             Op::Reshelve => "Reshelve",
-            Op::AbsorbModules | Op::Autofixup => "Absorb into",
+            Op::AbsorbModules | Op::Autofixup | Op::Absorb | Op::AbsorbAll(_) => "Absorb into",
         }
     }
+    /// The transient whose arguments this suffix reads instead of magit-commit's.
+    pub fn arg_menu(&self) -> Option<char> {
+        match self {
+            Op::Autofixup => Some('H'),
+            Op::Absorb | Op::AbsorbAll(_) => Some('A'),
+            _ => None,
+        }
+    }
+}
+
+/// magit-git-executable-find: NAME on PATH or in git's exec path
+/// ("git NAME --help" would open a man page instead).
+fn git_exec_exists(repo: &Repo, name: &str) -> bool {
+    let exec_path = repo
+        .read(&["--exec-path"])
+        .map(|o| String::from_utf8_lossy(&o).trim().to_owned())
+        .unwrap_or_default();
+    std::env::var_os("PATH")
+        .map(|p| std::env::split_paths(&p).collect::<Vec<_>>())
+        .unwrap_or_default()
+        .into_iter()
+        .chain([std::path::PathBuf::from(exec_path)])
+        .any(|d| d.join(name).is_file())
 }
 
 impl Repo {
@@ -65,7 +94,7 @@ impl Repo {
         if *op == Op::Reshelve {
             return self.reshelve_prompt();
         }
-        if matches!(op, Op::AbsorbModules | Op::Autofixup) {
+        if matches!(op, Op::AbsorbModules | Op::Autofixup | Op::Absorb) {
             // Commits since the upstream (its merge base for autofixup).
             let d = self
                 .current_branch()
@@ -89,31 +118,58 @@ impl Repo {
         match op {
             Op::Reshelve => return self.reshelve(at(0), args),
             Op::AbsorbModules => return self.absorb_modules(at(0).trim()),
-            Op::Autofixup => {
+            Op::Autofixup | Op::Absorb => {
                 let since = at(0).trim();
                 if since.is_empty() || since.starts_with('-') {
                     return Err(format!("invalid commit {since:?}"));
                 }
-                // executable-find: git-autofixup on PATH or in git's exec path
-                // ("git autofixup --help" would open a man page instead).
-                let exec_path = self
-                    .read(&["--exec-path"])
-                    .map(|o| String::from_utf8_lossy(&o).trim().to_owned())
-                    .unwrap_or_default();
-                let found = std::env::var_os("PATH")
-                    .map(|p| std::env::split_paths(&p).collect::<Vec<_>>())
-                    .unwrap_or_default()
-                    .into_iter()
-                    .chain([std::path::PathBuf::from(exec_path)])
-                    .any(|d| d.join("git-autofixup").is_file());
-                if !found {
-                    return Err("This command requires git-autofixup".into());
+                let tool = if op == Op::Absorb {
+                    "git-absorb"
+                } else {
+                    "git-autofixup"
+                };
+                if !git_exec_exists(self, tool) {
+                    return Err(format!("This command requires {tool}"));
                 }
                 let base = self
                     .read(&["merge-base", "--end-of-options", since, "HEAD"])
                     .map(|o| String::from_utf8_lossy(&o).trim().to_owned())
                     .map_err(|_| format!("unknown commit {since:?}"))?;
-                return Ok(Next::Git(vec!["autofixup".into(), "-vv".into(), base]));
+                let staged = !self.ok(&["diff", "--cached", "--quiet"]);
+                let unstaged = !self.ok(&["diff", "--quiet"]);
+                if op == Op::Autofixup {
+                    if !staged && !unstaged {
+                        return Err("There are no changes that could be absorbed".into());
+                    }
+                    let mut argv = vec!["autofixup".to_owned()];
+                    argv.extend(args.iter().cloned());
+                    argv.push(base);
+                    return Ok(Next::Git(argv));
+                }
+                if !staged {
+                    if !unstaged {
+                        return Err("There are no changes that could be absorbed".into());
+                    }
+                    return Ok(Next::Ask(
+                        Question::Commit(Op::AbsorbAll(base)),
+                        vec!["Nothing staged.  Absorb all unstaged changes? (y or n) ".into()],
+                        vec![String::new()],
+                    ));
+                }
+                let mut argv = vec!["absorb".to_owned()];
+                argv.extend(args.iter().cloned());
+                argv.extend(["-b".into(), base]);
+                return Ok(Next::Git(argv));
+            }
+            Op::AbsorbAll(base) => {
+                if !matches!(at(0), "y" | "yes") {
+                    return Err("Abort".into());
+                }
+                self.read(&["add", "-u", "--", ":/"])?;
+                let mut argv = vec!["absorb".to_owned()];
+                argv.extend(args.iter().cloned());
+                argv.extend(["-b".into(), base]);
+                return Ok(Next::Git(argv));
             }
             _ => {}
         }

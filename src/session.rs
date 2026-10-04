@@ -82,6 +82,8 @@ pub struct Session {
     pub pending_shell: Option<String>,
     pub pending_git: Option<crate::magit::repo::GitInvocation>,
     pub git_busy: bool,
+    /// magit-commit-add-log: the entry (file, defun) for the draft being opened.
+    pending_add_log: Option<(String, Option<String>)>,
     /// magit-process-buffer's log: each terminal Git command and its result.
     pub git_log: Vec<(PathBuf, String, Result<(), String>)>,
     magit_job: Option<magit::Job>,
@@ -247,6 +249,7 @@ impl Session {
             pending_git: None,
             git_log: vec![],
             git_busy: false,
+            pending_add_log: None,
             magit_job: None,
             magit_picker_repo: None,
             magit_drafts: std::collections::HashMap::new(),
@@ -2693,6 +2696,60 @@ mod tests {
             t.msg().contains("patch") || t.msg().contains("error"),
             "{}",
             t.msg()
+        );
+    }
+
+    #[test]
+    fn magit_reverse_in_index_add_log_and_copy_diff() {
+        let mut t = T::open(Some("f.txt"), Some("fn a() {\n    1\n}\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "one"]).unwrap();
+        fs::write(t.dir.path().join("f.txt"), "fn a() {\n    2\n}\n").unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "two"]).unwrap();
+        t.keys(" mdc");
+        magit_settle(&mut t);
+        t.keys("HEAD<Enter>");
+        magit_settle(&mut t);
+        let row =
+            t.s.ed
+                .buf
+                .text()
+                .lines()
+                .position(|l| l == "+    2")
+                .unwrap();
+        // :Magit magit-copy-diff-as-kill copies the hunk (not to the
+        // system clipboard in a test).
+        t.s.ed.clipboard = false;
+        t.keys(&format!(
+            "{}G:Magit magit-copy-diff-as-kill<Enter>",
+            row + 1
+        ));
+        magit_settle(&mut t);
+        assert!(t.s.ed.reg.text.contains("+    2"), "{:?}", t.s.ed.reg.text);
+        assert!(t.s.ed.reg.text.starts_with("diff --git"));
+        // u reverses the committed change in the index only (confirmed).
+        t.keys(&format!("{}Guy<Enter>", row + 1));
+        magit_settle(&mut t);
+        let staged = repo.read(&["diff", "--cached"]).unwrap();
+        assert!(String::from_utf8_lossy(&staged).contains("+    1"));
+        assert_eq!(
+            fs::read_to_string(t.dir.path().join("f.txt")).unwrap(),
+            "fn a() {\n    2\n}\n"
+        );
+        // C adds a changelog stub for the hunk to a new commit draft.
+        t.keys(&format!("{}GC", row + 1));
+        magit_settle(&mut t);
+        assert!(t.s.ed.commit_repo.is_some());
+        assert!(
+            t.s.ed.buf.text().contains("* f.txt (a): "),
+            "{:?}",
+            t.s.ed.buf.text()
         );
     }
 

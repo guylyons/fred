@@ -18,6 +18,21 @@ pub enum Op {
     GitConfigFile,
     RemoteSetHead,
     RemoteUnsetHead,
+    /// magit-stage-files (ignored files too when true) / magit-unstage-files.
+    StageFiles(bool),
+    UnstageFiles,
+}
+
+/// magit-completing-read-multiple: comma-separated repository-relative files.
+fn files(answer: &str) -> Result<Vec<std::ffi::OsString>, String> {
+    let mut out = vec![];
+    for f in answer.split(',').map(str::trim).filter(|f| !f.is_empty()) {
+        out.push(super::repo::literal_pathspec(&super::blob::relative(f)?));
+    }
+    if out.is_empty() {
+        return Err("No file selected".into());
+    }
+    Ok(out)
 }
 
 /// split-string-shell-command: words, with '...' and "..." quoting and
@@ -98,6 +113,20 @@ impl Repo {
                 )
             }
             Op::GitConfigFile => (vec![], vec![]),
+            Op::StageFiles(_) | Op::UnstageFiles => {
+                let d = at_point.unwrap_or_default();
+                let verb = match op {
+                    Op::StageFiles(true) => "Stage ignored file,s",
+                    Op::StageFiles(false) => "Stage file,s",
+                    _ => "Unstage file,s",
+                };
+                let suffix = if d.is_empty() {
+                    String::new()
+                } else {
+                    format!(" (default {d})")
+                };
+                (vec![format!("{verb}{suffix}: ")], vec![d])
+            }
             Op::RemoteSetHead | Op::RemoteUnsetHead => {
                 let d = self.current_remote().ok().flatten().unwrap_or_default();
                 let verb = if *op == Op::RemoteSetHead {
@@ -167,6 +196,29 @@ impl Repo {
                 Ok(Next::Visit(
                     self.root.join(String::from_utf8_lossy(&p).trim()),
                 ))
+            }
+            Op::StageFiles(force) => {
+                let mut argv: Vec<std::ffi::OsString> = vec!["add".into()];
+                if force {
+                    argv.push("--force".into());
+                }
+                argv.push("--".into());
+                argv.extend(files(at(0))?);
+                self.run(&argv, None)?;
+                Ok(Next::Done(Ok("Staged".into())))
+            }
+            Op::UnstageFiles => {
+                // magit-unstage-1: git rm --cached before the first commit.
+                let born = self.read(&["rev-parse", "--verify", "-q", "HEAD"]).is_ok();
+                let mut argv: Vec<std::ffi::OsString> = if born {
+                    vec!["reset".into(), "-q".into(), "HEAD".into()]
+                } else {
+                    vec!["rm".into(), "--cached".into(), "-q".into()]
+                };
+                argv.push("--".into());
+                argv.extend(files(at(0))?);
+                self.run(&argv, None)?;
+                Ok(Next::Done(Ok("Unstaged".into())))
             }
             Op::RemoteSetHead | Op::RemoteUnsetHead => {
                 let r = at(0);

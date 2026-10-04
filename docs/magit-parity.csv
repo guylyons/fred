@@ -11,9 +11,9 @@ git-commit.el,758,command,git-commit-prev-message,partial,M-k / gk (evil-collect
 git-commit.el,786,command,git-commit-next-message,partial,M-j / gj; back past the newest restores the draft,explicit
 git-commit.el,792,command,git-commit-search-message-backward,partial,C-c M-p steps to older messages (no regexp search),explicit
 git-commit.el,803,command,git-commit-search-message-forward,partial,C-c M-n steps to newer messages (no regexp search),explicit
-git-commit.el,814,command,git-commit-save-message,missing,,explicit
-git-commit.el,872,command,git-commit-insert-changelog-gnu,missing,,explicit
-git-commit.el,890,command,git-commit-insert-changelog-plain,missing,,explicit
+git-commit.el,814,command,git-commit-save-message,partial,"C-c M-s in a draft; per-repository ring file, newest first, 32 entries, consulted by M-p/M-k before the log",explicit
+git-commit.el,872,command,git-commit-insert-changelog-gnu,partial,:Magit name; defuns from Git hunk-header function context (no which-function),explicit
+git-commit.el,890,command,git-commit-insert-changelog-plain,partial,:Magit name; same defun source,explicit
 git-commit.el,909,command,git-commit-insert-trailer,partial,"C-c C-i / C-c Tab: ""Key: value"" through git interpret-trailers",explicit
 git-commit.el,933,command,git-commit-ack,partial,C-c C-a (default your ident),explicit
 git-commit.el,938,command,git-commit-modified,partial,C-c C-m,explicit
@@ -71,15 +71,15 @@ magit-apply.el,94,option,magit-post-stage-hook,missing,,explicit
 magit-apply.el,102,option,magit-post-unstage-hook,missing,,explicit
 magit-apply.el,113,command,magit-apply,partial,a on a hunk or file in diff/commit/stash buffers: git apply to the worktree (a on a commit: cherry-apply),explicit
 magit-apply.el,285,command,magit-stage,partial,s; file/hunk only; region and section staging missing,explicit
-magit-apply.el,312,command,magit-stage-files,missing,,explicit
+magit-apply.el,312,command,magit-stage-files,partial,"Space m F s without a visited file; :Magit; comma-separated files, default the file at point",explicit
 magit-apply.el,331,command,magit-stage-modified,partial,S: git add -u,explicit
 magit-apply.el,410,command,magit-unstage,partial,u; file/hunk only; region and section unstaging missing,explicit
-magit-apply.el,437,command,magit-unstage-files,missing,,explicit
+magit-apply.el,437,command,magit-unstage-files,partial,Space m F u without a visited file; rm --cached before the first commit,explicit
 magit-apply.el,463,command,magit-unstage-all,partial,"U: confirms, reset (or rm --cached when unborn)",explicit
 magit-apply.el,488,command,magit-discard,partial,"x in status (evil-collection): hunk, file, section; untracked deleted via git clean; always confirms",explicit
 magit-apply.el,686,command,magit-reverse,partial,- in status (staged changes) and on hunks/files in diff/commit/stash buffers; on a commit: revert-no-commit,explicit
-magit-apply.el,744,command,magit-reverse-in-index,missing,,explicit
-magit-apply.el,765,command,magit-copy-diff-as-kill,missing,,explicit
+magit-apply.el,744,command,magit-reverse-in-index,partial,"u on a committed hunk/file (magit-unstage-committed t), confirmed",explicit
+magit-apply.el,765,command,magit-copy-diff-as-kill,partial,":Magit name; hunk, file diff, or commit patch to the unnamed register",explicit
 magit-apply.el,792,command,magit-smerge-keep-current,partial,C-c ^ RET (the side at point) on the conflict at point in the file buffer (not on status hunks),explicit
 magit-apply.el,797,command,magit-smerge-keep-upper,partial,C-c ^ u on the conflict at point in the file buffer (not on status hunks),explicit
 magit-apply.el,802,command,magit-smerge-keep-base,partial,C-c ^ b on the conflict at point in the file buffer (not on status hunks),explicit
@@ -235,18 +235,18 @@ magit-commit.el,361,command,magit-commit-instant-fixup,partial,Space m C F; comm
 magit-commit.el,376,command,magit-commit-instant-squash,partial,Space m C S,explicit
 magit-commit.el,501,command,magit-commit-reshelve,partial,Space m c d: date (default now); author date too for your own commit,explicit
 magit-commit.el,535,command,magit-commit-absorb-modules,partial,c X: fixup per modified module since a commit (default upstream; no log-select),explicit
-magit-commit.el,558,command,magit-commit-absorb,missing,,explicit
+magit-commit.el,558,command,magit-commit-absorb,partial,"Space m c ... :Magit magit-commit-absorb opens its transient (-f -v seeded); x runs git absorb -b, offering to stage all unstaged changes; commit read by prompt not log-select",explicit
 magit-commit.el,601,command,magit-commit-autofixup,partial,c x: git autofixup -vv against the merge base; requires git-autofixup; no own menu,explicit
-magit-commit.el,773,command,magit-commit-add-log,missing,,explicit
+magit-commit.el,773,command,magit-commit-add-log,partial,C on a file/hunk in status or diff buffers; opens the draft and adds * file (defun):,explicit
 magit-commit.el,833,option,magit-post-commit-hook,missing,,explicit
-magit-commit.el,,command,magit-autofixup:--context,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-commit.el,,command,magit-autofixup:--strict,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-commit.el,,command,magit-autofixup:--context,partial,-c in the autofixup transient (Space m c x),runtime
+magit-commit.el,,command,magit-autofixup:--strict,partial,-s in the autofixup transient,runtime
 magit-commit.el,,command,magit-commit:--date,partial,-D reads a value,runtime
 magit-commit.el,,command,magit-commit:--reedit-message,partial,-c: draft starts from that message,runtime
 magit-commit.el,,command,magit-commit:--reuse-message,partial,-C: commits at once with that message,runtime
-magit-commit.el,,command,transient:magit-commit-absorb:--force,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-commit.el,,command,transient:magit-commit-absorb:--verbose,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-commit.el,,command,transient:magit-commit-autofixup:-vv,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-commit.el,,command,transient:magit-commit-absorb:--force,partial,-f in the absorb transient,runtime
+magit-commit.el,,command,transient:magit-commit-absorb:--verbose,partial,"-v in the absorb transient, on by default",runtime
+magit-commit.el,,command,transient:magit-commit-autofixup:-vv,partial,"-v in the autofixup transient, on by default",runtime
 magit-commit.el,,command,transient:magit-commit:--all,partial,-a,runtime
 magit-commit.el,,command,transient:magit-commit:--allow-empty,partial,-e,runtime
 magit-commit.el,,command,transient:magit-commit:--no-verify,partial,-n,runtime
@@ -375,9 +375,9 @@ magit-extras.el,210,command,magit-project-dispatch,missing,,explicit
 magit-extras.el,241,command,magit-previous-line,partial,k (evil),explicit
 magit-extras.el,264,command,magit-next-line,partial,j (evil),explicit
 magit-extras.el,288,command,magit-clean,partial,:Magit magit-clean (typed yes; magit-clean-ignored for -x),explicit
-magit-extras.el,307,command,magit-generate-changelog,missing,,explicit
-magit-extras.el,338,command,magit-add-change-log-entry,missing,,explicit
-magit-extras.el,351,command,magit-add-change-log-entry-other-window,missing,,explicit
+magit-extras.el,307,command,magit-generate-changelog,partial,:Magit name; GNU entries from the committing diff (HEAD^ when amending),explicit
+magit-extras.el,338,command,magit-add-change-log-entry,partial,":Magit name; nearest ChangeLog, today's author heading, item per file/defun",explicit
+magit-extras.el,351,command,magit-add-change-log-entry-other-window,partial,:Magit name; as magit-add-change-log-entry,explicit
 magit-extras.el,364,command,magit-edit-line-commit,partial,"F e: blame the line, rebase edit its commit (or check it out when not on HEAD)",explicit
 magit-extras.el,405,command,magit-diff-edit-hunk-commit,missing,,explicit
 magit-extras.el,432,option,magit-reshelve-since-committer-only,missing,,explicit

@@ -184,6 +184,18 @@ pub enum Action {
     /// magit-apply / magit-reverse of the diff hunk or file at point (true
     /// reverses) to the worktree.
     ApplyDiff(bool),
+    /// magit-reverse-in-index: reverse a committed change in the index only.
+    ReverseInIndex,
+    /// magit-copy-diff-as-kill.
+    CopyDiff,
+    /// git-commit-save-message.
+    SaveMessage,
+    /// git-commit-insert-changelog-gnu (true) / -plain.
+    Changelog(bool),
+    /// magit-commit-add-log: the hunk at point as a draft changelog entry.
+    CommitAddLog,
+    /// magit-add-change-log-entry: the same in the ChangeLog file.
+    AddChangeLogEntry,
     /// A magit-wip.el command.
     Wip(wip::Op),
     /// magit-jump-to-*: a status section by name.
@@ -950,6 +962,32 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         {
             Some(Action::VisitWorktree)
         }
+        // magit-diff-section-map: C on a file or hunk adds a changelog entry.
+        KeyCode::Char('C')
+            if !k.ctrl
+                && !k.alt
+                && ed.magit.as_ref().is_some_and(|v| {
+                    matches!(
+                        v.action_at(ed.cur.line),
+                        Some(RowAction::File(..) | RowAction::Hunk(..))
+                    ) || (matches!(
+                        v.kind,
+                        Kind::Diff(..) | Kind::Patch(_) | Kind::StashPatch(_)
+                    ) && v
+                        .rows
+                        .iter()
+                        .take(ed.cur.line + 1)
+                        .any(|r| r.text.starts_with("diff ")))
+                }) =>
+        {
+            Some(Action::CommitAddLog)
+        }
+        // magit-unstage on committed changes, with magit-unstage-committed t.
+        KeyCode::Char('u')
+            if !k.ctrl && ed.magit.as_ref().is_some_and(|v| committed_diff(&v.kind)) =>
+        {
+            Some(Action::ReverseInIndex)
+        }
         KeyCode::Char('s') if !k.ctrl => Some(Action::Stage),
         KeyCode::Char('u') if !k.ctrl => Some(Action::Unstage),
         // evil-collection: o reset quickly, ! run, | git command.
@@ -1119,7 +1157,18 @@ fn section_value(ed: &Editor) -> Option<String> {
     }
 }
 /// magit-copy-buffer-revision: the revision the buffer shows.
-fn buffer_revision(ed: &Editor) -> Option<String> {
+/// magit-diff-type is `committed': revision and stash buffers, and diffs of
+/// a range other than HEAD against the worktree or index.
+pub fn committed_diff(kind: &Kind) -> bool {
+    match kind {
+        Kind::Patch(_) | Kind::StashPatch(_) | Kind::Diff(diff::Target::Commit(_), _) => true,
+        Kind::Diff(diff::Target::Range(r), _) => {
+            r.contains('.') || !matches!(r.as_str(), "HEAD" | "@")
+        }
+        _ => false,
+    }
+}
+pub fn buffer_revision(ed: &Editor) -> Option<String> {
     let view = ed.magit.as_ref()?;
     // ponytail: synchronous rev-parse; local and fast.
     let resolve = |r: &str| {
@@ -1349,7 +1398,8 @@ pub enum Question {
     Wip(wip::Op),
     Ediff(ediff::Op),
     /// magit-reverse in a diff buffer: confirm, with the line at point.
-    ReverseDiff(usize),
+    /// Reverse the hunk at this line: in the worktree, or (true) the index.
+    ReverseDiff(usize, bool),
     Net(network::Op),
     Diff(diff::Op),
     FindFile,
@@ -1480,6 +1530,14 @@ pub(crate) fn open_menu(ed: &mut Editor, menu: char) {
         ed.magit_options
             .insert(MenuOption::Switch('C', "--verbose"));
     }
+    // magit-commit-absorb :value '("-v"), magit-commit-autofixup '("-vv").
+    if menu == 'A' && ed.magit_seeded.insert('A') {
+        ed.magit_options
+            .insert(MenuOption::Switch('A', "--verbose"));
+    }
+    if menu == 'H' && ed.magit_seeded.insert('H') {
+        ed.magit_options.insert(MenuOption::Switch('H', "-vv"));
+    }
     // magit-am :value '("--3way").
     if menu == 'w' && ed.magit_seeded.insert('w') {
         ed.magit_options.insert(MenuOption::Switch('w', "--3way"));
@@ -1539,6 +1597,39 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
     use Action::*;
     use workflows::{Operation::*, StashAction};
     match menu {
+        // magit-commit-absorb.
+        'A' => vec![
+            (
+                "-f",
+                "Arguments",
+                "Skip safety checks",
+                ToggleOption(MenuOption::Switch('A', "--force")),
+            ),
+            (
+                "-v",
+                "Arguments",
+                "Increase verbosity",
+                ToggleOption(MenuOption::Switch('A', "--verbose")),
+            ),
+            ("x", "Actions", "Absorb", CommitEdit(commit::Op::Absorb)),
+        ],
+        // magit-commit-autofixup.
+        'H' => vec![
+            (
+                "-c",
+                "Arguments",
+                "Diff context lines",
+                ReadOption("--context="),
+            ),
+            ("-s", "Arguments", "Strictness", ReadOption("--strict=")),
+            (
+                "-v",
+                "Arguments",
+                "Increase verbosity",
+                ToggleOption(MenuOption::Switch('H', "-vv")),
+            ),
+            ("x", "Actions", "Absorb", CommitEdit(commit::Op::Autofixup)),
+        ],
         '*' => vec![
             ("s", "Inspect", "Status", Status),
             ("l", "Inspect", "Log menu", Menu('l')),
@@ -3167,12 +3258,9 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 "Reword past",
                 Action::Rebase(rebase::Op::RewordCommit),
             ),
-            (
-                "x",
-                "Spread across commits",
-                "Modified files",
-                CommitEdit(commit::Op::Autofixup),
-            ),
+            // Fred has no prefix argument: x opens magit-commit-autofixup's
+            // transient, as C-u x does upstream.
+            ("x", "Spread across commits", "Modified files", Menu('H')),
             (
                 "X",
                 "Spread across commits",

@@ -324,3 +324,11 @@ the branch and remote menus, and :Magit gains branch-or-checkout,
 checkout-remote-ref (terminal fetch, then FETCH_HEAD via a chained Git
 command), pull-into-upstream and push-to-remote. Ledger 676 partial / 97
 missing commands. Score remains 3%.
+
+October 4 apply/commit-message checkpoint: u reverses committed changes in
+the index (magit-unstage-committed), C adds a changelog stub to the commit
+draft, the absorb and autofixup transients carry their arguments (c x opens
+autofixup's, as C-u x does upstream), F s/u read files when no file is
+visited, drafts save messages with C-c M-s and insert GNU/plain changelogs
+built from Git's hunk-header function context, and ChangeLog files get
+dated entries. Ledger 693 partial / 80 missing commands. Score remains 3%.
