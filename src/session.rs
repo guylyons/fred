@@ -2304,11 +2304,21 @@ mod tests {
         assert_eq!(at(&t), Some(file("a", Section::Unstaged)));
         t.keys("gh");
         assert_eq!(at(&t), Some(RowAction::Section(Section::Unstaged)));
+        // ys copies the file at point; yb the buffer's revision (HEAD).
+        goto(&mut t, file("a", Section::Unstaged));
+        t.keys("ys");
+        assert_eq!(t.s.ed.reg.text, "a");
+        t.keys("yb");
+        let head = repo.read(&["rev-parse", "HEAD"]).unwrap();
+        assert_eq!(t.s.ed.reg.text, String::from_utf8_lossy(&head).trim());
+        t.keys("gR");
+        magit_settle(&mut t);
+        goto(&mut t, RowAction::Section(Section::Unstaged));
         // ] moves to the next section heading.
         t.keys("]");
         assert_eq!(at(&t), Some(RowAction::Section(Section::Staged)));
-        // z4 expands every file; zc on a hunk collapses its file; z1 closes all.
-        t.keys("z4");
+        // M-4 expands every file; 1 closes the section at point; M-1 closes all.
+        t.keys("<M-4>");
         magit_settle(&mut t);
         let text = t.s.ed.buf.text();
         assert!(text.contains("+2"), "{text}");
@@ -2321,7 +2331,17 @@ mod tests {
         assert_eq!(at(&t), Some(file("a", Section::Unstaged)));
         t.keys("<M-j>");
         assert_eq!(at(&t), Some(file("b", Section::Unstaged)));
-        t.keys("z1");
+        t.keys("1");
+        magit_settle(&mut t);
+        assert!(
+            t.s.ed
+                .magit
+                .as_ref()
+                .unwrap()
+                .closed
+                .contains(&Section::Unstaged)
+        );
+        t.keys("<M-1>");
         magit_settle(&mut t);
         let view = t.s.ed.magit.as_ref().unwrap();
         assert!(view.closed.contains(&Section::Unstaged) && view.expanded.is_empty());

@@ -229,7 +229,7 @@ pub fn apply_op(ed: &mut Editor, op: char, sp: Span) {
 }
 
 /// Set the register, and the system clipboard with it.
-fn set_reg(ed: &mut Editor, reg: Register) {
+pub(crate) fn set_reg(ed: &mut Editor, reg: Register) {
     if ed.clipboard {
         crate::clipboard::set(&reg);
     }

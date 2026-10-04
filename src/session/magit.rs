@@ -309,6 +309,20 @@ impl Session {
             });
             return;
         }
+        if action == Action::RefreshAll {
+            let Some(repo) = self.ed.magit.as_ref().map(|v| v.repo.clone()) else {
+                return;
+            };
+            for ed in self.editors_mut() {
+                if let Some(view) = &mut ed.magit
+                    && view.repo == repo
+                {
+                    view.dirty = true;
+                }
+            }
+            self.magit_action(Action::Refresh);
+            return;
+        }
         if let Action::Fold(how) = action {
             use crate::magit::Fold;
             let Some(mut view) = self.ed.magit.as_deref().cloned() else {
@@ -346,6 +360,32 @@ impl Session {
                     if n >= 3 {
                         load.extend(files_of(&view, Section::Unstaged));
                         load.extend(files_of(&view, Section::Staged));
+                    }
+                }
+                (Fold::LevelHere(n), Some(at)) => {
+                    // The top-level section around point.
+                    let s = match at {
+                        RowAction::Section(s) | RowAction::File(_, s) => Some(*s),
+                        RowAction::Hunk(_, staged, ..) => Some(if *staged {
+                            Section::Staged
+                        } else {
+                            Section::Unstaged
+                        }),
+                        _ => None,
+                    };
+                    if let Some(s) = s {
+                        let staged = s == Section::Staged;
+                        if n == 1 {
+                            view.closed.insert(s);
+                        } else {
+                            view.closed.remove(&s);
+                            if matches!(s, Section::Unstaged | Section::Staged) {
+                                view.expanded.retain(|(_, st)| *st != staged);
+                            }
+                        }
+                        if n >= 3 {
+                            load.extend(files_of(&view, s));
+                        }
                     }
                 }
                 (Fold::Show, Some(RowAction::Section(s))) => {

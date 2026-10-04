@@ -146,6 +146,8 @@ pub enum Action {
     Fold(Fold),
     /// magit-diff-buffer-file.
     DiffBufferFile,
+    /// magit-refresh-all: every Magit buffer of the repository.
+    RefreshAll,
     /// magit-diff-while-committing (C-c C-d in a commit draft).
     DiffWhileCommitting,
     Toggle,
@@ -163,6 +165,8 @@ pub enum Fold {
     HideChildren,
     /// magit-section-show-level-N-all.
     Level(u8),
+    /// magit-section-show-level-N: the top-level section at point only.
+    LevelHere(u8),
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Section {
@@ -720,6 +724,7 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             ([g], Some('j'), false, false) if *g == Key::ch('g') => Some(Move::NextSibling),
             ([g], Some('k'), false, false) if *g == Key::ch('g') => Some(Move::PrevSibling),
             ([g], Some('h'), false, false) if *g == Key::ch('g') => Some(Move::Up),
+            ([], Some('^'), false, false) => Some(Move::Up),
             _ => None,
         };
         if let Some(mv) = mv {
@@ -727,32 +732,44 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             section_move(ed, mv);
             return true;
         }
-        // Fred's Vim has no z commands: z is a prefix here.
-        if pending.is_empty() && k.char() == Some('z') && !k.ctrl && !k.alt {
-            ed.vim.pending = vec![k];
-            return true;
-        }
-        let fold = match (pending.as_slice(), k.char(), k.ctrl || k.alt) {
-            ([z], Some('a'), false) if *z == Key::ch('z') => Some(Action::Toggle),
-            ([z], Some('o'), false) if *z == Key::ch('z') => Some(Action::Fold(Fold::Show)),
-            ([z], Some('c'), false) if *z == Key::ch('z') => Some(Action::Fold(Fold::Hide)),
-            ([z], Some('O'), false) if *z == Key::ch('z') => Some(Action::Fold(Fold::ShowChildren)),
-            ([z], Some('C'), false) if *z == Key::ch('z') => Some(Action::Fold(Fold::HideChildren)),
-            ([z], Some('r'), false) if *z == Key::ch('z') => Some(Action::Fold(Fold::Level(4))),
-            ([z], Some(c @ '1'..='4'), false) if *z == Key::ch('z') => {
-                Some(Action::Fold(Fold::Level(c as u8 - b'0')))
+        // magit-section-show-level-N (1-4, around point) and -all (M-1..M-4);
+        // evil-collection's z fold keys are off by default (use-z-for-folds).
+        let fold = match (pending.as_slice(), code, k.ctrl, k.alt) {
+            // ponytail: status buffers only, so counts (12G) keep working
+            // in diff and log buffers.
+            ([], Some(c @ '1'..='4'), false, alt)
+                if ed.magit.as_ref().is_some_and(|v| v.kind == Kind::Status) =>
+            {
+                let n = c as u8 - b'0';
+                Some(Action::Fold(if alt {
+                    Fold::Level(n)
+                } else {
+                    Fold::LevelHere(n)
+                }))
             }
             _ => None,
         };
         if let Some(fold) = fold {
-            ed.vim.pending.clear();
             ed.pending_effect = Some(ExEffect::Magit(fold));
             return true;
         }
-        if pending == [Key::ch('z')] {
-            ed.vim.pending.clear();
-            return true;
+    }
+    // evil-collection (use-y-for-yank): ys copies the section value, yb the
+    // buffer's revision, yr shows refs.
+    if ed.vim.pending == [Key::ch('y')] && matches!(k.char(), Some('s' | 'b' | 'r')) {
+        ed.vim.pending.clear();
+        match k.char() {
+            Some('r') => open_menu(ed, 'y'),
+            Some('s') => copy_value(ed, section_value(ed)),
+            _ => copy_value(ed, buffer_revision(ed)),
         }
+        return true;
+    }
+    // magit-refresh-all (gR).
+    if ed.vim.pending == [Key::ch('g')] && k.char() == Some('R') {
+        ed.vim.pending.clear();
+        ed.pending_effect = Some(ExEffect::Magit(Action::RefreshAll));
+        return true;
     }
     if ed.vim.pending == [Key::ch('g')] && k.char() == Some('r') {
         ed.vim.pending.clear();
@@ -900,6 +917,60 @@ fn log_move_to_parent(ed: &mut Editor) {
             "Parent {} not found.  Try typing + first",
             &parent[..parent.len().min(8)]
         )),
+    }
+}
+fn copy_value(ed: &mut Editor, value: Option<String>) {
+    match value {
+        Some(v) => {
+            ed.set_msg(format!("Copied {}", label(std::path::Path::new(&v))));
+            crate::vim::ops::set_reg(
+                ed,
+                crate::editor::Register {
+                    text: v,
+                    linewise: false,
+                },
+            );
+        }
+        None => ed.set_err("Nothing to copy here"),
+    }
+}
+/// magit-copy-section-value: the commit, file, stash or module at point.
+fn section_value(ed: &Editor) -> Option<String> {
+    let view = ed.magit.as_ref()?;
+    match view.action_at(ed.cur.line)? {
+        RowAction::Commit(id) => Some(id),
+        RowAction::File(p, _) | RowAction::Hunk(p, ..) => Some(p.to_string_lossy().into_owned()),
+        RowAction::Stash(s) => Some(s.selector),
+        RowAction::Module(m) => Some(m),
+        RowAction::Section(_) => None,
+    }
+}
+/// magit-copy-buffer-revision: the revision the buffer shows.
+fn buffer_revision(ed: &Editor) -> Option<String> {
+    let view = ed.magit.as_ref()?;
+    // ponytail: synchronous rev-parse; local and fast.
+    let resolve = |r: &str| {
+        view.repo
+            .read(&["rev-parse", "--verify", "-q", "--end-of-options", r])
+            .ok()
+            .map(|o| String::from_utf8_lossy(&o).trim().to_owned())
+    };
+    match &view.kind {
+        Kind::Patch(id) | Kind::Diff(diff::Target::Commit(id), _) => Some(id.clone()),
+        Kind::StashPatch(s) => Some(s.id.clone()),
+        Kind::Log(revs, _) => revs
+            .iter()
+            .find(|r| !r.starts_with('-'))
+            .and_then(|r| resolve(r)),
+        Kind::Diff(diff::Target::Range(r), _) => {
+            let right = r
+                .rsplit("..")
+                .next()
+                .filter(|s| !s.is_empty())
+                .unwrap_or("HEAD");
+            resolve(right.trim_start_matches('.'))
+        }
+        _ => resolve("HEAD"),
     }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
