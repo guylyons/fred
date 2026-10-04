@@ -378,7 +378,7 @@ magit-extras.el,288,command,magit-clean,missing,,explicit
 magit-extras.el,307,command,magit-generate-changelog,missing,,explicit
 magit-extras.el,338,command,magit-add-change-log-entry,missing,,explicit
 magit-extras.el,351,command,magit-add-change-log-entry-other-window,missing,,explicit
-magit-extras.el,364,command,magit-edit-line-commit,missing,,explicit
+magit-extras.el,364,command,magit-edit-line-commit,partial,"F e: blame the line, rebase edit its commit (or check it out when not on HEAD)",explicit
 magit-extras.el,405,command,magit-diff-edit-hunk-commit,missing,,explicit
 magit-extras.el,432,option,magit-reshelve-since-committer-only,missing,,explicit
 magit-extras.el,440,command,magit-reshelve-since,missing,,explicit
@@ -387,8 +387,8 @@ magit-extras.el,577,option,magit-copy-revision-abbreviated,missing,,explicit
 magit-extras.el,584,command,magit-pop-revision-stack,missing,,explicit
 magit-extras.el,651,command,magit-copy-section-value,partial,"ys: commit, file, stash, module",explicit
 magit-extras.el,711,command,magit-copy-buffer-revision,partial,yb,explicit
-magit-extras.el,758,command,magit-display-repository-buffer,missing,,explicit
-magit-extras.el,766,command,magit-switch-to-repository-buffer,missing,,explicit
+magit-extras.el,758,command,magit-display-repository-buffer,partial,F G: the repository's status buffer (no buffer choice),explicit
+magit-extras.el,766,command,magit-switch-to-repository-buffer,partial,:Magit name: the status buffer,explicit
 magit-extras.el,773,command,magit-switch-to-repository-buffer-other-window,missing,,explicit
 magit-extras.el,780,command,magit-switch-to-repository-buffer-other-frame,missing,,explicit
 magit-extras.el,807,command,magit-abort-dwim,missing,,explicit
@@ -437,8 +437,8 @@ magit-files.el,681,command,magit-file-rename,partial,"Space m F ,r; repository-r
 magit-files.el,718,command,magit-file-delete,partial,"Space m F ,k; tracked via git rm, untracked removed; directories need ""yes""; unsaved buffers protect files; region selection and --force missing",explicit
 magit-files.el,746,command,magit-file-checkout,partial,"Space m F ,c; revision and file prompts with defaults; unsaved buffers refuse",explicit
 magit-files.el,,command,magit-blob-mode,partial,Read-only blob buffers with p/n/b/r/f/q and gr refresh; syntax from file name,runtime
-magit-files.el,,command,magit-stage-buffer-file,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-files.el,,command,magit-unstage-buffer-file,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-files.el,,command,magit-stage-buffer-file,partial,F s,runtime
+magit-files.el,,command,magit-unstage-buffer-file,partial,F u,runtime
 magit-files.el,,option,magit-blob-mode-hook,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-git.el,88,option,magit-git-output-coding-system,missing,,explicit
 magit-git.el,113,option,magit-git-executable,missing,,explicit
@@ -494,7 +494,7 @@ magit-log.el,778,command,magit-log-all-branches,partial,Space m l b,explicit
 magit-log.el,787,command,magit-log-all,partial,Space m l a,explicit
 magit-log.el,793,command,magit-log-reflog,partial,Space m l R,explicit
 magit-log.el,799,command,magit-log-buffer-file,partial,"Space m L: literal file history, follow rename option, refresh, commit inspection/return; missing region/revision/custom arguments",explicit
-magit-log.el,825,command,magit-log-trace-definition,missing,,explicit
+magit-log.el,825,command,magit-log-trace-definition,partial,Space m F t: git log -L :NAME:file for the word at point (no which-function),explicit
 magit-log.el,854,command,magit-diff-trace-definition,missing,,explicit
 magit-log.el,862,command,magit-log-merged,partial,"Space m l m: native (no git-when-merged) M^1..M, or first-parent neighborhood of a commit on the branch",explicit
 magit-log.el,911,command,magit-delete-shelved-branch,missing,,explicit

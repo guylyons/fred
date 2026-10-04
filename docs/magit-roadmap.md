@@ -279,3 +279,7 @@ git subcommands in the terminal; o resets quickly (mixed); x on a conflicted
 file checks out a side (magit-checkout-stage); remote set/unset-head by name;
 M-w copies a blame chunk's hash. Ledger 585 partial / 188 missing commands.
 Score remains 3%.
+
+October 4 file-dispatch checkpoint: F t traces the definition at point (git
+log -L), F M merged, F G status, F e edits the commit that added the line.
+Ledger 591 partial / 182 missing commands. Score remains 3%.
