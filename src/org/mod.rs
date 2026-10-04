@@ -11,6 +11,7 @@ pub mod dispatch;
 pub mod element;
 pub mod face;
 pub mod fold;
+pub mod links;
 pub mod list;
 pub mod table;
 pub mod tags;
@@ -67,6 +68,8 @@ pub struct Org {
     pub last_property_value: Option<String>,
     /// Lines a sparse tree matched (for highlighting and next-error).
     pub sparse_hits: Vec<usize>,
+    /// org-link--search-failed.
+    pub link_search_failed: bool,
 }
 
 /// Emacs prefix argument.
@@ -723,12 +726,99 @@ const MODULES: &[Module] = &[
     todo::command,
     tags::command,
     props::command,
+    links::command,
     table::command,
     list::command,
     time::command,
     element::command,
     babel::command,
 ];
+
+thread_local! {
+    /// A string argument for the next command run with [`call_with`].
+    static CALL_ARG: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Run a command by name with a string argument (an interactive spec's answer).
+pub fn call_with(ed: &mut Editor, name: &str, arg: Prefix, s: String) -> Result<(), String> {
+    CALL_ARG.with(|c| *c.borrow_mut() = Some(s));
+    let r = dispatch(ed, name, arg);
+    CALL_ARG.with(|c| c.borrow_mut().take());
+    r
+}
+
+/// The string argument passed by [`call_with`], if any.
+pub fn take_call_arg() -> Option<String> {
+    CALL_ARG.with(|c| c.borrow_mut().take())
+}
+
+/// org-agenda-files, expanded (directories to their Org files).
+pub fn agenda_files() -> Vec<std::path::PathBuf> {
+    let re = options::string("org-agenda-file-regexp", r"\`[^.].*\.org\'");
+    let re = re::compile(&re, false).ok();
+    let mut out = vec![];
+    let list: Vec<String> = match sexp::option("org-agenda-files") {
+        Some(sexp::Sexp::Str(f)) => std::fs::read_to_string(options::expand(&f))
+            .map(|t| t.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')).map(str::to_owned).collect())
+            .unwrap_or_default(),
+        Some(v) => v.list().unwrap_or(&[]).iter().filter_map(|x| x.str().map(str::to_owned)).collect(),
+        None => vec![],
+    };
+    for f in list {
+        let p = options::expand(&f);
+        let p = if p.is_relative() { options::directory().join(p) } else { p };
+        if p.is_dir() {
+            let mut files: Vec<std::path::PathBuf> = std::fs::read_dir(&p)
+                .map(|d| {
+                    d.flatten()
+                        .map(|e| e.path())
+                        .filter(|f| f.is_file() && f.file_name().is_some_and(|n| re.as_ref().is_none_or(|r| r.is_match(&n.to_string_lossy()))))
+                        .collect()
+                })
+                .unwrap_or_default();
+            files.sort();
+            out.extend(files);
+        } else {
+            out.push(p);
+        }
+    }
+    out
+}
+
+/// org-id-find: the file and heading line of entry ID, searching open
+/// buffers, the agenda files and org-id-locations.
+pub fn find_id_file(s: &mut crate::session::Session, id: &str) -> Option<(std::path::PathBuf, usize)> {
+    let mut files: Vec<std::path::PathBuf> = (0..s.org_buffer_count()).filter_map(|i| s.org_buffer_path(i)).filter(|p| p.extension().is_some_and(|e| e == "org")).collect();
+    files.extend(agenda_files());
+    let loc = options::expand(&options::string("org-id-locations-file", "~/.emacs.d/.org-id-locations"));
+    if let Ok(text) = std::fs::read_to_string(&loc)
+        && let Ok(v) = sexp::read(&text)
+    {
+        for e in v.list().unwrap_or(&[]) {
+            if let Some(items) = e.list()
+                && items.iter().skip(1).any(|x| x.str() == Some(id))
+                && let Some(f) = items.first().and_then(|x| x.str())
+            {
+                files.insert(0, options::expand(f));
+            }
+        }
+    }
+    let needle = id.to_owned();
+    for f in files {
+        let Ok(text) = s.org_text(&f) else { continue };
+        let lines: Vec<String> = text.lines().map(str::to_owned).collect();
+        for (i, l) in lines.iter().enumerate() {
+            if let Some((k, v)) = props::parse_property(l)
+                && k.eq_ignore_ascii_case("ID")
+                && v == needle
+            {
+                let h = syntax::heading_at_or_before(&lines, i).unwrap_or(0);
+                return Some((f, h));
+            }
+        }
+    }
+    None
+}
 
 /// Run a command by name from another command (context dispatchers).
 pub fn call(ed: &mut Editor, name: &str, arg: Prefix) -> Result<(), String> {
