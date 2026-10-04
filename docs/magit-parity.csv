@@ -286,7 +286,7 @@ magit-diff.el,622,option,magit-diff-visit-previous-blob,missing,,explicit
 magit-diff.el,771,option,magit-diff-specify-hunk-foreground,missing,,explicit
 magit-diff.el,896,option,magit-diff-use-indicator-faces,missing,,explicit
 magit-diff.el,1104,command,magit-diff,partial,"Space m d menu; -b -w -i -W -A -X -M -x -s =g and d/r/p/u/s/w/c/t; -- files, -U, level-5 args, persistence (set/save) missing",explicit
-magit-diff.el,1120,command,magit-diff-refresh,missing,,explicit
+magit-diff.el,1120,command,magit-diff-refresh,partial,Space m D (dispatch D): menu d's arguments; g applies them to the diff buffer; set/save missing,explicit
 magit-diff.el,1307,command,magit-diff-dwim,partial,"Space m d d; status section/file/hunk, log commit, stash, revision/diff buffers; region ranges, unmerged, module contexts missing",explicit
 magit-diff.el,1463,command,magit-diff-range,partial,"Space m d r; validated range or revision; completion, region endpoints and prefix ... variant missing",explicit
 magit-diff.el,1482,command,magit-diff-working-tree,partial,Space m d w (HEAD); prefix-arg revision missing,explicit
@@ -298,12 +298,12 @@ magit-diff.el,1529,command,magit-diff-buffer-file,missing,,explicit
 magit-diff.el,1560,command,magit-diff-paths,partial,Space m d p; repository-relative files via --no-index; file completion missing,explicit
 magit-diff.el,1581,command,magit-show-commit,partial,"Enter in log and Space m d c (at point or prompted) with diff args; revision sections, buffer locking and dedicated buffers missing",explicit
 magit-diff.el,1627,command,magit-show-commit-removing-file,missing,,explicit
-magit-diff.el,1688,command,magit-diff-switch-range-type,missing,,explicit
-magit-diff.el,1704,command,magit-diff-flip-revs,missing,,explicit
+magit-diff.el,1688,command,magit-diff-switch-range-type,partial,D r: A..B <-> A...B,explicit
+magit-diff.el,1704,command,magit-diff-flip-revs,partial,D f: B..A,explicit
 magit-diff.el,1718,command,magit-diff-toggle-file-filter,missing,,explicit
-magit-diff.el,1743,command,magit-diff-less-context,missing,,explicit
-magit-diff.el,1748,command,magit-diff-more-context,missing,,explicit
-magit-diff.el,1753,command,magit-diff-default-context,missing,,explicit
+magit-diff.el,1743,command,magit-diff-less-context,partial,= in a diff buffer (evil-collection),explicit
+magit-diff.el,1748,command,magit-diff-more-context,partial,+ in a diff buffer,explicit
+magit-diff.el,1753,command,magit-diff-default-context,partial,~ in a diff buffer (evil-collection),explicit
 magit-diff.el,1798,command,magit-diff-toggle-refine-hunk,missing,,explicit
 magit-diff.el,1820,command,magit-diff-toggle-fontify-hunk,missing,,explicit
 magit-diff.el,1845,command,magit-diff-visit-file,missing,,explicit
@@ -319,29 +319,29 @@ magit-diff.el,2288,command,magit-revision-jump,missing,,explicit
 magit-diff.el,2316,command,magit-jump-to-revision-diffstat,missing,,explicit
 magit-diff.el,2335,command,magit-jump-to-revision-diff,missing,,explicit
 magit-diff.el,2349,command,magit-jump-to-diffstat-or-diff,missing,,explicit
-magit-diff.el,,command,magit-diff:--color-moved,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-diff.el,,command,magit-diff:--color-moved-ws,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,magit-diff:--color-moved,partial,=m cycles values; Fred draws no colors,runtime
+magit-diff.el,,command,magit-diff:--color-moved-ws,partial,=w cycles values; Fred draws no colors,runtime
 magit-diff.el,,command,magit-diff:--diff-algorithm,partial,-A cycles default/minimal/patience/histogram,runtime
 magit-diff.el,,command,magit-diff:--diff-merges,partial,-X cycles off/first-parent/combined/dense-combined,runtime
 magit-diff.el,,command,magit-diff:--ignore-submodules,partial,-i cycles none/untracked/dirty/all,runtime
 magit-diff.el,,command,magit-diff:--no-ext-diff,partial,-x (default on),runtime
 magit-diff.el,,command,magit-diff:--show-signature,partial,=g (show commit only),runtime
 magit-diff.el,,command,magit-diff:--stat,partial,-s (default on),runtime
-magit-diff.el,,command,magit-diff:-C,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,magit-diff:-C,partial,-C,runtime
 magit-diff.el,,command,magit-diff:-M,partial,-M without similarity index; magit-read-similarity-index missing,runtime
-magit-diff.el,,command,magit-diff:-R,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-diff.el,,command,magit-diff:-U,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,magit-diff:-R,partial,-R,runtime
+magit-diff.el,,command,magit-diff:-U,partial,-U reads a value,runtime
 magit-diff.el,,command,magit-jump-to-revision-headers,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-diff.el,,command,magit-jump-to-revision-message,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-diff.el,,command,magit-jump-to-revision-notes,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-diff.el,,command,magit-jump-to-staged,partial,gs in status,runtime
 magit-diff.el,,command,magit-jump-to-unstaged,partial,gu in status,runtime
 magit-diff.el,,command,magit:--,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-diff.el,,command,transient:magit-diff-infix-arguments:--find-copies-harder,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-diff.el,,command,transient:magit-diff-infix-arguments:--function-context,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-diff.el,,command,transient:magit-diff-infix-arguments:--ignore-all-space,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-diff.el,,command,transient:magit-diff-infix-arguments:--ignore-space-change,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-diff.el,,command,transient:magit-diff-infix-arguments:--irreversible-delete,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,transient:magit-diff-infix-arguments:--find-copies-harder,partial,-H,runtime
+magit-diff.el,,command,transient:magit-diff-infix-arguments:--function-context,partial,-W,runtime
+magit-diff.el,,command,transient:magit-diff-infix-arguments:--ignore-all-space,partial,-w,runtime
+magit-diff.el,,command,transient:magit-diff-infix-arguments:--ignore-space-change,partial,-b,runtime
+magit-diff.el,,command,transient:magit-diff-infix-arguments:--irreversible-delete,partial,-D,runtime
 magit-dired.el,39,command,magit-dired-jump,missing,,explicit
 magit-dired.el,55,command,magit-dired-stage,missing,,explicit
 magit-dired.el,61,command,magit-dired-unstage,missing,,explicit

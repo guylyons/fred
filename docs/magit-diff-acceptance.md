@@ -24,3 +24,9 @@ Independent review (October 4): fixed diff paths failing when -X was set
 untracked dwim falling through to the range prompt, stash-buffer dwim showing
 stash^..stash, and ranges such as HEAD^! being rejected (now passed to Git as
 magit-diff-range does). Open: stash-show does not yet apply diff arguments.
+
+Diff refresh (October 4): Space m D shows magit-diff's arguments (shared
+state with Space m d) and g applies them to the current diff buffer; r
+switches A..B and A...B, f flips the revisions; = + ~ adjust -U in a diff
+buffer as evil-collection binds them. Evidence:
+session::tests::magit_diff_context_keys_and_refresh_menu.

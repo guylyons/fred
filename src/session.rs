@@ -2059,6 +2059,63 @@ mod tests {
     }
 
     #[test]
+    fn magit_diff_context_keys_and_refresh_menu() {
+        let mut t = T::open(Some("f.txt"), Some("1\n2\n3\n4\n5\n6\n7\n8\n9\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "one"]).unwrap();
+        fs::write(t.dir.path().join("f.txt"), "1\n2\n3\n4\nfive\n6\n7\n8\n9\n").unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "two"]).unwrap();
+        t.keys(" mdr");
+        magit_settle(&mut t);
+        t.keys("HEAD~1..HEAD<Enter>");
+        magit_settle(&mut t);
+        let args = |t: &T| match &t.s.ed.magit.as_ref().unwrap().kind {
+            crate::magit::Kind::Diff(target, args) => (target.clone(), args.clone()),
+            other => panic!("{other:?}"),
+        };
+        // = and + change the context; ~ restores the default.
+        t.keys("=");
+        magit_settle(&mut t);
+        assert!(args(&t).1.contains(&"-U2".to_owned()));
+        assert!(
+            !t.s.ed.buf.text().contains("\n 2\n"),
+            "{}",
+            t.s.ed.buf.text()
+        );
+        for _ in 0..2 {
+            t.keys("+");
+            magit_settle(&mut t);
+        }
+        assert!(args(&t).1.contains(&"-U4".to_owned()));
+        t.keys("~");
+        magit_settle(&mut t);
+        assert!(!args(&t).1.iter().any(|a| a.starts_with("-U")));
+        // The refresh menu flips the range and switches its type.
+        t.keys(" mDf");
+        magit_settle(&mut t);
+        assert_eq!(
+            args(&t).0,
+            crate::magit::diff::Target::Range("HEAD...HEAD~1".replace("...", ".."))
+        );
+        t.keys(" mDr");
+        magit_settle(&mut t);
+        assert_eq!(
+            args(&t).0,
+            crate::magit::diff::Target::Range("HEAD...HEAD~1".into())
+        );
+        // g applies the menu's arguments to the buffer.
+        t.keys(" mD-U1<Enter>g");
+        magit_settle(&mut t);
+        assert!(args(&t).1.contains(&"-U1".to_owned()), "{:?}", args(&t).1);
+    }
+
+    #[test]
     fn magit_file_log_reads_deleted_parent_and_tracked_symlink_name() {
         use std::os::unix::fs::symlink;
         let mut t = T::open(Some("target"), Some("target contents\n"));

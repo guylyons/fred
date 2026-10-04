@@ -858,12 +858,12 @@ pub fn magit_menu(ed: &mut Editor, menu: char) {
                 "{group}: {key}  {label}{}",
                 match action {
                     crate::magit::Action::CycleOption(prefix) => {
-                        crate::magit::current_choice(ed, menu, prefix)
+                        crate::magit::current_choice(ed, crate::magit::arg_menu(menu), prefix)
                             .map_or(" [off]".into(), |v| format!(" [{prefix}{v}]"))
                     }
                     crate::magit::Action::ReadOption(prefix) => ed
                         .magit_values
-                        .get(&(menu, prefix))
+                        .get(&(crate::magit::arg_menu(menu), prefix))
                         .map_or(" [off]".into(), |v| format!(" [{prefix}{v}]")),
                     crate::magit::Action::ToggleOption(option)
                         if ed.magit_options.contains(&option) =>

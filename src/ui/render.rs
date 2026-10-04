@@ -920,17 +920,24 @@ pub fn transient_lines(ed: &Editor, selected: usize, width: usize) -> Vec<Line<'
             }
             Action::ReadOption(prefix) => {
                 spans.push(Span::raw(" "));
-                spans.push(match ed.magit_values.get(&(menu, *prefix)) {
-                    Some(v) => Span::styled(format!("({prefix}{v})"), on),
-                    None => Span::styled(format!("({prefix})"), off),
-                });
+                spans.push(
+                    match ed
+                        .magit_values
+                        .get(&(crate::magit::arg_menu(menu), *prefix))
+                    {
+                        Some(v) => Span::styled(format!("({prefix}{v})"), on),
+                        None => Span::styled(format!("({prefix})"), off),
+                    },
+                );
             }
             Action::CycleOption(prefix) => {
                 spans.push(Span::raw(" "));
-                spans.push(match current_choice(ed, menu, prefix) {
-                    Some(v) => Span::styled(format!("({prefix}{v})"), on),
-                    None => Span::styled(format!("({prefix})"), off),
-                });
+                spans.push(
+                    match current_choice(ed, crate::magit::arg_menu(menu), prefix) {
+                        Some(v) => Span::styled(format!("({prefix}{v})"), on),
+                        None => Span::styled(format!("({prefix})"), off),
+                    },
+                );
             }
             _ => {}
         }

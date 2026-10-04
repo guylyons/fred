@@ -209,3 +209,9 @@ October 4 commit-menu checkpoint: Space m c gains -v (seeded), -A, -D, -S,
 -C reuse (commit at once) and -c reedit (draft from that message), d
 reshelve, R reword past, x autofixup and X absorb modules. Ledger 430
 partial / 343 missing commands. Score remains 3%.
+
+October 4 diff-refresh checkpoint: Space m D ports magit-diff-refresh (shared
+arguments, g, switch range type, flip revisions); the diff menus gain -D -U
+-C -H -R =m =w; = + ~ change a diff buffer's context; bundle, clone, ignore
+and refs review fixes (9f79b8a; clone now runs in the terminal). Ledger 446
+partial / 327 missing commands. Score remains 3%.

@@ -14,6 +14,37 @@ pub enum Op {
     ShowStash,
 }
 
+/// magit-diff-refresh actions.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Refresh {
+    Buffer,
+    SwitchRange,
+    Flip,
+}
+
+impl Target {
+    /// magit-diff-switch-range-type (A..B <-> A...B) and -flip-revs (B..A).
+    pub fn refreshed(&self, how: Refresh) -> Result<Target, String> {
+        let Target::Range(r) = self else {
+            return Err("No range to change in this buffer".into());
+        };
+        let (a, dots, b) = match r.split_once("...") {
+            Some((a, b)) => (a, "...", b),
+            None => match r.split_once("..") {
+                Some((a, b)) => (a, "..", b),
+                None => return Err(format!("{r} is not a range")),
+            },
+        };
+        Ok(Target::Range(match how {
+            Refresh::SwitchRange => {
+                format!("{a}{}{b}", if dots == ".." { "..." } else { ".." })
+            }
+            Refresh::Flip => format!("{b}{dots}{a}"),
+            Refresh::Buffer => r.clone(),
+        }))
+    }
+}
+
 /// What a generated diff buffer shows; kept so gr can recompute it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Target {

@@ -105,6 +105,8 @@ pub enum Action {
     Bundle(bundle::Op),
     /// A magit-refs.el suffix.
     Refs(refs::Op),
+    /// magit-diff-refresh suffixes for the diff buffer.
+    DiffRefresh(diff::Refresh),
     /// A magit-gitignore.el or magit-sparse-checkout.el suffix.
     Ignore(ignore::Op),
     /// A magit-clone.el suffix.
@@ -517,7 +519,7 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             ed.vim.pending.clear();
             if let Some((_, _, _, action)) = entries.into_iter().find(|(key, ..)| *key == suffix) {
                 if let Action::CycleOption(prefix) = action {
-                    cycle_choice(ed, menu, prefix);
+                    cycle_choice(ed, arg_menu(menu), prefix);
                     // magit-pull :incompatible --ff-only with rebasing choices.
                     if ed.magit_options.iter().any(
                         |o| matches!(o, MenuOption::Choice(_, "--rebase=", v) if *v != "false"),
@@ -529,7 +531,7 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
                 }
                 if let Action::ReadOption(prefix) = action {
                     // transient-infix-read: a set option is unset, else read.
-                    if ed.magit_values.remove(&(menu, prefix)).is_none() {
+                    if ed.magit_values.remove(&(arg_menu(menu), prefix)).is_none() {
                         ed.mode = Mode::Normal;
                         ed.magit_menu = None;
                         prompt(ed, Prompt::OptionValue(menu, prefix));
@@ -673,6 +675,27 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     }
     if !ed.vim.pending.is_empty() {
         return false;
+    }
+    // magit-diff-less/more/default-context: = + ~ under evil-collection.
+    if let Some(Kind::Diff(_, args)) = ed.magit.as_mut().map(|v| &mut v.kind)
+        && !k.ctrl
+        && matches!(k.char(), Some('=' | '+' | '~'))
+    {
+        let current = args
+            .iter()
+            .find_map(|a| a.strip_prefix("-U").and_then(|n| n.parse::<usize>().ok()))
+            .unwrap_or(3);
+        let next = match k.char() {
+            Some('=') => Some(current.saturating_sub(1)),
+            Some('+') => Some(current + 1),
+            _ => None,
+        };
+        args.retain(|a| !a.starts_with("-U"));
+        if let Some(n) = next {
+            args.push(format!("-U{n}"));
+        }
+        ed.pending_effect = Some(ExEffect::Magit(Action::Refresh));
+        return true;
     }
     // magit-log-toggle-commit-limit (=) and -double-commit-limit (+);
     // evil-collection leaves - to revert.
@@ -940,7 +963,8 @@ pub fn answer(ed: &mut Editor, text: &str) {
         Some(Prompt::RebaseExec) => rebase::insert_exec(ed, text),
         Some(Prompt::OptionValue(menu, prefix)) => {
             if !text.is_empty() {
-                ed.magit_values.insert((menu, prefix), text.to_owned());
+                ed.magit_values
+                    .insert((arg_menu(menu), prefix), text.to_owned());
             }
             // Return to the open transient, not a fresh one seeded from the buffer.
             ed.magit_menu = Some(menu);
@@ -1032,7 +1056,7 @@ pub(crate) fn open_menu(ed: &mut Editor, menu: char) {
     if menu == 'B' && ed.magit_seeded.insert('B') {
         ed.magit_options.insert(MenuOption::BlameWhitespace);
     }
-    if menu == 'd' {
+    if menu == 'd' || menu == 'D' {
         let args = match ed.magit.as_ref().map(|v| &v.kind) {
             Some(Kind::Diff(_, args)) => Some(args.clone()),
             // magit-diff-mode's default arguments, applied once per buffer.
@@ -1067,6 +1091,7 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("T", "Inspect", "Notes", Menu('N')),
             ("Y", "Inspect", "Cherries", LogOp(log::Op::Cherry)),
             ("y", "Inspect", "Show Refs", Menu('y')),
+            ("D", "Inspect", "Diff (change)", Menu('D')),
             // Upstream's i is the user's init key: gitignore takes upstream's I.
             ("I", "Repository", "Ignore", Menu('g')),
             (">", "Repository", "Sparse checkout", Menu('>')),
@@ -1281,6 +1306,43 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                     "Show signature",
                     ToggleOption(MenuOption::DiffSignature),
                 ),
+                (
+                    "-D",
+                    "Limit arguments",
+                    "Omit preimage for deletes",
+                    ToggleOption(MenuOption::Switch('d', "--irreversible-delete")),
+                ),
+                ("-U", "Context arguments", "Context lines", ReadOption("-U")),
+                (
+                    "-C",
+                    "Tune arguments",
+                    "Detect copies",
+                    ToggleOption(MenuOption::Switch('d', "-C")),
+                ),
+                (
+                    "-H",
+                    "Tune arguments",
+                    "Detect copies if source unmodified",
+                    ToggleOption(MenuOption::Switch('d', "--find-copies-harder")),
+                ),
+                (
+                    "-R",
+                    "Tune arguments",
+                    "Reverse sides",
+                    ToggleOption(MenuOption::Switch('d', "-R")),
+                ),
+                (
+                    "=m",
+                    "Tune arguments",
+                    "Color moved lines",
+                    CycleOption("--color-moved="),
+                ),
+                (
+                    "=w",
+                    "Tune arguments",
+                    "Whitespace for moved lines",
+                    CycleOption("--color-moved-ws="),
+                ),
                 ("d", "Actions", "Dwim", Diff(Dwim)),
                 ("r", "Actions", "Diff range", Diff(Range)),
                 ("p", "Actions", "Diff paths", Diff(Paths)),
@@ -1290,6 +1352,30 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 ("c", "Actions", "Show commit", Diff(ShowCommit)),
                 ("t", "Actions", "Show stash", Diff(ShowStash)),
             ]
+        }
+        // magit-diff-refresh: the same arguments (stored as menu d's), then
+        // refresh this buffer with them.
+        'D' => {
+            let mut v: Vec<_> = menu_entries('d')
+                .into_iter()
+                .filter(|e| e.1 != "Actions")
+                .collect();
+            v.extend([
+                ("g", "Refresh", "buffer", DiffRefresh(diff::Refresh::Buffer)),
+                (
+                    "r",
+                    "Do",
+                    "switch range type",
+                    DiffRefresh(diff::Refresh::SwitchRange),
+                ),
+                (
+                    "f",
+                    "Do",
+                    "flip revisions",
+                    DiffRefresh(diff::Refresh::Flip),
+                ),
+            ]);
+            v
         }
         'l' => {
             use log::Op as L;
@@ -2847,6 +2933,13 @@ pub fn choices(menu: char, prefix: &str) -> &'static [&'static str] {
         // "trailer:" takes a key Fred cannot read in a cycle.
         "--group=" => &["author", "committer"],
         "--thread=" => &["deep", "shallow"],
+        "--color-moved=" => &["default", "plain", "blocks", "zebra", "dimmed-zebra"],
+        "--color-moved-ws=" => &[
+            "ignore-space-at-eol",
+            "ignore-space-change",
+            "ignore-all-space",
+            "allow-indentation-change",
+        ],
         "--sort=" => &[
             "-committerdate",
             "-authordate",
@@ -2948,6 +3041,10 @@ impl MenuOption {
         }
         .into()
     }
+}
+/// Menus that share another menu's arguments (magit-diff-refresh uses magit-diff's).
+pub fn arg_menu(menu: char) -> char {
+    if menu == 'D' { 'd' } else { menu }
 }
 pub fn current_choice(ed: &Editor, menu: char, prefix: &str) -> Option<&'static str> {
     ed.magit_options.iter().find_map(|o| match o {

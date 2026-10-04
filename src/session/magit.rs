@@ -234,6 +234,25 @@ impl Session {
             });
             return;
         }
+        if let Action::DiffRefresh(how) = action {
+            use crate::magit::diff::Refresh;
+            let args = crate::magit::menu_arguments(&self.ed, 'd');
+            let changed = match self.ed.magit.as_mut().map(|v| &mut v.kind) {
+                Some(Kind::Diff(target, buffer_args)) => match how {
+                    Refresh::Buffer => {
+                        *buffer_args = args;
+                        Ok(())
+                    }
+                    how => target.refreshed(how).map(|t| *target = t),
+                },
+                _ => Err("Not in a diff buffer".into()),
+            };
+            match changed {
+                Ok(()) => self.magit_action(Action::Refresh),
+                Err(e) => self.ed.set_err(e),
+            }
+            return;
+        }
         if let Action::Answered(repo, Question::Ignore(op), answers, defaults) = action {
             let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, '>'));
             self.start_magit(move || {
