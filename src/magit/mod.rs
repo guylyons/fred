@@ -148,6 +148,10 @@ pub enum Action {
     DiffBufferFile,
     /// magit-refresh-all: every Magit buffer of the repository.
     RefreshAll,
+    /// A fixed terminal Git command (magit-fetch-all-prune and the like).
+    GitRun(&'static [&'static str]),
+    /// magit-stash-push with menu Q's arguments.
+    StashPush,
     /// magit-diff-while-committing (C-c C-d in a commit draft).
     DiffWhileCommitting,
     Toggle,
@@ -1457,6 +1461,13 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 ("m", "Push", "matching branches", Net(PushMatching)),
                 ("T", "Push", "a tag", Net(PushTag)),
                 ("t", "Push", "all tags", Net(PushTags)),
+                (
+                    "-o",
+                    "Arguments",
+                    "Set push option",
+                    ReadOption("--push-option="),
+                ),
+                ("C", "Configure", "Set variables...", Menu('c')),
             ]
         }
         'f' => {
@@ -1487,6 +1498,13 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 ("o", "Fetch", "another branch", Net(FetchBranch)),
                 ("r", "Fetch", "explicit refspec", Net(FetchRefspec)),
                 ("m", "Fetch", "submodules", Net(FetchModules)),
+                (
+                    "-u",
+                    "Arguments",
+                    "Fetch full history",
+                    ToggleOption(MenuOption::Switch('f', "--unshallow")),
+                ),
+                ("C", "Configure", "variables...", Menu('c')),
             ]
         }
         'P' => {
@@ -1523,6 +1541,20 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                     "elsewhere",
                     Net(PullElsewhere),
                 ),
+                (
+                    "-A",
+                    "Arguments",
+                    "Autostash",
+                    ToggleOption(MenuOption::Switch('P', "--autostash")),
+                ),
+                ("f", "Fetch from", "remotes", GitRun(&["remote", "update"])),
+                (
+                    "F",
+                    "Fetch from",
+                    "remotes and prune",
+                    GitRun(&["remote", "update", "--prune"]),
+                ),
+                ("C", "Configure", "variables...", Menu('c')),
             ]
         }
         'd' => {
@@ -2062,6 +2094,35 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 ("a", "Actions", "Add directories", Ignore(G::SparseAdd)),
             ]
         }
+        // magit-stash-push: git stash push with its own arguments.
+        'Q' => vec![
+            ("--", "Arguments", "Limit to file", ReadOption("-- ")),
+            (
+                "-u",
+                "Arguments",
+                "Also save untracked files",
+                ToggleOption(MenuOption::Switch('Q', "--include-untracked")),
+            ),
+            (
+                "-a",
+                "Arguments",
+                "Also save untracked and ignored files",
+                ToggleOption(MenuOption::Switch('Q', "--all")),
+            ),
+            (
+                "-k",
+                "Arguments",
+                "Keep index",
+                ToggleOption(MenuOption::Switch('Q', "--keep-index")),
+            ),
+            (
+                "-K",
+                "Arguments",
+                "Don't keep index",
+                ToggleOption(MenuOption::Switch('Q', "--no-keep-index")),
+            ),
+            ("P", "Actions", "push", StashPush),
+        ],
         'J' => vec![
             ("c", "Actions", "create", Menu('j')),
             ("v", "Actions", "verify", Bundle(bundle::Op::Verify)),
@@ -2453,6 +2514,7 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 "Clear all (Fred)",
                 StashOp(stash::Op::Clear),
             ),
+            ("P", "Stash", "push...", Menu('Q')),
         ],
         // magit-file-dispatch: the visited file or blob.
         'F' => {
@@ -2699,6 +2761,7 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("k", "Do", "delete", Action::Tag(tag::Op::Delete)),
             ("p", "Do", "prune", Action::Tag(tag::Op::Prune)),
             ("l", "Inspect", "List (Fred)", Tags),
+            ("-u", "Arguments", "Sign as", ReadOption("--local-user=")),
         ],
         'C' => vec![
             (
@@ -2878,6 +2941,13 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                     "Reset",
                     Action::Bisect(O::Reset),
                 ),
+                (
+                    "=o",
+                    "Arguments",
+                    "Old/good term",
+                    ReadOption("--term-old="),
+                ),
+                ("=n", "Arguments", "New/bad term", ReadOption("--term-new=")),
             ]
         }
         // magit-notes (internal id N; leader key T). While merging notes,
@@ -3047,6 +3117,42 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 ("p", "Actions", "Preview merge", Action::Merge(O::Preview)),
                 ("s", "Actions", "Squash merge", Action::Merge(O::Squash)),
                 ("d", "Actions", "Dissolve", Action::Merge(O::Dissolve)),
+                (
+                    "-X",
+                    "Arguments",
+                    "Strategy Option",
+                    ReadOption("--strategy-option="),
+                ),
+                (
+                    "-b",
+                    "Arguments",
+                    "Ignore changes in amount of whitespace",
+                    ToggleOption(MenuOption::Switch('M', "-Xignore-space-change")),
+                ),
+                (
+                    "-w",
+                    "Arguments",
+                    "Ignore whitespace when comparing lines",
+                    ToggleOption(MenuOption::Switch('M', "-Xignore-all-space")),
+                ),
+                (
+                    "-A",
+                    "Arguments",
+                    "Diff algorithm",
+                    CycleOption("-Xdiff-algorithm="),
+                ),
+                (
+                    "-S",
+                    "Arguments",
+                    "Sign using gpg",
+                    ReadOption("--gpg-sign="),
+                ),
+                (
+                    "+s",
+                    "Arguments",
+                    "Add Signed-off-by lines",
+                    ToggleOption(MenuOption::Switch('M', "--signoff")),
+                ),
             ]
         }
         // magit-rebase; while rebasing, r continues, s skips, e edits the
@@ -3400,6 +3506,7 @@ pub fn choices(menu: char, prefix: &str) -> &'static [&'static str] {
         // "trailer:" takes a key Fred cannot read in a cycle.
         "--group=" => &["author", "committer"],
         "--thread=" => &["deep", "shallow"],
+        "-Xdiff-algorithm=" => &["default", "minimal", "patience", "histogram"],
         "--color-moved=" => &["default", "plain", "blocks", "zebra", "dimmed-zebra"],
         "--color-moved-ws=" => &[
             "ignore-space-at-eol",

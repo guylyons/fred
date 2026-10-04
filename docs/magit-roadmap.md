@@ -264,3 +264,7 @@ table and never deletes or overwrites work it did not show (review fixes);
 todo buffer text-mode toggle; hunks are single sections for movement; levels
 1-4 / M-1..M-4 replace the z fold keys, which evil-collection leaves off by
 default (the user's config keeps defaults); ys/yb/yr and gR.
+
+October 4 arguments checkpoint: fetch -u/C, pull -A/f/F/C, push -o/C, merge
+-X -b -w -A -S +s, tag -u, bisect =o =n, and the stash push menu (z P).
+Ledger 571 partial / 202 missing commands. Score remains 3%.

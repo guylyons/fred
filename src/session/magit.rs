@@ -310,6 +310,43 @@ impl Session {
             });
             return;
         }
+        if let Action::GitRun(words) = action {
+            let (origin, from) = (self.cur, self.magit_from());
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                let argv = words.iter().map(|w| w.to_string()).collect();
+                Ok(branch_outcome(
+                    repo,
+                    crate::magit::branch::Next::Git(argv),
+                    origin,
+                ))
+            });
+            return;
+        }
+        if action == Action::StashPush {
+            let (origin, from) = (self.cur, self.magit_from());
+            let args = crate::magit::menu_arguments(&self.ed, 'Q');
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                // Options, then the file limit after "--" as a literal pathspec.
+                let mut argv: Vec<OsString> = vec!["stash".into(), "push".into()];
+                argv.extend(
+                    args.iter()
+                        .filter(|a| !a.starts_with("-- "))
+                        .map(OsString::from),
+                );
+                argv.push("--".into());
+                for f in args.iter().filter_map(|a| a.strip_prefix("-- ")) {
+                    argv.push(format!(":(literal){f}").into());
+                }
+                let next = match repo.run(&argv, None) {
+                    Ok(_) => crate::magit::branch::Next::Done(Ok("Stashed".into())),
+                    Err(e) => crate::magit::branch::Next::Done(Err(e)),
+                };
+                Ok(branch_outcome(repo, next, origin))
+            });
+            return;
+        }
         if action == Action::RefreshAll {
             let Some(repo) = self.ed.magit.as_ref().map(|v| v.repo.clone()) else {
                 return;

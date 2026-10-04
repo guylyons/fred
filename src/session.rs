@@ -2404,6 +2404,33 @@ mod tests {
     }
 
     #[test]
+    fn magit_stash_push_limits_to_a_file() {
+        let mut t = T::open(Some("f.txt"), Some("one\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        fs::write(t.dir.path().join("g.txt"), "g\n").unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.stage_file(Path::new("g.txt")).unwrap();
+        repo.read(&["commit", "-qm", "base"]).unwrap();
+        fs::write(t.dir.path().join("f.txt"), "two\n").unwrap();
+        fs::write(t.dir.path().join("g.txt"), "other\n").unwrap();
+        t.keys(" mzP--g.txt<Enter>P");
+        magit_settle(&mut t);
+        assert_eq!(
+            fs::read_to_string(t.dir.path().join("g.txt")).unwrap(),
+            "g\n"
+        );
+        assert_eq!(
+            fs::read_to_string(t.dir.path().join("f.txt")).unwrap(),
+            "two\n"
+        );
+        assert!(!repo.read(&["stash", "list"]).unwrap().is_empty());
+    }
+
+    #[test]
     fn magit_file_log_reads_deleted_parent_and_tracked_symlink_name() {
         use std::os::unix::fs::symlink;
         let mut t = T::open(Some("target"), Some("target contents\n"));

@@ -111,10 +111,10 @@ magit-bisect.el,160,command,magit-bisect-bad,partial,B while bisecting (BISECT_T
 magit-bisect.el,169,command,magit-bisect-mark,partial,m with n/o,explicit
 magit-bisect.el,189,command,magit-bisect-skip,partial,k,explicit
 magit-bisect.el,197,command,magit-bisect-run,partial,Space m G s; starts first when needed,explicit
-magit-bisect.el,,command,magit-bisect:--term-new,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-bisect.el,,command,magit-bisect:--term-old,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-bisect.el,,command,transient:magit-bisect:--first-parent,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-bisect.el,,command,transient:magit-bisect:--no-checkout,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-bisect.el,,command,magit-bisect:--term-new,partial,=n,runtime
+magit-bisect.el,,command,magit-bisect:--term-old,partial,=o,runtime
+magit-bisect.el,,command,transient:magit-bisect:--first-parent,partial,-p,runtime
+magit-bisect.el,,command,transient:magit-bisect:--no-checkout,partial,-n,runtime
 magit-blame.el,39,option,magit-blame-styles,missing,,explicit
 magit-blame.el,134,option,magit-blame-echo-style,missing,,explicit
 magit-blame.el,142,option,magit-blame-time-format,missing,,explicit
@@ -407,15 +407,15 @@ magit-fetch.el,110,command,magit-fetch-other,partial,Space m f e; remote must ex
 magit-fetch.el,117,command,magit-fetch-branch,partial,Space m f o; remote or URL then branch,explicit
 magit-fetch.el,127,command,magit-fetch-refspec,partial,Space m f r; remote or URL then refspec; refspec completion missing,explicit
 magit-fetch.el,137,command,magit-fetch-all,partial,Space m f a,explicit
-magit-fetch.el,143,command,magit-fetch-all-prune,missing,,explicit
-magit-fetch.el,152,command,magit-fetch-all-no-prune,missing,,explicit
+magit-fetch.el,143,command,magit-fetch-all-prune,partial,Space m P F (remote update --prune),explicit
+magit-fetch.el,152,command,magit-fetch-all-no-prune,partial,Space m P f,explicit
 magit-fetch.el,159,command,magit-fetch-modules,partial,o f and Space m f m,explicit
 magit-fetch.el,,command,transient:magit-fetch-modules:--jobs=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-fetch.el,,command,transient:magit-fetch-modules:--verbose,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-fetch.el,,command,transient:magit-fetch:--force,partial,-F,runtime
 magit-fetch.el,,command,transient:magit-fetch:--prune,partial,-p,runtime
 magit-fetch.el,,command,transient:magit-fetch:--tags,partial,-t,runtime
-magit-fetch.el,,command,transient:magit-fetch:--unshallow,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-fetch.el,,command,transient:magit-fetch:--unshallow,partial,-u,runtime
 magit-files.el,53,command,magit-find-file,partial,"Space m F v; revision and file prompts with defaults; {index}; position kept by line number, not mapped through diffs; completion missing",explicit
 magit-files.el,63,command,magit-find-file-other-window,missing,,explicit
 magit-files.el,73,command,magit-find-file-other-frame,missing,,explicit
@@ -572,11 +572,11 @@ magit-merge.el,233,command,magit-merge-preview,partial,Space m M p; merge-tree -
 magit-merge.el,239,command,magit-merge-abort,partial,Space m M a while merging; y/n confirmation,explicit
 magit-merge.el,248,command,magit-checkout-stage,missing,,explicit
 magit-merge.el,,command,magit-merge:--strategy,partial,Space m M argument,runtime
-magit-merge.el,,command,magit-merge:--strategy-option,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-merge.el,,command,magit-merge:--strategy-option,partial,-X reads a value,runtime
 magit-merge.el,,command,transient:magit-merge:--ff-only,partial,Space m M argument,runtime
 magit-merge.el,,command,transient:magit-merge:--no-ff,partial,Space m M argument,runtime
-magit-merge.el,,command,transient:magit-merge:-Xignore-all-space,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-merge.el,,command,transient:magit-merge:-Xignore-space-change,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-merge.el,,command,transient:magit-merge:-Xignore-all-space,partial,-w,runtime
+magit-merge.el,,command,transient:magit-merge:-Xignore-space-change,partial,-b,runtime
 magit-mode.el,60,option,magit-mode-hook,missing,,explicit
 magit-mode.el,67,option,magit-setup-buffer-hook,missing,,explicit
 magit-mode.el,83,option,magit-pre-refresh-hook,missing,,explicit
@@ -629,7 +629,7 @@ magit-notes.el,,command,magit-global-notes.displayRef,partial,Space m T D,runtim
 magit-notes.el,,command,magit-notes.displayRef,partial,Space m T d (comma separated),runtime
 magit-notes.el,,command,magit-notes:--ref,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-notes.el,,command,magit-notes:--strategy,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-notes.el,,command,transient:magit-notes:--dry-run,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-notes.el,,command,transient:magit-notes:--dry-run,partial,-n,runtime
 magit-patch.el,35,option,magit-patch-save-arguments,missing,,explicit
 magit-patch.el,56,command,magit-patch,partial,Space m W: c w a s r,explicit
 magit-patch.el,66,command,magit-patch-create,partial,W c menu K (C-m x keys are =x); range or commit (single commit = X^..X); in-process format-patch; visits cover letter; no -- files,explicit
@@ -682,7 +682,7 @@ magit-pull.el,123,command,magit-pull-from-upstream,partial,Space m P u; sets ups
 magit-pull.el,165,command,magit-pull-into-upstream,missing,,explicit
 magit-pull.el,195,command,magit-pull-branch,partial,Space m P e; local or remote-tracking source,explicit
 magit-pull.el,,command,magit-pull:--rebase,partial,-r cycles true/merges/interactive/false/off; incompatible with --ff-only,runtime
-magit-pull.el,,command,transient:magit-pull:--autostash,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-pull.el,,command,transient:magit-pull:--autostash,partial,-A,runtime
 magit-pull.el,,command,transient:magit-pull:--ff-only,partial,-f; incompatible with rebasing choices,runtime
 magit-pull.el,,command,transient:magit-pull:--force,partial,-F,runtime
 magit-push.el,33,option,magit-push-options,missing,,explicit
@@ -698,7 +698,7 @@ magit-push.el,264,command,magit-push-tag,partial,Space m p T; tag validated; com
 magit-push.el,274,command,magit-push-notes-ref,missing,,explicit
 magit-push.el,285,command,magit-push-implicitly,missing,,explicit
 magit-push.el,363,command,magit-push-to-remote,missing,,explicit
-magit-push.el,,command,magit-push:--push-option,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-push.el,,command,magit-push:--push-option,partial,-o reads a value,runtime
 magit-push.el,,command,transient:magit-push:--dry-run,partial,-n,runtime
 magit-push.el,,command,transient:magit-push:--follow-tags,partial,-t,runtime
 magit-push.el,,command,transient:magit-push:--force,partial,-F,runtime
@@ -885,7 +885,7 @@ magit-stash.el,159,command,magit-stash-keep-index,partial,Space m z k; Git --kee
 magit-stash.el,206,command,magit-snapshot-both,partial,Space m z Z; source tree/parents/untracked plumbing without cleanup; customization/context/error parity remains open,explicit
 magit-stash.el,215,command,magit-snapshot-index,partial,Space m z I; saves index-only tree without worktree cleanup; customization/context/error parity remains open,explicit
 magit-stash.el,222,command,magit-snapshot-worktree,partial,Space m z W; source pre-stash-index base and unstaged tree; customization/context/error parity remains open,explicit
-magit-stash.el,238,command,magit-stash-push,missing,,explicit
+magit-stash.el,238,command,magit-stash-push,partial,Space m z P: menu with -- -u -a -k -K; P runs git stash push,explicit
 magit-stash.el,265,command,magit-stash-apply,partial,selected a; index restoration then plain fallback retaining stash; 3way/reject negotiation still missing,explicit
 magit-stash.el,288,command,magit-stash-pop,partial,"selected p; index restoration, guarded reflog deletion, conflicts retained; additional fallbacks missing",explicit
 magit-stash.el,370,command,magit-stash-drop,partial,selected d/k; yes confirmation and stale identity guard; multi-selection still missing,explicit
@@ -896,12 +896,12 @@ magit-stash.el,417,command,magit-stash-format-patch,partial,Space m z f; 0001-<s
 magit-stash.el,543,command,magit-stash-list,partial,Space m z l; simple list; margins/options/autostash missing,explicit
 magit-stash.el,601,command,magit-stash-show,partial,Enter and Space m d t (at point or prompted); notes/unstaged/staged/untracked diffs; diff options and section interactions missing,explicit
 magit-stash.el,,command,magit-jump-to-stashes,partial,gz in status,runtime
-magit-stash.el,,command,transient:magit-stash-push:--all,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-stash.el,,command,transient:magit-stash-push:--include-untracked,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-stash.el,,command,transient:magit-stash-push:--keep-index,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-stash.el,,command,transient:magit-stash-push:--no-keep-index,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-stash.el,,command,transient:magit-stash:--all,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-stash.el,,command,transient:magit-stash:--include-untracked,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-stash.el,,command,transient:magit-stash-push:--all,partial,-a,runtime
+magit-stash.el,,command,transient:magit-stash-push:--include-untracked,partial,-u,runtime
+magit-stash.el,,command,transient:magit-stash-push:--keep-index,partial,-k,runtime
+magit-stash.el,,command,transient:magit-stash-push:--no-keep-index,partial,-K,runtime
+magit-stash.el,,command,transient:magit-stash:--all,partial,-a,runtime
+magit-stash.el,,command,transient:magit-stash:--include-untracked,partial,-u,runtime
 magit-status.el,40,option,magit-status-mode-hook,missing,,explicit
 magit-status.el,45,option,magit-status-headers-hook,partial,default hook order except error/diff-filter headers; not configurable,explicit
 magit-status.el,69,option,magit-status-sections-hook,partial,"default hook partly: headers, files, stashes, log sections; merge-log, sequences and bisect missing; not configurable",explicit
@@ -970,7 +970,7 @@ magit-tag.el,65,command,magit-tag-create,partial,Space m t t; name and revision 
 magit-tag.el,78,command,magit-tag-delete,partial,Space m t k; default tag at point in the tags list; region multi-delete missing,explicit
 magit-tag.el,91,command,magit-tag-prune,partial,"Space m t p; ls-remote comparison, confirm local then remote deletion",explicit
 magit-tag.el,148,command,magit-tag-release,partial,"Space m t r; magit--list-releases version ordering, Release version commits, derived annotated messages; refs buffer afterwards missing",explicit
-magit-tag.el,,command,magit-tag:--local-user,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-tag.el,,command,magit-tag:--local-user,partial,-u reads a value,runtime
 magit-tag.el,,command,transient:magit-tag:--annotate,partial,switch in Space m t,runtime
 magit-tag.el,,command,transient:magit-tag:--edit,partial,switch in Space m t,runtime
 magit-tag.el,,command,transient:magit-tag:--force,partial,switch in Space m t,runtime
