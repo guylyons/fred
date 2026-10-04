@@ -241,3 +241,8 @@ October 4 apply checkpoint: status buffers gain x discard, - reverse, S stage
 all modified and U unstage all (evil-collection keys), each confirmed as
 upstream's magit-confirm defaults. Ledger 498 partial / 275 missing
 commands. Score remains 3%.
+
+October 4 todo-buffer checkpoint: the rebase todo buffer gains upstream's
+overriding keys (c w m S F A b z l t y M M, M t, Enter/SPC show commit); u
+stays undo as evil-collection binds it; commit/diff review fixes (10eb821).
+Ledger 512 partial / 261 missing commands. Score remains 3%.

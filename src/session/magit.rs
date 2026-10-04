@@ -309,6 +309,36 @@ impl Session {
             });
             return;
         }
+        if action == Action::RebaseShowCommit {
+            let Some(plan) = self.ed.rebase_todo.clone() else {
+                return;
+            };
+            let text = self.ed.buf.line(self.ed.cur.line);
+            let Some(id) = crate::magit::rebase::line_commit(&text).map(str::to_owned) else {
+                return self.ed.set_err("No commit on this line");
+            };
+            let origin = self.cur;
+            self.start_magit(move || {
+                let full = plan
+                    .repo
+                    .read(&[
+                        "rev-parse",
+                        "--verify",
+                        "-q",
+                        "--end-of-options",
+                        &format!("{id}^{{commit}}"),
+                    ])
+                    .map_err(|_| format!("unknown commit {id}"))?;
+                let full = String::from_utf8_lossy(&full).trim().to_owned();
+                diff_view(
+                    plan.repo,
+                    crate::magit::diff::Target::Commit(full),
+                    vec!["--stat".into(), "--no-ext-diff".into()],
+                    origin,
+                )
+            });
+            return;
+        }
         if let Action::DiffRefresh(how) = action {
             use crate::magit::diff::Refresh;
             let args = crate::magit::menu_arguments(&self.ed, 'd');

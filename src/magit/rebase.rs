@@ -487,6 +487,18 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         ed.pending_effect = Some(ExEffect::Magit(action));
         return true;
     }
+    // git-rebase-merge (M M) and -merge-toggle-editmsg (M t).
+    if ed.vim.pending == [Key::ch('M')] {
+        ed.vim.pending.clear();
+        match k.char() {
+            Some('M') => {
+                ask_line(ed, "merge", "Merge (label or -C commit label): ");
+            }
+            Some('t') => toggle_merge_editmsg(ed),
+            _ => {}
+        }
+        return true;
+    }
     if !ed.vim.pending.is_empty() || k.ctrl {
         return false;
     }
@@ -499,22 +511,34 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         move_line(ed, delta);
         return true;
     }
+    // evil-collection makes git-rebase-mode-map overriding: upstream's keys
+    // apply except u (undo).
     let action = match k.code {
-        KeyCode::Char('p') => "pick",
-        KeyCode::Char('r') => "reword",
-        KeyCode::Char('e') => "edit",
+        KeyCode::Char('p' | 'c') => "pick",
+        KeyCode::Char('r' | 'w') => "reword",
+        KeyCode::Char('e' | 'm') => "edit",
         KeyCode::Char('s') => "squash",
+        KeyCode::Char('S') => "fixup -c",
+        KeyCode::Char('F' | 'A') => "fixup -C",
         KeyCode::Char('f') => "fixup",
         KeyCode::Char('d') => "drop",
-        KeyCode::Char('x') => {
-            ed.magit_prompt = Some(super::Prompt::RebaseExec);
-            ed.open_cmdline('=', "");
-            if let Mode::Command(cl) = &mut ed.mode {
-                cl.prompt = "Execute: ".into();
-            }
+        KeyCode::Char('x') => return ask_line(ed, "exec", "Execute: "),
+        KeyCode::Char('l') => return ask_line(ed, "label", "Label: "),
+        KeyCode::Char('t') => return ask_line(ed, "reset", "Reset to (label or commit): "),
+        KeyCode::Char('y') => return ask_line(ed, "pick", "Insert commit: "),
+        KeyCode::Char('b') => {
+            insert_line(ed, "break", "");
             return true;
         }
-        KeyCode::Char('Z') => {
+        KeyCode::Char('z') => {
+            insert_line(ed, "noop", "");
+            return true;
+        }
+        KeyCode::Enter | KeyCode::Char(' ') => {
+            ed.pending_effect = Some(ExEffect::Magit(super::Action::RebaseShowCommit));
+            return true;
+        }
+        KeyCode::Char('Z' | 'M') => {
             ed.vim.pending = vec![k];
             return true;
         }
@@ -580,12 +604,53 @@ fn move_line(ed: &mut Editor, delta: isize) {
     ed.set_cursor(target as usize, 0);
 }
 /// git-rebase-exec: insert "exec COMMAND" below the current line.
-pub fn insert_exec(ed: &mut Editor, command: &str) {
-    if command.trim().is_empty() {
+fn ask_line(ed: &mut Editor, verb: &'static str, prompt: &'static str) -> bool {
+    ed.magit_prompt = Some(super::Prompt::RebaseLine(verb, prompt));
+    ed.open_cmdline('=', "");
+    if let Mode::Command(cl) = &mut ed.mode {
+        cl.prompt = prompt.into();
+    }
+    true
+}
+/// git-rebase-merge-toggle-editmsg: merge -C <commit> <-> merge -c <commit>.
+fn toggle_merge_editmsg(ed: &mut Editor) {
+    let line = ed.cur.line;
+    let text = ed.buf.line(line);
+    let new = if let Some(r) = text.strip_prefix("merge -C ") {
+        format!("merge -c {r}")
+    } else if let Some(r) = text.strip_prefix("merge -c ") {
+        format!("merge -C {r}")
+    } else {
+        return;
+    };
+    splice(ed, line, 1, &[new]);
+}
+/// The commit named on a todo line (pick/fixup -C/merge -C ...), if any.
+pub fn line_commit(text: &str) -> Option<&str> {
+    let mut words = text.split_whitespace();
+    let verb = words.next()?;
+    let mut next = words.next()?;
+    if matches!(next, "-C" | "-c") {
+        next = words.next()?;
+    }
+    let commit_verbs = [
+        "pick", "p", "reword", "r", "edit", "e", "squash", "s", "fixup", "f", "drop", "d", "merge",
+        "m",
+    ];
+    (commit_verbs.contains(&verb) && next.bytes().all(|b| b.is_ascii_hexdigit())).then_some(next)
+}
+/// Insert "VERB TEXT" below point (break and noop take no argument).
+pub fn insert_line(ed: &mut Editor, verb: &str, text: &str) {
+    let text = text.trim();
+    if text.is_empty() && !matches!(verb, "break" | "noop") {
         return;
     }
     let at = ed.cur.line + 1;
-    let line = format!("exec {}", command.trim());
+    let line = if text.is_empty() {
+        verb.to_owned()
+    } else {
+        format!("{verb} {text}")
+    };
     if at < ed.buf.len_lines() {
         splice(ed, at, 0, &[line]);
     } else {

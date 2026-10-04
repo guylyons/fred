@@ -28,3 +28,11 @@ the todo region across blank and `# Branch` lines; abbreviated commands are
 matched; subset honors -i. Open: pre-rebase hook runs at capture and replay;
 counts/`dd` fall through to vim; `:wq` closes without running; continue's
 amend-published confirmation.
+
+Todo keys (October 4): evil-collection makes git-rebase-mode-map an
+overriding map, so upstream's keys apply in normal state: c/w/m alias pick,
+reword and edit; S squish (fixup -c), F/A alter (fixup -C); b break, z noop;
+l label, t reset, y insert, M M merge read their argument; M t toggles a
+merge's -C/-c; Enter and SPC show the line's commit. u remains undo
+(evil-collection), so update-ref has no key. Evidence:
+session::tests::magit_rebase_todo_buffer_upstream_keys.

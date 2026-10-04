@@ -39,30 +39,30 @@ git-rebase.el,91,option,git-rebase-auto-advance,missing,,explicit
 git-rebase.el,96,option,git-rebase-show-instructions,missing,,explicit
 git-rebase.el,101,option,git-rebase-confirm-cancel,missing,,explicit
 git-rebase.el,236,command,git-rebase-pick,partial,p in todo buffers,explicit
-git-rebase.el,242,command,git-rebase-drop,missing,,explicit
+git-rebase.el,242,command,git-rebase-drop,partial,d (evil-collection),explicit
 git-rebase.el,248,command,git-rebase-reword,partial,r,explicit
 git-rebase.el,254,command,git-rebase-edit,partial,e,explicit
 git-rebase.el,260,command,git-rebase-squash,partial,s,explicit
-git-rebase.el,266,command,git-rebase-squish,missing,,explicit
+git-rebase.el,266,command,git-rebase-squish,partial,S: fixup -c,explicit
 git-rebase.el,274,command,git-rebase-fixup,partial,f,explicit
-git-rebase.el,280,command,git-rebase-alter,missing,,explicit
+git-rebase.el,280,command,git-rebase-alter,partial,F / A: fixup -C,explicit
 git-rebase.el,448,command,git-rebase-move-line-down,partial,M-j / M-n,explicit
 git-rebase.el,491,command,git-rebase-move-line-up,partial,M-k / M-p,explicit
 git-rebase.el,516,command,git-rebase-kill-line,partial,d (drop),explicit
-git-rebase.el,523,command,git-rebase-insert,missing,,explicit
+git-rebase.el,523,command,git-rebase-insert,partial,"y: reads a commit, inserts pick (no completion or subject)",explicit
 git-rebase.el,560,command,git-rebase-exec,partial,x prompts for a command,explicit
-git-rebase.el,573,command,git-rebase-label,missing,,explicit
-git-rebase.el,595,command,git-rebase-reset,missing,,explicit
-git-rebase.el,610,command,git-rebase-update-ref,missing,,explicit
-git-rebase.el,624,command,git-rebase-merge,missing,,explicit
-git-rebase.el,639,command,git-rebase-merge-toggle-editmsg,missing,,explicit
-git-rebase.el,675,command,git-rebase-noop,missing,,explicit
-git-rebase.el,690,command,git-rebase-break,missing,,explicit
+git-rebase.el,573,command,git-rebase-label,partial,l,explicit
+git-rebase.el,595,command,git-rebase-reset,partial,t,explicit
+git-rebase.el,610,command,git-rebase-update-ref,partial,unreachable under evil-collection (u is undo there),explicit
+git-rebase.el,624,command,git-rebase-merge,partial,M M: reads the merge line's argument,explicit
+git-rebase.el,639,command,git-rebase-merge-toggle-editmsg,partial,M t: -C <-> -c,explicit
+git-rebase.el,675,command,git-rebase-noop,partial,z,explicit
+git-rebase.el,690,command,git-rebase-break,partial,b,explicit
 git-rebase.el,704,command,git-rebase-undo,partial,u (Fred undo),explicit
-git-rebase.el,726,command,git-rebase-show-commit,missing,,explicit
-git-rebase.el,731,command,git-rebase-show-or-scroll-up,missing,,explicit
+git-rebase.el,726,command,git-rebase-show-commit,partial,Enter: the line's commit in a diff buffer,explicit
+git-rebase.el,731,command,git-rebase-show-or-scroll-up,partial,SPC shows the commit (no scrolling),explicit
 git-rebase.el,741,command,git-rebase-show-or-scroll-down,missing,,explicit
-git-rebase.el,751,command,git-rebase-backward-line,missing,,explicit
+git-rebase.el,751,command,git-rebase-backward-line,partial,k under evil-collection,explicit
 git-rebase.el,,command,git-rebase-mode-menu,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-apply.el,55,option,magit-delete-by-moving-to-trash,missing,,explicit
 magit-apply.el,66,option,magit-unstage-committed,missing,,explicit

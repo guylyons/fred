@@ -2828,6 +2828,62 @@ mod tests {
         );
     }
     #[test]
+    fn magit_rebase_todo_buffer_upstream_keys() {
+        let mut t = T::open(Some("f.txt"), Some("one\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        for (file, msg) in [("f.txt", "first"), ("a", "second"), ("b", "third")] {
+            fs::write(t.dir.path().join(file), msg).unwrap();
+            repo.stage_file(Path::new(file)).unwrap();
+            repo.read(&["commit", "-qm", msg]).unwrap();
+        }
+        t.keys(":e!<Enter> mRi");
+        magit_settle(&mut t);
+        t.keys("HEAD~2<Enter>");
+        magit_settle(&mut t);
+        assert!(t.s.ed.rebase_todo.is_some(), "{}", t.msg());
+        let verb = |t: &T, l: usize| t.s.ed.buf.line(l);
+        // Upstream's other action keys (c w m S F A).
+        for (key, want) in [
+            ("S", "fixup -c "),
+            ("F", "fixup -C "),
+            ("w", "reword "),
+            ("m", "edit "),
+            ("c", "pick "),
+        ] {
+            t.keys(&format!("gg{key}"));
+            assert!(verb(&t, 0).starts_with(want), "{key}: {}", verb(&t, 0));
+        }
+        // b z insert lines; l t y read their argument.
+        t.keys("ggb");
+        assert_eq!(verb(&t, 1), "break");
+        t.keys("z");
+        assert_eq!(verb(&t, 2), "noop");
+        t.keys("lmine<Enter>");
+        assert_eq!(verb(&t, 3), "label mine");
+        t.keys("tmine<Enter>");
+        assert_eq!(verb(&t, 4), "reset mine");
+        t.keys("yHEAD<Enter>");
+        assert_eq!(verb(&t, 5), "pick HEAD");
+        t.keys("MMmine<Enter>");
+        assert_eq!(verb(&t, 6), "merge mine");
+        // Enter shows the commit on the line.
+        t.keys("gg<Enter>");
+        magit_settle(&mut t);
+        assert!(matches!(
+            t.s.ed.magit.as_ref().map(|v| &v.kind),
+            Some(crate::magit::Kind::Diff(
+                crate::magit::diff::Target::Commit(_),
+                _
+            ))
+        ));
+        assert!(t.s.ed.buf.text().contains("first") || t.s.ed.buf.text().contains("second"));
+    }
+
+    #[test]
     fn magit_rebase_todo_buffer_keys_edit_and_run_the_list() {
         let mut t = T::open(Some("f.txt"), Some("one\n"));
         magit_repo(&t);

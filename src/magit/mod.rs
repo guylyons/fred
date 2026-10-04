@@ -119,6 +119,8 @@ pub enum Action {
     Clone(clone::Op),
     /// magit-reflog-current / -head / -other (None asks for a ref).
     Reflog(Option<String>),
+    /// git-rebase-show-commit: the commit on the todo line at point.
+    RebaseShowCommit,
     /// ZZ / ZQ in a rebase todo buffer.
     RebaseFinish,
     RebaseCancel,
@@ -929,8 +931,9 @@ pub enum Prompt {
     InitConfirm(PathBuf, String),
     /// A chain of prompts: repo, question, arguments, prompts, answers so far.
     Ask(Repo, Question, Vec<String>, Vec<String>, Vec<String>),
-    /// git-rebase-exec: the command to add below the current todo line.
-    RebaseExec,
+    /// A todo line to add below point: its verb (exec, label, reset, merge,
+    /// pick) and prompt.
+    RebaseLine(&'static str, &'static str),
     /// A transient-option value for (menu, argument prefix); returns to the menu.
     OptionValue(char, &'static str),
 }
@@ -969,7 +972,7 @@ pub fn prompt(ed: &mut Editor, question: Prompt) {
         Prompt::Workflow(_, operation, _) => operation.prompt().unwrap_or("").to_owned(),
         Prompt::Ask(_, _, _, prompts, answers) => prompts[answers.len()].clone(),
         Prompt::InitDir(_) => "Create repository in: ".into(),
-        Prompt::RebaseExec => "Execute: ".into(),
+        Prompt::RebaseLine(_, prompt) => (*prompt).into(),
         Prompt::OptionValue(_, prefix) => (*prefix).into(),
         Prompt::InitConfirm(_, question) => question.clone(),
         Prompt::DropStash(_, stash) => format!(
@@ -1013,7 +1016,7 @@ pub fn answer(ed: &mut Editor, text: &str) {
             ed.pending_effect = Some(ExEffect::Magit(Action::InitDir(dir, true)))
         }
         Some(Prompt::InitConfirm(..)) => ed.set_msg("Abort"),
-        Some(Prompt::RebaseExec) => rebase::insert_exec(ed, text),
+        Some(Prompt::RebaseLine(verb, _)) => rebase::insert_line(ed, verb, text),
         Some(Prompt::OptionValue(menu, prefix)) => {
             if !text.is_empty() {
                 ed.magit_values
