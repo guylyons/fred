@@ -13,6 +13,7 @@ pub mod network;
 pub mod notes;
 pub mod patch;
 pub mod rebase;
+pub mod refs;
 pub mod remote;
 pub mod repo;
 pub mod reset;
@@ -101,6 +102,8 @@ pub enum Action {
     Patch(patch::Op),
     /// A magit-bundle.el suffix.
     Bundle(bundle::Op),
+    /// A magit-refs.el suffix.
+    Refs(refs::Op),
     /// A magit-clone.el suffix.
     Clone(clone::Op),
     /// magit-reflog-current / -head / -other (None asks for a ref).
@@ -196,6 +199,8 @@ pub enum Kind {
     Reflog(String),
     /// magit-submodule-list-mode.
     Modules,
+    /// magit-refs-mode: focus ref, arguments and commit-count display.
+    Refs(String, Vec<String>, refs::Count),
     /// Output of a read-only Git command: title and arguments.
     Output(String, Vec<String>),
     /// magit-cherry-mode: head and upstream.
@@ -259,6 +264,7 @@ impl View {
             Kind::Diff(target, _) => format!("Magit diff: {}", target.title()),
             Kind::Reflog(r) => format!("Magit reflog {}", label(std::path::Path::new(r))),
             Kind::Modules => "Magit modules".into(),
+            Kind::Refs(focus, ..) => format!("Magit refs {}", label(std::path::Path::new(focus))),
             Kind::Output(title, _) => format!("Magit {}", label(std::path::Path::new(title))),
             Kind::Cherry(h, u) => format!(
                 "Magit cherry {}",
@@ -778,6 +784,9 @@ fn menu_help(menu: char) -> Option<&'static str> {
             "Log: l current  o other  h HEAD  u related  L/b/a/R branches, all, reflog objects  B/T matching  m merged; = limit, + more in a log"
         }
         'u' => "Subtree: i import  e export",
+        'y' => {
+            "Refs: y HEAD  c current  o other  v commit counts; -c contains  -M/-m merged  -N/-n not merged  -s sort"
+        }
         'k' => "Clone: C regular  s shallow  d since  e excluding  > sparse  b bare  m mirror",
         'J' => "Bundle: c create  v verify  l list-heads",
         'j' => "Bundle create: c regular  t tracked  u update tracked",
@@ -865,6 +874,7 @@ pub enum Question {
     Patch(patch::Op),
     Bundle(bundle::Op),
     Clone(clone::Op),
+    Refs(refs::Op),
     Net(network::Op),
     Diff(diff::Op),
     FindFile,
@@ -972,6 +982,13 @@ pub(crate) fn open_menu(ed: &mut Editor, menu: char) {
                 .insert(MenuOption::Switch('l', "--decorate"));
         }
     }
+    // magit-show-refs in a refs buffer uses the buffer's arguments.
+    if menu == 'y'
+        && let Some(Kind::Refs(_, args, _)) = ed.magit.as_ref().map(|v| &v.kind)
+    {
+        let args = args.clone();
+        set_menu_arguments(ed, 'y', &args);
+    }
     // magit-am :value '("--3way").
     if menu == 'w' && ed.magit_seeded.insert('w') {
         ed.magit_options.insert(MenuOption::Switch('w', "--3way"));
@@ -1036,6 +1053,7 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("Z", "Repository", "Worktree", Menu('Y')),
             ("T", "Inspect", "Notes", Menu('N')),
             ("Y", "Inspect", "Cherries", LogOp(log::Op::Cherry)),
+            ("y", "Inspect", "Show Refs", Menu('y')),
             ("o", "Repository", "Submodules", Menu('o')),
             ("O", "Repository", "Subtrees", Menu('u')),
             ("W", "Repository", "Patches", Menu('W')),
@@ -1538,6 +1556,48 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 ("m", "Clone", "mirror", Clone(K::Mirror)),
             ]
         }
+        'y' => vec![
+            ("-c", "Arguments", "Contains", ReadOption("--contains=")),
+            ("-M", "Arguments", "Merged", ReadOption("--merged=")),
+            (
+                "-m",
+                "Arguments",
+                "Merged to HEAD",
+                ToggleOption(MenuOption::Switch('y', "--merged")),
+            ),
+            ("-N", "Arguments", "Not merged", ReadOption("--no-merged=")),
+            (
+                "-n",
+                "Arguments",
+                "Not merged to HEAD",
+                ToggleOption(MenuOption::Switch('y', "--no-merged")),
+            ),
+            ("-s", "Arguments", "Sort", CycleOption("--sort=")),
+            (
+                "y",
+                "Actions",
+                "Show refs, comparing them with HEAD",
+                Refs(refs::Op::Head),
+            ),
+            (
+                "c",
+                "Actions",
+                "Show refs, comparing them with current branch",
+                Refs(refs::Op::Current),
+            ),
+            (
+                "o",
+                "Actions",
+                "Show refs, comparing them with other branch",
+                Refs(refs::Op::Other),
+            ),
+            (
+                "v",
+                "Actions",
+                "Change verbosity (commit counts)",
+                Refs(refs::Op::Count),
+            ),
+        ],
         'J' => vec![
             ("c", "Actions", "create", Menu('j')),
             ("v", "Actions", "verify", Bundle(bundle::Op::Verify)),
@@ -2632,6 +2692,12 @@ pub fn choices(menu: char, prefix: &str) -> &'static [&'static str] {
         // "trailer:" takes a key Fred cannot read in a cycle.
         "--group=" => &["author", "committer"],
         "--thread=" => &["deep", "shallow"],
+        "--sort=" => &[
+            "-committerdate",
+            "-authordate",
+            "committerdate",
+            "authordate",
+        ],
         "--cover-from-description=" => &["message", "subject", "auto", "none"],
         // magit-log:--*-order.
         "--" if menu == 'l' => &["topo-order", "author-date-order", "date-order"],

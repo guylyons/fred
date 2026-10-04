@@ -48,8 +48,8 @@ additional behavior reopens its row and lowers the score until it is covered.
 ## Execution queue
 
 Submodule, subtree and patch/am batches done. Bundles and clone done.
-Next: patch review fixes, refs view (y), then reference movement and
-log-select,
+Patch review fixes and the refs view done. Next: sparse checkout,
+gitignore, then reference movement and log-select,
 subtrees, patches/bundles, clone, refs view, sparse checkout and gitignore,
 recording each accepted gate's evidence here. The baseline's UI map and
 scenario matrix remain open.
@@ -193,3 +193,9 @@ bundles keep upstream's tag format, so Emacs and Fred share them) and Space m
 C ports magit-clone (dispatch C; the duplicate commit binding moved to c
 only). ([scenarios](magit-bundle-clone-acceptance.md)). Ledger 391 partial /
 382 missing commands. Score remains 3%.
+
+October 4 refs checkpoint: Space m y ports magit-show-refs (branch
+description, local branches with upstream tracking, remotes with their urls,
+tags with messages, focus column and commit counts, for-each-ref filters)
+([scenarios](magit-refs-acceptance.md)); patch review fixes (bbd1264). Ledger
+403 partial / 370 missing commands. Score remains 3%.

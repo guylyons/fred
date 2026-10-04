@@ -3137,3 +3137,63 @@ fn clone_regular_sparse_and_into_non_empty_directory() {
             .is_err()
     );
 }
+
+#[test]
+fn refs_list_branches_remotes_tags_with_counts_and_filters() {
+    use super::refs::{Count, Op};
+    let (d, r) = setup();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    let commit = |name: &str| {
+        fs::write(d.path().join(name), name).unwrap();
+        git(d.path(), &["add", name]);
+        git(d.path(), &["commit", "-qm", name]);
+    };
+    commit("one");
+    git(d.path(), &["tag", "-a", "v1", "-m", "release one"]);
+    git(
+        d.path(),
+        &["remote", "add", "origin", "https://example.test/x.git"],
+    );
+    git(
+        d.path(),
+        &["update-ref", "refs/remotes/origin/main", "HEAD"],
+    );
+    git(d.path(), &["branch", "--set-upstream-to=origin/main"]);
+    commit("two");
+    git(d.path(), &["branch", "side", "HEAD~1"]);
+    git(
+        d.path(),
+        &["config", "branch.main.description", "Main line"],
+    );
+    let text = |rows: Vec<(String, Option<String>)>| {
+        rows.into_iter().map(|r| r.0).collect::<Vec<_>>().join("\n")
+    };
+    let all = text(r.refs_rows("HEAD", &[], Count::Nothing).unwrap());
+    assert!(all.starts_with("main: Main line"), "{all}");
+    assert!(
+        all.contains("@ main 1>") && all.contains("origin/main two"),
+        "{all}"
+    );
+    assert!(
+        all.contains("Remote origin (https://example.test/x.git):"),
+        "{all}"
+    );
+    assert!(
+        all.contains("Tags (1)") && all.contains("v1") && all.contains("release one"),
+        "{all}"
+    );
+    // Commit counts relative to the focus; tags only with All.
+    let counted = text(r.refs_rows("main", &[], Count::All).unwrap());
+    assert!(counted.contains("   1> side"), "{counted}");
+    // --no-merged=side hides branches merged into side.
+    let filtered = text(
+        r.refs_rows("HEAD", &s(&["--no-merged=side"]), Count::Nothing)
+            .unwrap(),
+    );
+    assert!(
+        filtered.contains("main") && !filtered.contains("  side "),
+        "{filtered}"
+    );
+    assert!(r.refs_focus(&Op::Other, Some("-x")).is_err());
+    assert_eq!(r.refs_focus(&Op::Current, None).unwrap(), "main");
+}

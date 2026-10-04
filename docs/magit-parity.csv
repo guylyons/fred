@@ -723,18 +723,18 @@ magit-refs.el,153,option,magit-refs-primary-column-width,missing,,explicit
 magit-refs.el,172,option,magit-refs-focus-column-width,missing,,explicit
 magit-refs.el,189,option,magit-refs-filter-alist,missing,,explicit
 magit-refs.el,214,option,magit-visit-ref-behavior,missing,,explicit
-magit-refs.el,336,command,magit-show-refs,missing,,explicit
-magit-refs.el,394,command,magit-show-refs-head,missing,,explicit
-magit-refs.el,401,command,magit-show-refs-current,missing,,explicit
-magit-refs.el,408,command,magit-show-refs-other,missing,,explicit
-magit-refs.el,415,command,magit-refs-set-show-commit-count,missing,,explicit
-magit-refs.el,429,command,magit-visit-ref,missing,,explicit
-magit-refs.el,,command,magit-for-each-ref:--contains,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-refs.el,,command,magit-for-each-ref:--sort,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-refs.el,,command,transient:magit-show-refs:--merged,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-refs.el,,command,transient:magit-show-refs:--merged=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-refs.el,,command,transient:magit-show-refs:--no-merged,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-refs.el,,command,transient:magit-show-refs:--no-merged=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-refs.el,336,command,magit-show-refs,partial,Space m y: -c -M -m -N -n -s; y c o v; buffer arguments seed the menu in a refs buffer,explicit
+magit-refs.el,394,command,magit-show-refs-head,partial,y y,explicit
+magit-refs.el,401,command,magit-show-refs-current,partial,y c,explicit
+magit-refs.el,408,command,magit-show-refs-other,partial,y o (no completion),explicit
+magit-refs.el,415,command,magit-refs-set-show-commit-count,partial,y v cycles nothing/branches/all in a refs buffer (no C-y),explicit
+magit-refs.el,429,command,magit-visit-ref,partial,Enter on a ref shows its commit (default magit-visit-ref-behavior),explicit
+magit-refs.el,,command,magit-for-each-ref:--contains,partial,-c reads a value,runtime
+magit-refs.el,,command,magit-for-each-ref:--sort,partial,-s cycles upstream choices,runtime
+magit-refs.el,,command,transient:magit-show-refs:--merged,partial,menu argument,runtime
+magit-refs.el,,command,transient:magit-show-refs:--merged=,partial,menu argument,runtime
+magit-refs.el,,command,transient:magit-show-refs:--no-merged,partial,menu argument,runtime
+magit-refs.el,,command,transient:magit-show-refs:--no-merged=,partial,menu argument,runtime
 magit-remote.el,33,option,magit-remote-add-set-remote.pushDefault,missing,,explicit
 magit-remote.el,48,option,magit-remote-direct-configure,missing,,explicit
 magit-remote.el,57,option,magit-prefer-push-default,missing,,explicit

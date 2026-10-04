@@ -234,6 +234,69 @@ impl Session {
             });
             return;
         }
+        if let Action::Answered(repo, Question::Refs(op), answers, defaults) = action {
+            let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, 'y'));
+            self.start_magit(move || {
+                let merged = merge_answers(&answers, &defaults);
+                let next = repo
+                    .refs_focus(&op, merged.first().map(String::as_str))
+                    .map(|focus| {
+                        crate::magit::branch::Next::View(Kind::Refs(
+                            focus,
+                            args,
+                            Default::default(),
+                        ))
+                    })
+                    .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                Ok(branch_outcome(repo, next, origin))
+            });
+            return;
+        }
+        if let Action::Refs(op) = action {
+            use crate::magit::refs::Op as Y;
+            let (origin, from) = (self.cur, self.magit_from());
+            let args = crate::magit::menu_arguments(&self.ed, 'y');
+            if op == Y::Count {
+                // magit-refs-set-show-commit-count: only in refs buffers.
+                let next = match self.ed.magit.as_mut().map(|v| &mut v.kind) {
+                    Some(Kind::Refs(_, _, count)) => {
+                        *count = count.next();
+                        Some(*count)
+                    }
+                    _ => None,
+                };
+                match next {
+                    Some(count) => {
+                        self.magit_action(Action::Refresh);
+                        self.ed.set_msg(format!("Show commit counts for {count:?}"));
+                    }
+                    None => self.ed.set_err("Not in a refs buffer"),
+                }
+                return;
+            }
+            let count = match self.ed.magit.as_ref().map(|v| &v.kind) {
+                Some(Kind::Refs(_, _, count)) => *count,
+                _ => Default::default(),
+            };
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                if op == Y::Other {
+                    return Ok(Outcome::Ask(
+                        repo,
+                        Question::Refs(op),
+                        vec![String::new()],
+                        vec!["Compare with: ".into()],
+                    ));
+                }
+                let focus = repo.refs_focus(&op, None)?;
+                Ok(branch_outcome(
+                    repo,
+                    crate::magit::branch::Next::View(Kind::Refs(focus, args, count)),
+                    origin,
+                ))
+            });
+            return;
+        }
         if let Action::Answered(repo, Question::Bundle(op), answers, defaults) = action {
             let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, 'j'));
             self.start_magit(move || {
@@ -897,7 +960,8 @@ impl Session {
                 | Question::Subtree(_)
                 | Question::Patch(_)
                 | Question::Bundle(_)
-                | Question::Clone(_) => {
+                | Question::Clone(_)
+                | Question::Refs(_) => {
                     unreachable!("handled before the worker")
                 }
                 Question::FindFile => {
@@ -2510,6 +2574,23 @@ fn refresh_view(view: &mut View) -> Result<(), String> {
         return Ok(());
     }
     if matches!(view.kind, Kind::Output(..)) {
+        return Ok(());
+    }
+    if let Kind::Refs(focus, args, count) = &view.kind {
+        let mut rows = vec![Row {
+            text: format!(
+                "References compared with {} (Enter visit, Space m y menu, gr refresh, q return)",
+                label(Path::new(focus))
+            ),
+            action: None,
+        }];
+        for (text, id) in view.repo.refs_rows(focus, args, *count)? {
+            rows.push(Row {
+                text: label(Path::new(&text)),
+                action: id.map(RowAction::Commit),
+            });
+        }
+        view.rows = rows;
         return Ok(());
     }
     if view.kind == Kind::Modules {

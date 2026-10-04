@@ -1996,6 +1996,34 @@ mod tests {
     }
 
     #[test]
+    fn magit_refs_view_opens_from_dispatch_and_cycles_counts() {
+        let mut t = T::open(Some("f.txt"), Some("one\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "first"]).unwrap();
+        repo.read(&["branch", "side"]).unwrap();
+        t.keys(" myy");
+        magit_settle(&mut t);
+        let text = t.s.ed.buf.text();
+        assert!(text.contains("Branches") && text.contains("side"), "{text}");
+        t.keys(" myv");
+        magit_settle(&mut t);
+        assert!(matches!(
+            t.s.ed.magit.as_ref().unwrap().kind,
+            crate::magit::Kind::Refs(_, _, crate::magit::refs::Count::Branches)
+        ));
+        assert!(
+            t.s.ed.buf.text().contains("= side"),
+            "{}",
+            t.s.ed.buf.text()
+        );
+    }
+
+    #[test]
     fn magit_file_log_reads_deleted_parent_and_tracked_symlink_name() {
         use std::os::unix::fs::symlink;
         let mut t = T::open(Some("target"), Some("target contents\n"));
