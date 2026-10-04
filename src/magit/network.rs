@@ -369,6 +369,7 @@ impl Repo {
             draft: None,
             draft_stamp: None,
             editor: false,
+            after: None,
         })
     }
 }

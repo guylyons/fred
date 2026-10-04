@@ -3090,6 +3090,27 @@ fn bundle_create_tracked_update_verify_and_heads() {
     let heads = String::from_utf8(git(d.path(), &["bundle", "list-heads", &t.file])).unwrap();
     let two = String::from_utf8(git(d.path(), &["rev-parse", "HEAD"])).unwrap();
     assert!(heads.contains(two.trim()), "{heads}");
+    // A tag naming some other file is refused (tags can be fetched).
+    let victim = d.path().join("precious.txt");
+    fs::write(&victim, "precious").unwrap();
+    let evil = format!(
+        ";; git-bundle tracking\n((file . \"{}\")\n (branch . \"main\")\n (refs)\n (args))\n",
+        victim.display()
+    );
+    git(d.path(), &["tag", "-f", "evil", "-m", &evil]);
+    assert!(
+        r.bundle_step(Op::UpdateTracked, &s(&["evil"]), &[])
+            .is_err()
+    );
+    assert_eq!(fs::read_to_string(&victim).unwrap(), "precious");
+    fs::write(d.path().join("fake.bundle"), "not a bundle").unwrap();
+    let evil = evil.replace("precious.txt", "fake.bundle");
+    git(d.path(), &["tag", "-f", "evil", "-m", &evil]);
+    assert!(
+        r.bundle_step(Op::UpdateTracked, &s(&["evil"]), &[])
+            .is_err()
+    );
+    assert!(r.bundle_step(Op::UpdateTracked, &s(&["sn*"]), &[]).is_err());
     // Upstream's own pp-to-string output parses too.
     let upstream = ";; git-bundle tracking\n((file . \"/tmp/a \\\"b\\\".bundle\")\n (branch . \"main\")\n (refs)\n (args \"--all\"))\n";
     let t = Tracked::parse(upstream).unwrap();
@@ -3112,15 +3133,23 @@ fn clone_regular_sparse_and_into_non_empty_directory() {
     };
     let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
     let url = src.path().to_string_lossy().into_owned();
-    let Next::Status(dir) = r.clone_step(Op::Regular, &s(&[&url, "copy"]), &[]).unwrap() else {
+    let run = |n: Next| match n {
+        Next::Invoke(inv) => {
+            inv.repo.run(&inv.args, None).unwrap();
+            inv.after.unwrap().finish().unwrap()
+        }
+        other => panic!("{other:?}"),
+    };
+    let Next::Status(dir) = run(r.clone_step(Op::Regular, &s(&[&url, "copy"]), &[]).unwrap())
+    else {
         panic!()
     };
     assert!(dir.join("f").exists());
     // An existing non-empty directory gets the repository's name inside it.
     let name = super::clone::url_to_name(&url).unwrap();
-    let Next::Status(dir) = r
+    let Next::Status(dir) = run(r
         .clone_step(Op::Sparse, &s(&[&url, "copy"]), &s(&["--origin=up"]))
-        .unwrap()
+        .unwrap())
     else {
         panic!()
     };
@@ -3231,12 +3260,21 @@ fn gitignore_rules_skip_worktree_and_sparse_checkout() {
             .unwrap()
             .ends_with("*.tmp\n")
     );
-    for bad in ["../x", ".git", ".GIT/x"] {
+    for bad in ["../x", ".git", ".GIT/x", "/tmp", "missing"] {
         assert!(
             r.ignore_step(Op::Subdir, &s(&[bad, "p"]), &[]).is_err(),
             "{bad}"
         );
     }
+    // A symlinked directory leading outside the worktree is refused.
+    let outside = tempfile::tempdir().unwrap();
+    std::os::unix::fs::symlink(outside.path(), d.path().join("link")).unwrap();
+    assert!(r.ignore_step(Op::Subdir, &s(&["link", "p"]), &[]).is_err());
+    assert!(!outside.path().join(".gitignore").exists());
+    fs::remove_file(d.path().join("link")).unwrap();
+    // An absolute directory inside the worktree is accepted.
+    let abs = d.path().join("sub").to_string_lossy().into_owned();
+    r.ignore_step(Op::Subdir, &s(&[&abs, "q"]), &[]).unwrap();
     // Skip worktree only for tracked files.
     r.ignore_step(Op::SkipWorktree, &s(&["tracked"]), &[])
         .unwrap();
@@ -3254,7 +3292,8 @@ fn gitignore_rules_skip_worktree_and_sparse_checkout() {
     assert!(r.sparse_enabled());
     // Cone mode keeps top-level files.
     assert!(d.path().join("sub/deep/f").exists() && !d.path().join("other/o").exists());
-    assert!(r.ignore_step(Op::SparseEnable, &[], &[]).is_err());
+    // Re-enabling is Git's business, as upstream (converts to cone mode).
+    r.ignore_step(Op::SparseEnable, &[], &[]).unwrap();
     assert!(r.ignore_step(Op::SparseAdd, &s(&["--x"]), &[]).is_err());
     r.ignore_step(Op::SparseDisable, &[], &[]).unwrap();
     assert!(d.path().join("other/o").exists());

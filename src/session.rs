@@ -2919,6 +2919,7 @@ mod tests {
             draft: None,
             draft_stamp: None,
             editor: false,
+            after: None,
         };
         t.s.finish_git(inv, Err("test operation failure".into()));
         magit_settle(&mut t);

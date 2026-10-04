@@ -162,10 +162,22 @@ impl Repo {
     }
     pub fn ignore_step(&self, op: Op, a: &[String], args: &[String]) -> Result<Next, String> {
         let at = |i: usize| a.get(i).map(String::as_str).unwrap_or("").trim();
+        // Git's warnings (e.g. paths left despite sparse patterns) are shown.
         let git = |words: Vec<String>| -> Result<Next, String> {
-            let argv: Vec<&str> = words.iter().map(String::as_str).collect();
-            self.read(&argv)?;
-            Ok(Next::Done(Ok(format!("git {}", words.join(" ")))))
+            let out = self
+                .command()
+                .args(&words)
+                .output()
+                .map_err(|e| e.to_string())?;
+            let stderr = String::from_utf8_lossy(&out.stderr).trim().to_owned();
+            if !out.status.success() {
+                return Err(stderr);
+            }
+            Ok(Next::Done(Ok(if stderr.is_empty() {
+                format!("git {}", words.join(" "))
+            } else {
+                stderr
+            })))
         };
         let dirs = |answer: &str| -> Result<Vec<String>, String> {
             let v: Vec<String> = answer
@@ -191,8 +203,28 @@ impl Repo {
         match op {
             Op::Topdir => self.append_rule(at(0), &self.root.join(".gitignore"), true),
             Op::Subdir => {
-                let dir = relative(at(0))?;
-                self.append_rule(at(1), &self.root.join(dir).join(".gitignore"), true)
+                // An existing directory inside the worktree, through no symlink
+                // that leaves it (upstream reads an existing directory).
+                let answer = at(0);
+                let dir = if Path::new(answer).is_absolute() {
+                    PathBuf::from(answer)
+                } else {
+                    self.root.join(relative(answer)?)
+                };
+                let canon = std::fs::canonicalize(&dir)
+                    .map_err(|_| format!("{} is not a directory", dir.display()))?;
+                let root = std::fs::canonicalize(&self.root).map_err(|e| e.to_string())?;
+                let inside = canon
+                    .strip_prefix(&root)
+                    .map_err(|_| format!("{} isn't inside the repository", dir.display()))?;
+                if !canon.is_dir()
+                    || inside
+                        .components()
+                        .any(|c| c.as_os_str().eq_ignore_ascii_case(".git"))
+                {
+                    return Err(format!("invalid directory {}", dir.display()));
+                }
+                self.append_rule(at(1), &canon.join(".gitignore"), true)
             }
             Op::Gitdir => {
                 let common = self.read(&["rev-parse", "--git-common-dir"])?;
@@ -231,18 +263,13 @@ impl Repo {
                     file.into(),
                 ])
             }
+            // Upstream always runs these; Git reports what doesn't apply.
             Op::SparseEnable => {
-                if self.sparse_enabled() {
-                    return Err("Sparse checkout is already enabled".into());
-                }
                 let mut w = vec!["sparse-checkout".to_owned(), "init".into(), "--cone".into()];
                 w.extend(args.iter().filter(|x| *x == "--sparse-index").cloned());
                 git(w)
             }
             Op::SparseDisable | Op::SparseReapply => {
-                if !self.sparse_enabled() {
-                    return Err("Sparse checkout is not enabled".into());
-                }
                 let verb = if op == Op::SparseDisable {
                     "disable"
                 } else {

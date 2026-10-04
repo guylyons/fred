@@ -1336,6 +1336,7 @@ impl Session {
                     draft: None,
                     draft_stamp: None,
                     editor: false,
+                    after: None,
                 });
             }
             return;
@@ -1617,6 +1618,7 @@ impl Session {
                             draft: None,
                             draft_stamp: None,
                             editor: false,
+                            after: None,
                         }));
                     }
                     let message = match reedit {
@@ -1745,6 +1747,7 @@ impl Session {
                         draft: None,
                         draft_stamp: None,
                         editor: false,
+                        after: None,
                     },
                     result,
                 );
@@ -1776,6 +1779,7 @@ impl Session {
                         draft: None,
                         draft_stamp: None,
                         editor: false,
+                        after: None,
                     },
                     Ok(()),
                 );
@@ -1900,6 +1904,7 @@ impl Session {
                     draft: None,
                     draft_stamp: None,
                     editor: false,
+                    after: None,
                 },
                 result,
             ),
@@ -2352,6 +2357,16 @@ impl Session {
             }
             return;
         }
+        if let Some(after) = inv.after {
+            let (origin, repo) = (self.cur, inv.repo);
+            self.start_magit(move || {
+                let next = after
+                    .finish()
+                    .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                Ok(branch_outcome(repo, next, origin))
+            });
+            return;
+        }
         if let Some(path) = inv.draft {
             let stamp = match fileio::write(&path, &[], inv.draft_stamp.as_ref(), false) {
                 Ok(stamp) => stamp,
@@ -2427,6 +2442,7 @@ fn branch_outcome(repo: Repo, next: crate::magit::branch::Next, origin: usize) -
             draft: None,
             draft_stamp: None,
             editor: false,
+            after: None,
         }),
         Next::GitEditor(args) => Outcome::Git(GitInvocation {
             expected_head: None,
@@ -2436,6 +2452,7 @@ fn branch_outcome(repo: Repo, next: crate::magit::branch::Next, origin: usize) -
             draft: None,
             draft_stamp: None,
             editor: true,
+            after: None,
         }),
         Next::Todo(plan) => Outcome::Todo(plan),
         Next::Status(dir) => {
@@ -2452,6 +2469,7 @@ fn branch_outcome(repo: Repo, next: crate::magit::branch::Next, origin: usize) -
             }
         }
         Next::Visit(path) => Outcome::VisitFile(path, 0),
+        Next::Invoke(inv) => Outcome::Git(inv),
         Next::View(kind) => {
             let mut view = View::status(repo.clone(), Default::default());
             view.kind = kind;

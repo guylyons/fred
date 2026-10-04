@@ -211,19 +211,28 @@ impl Repo {
             .collect();
         if !tags.is_empty() {
             rows.push((format!("Tags ({})", tags.len()), None));
+            // One for-each-ref for every tag's commit (peeled when annotated).
+            let ids: std::collections::HashMap<String, String> =
+                String::from_utf8_lossy(&self.read(&[
+                    "for-each-ref",
+                    "--format=%(refname:short)%00%(*objectname)%00%(objectname)",
+                    "refs/tags",
+                ])?)
+                .lines()
+                .filter_map(|l| {
+                    let mut f = l.split('\0');
+                    let (name, peeled, id) = (f.next()?, f.next()?, f.next()?);
+                    Some((
+                        name.to_owned(),
+                        if peeled.is_empty() { id } else { peeled }.to_owned(),
+                    ))
+                })
+                .collect();
             for line in tags {
                 let (tag, msg) = line
                     .split_once([' ', '\t'])
                     .map_or((line, ""), |(t, m)| (t, m.trim()));
-                let id = self
-                    .read(&[
-                        "rev-parse",
-                        "--verify",
-                        "-q",
-                        &format!("refs/tags/{tag}^{{commit}}"),
-                    ])
-                    .ok()
-                    .map(|o| String::from_utf8_lossy(&o).trim().to_owned());
+                let id = ids.get(tag).cloned();
                 rows.push((
                     format!(
                         "{}{}{msg}",

@@ -466,6 +466,7 @@ impl Plan {
             draft: None,
             draft_stamp: None,
             editor: true,
+            after: None,
         })
     }
 }

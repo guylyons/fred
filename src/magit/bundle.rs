@@ -241,6 +241,9 @@ impl Repo {
             }
             Op::UpdateTracked => {
                 let tag = rev(at(0))?;
+                // A glob would merge several tags' messages.
+                self.read(&["check-ref-format", &format!("refs/tags/{tag}")])
+                    .map_err(|_| format!("{tag:?} is not a valid tag name"))?;
                 let msg = String::from_utf8_lossy(&self.read(&[
                     "for-each-ref",
                     "--format=%(contents)",
@@ -271,9 +274,29 @@ impl Repo {
                 }) {
                     return Err(format!("Tag {tag} records an unexpected argument {bad:?}"));
                 }
+                // The tag may come from someone else: only (re)write a bundle.
+                let file = self.bundle_file(&t.file)?;
+                if !file.to_string_lossy().ends_with(".bundle") {
+                    return Err(format!(
+                        "Tag {tag} names {} which is not a .bundle file",
+                        file.display()
+                    ));
+                }
+                if file
+                    .symlink_metadata()
+                    .is_ok_and(|m| m.file_type().is_symlink())
+                {
+                    return Err(format!("{} is a symbolic link", file.display()));
+                }
+                if file.exists() {
+                    let argv: Vec<std::ffi::OsString> =
+                        vec!["bundle".into(), "list-heads".into(), file.clone().into()];
+                    self.run(&argv, None)
+                        .map_err(|_| format!("{} exists and is not a bundle", file.display()))?;
+                }
                 let mut all = vec![format!("{tag}..{}", t.branch)];
                 all.extend(t.refs.iter().cloned());
-                self.bundle_create(&PathBuf::from(&t.file), &all, &t.args)?;
+                self.bundle_create(&file, &all, &t.args)?;
                 self.read(&["tag", "--force", tag, &t.branch, "-m", &msg])?;
                 Ok(Next::Done(Ok(format!("Updated {}", t.file))))
             }

@@ -358,6 +358,8 @@ pub struct GitInvocation {
     pub draft_stamp: Option<crate::fileio::FileStamp>,
     /// Let Git open an editor (Fred itself, like with-editor) in the terminal.
     pub editor: bool,
+    /// Work to finish after a successful terminal clone.
+    pub after: Option<super::clone::After>,
 }
 impl Repo {
     pub fn file_history(&self, file: &Path, follow: bool) -> Result<Vec<Commit>, String> {
@@ -450,6 +452,7 @@ impl Repo {
             input: Some(message),
             draft: Some(draft),
             editor: false,
+            after: None,
         })
     }
 }

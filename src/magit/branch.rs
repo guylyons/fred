@@ -52,6 +52,8 @@ pub enum Next {
     Status(std::path::PathBuf),
     /// Show a log, shortlog or cherry buffer.
     View(super::Kind),
+    /// A prepared terminal Git invocation (clone, with follow-up work).
+    Invoke(super::repo::GitInvocation),
     /// Visit a file (a cover letter).
     Visit(std::path::PathBuf),
 }

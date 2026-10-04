@@ -89,29 +89,67 @@ impl Repo {
         }
         argv.extend(args.iter().cloned());
         argv.extend(["--".into(), url.into(), dir.to_string_lossy().into_owned()]);
-        let argv_ref: Vec<&str> = argv.iter().map(String::as_str).collect();
-        self.read_network(&argv_ref)?;
-        let new = Repo { root: dir.clone() };
-        if !matches!(op, Op::Bare | Op::Mirror) {
-            // magit-clone-set-remote-head is nil: drop the remote's HEAD.
-            let remote = args
-                .iter()
-                .find_map(|x| x.strip_prefix("--origin="))
-                .map(str::to_owned)
-                .or_else(|| {
-                    new.read(&["config", "clone.defaultRemote"])
-                        .ok()
-                        .map(|o| String::from_utf8_lossy(&o).trim().to_owned())
-                })
-                .unwrap_or_else(|| "origin".into());
-            let _ = new.read(&["remote", "set-head", &remote, "-d"]);
-            if op == Op::Sparse {
-                new.read(&["sparse-checkout", "init", "--cone"])?;
-                if let Ok(branch) = new.current_branch() {
-                    new.read(&["checkout", &branch, "--"])?;
-                }
+        // The terminal runs the clone (credentials, progress, Ctrl-C);
+        // finish() completes it afterwards.
+        Ok(Next::Invoke(super::repo::GitInvocation {
+            expected_head: None,
+            repo: self.clone(),
+            args: argv.into_iter().map(Into::into).collect(),
+            input: None,
+            draft: None,
+            draft_stamp: None,
+            editor: false,
+            after: Some(After {
+                dir,
+                op,
+                args: args.to_vec(),
+            }),
+        }))
+    }
+}
+
+/// What magit-clone-internal's sentinel does after a successful clone.
+#[derive(Clone, Debug)]
+pub struct After {
+    pub dir: PathBuf,
+    pub op: Op,
+    pub args: Vec<String>,
+}
+
+impl After {
+    pub fn finish(self) -> Result<Next, String> {
+        let new = Repo {
+            root: self.dir.clone(),
+        };
+        if matches!(self.op, Op::Bare | Op::Mirror) {
+            // Status needs a worktree.
+            return Ok(Next::Done(Ok(format!(
+                "Cloned into {}",
+                self.dir.display()
+            ))));
+        }
+        // magit-clone-set-remote-head is nil: drop the remote's HEAD.
+        let remote = self
+            .args
+            .iter()
+            .find_map(|x| x.strip_prefix("--origin="))
+            .map(str::to_owned)
+            .or_else(|| {
+                new.read(&["config", "clone.defaultRemote"])
+                    .ok()
+                    .map(|o| String::from_utf8_lossy(&o).trim().to_owned())
+            })
+            .unwrap_or_else(|| "origin".into());
+        let _ = new.read(&["remote", "set-head", &remote, "-d"]);
+        if self.op == Op::Sparse {
+            new.read(&["sparse-checkout", "init", "--cone"])?;
+            // An empty remote has nothing to check out yet.
+            if let Ok(branch) = new.current_branch()
+                && new.read(&["rev-parse", "--verify", "-q", "HEAD"]).is_ok()
+            {
+                new.read(&["checkout", &branch, "--"])?;
             }
         }
-        Ok(Next::Status(dir))
+        Ok(Next::Status(self.dir))
     }
 }

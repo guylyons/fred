@@ -9,3 +9,11 @@
 | Clone target | non-empty directory gets the repo name inside | Same | magit::tests::clone_regular_sparse_and_into_non_empty_directory |
 | Sparse clone | --no-checkout, sparse-checkout init --cone, checkout | Same | same test |
 | Credentials | async process with prompts | Background clone without prompts (agent keys only) | divergence |
+
+Independent review (October 4): updating a tracked bundle only rewrites a
+`.bundle` file (expanded like the create prompt, never through a symlink, an
+existing file must already be a bundle) and the tag name is checked, since
+tags can be fetched from others; clone now runs in the terminal like fetch
+(credentials, progress, Ctrl-C) and its follow-up (remote HEAD, sparse init,
+status) runs afterwards; bare and mirror clones report success instead of
+opening status; a sparse clone of an empty remote skips the checkout.

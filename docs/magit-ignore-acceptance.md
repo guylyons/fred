@@ -8,3 +8,9 @@
 | Skip worktree / assume unchanged | update-index flags on a file | Same; untracked files refused | same test |
 | Sparse menu | > ; -i; e only when disabled, d r when enabled, s a | Same, checked at run time | same test |
 | Set/add | auto-enable cone mode | Same | same test |
+
+Independent review (October 4): subdirectory rules need an existing directory
+inside the worktree (absolute paths allowed; symlinks leaving the worktree
+refused) and nothing is created for a mistyped directory; Git's warnings from
+sparse-checkout are shown; enable/disable/reapply always run Git as upstream
+does. The refs view resolves tag commits with one for-each-ref.
