@@ -744,6 +744,9 @@ impl Session {
         self.seen_version = self.ed.buf.version;
         self.last_change = None;
         self.reloaded = true;
+        if self.ed.magit.as_ref().is_some_and(|view| view.dirty) {
+            self.magit_action(crate::magit::Action::Refresh);
+        }
     }
 
     /// The other buffer open on `path`.
@@ -2220,6 +2223,86 @@ mod tests {
             repo.read(&["show", "stash@{0}^3:ignored"]).unwrap(),
             b"keep me\n"
         );
+    }
+    #[test]
+    fn magit_snapshot_menu_keeps_unsaved_source_and_both_saved_sides() {
+        let mut t = T::open(Some("f.txt"), Some("base\n"));
+        let repo = magit_committed_fixture(&mut t);
+        fs::write(t.dir.path().join("f.txt"), "staged\n").unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        fs::write(t.dir.path().join("f.txt"), "worktree\n").unwrap();
+        t.keys("iunsaved <Esc> mzZ");
+        magit_settle(&mut t);
+        assert!(t.s.pending_git.is_none());
+        assert_eq!(
+            repo.read(&["show", "stash@{0}:f.txt"]).unwrap(),
+            b"worktree\n"
+        );
+        assert_eq!(
+            repo.read(&["show", "stash@{0}^2:f.txt"]).unwrap(),
+            b"staged\n"
+        );
+        assert_eq!(repo.read(&["show", ":f.txt"]).unwrap(), b"staged\n");
+        assert_eq!(fs::read(t.dir.path().join("f.txt")).unwrap(), b"worktree\n");
+        assert_eq!(t.s.ed.buf.to_bytes(), b"unsaved base\n");
+        assert!(t.s.ed.buf.modified);
+    }
+    #[test]
+    fn magit_snapshot_publication_failure_survives_switching_buffers() {
+        use std::os::unix::fs::PermissionsExt;
+        let mut t = T::open(Some("f.txt"), Some("base\n"));
+        let repo = magit_committed_fixture(&mut t);
+        fs::write(t.dir.path().join("f.txt"), "saved worktree\n").unwrap();
+        let started = t.dir.path().join("hook-started");
+        let gate = t.dir.path().join("hook-release");
+        let hook = t.dir.path().join(".git/hooks/reference-transaction");
+        fs::write(&hook, format!("#!/bin/sh\nif test \"$1\" = prepared; then\n touch '{}'\n while ! test -f '{}'; do sleep 0.01; done\n echo snapshot-publication-rejected >&2\n exit 1\nfi\n", started.display(), gate.display())).unwrap();
+        fs::set_permissions(&hook, fs::Permissions::from_mode(0o755)).unwrap();
+        t.keys(" mzZ");
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while !started.exists() && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        // Release the hook even if an assertion below fails.
+        let began = started.exists();
+        let second = t.dir.path().join("second.txt");
+        fs::write(&second, "second buffer\n").unwrap();
+        t.keys(&format!(":e {}<Enter>", second.display()));
+        fs::write(&gate, "release").unwrap();
+        assert!(began, "reference transaction did not start");
+        magit_settle(&mut t);
+        assert_eq!(t.s.ed.path.as_ref(), Some(&second));
+        assert_eq!(t.s.ed.buf.to_bytes(), b"second buffer\n");
+        assert!(
+            format!("{:?}", t.s.ed.msg).contains("snapshot-publication-rejected"),
+            "{:?}",
+            t.s.ed.msg
+        );
+        assert!(repo.stashes().unwrap().is_empty());
+        assert_eq!(
+            fs::read(t.dir.path().join("f.txt")).unwrap(),
+            b"saved worktree\n"
+        );
+    }
+    #[test]
+    fn magit_saved_snapshot_refreshes_a_parked_stash_list_on_return() {
+        let mut t = T::open(Some("f.txt"), Some("base\n"));
+        let repo = magit_committed_fixture(&mut t);
+        t.keys(" mzl");
+        magit_settle(&mut t);
+        let list = t.s.cur;
+        fs::write(t.dir.path().join("f.txt"), "worktree\n").unwrap();
+        t.keys(" mzZ");
+        // Switch before consuming the finished mutation outcome.
+        let second = t.dir.path().join("second.txt");
+        fs::write(&second, "second buffer\n").unwrap();
+        t.keys(&format!(":e {}<Enter>", second.display()));
+        magit_settle(&mut t);
+        assert_eq!(repo.stashes().unwrap().len(), 1);
+        assert_eq!(t.s.ed.path.as_ref(), Some(&second));
+        t.s.show(list);
+        magit_settle(&mut t);
+        assert!(String::from_utf8_lossy(&t.s.ed.buf.to_bytes()).contains("stash@{0}"));
     }
     #[test]
     fn magit_commit_menu_all_option_uses_saved_files() {

@@ -87,6 +87,7 @@ pub enum Kind {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct View {
+    pub dirty: bool,
     pub repo: Repo,
     pub kind: Kind,
     pub snapshot: Snapshot,
@@ -99,6 +100,7 @@ pub struct View {
 impl View {
     pub fn status(repo: Repo, snapshot: Snapshot) -> Self {
         let mut v = Self {
+            dirty: false,
             repo,
             snapshot,
             kind: Kind::Status,
@@ -386,7 +388,7 @@ mod tests;
 fn menu_help(menu: char) -> Option<&'static str> {
     Some(match menu {
         'z' => {
-            "Stash: z save  u include untracked  i staged  x keep index  a apply  p pop  k drop  l list"
+            "Stash: z both  i index  w worktree  x keep index; Snapshot: Z both  I index  W worktree"
         }
         'B' => "Branch: c create  s create and switch  r rename current  d delete merged",
         't' => "Tag: c create lightweight tag  l list",
@@ -499,7 +501,11 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ),
             ("z", "Stash", "Both", Workflow(workflows::Operation::Stash)),
             ("i", "Stash", "Index", Workflow(StashStaged)),
+            ("w", "Stash", "Worktree", Workflow(StashWorktree)),
             ("x", "Stash", "Keeping index", Workflow(StashKeepIndex)),
+            ("Z", "Snapshot", "Both", Workflow(SnapshotBoth)),
+            ("I", "Snapshot", "Index", Workflow(SnapshotIndex)),
+            ("W", "Snapshot", "Worktree", Workflow(SnapshotWorktree)),
             (
                 "u",
                 "Stash",

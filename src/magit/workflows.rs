@@ -7,6 +7,10 @@ pub enum Operation {
     StashUntracked,
     StashStaged,
     StashKeepIndex,
+    StashWorktree,
+    SnapshotBoth,
+    SnapshotIndex,
+    SnapshotWorktree,
     StashApply,
     CreateBranch,
     CreateSwitch,
@@ -36,7 +40,7 @@ impl Operation {
     pub fn prompt(self) -> Option<&'static str> {
         use Operation::*;
         match self {
-            Stash | StashUntracked | StashStaged | StashKeepIndex => {
+            Stash | StashUntracked | StashStaged | StashKeepIndex | StashWorktree => {
                 Some("Stash message (optional): ")
             }
             StashApply => Some("Stash reference: "),
@@ -48,6 +52,147 @@ impl Operation {
     }
 }
 impl Repo {
+    /// Magit's stash-create plumbing: construct saved trees in a private index,
+    /// publish the recoverable object before changing any worktree files.
+    pub fn save_stash(
+        &self,
+        operation: Operation,
+        message: &str,
+        args: &[String],
+    ) -> Result<(), String> {
+        use Operation::*;
+        if !matches!(
+            operation,
+            StashWorktree | SnapshotBoth | SnapshotIndex | SnapshotWorktree
+        ) {
+            return Err("invalid source stash operation".into());
+        }
+        if args
+            .iter()
+            .any(|a| a != "--all" && a != "--include-untracked")
+        {
+            return Err("invalid stash argument".into());
+        }
+        let snapshot = self.status()?;
+        if snapshot.entries.iter().any(|e| e.conflict) {
+            return Err("resolve index conflicts before saving a snapshot".into());
+        }
+        let worktree = operation != SnapshotIndex;
+        let index = !matches!(operation, StashWorktree | SnapshotWorktree);
+        let all = args.iter().any(|a| a == "--all");
+        let untracked = worktree && !args.is_empty();
+        let files = if untracked {
+            if all {
+                self.read(&["ls-files", "--others", "-z"])?
+            } else {
+                self.read(&["ls-files", "--others", "--exclude-standard", "-z"])?
+            }
+        } else {
+            vec![]
+        };
+        if !snapshot.entries.iter().any(|e| {
+            if worktree {
+                e.unstaged || (index && e.staged)
+            } else {
+                e.staged
+            }
+        }) && files.is_empty()
+        {
+            return Err("No changes to save".into());
+        }
+        let head = String::from_utf8_lossy(&self.read(&["rev-parse", "--verify", "HEAD"])?)
+            .trim()
+            .to_owned();
+        let summary = String::from_utf8_lossy(&self.read(&["log", "-1", "--format=%h %s"])?)
+            .trim()
+            .to_owned();
+        let summary = format!("{}: {summary}", snapshot.branch);
+        let message = if operation != StashWorktree {
+            format!("WIP on {summary}")
+        } else if message.is_empty() {
+            format!("On {summary}")
+        } else {
+            message.to_owned()
+        };
+        let staged_tree = String::from_utf8_lossy(&self.read(&["write-tree"])?)
+            .trim()
+            .to_owned();
+        let base = if index {
+            head.clone()
+        } else {
+            self.stash_commit(&staged_tree, &[&head], "pre-stash index")?
+        };
+        let saved_index =
+            self.stash_commit(&staged_tree, &[&base], &format!("index on {summary}"))?;
+        let temporary = StashIndex::new()?;
+        let run = |args: &[&str], input: Option<&[u8]>| {
+            self.run_index(
+                &args.iter().map(OsString::from).collect::<Vec<_>>(),
+                input,
+                Some(&temporary.0.join("index")),
+            )
+        };
+        let mut parents = vec![base.as_str(), saved_index.as_str()];
+        let untracked_commit;
+        if !files.is_empty() {
+            run(&["read-tree", "--empty"], None)?;
+            run(
+                &["update-index", "--add", "--remove", "-z", "--stdin"],
+                Some(&files),
+            )?;
+            let tree = String::from_utf8_lossy(&run(&["write-tree"], None)?)
+                .trim()
+                .to_owned();
+            untracked_commit =
+                self.stash_commit(&tree, &[], &format!("untracked files on {summary}"))?;
+            parents.push(&untracked_commit);
+        }
+        run(&["read-tree", &saved_index], None)?;
+        if worktree {
+            // Compare against the index we copied, including staged changes
+            // reversed in the worktree (which a HEAD diff would omit).
+            let files = self.read(&["diff", "--no-ext-diff", "--name-only", "-z", "--"])?;
+            run(
+                &["update-index", "--add", "--remove", "-z", "--stdin"],
+                Some(&files),
+            )?;
+        }
+        let tree = String::from_utf8_lossy(&run(&["write-tree"], None)?)
+            .trim()
+            .to_owned();
+        let saved = self.stash_commit(&tree, &parents, &message)?;
+        self.read(&[
+            "update-ref",
+            "--create-reflog",
+            "-m",
+            &message,
+            "refs/stash",
+            &saved,
+        ])?;
+        if operation == StashWorktree {
+            // Upstream restores tracked files from the index, leaving it intact.
+            self.read(&["checkout", "--", "."])?;
+            if untracked {
+                if all {
+                    self.read(&["clean", "--force", "-d", "-x"])?;
+                } else {
+                    self.read(&["clean", "--force", "-d"])?;
+                }
+            }
+        }
+        Ok(())
+    }
+    fn stash_commit(&self, tree: &str, parents: &[&str], message: &str) -> Result<String, String> {
+        let mut args: Vec<OsString> = ["-c", "commit.gpgsign=false", "commit-tree", tree]
+            .into_iter()
+            .map(OsString::from)
+            .collect();
+        for parent in parents {
+            args.extend(["-p".into(), (*parent).into()]);
+        }
+        let id = self.run(&args, Some(message.as_bytes()))?;
+        Ok(String::from_utf8_lossy(&id).trim().to_owned())
+    }
     pub fn active_workflow(&self) -> Result<Option<&'static str>, String> {
         for (file, name) in [
             ("rebase-merge", "rebase"),
@@ -106,6 +251,9 @@ impl Repo {
             Ok(String::from_utf8_lossy(&bytes).trim().to_string())
         };
         match op {
+            StashWorktree | SnapshotBoth | SnapshotIndex | SnapshotWorktree => {
+                return Err("use source stash creation for this operation".into());
+            }
             Stash | StashUntracked | StashStaged | StashKeepIndex => {
                 add(&["stash", "push"]);
                 match op {
@@ -179,6 +327,32 @@ impl Repo {
     }
 }
 use std::os::unix::ffi::OsStringExt;
+
+struct StashIndex(std::path::PathBuf);
+impl StashIndex {
+    fn new() -> Result<Self, String> {
+        use std::os::unix::fs::DirBuilderExt;
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        loop {
+            let path = std::env::temp_dir().join(format!(
+                "fred-stash-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            match std::fs::DirBuilder::new().mode(0o700).create(&path) {
+                Ok(()) => return Ok(Self(path)),
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(e) => return Err(e.to_string()),
+            }
+        }
+    }
+}
+impl Drop for StashIndex {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Stash {

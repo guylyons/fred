@@ -401,6 +401,187 @@ fn workflow_refs_validate_and_stash_roundtrip() {
     r.run(&inv.args, None).unwrap();
     assert_eq!(fs::read_to_string(d.path().join("f")).unwrap(), "dirty\n");
 }
+
+#[test]
+fn snapshots_save_each_side_without_touching_index_or_worktree() {
+    use super::workflows::Operation;
+    for (operation, base, tree) in [
+        (Operation::SnapshotBoth, "base\n", "worktree\n"),
+        (Operation::SnapshotIndex, "base\n", "staged\n"),
+        (Operation::SnapshotWorktree, "staged\n", "worktree\n"),
+    ] {
+        let (d, r) = setup();
+        committed(d.path(), b"base\n");
+        git(d.path(), &["config", "user.name", "Fred"]);
+        git(d.path(), &["config", "user.email", "fred@example.test"]);
+        fs::write(d.path().join("f"), "staged\n").unwrap();
+        git(d.path(), &["add", "f"]);
+        fs::write(d.path().join("f"), "worktree\n").unwrap();
+        fs::write(d.path().join("[raw]*\n"), "untracked\n").unwrap();
+        let status = r.read(&["status", "--porcelain=v2", "-z"]).unwrap();
+        r.save_stash(operation, "", &["--include-untracked".into()])
+            .unwrap();
+        assert_eq!(r.read(&["status", "--porcelain=v2", "-z"]).unwrap(), status);
+        assert_eq!(r.read(&["show", "stash@{0}^1:f"]).unwrap(), base.as_bytes());
+        assert_eq!(r.read(&["show", "stash@{0}:f"]).unwrap(), tree.as_bytes());
+        assert_eq!(r.read(&["show", "stash@{0}^2:f"]).unwrap(), b"staged\n");
+        if operation != Operation::SnapshotIndex {
+            assert_eq!(
+                r.read(&["show", "stash@{0}^3:[raw]*\n"]).unwrap(),
+                b"untracked\n"
+            );
+        } else {
+            assert!(r.read(&["rev-parse", "--verify", "stash@{0}^3"]).is_err());
+        }
+    }
+}
+
+#[test]
+fn worktree_stash_keeps_staged_changes_and_restores_only_unstaged_side() {
+    use super::workflows::{Operation, StashAction};
+    let (d, r) = setup();
+    committed(d.path(), b"base\n");
+    git(d.path(), &["config", "user.name", "Fred"]);
+    git(d.path(), &["config", "user.email", "fred@example.test"]);
+    fs::write(d.path().join("f"), "staged\n").unwrap();
+    git(d.path(), &["add", "f"]);
+    fs::write(d.path().join("f"), "worktree\n").unwrap();
+    fs::write(d.path().join("new"), "untracked\n").unwrap();
+    r.save_stash(
+        Operation::StashWorktree,
+        "only unstaged",
+        &["--include-untracked".into()],
+    )
+    .unwrap();
+    assert_eq!(r.read(&["show", ":f"]).unwrap(), b"staged\n");
+    assert_eq!(fs::read(d.path().join("f")).unwrap(), b"staged\n");
+    assert!(!d.path().join("new").exists());
+    let stash = r.stashes().unwrap().remove(0);
+    r.stash_action(&stash, StashAction::Pop).unwrap();
+    assert_eq!(r.read(&["show", ":f"]).unwrap(), b"staged\n");
+    assert_eq!(fs::read(d.path().join("f")).unwrap(), b"worktree\n");
+    assert_eq!(fs::read(d.path().join("new")).unwrap(), b"untracked\n");
+}
+
+#[test]
+fn snapshots_preserve_deleted_binary_raw_paths_and_worktree_local_index() {
+    use super::workflows::Operation;
+    use std::os::unix::ffi::OsStringExt;
+    let (d, r) = setup();
+    committed(d.path(), b"base\n");
+    git(d.path(), &["config", "user.name", "Fred"]);
+    git(d.path(), &["config", "user.email", "fred@example.test"]);
+    let linked = d.path().join("linked");
+    git(
+        d.path(),
+        &["worktree", "add", "-qb", "other", linked.to_str().unwrap()],
+    );
+    let other = Repo::discover(&linked).unwrap();
+    // APFS rejects invalid UTF-8 names; exercise those bytes on Linux and
+    // literal wildcard/newline names on both platforms.
+    let raw = if cfg!(target_os = "macos") {
+        std::ffi::OsString::from("-raw*\n")
+    } else {
+        std::ffi::OsString::from_vec(b"-raw\xff\n".to_vec())
+    };
+    fs::write(linked.join(&raw), b"binary\0\xff").unwrap();
+    other.stage_file(Path::new(&raw)).unwrap();
+    fs::remove_file(linked.join("f")).unwrap();
+    other.save_stash(Operation::SnapshotBoth, "", &[]).unwrap();
+    use std::os::unix::ffi::OsStrExt;
+    let object = std::ffi::OsString::from_vec([b"stash@{0}:".as_slice(), raw.as_bytes()].concat());
+    assert_eq!(
+        other.run(&["show".into(), object], None).unwrap(),
+        b"binary\0\xff"
+    );
+    assert!(other.read(&["show", "stash@{0}:f"]).is_err());
+    assert_eq!(other.read(&["show", "stash@{0}^2:f"]).unwrap(), b"base\n");
+    assert!(
+        other
+            .read(&["diff", "--name-only"])
+            .unwrap()
+            .starts_with(b"f")
+    );
+    assert_eq!(r.read(&["show", ":f"]).unwrap(), b"base\n");
+    assert!(
+        r.read(&["diff", "--cached", "--name-only"])
+            .unwrap()
+            .is_empty()
+    );
+    assert!(linked.join(&raw).exists());
+}
+
+#[test]
+fn snapshots_reject_empty_unborn_and_conflicted_indexes_without_cleanup() {
+    use super::workflows::Operation;
+    let (d, r) = setup();
+    fs::write(d.path().join("f"), "base\n").unwrap();
+    git(d.path(), &["add", "f"]);
+    assert!(r.save_stash(Operation::SnapshotBoth, "", &[]).is_err());
+    git(d.path(), &["commit", "-qm", "base"]);
+    assert!(r.save_stash(Operation::SnapshotBoth, "", &[]).is_err());
+    assert!(r.stashes().unwrap().is_empty());
+    git(d.path(), &["checkout", "-qb", "topic"]);
+    fs::write(d.path().join("f"), "topic\n").unwrap();
+    git(d.path(), &["commit", "-qam", "topic"]);
+    git(d.path(), &["checkout", "-q", "main"]);
+    fs::write(d.path().join("f"), "main\n").unwrap();
+    git(d.path(), &["commit", "-qam", "main"]);
+    assert!(r.read(&["merge", "topic"]).is_err());
+    let before = fs::read(d.path().join("f")).unwrap();
+    assert!(r.save_stash(Operation::StashWorktree, "", &[]).is_err());
+    assert_eq!(fs::read(d.path().join("f")).unwrap(), before);
+    assert!(r.stashes().unwrap().is_empty());
+}
+
+#[test]
+fn snapshot_both_keeps_unstaged_reversal_of_a_staged_change() {
+    use super::workflows::Operation;
+    let (d, r) = setup();
+    committed(d.path(), b"base\n");
+    git(d.path(), &["config", "user.name", "Fred"]);
+    git(d.path(), &["config", "user.email", "fred@example.test"]);
+    fs::write(d.path().join("f"), "staged\n").unwrap();
+    git(d.path(), &["add", "f"]);
+    fs::write(d.path().join("f"), "base\n").unwrap();
+    r.save_stash(Operation::SnapshotBoth, "", &[]).unwrap();
+    assert_eq!(r.read(&["show", "stash@{0}:f"]).unwrap(), b"base\n");
+    assert_eq!(r.read(&["show", "stash@{0}^2:f"]).unwrap(), b"staged\n");
+    assert_eq!(r.read(&["show", ":f"]).unwrap(), b"staged\n");
+    assert_eq!(fs::read(d.path().join("f")).unwrap(), b"base\n");
+}
+
+#[test]
+fn worktree_stash_all_captures_ignored_files_and_keeps_published_stash_on_cleanup_failure() {
+    use super::workflows::Operation;
+    for fail_cleanup in [false, true] {
+        let (d, r) = setup();
+        committed(d.path(), b"base\n");
+        git(d.path(), &["config", "user.name", "Fred"]);
+        git(d.path(), &["config", "user.email", "fred@example.test"]);
+        fs::write(d.path().join(".gitignore"), "ignored\n").unwrap();
+        fs::write(d.path().join(".gitattributes"), "f filter=blocked\n").unwrap();
+        git(d.path(), &["add", ".gitignore", ".gitattributes"]);
+        git(d.path(), &["commit", "-qm", "attributes"]);
+        if fail_cleanup {
+            git(d.path(), &["config", "filter.blocked.clean", "cat"]);
+            git(d.path(), &["config", "filter.blocked.smudge", "false"]);
+            git(d.path(), &["config", "filter.blocked.required", "true"]);
+        }
+        fs::write(d.path().join("f"), "worktree\n").unwrap();
+        fs::write(d.path().join("ignored"), "saved ignored\n").unwrap();
+        let result = r.save_stash(Operation::StashWorktree, "all", &["--all".into()]);
+        assert_eq!(result.is_err(), fail_cleanup, "{result:?}");
+        assert_eq!(r.stashes().unwrap().len(), 1);
+        assert_eq!(r.read(&["show", "stash@{0}:f"]).unwrap(), b"worktree\n");
+        assert_eq!(
+            r.read(&["show", "stash@{0}^3:ignored"]).unwrap(),
+            b"saved ignored\n"
+        );
+        assert_eq!(r.read(&["show", ":f"]).unwrap(), b"base\n");
+        assert_eq!(d.path().join("ignored").exists(), fail_cleanup);
+    }
+}
 #[test]
 fn workflow_continuation_requires_matching_operation() {
     use super::workflows::Operation;

@@ -79,9 +79,20 @@ impl Repo {
         c
     }
     pub fn run(&self, args: &[OsString], input: Option<&[u8]>) -> Result<Vec<u8>, String> {
+        self.run_index(args, input, None)
+    }
+    pub(super) fn run_index(
+        &self,
+        args: &[OsString],
+        input: Option<&[u8]>,
+        index: Option<&Path>,
+    ) -> Result<Vec<u8>, String> {
         let mut cmd = self.command();
-        cmd.args(args)
-            .stdout(Stdio::piped())
+        cmd.args(args);
+        if let Some(index) = index {
+            cmd.env("GIT_INDEX_FILE", index);
+        }
+        cmd.stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .stdin(if input.is_some() {
                 Stdio::piped()

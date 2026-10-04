@@ -649,11 +649,11 @@ magit-stash.el,53,option,magit-stashes-margin,missing,
 magit-stash.el,91,command,magit-stash,partial,Space m z; source menu groups and -u/-a switches; worktree/snapshot/transform groups still missing
 magit-stash.el,124,command,magit-stash-both,partial,Space m z z/u; Git push implementation; plumbing/options differ
 magit-stash.el,140,command,magit-stash-index,partial,Space m z i; Git --staged implementation; source edge cases need comparison
-magit-stash.el,150,command,magit-stash-worktree,missing,
+magit-stash.el,150,command,magit-stash-worktree,partial,Space m z w; source commit-tree parents/private index; retains staged side; merge-state confirmation/context options remain open
 magit-stash.el,159,command,magit-stash-keep-index,partial,Space m z k; Git --keep-index implementation; options missing
-magit-stash.el,206,command,magit-snapshot-both,missing,
-magit-stash.el,215,command,magit-snapshot-index,missing,
-magit-stash.el,222,command,magit-snapshot-worktree,missing,
+magit-stash.el,206,command,magit-snapshot-both,partial,Space m z Z; source tree/parents/untracked plumbing without cleanup; customization/context/error parity remains open
+magit-stash.el,215,command,magit-snapshot-index,partial,Space m z I; saves index-only tree without worktree cleanup; customization/context/error parity remains open
+magit-stash.el,222,command,magit-snapshot-worktree,partial,Space m z W; source pre-stash-index base and unstaged tree; customization/context/error parity remains open
 magit-stash.el,238,command,magit-stash-push,missing,
 magit-stash.el,265,command,magit-stash-apply,partial,selected a; index restoration then plain fallback retaining stash; 3way/reject negotiation still missing
 magit-stash.el,288,command,magit-stash-pop,partial,"selected p; index restoration, guarded reflog deletion, conflicts retained; additional fallbacks missing"

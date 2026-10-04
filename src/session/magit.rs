@@ -13,6 +13,7 @@ pub(super) enum Outcome {
     Draft(Repo, crate::magit::CommitMode, Vec<u8>, Vec<String>),
     Branches(Repo, Vec<String>),
     Git(GitInvocation),
+    Saved(Repo, Result<(), String>),
 }
 pub(super) struct Job {
     input_generation: u64,
@@ -137,6 +138,10 @@ impl Session {
         }
         if let Action::Submit(repo, operation, value, args) = action {
             self.start_magit(move || {
+                if operation == crate::magit::workflows::Operation::StashWorktree {
+                    let result = repo.save_stash(operation, &value, &args);
+                    return Ok(Outcome::Saved(repo, result));
+                }
                 let mut inv = repo.operation(operation, &value)?;
                 inv.args.extend(args.into_iter().map(OsString::from));
                 Ok(Outcome::Git(inv))
@@ -387,6 +392,7 @@ impl Session {
                             crate::magit::workflows::Operation::Stash
                                 | crate::magit::workflows::Operation::StashUntracked
                                 | crate::magit::workflows::Operation::StashKeepIndex
+                                | crate::magit::workflows::Operation::StashWorktree
                         ) {
                             stash_args
                         } else if operation == crate::magit::workflows::Operation::Fixup {
@@ -396,6 +402,15 @@ impl Session {
                         };
                         Ok(Outcome::Prompt(repo, operation, args))
                     } else {
+                        if matches!(
+                            operation,
+                            crate::magit::workflows::Operation::SnapshotBoth
+                                | crate::magit::workflows::Operation::SnapshotIndex
+                                | crate::magit::workflows::Operation::SnapshotWorktree
+                        ) {
+                            let result = repo.save_stash(operation, "", &stash_args);
+                            return Ok(Outcome::Saved(repo, result));
+                        }
                         let mut inv = repo.operation(operation, "")?;
                         if operation == crate::magit::workflows::Operation::Amend {
                             inv.args.extend(commit_args.into_iter().map(OsString::from));
@@ -459,7 +474,11 @@ impl Session {
             .join()
             .unwrap_or_else(|_| Err("Git worker failed".into()));
         self.refresh_gutters();
-        if self.cur != job.slot || self.clock != job.clock {
+        // Saved mutations have already run: unlike stale read/draft requests,
+        // their completion and errors must survive a buffer switch.
+        if (self.cur != job.slot || self.clock != job.clock)
+            && !matches!(result, Ok(Outcome::Saved(..)))
+        {
             return false;
         }
         match result {
@@ -542,6 +561,17 @@ impl Session {
                 crate::pick::branches(&mut self.ed, names);
             }
             Ok(Outcome::Git(inv)) => self.pending_git = Some(inv),
+            Ok(Outcome::Saved(repo, result)) => self.finish_git(
+                GitInvocation {
+                    expected_head: None,
+                    repo,
+                    args: vec![],
+                    input: None,
+                    draft: None,
+                    draft_stamp: None,
+                },
+                result,
+            ),
         }
         true
     }
@@ -638,6 +668,13 @@ impl Session {
     }
     pub fn finish_git(&mut self, inv: GitInvocation, result: Result<(), String>) {
         self.git_busy = false;
+        for ed in self.editors_mut() {
+            if let Some(view) = &mut ed.magit
+                && view.repo == inv.repo
+            {
+                view.dirty = true;
+            }
+        }
         self.refresh_gutters();
         if let Err(e) = result {
             if let Some(mut view) = self.ed.magit.as_deref().cloned() {
@@ -691,6 +728,7 @@ impl Session {
     }
 }
 fn refresh_view(view: &mut View) -> Result<(), String> {
+    view.dirty = false;
     if let Kind::StashPatch(stash) = &view.kind {
         view.rows = display_patch(&view.repo.stash_patch(stash)?);
         return Ok(());

@@ -131,3 +131,48 @@ Latest verification of this batch: 376 tests passed, 18 ignored; cargo fmt
 allowance), and cargo build --release passed. This verifies the implemented
 batch, not full Magit parity. Continue using the source inventory for remaining
 menus, arguments, behavior, integrations, and customization options.
+
+## October 4 continuation
+
+The user explicitly requires a percentage-based roadmap and execution through it.
+`docs/magit-roadmap.md` allocates 100 acceptance points across the full scope.
+Initial accepted score is 2%: pinned source and explicit inventory. Partial
+families have zero accepted points until their source/menu/behavior/tests/review
+gates all pass. This is conservative verified-deliverable progress, not an effort
+estimate or a claim that the existing useful code does not exist.
+
+Current source-based batch adds `Space m z w` worktree-only stash and `Z/I/W`
+snapshots. Magit's pre-stash-index base, index parent, optional untracked parent,
+private worktree tree and reflog storage are reproduced with Git plumbing.
+Snapshots never clean/reset files; worktree-only stash publishes its saved
+object before restoring tracked files from the index and cleaning requested
+untracked/ignored files. Real-Git tests cover separate staged/unstaged trees,
+untracked parents, literal paths, binary/deleted files and linked worktrees.
+Mac filesystems reject non-UTF8 filenames; that physical-path case runs on Linux,
+while both platforms test leading dash, wildcard and newline path bytes.
+
+Remaining stash gaps include converting both/index/keep-index from Git wrappers,
+merge-state confirmation,
+transforms/export, autostash/custom refs, apply 3way/reject negotiation and richer
+context/options. The new commands remain partial in the source ledger.
+
+Review correction: use the staged index as the diff base when populating a
+snapshot's worktree tree. The pinned upstream uses HEAD for the both-sides path
+and can omit an unstaged reversal of a staged edit; Fred intentionally corrects
+that edge so the saved worktree really matches disk. A real-Git regression
+failed with staged content in the root tree and passed after this correction.
+
+Completed background stash/snapshot mutation outcomes must survive switching
+buffers. Their errors/completion are handled separately from obsolete read or
+draft requests. A delayed rejecting reference-transaction hook reproduces the
+former silent failure and verifies the diagnostic without replacing the newly
+selected source buffer. Completed terminal and source-plumbing mutations mark
+matching generated views dirty; a parked stash list refreshes in the background
+when shown again, with a regression test. Other background mutation result kinds
+still need the same comprehensive lifecycle audit in the framework track.
+
+This continuation's final verification: 385 tests passed, 18 ignored; formatting,
+diff whitespace checks, Clippy with the existing allowance and release build
+passed. The source ledger now has 46 partial and 468 missing explicit commands;
+227 customization options remain missing. No whole family is yet accepted as
+full parity. Continue from the roadmap's next baseline deliverables.

@@ -17,6 +17,11 @@ commands, section/keymap interactions, git-commit/git-rebase companion features,
 Lisp customization hooks and external integrations require separate review.
 A percentage from these counts would not measure engineering effort.
 
+The user's requested percentage is maintained separately in the
+[completion roadmap](magit-roadmap.md): currently 2 / 100 accepted points.
+It measures verified roadmap deliverables and intentionally credits no
+full-family points for partial command wrappers.
+
 | Upstream file | Explicit commands | Customization options |
 | --- | ---: | ---: |
 | git-commit.el | 18 | 10 |

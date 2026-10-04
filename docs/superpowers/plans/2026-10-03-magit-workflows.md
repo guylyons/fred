@@ -84,3 +84,23 @@ Further source differences remain open: stash worktree-only, snapshots, transfor
 interaction; remaining commit options, publication warnings, richer commit
 editing and rewrite variants; annotated/deleted tags, tracking-branch creation,
 and the wider source inventory. These remain implementation work, not exclusions.
+
+## October 4 execution
+
+The full-scope percentage roadmap is `docs/magit-roadmap.md`. Initial accepted
+score: 2/100; useful partial families receive no complete-family credit.
+Continue worktree-only stash and source snapshots before closing the baseline's
+remaining generated-command, full UI mapping and acceptance-matrix deliverables.
+
+Worktree-only stash and snapshot both/index/worktree now use commit-tree/private
+index plumbing from magit-stash.el. Snapshot trees preserve both saved sides and
+never clean files. Worktree stash publishes its recoverable reflog object before
+checkout/clean. Source-buffer preservation and asynchronous mutation failure are
+covered by session tests; real Git covers parent trees, untracked content, binary
+and deleted files, literal paths and worktree-local index preservation.
+
+Review rulings: correct upstream's HEAD-diff omission of an unstaged reversal;
+do not discard already-executed Saved outcomes after switching buffers; mark
+generated views dirty so parked views refresh on return. Each regression was
+observed failing and then passing. Wider lifecycle/source parity gaps remain
+tracked rather than credited complete.

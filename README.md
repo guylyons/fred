@@ -290,7 +290,9 @@ tree, preserving staged changes. Amend/reword drafts have separate identities
 from ordinary commit drafts and reject submission if HEAD has moved.
 
 The stash menu follows upstream keys: `z` saves both sides, `i` saves the index,
-`x` keeps the index, `a` applies, `p` pops, `k` drops, and `l` lists. `-u` includes
+`w` saves the worktree only, `x` keeps the index, `a` applies, `p` pops,
+`k` drops, and `l` lists. `Z`, `I`, and `W` create snapshots of both sides,
+the index, or the worktree without cleaning files. `-u` includes
 untracked files and `-a` includes untracked and ignored files. In the list,
 `a` applies the selected entry, `p` pops it, `d` or `k` asks for `yes` to drop it,
 Enter inspects, `gr` refreshes and `q` returns. Stash inspection separates notes,
@@ -303,6 +305,7 @@ it. Source buffers keep unsaved edits throughout.
 The binding goal is full menu and behavior parity with upstream Magit, adapted
 from Emacs to Fred. Current coverage is still partial. The pinned source baseline,
 command/option inventory and remaining work are tracked in
+[the percentage roadmap](docs/magit-roadmap.md),
 [the parity ledger](docs/magit-parity.md) and
 [continuation notes](docs/magit-port-notes.md).
 
