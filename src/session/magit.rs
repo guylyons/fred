@@ -367,6 +367,111 @@ impl Session {
             });
             return;
         }
+        if matches!(action, Action::TraceDefinition | Action::EditLineCommit) {
+            let origin = self.cur;
+            // The visited file (or blob) and the line / name at point.
+            let blob = self
+                .ed
+                .blob
+                .as_ref()
+                .map(|b| (b.repo.clone(), b.rev.clone(), b.file.clone()));
+            let (from, path) = (self.magit_from(), self.ed.path.clone());
+            let line = self.ed.cur.line + 1;
+            let text = self.ed.buf.line(self.ed.cur.line);
+            let col = self.ed.cur.byte.min(text.len());
+            let is_word = |c: char| c.is_alphanumeric() || c == '_';
+            let start = text[..col]
+                .rfind(|c: char| !is_word(c))
+                .map_or(0, |i| i + 1);
+            let end = text[col..]
+                .find(|c: char| !is_word(c))
+                .map_or(text.len(), |i| col + i);
+            let name = text.get(start..end).unwrap_or("").to_owned();
+            let log_args = crate::magit::menu_arguments(&self.ed, 'l');
+            let rebase_args = crate::magit::menu_arguments(&self.ed, 'r');
+            self.start_magit(move || {
+                let (repo, rev, file) = match blob {
+                    Some((repo, rev, file)) => (repo, Some(rev), file),
+                    None => {
+                        let repo = Repo::discover(&from)?;
+                        let file = path
+                            .as_deref()
+                            .ok_or("Buffer isn't visiting a file")
+                            .and_then(|p| {
+                                repo_relative(&repo, p).map_err(|_| "Buffer isn't visiting a file")
+                            })?;
+                        (repo, None, file)
+                    }
+                };
+                let file_s = file.to_string_lossy().into_owned();
+                if action == Action::TraceDefinition {
+                    if name.is_empty() {
+                        return Err("No function at point found".into());
+                    }
+                    // regexp-quote, and ":" escaped for -L.
+                    let quoted: String = name
+                        .chars()
+                        .flat_map(|c| {
+                            if "\\.*+?[](){}^$|:".contains(c) {
+                                vec!['\\', c]
+                            } else {
+                                vec![c]
+                            }
+                        })
+                        .collect();
+                    let commit = rev
+                        .clone()
+                        .unwrap_or_else(|| repo.current_branch().unwrap_or_else(|_| "HEAD".into()));
+                    let mut args: Vec<String> = log_args
+                        .into_iter()
+                        .filter(|a| !a.starts_with("-L") && a != "--graph")
+                        .collect();
+                    args.insert(0, format!("-L:{quoted}:{file_s}"));
+                    let next = crate::magit::branch::Next::View(Kind::Log(vec![commit], args));
+                    return Ok(branch_outcome(repo, next, origin));
+                }
+                // magit-edit-line-commit: the commit that added this line.
+                let mut argv = vec![
+                    "blame".to_owned(),
+                    "--porcelain".into(),
+                    "-L".into(),
+                    format!("{line},{line}"),
+                ];
+                if let Some(r) = &rev {
+                    argv.push(r.clone());
+                }
+                argv.extend(["--".into(), file_s]);
+                let refs: Vec<&str> = argv.iter().map(String::as_str).collect();
+                let out = repo.read(&refs)?;
+                let commit = String::from_utf8_lossy(&out)
+                    .split_whitespace()
+                    .next()
+                    .unwrap_or("")
+                    .to_owned();
+                if commit.is_empty() || commit.bytes().all(|b| b == b'0') {
+                    return Err("This line has not been committed yet".into());
+                }
+                let next = if repo
+                    .read(&["merge-base", "--is-ancestor", &commit, "HEAD"])
+                    .is_ok()
+                {
+                    repo.rebase_step(
+                        crate::magit::rebase::Op::EditCommit,
+                        &[commit],
+                        &rebase_args,
+                    )
+                    .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)))
+                } else {
+                    repo.read(&["checkout", "-q", &commit, "--"])?;
+                    crate::magit::branch::Next::Done(Ok(format!(
+                        "Checked out {}",
+                        &commit[..8.min(commit.len())]
+                    )))
+                };
+                Ok(branch_outcome(repo, next, origin))
+            });
+            return;
+        }
         if action == Action::StashPush {
             let (origin, from) = (self.cur, self.magit_from());
             let args = crate::magit::menu_arguments(&self.ed, 'Q');

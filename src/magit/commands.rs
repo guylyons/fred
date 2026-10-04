@@ -92,6 +92,9 @@ pub fn by_name(name: &str) -> Option<Action> {
         // magit-push-implicitly: git push -v with no refspec.
         "magit-push-implicitly" => Some(GitRun(&["push", "-v"])),
         "magit-run" => menu('!'),
+        "magit-log-trace-definition" => Some(TraceDefinition),
+        "magit-edit-line-commit" => Some(EditLineCommit),
+        "magit-display-repository-buffer" | "magit-switch-to-repository-buffer" => Some(Status),
         "magit-git-command" => Some(Misc(misc::Op::GitCommand { topdir: false })),
         "magit-git-command-topdir" => Some(Misc(misc::Op::GitCommand { topdir: true })),
         "magit-reset-quickly" => Some(Misc(misc::Op::ResetQuickly)),

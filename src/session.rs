@@ -2449,6 +2449,43 @@ mod tests {
     }
 
     #[test]
+    fn magit_file_dispatch_trace_and_edit_line_commit() {
+        let mut t = T::open(Some("f.txt"), Some("foo() {\n  one\n}\nbar() {\n  x\n}\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "add foo"]).unwrap();
+        fs::write(
+            t.dir.path().join("f.txt"),
+            "foo() {\n  two\n}\nbar() {\n  y\n}\n",
+        )
+        .unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "change both"]).unwrap();
+        fs::write(t.dir.path().join("g.txt"), "g\n").unwrap();
+        repo.stage_file(Path::new("g.txt")).unwrap();
+        repo.read(&["commit", "-qm", "unrelated"]).unwrap();
+        t.keys(":e!<Enter>gg mFt");
+        magit_settle(&mut t);
+        let text = t.s.ed.buf.text();
+        assert!(
+            text.contains("change both") && text.contains("add foo"),
+            "{text}"
+        );
+        assert!(!text.contains("unrelated"), "{text}");
+        // Edit line: the commit that added line 1 (foo) is rebased with edit.
+        t.keys("q");
+        magit_settle(&mut t);
+        t.keys("gg mFe");
+        magit_settle(&mut t);
+        let inv = t.s.pending_git.take().expect("rebase");
+        assert!(inv.args.iter().any(|a| a == "rebase"), "{:?}", inv.args);
+    }
+
+    #[test]
     fn magit_file_log_reads_deleted_parent_and_tracked_symlink_name() {
         use std::os::unix::fs::symlink;
         let mut t = T::open(Some("target"), Some("target contents\n"));

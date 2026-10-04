@@ -156,6 +156,10 @@ pub enum Action {
     StashPush,
     /// magit-git-command, reset-quickly, remote set/unset-head.
     Misc(misc::Op),
+    /// magit-log-trace-definition: git log -L for the name at point.
+    TraceDefinition,
+    /// magit-edit-line-commit: rebase to edit the commit that added the line.
+    EditLineCommit,
     /// magit-diff-while-committing (C-c C-d in a commit draft).
     DiffWhileCommitting,
     Toggle,
@@ -2568,6 +2572,8 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 ("d", "Inspect", "Diff", DiffBufferFile),
                 ("L", "Log", "Log...", Menu('l')),
                 ("l", "Log", "Log", FileLog),
+                ("t", "Log", "Trace", TraceDefinition),
+                ("M", "Log", "Merged", LogOp(log::Op::Merged)),
                 ("B", "Blame", "Blame...", Menu('B')),
                 ("b", "Blame", "Blame", Blame(K::Addition)),
                 ("r", "Blame", "...removal", Blame(K::Removal)),
@@ -2579,7 +2585,10 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 ("v", "Navigate", "Goto blob", FindFile),
                 ("V", "Navigate", "Goto file", BlobVisitFile),
                 ("g", "Navigate", "Goto status", Status),
+                // magit-display-repository-buffer: Fred reuses the status buffer.
+                ("G", "Navigate", "Goto magit", Status),
                 ("c", "More actions", "Commit", Menu('C')),
+                ("e", "More actions", "Edit line", EditLineCommit),
             ]
         }
         'B' => vec![
