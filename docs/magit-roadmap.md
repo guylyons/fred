@@ -300,3 +300,8 @@ p push, O reset, ' submodule, " subtree, _ revert, X untrack, h/? dispatch,
 L log refresh; - and a on a commit revert-no-commit and cherry-apply), in
 addition to the Space m contract. Ledger 608 partial / 165 missing commands.
 Score remains 3%.
+
+October 4 apply/smerge checkpoint: a and - apply and reverse hunks from diff,
+commit and stash buffers; C-c ^ u/b/l/a/RET keep a side of the conflict at
+point in a file buffer. Ledger 614 partial / 159 missing commands. Score
+remains 3%.

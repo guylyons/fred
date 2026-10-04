@@ -80,11 +80,11 @@ magit-apply.el,488,command,magit-discard,partial,"x in status (evil-collection):
 magit-apply.el,686,command,magit-reverse,partial,- in status (staged changes) and on hunks/files in diff/commit/stash buffers; on a commit: revert-no-commit,explicit
 magit-apply.el,744,command,magit-reverse-in-index,missing,,explicit
 magit-apply.el,765,command,magit-copy-diff-as-kill,missing,,explicit
-magit-apply.el,792,command,magit-smerge-keep-current,missing,,explicit
-magit-apply.el,797,command,magit-smerge-keep-upper,missing,,explicit
-magit-apply.el,802,command,magit-smerge-keep-base,missing,,explicit
-magit-apply.el,807,command,magit-smerge-keep-lower,missing,,explicit
-magit-apply.el,812,command,magit-smerge-keep-all,missing,,explicit
+magit-apply.el,792,command,magit-smerge-keep-current,partial,C-c ^ RET (the side at point) on the conflict at point in the file buffer (not on status hunks),explicit
+magit-apply.el,797,command,magit-smerge-keep-upper,partial,C-c ^ u on the conflict at point in the file buffer (not on status hunks),explicit
+magit-apply.el,802,command,magit-smerge-keep-base,partial,C-c ^ b on the conflict at point in the file buffer (not on status hunks),explicit
+magit-apply.el,807,command,magit-smerge-keep-lower,partial,C-c ^ l on the conflict at point in the file buffer (not on status hunks),explicit
+magit-apply.el,812,command,magit-smerge-keep-all,partial,C-c ^ a on the conflict at point in the file buffer (not on status hunks),explicit
 magit-autorevert.el,49,option,auto-revert-buffer-list-filter,missing,,explicit
 magit-autorevert.el,76,option,magit-auto-revert-tracked-only,missing,,explicit
 magit-autorevert.el,88,option,magit-auto-revert-immediately,missing,,explicit

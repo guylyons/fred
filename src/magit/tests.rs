@@ -3693,3 +3693,24 @@ fn wip_commit_logs_and_purge() {
     .unwrap();
     assert!(!refs.contains("gone") && refs.contains("main"), "{refs}");
 }
+
+#[test]
+fn smerge_keeps_a_side_of_the_conflict_at_point() {
+    use super::smerge::{Keep, keep};
+    use crate::{buffer::Buffer, editor::Editor};
+    let text = "a\n<<<<<<< HEAD\nours\n||||||| base\nold\n=======\ntheirs\n>>>>>>> side\nz\n";
+    let run = |line: usize, how: Keep| {
+        let mut e = Editor::new(Buffer::from_text(text));
+        e.set_cursor(line, 0);
+        assert!(keep(&mut e, how));
+        e.buf.text()
+    };
+    assert_eq!(run(2, Keep::Upper), "a\nours\nz");
+    assert_eq!(run(2, Keep::Lower), "a\ntheirs\nz");
+    assert_eq!(run(2, Keep::Base), "a\nold\nz");
+    assert_eq!(run(2, Keep::All), "a\nours\ntheirs\nz");
+    assert_eq!(run(6, Keep::Current), "a\ntheirs\nz");
+    let mut e = Editor::new(Buffer::from_text(text));
+    e.set_cursor(0, 0);
+    assert!(!keep(&mut e, Keep::Upper));
+}

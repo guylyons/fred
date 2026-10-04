@@ -24,6 +24,7 @@ pub mod remote;
 pub mod repo;
 pub mod reset;
 pub mod sequence;
+pub mod smerge;
 pub mod stash;
 pub mod status;
 pub mod submodule;
@@ -675,6 +676,10 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     }
     // git-commit-mode keys in a commit draft.
     if message::key(ed, k) {
+        return true;
+    }
+    // smerge's C-c ^ keys on a conflict in a file buffer.
+    if smerge::key(ed, k) {
         return true;
     }
     if ed.magit.is_none() {
