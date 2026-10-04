@@ -1,6 +1,7 @@
 //! `Space j` / `fred DIR`: find-file, vertico style. The query is a path;
 //! the part after the last `/` filters the entries of the part before it.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -80,6 +81,23 @@ pub fn up(query: &str) -> Option<String> {
     }
 }
 
+/// How recently (0 = newest) each candidate under `dir` led to one of
+/// the `recent` files: the file itself (by path below `dir`), and the
+/// directory it is in here, as `name/`. Vertico ranks history first.
+pub fn history(recent: &[PathBuf], dir: &Path) -> HashMap<String, usize> {
+    let mut out = HashMap::new();
+    for (i, f) in recent.iter().enumerate() {
+        let Some(rel) = f.strip_prefix(dir).ok().and_then(Path::to_str) else {
+            continue;
+        };
+        out.entry(rel.to_string()).or_insert(i);
+        if let Some((top, _)) = rel.split_once('/') {
+            out.entry(format!("{top}/")).or_insert(i);
+        }
+    }
+    out
+}
+
 /// This directory's entries, directories first, each by name. Honors
 /// `.gitignore` and the like; dotfiles only if `hidden`.
 pub fn list(dir: &Path, hidden: bool) -> Result<Vec<Entry>, String> {
@@ -118,6 +136,21 @@ mod tests {
         assert_eq!(resolve("/tmp/"), PathBuf::from("/tmp"));
         assert_eq!(show(&home.join("x")), "~/x/");
         assert_eq!(show(Path::new("/")), "/");
+    }
+
+    #[test]
+    fn history_ranks_files_and_their_dirs() {
+        let recent = [
+            PathBuf::from("/d/a/x.rs"),
+            PathBuf::from("/d/b.md"),
+            PathBuf::from("/d/a/y.rs"),
+            PathBuf::from("/elsewhere/c"),
+        ];
+        let h = history(&recent, Path::new("/d"));
+        let mut h: Vec<_> = h.into_iter().collect();
+        h.sort();
+        let want = [("a/", 0), ("a/x.rs", 0), ("a/y.rs", 2), ("b.md", 1)];
+        assert_eq!(h, want.map(|(k, v)| (k.to_string(), v)));
     }
 
     #[test]

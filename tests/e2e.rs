@@ -575,7 +575,7 @@ fn fred_dir_opens_dired() {
     env.write("adir/top.txt", "top\n");
     let mut p = env.fred(&["adir"]);
     p.wait_text(" DIRED ");
-    p.wait_text("sub/");
+    p.wait_text(" sub");
     p.wait_text("top.txt");
     // Vim search moves to an entry; Enter goes into a directory...
     p.keys(&["/sub\r", "\r"]);

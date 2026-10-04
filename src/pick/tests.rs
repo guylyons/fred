@@ -295,11 +295,47 @@ fn browse_searches_below_and_honors_gitignore() {
 }
 
 #[test]
+fn enter_on_a_bare_directory_lists_it() {
+    // No subdirectories: the first row is a file, but Enter on `dir/` is dired.
+    let (d, mut ed) = setup(&[("a.md", ""), ("b.md", "")]);
+    browse(&mut ed, d.path());
+    let start = browse::show(d.path());
+    let opens = |path| ExEffect::Open {
+        path,
+        line: 0,
+        col: 0,
+        pattern: None,
+    };
+    assert!(picker(&ed).prompt);
+    assert_eq!(picker(&ed).status_text(), "*/2");
+    keys(&mut ed, "<Enter>");
+    assert_eq!(
+        ed.pending_effect.take(),
+        Some(opens(browse::resolve(&start)))
+    );
+    // Down selects the first file; Up goes back to the prompt.
+    keys(&mut ed, "<Down>");
+    assert_eq!(picker(&ed).status_text(), "1/2");
+    keys(&mut ed, "<Up>");
+    assert_eq!(picker(&ed).status_text(), "*/2");
+    keys(&mut ed, "<Down><Enter>");
+    assert_eq!(
+        ed.pending_effect.take(),
+        Some(opens(browse::resolve(&start).join("a.md")))
+    );
+    // Typing a name selects the best match.
+    keys(&mut ed, "b");
+    settle(&mut ed, |p| !p.searching);
+    assert_eq!(picker(&ed).status_text(), "1/1");
+}
+
+#[test]
 fn enter_waits_for_the_search_before_making_a_new_file() {
     let (_d, mut ed) = setup(&[("a", "")]);
     browse(&mut ed, _d.path());
     if let Mode::Pick(p) = &mut ed.mode {
         p.searching = true;
+        p.prompt = false;
         p.rows.clear();
         set_query(p, format!("{}zzz", p.query.text));
     }

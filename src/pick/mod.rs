@@ -173,11 +173,14 @@ pub struct Picker {
     /// Best first.
     pub rows: Vec<Row>,
     pub sel: usize,
+    /// Browse: the typed path itself is selected, not a row (vertico's `*`).
+    pub prompt: bool,
     /// Status line text: counts, or why grep can't run.
     pub status: String,
     pub err: bool,
     /// Browse: files below are still being listed (no match isn't final).
     pub searching: bool,
+    /// Files, Browse: candidate → recent rank (0 = newest).
     recent: HashMap<String, usize>,
     /// What `rows` were built from. Files: query, file count, walk done.
     seen_files: Option<(String, usize, bool)>,
@@ -212,6 +215,7 @@ impl Picker {
             query: CmdLine::default(),
             rows: vec![],
             sel: 0,
+            prompt: false,
             status: String::new(),
             err: false,
             searching: false,
@@ -248,6 +252,20 @@ impl Picker {
             Kind::AllLines => "all lines> ",
             Kind::Def => "definition> ",
         }
+    }
+
+    /// The status line: Browse counts as vertico does, `*/N` with the
+    /// typed path selected, else `3/N`.
+    pub fn status_text(&self) -> std::borrow::Cow<'_, str> {
+        if self.kind != Kind::Browse || self.err || self.status.starts_with("new file") {
+            return self.status.as_str().into();
+        }
+        let at = if self.prompt || self.rows.is_empty() {
+            "*".to_string()
+        } else {
+            (self.sel + 1).to_string()
+        };
+        format!("{at}/{}", self.status).into()
     }
 
     /// Bring `rows` up to date; true if anything shown changed.
@@ -298,6 +316,8 @@ impl Picker {
                     .is_none_or(|l| (&l.0, l.1) != (&dir, hidden))
                 {
                     self.listing = Some((dir.clone(), hidden, browse::list(&dir, hidden)));
+                    let recent = project.recent_file.as_deref().map(recent::load);
+                    self.recent = browse::history(&recent.unwrap_or_default(), &dir);
                 }
                 // Typing a name searches every file below, as consult does.
                 let walk = (!name.is_empty()).then(|| {
@@ -316,6 +336,8 @@ impl Picker {
                 }
                 if self.seen_files.as_ref().is_none_or(|s| s.0 != q) {
                     self.sel = 0;
+                    // Just a directory: Enter lists it (dired), as in Emacs.
+                    self.prompt = name.is_empty();
                 }
                 self.seen_files = now;
                 let entries = match &self.listing.as_ref().unwrap().2 {
@@ -345,8 +367,17 @@ impl Picker {
                     .filter_map(|(i, c)| fz.score(c).map(|s| (s, i)))
                     .collect();
                 let matched = hits.len();
-                // Ties: shorter paths (nearer this directory) first.
-                hits.sort_by_key(|&(s, i)| (std::cmp::Reverse(s), cands[i].len(), i));
+                // As vertico: recently opened first, then the best match,
+                // then shorter paths (nearer this directory), then by name.
+                let rec = |i: usize| self.recent.get(&cands[i]).copied().unwrap_or(usize::MAX);
+                hits.sort_by(|&(s, i), &(t, j)| {
+                    (rec(i), std::cmp::Reverse(s), cands[i].len(), &cands[i]).cmp(&(
+                        rec(j),
+                        std::cmp::Reverse(t),
+                        cands[j].len(),
+                        &cands[j],
+                    ))
+                });
                 self.rows = hits
                     .iter()
                     .take(LIMIT)
@@ -374,7 +405,7 @@ impl Picker {
                 self.status = if self.rows.is_empty() && !name.is_empty() && more.is_empty() {
                     format!("new file: {name}")
                 } else {
-                    format!("{matched}/{}{more}", cands.len())
+                    format!("{matched}{more}")
                 };
                 true
             }
@@ -732,7 +763,8 @@ pub fn pick_key(ed: &mut Editor, k: Key) {
         KeyCode::Enter | KeyCode::Tab if p.kind == Kind::Browse => {
             let (d, name) = browse::split(&p.query.text);
             let (d, name) = (d.to_string(), name.to_string());
-            let target = match p.rows.get(p.sel) {
+            let row = if p.prompt { None } else { p.rows.get(p.sel) };
+            let target = match row {
                 // Enter on a directory lists it (dired), as in Emacs.
                 Some(r) if r.text.ends_with('/') && k.code == KeyCode::Enter => r.path.clone(),
                 // Tab on a directory goes in.
@@ -748,8 +780,10 @@ pub fn pick_key(ed: &mut Editor, k: Key) {
                     return;
                 }
                 Some(r) => r.path.clone(),
-                // Nothing matches (and the search is done): a new file.
-                None if !name.is_empty() && k.code == KeyCode::Enter && !p.searching => {
+                // The typed path itself: its directory (dired), or a new
+                // file when nothing matches (and the search is done).
+                None if k.code == KeyCode::Enter && name.is_empty() => browse::resolve(&d),
+                None if k.code == KeyCode::Enter && (p.prompt || !p.searching) => {
                     browse::resolve(&d).join(name)
                 }
                 None => return,
@@ -802,11 +836,21 @@ pub fn pick_key(ed: &mut Editor, k: Key) {
             p.started = None;
             p.update(&ed.project, &ed.buf, Instant::now());
         }
-        // Candidates run downward from the prompt.
-        KeyCode::Down => p.sel = (p.sel + 1).min(p.rows.len().saturating_sub(1)),
-        KeyCode::Char('n') if k.ctrl => p.sel = (p.sel + 1).min(p.rows.len().saturating_sub(1)),
-        KeyCode::Up => p.sel = p.sel.saturating_sub(1),
-        KeyCode::Char('p') if k.ctrl => p.sel = p.sel.saturating_sub(1),
+        // Candidates run downward from the prompt; Browse can select the
+        // prompt itself, above the first.
+        KeyCode::Down | KeyCode::Char('n') if k.code == KeyCode::Down || k.ctrl => {
+            if p.prompt && !p.rows.is_empty() {
+                p.prompt = false;
+            } else {
+                p.sel = (p.sel + 1).min(p.rows.len().saturating_sub(1));
+            }
+        }
+        KeyCode::Up | KeyCode::Char('p') if k.code == KeyCode::Up || k.ctrl => {
+            if p.kind == Kind::Browse && p.sel == 0 {
+                p.prompt = true;
+            }
+            p.sel = p.sel.saturating_sub(1);
+        }
         _ => {
             let before = p.query.text.clone();
             p.query.edit(k);
