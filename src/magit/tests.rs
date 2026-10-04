@@ -2187,6 +2187,20 @@ fn rebase_captures_and_replays_todo_lists() {
     assert!(!r.rebase_in_progress());
     assert_eq!(fs::read(d.path().join("one")).unwrap(), b"dirty");
     let todo = fs::read_to_string(&plan.todo).unwrap();
+
+    // A staged change survives the capture (autostash restores only the worktree).
+    fs::write(d.path().join("three"), b"staged").unwrap();
+    git(d.path(), &["add", "three"]);
+    let again = match r
+        .rebase_step(Op::Interactive, &s(&[&two]), &s(&["--autostash"]))
+        .unwrap()
+    {
+        Next::Todo(p) => p,
+        other => panic!("{other:?}"),
+    };
+    assert_ne!(again.todo, plan.todo, "each capture gets its own file");
+    assert!(git(d.path(), &["diff", "--cached", "--name-only"]).starts_with(b"three"));
+    git(d.path(), &["reset", "-q", "--hard"]);
     assert!(
         todo.starts_with("pick ") && todo.contains("# two") && todo.contains("# three"),
         "{todo}"

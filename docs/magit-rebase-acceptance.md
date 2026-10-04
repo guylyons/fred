@@ -18,3 +18,13 @@ terminal (Fred's with-editor).
 | e / u / p / s / f | Non-interactive rebases with arguments; -i turns them interactive | same test |
 | Todo buffer keys | p r e s f d, x exec, M-j/M-k, ZZ run, ZQ cancel | magit_rebase_todo_buffer_keys_edit_and_run_the_list |
 | Rebase sequence section in status, log-select for subset/autosquash, strategy/exec/gpg/signoff, show commit from todo | | Open |
+
+Independent review (October 4): each capture writes a fresh todo file, so an
+open buffer of an older list can never be replayed against a new base; the plan
+attaches only to the todo buffer itself; bases are resolved to commits at
+capture and replay also checks the branch; the index is restored after an
+autostash capture; `fixup -C` lines change action cleanly; M-j/M-k move within
+the todo region across blank and `# Branch` lines; abbreviated commands are
+matched; subset honors -i. Open: pre-rebase hook runs at capture and replay;
+counts/`dd` fall through to vim; `:wq` closes without running; continue's
+amend-published confirmation.

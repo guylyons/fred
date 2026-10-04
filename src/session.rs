@@ -2518,6 +2518,12 @@ mod tests {
         );
         t.keys("ggd");
         assert!(t.s.ed.buf.line(0).starts_with("drop "));
+        // fixup -C lines change action without keeping the option.
+        let fixup = format!("fixup -C {}", t.s.ed.buf.line(1).split_once(' ').unwrap().1);
+        let (edit, _) = t.s.ed.buf.splice_edit(1, 1, &[fixup]).unwrap();
+        t.s.ed.buf.apply(edit);
+        t.keys("ggjp");
+        assert!(t.s.ed.buf.line(1).starts_with("pick ") && !t.s.ed.buf.line(1).contains("-C"));
         t.keys("ggx");
         t.keys("true<Enter>");
         assert_eq!(t.s.ed.buf.line(1), "exec true");

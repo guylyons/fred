@@ -44,8 +44,10 @@ pub struct Plan {
     /// `--root`, or the base commit.
     pub base: Vec<String>,
     pub args: Vec<String>,
-    /// HEAD when the todo was captured; replay refuses if it moved.
+    /// HEAD (commit and branch) when the todo was captured; replay refuses if
+    /// either changed.
     pub head: String,
+    pub branch: Option<String>,
     pub todo: PathBuf,
 }
 
@@ -59,6 +61,12 @@ fn rev(v: &str) -> Result<&str, String> {
 fn base_args(base: &[String]) -> Vec<OsString> {
     match base {
         [root] if root == "--root" => vec!["--root".into()],
+        [onto, new, upstream] if onto == "--onto" => vec![
+            "--onto".into(),
+            new.into(),
+            "--end-of-options".into(),
+            upstream.into(),
+        ],
         _ => std::iter::once("--end-of-options".into())
             .chain(base.iter().map(Into::into))
             .collect(),
@@ -168,6 +176,12 @@ impl Repo {
             Op::Subset => {
                 let onto = rev(at(0))?;
                 let start = rev(at(1))?;
+                if interactive {
+                    return self.capture(
+                        vec!["--onto".into(), onto.into(), format!("{start}^")],
+                        plain.clone(),
+                    );
+                }
                 let mut argv = vec!["rebase".to_owned()];
                 argv.extend(plain);
                 argv.extend(["--onto".into(), onto.into(), format!("{start}^")]);
@@ -337,11 +351,12 @@ impl Repo {
             .map(|line| {
                 let mut words = line.split_whitespace();
                 if !done
-                    && words.next() == Some("pick")
+                    && matches!(words.next(), Some("pick" | "p"))
                     && words.next().is_some_and(|h| id.starts_with(h))
                 {
                     done = true;
-                    return line.replacen("pick", action, 1);
+                    let rest = line.split_once(' ').map_or("", |(_, r)| r);
+                    return format!("{action} {rest}");
                 }
                 line.to_owned()
             })
@@ -357,9 +372,38 @@ impl Repo {
     }
     /// Phase one: let Git write its todo list into a private file, then abort.
     fn capture(&self, base: Vec<String>, args: Vec<String>) -> Result<Next, String> {
-        let todo = self.git_path("fred-rebase-todo")?;
+        // Resolve symbolic bases now, so a fetch or upstream change while the
+        // list is open cannot retarget the replay.
+        let base = base
+            .into_iter()
+            .map(|b| {
+                if b.starts_with("--") {
+                    return Ok(b);
+                }
+                self.read(&[
+                    "rev-parse",
+                    "--verify",
+                    "-q",
+                    "--end-of-options",
+                    &format!("{b}^{{commit}}"),
+                ])
+                .map(|o| String::from_utf8_lossy(&o).trim().to_owned())
+                .map_err(|_| format!("unknown revision {b:?}"))
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        // A fresh file per capture: an open buffer of an older list is never reused.
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        let name = format!(
+            "fred-rebase-todo-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        );
+        let todo = self.git_path(&name)?;
         let _ = std::fs::remove_file(&todo);
         let save = shell_quote(&todo.to_string_lossy());
+        // Git's autostash reapplies worktree changes but not the index: keep it.
+        let index = self.read(&["write-tree"]).ok();
         let mut argv: Vec<OsString> = vec![
             "-c".into(),
             format!("sequence.editor=f() {{ cp \"$1\" {save}; exit 1; }}; f").into(),
@@ -376,6 +420,10 @@ impl Repo {
             .stdin(std::process::Stdio::null())
             .output()
             .map_err(|e| e.to_string())?;
+        if let Some(tree) = index {
+            let tree = String::from_utf8_lossy(&tree).trim().to_owned();
+            let _ = self.read(&["read-tree", &tree]);
+        }
         if !todo.exists() {
             return Err(String::from_utf8_lossy(&out.stderr).trim().to_owned());
         }
@@ -384,6 +432,7 @@ impl Repo {
             base,
             args,
             head: self.head()?,
+            branch: self.current_branch().ok(),
             todo,
         }))
     }
@@ -392,7 +441,7 @@ impl Repo {
 impl Plan {
     /// Phase two: run the rebase with the edited todo installed by `cp`.
     pub fn replay(&self) -> Result<GitInvocation, String> {
-        if self.repo.head()? != self.head {
+        if self.repo.head()? != self.head || self.repo.current_branch().ok() != self.branch {
             return Err(
                 "HEAD moved since the todo list was created; start the rebase again".into(),
             );
@@ -487,9 +536,16 @@ fn set_action(ed: &mut Editor, action: &str) {
     let line = ed.cur.line;
     let text = ed.buf.line(line);
     let mut words = text.splitn(2, ' ');
-    let (Some(verb), Some(rest)) = (words.next(), words.next()) else {
+    let (Some(verb), Some(mut rest)) = (words.next(), words.next()) else {
         return;
     };
+    // `fixup -C <commit>` carries an option: other actions take just the commit.
+    if let Some(r) = rest
+        .strip_prefix("-C ")
+        .or_else(|| rest.strip_prefix("-c "))
+    {
+        rest = r;
+    }
     let commit_verbs = [
         "pick", "p", "reword", "r", "edit", "e", "squash", "s", "fixup", "f", "drop", "d",
     ];
@@ -504,13 +560,16 @@ fn set_action(ed: &mut Editor, action: &str) {
 fn move_line(ed: &mut Editor, delta: isize) {
     let line = ed.cur.line;
     let target = line as isize + delta;
+    // The todo region ends where Git's help comment starts.
+    let end = (0..ed.buf.len_lines())
+        .find(|&i| ed.buf.line(i).starts_with("# Rebase "))
+        .unwrap_or(ed.buf.len_lines());
     let text = ed.buf.line(line);
     if target < 0
-        || target as usize >= ed.buf.len_lines()
+        || target as usize >= end
+        || line >= end
         || text.starts_with('#')
         || text.trim().is_empty()
-        || ed.buf.line(target as usize).starts_with('#')
-        || ed.buf.line(target as usize).trim().is_empty()
     {
         return;
     }

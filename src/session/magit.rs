@@ -1193,6 +1193,17 @@ impl Session {
             }
             Ok(Outcome::Todo(plan)) => {
                 self.open_pick(plan.todo.clone(), None);
+                // Only the todo buffer itself gets the plan (a swap prompt may
+                // have left another buffer current).
+                let opened = self
+                    .ed
+                    .path
+                    .as_deref()
+                    .is_some_and(|p| swap::canonical(p) == swap::canonical(&plan.todo));
+                if !opened {
+                    self.ed.set_err("Could not open the rebase todo list");
+                    return true;
+                }
                 self.ed.rebase_todo = Some(plan);
                 self.ed.set_msg(
                     "Rebase todo: p r e s f d set action  x exec  M-j/M-k move  ZZ run  ZQ cancel",
