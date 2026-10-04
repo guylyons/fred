@@ -13,3 +13,14 @@ Source: pinned magit-branch.el:196-260 (prefix), :265-480 (checkout/create),
 | b | Picker of local and remote branches; typed revision detaches | Session/e2e menu tests; Enter on typed query |
 | Direct configure (d/u/r/p, R/P/B), C configure, orphan, remote ref, worktree, shelve, -m/-r | | Open |
 | Region selections, prefix arguments, upstream adjustment alist, PR remotes | | Open |
+
+Independent review (October 4): fixed deleting the current branch force-deleting
+unmerged commits (merged check now precedes detach/checkout, using
+magit-branch-merged-p semantics), reset defaulting to the current branch's
+upstream (now the chosen branch's, in a second step), option injection via a
+stripped heads/ prefix (Switch and rename), the picker preferring a fuzzy row
+over a typed revision, spin-out/reset --hard replacing untracked files the base
+tracks (refused before any change), spin-off forcing an upstream, the delete
+checkout target (indirect upstream, else main branch), remote names with "/",
+remote checkout of a dirty tree, and unsetting pushRemote before a failed delete.
+Open: push --delete failure fallback to local ref removal.

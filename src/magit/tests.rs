@@ -1394,6 +1394,7 @@ fn status_of_unborn_and_detached_heads() {
 }
 #[test]
 fn branch_suffixes_follow_magit_branch() {
+    use super::Question as Q;
     use super::branch::{Next, Op};
     let (d, r, bare) = with_remote();
     git(d.path(), &["push", "-qu", "origin", "main"]);
@@ -1435,7 +1436,7 @@ fn branch_suffixes_follow_magit_branch() {
         b"origin\n"
     );
     match r.branch_step(Op::CheckoutLocal, &s(&["brand-new"]), &[]) {
-        Next::Ask(Op::CheckoutNew(n), _, defaults) => {
+        Next::Ask(Q::Branch(Op::CheckoutNew(n)), _, defaults) => {
             assert_eq!((n.as_str(), defaults[0].as_str()), ("brand-new", "feature"))
         }
         _ => panic!("expected a start-point question"),
@@ -1470,11 +1471,22 @@ fn branch_suffixes_follow_magit_branch() {
     assert_eq!(r.current_branch().unwrap(), "main");
     assert_eq!(head("main"), pushed);
     // x: reset another branch by ref update; the current one asks when dirty.
-    done(r.branch_step(Op::Reset, &s(&["out", "main"]), &[])).unwrap();
+    // The target's default is the chosen branch's own upstream.
+    match r.branch_step(Op::Reset, &s(&["out"]), &[]) {
+        Next::Ask(Q::Branch(Op::ResetTo(b)), _, defaults) => {
+            assert_eq!((b.as_str(), defaults), ("out", vec![String::new()]))
+        }
+        _ => panic!("reset asks for the target next"),
+    }
+    match r.branch_step(Op::Reset, &s(&["main"]), &[]) {
+        Next::Ask(_, _, defaults) => assert_eq!(defaults, ["origin/main"]),
+        _ => panic!("reset asks for the target next"),
+    }
+    done(r.branch_step(Op::ResetTo("out".into()), &s(&["main"]), &[])).unwrap();
     assert_eq!(head("out"), pushed);
     fs::write(d.path().join("f"), b"dirty\n").unwrap();
-    match r.branch_step(Op::Reset, &s(&["main", "spun"]), &[]) {
-        Next::Ask(op @ Op::ResetConfirmed(..), _, _) => {
+    match r.branch_step(Op::ResetTo("main".into()), &s(&["spun"]), &[]) {
+        Next::Ask(Q::Branch(op @ Op::ResetConfirmed(..)), _, _) => {
             assert!(done(r.branch_step(op.clone(), &s(&["no"]), &[])).is_err());
             assert_eq!(fs::read(d.path().join("f")).unwrap(), b"dirty\n");
             done(r.branch_step(op, &s(&["yes"]), &[])).unwrap();
@@ -1496,21 +1508,64 @@ fn branch_suffixes_follow_magit_branch() {
     committed(d.path(), b"doomed\n");
     git(d.path(), &["checkout", "-q", "main"]);
     let op = match r.branch_step(Op::Delete, &s(&["doomed"]), &[]) {
-        Next::Ask(op @ Op::DeleteUnmerged(_), _, _) => op,
+        Next::Ask(Q::Branch(op @ Op::DeleteUnmerged(_)), _, _) => op,
         _ => panic!("unmerged branches need confirmation"),
     };
     assert!(done(r.branch_step(op.clone(), &s(&["n"]), &[])).is_err());
     done(r.branch_step(op, &s(&["y"]), &[])).unwrap();
     assert!(!r.branch_choices().contains(&"doomed".to_string()));
     match r.branch_step(Op::Delete, &s(&["main"]), &[]) {
-        Next::Ask(op @ Op::DeleteCurrent(_), _, defaults) => {
-            assert_eq!(defaults, [""]);
+        Next::Ask(Q::Branch(op @ Op::DeleteCurrent(_)), _, defaults) => {
+            assert_eq!(defaults, ["origin/main"], "indirect upstream");
             assert!(done(r.branch_step(op.clone(), &s(&["a"]), &defaults)).is_err());
         }
         _ => panic!("current branch offers detach"),
     }
+    // Detaching from an unmerged current branch asks first and stays put on "n".
+    git(d.path(), &["checkout", "-qb", "lonely"]);
+    committed(d.path(), b"lonely\n");
+    let op = match r.branch_step(Op::Delete, &s(&["lonely"]), &[]) {
+        Next::Ask(Q::Branch(op @ Op::DeleteCurrent(_)), _, defaults) => {
+            assert_eq!(
+                defaults,
+                ["main"],
+                "magit-main-branch is the checkout target"
+            );
+            match r.branch_step(op, &s(&["d"]), &defaults) {
+                Next::Ask(Q::Branch(op @ Op::DeleteCurrentUnmerged(..)), _, _) => op,
+                _ => panic!("unmerged current branch must be confirmed before detaching"),
+            }
+        }
+        _ => panic!("current branch offers detach"),
+    };
+    assert!(done(r.branch_step(op.clone(), &s(&["n"]), &[])).is_err());
+    assert_eq!(r.current_branch().unwrap(), "lonely");
+    done(r.branch_step(op, &s(&["y"]), &[])).unwrap();
+    assert!(r.current_branch().is_err());
+    git(d.path(), &["checkout", "-q", "main"]);
+    // Validation happens after stripping heads/.
+    assert!(done(r.branch_step(Op::Rename, &s(&["heads/-M", "x"]), &[])).is_err());
+    // Spin-out refuses before touching anything when the hard reset would
+    // replace an untracked file that the base commit tracks.
+    git(d.path(), &["checkout", "-q", "main"]);
+    fs::write(d.path().join("precious"), b"base\n").unwrap();
+    git(d.path(), &["add", "precious"]);
+    git(d.path(), &["commit", "-qm", "adds precious"]);
+    git(d.path(), &["checkout", "-qb", "clobber"]);
+    git(d.path(), &["branch", "-q", "--set-upstream-to=main"]);
+    git(d.path(), &["rm", "-q", "--cached", "precious"]);
+    git(d.path(), &["commit", "-qm", "untracks precious"]);
+    fs::write(d.path().join("precious"), b"mine\n").unwrap();
+    let tip = head("clobber");
+    let err = done(r.branch_step(Op::Spinout, &s(&["clobbered"]), &[])).unwrap_err();
+    assert!(err.contains("would be overwritten"), "{err}");
+    assert_eq!(fs::read(d.path().join("precious")).unwrap(), b"mine\n");
+    assert_eq!(head("clobber"), tip);
+    assert!(!r.branch_choices().contains(&"clobbered".to_string()));
+    fs::remove_file(d.path().join("precious")).unwrap();
+    git(d.path(), &["checkout", "-q", "main"]);
     match r.branch_step(Op::Delete, &s(&["origin/feature"]), &[]) {
-        Next::Ask(op @ Op::DeleteRemote(_), _, _) => {
+        Next::Ask(Q::Branch(op @ Op::DeleteRemote(_)), _, _) => {
             assert!(
                 matches!(r.branch_step(op.clone(), &s(&["y"]), &[]), Next::Git(a) if a == ["push", "--delete", "origin", "refs/heads/feature"])
             );
@@ -1519,4 +1574,112 @@ fn branch_suffixes_follow_magit_branch() {
         }
         _ => panic!("remote branches ask about the remote"),
     }
+}
+#[test]
+fn tag_versions_sort_like_version_to_list() {
+    use super::tag::version_list;
+    assert_eq!(version_list("1.2.3"), Some(vec![1, 2, 3]));
+    assert_eq!(version_list("1.0-rc.2"), Some(vec![1, 0, -1, 2]));
+    assert_eq!(version_list("2.0alpha"), Some(vec![2, 0, -3]));
+    assert_eq!(version_list("1.0-bogus"), None);
+}
+#[test]
+fn tag_suffixes_create_release_delete_and_prune() {
+    use super::Question as Q;
+    use super::branch::Next;
+    use super::tag::Op;
+    let (d, r, bare) = with_remote();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    let run = |n: Next| match n {
+        Next::Git(args) => {
+            let args: Vec<std::ffi::OsString> = args.into_iter().map(Into::into).collect();
+            r.run(&args, None).map(|_| ())
+        }
+        Next::Done(res) => res.map(|_| ()),
+        Next::Ask(q, p, _) => Err(format!("asked {q:?} {p:?}")),
+    };
+    run(r
+        .tag_step(Op::Create, &s(&["v1.0.0", "HEAD"]), &[])
+        .unwrap())
+    .unwrap();
+    assert!(r.tag_step(Op::Create, &s(&["-x", "HEAD"]), &[]).is_err());
+    assert!(r.tag_step(Op::Create, &s(&["ok", "--all"]), &[]).is_err());
+    let annotate = s(&["--annotate", "--edit"]);
+    assert!(
+        r.tag_step(Op::Create, &s(&["v0", "HEAD", ""]), &annotate)
+            .is_err()
+    );
+    run(r
+        .tag_step(Op::Create, &s(&["v0.9", "HEAD", "Nine"]), &annotate)
+        .unwrap())
+    .unwrap();
+    assert_eq!(git(d.path(), &["cat-file", "-t", "v0.9"]), b"tag\n");
+    // Releases: highest version first; a "Release version" commit names the tag.
+    assert_eq!(r.releases()[0].1, "v1.0.0");
+    committed(d.path(), b"next\n");
+    git(
+        d.path(),
+        &[
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            "Release version 1.1.0",
+        ],
+    );
+    let (prompts, defaults) = r.tag_prompts(&Op::Release, &[], None).unwrap();
+    assert!(prompts.is_empty());
+    assert_eq!(defaults, ["v1.1.0"]);
+    run(r.tag_step(Op::Release, &defaults, &[]).unwrap()).unwrap();
+    assert_eq!(r.releases()[0].1, "v1.1.0");
+    // Annotated release messages derive from the previous one.
+    git(d.path(), &["tag", "-d", "v1.1.0"]);
+    git(d.path(), &["tag", "-d", "v1.0.0"]);
+    git(
+        d.path(),
+        &["tag", "-a", "-m", "Project 1.0.0", "v1.0.0", "HEAD~1"],
+    );
+    match r
+        .tag_step(Op::Release, &s(&["v1.1.0"]), &s(&["--annotate"]))
+        .unwrap()
+    {
+        Next::Ask(Q::Tag(Op::ReleaseMessage(t)), _, defaults) => {
+            assert_eq!(
+                (t.as_str(), defaults[0].as_str()),
+                ("v1.1.0", "Project 1.1.0")
+            )
+        }
+        _ => panic!("expected a message question"),
+    }
+    // Delete and prune.
+    run(r.tag_step(Op::Delete, &s(&["v0.9"]), &[]).unwrap()).unwrap();
+    git(d.path(), &["push", "-q", "origin", "main", "v1.0.0"]);
+    let other = tempfile::tempdir().unwrap();
+    git(
+        other.path(),
+        &["clone", "-q", bare.path().to_str().unwrap(), "."],
+    );
+    git(other.path(), &["tag", "remote-only"]);
+    git(other.path(), &["push", "-q", "origin", "remote-only"]);
+    git(d.path(), &["tag", "local-only"]);
+    let next = r.tag_step(Op::Prune, &s(&["origin"]), &[]).unwrap();
+    let Next::Ask(Q::Tag(op @ Op::PruneLocal(..)), prompts, _) = next else {
+        panic!("expected local prune question");
+    };
+    assert_eq!(prompts, ["Delete local-only locally? (y or n) "]);
+    let next = r.tag_step(op, &s(&["y"]), &[]).unwrap();
+    assert!(
+        !git(d.path(), &["tag"])
+            .windows(10)
+            .any(|w| w == b"local-only")
+    );
+    let Next::Ask(Q::Tag(op @ Op::PruneRemote(..)), _, _) = next else {
+        panic!("expected remote prune question");
+    };
+    run(r.tag_step(op, &s(&["y"]), &[]).unwrap()).unwrap();
+    assert!(
+        git(bare.path(), &["tag"])
+            .windows(11)
+            .all(|w| w != b"remote-only")
+    );
 }

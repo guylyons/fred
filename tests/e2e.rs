@@ -1208,12 +1208,13 @@ fn magit_workflow_menu_prompt_and_terminal_return() {
     });
     p.keys(&["cancelled\x1b"]);
     p.wait_for("cancel prompt", |s| s.contains("NORMAL"));
-    p.keys(&[" mtc"]);
-    p.wait_for("tag prompt", |s| s.contains("Tag name:"));
+    p.keys(&[" mtt"]);
+    p.wait_for("tag prompt", |s| s.contains("Create tag:"));
     p.keys(&["test-tag\r"]);
-    // An unborn repository cannot create a tag: failure still restores the editor.
-    p.wait_for("Git terminal", |s| s.contains("Press Enter to continue"));
+    p.wait_for("revision prompt", |s| s.contains("Place tag on"));
+    // An unborn repository has nothing to tag: the error leaves the editor usable.
     p.keys(&["\r"]);
+    p.wait_for("tag error", |s| s.contains("unknown revision"));
     p.wait_for("restored editor", |s| {
         s.contains("NORMAL") && s.contains("original")
     });

@@ -6,6 +6,7 @@ pub mod diff;
 pub mod network;
 pub mod repo;
 pub mod status;
+pub mod tag;
 pub mod workflows;
 use crate::{
     editor::{Editor, Mode},
@@ -50,6 +51,8 @@ pub enum Action {
     BlobQuit,
     /// A magit-branch.el suffix.
     Branch(branch::Op),
+    /// A magit-tag.el suffix.
+    Tag(tag::Op),
     /// magit-file-stage/unstage/untrack/rename/delete/checkout.
     File(blob::FileOp),
     BlameCycle,
@@ -62,7 +65,8 @@ pub enum Action {
     FileLog,
     LogHead,
     Branches,
-    Switch(String),
+    /// Branch picker result: the selected row and the typed text.
+    Switch(Option<String>, String),
     Refresh,
     Toggle,
     Stage,
@@ -593,7 +597,7 @@ fn menu_help(menu: char) -> Option<&'static str> {
         }
         'P' => "Pull: p pushRemote  u upstream  e elsewhere; -r cycles --rebase choices",
         'l' => "Log: l current  h HEAD  -f follow renames for file log; Space m L current file",
-        't' => "Tag: c create lightweight tag  l list",
+        't' => "Tag: t tag  r release  k delete  p prune; -a annotate -s sign -e message -f force",
         'C' => "Commit: a amend  e extend  w reword  f fixup",
         'M' => "Merge: m merge  s squash  c continue  a abort",
         'r' => "Rebase: r onto revision  c continue  s skip  a abort",
@@ -631,6 +635,7 @@ pub enum Prompt {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Question {
     Branch(branch::Op),
+    Tag(tag::Op),
     Net(network::Op),
     Diff(diff::Op),
     FindFile,
@@ -1106,8 +1111,30 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("k", "Do", "delete", Branch(branch::Op::Delete)),
         ],
         't' => vec![
-            ("c", "Create", "Lightweight tag", Workflow(Tag)),
-            ("l", "Inspect", "List", Tags),
+            (
+                "-f",
+                "Arguments",
+                "Force",
+                ToggleOption(MenuOption::TagForce),
+            ),
+            (
+                "-e",
+                "Arguments",
+                "Edit message",
+                ToggleOption(MenuOption::TagEdit),
+            ),
+            (
+                "-a",
+                "Arguments",
+                "Annotate",
+                ToggleOption(MenuOption::TagAnnotate),
+            ),
+            ("-s", "Arguments", "Sign", ToggleOption(MenuOption::TagSign)),
+            ("t", "Create", "tag", Action::Tag(tag::Op::Create)),
+            ("r", "Create", "release", Action::Tag(tag::Op::Release)),
+            ("k", "Do", "delete", Action::Tag(tag::Op::Delete)),
+            ("p", "Do", "prune", Action::Tag(tag::Op::Prune)),
+            ("l", "Inspect", "List (Fred)", Tags),
         ],
         'C' => vec![
             (
@@ -1203,6 +1230,10 @@ pub enum MenuOption {
     DiffNoExt,
     DiffStat,
     DiffSignature,
+    TagForce,
+    TagEdit,
+    TagAnnotate,
+    TagSign,
     BlameWhitespace,
     BlameRoot,
     BlameFirstParent,
@@ -1232,6 +1263,7 @@ impl MenuOption {
             DiffIgnoreSpace | DiffIgnoreAllSpace | DiffFunctionContext | DiffRenames
             | DiffNoExt | DiffStat | DiffSignature | Choice(..) => 'd',
             BlameWhitespace | BlameRoot | BlameFirstParent | BlameMoved | BlameCopied => 'B',
+            TagForce | TagEdit | TagAnnotate | TagSign => 't',
             Self::LogFollow => 'l',
             Self::StashUntracked | Self::StashAll => 'z',
             _ => 'C',
@@ -1266,6 +1298,10 @@ impl MenuOption {
             Self::DiffNoExt => "--no-ext-diff",
             Self::DiffStat => "--stat",
             Self::DiffSignature => "--show-signature",
+            Self::TagForce => "--force",
+            Self::TagEdit => "--edit",
+            Self::TagAnnotate => "--annotate",
+            Self::TagSign => "--sign",
             Self::BlameWhitespace => "-w",
             Self::BlameRoot => "--root",
             Self::BlameFirstParent => "--first-parent",

@@ -160,21 +160,47 @@ impl Session {
         }
         if let Action::Answered(repo, Question::Branch(op), answers, defaults) = action {
             self.start_magit(move || {
-                let merged: Vec<String> = answers
-                    .iter()
-                    .enumerate()
-                    .map(|(i, a)| {
-                        if a.is_empty() {
-                            defaults.get(i).cloned().unwrap_or_default()
-                        } else {
-                            a.clone()
-                        }
-                    })
-                    .collect();
+                let merged = merge_answers(&answers, &defaults);
                 Ok(branch_outcome(
                     repo.clone(),
                     repo.branch_step(op, &merged, &defaults),
                 ))
+            });
+            return;
+        }
+        if let Action::Answered(repo, Question::Tag(op), answers, defaults) = action {
+            let args = crate::magit::menu_arguments(&self.ed, 't');
+            self.start_magit(move || {
+                let merged = merge_answers(&answers, &defaults);
+                Ok(branch_outcome(
+                    repo.clone(),
+                    repo.tag_step(op, &merged, &args)
+                        .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e))),
+                ))
+            });
+            return;
+        }
+        if let Action::Tag(op) = action {
+            let from = self.magit_from();
+            let args = crate::magit::menu_arguments(&self.ed, 't');
+            // The tag at point in the tags list.
+            let at_point = self
+                .ed
+                .magit
+                .as_ref()
+                .filter(|v| v.kind == Kind::Tags)
+                .and_then(|v| {
+                    v.action_at(self.ed.cur.line)
+                        .map(|_| self.ed.buf.line(self.ed.cur.line).to_string())
+                });
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                let (prompts, defaults) = repo.tag_prompts(&op, &args, at_point)?;
+                if prompts.is_empty() {
+                    let next = repo.tag_step(op, &defaults, &args)?;
+                    return Ok(branch_outcome(repo, next));
+                }
+                Ok(Outcome::Ask(repo, Question::Tag(op), defaults, prompts))
             });
             return;
         }
@@ -194,7 +220,7 @@ impl Session {
             let origin = self.cur;
             let line = self.ed.cur.line;
             self.start_magit(move || match question {
-                Question::File(_) | Question::Branch(_) => {
+                Question::File(_) | Question::Branch(_) | Question::Tag(_) => {
                     unreachable!("handled before the worker")
                 }
                 Question::FindFile => {
@@ -488,8 +514,31 @@ impl Session {
             }
             return;
         }
-        if let Action::Switch(name) = action {
-            if name.starts_with('-') || name.chars().any(char::is_control) {
+        if let Action::Switch(row, typed) = action {
+            let Some(repo) = self.magit_picker_repo.clone() else {
+                return self.ed.set_err("no repository selected for branch switch");
+            };
+            // A typed revision (tag, hash) wins over a fuzzy-matched branch row.
+            let resolves = |r: &str| {
+                !r.is_empty()
+                    && !r.starts_with('-')
+                    && repo
+                        .read(&[
+                            "rev-parse",
+                            "--verify",
+                            "-q",
+                            "--end-of-options",
+                            &format!("{r}^{{commit}}"),
+                        ])
+                        .is_ok()
+            };
+            let name = match row {
+                Some(row) if row == typed || !resolves(&typed) => row,
+                _ => typed,
+            };
+            // Validate after stripping, so "heads/--orphan=x" cannot become an option.
+            let name = name.strip_prefix("heads/").unwrap_or(&name).to_owned();
+            if name.is_empty() || name.starts_with('-') || name.chars().any(char::is_control) {
                 return self.ed.set_err(format!("invalid revision {name:?}"));
             }
             if let Some(repo) = self.magit_picker_repo.take() {
@@ -498,17 +547,11 @@ impl Session {
                     expected_head: None,
                     repo,
                     // magit-checkout: a branch, or any revision (detaching HEAD).
-                    args: vec![
-                        "checkout".into(),
-                        name.strip_prefix("heads/").unwrap_or(&name).into(),
-                        "--".into(),
-                    ],
+                    args: vec!["checkout".into(), name.into(), "--".into()],
                     input: None,
                     draft: None,
                     draft_stamp: None,
                 });
-            } else {
-                self.ed.set_err("no repository selected for branch switch");
             }
             return;
         }
@@ -1452,13 +1495,25 @@ impl Session {
         }
     }
 }
+/// Prompt answers with empty ones replaced by their defaults.
+fn merge_answers(answers: &[String], defaults: &[String]) -> Vec<String> {
+    answers
+        .iter()
+        .enumerate()
+        .map(|(i, a)| {
+            if a.is_empty() {
+                defaults.get(i).cloned().unwrap_or_default()
+            } else {
+                a.clone()
+            }
+        })
+        .collect()
+}
 fn branch_outcome(repo: Repo, next: crate::magit::branch::Next) -> Outcome {
     use crate::magit::branch::Next;
     match next {
         Next::Done(result) => Outcome::Saved(repo, result.map(|_| ())),
-        Next::Ask(op, prompts, defaults) => {
-            Outcome::Ask(repo, Question::Branch(op), defaults, prompts)
-        }
+        Next::Ask(question, prompts, defaults) => Outcome::Ask(repo, question, defaults, prompts),
         Next::Git(args) => Outcome::Git(GitInvocation {
             expected_head: None,
             repo,

@@ -965,16 +965,16 @@ magit-subtree.el,,command,magit-subtree:--prefix,missing,Runtime-expanded surfac
 magit-subtree.el,,command,transient:magit-subtree-export:--ignore-joins,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-subtree.el,,command,transient:magit-subtree-export:--rejoin,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-subtree.el,,command,transient:magit-subtree-import:--squash,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-tag.el,37,command,magit-tag,missing,,explicit
-magit-tag.el,65,command,magit-tag-create,partial,Space m t c; lightweight only; signed/annotated missing,explicit
-magit-tag.el,78,command,magit-tag-delete,missing,,explicit
-magit-tag.el,91,command,magit-tag-prune,missing,,explicit
-magit-tag.el,148,command,magit-tag-release,missing,,explicit
+magit-tag.el,37,command,magit-tag,partial,Space m t menu with -f -e -a -s and t/r/k/p (plus Fred list l); --local-user option missing,explicit
+magit-tag.el,65,command,magit-tag-create,partial,Space m t t; name and revision prompts; annotate/sign/edit read the message in Fred (no Git editor) and pass -m,explicit
+magit-tag.el,78,command,magit-tag-delete,partial,Space m t k; default tag at point in the tags list; region multi-delete missing,explicit
+magit-tag.el,91,command,magit-tag-prune,partial,"Space m t p; ls-remote comparison, confirm local then remote deletion",explicit
+magit-tag.el,148,command,magit-tag-release,partial,"Space m t r; magit--list-releases version ordering, Release version commits, derived annotated messages; refs buffer afterwards missing",explicit
 magit-tag.el,,command,magit-tag:--local-user,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-tag.el,,command,transient:magit-tag:--annotate,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-tag.el,,command,transient:magit-tag:--edit,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-tag.el,,command,transient:magit-tag:--force,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-tag.el,,command,transient:magit-tag:--sign,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-tag.el,,command,transient:magit-tag:--annotate,partial,switch in Space m t,runtime
+magit-tag.el,,command,transient:magit-tag:--edit,partial,switch in Space m t,runtime
+magit-tag.el,,command,transient:magit-tag:--force,partial,switch in Space m t,runtime
+magit-tag.el,,command,transient:magit-tag:--sign,partial,switch in Space m t,runtime
 magit-wip.el,43,option,magit-wip-mode-lighter,missing,,explicit
 magit-wip.el,49,option,magit-wip-merge-branch,missing,,explicit
 magit-wip.el,71,option,magit-wip-namespace,missing,,explicit
