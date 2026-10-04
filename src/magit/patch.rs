@@ -71,8 +71,21 @@ impl Repo {
             op => op,
         })
     }
-    pub fn patch_prompts(&self, op: &Op, at_point: Option<String>) -> (Vec<String>, Vec<String>) {
-        let d = at_point.unwrap_or_default();
+    /// Defaults: the commit at point for create/request-pull, the file at
+    /// point for apply/am (magit-read-range-or-commit, magit-file-at-point).
+    pub fn patch_prompts(
+        &self,
+        op: &Op,
+        commit: Option<String>,
+        file: Option<String>,
+    ) -> (Vec<String>, Vec<String>) {
+        let here = self.current_branch().ok();
+        let d = match op {
+            Op::Create => commit.clone().or(here.clone()),
+            Op::Apply | Op::AmPatches => file,
+            _ => None,
+        }
+        .unwrap_or_default();
         let ask = |p: &str, d: &str| {
             if d.is_empty() {
                 format!("{p}: ")
@@ -86,19 +99,25 @@ impl Repo {
             Op::AmMaildir => (vec!["Apply mbox or Maildir: ".into()], vec![String::new()]),
             Op::SaveDiff(..) => (vec!["Write patch file: ".into()], vec![String::new()]),
             Op::RequestPull => {
-                let remote = self
-                    .remotes()
-                    .ok()
-                    .and_then(|r| r.into_iter().next())
+                // magit-read-remote's default: the current branch's remote.
+                let remote = here
+                    .as_ref()
+                    .and_then(|b| self.config(&format!("branch.{b}.remote")))
+                    .or_else(|| self.remotes().ok().and_then(|r| r.into_iter().next()))
                     .unwrap_or_default();
+                let end = commit.or(here.clone()).unwrap_or_default();
                 let start = self
                     .current_branch()
                     .ok()
                     .and_then(|b| self.upstream_of(&b))
                     .unwrap_or_default();
                 (
-                    vec![ask("Remote", &remote), ask("Start", &start), "End: ".into()],
-                    vec![remote, start, String::new()],
+                    vec![
+                        ask("Remote", &remote),
+                        ask("Start", &start),
+                        ask("End", &end),
+                    ],
+                    vec![remote, start, end],
                 )
             }
             _ => (vec![], vec![]),
@@ -114,23 +133,28 @@ impl Repo {
                 } else {
                     format!("{answer}^..{answer}")
                 };
+                // The output directory is resolved like upstream's directory
+                // reader (absolute, ~ expanded) before Git sees it.
                 let mut argv: Vec<std::ffi::OsString> = vec!["format-patch".into()];
-                argv.extend(args.iter().map(Into::into));
+                for x in args {
+                    match x.strip_prefix("--output-directory=") {
+                        Some(d) => {
+                            let mut a = std::ffi::OsString::from("--output-directory=");
+                            a.push(self.answer_path(d)?);
+                            argv.push(a);
+                        }
+                        None => argv.push(x.into()),
+                    }
+                }
                 argv.extend([range.into(), "--".into()]);
                 let out = self.run(&argv, None)?;
-                let written = String::from_utf8_lossy(&out).lines().count();
-                // magit-patch-create visits the cover letter.
-                if args.iter().any(|x| x == "--cover-letter") {
-                    let value = |p: &str| args.iter().find_map(|x| x.strip_prefix(p));
-                    let name = match value("--reroll-count=") {
-                        Some(v) => format!("v{v}-0000-cover-letter.patch"),
-                        None => "0000-cover-letter.patch".into(),
-                    };
-                    let dir = value("--output-directory=")
-                        .map(|d| self.answer_path(d))
-                        .transpose()?
-                        .unwrap_or(self.root.clone());
-                    return Ok(Next::Visit(dir.join(name)));
+                let out = String::from_utf8_lossy(&out);
+                let written = out.lines().count();
+                // magit-patch-create visits the cover letter: the first file written.
+                if args.iter().any(|x| x == "--cover-letter")
+                    && let Some(first) = out.lines().next()
+                {
+                    return Ok(Next::Visit(self.root.join(first)));
                 }
                 Ok(Next::Done(Ok(format!("Wrote {written} patches"))))
             }
@@ -144,6 +168,9 @@ impl Repo {
             }
             Op::SaveDiff(target, diff_args) => {
                 let file = self.answer_path(at(0))?;
+                // magit-patch-save-arguments: (exclude "--stat").
+                let diff_args: Vec<String> =
+                    diff_args.into_iter().filter(|x| x != "--stat").collect();
                 let patch = self.diff_output(&target, &diff_args)?;
                 // create_new: never follow a symlink or replace an existing file.
                 use std::io::Write;
@@ -185,7 +212,10 @@ impl Repo {
                 Ok(Next::GitEditor(argv))
             }
             Op::AmContinue => {
-                if self.read(&["diff", "--quiet"]).is_err() {
+                if self
+                    .read(&["diff", "--quiet", "--ignore-submodules"])
+                    .is_err()
+                {
                     return Err("Cannot continue due to unstaged changes".into());
                 }
                 Ok(Next::GitEditor(vec!["am".into(), "--continue".into()]))

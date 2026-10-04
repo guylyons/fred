@@ -8,3 +8,12 @@
 | Save | diff buffer's range and args written to FILE | Same; refuses to overwrite | same test |
 | Request pull | compose-mail with request-pull output | Read-only view of the output | same test |
 | am | --3way default; maildir, patches; continue/skip/abort while applying | Same keys resolved at run time | same test |
+
+Independent review (October 4): the output directory is expanded before
+format-patch and the cover letter visited is the file Git reports; defaults
+follow the action (commit or current branch for create, file for apply/am;
+request-pull remote from the branch, end defaults to the current branch);
+output views run once instead of re-reaching the network on refresh; commit
+and stash buffers can be saved, without --stat; the am menu's idle `a` opens
+the apply menu so its arguments are visible; am continue ignores submodules
+when checking unstaged changes.

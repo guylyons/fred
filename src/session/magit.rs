@@ -311,14 +311,31 @@ impl Session {
             let (origin, from) = (self.cur, self.magit_from());
             let view = self.ed.magit.as_ref();
             // magit-patch-save works on the diff buffer's range and arguments.
+            // Revision and stash buffers are diff buffers upstream too.
             let op = match (op, view.map(|v| &v.kind)) {
                 (W::Save, Some(Kind::Diff(target, args))) => {
                     W::SaveDiff(target.clone(), args.clone())
                 }
+                (W::Save, Some(Kind::Patch(id))) => {
+                    W::SaveDiff(crate::magit::diff::Target::Commit(id.clone()), vec![])
+                }
+                (W::Save, Some(Kind::StashPatch(stash))) => W::SaveDiff(
+                    crate::magit::diff::Target::Range(format!("{0}^1..{0}", stash.id)),
+                    vec![],
+                ),
                 (op, _) => op,
             };
-            let at_point = view.and_then(|v| match v.action_at(self.ed.cur.line) {
+            // The am menu's idle "a" is magit-patch-apply's own menu.
+            // ponytail: synchronous git-path check; local and fast.
+            if op == W::AmApply && !Repo::discover(&from).is_ok_and(|r| r.am_in_progress()) {
+                crate::magit::open_menu(&mut self.ed, 'a');
+                return;
+            }
+            let commit = view.and_then(|v| match v.action_at(self.ed.cur.line) {
                 Some(RowAction::Commit(id)) => Some(id),
+                _ => None,
+            });
+            let file = view.and_then(|v| match v.action_at(self.ed.cur.line) {
                 Some(RowAction::File(p, _)) | Some(RowAction::Hunk(p, ..)) => v
                     .repo
                     .root
@@ -331,7 +348,7 @@ impl Session {
                 let repo = Repo::discover(&from)?;
                 let op = repo.patch_resolve(op)?;
                 let args = vec![];
-                let (prompts, defaults) = repo.patch_prompts(&op, at_point);
+                let (prompts, defaults) = repo.patch_prompts(&op, commit, file);
                 if prompts.is_empty() {
                     let next = repo.patch_step(op, &[], &args)?;
                     return Ok(branch_outcome(repo, next, origin));
@@ -2292,6 +2309,7 @@ fn branch_outcome(repo: Repo, next: crate::magit::branch::Next, origin: usize) -
         Next::View(kind) => {
             let mut view = View::status(repo.clone(), Default::default());
             view.kind = kind;
+            view.rows.clear();
             view.return_to = origin;
             match refresh_view(&mut view) {
                 Ok(()) => Outcome::View(Box::new(view), None, 0),
@@ -2477,7 +2495,11 @@ fn refresh_view(view: &mut View) -> Result<(), String> {
     ) {
         return refresh_log(view);
     }
-    if let Kind::Output(title, argv) = &view.kind {
+    // Output views run their command once (request-pull reaches the network);
+    // later refreshes keep the text, like upstream's mail buffer.
+    if let Kind::Output(title, argv) = &view.kind
+        && view.rows.is_empty()
+    {
         let mut rows = vec![Row {
             text: format!("{} (gr refresh, q return)", label(Path::new(title))),
             action: None,
@@ -2485,6 +2507,9 @@ fn refresh_view(view: &mut View) -> Result<(), String> {
         let argv: Vec<&str> = argv.iter().map(String::as_str).collect();
         rows.extend(display_patch(&view.repo.read_network(&argv)?));
         view.rows = rows;
+        return Ok(());
+    }
+    if matches!(view.kind, Kind::Output(..)) {
         return Ok(());
     }
     if view.kind == Kind::Modules {

@@ -3024,6 +3024,20 @@ fn patch_create_am_apply_save_and_request_pull() {
         r.patch_step(Op::RequestPull, &s(&["nope", "a", "b"]), &[])
             .is_err()
     );
+    // Defaults follow the action: commit for create, file for apply.
+    let (_, def) = r.patch_prompts(&Op::Create, None, Some("f".into()));
+    assert_eq!(def, s(&["other"]));
+    let (_, def) = r.patch_prompts(&Op::Apply, Some("abc".into()), None);
+    assert_eq!(def, s(&[""]));
+    // Saved patches leave out the buffer's --stat.
+    r.patch_step(
+        Op::SaveDiff(super::diff::Target::Commit("HEAD".into()), s(&["--stat"])),
+        &s(&["nostat.patch"]),
+        &[],
+    )
+    .unwrap();
+    let saved = fs::read_to_string(d.path().join("nostat.patch")).unwrap();
+    assert!(!saved.contains(" | "), "{saved}");
 }
 
 #[test]
