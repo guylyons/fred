@@ -324,8 +324,12 @@ impl Session {
 
     pub fn handle_key(&mut self, k: Key) {
         self.ed.handle_key(k);
-        if let Some(eff) = self.ed.pending_effect.take() {
-            self.perform(eff);
+        // Effects can ask for more effects (Org work across buffers).
+        for _ in 0..16 {
+            match self.ed.pending_effect.take() {
+                Some(eff) => self.perform(eff),
+                None => break,
+            }
         }
     }
 

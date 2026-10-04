@@ -585,7 +585,7 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
             Highlighter::new("ansi", truecolor).map_err(|e| anyhow!(e))?
         }
     };
-    hl.set_file(s.ed.path.as_deref(), &s.ed.buf);
+    hl.set_file(s.ed.path.as_deref().or(s.ed.syntax_path.as_deref()), &s.ed.buf);
     if let Some(r) = &hl.disabled {
         s.ed.set_msg(r.clone());
     }
@@ -678,7 +678,7 @@ fn event_loop(
             }
             SwapChoice::Recover => {
                 s.recover(info);
-                hl.set_file(s.ed.path.as_deref(), &s.ed.buf);
+                hl.set_file(s.ed.path.as_deref().or(s.ed.syntax_path.as_deref()), &s.ed.buf);
             }
             SwapChoice::Delete => {
                 s.discard_swap();
@@ -773,7 +773,7 @@ fn event_loop(
         }
         if s.reloaded {
             s.reloaded = false;
-            hl.set_file(s.ed.path.as_deref(), &s.ed.buf);
+            hl.set_file(s.ed.path.as_deref().or(s.ed.syntax_path.as_deref()), &s.ed.buf);
             s.ed.nearby = nearby::spawn(s.ed.path.clone());
             ui.view = View::default();
             dirty = true;

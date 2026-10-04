@@ -242,4 +242,20 @@ mod tests {
         crate::org::options::put("org-capture-templates", toml::Value::Boolean(false));
         crate::org::set_now(None);
     }
+
+    #[test]
+    fn edit_src_block_in_a_dedicated_buffer() {
+        let mut t = T::new(&[("a.org", "* H\n#+begin_src python\n  print(1)\n  * star\n#+end_src\n")], "a.org");
+        t.keys("jj<C-c>'");
+        assert_eq!(t.s.ed.org_buffer_name.as_deref(), Some("*Org Src a.org[ python ]*"));
+        assert_eq!(t.s.ed.buf.text(), "print(1)\n* star");
+        assert_eq!(t.s.ed.cur.line, 0);
+        assert!(t.s.ed.org.is_none());
+        t.keys("A + 1<Esc><C-c>'");
+        assert_eq!(t.s.ed.buf.text(), "* H\n#+begin_src python\n  print(1) + 1\n  ,* star\n#+end_src");
+        assert!(t.s.ed.org_buffer_name.is_none());
+        // Abort leaves the block alone.
+        t.keys("jj<C-c>'Ox<Esc><C-c><C-k>");
+        assert_eq!(t.s.ed.buf.line(2), "  print(1) + 1");
+    }
 }

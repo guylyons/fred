@@ -136,6 +136,8 @@ pub struct Editor {
     pub org_buffer_name: Option<String>,
     pub org_finish: Option<crate::org::FinishSlot>,
     pub org_return: Option<usize>,
+    /// A path that only decides syntax highlighting (Org source edit buffers).
+    pub syntax_path: Option<PathBuf>,
     /// The key Enter answers in the open Org menu (fast selection's RET).
     pub org_menu_enter: Option<String>,
     pub magit_input_generation: u64,
@@ -220,6 +222,7 @@ impl Editor {
             org_finish: None,
             org_return: None,
             org_menu_enter: None,
+            syntax_path: None,
             magit_input_generation: 0,
             magit_options: std::collections::HashSet::new(),
             magit_values: std::collections::BTreeMap::new(),

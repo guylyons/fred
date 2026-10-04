@@ -24,6 +24,7 @@ pub mod props;
 pub mod re;
 pub mod refile;
 pub mod sexp;
+pub mod src;
 pub mod structure;
 pub mod syntax;
 
@@ -519,11 +520,23 @@ fn parse_key(tok: &str) -> Option<Key> {
 }
 
 /// The keymap of this buffer.
-fn active_map(ed: &Editor) -> Option<&'static [(&'static str, &'static str)]> {
+type Map = &'static [(&'static str, &'static str)];
+
+/// The keymaps of this buffer, minor modes first.
+fn active_map(ed: &Editor) -> Option<Vec<Map>> {
     if ed.org_view.is_some() {
-        return Some(keymap::AGENDA_MAP);
+        return Some(vec![keymap::AGENDA_MAP]);
     }
-    ed.org.is_some().then_some(keymap::ORG_MODE_MAP)
+    let mut maps: Vec<Map> = vec![];
+    match ed.org_buffer_name.as_deref() {
+        Some(n) if n.starts_with("CAPTURE-") => maps.push(keymap::CAPTURE_MAP),
+        Some(n) if n.starts_with("*Org Src") => maps.push(keymap::SRC_MAP),
+        _ => {}
+    }
+    if ed.org.is_some() {
+        maps.push(keymap::ORG_MODE_MAP);
+    }
+    (!maps.is_empty()).then_some(maps)
 }
 
 /// Keys Fred's Vim layer keeps in Normal mode (evil-normal-state-map wins).
@@ -558,9 +571,9 @@ enum Lookup {
     None,
 }
 
-fn lookup(map: &[(&str, &'static str)], seq: &[Key]) -> Lookup {
+fn lookup(maps: &[Map], seq: &[Key]) -> Lookup {
     let mut prefix = false;
-    for (desc, cmd) in map {
+    for (desc, cmd) in maps.iter().flat_map(|m| m.iter()) {
         let Some(keys) = parse_keys(desc) else { continue };
         if keys == seq {
             return Lookup::Exact(cmd);
@@ -682,7 +695,7 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     }
     let mut seq = ed.org_keys.clone();
     seq.push(k);
-    match lookup(map, &seq) {
+    match lookup(&map, &seq) {
         Lookup::Exact(cmd) => {
             ed.org_keys.clear();
             // A Vim count typed first is the numeric prefix.
@@ -751,6 +764,7 @@ const MODULES: &[Module] = &[
     links::command,
     capture::command,
     refile::command,
+    src::command,
     table::command,
     list::command,
     time::command,
