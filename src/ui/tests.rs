@@ -1402,3 +1402,41 @@ fn blame_margin_headings_and_lines_shift_text_and_show_message() {
     assert!(screen.row(0).starts_with("┌alpha"), "{}", screen.row(0));
     assert!(screen.row(5).contains("the summary"), "{}", screen.row(5));
 }
+
+#[test]
+fn magit_menus_render_as_transient_popups() {
+    use ratatui::style::Color;
+    let mut e = editor("source line", "");
+    crate::magit::open_menu(&mut e, 'p');
+    e.magit_options
+        .insert(crate::magit::MenuOption::PushForceWithLease);
+    let mut screen = Screen::new(120, 30);
+    screen.cfg.numbers = false;
+    screen.draw(&e);
+    let rows: Vec<String> = (0..30).map(|y| screen.row(y)).collect();
+    let find = |needle: &str| rows.iter().position(|r| r.contains(needle));
+    let args = find("Arguments").expect("argument heading");
+    let lease = find("-f Force with lease (--force-with-lease)").expect("switch row");
+    assert!(lease > args);
+    // Action groups sit side by side in one band.
+    let band = find("Push current to").expect("action heading");
+    assert!(
+        rows[band].contains("Push") && rows[band].matches("Push").count() >= 2,
+        "{}",
+        rows[band]
+    );
+    // An enabled switch is highlighted; a disabled one is dim.
+    let x = rows[lease].find("(--force-with-lease)").unwrap() as u16 + 1;
+    assert_eq!(
+        screen.term.backend().buffer()[(x, lease as u16)].fg,
+        Color::Cyan
+    );
+    let dry = find("(--dry-run)").unwrap();
+    let x = rows[dry].find("(--dry-run)").unwrap() as u16 + 1;
+    assert_eq!(
+        screen.term.backend().buffer()[(x, dry as u16)].fg,
+        Color::DarkGray
+    );
+    // The source text stays visible above the popup.
+    assert!(rows[0].contains("source line"));
+}

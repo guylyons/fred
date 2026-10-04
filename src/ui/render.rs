@@ -308,6 +308,11 @@ pub fn draw(
     let text_rows = (area.height as usize).saturating_sub(2);
     // A picker takes a panel at the bottom; the file stays as it was above.
     let panel = match ed.mode {
+        // A Magit menu is a transient popup sized to its layout.
+        Mode::Pick(ref p) if p.kind == Kind::MagitMenu => {
+            let lines = transient_lines(ed, p.sel, area.width as usize).len();
+            lines.clamp(1, text_rows.saturating_sub(1).max(1))
+        }
         Mode::Pick(ref p) => panel_rows(text_rows, p.rows.len()),
         _ => 0,
     };
@@ -568,7 +573,17 @@ pub fn draw(
     });
     if let Mode::Pick(p) = &ed.mode {
         let list = Rect::new(ox, oy + rows as u16 + 2, area.width, panel as u16);
-        draw_picker(buf, list, p, view.picker_offset, ed, hl, cfg, budget);
+        if p.kind == Kind::MagitMenu {
+            for (i, line) in transient_lines(ed, p.sel, area.width as usize)
+                .into_iter()
+                .take(panel)
+                .enumerate()
+            {
+                buf.set_line(list.x, list.y + i as u16, &line, list.width);
+            }
+        } else {
+            draw_picker(buf, list, p, view.picker_offset, ed, hl, cfg, budget);
+        }
     }
     let input_area = Rect::new(ox, oy, area.width, area.height - panel as u16);
     if area.height >= 2 {
@@ -865,6 +880,125 @@ fn draw_input(buf: &mut Screen, area: Rect, prompt: &str, cl: &CmdLine) -> usize
 
 /// Picker rows: as many as there are results (at least one), up to half
 /// the text rows.
+/// One transient entry's styled cells.
+type Cells = Vec<Span<'static>>;
+/// A transient group: heading and its (entry index, cells).
+type Group<'a> = (&'a str, Vec<(usize, Cells)>);
+
+/// A Magit menu drawn like Emacs' transient: argument groups first, one entry
+/// per line, then action groups side by side in columns. Switches that are on
+/// are highlighted and show their argument; choices show their value.
+pub fn transient_lines(ed: &Editor, selected: usize, width: usize) -> Vec<Line<'static>> {
+    use crate::magit::{Action, current_choice, menu_entries};
+    let menu = ed.magit_menu.unwrap_or('*');
+    let entries = menu_entries(menu);
+    let heading = Style::default()
+        .fg(Color::Blue)
+        .add_modifier(Modifier::BOLD);
+    let key_style = Style::default()
+        .fg(Color::Magenta)
+        .add_modifier(Modifier::BOLD);
+    let on = Style::default()
+        .fg(Color::Cyan)
+        .add_modifier(Modifier::BOLD);
+    let off = Style::default().fg(Color::DarkGray);
+    // Each entry as styled cells, grouped in order of first appearance.
+    let mut groups: Vec<Group> = vec![];
+    for (i, (key, group, label, action)) in entries.iter().enumerate() {
+        let mut spans = vec![
+            Span::styled(format!("{key:>3} "), key_style),
+            Span::raw(label.to_string()),
+        ];
+        match action {
+            Action::ToggleOption(o) => {
+                let set = ed.magit_options.contains(o);
+                spans.push(Span::raw(" "));
+                spans.push(Span::styled(
+                    format!("({})", o.argument()),
+                    if set { on } else { off },
+                ));
+            }
+            Action::CycleOption(prefix) => {
+                spans.push(Span::raw(" "));
+                spans.push(match current_choice(ed, menu, prefix) {
+                    Some(v) => Span::styled(format!("({prefix}{v})"), on),
+                    None => Span::styled(format!("({prefix})"), off),
+                });
+            }
+            _ => {}
+        }
+        if i == selected {
+            reversed(&mut spans);
+        }
+        match groups.iter_mut().find(|(g, _)| g == group) {
+            Some((_, list)) => list.push((i, spans)),
+            None => groups.push((group, vec![(i, spans)])),
+        }
+    }
+    let span_width = |s: &[Span]| {
+        s.iter()
+            .map(|x| display_width(&x.content, 1, 0))
+            .sum::<usize>()
+    };
+    let mut lines: Vec<Line<'static>> = vec![];
+    // Argument groups: full width, one entry per line.
+    for (group, list) in groups.iter().filter(|(g, _)| g.starts_with("Arguments")) {
+        lines.push(Line::from(Span::styled(group.to_string(), heading)));
+        lines.extend(list.iter().map(|(_, s)| Line::from(s.clone())));
+    }
+    // Action groups: columns, wrapping to a new band when the width runs out.
+    let actions: Vec<_> = groups
+        .iter()
+        .filter(|(g, _)| !g.starts_with("Arguments"))
+        .collect();
+    let mut band: Vec<(usize, &Group)> = vec![];
+    let mut used = 0;
+    let flush = |band: &mut Vec<(usize, &Group)>, lines: &mut Vec<Line<'static>>| {
+        if band.is_empty() {
+            return;
+        }
+        let height = band
+            .iter()
+            .map(|(_, (_, l))| l.len() + 1)
+            .max()
+            .unwrap_or(0);
+        for row in 0..height {
+            let mut spans: Vec<Span<'static>> = vec![];
+            for (w, (group, list)) in band.iter() {
+                let cell: Vec<Span<'static>> = if row == 0 {
+                    vec![Span::styled(group.to_string(), heading)]
+                } else {
+                    list.get(row - 1)
+                        .map(|(_, s)| s.clone())
+                        .unwrap_or_default()
+                };
+                let pad = w.saturating_sub(span_width(&cell));
+                spans.extend(cell);
+                spans.push(Span::raw(" ".repeat(pad)));
+            }
+            lines.push(Line::from(spans));
+        }
+        band.clear();
+    };
+    for g in actions {
+        let w =
+            g.1.iter()
+                .map(|(_, s)| span_width(s))
+                .chain([display_width(g.0, 1, 0)])
+                .max()
+                .unwrap_or(0)
+                + 3;
+        if used + w > width && !band.is_empty() {
+            flush(&mut band, &mut lines);
+            used = 0;
+        }
+        band.push((w, g));
+        used += w;
+    }
+    flush(&mut band, &mut lines);
+    lines
+}
+
 fn panel_rows(text_rows: usize, results: usize) -> usize {
     results.clamp(1, (text_rows / 2).max(1)).min(text_rows)
 }

@@ -147,3 +147,10 @@ todo editing ([scenarios](magit-rebase-acceptance.md)); Git can now use Fred as
 its editor in the terminal (GitInvocation.editor); cherry-pick review fixes.
 Ledger 199 partial / 574 missing commands. Score remains 3%. Next: transient
 popup rendering (user request), then stash variants and the commit menu.
+
+October 4 transient checkpoint (user request): Magit menus now render as a
+transient popup above the status line — argument groups first with switches
+highlighted when on and choice values inline, then action groups in columns
+(ui::render::transient_lines; test magit_menus_render_as_transient_popups).
+Row 2 remains open: dynamic descriptions, inapt/hidden suffixes and levels,
+set/save of arguments, help, and free-form option values.
