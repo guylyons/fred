@@ -334,8 +334,8 @@ magit-diff.el,,command,magit-diff:-U,missing,Runtime-expanded surface; source be
 magit-diff.el,,command,magit-jump-to-revision-headers,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-diff.el,,command,magit-jump-to-revision-message,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-diff.el,,command,magit-jump-to-revision-notes,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-diff.el,,command,magit-jump-to-staged,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-diff.el,,command,magit-jump-to-unstaged,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-diff.el,,command,magit-jump-to-staged,partial,gs in status,runtime
+magit-diff.el,,command,magit-jump-to-unstaged,partial,gu in status,runtime
 magit-diff.el,,command,magit:--,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-diff.el,,command,transient:magit-diff-infix-arguments:--find-copies-harder,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-diff.el,,command,transient:magit-diff-infix-arguments:--function-context,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
@@ -479,7 +479,7 @@ magit-log.el,276,option,magit-log-select-show-usage,missing,,explicit
 magit-log.el,288,option,magit-log-select-margin,missing,,explicit
 magit-log.el,320,option,magit-cherry-sections-hook,missing,,explicit
 magit-log.el,328,option,magit-cherry-margin,missing,,explicit
-magit-log.el,360,option,magit-log-section-commit-count,missing,,explicit
+magit-log.el,360,option,magit-log-section-commit-count,partial,default 10 used; not configurable,explicit
 magit-log.el,369,option,magit-log-merged-commit-count,missing,,explicit
 magit-log.el,525,command,magit-log,partial,Space m l opens a partial source-style log menu; follow toggle; missing remaining arguments/suffixes/context,explicit
 magit-log.el,556,command,magit-log-refresh,missing,,explicit
@@ -513,10 +513,10 @@ magit-log.el,1692,command,magit-toggle-log-margin-style,missing,,explicit
 magit-log.el,1870,command,magit-log-select-pick,missing,,explicit
 magit-log.el,1880,command,magit-log-select-quit,missing,,explicit
 magit-log.el,1930,command,magit-cherry,missing,,explicit
-magit-log.el,,command,magit-jump-to-unpulled-from-pushremote,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,magit-jump-to-unpulled-from-upstream,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,magit-jump-to-unpushed-to-pushremote,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-log.el,,command,magit-jump-to-unpushed-to-upstream,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,magit-jump-to-unpulled-from-pushremote,partial,gfp in status,runtime
+magit-log.el,,command,magit-jump-to-unpulled-from-upstream,partial,gfu in status,runtime
+magit-log.el,,command,magit-jump-to-unpushed-to-pushremote,partial,gpp in status,runtime
+magit-log.el,,command,magit-jump-to-unpushed-to-upstream,partial,gpu in status (also recent commits),runtime
 magit-log.el,,command,magit-log-select-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-log.el,,command,magit-log:--*-order,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-log.el,,command,magit-log:--graph-lane-limit,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
@@ -777,7 +777,7 @@ magit-reset.el,88,command,magit-reset-worktree,missing,,explicit
 magit-reset.el,99,command,magit-reset-quickly,missing,,explicit
 magit-section.el,145,option,magit-section-highlight-current,missing,,explicit
 magit-section.el,151,option,magit-section-highlight-selection,missing,,explicit
-magit-section.el,160,option,magit-section-show-child-count,missing,,explicit
+magit-section.el,160,option,magit-section-show-child-count,partial,default t behavior; not configurable,explicit
 magit-section.el,167,option,magit-section-cache-visibility,missing,,explicit
 magit-section.el,184,option,magit-section-initial-visibility-alist,missing,,explicit
 magit-section.el,212,option,magit-section-visibility-indicators,missing,,explicit
@@ -895,7 +895,7 @@ magit-stash.el,405,command,magit-stash-branch-here,missing,,explicit
 magit-stash.el,417,command,magit-stash-format-patch,missing,,explicit
 magit-stash.el,543,command,magit-stash-list,partial,Space m z l; simple list; margins/options/autostash missing,explicit
 magit-stash.el,601,command,magit-stash-show,partial,Enter and Space m d t (at point or prompted); notes/unstaged/staged/untracked diffs; diff options and section interactions missing,explicit
-magit-stash.el,,command,magit-jump-to-stashes,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-stash.el,,command,magit-jump-to-stashes,partial,gz in status,runtime
 magit-stash.el,,command,transient:magit-stash-push:--all,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-stash.el,,command,transient:magit-stash-push:--include-untracked,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-stash.el,,command,transient:magit-stash-push:--keep-index,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
@@ -903,17 +903,17 @@ magit-stash.el,,command,transient:magit-stash-push:--no-keep-index,missing,Runti
 magit-stash.el,,command,transient:magit-stash:--all,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-stash.el,,command,transient:magit-stash:--include-untracked,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-status.el,40,option,magit-status-mode-hook,missing,,explicit
-magit-status.el,45,option,magit-status-headers-hook,missing,,explicit
-magit-status.el,69,option,magit-status-sections-hook,missing,,explicit
+magit-status.el,45,option,magit-status-headers-hook,partial,default hook order except error/diff-filter headers; not configurable,explicit
+magit-status.el,69,option,magit-status-sections-hook,partial,"default hook partly: headers, files, stashes, log sections; merge-log, sequences and bisect missing; not configurable",explicit
 magit-status.el,91,option,magit-status-initial-section,missing,,explicit
 magit-status.el,118,option,magit-status-goto-file-position,missing,,explicit
-magit-status.el,137,option,magit-status-show-hashes-in-headers,missing,,explicit
+magit-status.el,137,option,magit-status-show-hashes-in-headers,partial,default nil behavior; not configurable,explicit
 magit-status.el,147,option,magit-status-show-untracked-files,missing,,explicit
 magit-status.el,184,option,magit-status-file-list-limit,missing,,explicit
 magit-status.el,192,option,magit-status-margin,missing,,explicit
 magit-status.el,222,option,magit-status-use-buffer-arguments,missing,,explicit
 magit-status.el,252,command,magit-init,partial,"Space m i; directory prompt (default current, ~ expansion), nested/reinitialize y-or-n confirmation, status after init; directory completion missing",explicit
-magit-status.el,280,command,magit-status,partial,"Space m s; status, sections, diffs; many status sections/options missing",explicit
+magit-status.el,280,command,magit-status,partial,"Space m s; headers (Head/Merge|Rebase/Push/Tags), file sections, stashes, unpushed/recent and unpulled log sections, jumpers; sequence/bisect sections and options missing",explicit
 magit-status.el,350,command,magit-status-here,missing,,explicit
 magit-status.el,363,command,magit-status-quick,missing,,explicit
 magit-status.el,397,command,magit-parent-status,missing,,explicit
@@ -923,7 +923,7 @@ magit-status.el,,command,magit-jump-to-assume-unchanged,missing,Runtime-expanded
 magit-status.el,,command,magit-jump-to-ignored,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-status.el,,command,magit-jump-to-skip-worktree,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-status.el,,command,magit-jump-to-tracked,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-status.el,,command,magit-jump-to-untracked,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-status.el,,command,magit-jump-to-untracked,partial,gn in status,runtime
 magit-submodule.el,35,option,magit-module-sections-hook,missing,,explicit
 magit-submodule.el,50,option,magit-module-sections-nested,missing,,explicit
 magit-submodule.el,60,option,magit-submodule-list-mode-hook,missing,,explicit

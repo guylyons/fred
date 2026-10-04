@@ -32,3 +32,10 @@ retarget contained buffers; untracked deletion needs a typed "yes" (Fred has no
 trash) and ignored files are refused; trailing-slash destinations must exist.
 Regressions: exact_paths_reject_symlinks_case_aliases_and_existing_targets and
 magit_file_dispatch_stages_renames_deletes_and_checks_out.
+
+Security re-review of 5a59b0f (October 4): fixed rename into a directory
+silently replacing an existing file there (exact() now refuses any existing
+destination), and refused paths with a .git component (deleting .git with a
+typed yes wiped the repository). The unsaved-buffer guard now compares file
+identity, catching case-aliased and symlinked buffers. Open: rename retarget
+of buffers opened through such aliases.

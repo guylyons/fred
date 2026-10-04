@@ -1107,10 +1107,10 @@ fn magit_status_stage_and_return_in_both_modes() {
         p.wait_for("editor", |s| s.contains("NORMAL"));
         p.keys(&["iunsaved \x1b", " ms"]);
         p.wait_for("Git status", |s| {
-            s.contains("Head: main") && s.contains("Untracked")
+            s.contains("Head:     main") && s.contains("Untracked files")
         });
         p.keys(&["/f.txt\r", "s"]);
-        p.wait_for("staged file", |s| s.contains("Staged (1)"));
+        p.wait_for("staged file", |s| s.contains("Staged changes (1)"));
         p.keys(&["q"]);
         p.wait_for("original buffer", |s| s.contains("unsaved original"));
         p.keys(&[":q!\r"]);

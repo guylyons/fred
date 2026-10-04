@@ -195,6 +195,13 @@ pub fn relative(answer: &str) -> Result<PathBuf, String> {
     {
         return Err(format!("{answer:?} is not a repository-relative path"));
     }
+    // Like git, never treat repository metadata as a worktree file.
+    if path
+        .components()
+        .any(|c| c.as_os_str().eq_ignore_ascii_case(".git"))
+    {
+        return Err(format!("{answer:?} is inside Git's metadata"));
+    }
     Ok(path)
 }
 
@@ -202,7 +209,7 @@ pub fn relative(answer: &str) -> Result<PathBuf, String> {
 /// no intermediate component is a symlink, so filesystem fallbacks cannot leave
 /// the repository or alias another file through case-insensitivity. Like
 /// upstream's require-match readers. With `must_exist` false, the last
-/// component may be absent, but not present under another spelling.
+/// component must not exist under any spelling.
 pub fn exact(root: &Path, rel: &Path, must_exist: bool) -> Result<PathBuf, String> {
     let parts: Vec<_> = rel.components().map(|c| c.as_os_str().to_owned()).collect();
     let mut cur = root.to_path_buf();
@@ -221,6 +228,9 @@ pub fn exact(root: &Path, rel: &Path, must_exist: bool) -> Result<PathBuf, Strin
                 return Ok(cur);
             }
             return Err(format!("{} does not exist", super::repo::label(rel)));
+        }
+        if last && !must_exist {
+            return Err(format!("{} already exists", super::repo::label(rel)));
         }
         if !last
             && cur

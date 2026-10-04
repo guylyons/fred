@@ -45,7 +45,7 @@ fn checked(value: &str) -> Result<&str, String> {
 }
 
 impl Repo {
-    fn config(&self, key: &str) -> Option<String> {
+    pub(super) fn config(&self, key: &str) -> Option<String> {
         let out = self.read(&["config", "--get", key]).ok()?;
         Some(String::from_utf8_lossy(&out).trim_end().to_owned()).filter(|s| !s.is_empty())
     }
@@ -55,7 +55,7 @@ impl Repo {
             .map(str::to_owned)
             .collect())
     }
-    fn current_branch(&self) -> Result<String, String> {
+    pub(super) fn current_branch(&self) -> Result<String, String> {
         self.read(&["symbolic-ref", "--short", "-q", "HEAD"])
             .ok()
             .map(|b| String::from_utf8_lossy(&b).trim().to_owned())
@@ -64,7 +64,7 @@ impl Repo {
     }
     /// magit-get-push-remote: branch.<b>.pushRemote, else remote.pushDefault,
     /// only when it names an existing remote.
-    fn push_remote(&self, branch: &str) -> Result<Option<String>, String> {
+    pub(super) fn push_remote(&self, branch: &str) -> Result<Option<String>, String> {
         let remotes = self.remotes()?;
         Ok(self
             .config(&format!("branch.{branch}.pushRemote"))

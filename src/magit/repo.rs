@@ -16,6 +16,8 @@ pub struct Snapshot {
     pub upstream: Option<String>,
     pub ahead_behind: Option<String>,
     pub entries: Vec<Entry>,
+    /// Headers, stashes and log sections (filled by `status`, not the parser).
+    pub extra: super::status::Extra,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Entry {
@@ -123,6 +125,7 @@ impl Repo {
         let data = self.read(&["status", "--porcelain=v2", "--branch", "-z"])?;
         let mut snapshot = Self::parse_status(&data)?;
         snapshot.operation = self.active_workflow()?.map(str::to_owned);
+        snapshot.extra = self.status_extra();
         Ok(snapshot)
     }
     pub fn parse_status(data: &[u8]) -> Result<Snapshot, String> {

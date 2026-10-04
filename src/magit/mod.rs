@@ -4,6 +4,7 @@ pub mod blob;
 pub mod diff;
 pub mod network;
 pub mod repo;
+pub mod status;
 pub mod workflows;
 use crate::{
     editor::{Editor, Mode},
@@ -72,14 +73,22 @@ pub enum Section {
     Untracked,
     Unstaged,
     Staged,
+    Stashes,
+    UnpushedPush,
+    /// Unmerged into upstream, or recent commits.
+    UnpushedUpstream,
+    UnpulledPush,
+    UnpulledUpstream,
 }
 impl Section {
     fn name(self) -> &'static str {
         match self {
-            Self::Conflicts => "Conflicts",
-            Self::Untracked => "Untracked",
-            Self::Unstaged => "Unstaged",
-            Self::Staged => "Staged",
+            Self::Conflicts => "Unmerged",
+            Self::Untracked => "Untracked files",
+            Self::Unstaged => "Unstaged changes",
+            Self::Staged => "Staged changes",
+            Self::Stashes => "Stashes",
+            _ => "Commits",
         }
     }
     fn contains(self, e: &repo::Entry) -> bool {
@@ -88,6 +97,7 @@ impl Section {
             Self::Untracked => e.untracked,
             Self::Unstaged => e.unstaged,
             Self::Staged => e.staged,
+            _ => false,
         }
     }
 }
@@ -170,22 +180,15 @@ impl View {
             return;
         }
         self.rows.clear();
-        self.rows.push(Row {
-            text: format!("Head: {}", self.snapshot.branch),
-            action: None,
-        });
-        if let Some(operation) = &self.snapshot.operation {
+        for header in &self.snapshot.extra.headers {
             self.rows.push(Row {
-                text: format!("In progress: {operation}"),
+                text: header.clone(),
                 action: None,
             });
         }
-        if let Some(u) = &self.snapshot.upstream {
+        if let Some(operation) = &self.snapshot.operation {
             self.rows.push(Row {
-                text: format!(
-                    "Upstream: {u} {}",
-                    self.snapshot.ahead_behind.as_deref().unwrap_or("")
-                ),
+                text: format!("In progress: {operation}"),
                 action: None,
             });
         }
@@ -284,6 +287,59 @@ impl View {
                         });
                     }
                 }
+            }
+        }
+        // magit-insert-stashes and the log sections of magit-status-sections-hook.
+        let mut sections: Vec<(Section, String, Vec<Row>)> = vec![];
+        if !self.snapshot.extra.stashes.is_empty() {
+            let rows = self
+                .snapshot
+                .extra
+                .stashes
+                .iter()
+                .map(|stash| Row {
+                    text: format!(
+                        "  {} {}",
+                        stash.selector,
+                        label(std::path::Path::new(&stash.subject))
+                    ),
+                    action: Some(RowAction::Stash(stash.clone())),
+                })
+                .collect();
+            sections.push((Section::Stashes, "Stashes".into(), rows));
+        }
+        for (section, heading, commits) in &self.snapshot.extra.logs {
+            let rows = commits
+                .iter()
+                .map(|c| Row {
+                    text: format!(
+                        "  {} {}",
+                        &c.id[..c.id.len().min(7)],
+                        label(std::path::Path::new(&c.subject))
+                    ),
+                    action: Some(RowAction::Commit(c.id.clone())),
+                })
+                .collect();
+            sections.push((*section, heading.clone(), rows));
+        }
+        for (section, heading, rows) in sections {
+            let shut = self.closed.contains(&section);
+            self.rows.push(Row {
+                text: String::new(),
+                action: None,
+            });
+            // magit-section-show-child-count, except for recent commits.
+            let count = if heading == "Recent commits" {
+                String::new()
+            } else {
+                format!(" ({})", rows.len())
+            };
+            self.rows.push(Row {
+                text: format!("{} {heading}{count}", if shut { ">" } else { "v" }),
+                action: Some(RowAction::Section(section)),
+            });
+            if !shut {
+                self.rows.extend(rows);
             }
         }
     }
@@ -399,6 +455,49 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     }
     if ed.magit.is_none() {
         return false;
+    }
+    // evil-collection's status jumpers: gz gn gu gs, gfu gfp, gpu gpp.
+    if ed.magit.as_ref().is_some_and(|v| v.kind == Kind::Status) && !k.ctrl && !k.alt {
+        let target = match (ed.vim.pending.as_slice(), k.char()) {
+            ([g], Some(c @ ('f' | 'p'))) if *g == Key::ch('g') => {
+                ed.vim.pending.push(Key::ch(c));
+                return true;
+            }
+            ([g], Some('z')) if *g == Key::ch('g') => Some(Section::Stashes),
+            ([g], Some('n')) if *g == Key::ch('g') => Some(Section::Untracked),
+            ([g], Some('u')) if *g == Key::ch('g') => Some(Section::Unstaged),
+            ([g], Some('s')) if *g == Key::ch('g') => Some(Section::Staged),
+            ([g, f], Some('u')) if *g == Key::ch('g') && *f == Key::ch('f') => {
+                Some(Section::UnpulledUpstream)
+            }
+            ([g, f], Some('p')) if *g == Key::ch('g') && *f == Key::ch('f') => {
+                Some(Section::UnpulledPush)
+            }
+            ([g, p], Some('u')) if *g == Key::ch('g') && *p == Key::ch('p') => {
+                Some(Section::UnpushedUpstream)
+            }
+            ([g, p], Some('p')) if *g == Key::ch('g') && *p == Key::ch('p') => {
+                Some(Section::UnpushedPush)
+            }
+            ([g, _], _) if *g == Key::ch('g') => {
+                ed.vim.pending.clear();
+                return true;
+            }
+            _ => None,
+        };
+        if let Some(section) = target {
+            ed.vim.pending.clear();
+            let row = ed.magit.as_ref().and_then(|v| {
+                v.rows
+                    .iter()
+                    .position(|r| r.action == Some(RowAction::Section(section)))
+            });
+            match row {
+                Some(line) => ed.set_cursor(line, 0),
+                None => ed.set_msg(format!("Section \"{}\" wasn't found", section.name())),
+            }
+            return true;
+        }
     }
     if ed.vim.pending == [Key::ch('g')] && k.char() == Some('r') {
         ed.vim.pending.clear();

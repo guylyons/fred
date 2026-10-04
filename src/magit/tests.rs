@@ -1292,10 +1292,87 @@ fn exact_paths_reject_symlinks_case_aliases_and_existing_targets() {
     assert!(exact(&root, Path::new("SUB/f.txt"), true).is_err());
     assert!(exact(&root, Path::new("sub/F.TXT"), true).is_err());
     assert!(exact(&root, Path::new("sub/new"), false).is_ok());
-    // An exact existing target is returned; callers decide (directory or clash).
-    assert!(exact(&root, Path::new("sub/f.txt"), false).is_ok());
+    // A destination never replaces an existing file.
+    assert!(
+        exact(&root, Path::new("sub/f.txt"), false)
+            .unwrap_err()
+            .contains("already exists")
+    );
+    assert!(super::blob::relative(".git").is_err());
+    assert!(super::blob::relative("sub/.GIT/hooks").is_err());
     assert!(exact(&root, Path::new("missing/new"), false).is_err());
     // The link itself (last component) may be removed; its target is untouched.
     assert!(exact(&root, Path::new("out"), true).is_ok());
     assert_eq!(fs::read(outside.path().join("x")).unwrap(), b"precious");
+}
+#[test]
+fn status_headers_and_log_sections_follow_upstream_and_push_remote() {
+    use super::Section;
+    let (d, r, bare) = with_remote();
+    git(d.path(), &["tag", "v1"]);
+    git(d.path(), &["push", "-qu", "origin", "main"]);
+    committed(d.path(), b"local\n");
+    let other = tempfile::tempdir().unwrap();
+    git(
+        other.path(),
+        &["clone", "-q", bare.path().to_str().unwrap(), "."],
+    );
+    fs::write(other.path().join("remote"), b"r").unwrap();
+    git(other.path(), &["add", "remote"]);
+    git(other.path(), &["commit", "-qm", "remote work"]);
+    git(other.path(), &["push", "-q"]);
+    git(d.path(), &["fetch", "-q"]);
+    fs::write(d.path().join("f"), b"stash me\n").unwrap();
+    git(d.path(), &["stash", "push", "-qm", "parked"]);
+    let x = r.status().unwrap().extra;
+    assert_eq!(x.headers[0], "Head:     main initial");
+    assert_eq!(x.headers[1], "Merge:    origin/main remote work");
+    assert_eq!(x.headers[2], "Tag:      v1 (1)");
+    assert_eq!(x.stashes.len(), 1);
+    let names: Vec<_> = x
+        .logs
+        .iter()
+        .map(|(s, h, c)| (*s, h.as_str(), c.len()))
+        .collect();
+    assert_eq!(
+        names,
+        [
+            (Section::UnpushedUpstream, "Unmerged into origin/main", 1),
+            (Section::UnpulledUpstream, "Unpulled from origin/main", 1),
+        ]
+    );
+    git(d.path(), &["config", "branch.main.pushRemote", "origin"]);
+    git(d.path(), &["config", "branch.main.rebase", "true"]);
+    let x = r.status().unwrap().extra;
+    assert_eq!(x.headers[1], "Rebase:   origin/main remote work");
+    assert_eq!(x.headers[2], "Push:     origin/main remote work");
+    // The push target equals the upstream, so no duplicate push sections.
+    assert_eq!(x.logs.len(), 2);
+    git(d.path(), &["config", "branch.main.pushRemote", "nowhere"]);
+    let x = r.status().unwrap().extra;
+    assert_eq!(x.headers[2], "Push:     nowhere remote does not exist");
+    git(
+        d.path(),
+        &["config", "branch.main.merge", "refs/heads/gone"],
+    );
+    let x = r.status().unwrap().extra;
+    assert_eq!(x.headers[1], "Rebase:   gone does not exist on origin");
+    assert_eq!(x.logs[0].1, "Recent commits");
+}
+#[test]
+fn status_of_unborn_and_detached_heads() {
+    let (d, r) = setup();
+    assert_eq!(
+        r.status().unwrap().extra.headers,
+        ["Head:     main (no commits yet)"]
+    );
+    committed(d.path(), b"one\n");
+    git(d.path(), &["checkout", "-q", "--detach"]);
+    let x = r.status().unwrap().extra;
+    assert!(
+        x.headers[0].starts_with("Head:     ") && x.headers[0].ends_with(" initial"),
+        "{:?}",
+        x.headers
+    );
+    assert_eq!(x.logs[0].1, "Recent commits");
 }

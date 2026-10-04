@@ -2384,11 +2384,86 @@ mod tests {
         t.keys("dir<Enter>moved<Enter>");
         magit_settle(&mut t);
         assert!(t.dir.path().join("moved/in.txt").exists(), "{}", t.msg());
+        fs::write(t.dir.path().join("a.txt"), "scratch").unwrap();
+        fs::write(t.dir.path().join("moved/a.txt"), "precious").unwrap();
+        t.keys(" mF,r");
+        magit_settle(&mut t);
+        t.keys("a.txt<Enter>moved<Enter>");
+        assert!(t.msg().contains("already exists"), "{}", t.msg());
+        assert_eq!(
+            fs::read_to_string(t.dir.path().join("moved/a.txt")).unwrap(),
+            "precious"
+        );
+        t.keys(" mF,k");
+        magit_settle(&mut t);
+        t.keys(".git<Enter>");
+        assert!(t.msg().contains("metadata"), "{}", t.msg());
+        assert!(t.dir.path().join(".git").is_dir());
         assert!(
             t.s.ed.path.as_ref().unwrap().ends_with("moved/in.txt"),
             "{:?}",
             t.s.ed.path
         );
+    }
+    #[test]
+    fn magit_status_sections_jump_and_visit_commits_and_stashes() {
+        let mut t = T::open(Some("f.txt"), Some("one\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "first"]).unwrap();
+        fs::write(t.dir.path().join("f.txt"), "two\n").unwrap();
+        repo.read(&["stash", "push", "-qm", "parked"]).unwrap();
+        fs::write(t.dir.path().join("new"), "x").unwrap();
+        t.keys(" ms");
+        magit_settle(&mut t);
+        let text = t.s.ed.buf.text();
+        assert!(
+            text.contains("v Stashes (1)") && text.contains("v Recent commits"),
+            "{text}"
+        );
+        t.keys("gz");
+        assert!(t.s.ed.buf.line(t.s.ed.cur.line).starts_with("v Stashes"));
+        t.keys("gn");
+        assert!(
+            t.s.ed
+                .buf
+                .line(t.s.ed.cur.line)
+                .starts_with("v Untracked files")
+        );
+        t.keys("gpu");
+        assert!(
+            t.s.ed
+                .buf
+                .line(t.s.ed.cur.line)
+                .starts_with("v Recent commits")
+        );
+        t.keys("gfu");
+        assert!(t.msg().contains("wasn't found"), "{}", t.msg());
+        t.keys("gpu<Tab>");
+        assert!(
+            t.s.ed
+                .buf
+                .line(t.s.ed.cur.line)
+                .starts_with("> Recent commits")
+        );
+        t.keys("<Tab>j<Enter>");
+        magit_settle(&mut t);
+        assert!(
+            t.s.ed.buf.line(0).starts_with("commit "),
+            "{}",
+            t.s.ed.buf.line(0)
+        );
+        t.keys("q");
+        t.keys("gzj<Enter>");
+        magit_settle(&mut t);
+        assert!(matches!(
+            t.s.ed.magit.as_ref().unwrap().kind,
+            crate::magit::Kind::StashPatch(_)
+        ));
     }
     #[test]
     fn magit_file_log_rejects_buffers_without_a_source_file() {

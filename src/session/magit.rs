@@ -1146,27 +1146,29 @@ impl Session {
         if op == O::Rename {
             // magit-file-rename: a directory destination keeps the file name.
             let raw = pick(1);
+            // An existing destination must be an exact, real directory; the file
+            // then keeps its name inside it, which must not exist yet.
             let dest = match raw.trim_end_matches('/') {
-                "" | "." => Ok(root.clone()),
-                d => relative(d).and_then(|d| checked(&d, false)),
-            };
-            let dest = dest.and_then(|d| {
-                let dir = d.symlink_metadata().is_ok_and(|m| m.is_dir());
-                if raw.ends_with('/') && !dir {
-                    return Err("Destination directory does not exist".into());
+                "" | "." => Ok(PathBuf::new()),
+                d => relative(d),
+            }
+            .and_then(|d| {
+                let existing = d.as_os_str().is_empty() || root.join(&d).symlink_metadata().is_ok();
+                if !existing {
+                    if raw.ends_with('/') {
+                        return Err("Destination directory does not exist".into());
+                    }
+                    return checked(&d, false);
                 }
-                if !dir {
-                    return if d.symlink_metadata().is_ok() {
-                        Err(format!("{} already exists", label(&d)))
-                    } else {
-                        Ok(d)
-                    };
+                let dir = if d.as_os_str().is_empty() {
+                    root.clone()
+                } else {
+                    checked(&d, true)?
+                };
+                if !dir.symlink_metadata().is_ok_and(|m| m.is_dir()) {
+                    return Err(format!("{} already exists", label(&d)));
                 }
-                let rel = d
-                    .strip_prefix(&root)
-                    .unwrap_or(Path::new(""))
-                    .join(file.file_name().unwrap_or_default());
-                checked(&rel, false)
+                checked(&d.join(file.file_name().unwrap_or_default()), false)
             });
             match dest {
                 Ok(d) => paths.push(d.strip_prefix(&root).unwrap_or(&d).to_path_buf()),
@@ -1177,12 +1179,7 @@ impl Session {
         let abs = repo.root.join(&file);
         if matches!(op, O::Rename | O::Delete | O::DeleteDir | O::Checkout)
             && self.editors_mut().any(|ed| {
-                ed.buf.modified
-                    && ed
-                        .path
-                        .as_deref()
-                        .and_then(canonical_file)
-                        .is_some_and(|p| p.starts_with(&abs))
+                ed.buf.modified && ed.path.as_deref().is_some_and(|p| same_or_inside(p, &abs))
             })
         {
             return self
@@ -1450,6 +1447,28 @@ fn canonical_file(path: &Path) -> Option<PathBuf> {
             .join(rest)
             .join(absolute.file_name()?),
     )
+}
+/// Whether a buffer's file is `target` or lies inside it, through case aliases
+/// or symlinks too: compare fully resolved paths and file identity.
+fn same_or_inside(buffer: &Path, target: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    if let (Ok(b), Ok(t)) = (buffer.canonicalize(), target.canonicalize())
+        && b.starts_with(&t)
+    {
+        return true;
+    }
+    if let (Ok(b), Ok(t)) = (std::fs::metadata(buffer), std::fs::metadata(target))
+        && (b.dev(), b.ino()) == (t.dev(), t.ino())
+    {
+        return true;
+    }
+    // A directory reached through another spelling: check the buffer's ancestors.
+    std::fs::metadata(target).is_ok_and(|t| {
+        t.is_dir()
+            && buffer.ancestors().skip(1).any(|a| {
+                std::fs::metadata(a).is_ok_and(|m| (m.dev(), m.ino()) == (t.dev(), t.ino()))
+            })
+    })
 }
 /// A visited path relative to its repository. Directory aliases resolve, a
 /// tracked symlink keeps its own name, and since-deleted directories stay literal.

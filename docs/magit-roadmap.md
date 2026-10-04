@@ -120,3 +120,8 @@ file dispatch (Space m F) and removal/reverse/recursive blame
 ([scenarios](magit-files-acceptance.md)). Ledger 120 partial / 653 missing;
 score remains 3%. Next: file actions in the file dispatch, then status
 sections and the remaining families in ledger order.
+
+October 4 status checkpoint: status headers, stash and log sections and the
+user's evil-collection jumpers ([scenarios](magit-status-acceptance.md)); file
+action safety re-review fixes. Ledger 134 partial / 639 missing commands, 5
+options partial (defaults) / 232 missing. Score remains 3%.
