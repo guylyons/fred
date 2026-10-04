@@ -113,6 +113,22 @@ pub struct Editor {
     /// This buffer lists a directory (see `dired`).
     pub dired: Option<Box<crate::dired::Dired>>,
     pub magit: Option<Box<crate::magit::View>>,
+    /// Hidden line ranges (Org visibility).
+    pub folds: crate::fold::Folds,
+    /// Org-mode state when this buffer visits an Org file.
+    pub org: Option<Box<crate::org::Org>>,
+    /// A generated Org buffer (agenda and other views).
+    pub org_view: Option<Box<crate::org::View>>,
+    /// An Org prompt or menu's continuation.
+    pub org_then: Option<crate::org::Then>,
+    pub org_require_match: bool,
+    /// The open Org menu's entries (keys, label) and keys typed so far.
+    pub org_menu: Vec<(String, String)>,
+    pub org_menu_typed: String,
+    /// An Org key sequence in progress (`C-c C-x`).
+    pub org_keys: Vec<Key>,
+    /// The prefix argument for the next Org command (`Space u`).
+    pub org_arg: crate::org::Prefix,
     pub magit_input_generation: u64,
     pub magit_options: std::collections::HashSet<crate::magit::MenuOption>,
     /// Free-form transient-option values by (menu, argument prefix).
@@ -181,6 +197,15 @@ impl Editor {
             readonly: false,
             dired: None,
             magit: None,
+            folds: crate::fold::Folds::default(),
+            org: None,
+            org_view: None,
+            org_then: None,
+            org_require_match: false,
+            org_menu: vec![],
+            org_menu_typed: String::new(),
+            org_keys: vec![],
+            org_arg: crate::org::Prefix::None,
             magit_input_generation: 0,
             magit_options: std::collections::HashSet::new(),
             magit_values: std::collections::BTreeMap::new(),
@@ -231,11 +256,16 @@ impl Editor {
     pub fn handle_key(&mut self, k: Key) {
         self.magit_input_generation = self.magit_input_generation.wrapping_add(1);
         if crate::magit::key(self, k)
+            || crate::org::key(self, k)
             || crate::magit::blame::key(self, k)
             || crate::magit::blob::key(self, k)
             || crate::magit::rebase::key(self, k)
         {
             return;
+        }
+        // A Shift key nothing took is the plain key.
+        if k.shift {
+            return self.handle_key(Key { shift: false, ..k });
         }
         // An Alt key nothing took: Fred's usual Esc, key.
         if k.alt {
@@ -340,6 +370,9 @@ impl Editor {
             self.popup = None;
         }
         self.sync_marks();
+        if self.folds.hidden(self.cur.line) {
+            self.reveal_cursor();
+        }
         if !self.undo.in_group() {
             self.buf.modified = self.undo.state_id() != self.saved_state;
         }
@@ -398,8 +431,21 @@ impl Editor {
     }
 
     /// Move marks with their lines; a deleted line loses its mark.
-    fn sync_marks(&mut self) {
+    /// Show the hidden text the cursor moved into.
+    pub fn reveal_cursor(&mut self) {
+        if self.org.is_some() {
+            crate::org::fold::show_context(self, self.cur.line);
+        } else if let Some((s, e)) = self.folds.range_at(self.cur.line) {
+            self.folds.show(s, e);
+        }
+    }
+
+    pub(crate) fn sync_marks(&mut self) {
         for ch in self.buf.take_line_changes() {
+            self.folds.line_change(ch.at, ch.removed, ch.inserted);
+            if let Some(o) = &mut self.org {
+                o.specs.line_change(ch.at, ch.removed, ch.inserted);
+            }
             self.marks
                 .retain(|_, l| *l < ch.at || *l >= ch.at + ch.removed);
             for l in self.marks.values_mut() {
@@ -528,6 +574,7 @@ impl Editor {
             || (k.code == KeyCode::Backspace && cl.text.is_empty());
         if leaving {
             self.magit_prompt = None;
+            self.org_then = None;
             self.vim.pending_op = None;
         }
         let hist = if cl.kind == ':' {
@@ -606,6 +653,9 @@ impl Editor {
         if kind == '@' {
             return crate::dired::answer(self, text);
         }
+        if kind == 'o' {
+            return crate::org::answer(self, text);
+        }
         let hist = if kind == ':' {
             &mut self.cmd_history
         } else {
@@ -631,6 +681,9 @@ impl Editor {
 
     /// Run an ex command line.
     pub fn run_ex(&mut self, text: &str) {
+        if crate::org::ex(self, text) {
+            return;
+        }
         if self.generated() {
             let mut buf = self.buf.clone();
             let mut undo = Undo::default();

@@ -11,6 +11,8 @@ use std::collections::HashMap;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExEffect {
     Magit(crate::magit::Action),
+    /// Org work that needs the session (other buffers and files).
+    Org(crate::org::Effect),
     None,
     Write {
         path: Option<String>,

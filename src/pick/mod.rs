@@ -146,6 +146,10 @@ pub enum Kind {
     Buffers,
     Branches,
     MagitMenu,
+    /// An Org key menu (org-mks, dispatchers).
+    OrgMenu,
+    /// Org completing-read.
+    OrgChoice,
     /// Lines of every buffer (`Space B`).
     AllLines,
     /// Definitions of the word at the cursor (`Space d`, `gd`).
@@ -169,6 +173,8 @@ pub struct Row {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Picker {
     pub kind: Kind,
+    /// A prompt in place of the kind's own.
+    pub title: String,
     pub query: CmdLine,
     /// Best first.
     pub rows: Vec<Row>,
@@ -212,6 +218,7 @@ impl Picker {
     fn new(kind: Kind, project: &Project, origin: usize) -> Picker {
         Picker {
             kind,
+            title: String::new(),
             query: CmdLine::default(),
             rows: vec![],
             sel: 0,
@@ -239,7 +246,10 @@ impl Picker {
         }
     }
 
-    pub fn prompt(&self) -> &'static str {
+    pub fn prompt(&self) -> &str {
+        if !self.title.is_empty() {
+            return &self.title;
+        }
         match self.kind {
             Kind::Files => "find> ",
             Kind::Grep => "grep> ",
@@ -249,6 +259,8 @@ impl Picker {
             Kind::Buffers => "buffer> ",
             Kind::Branches => "branch> ",
             Kind::MagitMenu => "Magit menu: ",
+            Kind::OrgMenu => "Org: ",
+            Kind::OrgChoice => "> ",
             Kind::AllLines => "all lines> ",
             Kind::Def => "definition> ",
         }
@@ -271,8 +283,8 @@ impl Picker {
     /// Bring `rows` up to date; true if anything shown changed.
     fn update(&mut self, project: &Project, buf: &Buffer, now: Instant) -> bool {
         match self.kind {
-            Kind::MagitMenu => false,
-            Kind::Recent | Kind::Buffers | Kind::Branches => {
+            Kind::MagitMenu | Kind::OrgMenu => false,
+            Kind::Recent | Kind::Buffers | Kind::Branches | Kind::OrgChoice => {
                 let q = &self.query.text;
                 if self.seen_files.as_ref().is_some_and(|s| s.0 == *q) {
                     return false;
@@ -892,6 +904,48 @@ pub fn tick(ed: &mut Editor) -> bool {
 mod tests;
 
 /// A command panel: rows retain their suffix key rather than a source-file path.
+/// An Org key menu: `ed.org_menu` entries, headings for empty keys.
+pub fn org_menu(ed: &mut Editor, title: &str) {
+    let mut picker = Picker::new(Kind::OrgMenu, &ed.project, ed.cur.line);
+    picker.title = format!("{title} ");
+    picker.rows = ed
+        .org_menu
+        .iter()
+        .enumerate()
+        .map(|(index, (key, label))| Row {
+            text: if key.is_empty() {
+                label.clone()
+            } else {
+                format!("[{key}]  {label}")
+            },
+            hl: if key.is_empty() { vec![] } else { vec![(1, 1 + key.len())] },
+            path: PathBuf::new(),
+            line: index,
+            col: 0,
+            code: None,
+        })
+        .collect();
+    picker.sel = picker
+        .rows
+        .iter()
+        .position(|r| !ed.org_menu[r.line].0.is_empty())
+        .unwrap_or(0);
+    picker.status = "key, or arrows + Enter; C-g or q quits".into();
+    ed.mode = Mode::Pick(Box::new(picker));
+}
+
+/// Org completing-read over `candidates`.
+pub fn org_choice(ed: &mut Editor, title: &str, candidates: Vec<String>) {
+    let mut p = Picker::new(Kind::OrgChoice, &ed.project, ed.cur.line);
+    p.title = title.to_owned();
+    p.recent_files = candidates
+        .into_iter()
+        .map(|name| (name, PathBuf::new(), 0))
+        .collect();
+    p.update(&ed.project, &ed.buf, Instant::now());
+    ed.mode = Mode::Pick(Box::new(p));
+}
+
 pub fn magit_menu(ed: &mut Editor, menu: char) {
     let mut picker = Picker::new(Kind::MagitMenu, &ed.project, ed.cur.line);
     picker.rows = crate::magit::menu_entries(menu)

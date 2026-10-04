@@ -161,6 +161,7 @@ fn mode_name(m: &Mode) -> &'static str {
             Kind::Def => "DEFINITION",
             Kind::Branches => "BRANCHES",
             Kind::MagitMenu => "MAGIT MENU",
+            Kind::OrgMenu | Kind::OrgChoice => "ORG",
         },
     }
 }
@@ -247,7 +248,9 @@ pub fn mouse(
             let x = x.saturating_sub(gutter);
             for line in view.top..ed.line_count() {
                 let text = ed.buf.line(line);
-                let height = if cfg.wrap {
+                let height = if line != ed.cur.line && ed.folds.hidden(line) {
+                    0
+                } else if cfg.wrap {
                     let height = super::layout::wrap_rows(&text, ed.tabstop, cols);
                     if line == ed.cur.line {
                         height.max(wrap_cursor(&text, ed.cur.byte, ed.tabstop, cols).0 + 1)
@@ -337,8 +340,18 @@ pub fn draw(
         view.scroll(ed, rows.max(1), cols, cfg.wrap);
     }
     let n = ed.line_count();
-    let last = (view.top + rows).min(n);
-    let styles = if ed.magit.is_some() {
+    // Hidden lines take no rows, so the screen can reach further.
+    let last = if ed.folds.is_empty() {
+        (view.top + rows).min(n)
+    } else {
+        (ed.folds.down(view.top, rows, n) + 1).min(n)
+    };
+    let org_settings = if ed.org.is_some() {
+        crate::org::settings(ed)
+    } else {
+        std::rc::Rc::default()
+    };
+    let styles = if ed.magit.is_some() || ed.org.is_some() {
         vec![]
     } else {
         hl.styles(&ed.buf, view.top..last, budget)
@@ -369,7 +382,15 @@ pub fn draw(
     let mut y = 0usize;
     let mut l = view.top;
     while y < rows && l < n {
-        let line = ed.buf.line(l);
+        if l != ed.cur.line && ed.folds.hidden(l) {
+            l += 1;
+            continue;
+        }
+        let mut line = ed.buf.line(l);
+        // org-ellipsis after a line whose following lines are folded.
+        if ed.folds.folded_after(l) {
+            line.push_str("...");
+        }
         let st = if ed.magit.is_some() {
             let text = line.trim_start();
             let color = if text.starts_with('+') {
@@ -387,6 +408,8 @@ pub fn draw(
             Some(vec![(Style::default().fg(color), 0..line.len())])
         } else if ed.dired.is_some() {
             Some(crate::dired::styles(ed, l))
+        } else if ed.org.is_some() {
+            Some(crate::org::face::styles(ed, l, &org_settings))
         } else {
             styles.get(l - view.top).cloned().flatten()
         };

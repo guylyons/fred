@@ -24,6 +24,9 @@ pub struct Key {
     pub code: KeyCode,
     pub ctrl: bool,
     pub alt: bool,
+    /// Shift on a non-character key (S-Left); a shifted character is
+    /// already its uppercase form.
+    pub shift: bool,
 }
 
 impl Key {
@@ -32,6 +35,7 @@ impl Key {
             code,
             ctrl: false,
             alt: false,
+            shift: false,
         }
     }
 
@@ -44,6 +48,7 @@ impl Key {
             code: KeyCode::Char(c),
             ctrl: true,
             alt: false,
+            shift: false,
         }
     }
 
@@ -56,7 +61,17 @@ impl Key {
     }
 
     pub fn is(&self, code: KeyCode) -> bool {
-        self.code == code && !self.ctrl && !self.alt
+        self.code == code && !self.ctrl && !self.alt && !self.shift
+    }
+
+    /// This key with modifiers: `"C-M-S-"` letters in any order.
+    pub fn with(code: KeyCode, mods: &str) -> Key {
+        Key {
+            code,
+            ctrl: mods.contains('C'),
+            alt: mods.contains('M'),
+            shift: mods.contains('S'),
+        }
     }
 }
 
@@ -80,24 +95,23 @@ pub fn parse_keys(s: &str) -> Vec<Key> {
 }
 
 fn named(name: &str) -> Option<Key> {
-    if let Some(c) = name.strip_prefix("M-") {
-        let mut it = c.chars();
-        let ch = it.next()?;
-        return it.next().is_none().then_some(Key {
-            code: KeyCode::Char(ch),
-            ctrl: false,
-            alt: true,
-        });
+    // Modifier prefixes C- M- S- in any order, then a key name or character.
+    let (mut ctrl, mut alt, mut shift, mut rest) = (false, false, false, name);
+    loop {
+        if let Some(r) = rest.strip_prefix("C-").filter(|r| !r.is_empty()) {
+            ctrl = true;
+            rest = r;
+        } else if let Some(r) = rest.strip_prefix("M-").filter(|r| !r.is_empty()) {
+            alt = true;
+            rest = r;
+        } else if let Some(r) = rest.strip_prefix("S-").filter(|r| *r != "Tab" && !r.is_empty()) {
+            shift = true;
+            rest = r;
+        } else {
+            break;
+        }
     }
-    if let Some(c) = name.strip_prefix("C-") {
-        let mut it = c.chars();
-        let ch = it.next()?;
-        return it
-            .next()
-            .is_none()
-            .then(|| Key::ctrl(ch.to_ascii_lowercase()));
-    }
-    Some(Key::new(match name {
+    let code = match rest {
         "Esc" => KeyCode::Esc,
         "Enter" | "CR" => KeyCode::Enter,
         "BS" => KeyCode::Backspace,
@@ -113,8 +127,21 @@ fn named(name: &str) -> Option<Key> {
         "PageDown" => KeyCode::PageDown,
         "Del" => KeyCode::Delete,
         "lt" => KeyCode::Char('<'),
-        _ => return None,
-    }))
+        _ => {
+            let mut it = rest.chars();
+            let ch = it.next()?;
+            if it.next().is_some() || !(ctrl || alt) {
+                return None;
+            }
+            KeyCode::Char(if ctrl { ch.to_ascii_lowercase() } else { ch })
+        }
+    };
+    Some(Key {
+        code,
+        ctrl,
+        alt,
+        shift: shift && !matches!(code, KeyCode::Char(_)),
+    })
 }
 
 #[cfg(test)]
@@ -138,5 +165,13 @@ mod tests {
             ]
         );
         assert_eq!(parse_keys("<"), vec![Key::ch('<')]);
+        assert_eq!(
+            parse_keys("<M-S-Left><C-c><M-Enter>"),
+            vec![
+                Key::with(KeyCode::Left, "MS"),
+                Key::ctrl('c'),
+                Key::with(KeyCode::Enter, "M"),
+            ]
+        );
     }
 }

@@ -64,3 +64,31 @@ Ledger `state` values:
 Follow [the roadmap](org-roadmap.md) and the [binding contract](org-user-bindings.md).
 Update the ledger rows and roadmap queue in each implementation commit.
 Preserve the user's uncommitted `notes.md`; never `git add -A`.
+
+## Module contracts (for every implementation batch)
+
+- Each module (`src/org/<name>.rs`) exposes
+  `pub fn command(ed, name, arg) -> Option<Result<(), String>>` answering
+  every upstream interactive command of its files by exact upstream name
+  (aliases too), registered in `MODULES` in `src/org/mod.rs`. Context
+  dispatchers (org-metaleft, org-shiftup, org-ctrl-c-ctrl-c, TAB) call
+  commands by name through `org::call`, so modules do not depend on each
+  other at compile time.
+- `org::run` wraps each command in one undo group and records
+  `last_command` (Emacs `last-command` for repeated keys).
+- Edit only through `org::{splice, set_line, insert_lines, delete_lines}`;
+  read with `org::{line, lines}`. Folds follow edits automatically.
+- Prompts: `org::read` (minibuffer), `org::complete` (completing-read),
+  `org::menu` (org-mks style key menus), `org::yes_or_no`; each takes a
+  continuation. Session-wide work (other buffers/files, views):
+  `org::effect(ed, |session| ...)`.
+- Options: `org::options` / `org::sexp::option` by Emacs variable name with
+  the upstream default; buffer-local `#+STARTUP` values via
+  `settings(ed).opt(...)`.
+- Context predicates (org-at-*-p): `org::ctx`. Visibility: `org::fold`.
+- Keep pure logic in functions over `&str`/`&[String]` with unit tests;
+  editor-level tests use `org::tests::org(text, keys)` and `shown(&ed)`.
+- Read the pinned upstream source (`/private/tmp/fred-org-upstream/lisp`)
+  for every ported command; reproduce messages, prompts and edge cases.
+- Update `docs/org-parity.csv` rows (`state`, `fred_behavior`) for the
+  symbols a batch ports.

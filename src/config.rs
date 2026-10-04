@@ -31,7 +31,16 @@ pub struct Config {
     pub ai_rules: String,
     /// What `:explain` (Visual `K`) runs, prompt on stdin.
     pub explain_command: String,
+    /// Org options by their Emacs names (`org-todo-keywords = ...`).
+    pub org: OrgTable,
 }
+
+/// The `[org]` table.
+#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
+#[serde(transparent)]
+pub struct OrgTable(pub toml::Table);
+
+impl Eq for OrgTable {}
 
 impl Default for Config {
     fn default() -> Self {
@@ -52,6 +61,7 @@ impl Default for Config {
             ai_command: "claude -p --tools '' --safe-mode".into(),
             ai_rules: String::new(),
             explain_command: "claude -p --tools '' --safe-mode --model sonnet".into(),
+            org: OrgTable::default(),
         }
     }
 }

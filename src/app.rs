@@ -204,7 +204,14 @@ pub fn map_key(k: KeyEvent) -> Option<Key> {
         C::Delete => KeyCode::Delete,
         _ => return None,
     };
-    Some(Key { code, ctrl, alt })
+    let shift = k.modifiers.contains(KeyModifiers::SHIFT)
+        && !matches!(code, KeyCode::Char(_) | KeyCode::BackTab);
+    Some(Key {
+        code,
+        ctrl,
+        alt,
+        shift,
+    })
 }
 
 /// `-i`/`--height` mean inline and `-f` fullscreen; otherwise the config
@@ -347,7 +354,12 @@ fn step(s: &mut Session, hl: &mut Highlighter, ev: Event, resized: &mut bool) {
             // Magit-style buffers bind Alt keys (M-j, M-w, M-1 ...): they get
             // the key whole; elsewhere Alt+X stays Esc, X.
             match map_key(k) {
-                Some(key) if key.alt && crate::magit::wants_alt(&s.ed) => s.handle_key(key),
+                Some(key)
+                    if key.alt
+                        && (crate::magit::wants_alt(&s.ed) || crate::org::wants_alt(&s.ed)) =>
+                {
+                    s.handle_key(key)
+                }
                 _ => {
                     for key in map_keys(k) {
                         s.handle_key(key);

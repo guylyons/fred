@@ -171,6 +171,7 @@ fn open_file(path: Option<&Path>, cfg: &Config) -> Result<Opened, String> {
     let mut ed = make_editor(l.buf, cfg);
     ed.path = Some(p.to_path_buf());
     ed.readonly = l.readonly;
+    crate::org::attach(&mut ed);
     let name = p.display();
     match l.notice.as_deref() {
         Some("[new]") => ed.set_msg(format!("\"{name}\" [new]")),
@@ -228,6 +229,7 @@ impl Session {
         swap_dir: &Path,
     ) -> Result<(Session, Option<SwapInfo>), String> {
         // `fred DIR`: an empty buffer, browsing DIR.
+        crate::org::options::set(cfg.org.0.clone());
         let browse = path.clone().filter(|p| p.is_dir());
         let path = if browse.is_some() { None } else { path };
         let o = open_file(path.as_deref(), cfg)?;
@@ -326,6 +328,11 @@ impl Session {
         match eff {
             ExEffect::None => {}
             ExEffect::Magit(a) => self.magit_action(a),
+            ExEffect::Org(e) => {
+                if let Some(f) = e.take() {
+                    f(self);
+                }
+            }
             ExEffect::Write { .. } if self.ed.dired.is_some() => crate::dired::save(&mut self.ed),
             ExEffect::Write {
                 path,
