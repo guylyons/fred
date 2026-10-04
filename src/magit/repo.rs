@@ -308,6 +308,15 @@ impl Repo {
         })
     }
     pub fn apply_hunk(&self, diff: &Diff, hunk: usize) -> Result<(), String> {
+        let mut args: Vec<&str> = vec!["--cached"];
+        if diff.staged {
+            args.push("--reverse");
+        }
+        self.apply_hunk_with(diff, hunk, &args)
+    }
+    /// Apply one hunk of DIFF with these `git apply` arguments (--cached,
+    /// --index, --reverse), after checking it still matches the repository.
+    pub fn apply_hunk_with(&self, diff: &Diff, hunk: usize, mode: &[&str]) -> Result<(), String> {
         let status = self.status()?;
         let entry = status
             .entries
@@ -328,13 +337,11 @@ impl Repo {
         let header_end = diff.hunks.first().ok_or("no hunk")?.start;
         let mut patch = diff.bytes[..header_end].to_vec();
         patch.extend_from_slice(&diff.bytes[h.start..h.end]);
-        let mut args: Vec<OsString> = ["apply", "--cached", "--recount", "--whitespace=nowarn"]
+        let mut args: Vec<OsString> = ["apply", "--recount", "--whitespace=nowarn"]
             .iter()
             .map(OsString::from)
             .collect();
-        if diff.staged {
-            args.push("--reverse".into());
-        }
+        args.extend(mode.iter().map(OsString::from));
         let mut check = args.clone();
         check.push("--check".into());
         self.run(&check, Some(&patch))?;

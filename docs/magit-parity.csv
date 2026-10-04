@@ -72,12 +72,12 @@ magit-apply.el,102,option,magit-post-unstage-hook,missing,,explicit
 magit-apply.el,113,command,magit-apply,missing,,explicit
 magit-apply.el,285,command,magit-stage,partial,s; file/hunk only; region and section staging missing,explicit
 magit-apply.el,312,command,magit-stage-files,missing,,explicit
-magit-apply.el,331,command,magit-stage-modified,missing,,explicit
+magit-apply.el,331,command,magit-stage-modified,partial,S: git add -u,explicit
 magit-apply.el,410,command,magit-unstage,partial,u; file/hunk only; region and section unstaging missing,explicit
 magit-apply.el,437,command,magit-unstage-files,missing,,explicit
-magit-apply.el,463,command,magit-unstage-all,missing,,explicit
-magit-apply.el,488,command,magit-discard,missing,,explicit
-magit-apply.el,686,command,magit-reverse,missing,,explicit
+magit-apply.el,463,command,magit-unstage-all,partial,"U: confirms, reset (or rm --cached when unborn)",explicit
+magit-apply.el,488,command,magit-discard,partial,"x in status (evil-collection): hunk, file, section; untracked deleted via git clean; always confirms",explicit
+magit-apply.el,686,command,magit-reverse,partial,- in status: staged hunk/file/section reversed in the worktree,explicit
 magit-apply.el,744,command,magit-reverse-in-index,missing,,explicit
 magit-apply.el,765,command,magit-copy-diff-as-kill,missing,,explicit
 magit-apply.el,792,command,magit-smerge-keep-current,missing,,explicit

@@ -236,3 +236,8 @@ configure (branch and repository variables), h/H shelve; the remote menu
 gains C configure (remote variables) and z unshallow. Variables cycle or
 prompt and report their new value; the menu does not yet show live values.
 Ledger 494 partial / 279 missing commands. Score remains 3%.
+
+October 4 apply checkpoint: status buffers gain x discard, - reverse, S stage
+all modified and U unstage all (evil-collection keys), each confirmed as
+upstream's magit-confirm defaults. Ledger 498 partial / 275 missing
+commands. Score remains 3%.

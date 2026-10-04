@@ -2168,6 +2168,89 @@ mod tests {
     }
 
     #[test]
+    fn magit_discard_reverse_stage_and_unstage_all() {
+        let mut t = T::open(Some("f.txt"), Some("one\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        fs::write(t.dir.path().join("g.txt"), "g\n").unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.stage_file(Path::new("g.txt")).unwrap();
+        repo.read(&["commit", "-qm", "one"]).unwrap();
+        fs::write(t.dir.path().join("f.txt"), "two\n").unwrap();
+        fs::write(t.dir.path().join("g.txt"), "changed\n").unwrap();
+        fs::write(t.dir.path().join("new.txt"), "new\n").unwrap();
+        t.keys(" ms");
+        magit_settle(&mut t);
+        let goto = |t: &mut T, f: &dyn Fn(&crate::magit::RowAction) -> bool| {
+            let row =
+                t.s.ed
+                    .magit
+                    .as_ref()
+                    .unwrap()
+                    .rows
+                    .iter()
+                    .position(|r| r.action.as_ref().is_some_and(f))
+                    .expect("row");
+            t.s.ed.set_cursor(row, 0);
+        };
+        use crate::magit::{RowAction, Section};
+        // x on an untracked file asks, then deletes it; "n" keeps it.
+        goto(
+            &mut t,
+            &|a| matches!(a, RowAction::File(p, Section::Untracked) if p == Path::new("new.txt")),
+        );
+        t.keys("xn<Enter>");
+        magit_settle(&mut t);
+        assert!(t.dir.path().join("new.txt").exists());
+        goto(
+            &mut t,
+            &|a| matches!(a, RowAction::File(p, Section::Untracked) if p == Path::new("new.txt")),
+        );
+        t.keys("xy<Enter>");
+        magit_settle(&mut t);
+        assert!(!t.dir.path().join("new.txt").exists());
+        // x on an unstaged file restores it from the index.
+        goto(
+            &mut t,
+            &|a| matches!(a, RowAction::File(p, Section::Unstaged) if p == Path::new("g.txt")),
+        );
+        t.keys("xy<Enter>");
+        magit_settle(&mut t);
+        assert_eq!(
+            fs::read_to_string(t.dir.path().join("g.txt")).unwrap(),
+            "g\n"
+        );
+        // S stages all modified; - reverses the staged hunk in the worktree only.
+        t.keys("S");
+        magit_settle(&mut t);
+        assert!(repo.read(&["diff", "--quiet"]).is_ok());
+        goto(
+            &mut t,
+            &|a| matches!(a, RowAction::File(p, Section::Staged) if p == Path::new("f.txt")),
+        );
+        t.keys("<Tab>");
+        magit_settle(&mut t);
+        goto(
+            &mut t,
+            &|a| matches!(a, RowAction::Hunk(p, true, ..) if p == Path::new("f.txt")),
+        );
+        t.keys("-y<Enter>");
+        magit_settle(&mut t);
+        assert_eq!(
+            fs::read_to_string(t.dir.path().join("f.txt")).unwrap(),
+            "one\n"
+        );
+        assert!(repo.read(&["diff", "--cached", "--quiet"]).is_err());
+        // U unstages everything.
+        t.keys("Uy<Enter>");
+        magit_settle(&mut t);
+        assert!(repo.read(&["diff", "--cached", "--quiet"]).is_ok());
+    }
+
+    #[test]
     fn magit_file_log_reads_deleted_parent_and_tracked_symlink_name() {
         use std::os::unix::fs::symlink;
         let mut t = T::open(Some("target"), Some("target contents\n"));

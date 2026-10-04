@@ -317,6 +317,47 @@ impl Session {
             }
             return;
         }
+        if let Action::Answered(repo, Question::Apply(op), answers, _) = action {
+            let origin = self.cur;
+            self.start_magit(move || {
+                let next = repo
+                    .apply_step(op, answers.first().map(String::as_str).unwrap_or(""))
+                    .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                Ok(branch_outcome(repo, next, origin))
+            });
+            return;
+        }
+        if let Action::ApplyOp(kind) = action {
+            use crate::magit::apply::{Op, Thing};
+            let Some(view) = self.ed.magit.as_deref() else {
+                return;
+            };
+            let thing = match view.action_at(self.ed.cur.line) {
+                Some(RowAction::Section(s)) => Some(Thing::Section(s)),
+                Some(RowAction::File(p, s)) => Some(Thing::File(p, s)),
+                Some(RowAction::Hunk(p, staged, i, _)) => view
+                    .diffs
+                    .get(&(p, staged))
+                    .map(|d| Thing::Hunk(d.clone(), i)),
+                _ => None,
+            };
+            let (repo, origin) = (view.repo.clone(), self.cur);
+            let op = Op { kind, thing };
+            match op.question() {
+                Err(e) => self.ed.set_err(e),
+                Ok(Some(q)) => crate::magit::prompt(
+                    &mut self.ed,
+                    crate::magit::Prompt::Ask(repo, Question::Apply(op), vec![], vec![q], vec![]),
+                ),
+                Ok(None) => self.start_magit(move || {
+                    let next = repo
+                        .apply_step(op, "")
+                        .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                    Ok(branch_outcome(repo, next, origin))
+                }),
+            }
+            return;
+        }
         if let Action::Answered(repo, Question::Configure(op), answers, defaults) = action {
             let origin = self.cur;
             self.start_magit(move || {
@@ -1117,7 +1158,8 @@ impl Session {
                 | Question::Clone(_)
                 | Question::Refs(_)
                 | Question::Ignore(_)
-                | Question::Configure(_) => {
+                | Question::Configure(_)
+                | Question::Apply(_) => {
                     unreachable!("handled before the worker")
                 }
                 Question::FindFile => {

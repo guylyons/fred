@@ -1,4 +1,5 @@
 //! A status-centered Git component; rendered text is never used as an operation path.
+pub mod apply;
 pub mod bisect;
 pub mod blame;
 pub mod blob;
@@ -108,6 +109,8 @@ pub enum Action {
     Refs(refs::Op),
     /// Branch/remote configuration, orphan, shelve and unshallow.
     Configure(configure::Op),
+    /// magit-discard / -reverse / -stage-modified / -unstage-all at point.
+    ApplyOp(apply::Kind),
     /// magit-diff-refresh suffixes for the diff buffer.
     DiffRefresh(diff::Refresh),
     /// A magit-gitignore.el or magit-sparse-checkout.el suffix.
@@ -771,6 +774,18 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         }
         KeyCode::Char('s') if !k.ctrl => Some(Action::Stage),
         KeyCode::Char('u') if !k.ctrl => Some(Action::Unstage),
+        // evil-collection: x discard (magit-delete-thing), - reverse,
+        // S stage all modified, U unstage all.
+        KeyCode::Char(c @ ('x' | '-' | 'S' | 'U'))
+            if !k.ctrl && ed.magit.as_ref().is_some_and(|v| v.kind == Kind::Status) =>
+        {
+            Some(Action::ApplyOp(match c {
+                'x' => apply::Kind::Discard,
+                '-' => apply::Kind::Reverse,
+                'S' => apply::Kind::StageModified,
+                _ => apply::Kind::UnstageAll,
+            }))
+        }
         KeyCode::Char('q') if !k.ctrl => Some(Action::Return),
         _ => None,
     };
@@ -941,6 +956,7 @@ pub enum Question {
     Refs(refs::Op),
     Ignore(ignore::Op),
     Configure(configure::Op),
+    Apply(apply::Op),
     Net(network::Op),
     Diff(diff::Op),
     FindFile,
