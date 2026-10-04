@@ -997,6 +997,11 @@ pub(crate) fn open_menu(ed: &mut Editor, menu: char) {
         let args = args.clone();
         set_menu_arguments(ed, 'y', &args);
     }
+    // magit-commit :value '("--verbose").
+    if menu == 'C' && ed.commit_repo.is_none() && ed.magit_seeded.insert('C') {
+        ed.magit_options
+            .insert(MenuOption::Switch('C', "--verbose"));
+    }
     // magit-am :value '("--3way").
     if menu == 'w' && ed.magit_seeded.insert('w') {
         ed.magit_options.insert(MenuOption::Switch('w', "--3way"));
@@ -2240,7 +2245,67 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 "Add Signed-off-by trailer",
                 ToggleOption(MenuOption::CommitSignoff),
             ),
-            ("a", "Commit", "Amend", AmendDraft),
+            (
+                "-v",
+                "Arguments",
+                "Show diff of changes to be committed",
+                ToggleOption(MenuOption::Switch('C', "--verbose")),
+            ),
+            (
+                "-A",
+                "Arguments",
+                "Override the author",
+                ReadOption("--author="),
+            ),
+            (
+                "-D",
+                "Arguments",
+                "Override the author date",
+                ReadOption("--date="),
+            ),
+            (
+                "-S",
+                "Arguments",
+                "Sign using gpg",
+                ReadOption("--gpg-sign="),
+            ),
+            (
+                "-C",
+                "Arguments",
+                "Reuse commit message",
+                ReadOption("--reuse-message="),
+            ),
+            (
+                "-c",
+                "Arguments",
+                "Reedit commit message",
+                ReadOption("--reedit-message="),
+            ),
+            ("a", "Edit HEAD", "Amend", AmendDraft),
+            (
+                "d",
+                "Edit HEAD",
+                "Reshelve",
+                CommitEdit(commit::Op::Reshelve),
+            ),
+            (
+                "R",
+                "Edit and rebase",
+                "Reword past",
+                Action::Rebase(rebase::Op::RewordCommit),
+            ),
+            (
+                "x",
+                "Spread across commits",
+                "Modified files",
+                CommitEdit(commit::Op::Autofixup),
+            ),
+            (
+                "X",
+                "Spread across commits",
+                "Updated modules",
+                CommitEdit(commit::Op::AbsorbModules),
+            ),
             ("f", "Edit", "Fixup", CommitEdit(commit::Op::Fixup)),
             ("s", "Edit", "Squash", CommitEdit(commit::Op::Squash)),
             ("A", "Edit", "Alter", CommitEdit(commit::Op::Alter)),

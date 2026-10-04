@@ -2024,6 +2024,41 @@ mod tests {
     }
 
     #[test]
+    fn magit_commit_reuse_and_reedit_message() {
+        let mut t = T::open(Some("f.txt"), Some("one\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "first message"]).unwrap();
+        fs::write(t.dir.path().join("f.txt"), "two\n").unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        // -C commits at once with the reused message.
+        t.keys(" mc-CHEAD<Enter>c");
+        magit_settle(&mut t);
+        let inv = t.s.pending_git.take().unwrap();
+        assert!(inv.args.iter().any(|a| a == "--reuse-message=HEAD"));
+        repo.run(&inv.args, None).unwrap();
+        let log = repo.read(&["log", "--format=%s"]).unwrap();
+        assert_eq!(
+            String::from_utf8_lossy(&log),
+            "first message\nfirst message\n"
+        );
+        // -c opens the draft with that message.
+        fs::write(t.dir.path().join("f.txt"), "three\n").unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        t.keys(" mc-C-cHEAD~1<Enter>c");
+        magit_settle(&mut t);
+        assert!(
+            t.s.ed.buf.text().starts_with("first message"),
+            "{}",
+            t.s.ed.buf.text()
+        );
+    }
+
+    #[test]
     fn magit_file_log_reads_deleted_parent_and_tracked_symlink_name() {
         use std::os::unix::fs::symlink;
         let mut t = T::open(Some("target"), Some("target contents\n"));

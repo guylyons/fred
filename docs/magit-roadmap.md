@@ -204,3 +204,8 @@ October 4 ignore checkpoint: Space m I ports magit-gitignore (toplevel,
 subdirectory, private, global rules; skip-worktree and assume-unchanged) and
 Space m > ports magit-sparse-checkout ([scenarios](magit-ignore-acceptance.md)).
 Ledger 419 partial / 354 missing commands. Score remains 3%.
+
+October 4 commit-menu checkpoint: Space m c gains -v (seeded), -A, -D, -S,
+-C reuse (commit at once) and -c reedit (draft from that message), d
+reshelve, R reword past, x autofixup and X absorb modules. Ledger 430
+partial / 343 missing commands. Score remains 3%.

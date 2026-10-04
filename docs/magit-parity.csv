@@ -233,25 +233,25 @@ magit-commit.el,324,command,magit-commit-augment,partial,Space m C n (Fred as Gi
 magit-commit.el,342,command,magit-commit-revise,partial,Space m C W; no patch needed,explicit
 magit-commit.el,361,command,magit-commit-instant-fixup,partial,Space m C F; commit then autosquash rebase,explicit
 magit-commit.el,376,command,magit-commit-instant-squash,partial,Space m C S,explicit
-magit-commit.el,501,command,magit-commit-reshelve,missing,,explicit
-magit-commit.el,535,command,magit-commit-absorb-modules,missing,,explicit
+magit-commit.el,501,command,magit-commit-reshelve,partial,Space m c d: date (default now); author date too for your own commit,explicit
+magit-commit.el,535,command,magit-commit-absorb-modules,partial,c X: fixup per modified module since a commit (default upstream; no log-select),explicit
 magit-commit.el,558,command,magit-commit-absorb,missing,,explicit
-magit-commit.el,601,command,magit-commit-autofixup,missing,,explicit
+magit-commit.el,601,command,magit-commit-autofixup,partial,c x: git autofixup -vv against the merge base; requires git-autofixup; no own menu,explicit
 magit-commit.el,773,command,magit-commit-add-log,missing,,explicit
 magit-commit.el,833,option,magit-post-commit-hook,missing,,explicit
 magit-commit.el,,command,magit-autofixup:--context,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-commit.el,,command,magit-autofixup:--strict,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-commit.el,,command,magit-commit:--date,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-commit.el,,command,magit-commit:--reedit-message,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-commit.el,,command,magit-commit:--reuse-message,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-commit.el,,command,magit-commit:--date,partial,-D reads a value,runtime
+magit-commit.el,,command,magit-commit:--reedit-message,partial,-c: draft starts from that message,runtime
+magit-commit.el,,command,magit-commit:--reuse-message,partial,-C: commits at once with that message,runtime
 magit-commit.el,,command,transient:magit-commit-absorb:--force,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-commit.el,,command,transient:magit-commit-absorb:--verbose,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-commit.el,,command,transient:magit-commit-autofixup:-vv,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-commit.el,,command,transient:magit-commit:--all,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-commit.el,,command,transient:magit-commit:--allow-empty,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-commit.el,,command,transient:magit-commit:--no-verify,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-commit.el,,command,transient:magit-commit:--reset-author,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-commit.el,,command,transient:magit-commit:--verbose,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-commit.el,,command,transient:magit-commit:--all,partial,-a,runtime
+magit-commit.el,,command,transient:magit-commit:--allow-empty,partial,-e,runtime
+magit-commit.el,,command,transient:magit-commit:--no-verify,partial,-n,runtime
+magit-commit.el,,command,transient:magit-commit:--reset-author,partial,-R,runtime
+magit-commit.el,,command,transient:magit-commit:--verbose,partial,-v (seeded); diff not shown in the draft,runtime
 magit-diff.el,123,option,magit-diff-mode-hook,missing,,explicit
 magit-diff.el,128,option,magit-diff-sections-hook,missing,,explicit
 magit-diff.el,136,option,magit-diff-expansion-threshold,missing,,explicit

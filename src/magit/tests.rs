@@ -3259,3 +3259,69 @@ fn gitignore_rules_skip_worktree_and_sparse_checkout() {
     r.ignore_step(Op::SparseDisable, &[], &[]).unwrap();
     assert!(d.path().join("other/o").exists());
 }
+
+#[test]
+fn commit_reshelve_and_absorb_modules() {
+    use super::branch::Next;
+    use super::commit::Op;
+    let (d, r) = setup();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    git(d.path(), &["config", "user.email", "fred@example.test"]);
+    git(d.path(), &["config", "user.name", "Fred Test"]);
+    fs::write(d.path().join("f"), "f").unwrap();
+    git(d.path(), &["add", "f"]);
+    git(d.path(), &["commit", "-qm", "f"]);
+    let (prompts, def) = r.commit_prompts(&Op::Reshelve, None);
+    assert!(prompts[0].starts_with("Change author and committer dates"));
+    r.commit_step(Op::Reshelve, &s(&["2020-01-02 03:04:05 +0000"]), &[])
+        .unwrap();
+    let dates = String::from_utf8(git(
+        d.path(),
+        &["log", "-1", "--format=%ad|%cd", "--date=iso"],
+    ))
+    .unwrap();
+    assert_eq!(
+        dates.trim(),
+        "2020-01-02 03:04:05 +0000|2020-01-02 03:04:05 +0000"
+    );
+    r.commit_step(Op::Reshelve, &def, &[]).unwrap();
+    let year = String::from_utf8(git(
+        d.path(),
+        &["log", "-1", "--format=%cd", "--date=format:%Y"],
+    ))
+    .unwrap();
+    assert_ne!(year.trim(), "2020");
+    assert!(r.commit_step(Op::Reshelve, &s(&["-x"]), &[]).is_err());
+    // Absorb modules: a fixup commit for a module whose gitlink moved.
+    let (sub, _) = setup();
+    fs::write(sub.path().join("x"), "1").unwrap();
+    git(sub.path(), &["add", "x"]);
+    git(sub.path(), &["commit", "-qm", "one"]);
+    git(
+        d.path(),
+        &[
+            "-c",
+            "protocol.file.allow=always",
+            "submodule",
+            "add",
+            "-q",
+            &sub.path().to_string_lossy(),
+            "lib",
+        ],
+    );
+    git(d.path(), &["commit", "-qm", "add lib"]);
+    assert!(
+        r.commit_step(Op::AbsorbModules, &s(&["HEAD~1"]), &[])
+            .is_err()
+    );
+    fs::write(d.path().join("lib/x"), "2").unwrap();
+    git(&d.path().join("lib"), &["commit", "-qam", "two"]);
+    let Next::Done(Ok(_)) = r
+        .commit_step(Op::AbsorbModules, &s(&["HEAD~1"]), &[])
+        .unwrap()
+    else {
+        panic!()
+    };
+    let subject = String::from_utf8(git(d.path(), &["log", "-1", "--format=%s"])).unwrap();
+    assert_eq!(subject.trim(), "fixup! add lib");
+}

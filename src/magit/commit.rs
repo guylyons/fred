@@ -18,6 +18,12 @@ pub enum Op {
     Published(Box<Op>, String, bool),
     /// Merges in the instant rebase range would be flattened: confirm.
     Merges(Box<Op>, String, bool),
+    /// magit-commit-reshelve.
+    Reshelve,
+    /// magit-commit-absorb-modules.
+    AbsorbModules,
+    /// magit-commit-autofixup (needs git-autofixup).
+    Autofixup,
 }
 
 impl Op {
@@ -32,6 +38,7 @@ impl Op {
             Op::InstantFixup => ("--fixup=", false, false, true),
             Op::InstantSquash => ("--squash=", false, false, true),
             Op::StageAll(op, _) | Op::Published(op, ..) | Op::Merges(op, ..) => op.shape(),
+            Op::Reshelve | Op::AbsorbModules | Op::Autofixup => ("", false, true, false),
         }
     }
     fn verb(&self) -> &'static str {
@@ -42,6 +49,8 @@ impl Op {
             Op::Augment => "Augment",
             Op::Revise => "Revise",
             Op::StageAll(op, _) | Op::Published(op, ..) | Op::Merges(op, ..) => op.verb(),
+            Op::Reshelve => "Reshelve",
+            Op::AbsorbModules | Op::Autofixup => "Absorb into",
         }
     }
 }
@@ -53,6 +62,21 @@ impl Repo {
             .unwrap_or(false)
     }
     pub fn commit_prompts(&self, op: &Op, at_point: Option<String>) -> (Vec<String>, Vec<String>) {
+        if *op == Op::Reshelve {
+            return self.reshelve_prompt();
+        }
+        if matches!(op, Op::AbsorbModules | Op::Autofixup) {
+            // Commits since the upstream (its merge base for autofixup).
+            let d = self
+                .current_branch()
+                .ok()
+                .and_then(|b| self.upstream_of(&b))
+                .unwrap_or_default();
+            return (
+                vec![format!("Absorb into commits since (default {d}): ")],
+                vec![d],
+            );
+        }
         let d = at_point.unwrap_or_default();
         (
             vec![format!("{} commit (default {d}): ", op.verb())],
@@ -62,6 +86,25 @@ impl Repo {
 
     pub fn commit_step(&self, op: Op, a: &[String], args: &[String]) -> Result<Next, String> {
         let at = |i: usize| a.get(i).map(String::as_str).unwrap_or("");
+        match op {
+            Op::Reshelve => return self.reshelve(at(0), args),
+            Op::AbsorbModules => return self.absorb_modules(at(0).trim()),
+            Op::Autofixup => {
+                let since = at(0).trim();
+                if since.is_empty() || since.starts_with('-') {
+                    return Err(format!("invalid commit {since:?}"));
+                }
+                if self.read(&["autofixup", "--help"]).is_err() {
+                    return Err("This command requires git-autofixup".into());
+                }
+                let base = self
+                    .read(&["merge-base", "--end-of-options", since, "HEAD"])
+                    .map(|o| String::from_utf8_lossy(&o).trim().to_owned())
+                    .map_err(|_| format!("unknown commit {since:?}"))?;
+                return Ok(Next::Git(vec!["autofixup".into(), "-vv".into(), base]));
+            }
+            _ => {}
+        }
         let (op, target, args, confirmed) = match op {
             Op::StageAll(op, target) => {
                 if !matches!(at(0), "y" | "yes") {
@@ -253,5 +296,106 @@ impl Repo {
             return Err("Nothing staged (or unstaged)".into());
         }
         Ok(false)
+    }
+}
+
+impl Repo {
+    /// magit-commit-reshelve: (prompt, default) for the new date.
+    pub fn reshelve_prompt(&self) -> (Vec<String>, Vec<String>) {
+        let verb = if self.author_is_me() {
+            "Change author and committer dates to"
+        } else {
+            "Change committer date to"
+        };
+        (vec![format!("{verb} (default now): ")], vec!["now".into()])
+    }
+    /// magit-rev-author-p HEAD.
+    fn author_is_me(&self) -> bool {
+        let get = |a: &[&str]| {
+            self.read(a)
+                .ok()
+                .map(|o| String::from_utf8_lossy(&o).trim().to_owned())
+        };
+        let me = get(&["config", "user.email"]);
+        me.is_some() && me == get(&["log", "-1", "--format=%ae", "HEAD"])
+    }
+    /// Change the committer (and, for your own commit, author) date of HEAD.
+    pub fn reshelve(&self, date: &str, args: &[String]) -> Result<Next, String> {
+        let date = date.trim();
+        if date.is_empty() || date.starts_with('-') || date.chars().any(char::is_control) {
+            return Err(format!("invalid date {date:?}"));
+        }
+        // GIT_COMMITTER_DATE has no "now": use Git's raw "<seconds> <zone>".
+        let date = if date == "now" {
+            let secs = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(|e| e.to_string())?
+                .as_secs();
+            format!("{secs} +0000")
+        } else {
+            date.to_owned()
+        };
+        let mut argv = vec!["commit".to_owned(), "--amend".into(), "--no-edit".into()];
+        if self.author_is_me() {
+            argv.push(format!("--date={date}"));
+        }
+        // Only arguments that keep the commit's content and message.
+        argv.extend(
+            args.iter()
+                .filter(|a| a.starts_with("--gpg-sign") || *a == "--no-verify")
+                .cloned(),
+        );
+        let out = self
+            .command()
+            .env("GIT_COMMITTER_DATE", &date)
+            .args(&argv)
+            .output()
+            .map_err(|e| e.to_string())?;
+        if !out.status.success() {
+            return Err(String::from_utf8_lossy(&out.stderr).trim().to_owned());
+        }
+        Ok(Next::Done(Ok("Reshelved HEAD".into())))
+    }
+    /// magit-commit-absorb-modules: a fixup commit per modified module,
+    /// targeting the last commit since COMMIT that touched it.
+    pub fn absorb_modules(&self, since: &str) -> Result<Next, String> {
+        if since.is_empty() || since.starts_with('-') || since.chars().any(char::is_control) {
+            return Err(format!("invalid commit {since:?}"));
+        }
+        self.read(&[
+            "merge-base",
+            "--is-ancestor",
+            "--end-of-options",
+            since,
+            "HEAD",
+        ])
+        .map_err(|_| format!("{since} isn't an ancestor of HEAD"))?;
+        let modules = self.module_paths()?;
+        let modified: Vec<&String> = modules
+            .iter()
+            .filter(|m| self.read(&["diff", "--quiet", "HEAD", "--", m]).is_err())
+            .collect();
+        if modified.is_empty() {
+            return Err("There are no modified modules that could be absorbed".into());
+        }
+        let mut made = 0;
+        for m in modified {
+            let subject =
+                self.read(&["log", "-1", "--format=%s", &format!("{since}.."), "--", m])?;
+            let subject = String::from_utf8_lossy(&subject).trim().to_owned();
+            if subject.is_empty() {
+                continue;
+            }
+            self.read(&[
+                "commit",
+                "-m",
+                &format!("fixup! {subject}"),
+                "--only",
+                "--",
+                m,
+            ])?;
+            made += 1;
+        }
+        Ok(Next::Done(Ok(format!("Created {made} fixup commits"))))
     }
 }

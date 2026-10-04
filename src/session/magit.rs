@@ -1587,12 +1587,51 @@ impl Session {
                         Ok(Outcome::Git(inv))
                     }
                 }
-                Action::Commit => Ok(Outcome::Draft(
-                    repo,
-                    crate::magit::CommitMode::New,
-                    vec![],
-                    commit_args,
-                )),
+                Action::Commit => {
+                    // --reuse-message commits at once; --reedit-message starts
+                    // the draft from that message (Fred owns the message buffer).
+                    let value = |p: &str| {
+                        commit_args
+                            .iter()
+                            .find_map(|a| a.strip_prefix(p))
+                            .map(str::to_owned)
+                    };
+                    let (reuse, reedit) = (value("--reuse-message="), value("--reedit-message="));
+                    let rest: Vec<String> = commit_args
+                        .iter()
+                        .filter(|a| {
+                            !a.starts_with("--reuse-message=")
+                                && !a.starts_with("--reedit-message=")
+                        })
+                        .cloned()
+                        .collect();
+                    if let Some(r) = reuse {
+                        let mut args: Vec<OsString> = vec!["commit".into()];
+                        args.extend(rest.iter().map(OsString::from));
+                        args.push(format!("--reuse-message={r}").into());
+                        return Ok(Outcome::Git(GitInvocation {
+                            expected_head: None,
+                            repo,
+                            args,
+                            input: None,
+                            draft: None,
+                            draft_stamp: None,
+                            editor: false,
+                        }));
+                    }
+                    let message = match reedit {
+                        Some(r) => repo
+                            .read(&["log", "-1", "--format=%B", "--end-of-options", &r])
+                            .map_err(|_| format!("unknown commit {r:?}"))?,
+                        None => vec![],
+                    };
+                    Ok(Outcome::Draft(
+                        repo,
+                        crate::magit::CommitMode::New,
+                        message,
+                        rest,
+                    ))
+                }
                 Action::AmendDraft | Action::RewordDraft => {
                     let head =
                         String::from_utf8_lossy(&repo.read(&["rev-parse", "--verify", "HEAD"])?)
