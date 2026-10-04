@@ -288,3 +288,8 @@ October 4 status/process checkpoint: Space m j status jump (fu fp pu pp),
 :Magit magit-parent-status, and a process buffer (` / Space m $) listing the
 repository's terminal Git commands with their errors. Ledger 598 partial /
 175 missing commands. Score remains 3%.
+
+October 4 wip checkpoint: magit-wip commit (index and worktree refs through a
+temporary index), wip logs (l i, l w, current) and purge; magit-wip-mode's
+automatic saving is not ported. Ledger 604 partial / 169 missing commands.
+Score remains 3%.

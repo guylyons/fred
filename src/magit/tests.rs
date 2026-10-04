@@ -3644,3 +3644,52 @@ fn misc_git_command_reset_quickly_and_checkout_stage() {
     assert_eq!(fs::read_to_string(d.path().join("f")).unwrap(), "side\n");
     assert!(r.status().unwrap().entries.iter().all(|e| !e.conflict));
 }
+
+#[test]
+fn wip_commit_logs_and_purge() {
+    use super::branch::Next;
+    use super::wip::Op;
+    let (d, r) = setup();
+    fs::write(d.path().join("f"), "base\n").unwrap();
+    git(d.path(), &["add", "f"]);
+    git(d.path(), &["commit", "-qm", "base"]);
+    fs::write(d.path().join("f"), "staged\n").unwrap();
+    git(d.path(), &["add", "f"]);
+    fs::write(d.path().join("f"), "worktree\n").unwrap();
+    r.wip_step(Op::Commit, &[]).unwrap();
+    let show = |r: &str| String::from_utf8(git(d.path(), &["show", &format!("{r}:f")])).unwrap();
+    assert_eq!(show("refs/wip/index/refs/heads/main"), "staged\n");
+    assert_eq!(show("refs/wip/wtree/refs/heads/main"), "worktree\n");
+    // Index and worktree untouched.
+    assert_eq!(
+        fs::read_to_string(d.path().join("f")).unwrap(),
+        "worktree\n"
+    );
+    assert_eq!(
+        String::from_utf8(git(d.path(), &["diff", "--cached", "--name-only"])).unwrap(),
+        "f\n"
+    );
+    let Next::Done(Ok(m)) = r.wip_step(Op::Commit, &[]).unwrap() else {
+        panic!()
+    };
+    assert!(m.contains("No changes"), "{m}");
+    let Next::View(super::Kind::Log(revs, _)) = r.wip_step(Op::LogCurrent, &[]).unwrap() else {
+        panic!()
+    };
+    assert_eq!(revs.len(), 3);
+    // A deleted branch leaves dangling wip refs to purge.
+    git(d.path(), &["checkout", "-qb", "gone"]);
+    r.wip_step(Op::Commit, &[]).unwrap();
+    git(d.path(), &["checkout", "-q", "main"]);
+    git(d.path(), &["branch", "-D", "gone"]);
+    let Next::Ask(super::Question::Wip(op), ..) = r.wip_step(Op::Purge, &[]).unwrap() else {
+        panic!()
+    };
+    r.wip_step(op, &["y".into()]).unwrap();
+    let refs = String::from_utf8(git(
+        d.path(),
+        &["for-each-ref", "--format=%(refname)", "refs/wip/"],
+    ))
+    .unwrap();
+    assert!(!refs.contains("gone") && refs.contains("main"), "{refs}");
+}

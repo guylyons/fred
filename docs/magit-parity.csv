@@ -980,12 +980,12 @@ magit-wip.el,49,option,magit-wip-merge-branch,missing,,explicit
 magit-wip.el,71,option,magit-wip-namespace,missing,,explicit
 magit-wip.el,81,option,magit-wip-debug,missing,,explicit
 magit-wip.el,115,command,magit-wip-commit-buffer-file,missing,,explicit
-magit-wip.el,149,command,magit-wip-commit,missing,,explicit
-magit-wip.el,287,command,magit-wip-log-index,missing,,explicit
-magit-wip.el,292,command,magit-wip-log-worktree,missing,,explicit
-magit-wip.el,297,command,magit-wip-log-current,missing,,explicit
-magit-wip.el,308,command,magit-wip-log,missing,,explicit
-magit-wip.el,350,command,magit-wip-purge,missing,,explicit
+magit-wip.el,149,command,magit-wip-commit,partial,Space m z r / :Magit: index and worktree wip refs (magit-wip-merge-branch nil),explicit
+magit-wip.el,287,command,magit-wip-log-index,partial,Space m l i,explicit
+magit-wip.el,292,command,magit-wip-log-worktree,partial,Space m l w,explicit
+magit-wip.el,297,command,magit-wip-log-current,partial,:Magit magit-wip-log-current: branch plus its wip refs (no tip count),explicit
+magit-wip.el,308,command,magit-wip-log,partial,:Magit magit-wip-log: current branch only (no branch prompt),explicit
+magit-wip.el,350,command,magit-wip-purge,partial,":Magit magit-wip-purge: confirm, delete dangling wip refs",explicit
 magit-wip.el,,command,magit-wip-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-wip.el,,option,magit-wip-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-wip.el,,option,magit-wip-mode-hook,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime

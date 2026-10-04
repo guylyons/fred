@@ -330,9 +330,9 @@ impl Repo {
 }
 use std::os::unix::ffi::OsStringExt;
 
-struct StashIndex(std::path::PathBuf);
+pub(super) struct StashIndex(pub(super) std::path::PathBuf);
 impl StashIndex {
-    fn new() -> Result<Self, String> {
+    pub(super) fn new() -> Result<Self, String> {
         use std::os::unix::fs::DirBuilderExt;
         use std::sync::atomic::{AtomicU64, Ordering};
         static NEXT: AtomicU64 = AtomicU64::new(0);

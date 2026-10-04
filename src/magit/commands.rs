@@ -1,7 +1,7 @@
 //! `:Magit NAME`: upstream command names for Fred's actions, so commands
 //! reached through M-x in Emacs (and every menu) have a way in.
 use super::Action::{self, *};
-use super::{Fold, apply, diff, log, misc, refs};
+use super::{Fold, apply, diff, log, misc, refs, wip};
 
 /// The action for an upstream command name.
 pub fn by_name(name: &str) -> Option<Action> {
@@ -93,6 +93,11 @@ pub fn by_name(name: &str) -> Option<Action> {
         "magit-push-implicitly" => Some(GitRun(&["push", "-v"])),
         "magit-run" => menu('!'),
         "magit-process-buffer" => Some(ProcessBuffer),
+        "magit-wip-commit" => Some(Wip(wip::Op::Commit)),
+        "magit-wip-log-index" => Some(Wip(wip::Op::LogIndex)),
+        "magit-wip-log-worktree" => Some(Wip(wip::Op::LogWorktree)),
+        "magit-wip-log-current" | "magit-wip-log" => Some(Wip(wip::Op::LogCurrent)),
+        "magit-wip-purge" => Some(Wip(wip::Op::Purge)),
         "magit-status-jump" => menu('h'),
         "magit-parent-status" => Some(ParentStatus),
         "magit-jump-to-stashes" => Some(Jump("Stashes")),

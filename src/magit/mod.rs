@@ -29,6 +29,7 @@ pub mod status;
 pub mod submodule;
 pub mod subtree;
 pub mod tag;
+pub mod wip;
 pub mod workflows;
 pub mod worktree;
 use crate::{
@@ -158,6 +159,8 @@ pub enum Action {
     Misc(misc::Op),
     /// magit-process-buffer.
     ProcessBuffer,
+    /// A magit-wip.el command.
+    Wip(wip::Op),
     /// magit-jump-to-*: a status section by name.
     Jump(&'static str),
     /// magit-parent-status: the superproject or enclosing repository.
@@ -1209,6 +1212,7 @@ pub enum Question {
     Configure(configure::Op),
     Apply(apply::Op),
     Misc(misc::Op),
+    Wip(wip::Op),
     Net(network::Op),
     Diff(diff::Op),
     FindFile,
@@ -1877,6 +1881,8 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 ("O", "Reflog", "other", Reflog(None)),
                 ("H", "Reflog", "HEAD", Reflog(Some("HEAD".into()))),
                 ("s", "Other", "shortlog", Menu('S')),
+                ("i", "Wiplog", "index", Wip(wip::Op::LogIndex)),
+                ("w", "Wiplog", "worktree", Wip(wip::Op::LogWorktree)),
             ]
         }
         'o' => {
@@ -2618,6 +2624,7 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 StashOp(stash::Op::Clear),
             ),
             ("P", "Stash", "push...", Menu('Q')),
+            ("r", "Snapshot", "to wip ref", Wip(wip::Op::Commit)),
         ],
         // magit-file-dispatch: the visited file or blob.
         'F' => {

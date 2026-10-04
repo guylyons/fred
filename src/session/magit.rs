@@ -512,6 +512,27 @@ impl Session {
             });
             return;
         }
+        if let Action::Answered(repo, Question::Wip(op), answers, _) = action {
+            let origin = self.cur;
+            self.start_magit(move || {
+                let next = repo
+                    .wip_step(op, &answers)
+                    .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                Ok(branch_outcome(repo, next, origin))
+            });
+            return;
+        }
+        if let Action::Wip(op) = action {
+            let (origin, from) = (self.cur, self.magit_from());
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                let next = repo
+                    .wip_step(op, &[])
+                    .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                Ok(branch_outcome(repo, next, origin))
+            });
+            return;
+        }
         if action == Action::ProcessBuffer {
             // magit-process-buffer: this repository's Git commands, newest last.
             let Ok(repo) = Repo::discover(&self.magit_from()) else {
@@ -1614,7 +1635,8 @@ impl Session {
                 | Question::Ignore(_)
                 | Question::Configure(_)
                 | Question::Apply(_)
-                | Question::Misc(_) => {
+                | Question::Misc(_)
+                | Question::Wip(_) => {
                     unreachable!("handled before the worker")
                 }
                 Question::FindFile => {
