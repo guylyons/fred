@@ -202,6 +202,58 @@ impl Session {
             });
             return;
         }
+        if let Action::Answered(repo, Question::Worktree(op), answers, defaults) = action {
+            let origin = self.cur;
+            self.start_magit(move || {
+                let merged = merge_answers(&answers, &defaults);
+                let next = repo
+                    .worktree_step(op, &merged)
+                    .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                Ok(branch_outcome(repo, next, origin))
+            });
+            return;
+        }
+        if let Action::Worktree(op) = action {
+            let from = self.magit_from();
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                let (prompts, defaults) = repo.worktree_prompts(&op, None);
+                Ok(Outcome::Ask(
+                    repo,
+                    Question::Worktree(op),
+                    defaults,
+                    prompts,
+                ))
+            });
+            return;
+        }
+        if let Action::Answered(repo, Question::Reflog, answers, _) = action {
+            let origin = self.cur;
+            let target = answers.first().cloned().unwrap_or_default();
+            self.start_magit(move || reflog_view(repo, target, origin));
+            return;
+        }
+        if let Action::Reflog(target) = action {
+            let (origin, from) = (self.cur, self.magit_from());
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                match target {
+                    None => Ok(Outcome::Ask(
+                        repo,
+                        Question::Reflog,
+                        vec![String::new()],
+                        vec!["Show reflog for: ".into()],
+                    )),
+                    // magit-reflog-current: the branch, or HEAD when detached.
+                    Some(r) if r.is_empty() => {
+                        let r = repo.current_branch().unwrap_or_else(|_| "HEAD".into());
+                        reflog_view(repo, r, origin)
+                    }
+                    Some(r) => reflog_view(repo, r, origin),
+                }
+            });
+            return;
+        }
         if let Action::Answered(repo, Question::Stash(op), answers, defaults) = action {
             let origin = self.cur;
             self.start_magit(move || {
@@ -523,7 +575,9 @@ impl Session {
                 | Question::Sequence(_)
                 | Question::Rebase(_)
                 | Question::Commit(_)
-                | Question::Stash(_) => {
+                | Question::Stash(_)
+                | Question::Worktree(_)
+                | Question::Reflog => {
                     unreachable!("handled before the worker")
                 }
                 Question::FindFile => {
@@ -1879,6 +1933,19 @@ fn branch_outcome(repo: Repo, next: crate::magit::branch::Next, origin: usize) -
             editor: true,
         }),
         Next::Todo(plan) => Outcome::Todo(plan),
+        Next::Status(dir) => {
+            let view = Repo::discover(&dir).and_then(|repo| {
+                let snapshot = repo.status()?;
+                Ok(View::new_status(repo, snapshot))
+            });
+            match view {
+                Ok(mut view) => {
+                    view.return_to = origin;
+                    Outcome::View(Box::new(view), None, 0)
+                }
+                Err(e) => Outcome::Saved(repo, Err(e)),
+            }
+        }
         Next::Replay(plan) => match plan.replay() {
             Ok(inv) => Outcome::Git(inv),
             Err(e) => Outcome::Saved(repo, Err(e)),
@@ -2052,7 +2119,7 @@ fn refresh_view(view: &mut View) -> Result<(), String> {
         view.rows = rows;
         return Ok(());
     }
-    if matches!(view.kind, Kind::Log | Kind::FileLog(..)) {
+    if matches!(view.kind, Kind::Log | Kind::FileLog(..) | Kind::Reflog(_)) {
         return refresh_log(view);
     }
     if let Kind::StashPatch(stash) = &view.kind {
@@ -2085,7 +2152,56 @@ fn refresh_view(view: &mut View) -> Result<(), String> {
     view.rebuild();
     Ok(())
 }
+fn reflog_view(repo: Repo, target: String, origin: usize) -> Result<Outcome, String> {
+    if target.is_empty() || target.starts_with('-') || target.chars().any(char::is_control) {
+        return Err(format!("invalid ref {target:?}"));
+    }
+    repo.read(&["rev-parse", "--verify", "-q", "--end-of-options", &target])
+        .map_err(|_| format!("unknown ref {target:?}"))?;
+    let mut view = View::status(repo.clone(), Default::default());
+    view.kind = Kind::Reflog(target);
+    view.return_to = origin;
+    refresh_log(&mut view)?;
+    Ok(Outcome::View(Box::new(view), None, 0))
+}
 fn refresh_log(view: &mut View) -> Result<(), String> {
+    if let Kind::Reflog(target) = &view.kind {
+        // magit-reflog-refresh-buffer, limited by magit-reflog-limit (256).
+        let out = view.repo.read(&[
+            "reflog",
+            "show",
+            "--format=%H%x00%gd%x00%gs",
+            "-n256",
+            "--end-of-options",
+            target,
+            "--",
+        ])?;
+        let mut rows = vec![Row {
+            text: format!(
+                "Reflog for {} (Enter inspect, gr refresh, q return)",
+                label(Path::new(target))
+            ),
+            action: None,
+        }];
+        let fields: Vec<_> = out.split(|b| *b == 0 || *b == b'\n').collect();
+        for c in fields
+            .chunks(3)
+            .filter(|c| c.len() == 3 && !c[0].is_empty())
+        {
+            let id = String::from_utf8_lossy(c[0]).trim().to_owned();
+            rows.push(Row {
+                text: format!(
+                    "{} {} {}",
+                    &id[..id.len().min(8)],
+                    label(Path::new(&String::from_utf8_lossy(c[1]).into_owned())),
+                    label(Path::new(&String::from_utf8_lossy(c[2]).into_owned()))
+                ),
+                action: Some(RowAction::Commit(id)),
+            });
+        }
+        view.rows = rows;
+        return Ok(());
+    }
     let (heading, commits) = match &view.kind {
         Kind::FileLog(path, follow) => (
             format!(

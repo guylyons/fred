@@ -58,7 +58,7 @@ impl Repo {
             .map(str::to_owned)
             .collect())
     }
-    pub(super) fn current_branch(&self) -> Result<String, String> {
+    pub fn current_branch(&self) -> Result<String, String> {
         self.read(&["symbolic-ref", "--short", "-q", "HEAD"])
             .ok()
             .map(|b| String::from_utf8_lossy(&b).trim().to_owned())

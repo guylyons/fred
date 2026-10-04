@@ -48,6 +48,8 @@ pub enum Next {
     Todo(super::rebase::Plan),
     /// Run an interactive rebase with its prepared todo list.
     Replay(super::rebase::Plan),
+    /// Show the status of another worktree.
+    Status(std::path::PathBuf),
 }
 
 fn name(v: &str) -> Result<&str, String> {

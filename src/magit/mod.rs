@@ -15,6 +15,7 @@ pub mod stash;
 pub mod status;
 pub mod tag;
 pub mod workflows;
+pub mod worktree;
 use crate::{
     editor::{Editor, Mode},
     ex::ExEffect,
@@ -74,6 +75,10 @@ pub enum Action {
     CommitEdit(commit::Op),
     /// A stash transform from magit-stash.el.
     StashOp(stash::Op),
+    /// A magit-worktree.el suffix.
+    Worktree(worktree::Op),
+    /// magit-reflog-current / -head / -other (None asks for a ref).
+    Reflog(Option<String>),
     /// ZZ / ZQ in a rebase todo buffer.
     RebaseFinish,
     RebaseCancel,
@@ -158,6 +163,8 @@ pub enum Kind {
     StashPatch(workflows::Stash),
     Patch(String),
     Diff(diff::Target, Vec<String>),
+    /// magit-reflog-mode for a ref.
+    Reflog(String),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct View {
@@ -211,6 +218,7 @@ impl View {
             Kind::StashPatch(stash) => format!("Magit {}", stash.selector),
             Kind::Patch(id) => format!("Magit {id}"),
             Kind::Diff(target, _) => format!("Magit diff: {}", target.title()),
+            Kind::Reflog(r) => format!("Magit reflog {}", label(std::path::Path::new(r))),
         }
     }
     pub fn text(&self) -> String {
@@ -694,6 +702,8 @@ pub enum Question {
     Rebase(rebase::Op),
     Commit(commit::Op),
     Stash(stash::Op),
+    Worktree(worktree::Op),
+    Reflog,
     Net(network::Op),
     Diff(diff::Op),
     FindFile,
@@ -826,6 +836,7 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("i", "Repository", "Init", Init),
             ("F", "Inspect", "File dispatch", Menu('F')),
             ("X", "History", "Reset", Menu('X')),
+            ("Z", "Repository", "Worktree", Menu('Y')),
             ("b", "Branch", "Branch operations", Menu('b')),
             ("B", "Inspect", "Blame", Menu('B')),
             ("c", "Commit", "Commit menu", Menu('C')),
@@ -1049,6 +1060,9 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ),
             ("l", "Log", "Current (HEAD)", Log),
             ("h", "Log", "HEAD", LogHead),
+            ("r", "Reflog", "current", Reflog(Some(String::new()))),
+            ("O", "Reflog", "other", Reflog(None)),
+            ("H", "Reflog", "HEAD", Reflog(Some("HEAD".into()))),
         ],
         'z' => vec![
             (
@@ -1312,6 +1326,32 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                     "Actions",
                     "Prune stale refspecs",
                     Action::Remote(O::PruneRefspecs),
+                ),
+            ]
+        }
+        // magit-worktree (internal id Y; leader key Z as in magit-dispatch).
+        'Y' => {
+            use worktree::Op as O;
+            vec![
+                ("b", "Create new", "worktree", Action::Worktree(O::Checkout)),
+                (
+                    "c",
+                    "Create new",
+                    "branch and worktree",
+                    Action::Worktree(O::Branch),
+                ),
+                ("m", "Commands", "Move worktree", Action::Worktree(O::Move)),
+                (
+                    "k",
+                    "Commands",
+                    "Delete worktree",
+                    Action::Worktree(O::Delete),
+                ),
+                (
+                    "g",
+                    "Commands",
+                    "Visit worktree",
+                    Action::Worktree(O::Visit),
                 ),
             ]
         }

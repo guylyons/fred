@@ -708,9 +708,9 @@ magit-push.el,,command,transient:magit-push:--set-upstream,partial,-u (shown at 
 magit-push.el,,command,transient:magit-push:--tags,partial,-T,runtime
 magit-reflog.el,34,option,magit-reflog-limit,missing,,explicit
 magit-reflog.el,42,option,magit-reflog-margin,missing,,explicit
-magit-reflog.el,113,command,magit-reflog-current,missing,,explicit
-magit-reflog.el,120,command,magit-reflog-other,missing,,explicit
-magit-reflog.el,126,command,magit-reflog-head,missing,,explicit
+magit-reflog.el,113,command,magit-reflog-current,partial,Space m l r; branch or HEAD; 256 entries; RET shows commit,explicit
+magit-reflog.el,120,command,magit-reflog-other,partial,Space m l O; prompted ref,explicit
+magit-reflog.el,126,command,magit-reflog-head,partial,Space m l H,explicit
 magit-refs.el,38,option,magit-refs-mode-hook,missing,,explicit
 magit-refs.el,44,option,magit-refs-sections-hook,missing,,explicit
 magit-refs.el,55,option,magit-refs-show-commit-count,missing,,explicit
@@ -991,12 +991,12 @@ magit-wip.el,,option,magit-wip-mode,missing,Runtime-expanded surface; source beh
 magit-wip.el,,option,magit-wip-mode-hook,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-worktree.el,33,option,magit-read-worktree-directory-function,missing,,explicit
 magit-worktree.el,46,option,magit-read-worktree-offsite-directory,missing,,explicit
-magit-worktree.el,128,command,magit-worktree,missing,,explicit
-magit-worktree.el,140,command,magit-worktree-checkout,missing,,explicit
-magit-worktree.el,155,command,magit-worktree-branch,missing,,explicit
-magit-worktree.el,169,command,magit-worktree-move,missing,,explicit
-magit-worktree.el,191,command,magit-worktree-delete,missing,,explicit
-magit-worktree.el,234,command,magit-worktree-status,missing,,explicit
+magit-worktree.el,128,command,magit-worktree,partial,Space m Z (magit-dispatch key) with b/c/m/k/g,explicit
+magit-worktree.el,140,command,magit-worktree-checkout,partial,Space m Z b; sibling directory default (magit-read-worktree-directory-sibling); opens its status,explicit
+magit-worktree.el,155,command,magit-worktree-branch,partial,"Space m Z c; new branch, start point, directory",explicit
+magit-worktree.el,169,command,magit-worktree-move,partial,Space m Z m; refuses the main worktree,explicit
+magit-worktree.el,191,command,magit-worktree-delete,partial,Space m Z k; refuses main/locked; dirty needs typed yes; remove --force then prune,explicit
+magit-worktree.el,234,command,magit-worktree-status,partial,Space m Z g; status of another worktree,explicit
 magit.el,77,option,magit-openpgp-default-signing-key,missing,,explicit
 magit.el,247,option,magit-define-global-key-bindings,missing,,explicit
 magit.el,327,command,magit-dispatch,partial,Space m; navigable command panels; full groups/options still missing,explicit

@@ -2430,3 +2430,77 @@ fn stash_transforms_branch_patch_and_clear() {
     assert!(r.stashes().unwrap().is_empty());
     assert!(r.stash_step(Op::FormatPatch, &s(&["stash@{0}"])).is_err());
 }
+#[test]
+fn worktree_suffixes_create_move_delete_and_visit() {
+    use super::Question as Q;
+    use super::branch::Next;
+    use super::worktree::Op;
+    let parent = tempfile::tempdir().unwrap();
+    let root = parent.path().join("proj");
+    fs::create_dir(&root).unwrap();
+    git(&root, &["init", "-q", "-b", "main"]);
+    committed(&root, b"base\n");
+    let r = Repo::discover(&root).unwrap();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    // b: sibling default "<prefix>_<commit>".
+    let dir = match r.worktree_step(Op::Checkout, &s(&["HEAD", ""])) {
+        Ok(Next::Status(dir)) => dir,
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(dir.file_name().unwrap(), "proj_HEAD");
+    assert!(dir.join("f").exists());
+    // c: new branch in a named directory.
+    let named = parent.path().join("feature-dir");
+    match r.worktree_step(
+        Op::Branch,
+        &s(&["feature", "main", named.to_str().unwrap()]),
+    ) {
+        Ok(Next::Status(d)) => assert_eq!(d, named),
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(r.worktrees().unwrap().len(), 3);
+    assert!(
+        r.worktree_step(Op::Branch, &s(&["--x", "main", ""]))
+            .is_err()
+    );
+    // The main worktree can be neither moved nor deleted.
+    assert!(
+        r.worktree_step(Op::Move, &s(&[root.to_str().unwrap(), "/tmp/x"]))
+            .is_err()
+    );
+    assert!(
+        r.worktree_step(Op::Delete, &s(&[root.to_str().unwrap()]))
+            .is_err()
+    );
+    // m: move a linked worktree.
+    let moved = parent.path().join("moved");
+    r.worktree_step(
+        Op::Move,
+        &s(&[named.to_str().unwrap(), moved.to_str().unwrap()]),
+    )
+    .unwrap();
+    assert!(moved.join("f").exists() && !named.exists());
+    // k: a dirty worktree needs a typed yes; a clean one takes y.
+    fs::write(moved.join("f"), b"dirty\n").unwrap();
+    let op = match r
+        .worktree_step(Op::Delete, &s(&[moved.to_str().unwrap()]))
+        .unwrap()
+    {
+        Next::Ask(Q::Worktree(op), p, _) => {
+            assert!(p[0].contains("despite uncommitted changes"), "{p:?}");
+            op
+        }
+        other => panic!("{other:?}"),
+    };
+    assert!(r.worktree_step(op.clone(), &s(&["y"])).is_err());
+    assert!(moved.exists());
+    r.worktree_step(op, &s(&["yes"])).unwrap();
+    assert!(!moved.exists());
+    assert_eq!(r.worktrees().unwrap().len(), 2);
+    // g: visit an existing worktree only.
+    assert!(matches!(
+        r.worktree_step(Op::Visit, &s(&[dir.to_str().unwrap()])),
+        Ok(Next::Status(_))
+    ));
+    assert!(r.worktree_step(Op::Visit, &s(&["/nowhere"])).is_err());
+}

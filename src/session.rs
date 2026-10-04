@@ -2543,6 +2543,34 @@ mod tests {
         assert!(t.s.pending_git.is_none());
     }
     #[test]
+    fn magit_reflog_views_list_entries_and_visit_commits() {
+        let mut t = T::open(Some("f.txt"), Some("one\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "first"]).unwrap();
+        repo.read(&["commit", "-q", "--allow-empty", "-m", "second"])
+            .unwrap();
+        t.keys(" mlr");
+        magit_settle(&mut t);
+        let text = t.s.ed.buf.text();
+        assert!(
+            text.contains("Reflog for main") && text.contains("main@{0} commit: second"),
+            "{text}"
+        );
+        t.keys("j<Enter>");
+        magit_settle(&mut t);
+        assert!(t.s.ed.buf.line(0).starts_with("commit "));
+        t.keys("q q mlO");
+        magit_settle(&mut t);
+        t.keys("--bogus<Enter>");
+        magit_settle(&mut t);
+        assert!(t.msg().contains("invalid ref"), "{}", t.msg());
+    }
+    #[test]
     fn magit_file_log_rejects_buffers_without_a_source_file() {
         let mut t = T::open(None, None);
         t.keys(" mL");
