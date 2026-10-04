@@ -912,7 +912,7 @@ magit-status.el,147,option,magit-status-show-untracked-files,missing,,explicit
 magit-status.el,184,option,magit-status-file-list-limit,missing,,explicit
 magit-status.el,192,option,magit-status-margin,missing,,explicit
 magit-status.el,222,option,magit-status-use-buffer-arguments,missing,,explicit
-magit-status.el,252,command,magit-init,missing,,explicit
+magit-status.el,252,command,magit-init,partial,"Space m i; directory prompt (default current, ~ expansion), nested/reinitialize y-or-n confirmation, status after init; directory completion missing",explicit
 magit-status.el,280,command,magit-status,partial,"Space m s; status, sections, diffs; many status sections/options missing",explicit
 magit-status.el,350,command,magit-status-here,missing,,explicit
 magit-status.el,363,command,magit-status-quick,missing,,explicit

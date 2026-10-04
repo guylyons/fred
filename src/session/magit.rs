@@ -12,6 +12,7 @@ pub(super) enum Outcome {
     View(Box<View>, Option<RowAction>, usize),
     Prompt(Repo, crate::magit::workflows::Operation, Vec<String>),
     Ask(Repo, crate::magit::Question, Vec<String>, Vec<String>),
+    InitConfirm(PathBuf, String),
     Draft(Repo, crate::magit::CommitMode, Vec<u8>, Vec<String>),
     Branches(Repo, Vec<String>),
     Git(GitInvocation),
@@ -157,6 +158,54 @@ impl Session {
                     let target = repo.diff_target(op, &answers)?;
                     diff_view(repo, target, args, origin)
                 }
+            });
+            return;
+        }
+        if action == Action::Init {
+            let from = self.magit_from();
+            let base = if from.is_dir() {
+                from
+            } else {
+                from.parent().map(Path::to_path_buf).unwrap_or_default()
+            };
+            let base = std::path::absolute(&base).unwrap_or(base);
+            crate::magit::prompt(&mut self.ed, crate::magit::Prompt::InitDir(base));
+            return;
+        }
+        if let Action::InitDir(dir, confirmed) = action {
+            let origin = self.cur;
+            self.start_magit(move || {
+                let dir = std::path::absolute(&dir).map_err(|e| e.to_string())?;
+                if !confirmed && let Ok(existing) = Repo::discover(&dir) {
+                    let same = dir.canonicalize().is_ok_and(|d| d == existing.root);
+                    let question = if same {
+                        format!(
+                            "Reinitialize existing repository {}? (y or n) ",
+                            label(&dir)
+                        )
+                    } else {
+                        format!(
+                            "{} is a repository.  Create another in {}? (y or n) ",
+                            label(&existing.root),
+                            label(&dir)
+                        )
+                    };
+                    return Ok(Outcome::InitConfirm(dir, question));
+                }
+                let out = std::process::Command::new("git")
+                    .arg("init")
+                    .arg("--")
+                    .arg(&dir)
+                    .stdin(std::process::Stdio::null())
+                    .output()
+                    .map_err(|e| format!("git: {e}"))?;
+                if !out.status.success() {
+                    return Err(String::from_utf8_lossy(&out.stderr).trim().to_owned());
+                }
+                let repo = Repo::discover(&dir)?;
+                let mut view = View::status(repo.clone(), repo.status()?);
+                view.return_to = origin;
+                Ok(Outcome::View(Box::new(view), None, 0))
             });
             return;
         }
@@ -580,6 +629,18 @@ impl Session {
                 crate::magit::prompt(
                     &mut self.ed,
                     crate::magit::Prompt::Workflow(repo, operation, args),
+                );
+            }
+            Ok(Outcome::InitConfirm(dir, question)) => {
+                if self.ed.magit_input_generation != job.input_generation
+                    || self.ed.mode != Mode::Normal
+                {
+                    self.ed.set_msg("Git prompt cancelled");
+                    return true;
+                }
+                crate::magit::prompt(
+                    &mut self.ed,
+                    crate::magit::Prompt::InitConfirm(dir, question),
                 );
             }
             Ok(Outcome::Ask(repo, question, args, prompts)) => {

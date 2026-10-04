@@ -102,3 +102,8 @@ seeded defaults and buffer-argument seeding ([scenarios](magit-diff-acceptance.m
 Pull -r and diff choices now share one cycling Choice option; prompts are a
 generic Ask chain. Row 4 stays partial, so the score remains 3%. Ledger: 94
 partial / 679 missing commands. Next: i init, B blame, then baseline gates.
+
+October 4 init checkpoint: Space m i follows magit-status.el:252-277 (directory
+prompt, nested/reinitialize confirmation, status afterwards), tested by
+magit_init_creates_repository_and_confirms_nesting. Score remains 3%; ledger
+95 partial / 678 missing. Next: B blame, reviewed together with init.

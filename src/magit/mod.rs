@@ -29,6 +29,9 @@ pub enum Action {
     Status,
     Net(network::Op),
     Diff(diff::Op),
+    Init,
+    /// Directory to initialize, and whether nesting/reinitializing was confirmed.
+    InitDir(PathBuf, bool),
     /// All of a question's prompts answered: repo, question, answers, arguments.
     Answered(repo::Repo, Question, Vec<String>, Vec<String>),
     Commit,
@@ -459,6 +462,10 @@ impl CommitMode {
 pub enum Prompt {
     Workflow(Repo, workflows::Operation, Vec<String>),
     DropStash(Repo, workflows::Stash),
+    /// magit-init: base directory for a relative answer.
+    InitDir(PathBuf),
+    /// Confirm initializing inside (or re-initializing) a repository.
+    InitConfirm(PathBuf, String),
     /// A chain of prompts: repo, question, arguments, prompts, answers so far.
     Ask(Repo, Question, Vec<String>, Vec<String>, Vec<String>),
 }
@@ -471,6 +478,8 @@ pub fn prompt(ed: &mut Editor, question: Prompt) {
     let text = match &question {
         Prompt::Workflow(_, operation, _) => operation.prompt().unwrap_or("").to_owned(),
         Prompt::Ask(_, _, _, prompts, answers) => prompts[answers.len()].clone(),
+        Prompt::InitDir(_) => "Create repository in: ".into(),
+        Prompt::InitConfirm(_, question) => question.clone(),
         Prompt::DropStash(_, stash) => format!(
             "Drop {} ({})? Type yes: ",
             stash.selector,
@@ -497,6 +506,21 @@ pub fn answer(ed: &mut Editor, text: &str) {
             ed.pending_effect = Some(ExEffect::Magit(Action::DropStash(repo, stash)))
         }
         Some(Prompt::DropStash(..)) => ed.set_msg("Stash drop cancelled"),
+        Some(Prompt::InitDir(base)) => {
+            let text = text.trim();
+            let dir = match text.strip_prefix("~/").or((text == "~").then_some("")) {
+                Some(rest) => std::env::var_os("HOME")
+                    .map(PathBuf::from)
+                    .unwrap_or_default()
+                    .join(rest),
+                None => base.join(text),
+            };
+            ed.pending_effect = Some(ExEffect::Magit(Action::InitDir(dir, false)));
+        }
+        Some(Prompt::InitConfirm(dir, _)) if matches!(text.trim(), "y" | "yes") => {
+            ed.pending_effect = Some(ExEffect::Magit(Action::InitDir(dir, true)))
+        }
+        Some(Prompt::InitConfirm(..)) => ed.set_msg("Abort"),
         Some(Prompt::Ask(repo, question, args, prompts, mut answers)) => {
             answers.push(text.trim().to_owned());
             if answers.len() < prompts.len() {
@@ -553,6 +577,7 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("l", "Inspect", "Log menu", Menu('l')),
             ("L", "Inspect", "Current file log", FileLog),
             ("d", "Inspect", "Diff", Menu('d')),
+            ("i", "Repository", "Init", Init),
             ("b", "Branch", "Branch operations", Menu('B')),
             ("c", "Commit", "Commit menu", Menu('C')),
             ("C", "Commit", "Amend / fixup", Menu('C')),

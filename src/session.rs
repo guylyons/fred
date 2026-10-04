@@ -2081,6 +2081,44 @@ mod tests {
         assert_eq!(diff_buffers(&t), before, "diff buffer reused in place");
     }
     #[test]
+    fn magit_init_creates_repository_and_confirms_nesting() {
+        let mut t = T::open(Some("f.txt"), Some("original\n"));
+        t.keys(" mi");
+        assert!(t.s.magit_job.is_none());
+        t.keys("<Enter>");
+        magit_settle(&mut t);
+        assert!(t.dir.path().join(".git").is_dir(), "{}", t.msg());
+        assert!(t.s.ed.magit.is_some());
+        t.keys("q mi");
+        t.keys("nested/repo<Enter>");
+        magit_settle(&mut t);
+        assert!(!t.dir.path().join("nested").exists());
+        t.keys("n<Enter>");
+        assert!(t.msg().contains("Abort"));
+        assert!(!t.dir.path().join("nested").exists());
+        t.keys(" minested/repo<Enter>");
+        magit_settle(&mut t);
+        t.keys("y<Enter>");
+        magit_settle(&mut t);
+        assert!(
+            t.dir.path().join("nested/repo/.git").is_dir(),
+            "{}",
+            t.msg()
+        );
+        let root = crate::magit::repo::Repo::discover(&t.dir.path().join("nested/repo"))
+            .unwrap()
+            .root;
+        assert_eq!(t.s.ed.magit.as_ref().unwrap().repo.root, root);
+        t.keys("q mi<Enter>");
+        magit_settle(&mut t);
+        assert!(matches!(
+            &t.s.ed.mode,
+            crate::editor::Mode::Command(cl) if cl.prompt.starts_with("Reinitialize existing repository")
+        ));
+        t.keys("<Esc>");
+        assert_eq!(t.s.ed.buf.line(0), "original");
+    }
+    #[test]
     fn magit_file_log_rejects_buffers_without_a_source_file() {
         let mut t = T::open(None, None);
         t.keys(" mL");
