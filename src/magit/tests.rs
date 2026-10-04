@@ -3390,7 +3390,7 @@ fn diff_location_maps_lines_to_both_sides() {
 
 #[test]
 fn menu_keys_are_unique_within_each_menu() {
-    for menu in "*OzFBbdpflMrxtCGNYXvSoukyJjWKawIEg>D".chars() {
+    for menu in "*OzFBbdpflMrxtCGNYXvSoukyJjWKawIEg>Dce".chars() {
         let entries = super::menu_entries(menu);
         assert!(!entries.is_empty(), "menu {menu} is empty");
         let mut seen = std::collections::HashSet::new();
@@ -3402,4 +3402,92 @@ fn menu_keys_are_unique_within_each_menu() {
     assert!(has('r', "-f") && has('r', "-x") && has('r', "+s"));
     assert!(has('x', "-m") && has('v', "-m") && has('v', "-S"));
     assert!(!has('p', "-x"));
+}
+
+#[test]
+fn configure_variables_orphan_shelve_and_unshallow() {
+    use super::branch::Next;
+    use super::configure::Op;
+    let (d, r) = setup();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    let cfg = |k: &str| r.config(k);
+    fs::write(d.path().join("f"), "f").unwrap();
+    git(d.path(), &["add", "f"]);
+    git(d.path(), &["commit", "-qm", "f"]);
+    git(
+        d.path(),
+        &["remote", "add", "origin", "https://example.test/a.git"],
+    );
+    git(
+        d.path(),
+        &["remote", "add", "fork", "https://example.test/b.git"],
+    );
+    git(d.path(), &["config", "branch.main.remote", "origin"]);
+    // Choices cycle, then unset.
+    for want in ["true", "merges", "interactive", "false"] {
+        r.configure_step(Op::BranchRebase, &[]).unwrap();
+        assert_eq!(cfg("branch.main.rebase").as_deref(), Some(want));
+    }
+    r.configure_step(Op::BranchRebase, &[]).unwrap();
+    assert_eq!(cfg("branch.main.rebase"), None);
+    r.configure_step(Op::PushDefault, &[]).unwrap();
+    r.configure_step(Op::PushDefault, &[]).unwrap();
+    assert_eq!(cfg("remote.pushDefault").as_deref(), Some("origin"));
+    r.configure_step(Op::RemoteTagopt, &[]).unwrap();
+    assert_eq!(cfg("remote.origin.tagOpt").as_deref(), Some("--no-tags"));
+    r.configure_step(Op::RemotePushurl, &s(&["git@example.test:a.git"]))
+        .unwrap();
+    assert_eq!(
+        cfg("remote.origin.pushurl").as_deref(),
+        Some("git@example.test:a.git")
+    );
+    r.configure_step(Op::RemotePushurl, &s(&[""])).unwrap();
+    assert_eq!(cfg("remote.origin.pushurl"), None);
+    assert!(r.configure_step(Op::Upstream, &s(&["-x"])).is_err());
+    // Shelve keeps the reflog and the commit; unshelve drops the date.
+    git(d.path(), &["branch", "side"]);
+    assert!(r.configure_step(Op::Shelve, &s(&["main"])).is_err());
+    r.configure_step(Op::Shelve, &s(&["side"])).unwrap();
+    let shelved = String::from_utf8(git(
+        d.path(),
+        &["for-each-ref", "--format=%(refname)", "refs/shelved"],
+    ))
+    .unwrap();
+    let name = shelved
+        .trim()
+        .strip_prefix("refs/shelved/")
+        .unwrap()
+        .to_owned();
+    assert!(name.ends_with("-side") && name.len() == 15, "{name}");
+    assert!(d.path().join(".git/logs/refs/shelved").join(&name).exists());
+    r.configure_step(Op::Unshelve, &s(&[&name])).unwrap();
+    assert!(git(d.path(), &["branch", "--list", "side"]).starts_with(b"  side"));
+    // Orphan branch from HEAD keeps the tree, without history.
+    r.configure_step(Op::Orphan, &s(&["fresh", "HEAD"]))
+        .unwrap();
+    assert_eq!(r.current_branch().unwrap(), "fresh");
+    assert!(r.read(&["rev-parse", "--verify", "-q", "HEAD"]).is_err());
+    // Unshallow asks about a single non-wildcard refspec first.
+    git(d.path(), &["checkout", "-q", "main"]);
+    git(
+        d.path(),
+        &[
+            "config",
+            "remote.origin.fetch",
+            "+refs/heads/main:refs/remotes/origin/main",
+        ],
+    );
+    let Next::Ask(super::Question::Configure(op), ..) =
+        r.configure_step(Op::Unshallow, &[]).unwrap()
+    else {
+        panic!()
+    };
+    let Next::Git(argv) = r.configure_step(op, &s(&["yes"])).unwrap() else {
+        panic!()
+    };
+    assert_eq!(argv, s(&["fetch", "--unshallow", "origin"]));
+    assert_eq!(
+        cfg("remote.origin.fetch").as_deref(),
+        Some("+refs/heads/*:refs/remotes/origin/*")
+    );
 }

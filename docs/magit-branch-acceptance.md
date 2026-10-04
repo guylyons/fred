@@ -24,3 +24,10 @@ tracks (refused before any change), spin-off forcing an upstream, the delete
 checkout target (indirect upstream, else main branch), remote names with "/",
 remote checkout of a dirty tree, and unsetting pushRemote before a failed delete.
 Open: push --delete failure fallback to local ref removal.
+
+Configure (October 4): b C edits branch.<b>.description (Fred as the editor),
+the upstream, branch.<b>.rebase and pushRemote, pull.rebase,
+remote.pushDefault and the autoSetup variables; choices cycle then unset as
+transient's git-variable:choices do. b o creates an orphan branch, b h/H
+shelve and unshelve (refs/shelved/DATE-NAME with the reflog). Evidence:
+magit::tests::configure_variables_orphan_shelve_and_unshallow.

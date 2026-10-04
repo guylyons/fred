@@ -6,6 +6,7 @@ pub mod branch;
 pub mod bundle;
 pub mod clone;
 pub mod commit;
+pub mod configure;
 pub mod diff;
 pub mod ignore;
 pub mod log;
@@ -105,6 +106,8 @@ pub enum Action {
     Bundle(bundle::Op),
     /// A magit-refs.el suffix.
     Refs(refs::Op),
+    /// Branch/remote configuration, orphan, shelve and unshallow.
+    Configure(configure::Op),
     /// magit-diff-refresh suffixes for the diff buffer.
     DiffRefresh(diff::Refresh),
     /// A magit-gitignore.el or magit-sparse-checkout.el suffix.
@@ -937,6 +940,7 @@ pub enum Question {
     Clone(clone::Op),
     Refs(refs::Op),
     Ignore(ignore::Op),
+    Configure(configure::Op),
     Net(network::Op),
     Diff(diff::Op),
     FindFile,
@@ -2305,7 +2309,124 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("m", "Do", "rename", Branch(branch::Op::Rename)),
             ("x", "Do", "reset", Branch(branch::Op::Reset)),
             ("k", "Do", "delete", Branch(branch::Op::Delete)),
+            (
+                "o",
+                "Checkout",
+                "new orphan",
+                Configure(configure::Op::Orphan),
+            ),
+            (
+                "w",
+                "Checkout",
+                "new worktree",
+                Action::Worktree(worktree::Op::Checkout),
+            ),
+            (
+                "W",
+                "Create",
+                "new worktree",
+                Action::Worktree(worktree::Op::Branch),
+            ),
+            ("C", "Do", "configure...", Menu('c')),
+            ("h", "Do", "shelve", Configure(configure::Op::Shelve)),
+            ("H", "Do", "unshelve", Configure(configure::Op::Unshelve)),
         ],
+        // magit-branch-configure for the current branch; choices cycle.
+        'c' => {
+            use configure::Op as C;
+            vec![
+                (
+                    "d",
+                    "Configure branch",
+                    "branch.<branch>.description",
+                    Configure(C::Description),
+                ),
+                (
+                    "u",
+                    "Configure branch",
+                    "branch.<branch>.merge/remote",
+                    Configure(C::Upstream),
+                ),
+                (
+                    "r",
+                    "Configure branch",
+                    "branch.<branch>.rebase",
+                    Configure(C::BranchRebase),
+                ),
+                (
+                    "p",
+                    "Configure branch",
+                    "branch.<branch>.pushRemote",
+                    Configure(C::BranchPushRemote),
+                ),
+                (
+                    "R",
+                    "Configure repository defaults",
+                    "pull.rebase",
+                    Configure(C::PullRebase),
+                ),
+                (
+                    "P",
+                    "Configure repository defaults",
+                    "remote.pushDefault",
+                    Configure(C::PushDefault),
+                ),
+                (
+                    "=m",
+                    "Configure branch creation",
+                    "branch.autoSetupMerge",
+                    Configure(C::AutoSetupMerge),
+                ),
+                (
+                    "=r",
+                    "Configure branch creation",
+                    "branch.autoSetupRebase",
+                    Configure(C::AutoSetupRebase),
+                ),
+            ]
+        }
+        // magit-remote-configure for the current remote.
+        'e' => {
+            use configure::Op as C;
+            vec![
+                (
+                    "u",
+                    "Configure remote",
+                    "remote.<remote>.url",
+                    Configure(C::RemoteUrl),
+                ),
+                (
+                    "U",
+                    "Configure remote",
+                    "remote.<remote>.fetch",
+                    Configure(C::RemoteFetch),
+                ),
+                (
+                    "s",
+                    "Configure remote",
+                    "remote.<remote>.pushurl",
+                    Configure(C::RemotePushurl),
+                ),
+                (
+                    "S",
+                    "Configure remote",
+                    "remote.<remote>.push",
+                    Configure(C::RemotePush),
+                ),
+                (
+                    "O",
+                    "Configure remote",
+                    "remote.<remote>.tagOpt",
+                    Configure(C::RemoteTagopt),
+                ),
+                (
+                    "h",
+                    "Configure remote",
+                    "remote.<remote>.followRemoteHEAD",
+                    Configure(C::RemoteFollowHead),
+                ),
+            ]
+        }
         't' => vec![
             (
                 "-f",
@@ -2468,6 +2589,13 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                     "Actions",
                     "Prune stale refspecs",
                     Action::Remote(O::PruneRefspecs),
+                ),
+                ("C", "Actions", "Configure...", Menu('e')),
+                (
+                    "z",
+                    "Actions",
+                    "Unshallow remote",
+                    Configure(configure::Op::Unshallow),
                 ),
             ]
         }

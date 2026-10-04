@@ -317,6 +317,35 @@ impl Session {
             }
             return;
         }
+        if let Action::Answered(repo, Question::Configure(op), answers, defaults) = action {
+            let origin = self.cur;
+            self.start_magit(move || {
+                let merged = merge_answers(&answers, &defaults);
+                let next = repo
+                    .configure_step(op, &merged)
+                    .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                Ok(branch_outcome(repo, next, origin))
+            });
+            return;
+        }
+        if let Action::Configure(op) = action {
+            let (origin, from) = (self.cur, self.magit_from());
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                let (prompts, defaults) = repo.configure_prompts(&op)?;
+                if prompts.is_empty() {
+                    let next = repo.configure_step(op, &[])?;
+                    return Ok(branch_outcome(repo, next, origin));
+                }
+                Ok(Outcome::Ask(
+                    repo,
+                    Question::Configure(op),
+                    defaults,
+                    prompts,
+                ))
+            });
+            return;
+        }
         if let Action::Answered(repo, Question::Ignore(op), answers, defaults) = action {
             let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, '>'));
             self.start_magit(move || {
@@ -1087,7 +1116,8 @@ impl Session {
                 | Question::Bundle(_)
                 | Question::Clone(_)
                 | Question::Refs(_)
-                | Question::Ignore(_) => {
+                | Question::Ignore(_)
+                | Question::Configure(_) => {
                     unreachable!("handled before the worker")
                 }
                 Question::FindFile => {

@@ -230,3 +230,9 @@ October 4 sequence-arguments checkpoint: rebase gains -f, -x, -S, +s;
 cherry-pick and revert gain -m, -S, +s; a test now keeps every menu's keys
 unique; ledger rows for switches already present are recorded. Ledger 474
 partial / 299 missing commands. Score remains 3%.
+
+October 4 configure checkpoint: Space m b gains o orphan, w/W worktrees, C
+configure (branch and repository variables), h/H shelve; the remote menu
+gains C configure (remote variables) and z unshallow. Variables cycle or
+prompt and report their new value; the menu does not yet show live values.
+Ledger 494 partial / 279 missing commands. Score remains 3%.

@@ -157,24 +157,24 @@ magit-branch.el,285,command,magit-branch-create,partial,"Space m b n; name valid
 magit-branch.el,298,command,magit-branch-and-checkout,partial,Space m b c; stash@{N} start uses git stash branch,explicit
 magit-branch.el,314,command,magit-branch-or-checkout,missing,,explicit
 magit-branch.el,340,command,magit-branch-checkout,partial,"Space m b l; local, remote-tracking (creates branch, sets pushRemote unless pushDefault), or new name with start point; refuses with uncommitted changes",explicit
-magit-branch.el,428,command,magit-branch-orphan,missing,,explicit
+magit-branch.el,428,command,magit-branch-orphan,partial,Space m b o,explicit
 magit-branch.el,434,command,magit-checkout-remote-ref,missing,,explicit
 magit-branch.el,517,command,magit-branch-spinout,partial,"Space m b S; stays on branch unless dirty, hard-resets it to merge-base; region FROM missing",explicit
 magit-branch.el,527,command,magit-branch-spinoff,partial,"Space m b s; new branch tracks old, old moves back to merge-base; region FROM missing",explicit
 magit-branch.el,602,command,magit-branch-reset,partial,"Space m b x; non-current via update-ref, current via reset --hard after yes when dirty; prefix set-upstream missing",explicit
 magit-branch.el,643,command,magit-branch-delete,partial,"Space m b k; merged/unmerged confirm, current branch detach/checkout-target choice, remote-tracking delete on remote or locally; multi-branch region, PR remote cleanup missing",explicit
 magit-branch.el,818,command,magit-branch-rename,partial,Space m b m; keeps pushRemote; remote push-target rename and force missing,explicit
-magit-branch.el,864,command,magit-branch-shelve,missing,,explicit
-magit-branch.el,879,command,magit-branch-unshelve,missing,,explicit
-magit-branch.el,906,command,magit-branch-configure,missing,,explicit
-magit-branch.el,939,command,magit-branch.<branch>.description,missing,,explicit
-magit-branch.el,,command,magit-branch.<branch>.merge/remote,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-branch.el,,command,magit-branch.<branch>.pushRemote,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-branch.el,,command,magit-branch.<branch>.rebase,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-branch.el,,command,magit-branch.autoSetupMerge,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-branch.el,,command,magit-branch.autoSetupRebase,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-branch.el,,command,magit-pull.rebase,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-branch.el,,command,magit-remote.pushDefault,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-branch.el,864,command,magit-branch-shelve,partial,"b h (refs/shelved/DATE-NAME, reflog moved)",explicit
+magit-branch.el,879,command,magit-branch-unshelve,partial,b H (date prefix dropped),explicit
+magit-branch.el,906,command,magit-branch-configure,partial,b C: current branch; choices cycle on the key (no live values in the menu),explicit
+magit-branch.el,939,command,magit-branch.<branch>.description,partial,C d: git branch --edit-description in Fred,explicit
+magit-branch.el,,command,magit-branch.<branch>.merge/remote,partial,C u: upstream (empty unsets),runtime
+magit-branch.el,,command,magit-branch.<branch>.pushRemote,partial,C p cycles remotes,runtime
+magit-branch.el,,command,magit-branch.<branch>.rebase,partial,C r cycles,runtime
+magit-branch.el,,command,magit-branch.autoSetupMerge,partial,C =m (upstream a m),runtime
+magit-branch.el,,command,magit-branch.autoSetupRebase,partial,C =r (upstream a r),runtime
+magit-branch.el,,command,magit-pull.rebase,partial,C R cycles,runtime
+magit-branch.el,,command,magit-remote.pushDefault,partial,C P cycles remotes,runtime
 magit-branch.el,,command,transient:magit-branch:--merge,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-branch.el,,command,transient:magit-branch:--recurse-submodules,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-bundle.el,37,command,magit-bundle,partial,Space m & (no upstream dispatch key): c v l,explicit
@@ -747,14 +747,14 @@ magit-remote.el,159,command,magit-remote-prune-refspecs,partial,"Space m M P; ls
 magit-remote.el,237,command,magit-remote-set-head,missing,,explicit
 magit-remote.el,252,command,magit-remote-unset-head,missing,,explicit
 magit-remote.el,259,command,magit-update-default-branch,missing,,explicit
-magit-remote.el,291,command,magit-remote-unshallow,missing,,explicit
-magit-remote.el,311,command,magit-remote-configure,missing,,explicit
-magit-remote.el,,command,magit-remote.<remote>.fetch,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-remote.el,,command,magit-remote.<remote>.followremotehead,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-remote.el,,command,magit-remote.<remote>.push,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-remote.el,,command,magit-remote.<remote>.pushurl,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-remote.el,,command,magit-remote.<remote>.tagopt,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-remote.el,,command,magit-remote.<remote>.url,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-remote.el,291,command,magit-remote-unshallow,partial,M z: offers the standard refspec for a single non-wildcard one,explicit
+magit-remote.el,311,command,magit-remote-configure,partial,Space m M C: current remote,explicit
+magit-remote.el,,command,magit-remote.<remote>.fetch,partial,e U,runtime
+magit-remote.el,,command,magit-remote.<remote>.followremotehead,partial,e h cycles,runtime
+magit-remote.el,,command,magit-remote.<remote>.push,partial,e S,runtime
+magit-remote.el,,command,magit-remote.<remote>.pushurl,partial,e s,runtime
+magit-remote.el,,command,magit-remote.<remote>.tagopt,partial,e O cycles,runtime
+magit-remote.el,,command,magit-remote.<remote>.url,partial,e u (empty unsets; one value),runtime
 magit-remote.el,,command,transient:magit-remote:-f,partial,"-f in Space m M, on by default",runtime
 magit-repos.el,40,option,magit-repository-directories,missing,,explicit
 magit-repos.el,60,option,magit-repolist-mode-hook,missing,,explicit
