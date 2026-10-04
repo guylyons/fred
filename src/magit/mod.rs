@@ -156,6 +156,8 @@ pub enum Action {
     StashPush,
     /// magit-git-command, reset-quickly, remote set/unset-head.
     Misc(misc::Op),
+    /// magit-process-buffer.
+    ProcessBuffer,
     /// magit-jump-to-*: a status section by name.
     Jump(&'static str),
     /// magit-parent-status: the superproject or enclosing repository.
@@ -249,6 +251,8 @@ pub enum Kind {
     Diff(diff::Target, Vec<String>),
     /// magit-reflog-mode for a ref.
     Reflog(String),
+    /// magit-process-mode: the session's Git command log.
+    Process,
     /// magit-submodule-list-mode.
     Modules,
     /// magit-refs-mode: focus ref, arguments and commit-count display.
@@ -316,6 +320,7 @@ impl View {
             Kind::Diff(target, _) => format!("Magit diff: {}", target.title()),
             Kind::Reflog(r) => format!("Magit reflog {}", label(std::path::Path::new(r))),
             Kind::Modules => "Magit modules".into(),
+            Kind::Process => "Magit process".into(),
             Kind::Refs(focus, ..) => format!("Magit refs {}", label(std::path::Path::new(focus))),
             Kind::Output(title, _) => format!("Magit {}", label(std::path::Path::new(title))),
             Kind::Cherry(h, u) => format!(
@@ -895,6 +900,8 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             open_menu(ed, '!');
             return true;
         }
+        // evil-collection (use-$-for-end-of-line): ` shows the process buffer.
+        KeyCode::Char('`') if !k.ctrl && !k.alt => Some(Action::ProcessBuffer),
         KeyCode::Char('|') if !k.ctrl && !k.alt => {
             Some(Action::Misc(misc::Op::GitCommand { topdir: false }))
         }
@@ -1406,6 +1413,7 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("D", "Inspect", "Diff (change)", Menu('D')),
             ("j", "Inspect", "Jump to section", Menu('h')),
             ("!", "Repository", "Run", Menu('!')),
+            ("$", "Repository", "Show process buffer", ProcessBuffer),
             (
                 "Q",
                 "Repository",

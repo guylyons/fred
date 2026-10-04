@@ -283,3 +283,8 @@ Score remains 3%.
 October 4 file-dispatch checkpoint: F t traces the definition at point (git
 log -L), F M merged, F G status, F e edits the commit that added the line.
 Ledger 591 partial / 182 missing commands. Score remains 3%.
+
+October 4 status/process checkpoint: Space m j status jump (fu fp pu pp),
+:Magit magit-parent-status, and a process buffer (` / Space m $) listing the
+repository's terminal Git commands with their errors. Ledger 598 partial /
+175 missing commands. Score remains 3%.

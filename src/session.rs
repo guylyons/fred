@@ -82,6 +82,8 @@ pub struct Session {
     pub pending_shell: Option<String>,
     pub pending_git: Option<crate::magit::repo::GitInvocation>,
     pub git_busy: bool,
+    /// magit-process-buffer's log: each terminal Git command and its result.
+    pub git_log: Vec<(PathBuf, String, Result<(), String>)>,
     magit_job: Option<magit::Job>,
     magit_picker_repo: Option<crate::magit::repo::Repo>,
     magit_drafts: std::collections::HashMap<
@@ -243,6 +245,7 @@ impl Session {
             pending_edit: None,
             pending_shell: None,
             pending_git: None,
+            git_log: vec![],
             git_busy: false,
             magit_job: None,
             magit_picker_repo: None,
@@ -2451,6 +2454,32 @@ mod tests {
         assert!(row.contains("Untracked files"), "{row}");
         t.keys(" mjfu");
         assert!(t.msg().contains("wasn't found"), "{}", t.msg());
+        // ` shows the Git commands run in this repository.
+        t.s.finish_git(
+            crate::magit::repo::GitInvocation {
+                expected_head: None,
+                repo: crate::magit::repo::Repo::discover(t.dir.path()).unwrap(),
+                args: vec!["fetch".into()],
+                input: None,
+                draft: None,
+                draft_stamp: None,
+                editor: false,
+                after: None,
+            },
+            Err("fatal: no remote".into()),
+        );
+        magit_settle(&mut t);
+        t.keys(" ms");
+        magit_settle(&mut t);
+        t.keys("`");
+        magit_settle(&mut t);
+        let text = t.s.ed.buf.text();
+        assert!(
+            text.contains("git fetch") && text.contains("fatal: no remote"),
+            "{text}"
+        );
+        t.keys("q");
+        magit_settle(&mut t);
         t.keys(":Magit magit-show-refs<Enter>");
         assert_eq!(t.s.ed.magit_menu, Some('y'));
         t.keys("<Esc>:Magit no-such-command<Enter>");

@@ -512,6 +512,45 @@ impl Session {
             });
             return;
         }
+        if action == Action::ProcessBuffer {
+            // magit-process-buffer: this repository's Git commands, newest last.
+            let Ok(repo) = Repo::discover(&self.magit_from()) else {
+                return self.ed.set_err("not in a Git repository");
+            };
+            let mut view = View::status(repo.clone(), Default::default());
+            view.kind = Kind::Process;
+            view.return_to = self.cur;
+            view.rows = vec![Row {
+                text: format!("Git commands in {} (q return)", repo.root.display()),
+                action: None,
+            }];
+            for (root, line, result) in &self.git_log {
+                if *root != repo.root {
+                    continue;
+                }
+                view.rows.push(Row {
+                    text: format!("{} git {line}", if result.is_ok() { "  0" } else { "  1" }),
+                    action: None,
+                });
+                if let Err(e) = result {
+                    for l in e.lines() {
+                        view.rows.push(Row {
+                            text: format!("    {}", label(Path::new(l))),
+                            action: None,
+                        });
+                    }
+                }
+            }
+            if view.rows.len() == 1 {
+                view.rows.push(Row {
+                    text: "No Git commands run yet".into(),
+                    action: None,
+                });
+            }
+            let last = view.rows.len() - 1;
+            self.install_magit(view, None, last);
+            return;
+        }
         if action == Action::StashPush {
             let (origin, from) = (self.cur, self.magit_from());
             let args = crate::magit::menu_arguments(&self.ed, 'Q');
@@ -2921,6 +2960,18 @@ impl Session {
     }
     pub fn finish_git(&mut self, inv: GitInvocation, result: Result<(), String>) {
         self.git_busy = false;
+        // ponytail: last 100 commands; upstream keeps magit-process-log-max.
+        let line = inv
+            .args
+            .iter()
+            .map(|a| a.to_string_lossy())
+            .collect::<Vec<_>>()
+            .join(" ");
+        self.git_log
+            .push((inv.repo.root.clone(), line, result.clone()));
+        if self.git_log.len() > 100 {
+            self.git_log.drain(..1);
+        }
         for ed in self.editors_mut() {
             if let Some(view) = &mut ed.magit
                 && view.repo == inv.repo
@@ -3316,7 +3367,7 @@ fn refresh_view(view: &mut View) -> Result<(), String> {
         view.rows = rows;
         return Ok(());
     }
-    if matches!(view.kind, Kind::Output(..)) {
+    if matches!(view.kind, Kind::Output(..) | Kind::Process) {
         return Ok(());
     }
     if let Kind::Refs(focus, args, count) = &view.kind {
