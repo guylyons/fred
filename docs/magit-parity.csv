@@ -616,17 +616,17 @@ magit-mode.el,1414,command,magit-go-forward,missing,,explicit
 magit-mode.el,1562,command,magit-zap-caches,missing,,explicit
 magit-mode.el,1598,command,magit-toggle-verbose-refresh,missing,,explicit
 magit-mode.el,,command,magit-mode-menu,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-notes.el,34,command,magit-notes,missing,,explicit
-magit-notes.el,110,command,magit-notes-edit,missing,,explicit
-magit-notes.el,121,command,magit-notes-remove,missing,,explicit
-magit-notes.el,132,command,magit-notes-merge,missing,,explicit
-magit-notes.el,145,command,magit-notes-merge-commit,missing,,explicit
-magit-notes.el,151,command,magit-notes-merge-abort,missing,,explicit
-magit-notes.el,157,command,magit-notes-prune,missing,,explicit
-magit-notes.el,,command,magit-core.notesRef,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-notes.el,,command,magit-global-core.notesRef,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-notes.el,,command,magit-global-notes.displayRef,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-notes.el,,command,magit-notes.displayRef,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-notes.el,34,command,magit-notes,partial,"Space m T (magit-dispatch key) with c/d/C/D config, -n, -s strategy and T/r/m/p; c/a commit/abort while merging; -r --ref missing",explicit
+magit-notes.el,110,command,magit-notes-edit,partial,Space m T T (Fred as Git editor),explicit
+magit-notes.el,121,command,magit-notes-remove,partial,Space m T r,explicit
+magit-notes.el,132,command,magit-notes-merge,partial,Space m T m with -s,explicit
+magit-notes.el,145,command,magit-notes-merge-commit,partial,Space m T c while merging,explicit
+magit-notes.el,151,command,magit-notes-merge-abort,partial,Space m T a while merging,explicit
+magit-notes.el,157,command,magit-notes-prune,partial,Space m T p with -n,explicit
+magit-notes.el,,command,magit-core.notesRef,partial,Space m T c,runtime
+magit-notes.el,,command,magit-global-core.notesRef,partial,Space m T C,runtime
+magit-notes.el,,command,magit-global-notes.displayRef,partial,Space m T D,runtime
+magit-notes.el,,command,magit-notes.displayRef,partial,Space m T d (comma separated),runtime
 magit-notes.el,,command,magit-notes:--ref,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-notes.el,,command,magit-notes:--strategy,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-notes.el,,command,transient:magit-notes:--dry-run,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime

@@ -202,6 +202,54 @@ impl Session {
             });
             return;
         }
+        if let Action::Answered(repo, Question::Notes(op), answers, defaults) = action {
+            let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, 'N'));
+            self.start_magit(move || {
+                let merged = merge_answers(&answers, &defaults);
+                let next = repo
+                    .notes_step(op, &merged, &args)
+                    .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                Ok(branch_outcome(repo, next, origin))
+            });
+            return;
+        }
+        if let Action::Notes(op) = action {
+            use crate::magit::notes::Op as N;
+            let (origin, from) = (self.cur, self.magit_from());
+            let args = crate::magit::menu_arguments(&self.ed, 'N');
+            let at_point =
+                self.ed
+                    .magit
+                    .as_ref()
+                    .and_then(|v| match v.action_at(self.ed.cur.line) {
+                        Some(RowAction::Commit(id)) => Some(id),
+                        Some(RowAction::Stash(s)) => Some(s.id),
+                        _ => None,
+                    });
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                let op = match (repo.notes_merging(), op) {
+                    (true, N::NotesRef(false)) => N::MergeCommit,
+                    (true, op @ (N::MergeAbort | N::NotesRef(true) | N::DisplayRef(_))) => op,
+                    (true, _) => {
+                        return Err("A notes merge is in progress: c commit, a abort".into());
+                    }
+                    (false, N::MergeAbort | N::MergeCommit) => {
+                        return Err("No notes merge in progress".into());
+                    }
+                    (false, op) => op,
+                };
+                let (prompts, defaults) = repo.notes_prompts(op, at_point);
+                if prompts.is_empty() {
+                    let next = repo
+                        .notes_step(op, &[], &args)
+                        .unwrap_or_else(|e| crate::magit::branch::Next::Done(Err(e)));
+                    return Ok(branch_outcome(repo, next, origin));
+                }
+                Ok(Outcome::Ask(repo, Question::Notes(op), defaults, prompts))
+            });
+            return;
+        }
         if let Action::Answered(repo, Question::Worktree(op), answers, defaults) = action {
             let origin = self.cur;
             self.start_magit(move || {
@@ -577,7 +625,8 @@ impl Session {
                 | Question::Commit(_)
                 | Question::Stash(_)
                 | Question::Worktree(_)
-                | Question::Reflog => {
+                | Question::Reflog
+                | Question::Notes(_) => {
                     unreachable!("handled before the worker")
                 }
                 Question::FindFile => {

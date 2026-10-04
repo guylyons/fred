@@ -2504,3 +2504,56 @@ fn worktree_suffixes_create_move_delete_and_visit() {
     ));
     assert!(r.worktree_step(Op::Visit, &s(&["/nowhere"])).is_err());
 }
+#[test]
+fn notes_suffixes_configure_edit_remove_merge_and_prune() {
+    use super::branch::Next;
+    use super::notes::Op;
+    let (d, r) = setup();
+    committed(d.path(), b"one\n");
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    // Local config: short names live under refs/notes/; empty unsets.
+    r.notes_step(Op::NotesRef(false), &s(&["review"]), &[])
+        .unwrap();
+    assert_eq!(
+        git(d.path(), &["config", "core.notesRef"]),
+        b"refs/notes/review\n"
+    );
+    r.notes_step(Op::DisplayRef(false), &s(&["a, refs/notes/b"]), &[])
+        .unwrap();
+    assert_eq!(
+        git(d.path(), &["config", "--get-all", "notes.displayRef"]),
+        b"refs/notes/a\nrefs/notes/b\n"
+    );
+    r.notes_step(Op::NotesRef(false), &s(&[""]), &[]).unwrap();
+    assert!(r.read(&["config", "core.notesRef"]).is_err());
+    assert!(r.notes_step(Op::NotesRef(false), &s(&["-x"]), &[]).is_err());
+    // Edit runs Git with Fred as the editor; remove/prune/merge build argv.
+    match r.notes_step(Op::Edit, &s(&["HEAD"]), &[]).unwrap() {
+        Next::GitEditor(argv) => assert_eq!(argv, ["notes", "edit", "--end-of-options", "HEAD"]),
+        other => panic!("{other:?}"),
+    }
+    git(d.path(), &["notes", "add", "-m", "hello", "HEAD"]);
+    match r.notes_step(Op::Remove, &s(&["HEAD"]), &[]).unwrap() {
+        Next::Git(argv) => {
+            r.run(&argv.into_iter().map(Into::into).collect::<Vec<_>>(), None)
+                .unwrap();
+        }
+        other => panic!("{other:?}"),
+    }
+    assert!(r.read(&["notes", "show", "HEAD"]).is_err());
+    match r
+        .notes_step(Op::Merge, &s(&["other"]), &s(&["--strategy=union"]))
+        .unwrap()
+    {
+        Next::GitEditor(argv) => assert_eq!(
+            argv,
+            ["notes", "merge", "--strategy=union", "refs/notes/other"]
+        ),
+        other => panic!("{other:?}"),
+    }
+    match r.notes_step(Op::Prune, &[], &s(&["--dry-run"])).unwrap() {
+        Next::Git(argv) => assert_eq!(argv, ["notes", "prune", "--dry-run"]),
+        other => panic!("{other:?}"),
+    }
+    assert!(!r.notes_merging());
+}

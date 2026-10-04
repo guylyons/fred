@@ -6,6 +6,7 @@ pub mod commit;
 pub mod diff;
 pub mod merge;
 pub mod network;
+pub mod notes;
 pub mod rebase;
 pub mod remote;
 pub mod repo;
@@ -77,6 +78,8 @@ pub enum Action {
     StashOp(stash::Op),
     /// A magit-worktree.el suffix.
     Worktree(worktree::Op),
+    /// A magit-notes.el suffix.
+    Notes(notes::Op),
     /// magit-reflog-current / -head / -other (None asks for a ref).
     Reflog(Option<String>),
     /// ZZ / ZQ in a rebase todo buffer.
@@ -704,6 +707,7 @@ pub enum Question {
     Stash(stash::Op),
     Worktree(worktree::Op),
     Reflog,
+    Notes(notes::Op),
     Net(network::Op),
     Diff(diff::Op),
     FindFile,
@@ -837,6 +841,7 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("F", "Inspect", "File dispatch", Menu('F')),
             ("X", "History", "Reset", Menu('X')),
             ("Z", "Repository", "Worktree", Menu('Y')),
+            ("T", "Inspect", "Notes", Menu('N')),
             ("b", "Branch", "Branch operations", Menu('b')),
             ("B", "Inspect", "Blame", Menu('B')),
             ("c", "Commit", "Commit menu", Menu('C')),
@@ -1329,6 +1334,59 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
                 ),
             ]
         }
+        // magit-notes (internal id N; leader key T). While merging notes,
+        // c commits and a aborts the merge (resolved when run).
+        'N' => {
+            use notes::Op as O;
+            vec![
+                (
+                    "c",
+                    "Configure local settings",
+                    "core.notesRef / commit merge",
+                    Action::Notes(O::NotesRef(false)),
+                ),
+                (
+                    "d",
+                    "Configure local settings",
+                    "notes.displayRef",
+                    Action::Notes(O::DisplayRef(false)),
+                ),
+                (
+                    "C",
+                    "Configure global settings",
+                    "core.notesRef",
+                    Action::Notes(O::NotesRef(true)),
+                ),
+                (
+                    "D",
+                    "Configure global settings",
+                    "notes.displayRef",
+                    Action::Notes(O::DisplayRef(true)),
+                ),
+                (
+                    "-n",
+                    "Arguments for prune",
+                    "Dry run",
+                    ToggleOption(MenuOption::NotesDryRun),
+                ),
+                (
+                    "-s",
+                    "Arguments for merge",
+                    "Merge strategy",
+                    CycleOption("--strategy="),
+                ),
+                ("T", "Actions", "Edit", Action::Notes(O::Edit)),
+                ("r", "Actions", "Remove", Action::Notes(O::Remove)),
+                ("m", "Actions", "Merge", Action::Notes(O::Merge)),
+                ("p", "Actions", "Prune", Action::Notes(O::Prune)),
+                (
+                    "a",
+                    "Actions (merging)",
+                    "Abort merge",
+                    Action::Notes(O::MergeAbort),
+                ),
+            ]
+        }
         // magit-worktree (internal id Y; leader key Z as in magit-dispatch).
         'Y' => {
             use worktree::Op as O;
@@ -1691,6 +1749,7 @@ pub enum MenuOption {
     DiffStat,
     DiffSignature,
     RemoteFetch,
+    NotesDryRun,
     RebaseKeepEmpty,
     RebaseUpdateRefs,
     RebaseAuthorDate,
@@ -1719,8 +1778,9 @@ pub enum MenuOption {
     Choice(char, &'static str, &'static str),
 }
 /// Fred cycles a transient-option's choices instead of reading one, then turns it off.
-pub fn choices(prefix: &str) -> &'static [&'static str] {
+pub fn choices(menu: char, prefix: &str) -> &'static [&'static str] {
     match prefix {
+        "--strategy=" if menu == 'N' => &["manual", "ours", "theirs", "union", "cat_sort_uniq"],
         "--rebase=" => &["true", "merges", "interactive", "false"],
         "--diff-algorithm=" => &["default", "minimal", "patience", "histogram"],
         "--diff-merges=" => &["off", "first-parent", "combined", "dense-combined"],
@@ -1739,6 +1799,7 @@ impl MenuOption {
             FetchPrune | FetchTags | FetchForce => 'f',
             MergeFfOnly | MergeNoFf => 'M',
             RemoteFetch => 'O',
+            NotesDryRun => 'N',
             CherryFf | CherryX | CherryEdit => 'x',
             RebaseKeepEmpty | RebaseUpdateRefs | RebaseAuthorDate | RebaseIgnoreDate
             | RebaseAutosquash | RebaseAutostash | RebaseInteractive | RebaseNoVerify => 'r',
@@ -1784,6 +1845,7 @@ impl MenuOption {
             Self::DiffStat => "--stat",
             Self::DiffSignature => "--show-signature",
             Self::RemoteFetch => "-f",
+            Self::NotesDryRun => "--dry-run",
             Self::RebaseKeepEmpty => "--keep-empty",
             Self::RebaseUpdateRefs => "--update-refs",
             Self::RebaseAuthorDate => "--committer-date-is-author-date",
@@ -1819,7 +1881,7 @@ pub fn current_choice(ed: &Editor, menu: char, prefix: &str) -> Option<&'static 
     })
 }
 fn cycle_choice(ed: &mut Editor, menu: char, prefix: &'static str) {
-    let all = choices(prefix);
+    let all = choices(menu, prefix);
     let next = match current_choice(ed, menu, prefix) {
         None => all.first(),
         Some(v) => all.iter().skip_while(|c| **c != v).nth(1),
@@ -1851,7 +1913,7 @@ pub fn set_menu_arguments(ed: &mut Editor, menu: char, args: &[String]) {
                 ed.magit_options.insert(option);
             }
             Action::CycleOption(prefix) => {
-                if let Some(value) = choices(prefix)
+                if let Some(value) = choices(menu, prefix)
                     .iter()
                     .find(|v| args.contains(&format!("{prefix}{v}")))
                 {
