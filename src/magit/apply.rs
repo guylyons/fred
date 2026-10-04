@@ -2,7 +2,7 @@
 use super::Section;
 use super::branch::Next;
 use super::repo::{Diff, Repo, label};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
@@ -65,7 +65,7 @@ impl Op {
 }
 
 impl Repo {
-    fn in_head(&self, path: &PathBuf) -> bool {
+    fn in_head(&self, path: &Path) -> bool {
         self.read(&[
             "cat-file",
             "-e",
@@ -75,7 +75,7 @@ impl Repo {
     }
     /// magit-discard-files--discard for a staged file: back to HEAD in the
     /// index and worktree, or gone if HEAD does not have it.
-    fn discard_staged_file(&self, path: &PathBuf) -> Result<(), String> {
+    fn discard_staged_file(&self, path: &Path) -> Result<(), String> {
         if self.in_head(path) {
             self.run(&self.path_args(&["checkout", "HEAD"], path), None)?;
         } else {
@@ -84,7 +84,7 @@ impl Repo {
         Ok(())
     }
     /// Reverse staged changes in the worktree only.
-    fn reverse_staged(&self, path: Option<&PathBuf>) -> Result<(), String> {
+    fn reverse_staged(&self, path: Option<&Path>) -> Result<(), String> {
         let mut args: Vec<std::ffi::OsString> = [
             "diff",
             "--cached",
