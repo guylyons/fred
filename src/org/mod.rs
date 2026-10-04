@@ -41,6 +41,22 @@ pub struct Org {
     pub global_status: Option<&'static str>,
     /// Folds per spec (outline, blocks, drawers).
     pub specs: fold::Specs,
+    /// The active region (Emacs transient mark) while a command runs from
+    /// a Visual-line selection or a `'<,'>` range: lines `lo..=hi`.
+    pub region: Option<(usize, usize)>,
+    /// Plain-list state (org-list.el).
+    pub list: list::State,
+}
+
+/// org-region-active-p: the region's lines.
+pub fn region(ed: &Editor) -> Option<(usize, usize)> {
+    ed.org.as_ref().and_then(|o| o.region)
+}
+
+fn set_region(ed: &mut Editor, r: Option<(usize, usize)>) {
+    if let Some(o) = &mut ed.org {
+        o.region = r;
+    }
 }
 
 /// Emacs prefix argument.
@@ -550,7 +566,11 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         return false;
     };
     let insert = ed.mode == Mode::Insert;
-    if !normal && !insert {
+    let visual = match ed.mode {
+        Mode::VisualLine { anchor } => Some((anchor.min(ed.cur.line), anchor.max(ed.cur.line))),
+        _ => None,
+    };
+    if !normal && !insert && visual.is_none() {
         return false;
     }
     if ed.org_keys.is_empty() {
@@ -578,7 +598,12 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             if arg.is_none() && !digits.is_empty() {
                 arg = Prefix::Num(digits.parse().unwrap_or(1));
             }
+            if visual.is_some() {
+                ed.mode = Mode::Normal;
+                set_region(ed, visual);
+            }
             run(ed, cmd, arg);
+            set_region(ed, None);
             true
         }
         Lookup::Prefix => {
@@ -678,7 +703,17 @@ pub fn command_names() -> Vec<&'static str> {
 
 /// `:org-NAME [args]` or `:org NAME`: true if this was an Org command.
 pub fn ex(ed: &mut Editor, text: &str) -> bool {
-    let t = text.trim();
+    let mut t = text.trim();
+    // A Visual-line range is the region.
+    let mut range = None;
+    if let Some(rest) = t.strip_prefix("'<,'>") {
+        t = rest.trim_start();
+        range = ed
+            .marks
+            .get(&'<')
+            .zip(ed.marks.get(&'>'))
+            .map(|(a, b)| (*a, *b));
+    }
     let (name, _rest) = match t.split_once(char::is_whitespace) {
         Some((a, b)) => (a, b.trim()),
         None => (t, ""),
@@ -695,7 +730,9 @@ pub fn ex(ed: &mut Editor, text: &str) -> bool {
         return false;
     }
     let arg = std::mem::take(&mut ed.org_arg);
+    set_region(ed, range);
     run(ed, name, arg);
+    set_region(ed, None);
     true
 }
 
