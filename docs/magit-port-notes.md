@@ -209,3 +209,13 @@ multiscreen selections. Correct with an overlay fallback and regression before
 integration. Deferred minor: Visual K in read-only Magit views remains rejected
 by the Magit allowlist; the equivalent ranged :explain command works. Existing
 AI cancellation behavior is unchanged; wider full parity stays on the roadmap.
+
+Integration checkpoint: feat/ai-explain commit c2bf211 was merged into
+feat-magit after the Magit binding/inventory commit 5272f1b. Preserved both
+sets of UI tests when resolving their append-only conflict. The explanation
+overlay fallback regression passes in the combined tree. Combined verification:
+389 tests passed, 18 ignored; formatting, whitespace checks, Clippy with the
+existing allowance and release build passed. Installation targets the existing
+/Users/guy/.cargo/bin/fred; publish this checkpoint to origin/feat-magit.
+Accepted full-port progress remains 3%, with 97% remaining. Resume from the
+roadmap after this stopping checkpoint; do not mistake this merge for full parity.
