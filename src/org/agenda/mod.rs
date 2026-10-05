@@ -23,14 +23,39 @@ macro_rules! re {
     }};
 }
 
-pub mod cmds;
-pub mod collect;
+// ponytail: work in progress. The finders (collect), views, buffer
+// commands, habits and solar modules are not written yet; until they
+// are, `command` answers nothing and org-agenda stays "not yet ported".
 pub mod format;
-pub mod habit;
-pub mod solar;
-#[cfg(test)]
-mod tests;
-pub mod views;
+
+/// org-habit-parse-todo's result: scheduled day, `.+` repeat in days,
+/// deadline day, deadline repeat, done days, repeater type.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct Habit {
+    pub scheduled: i64,
+    pub repeat: i64,
+    pub deadline: Option<i64>,
+    pub deadline_repeat: Option<i64>,
+    pub done: Vec<i64>,
+    pub repeat_type: String,
+}
+
+thread_local! {
+    static WIDTH: std::cell::Cell<Option<usize>> = const { std::cell::Cell::new(None) };
+}
+
+/// window-max-chars-per-line for the agenda (tests pin it).
+pub fn width() -> usize {
+    WIDTH.with(std::cell::Cell::get).unwrap_or_else(|| {
+        crossterm::terminal::size()
+            .map_or(80, |(w, _)| w as usize)
+            .saturating_sub(1)
+    })
+}
+
+pub fn set_width(w: Option<usize>) {
+    WIDTH.with(|c| c.set(w));
+}
 
 use super::Prefix;
 use super::sexp::{self, Sexp};
@@ -55,8 +80,12 @@ impl Loc {
             return Some(self.line);
         }
         (1..lines.len().max(self.line + 1)).find_map(|d| {
-            let up = self.line.checked_sub(d).filter(|&i| lines.get(i).is_some_and(|l| *l == self.text));
-            let down = Some(self.line + d).filter(|&i| lines.get(i).is_some_and(|l| *l == self.text));
+            let up = self
+                .line
+                .checked_sub(d)
+                .filter(|&i| lines.get(i).is_some_and(|l| *l == self.text));
+            let down =
+                Some(self.line + d).filter(|&i| lines.get(i).is_some_and(|l| *l == self.text));
             up.or(down)
         })
     }
@@ -160,7 +189,7 @@ pub struct Item {
     pub face: Face,
     pub undone_face: Option<Face>,
     pub done_face: Option<Face>,
-    pub habit: Option<habit::Habit>,
+    pub habit: Option<Habit>,
     pub warntime: Option<String>,
     /// The keywords of the item's file (org-todo-keywords-1) and which
     /// are done (for highlighting and todo-state sorting).
@@ -327,7 +356,10 @@ pub enum Spec {
         with_hour: bool,
     },
     /// org-todo-list: the keyword selection ("TODO|NEXT", "*") or a number.
-    Todo { keywords: Option<String>, n: Option<i64> },
+    Todo {
+        keywords: Option<String>,
+        n: Option<i64>,
+    },
     /// org-tags-view.
     Tags { todo_only: bool, matcher: String },
     /// org-search-view.
@@ -385,7 +417,8 @@ impl Modes {
     pub fn start() -> Modes {
         Modes {
             follow: opt_bool("org-agenda-start-with-follow-mode", false),
-            entry_text: opt_bool("org-agenda-start-with-entry-text-mode", false).then(|| opt_int("org-agenda-entry-text-maxlines", 5)),
+            entry_text: opt_bool("org-agenda-start-with-entry-text-mode", false)
+                .then(|| opt_int("org-agenda-entry-text-maxlines", 5)),
             clockreport: opt_bool("org-agenda-start-with-clockreport-mode", false),
             show_log: sexp::option("org-agenda-start-with-log-mode").filter(Sexp::truthy),
             archives: match sexp::option("org-agenda-start-with-archives-mode") {
@@ -410,7 +443,11 @@ pub struct Filters {
 
 impl Filters {
     pub fn any(&self) -> bool {
-        !self.tag.is_empty() || !self.category.is_empty() || !self.regexp.is_empty() || !self.effort.is_empty() || self.top.is_some()
+        !self.tag.is_empty()
+            || !self.category.is_empty()
+            || !self.regexp.is_empty()
+            || !self.effort.is_empty()
+            || self.top.is_some()
     }
 }
 
@@ -552,10 +589,15 @@ pub fn sexp_to_toml(v: &Sexp) -> toml::Value {
 pub fn eval(v: &Sexp) -> Sexp {
     match v {
         Sexp::List(l) if l.len() == 2 && l[0].sym() == Some("quote") => l[1].clone(),
-        Sexp::List(l) if l.first().and_then(Sexp::sym) == Some("list") => Sexp::List(l[1..].iter().map(eval).collect()),
-        Sexp::List(l) if l.first().and_then(Sexp::sym) == Some("concat") => {
-            Sexp::Str(l[1..].iter().map(|x| eval(x).str().unwrap_or("").to_owned()).collect())
+        Sexp::List(l) if l.first().and_then(Sexp::sym) == Some("list") => {
+            Sexp::List(l[1..].iter().map(eval).collect())
         }
+        Sexp::List(l) if l.first().and_then(Sexp::sym) == Some("concat") => Sexp::Str(
+            l[1..]
+                .iter()
+                .map(|x| eval(x).str().unwrap_or("").to_owned())
+                .collect(),
+        ),
         Sexp::Sym(s) if s.starts_with(':') => v.clone(),
         Sexp::Sym(s) => opt(s).unwrap_or(Sexp::Nil),
         v => v.clone(),
@@ -564,7 +606,10 @@ pub fn eval(v: &Sexp) -> Sexp {
 
 /// Bind options for the duration of `f` (cl-progv over option names).
 pub fn with_bindings<R>(b: &Bindings, f: impl FnOnce() -> R) -> R {
-    let saved: Vec<(String, Option<toml::Value>)> = b.iter().map(|(k, _)| (k.clone(), super::options::get(k))).collect();
+    let saved: Vec<(String, Option<toml::Value>)> = b
+        .iter()
+        .map(|(k, _)| (k.clone(), super::options::get(k)))
+        .collect();
     for (k, v) in b {
         super::options::put(k, sexp_to_toml(&eval(v)));
     }
@@ -585,7 +630,10 @@ pub fn bindings(v: Option<&Sexp>) -> Bindings {
         .iter()
         .filter_map(|b| {
             let l = b.list()?;
-            Some((l.first()?.sym()?.to_owned(), l.get(1).cloned().unwrap_or(Sexp::Nil)))
+            Some((
+                l.first()?.sym()?.to_owned(),
+                l.get(1).cloned().unwrap_or(Sexp::Nil),
+            ))
         })
         .collect()
 }
@@ -609,10 +657,6 @@ struct Global {
     new_buffers: Vec<PathBuf>,
     /// org-agenda-sticky.
     sticky: Option<bool>,
-    /// The last agenda buffer name (org-agenda-this-buffer-name).
-    last_name: Option<String>,
-    /// org-agenda-last-prefix-arg.
-    last_prefix: Prefix,
     /// Appointments added by org-agenda-to-appt: (time, text, warntime).
     appts: Vec<(String, String, Option<String>)>,
     /// The clock table text returned by the clock module.
@@ -632,7 +676,8 @@ pub fn set_restriction(r: Option<Restriction>) {
 }
 
 pub fn sticky() -> bool {
-    G.with(|g| g.borrow().sticky).unwrap_or_else(|| opt_bool("org-agenda-sticky", false))
+    G.with(|g| g.borrow().sticky)
+        .unwrap_or_else(|| opt_bool("org-agenda-sticky", false))
 }
 
 pub fn set_sticky(v: bool) {
@@ -661,7 +706,7 @@ pub fn put_result(s: String) {
     G.with(|g| g.borrow_mut().result = Some(s));
 }
 
-fn take_result() -> Option<String> {
+pub fn take_result() -> Option<String> {
     G.with(|g| g.borrow_mut().result.take())
 }
 
@@ -675,9 +720,9 @@ pub fn files(unrestricted: bool, archives: bool) -> Vec<PathBuf> {
     if opt_bool("org-agenda-skip-unavailable-files", false) {
         v.retain(|f| f.is_file());
     }
-    if archives {
-        v = views::add_archive_files(&v);
-    }
+    // ponytail: archive files (org-add-archive-files) join when the
+    // views module lands.
+    let _ = archives;
     let mut seen = vec![];
     v.retain(|f| {
         let c = std::fs::canonicalize(f).unwrap_or_else(|_| f.clone());
@@ -695,11 +740,15 @@ pub fn files(unrestricted: bool, archives: bool) -> Vec<PathBuf> {
 
 /// The view of this buffer.
 pub fn view(ed: &Editor) -> Result<&View, String> {
-    ed.org_view.as_deref().map(|v| &v.0).ok_or_else(|| "Not in an Org agenda buffer".to_owned())
+    ed.org_view
+        .as_deref()
+        .ok_or_else(|| "Not in an Org agenda buffer".to_owned())
 }
 
 pub fn view_mut(ed: &mut Editor) -> Result<&mut View, String> {
-    ed.org_view.as_deref_mut().map(|v| &mut v.0).ok_or_else(|| "Not in an Org agenda buffer".to_owned())
+    ed.org_view
+        .as_deref_mut()
+        .ok_or_else(|| "Not in an Org agenda buffer".to_owned())
 }
 
 /// The view line at the cursor.
@@ -721,9 +770,11 @@ pub fn item(ed: &Editor) -> Result<Item, String> {
 pub fn redisplay(ed: &mut Editor) {
     let at = cur_line(ed);
     let col = ed.cur.byte;
-    let Some(v) = ed.org_view.as_deref_mut() else { return };
-    let text = v.0.render();
-    let line = at.map_or(0, |i| v.0.buffer_line(i));
+    let Some(v) = ed.org_view.as_deref_mut() else {
+        return;
+    };
+    let text = v.render();
+    let line = at.map_or(0, |i| v.buffer_line(i));
     ed.buf = crate::buffer::Buffer::from_text(&text);
     ed.undo = crate::undo::Undo::default();
     ed.folds.clear();
@@ -735,56 +786,160 @@ pub fn redisplay(ed: &mut Editor) {
     ed.clamp_cursor();
 }
 
-/// Wrapper so the editor's field type stays `org::View`.
-pub struct Boxed(pub View);
-
 /// Every agenda command name (org-agenda.el and org-habit.el), for `:org-` completion.
 pub const NAMES: &[&str] = &[
-    "org-agenda", "org-agenda-list", "org-todo-list", "org-tags-view", "org-search-view",
-    "org-agenda-list-stuck-projects", "org-agenda-append-agenda", "org-store-agenda-views", "org-agenda-write",
-    "org-agenda-archives-mode", "org-agenda-dim-blocked-tasks", "org-agenda-end-of-line", "org-agenda-fontify-priorities",
-    "org-agenda-menu", "org-agenda-follow-mode", "org-agenda-entry-text-mode", "org-agenda-clockreport-mode",
-    "org-toggle-sticky-agenda", "org-agenda-mode", "org-agenda-undo", "org-agenda-entry-text-show",
-    "org-agenda-show-clocking-issues", "org-agenda-limit-interactively", "org-agenda-set-restriction-lock-from-agenda",
-    "org-agenda-set-restriction-lock", "org-agenda-remove-restriction-lock", "org-agenda-Quit", "org-agenda-quit",
-    "org-agenda-exit", "org-agenda-kill-all-agenda-buffers", "org-agenda-execute", "org-agenda-redo", "org-agenda-redo-all",
-    "org-agenda-filter-by-category", "org-agenda-filter-by-top-headline", "org-agenda-filter-by-regexp",
-    "org-agenda-filter-by-effort", "org-agenda-filter", "org-agenda-filter-remove-all", "org-agenda-filter-by-tag",
-    "org-agenda-manipulate-query-add", "org-agenda-manipulate-query-subtract", "org-agenda-manipulate-query-add-re",
-    "org-agenda-manipulate-query-subtract-re", "org-agenda-goto-date", "org-agenda-goto-today", "org-agenda-backward-block",
-    "org-agenda-forward-block", "org-agenda-later", "org-agenda-earlier", "org-agenda-view-mode-dispatch",
-    "org-agenda-reset-view", "org-agenda-day-view", "org-agenda-week-view", "org-agenda-fortnight-view",
-    "org-agenda-month-view", "org-agenda-year-view", "org-agenda-next-date-line", "org-agenda-previous-date-line",
-    "org-agenda-log-mode", "org-agenda-toggle-diary", "org-agenda-toggle-deadlines", "org-agenda-toggle-time-grid",
-    "org-agenda-next-line", "org-agenda-previous-line", "org-agenda-next-item", "org-agenda-previous-item",
-    "org-agenda-show-tags", "org-agenda-goto", "org-agenda-kill", "org-agenda-archive-default",
-    "org-agenda-archive-default-with-confirmation", "org-agenda-archive", "org-agenda-archive-to-archive-sibling",
-    "org-agenda-archive-with", "org-agenda-refile", "org-agenda-open-link", "org-agenda-switch-to", "org-agenda-goto-mouse",
-    "org-agenda-show", "org-agenda-show-and-scroll-up", "org-agenda-show-scroll-down", "org-agenda-show-1",
-    "org-agenda-cycle-show", "org-agenda-recenter", "org-agenda-show-mouse", "org-agenda-tree-to-indirect-buffer",
-    "org-agenda-todo-nextset", "org-agenda-todo-previousset", "org-agenda-todo", "org-agenda-add-note",
-    "org-agenda-priority-up", "org-agenda-priority-down", "org-agenda-priority", "org-agenda-set-tags",
-    "org-agenda-set-property", "org-agenda-set-effort", "org-agenda-toggle-archive-tag", "org-agenda-do-date-later",
-    "org-agenda-do-date-earlier", "org-agenda-date-later", "org-agenda-date-earlier", "org-agenda-date-later-minutes",
-    "org-agenda-date-earlier-minutes", "org-agenda-date-later-hours", "org-agenda-date-earlier-hours",
-    "org-agenda-date-prompt", "org-agenda-schedule", "org-agenda-deadline", "org-agenda-clock-in", "org-agenda-clock-out",
-    "org-agenda-clock-cancel", "org-agenda-clock-goto", "org-agenda-diary-entry", "org-agenda-phases-of-moon",
-    "org-agenda-holidays", "org-agenda-sunrise-sunset", "org-agenda-goto-calendar", "org-calendar-goto-agenda",
-    "org-agenda-convert-date", "org-agenda-bulk-mark", "org-agenda-bulk-mark-all", "org-agenda-bulk-mark-regexp",
-    "org-agenda-bulk-unmark", "org-agenda-bulk-toggle-all", "org-agenda-bulk-toggle", "org-agenda-bulk-remove-overlays",
-    "org-agenda-bulk-unmark-all", "org-agenda-bulk-action", "org-agenda-capture", "org-agenda-drag-line-forward",
-    "org-agenda-drag-line-backward", "org-agenda-show-the-flagging-note", "org-agenda-to-appt", "org-agenda-todo-yesterday",
-    "org-agenda-ctrl-c-ctrl-c", "org-habit-toggle-habits", "org-habit-toggle-display-in-agenda",
-    "org-agenda-set-restriction-lock", "org-agenda-file-to-front", "org-remove-file", "org-cycle-agenda-files",
-    "org-agenda-store-link", "org-batch-agenda", "org-batch-agenda-csv", "org-batch-store-agenda-views", "org-diary",
+    "org-agenda",
+    "org-agenda-list",
+    "org-todo-list",
+    "org-tags-view",
+    "org-search-view",
+    "org-agenda-list-stuck-projects",
+    "org-agenda-append-agenda",
+    "org-store-agenda-views",
+    "org-agenda-write",
+    "org-agenda-archives-mode",
+    "org-agenda-dim-blocked-tasks",
+    "org-agenda-end-of-line",
+    "org-agenda-fontify-priorities",
+    "org-agenda-menu",
+    "org-agenda-follow-mode",
+    "org-agenda-entry-text-mode",
+    "org-agenda-clockreport-mode",
+    "org-toggle-sticky-agenda",
+    "org-agenda-mode",
+    "org-agenda-undo",
+    "org-agenda-entry-text-show",
+    "org-agenda-show-clocking-issues",
+    "org-agenda-limit-interactively",
+    "org-agenda-set-restriction-lock-from-agenda",
+    "org-agenda-set-restriction-lock",
+    "org-agenda-remove-restriction-lock",
+    "org-agenda-Quit",
+    "org-agenda-quit",
+    "org-agenda-exit",
+    "org-agenda-kill-all-agenda-buffers",
+    "org-agenda-execute",
+    "org-agenda-redo",
+    "org-agenda-redo-all",
+    "org-agenda-filter-by-category",
+    "org-agenda-filter-by-top-headline",
+    "org-agenda-filter-by-regexp",
+    "org-agenda-filter-by-effort",
+    "org-agenda-filter",
+    "org-agenda-filter-remove-all",
+    "org-agenda-filter-by-tag",
+    "org-agenda-manipulate-query-add",
+    "org-agenda-manipulate-query-subtract",
+    "org-agenda-manipulate-query-add-re",
+    "org-agenda-manipulate-query-subtract-re",
+    "org-agenda-goto-date",
+    "org-agenda-goto-today",
+    "org-agenda-backward-block",
+    "org-agenda-forward-block",
+    "org-agenda-later",
+    "org-agenda-earlier",
+    "org-agenda-view-mode-dispatch",
+    "org-agenda-reset-view",
+    "org-agenda-day-view",
+    "org-agenda-week-view",
+    "org-agenda-fortnight-view",
+    "org-agenda-month-view",
+    "org-agenda-year-view",
+    "org-agenda-next-date-line",
+    "org-agenda-previous-date-line",
+    "org-agenda-log-mode",
+    "org-agenda-toggle-diary",
+    "org-agenda-toggle-deadlines",
+    "org-agenda-toggle-time-grid",
+    "org-agenda-next-line",
+    "org-agenda-previous-line",
+    "org-agenda-next-item",
+    "org-agenda-previous-item",
+    "org-agenda-show-tags",
+    "org-agenda-goto",
+    "org-agenda-kill",
+    "org-agenda-archive-default",
+    "org-agenda-archive-default-with-confirmation",
+    "org-agenda-archive",
+    "org-agenda-archive-to-archive-sibling",
+    "org-agenda-archive-with",
+    "org-agenda-refile",
+    "org-agenda-open-link",
+    "org-agenda-switch-to",
+    "org-agenda-goto-mouse",
+    "org-agenda-show",
+    "org-agenda-show-and-scroll-up",
+    "org-agenda-show-scroll-down",
+    "org-agenda-show-1",
+    "org-agenda-cycle-show",
+    "org-agenda-recenter",
+    "org-agenda-show-mouse",
+    "org-agenda-tree-to-indirect-buffer",
+    "org-agenda-todo-nextset",
+    "org-agenda-todo-previousset",
+    "org-agenda-todo",
+    "org-agenda-add-note",
+    "org-agenda-priority-up",
+    "org-agenda-priority-down",
+    "org-agenda-priority",
+    "org-agenda-set-tags",
+    "org-agenda-set-property",
+    "org-agenda-set-effort",
+    "org-agenda-toggle-archive-tag",
+    "org-agenda-do-date-later",
+    "org-agenda-do-date-earlier",
+    "org-agenda-date-later",
+    "org-agenda-date-earlier",
+    "org-agenda-date-later-minutes",
+    "org-agenda-date-earlier-minutes",
+    "org-agenda-date-later-hours",
+    "org-agenda-date-earlier-hours",
+    "org-agenda-date-prompt",
+    "org-agenda-schedule",
+    "org-agenda-deadline",
+    "org-agenda-clock-in",
+    "org-agenda-clock-out",
+    "org-agenda-clock-cancel",
+    "org-agenda-clock-goto",
+    "org-agenda-diary-entry",
+    "org-agenda-phases-of-moon",
+    "org-agenda-holidays",
+    "org-agenda-sunrise-sunset",
+    "org-agenda-goto-calendar",
+    "org-calendar-goto-agenda",
+    "org-agenda-convert-date",
+    "org-agenda-bulk-mark",
+    "org-agenda-bulk-mark-all",
+    "org-agenda-bulk-mark-regexp",
+    "org-agenda-bulk-unmark",
+    "org-agenda-bulk-toggle-all",
+    "org-agenda-bulk-toggle",
+    "org-agenda-bulk-remove-overlays",
+    "org-agenda-bulk-unmark-all",
+    "org-agenda-bulk-action",
+    "org-agenda-capture",
+    "org-agenda-drag-line-forward",
+    "org-agenda-drag-line-backward",
+    "org-agenda-show-the-flagging-note",
+    "org-agenda-to-appt",
+    "org-agenda-todo-yesterday",
+    "org-agenda-ctrl-c-ctrl-c",
+    "org-habit-toggle-habits",
+    "org-habit-toggle-display-in-agenda",
+    "org-agenda-set-restriction-lock",
+    "org-agenda-file-to-front",
+    "org-remove-file",
+    "org-cycle-agenda-files",
+    "org-agenda-store-link",
+    "org-batch-agenda",
+    "org-batch-agenda-csv",
+    "org-batch-store-agenda-views",
+    "org-diary",
 ];
 
 /// This module's interactive commands, by upstream name.
-pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), String>> {
-    if let Some(r) = views::command(ed, name, arg) {
-        return Some(r);
-    }
-    cmds::command(ed, name, arg)
+pub fn command(_ed: &mut Editor, _name: &str, _arg: Prefix) -> Option<Result<(), String>> {
+    None
 }
 
 /// Keys the agenda leaves to Vim: the `Space` leader, `:`, counts, `G`.
@@ -797,7 +952,12 @@ pub fn vim_keeps(ed: &Editor, k: crate::key::Key) -> bool {
         KeyCode::Char(' ') => ed.vim.pending.is_empty(),
         KeyCode::Char(':') | KeyCode::Char('G') | KeyCode::Esc => true,
         KeyCode::Char(c) if c.is_ascii_digit() => {
-            c != '0' || ed.vim.pending.iter().any(|p| p.char().is_some_and(|c| c.is_ascii_digit()))
+            c != '0'
+                || ed
+                    .vim
+                    .pending
+                    .iter()
+                    .any(|p| p.char().is_some_and(|c| c.is_ascii_digit()))
         }
         _ => false,
     }
@@ -819,7 +979,10 @@ pub struct Prompt {
 pub fn take_prompt(ed: &mut Editor) -> Option<Prompt> {
     let open = match &ed.mode {
         Mode::Command(cl) => cl.kind == 'o',
-        Mode::Pick(p) => matches!(p.kind, crate::pick::Kind::OrgMenu | crate::pick::Kind::OrgChoice),
+        Mode::Pick(p) => matches!(
+            p.kind,
+            crate::pick::Kind::OrgMenu | crate::pick::Kind::OrgChoice
+        ),
         _ => false,
     };
     if !open {
@@ -850,7 +1013,10 @@ pub fn put_prompt(ed: &mut Editor, p: Prompt, then: super::Then) {
 impl Prompt {
     pub fn split(self) -> (super::Then, Prompt) {
         let then = self.then;
-        let rest = Prompt { then: Box::new(|_, _| {}), ..self };
+        let rest = Prompt {
+            then: Box::new(|_, _| {}),
+            ..self
+        };
         (then, rest)
     }
 }
@@ -883,7 +1049,10 @@ type AfterFn = Box<dyn FnOnce(&mut crate::session::Session, Remote) + Send>;
 
 /// Run `f` in the source buffer now (from a session effect).
 pub fn remote_now(s: &mut crate::session::Session, at: Loc, f: RunFn, after: AfterFn) {
-    let open = (0..s.org_buffer_count()).any(|i| s.org_buffer_path(i).is_some_and(|p| same_file(&p, &at.path)));
+    let open = (0..s.org_buffer_count()).any(|i| {
+        s.org_buffer_path(i)
+            .is_some_and(|p| same_file(&p, &at.path))
+    });
     let i = match s.org_buffer(&at.path) {
         Ok(i) => i,
         Err(e) => return s.ed.set_err(e),
@@ -917,15 +1086,32 @@ pub fn remote_now(s: &mut crate::session::Session, at: Loc, f: RunFn, after: Aft
 }
 
 fn same_file(a: &std::path::Path, b: &std::path::Path) -> bool {
-    a == b || std::fs::canonicalize(a).ok().zip(std::fs::canonicalize(b).ok()).is_some_and(|(x, y)| x == y)
+    a == b
+        || std::fs::canonicalize(a)
+            .ok()
+            .zip(std::fs::canonicalize(b).ok())
+            .is_some_and(|(x, y)| x == y)
 }
 
 /// After a step of a remote command: forward an open prompt to the
 /// agenda, perform session effects, else call `after`.
-fn finish_remote(s: &mut crate::session::Session, i: usize, at: Loc, n0: usize, res: Result<(), String>, after: AfterFn) {
-    let (prompt, eff, msg) = s.org_with_buffer(i, |src| (take_prompt(src), src.pending_effect.take(), src.msg.take()));
+fn finish_remote(
+    s: &mut crate::session::Session,
+    i: usize,
+    at: Loc,
+    n0: usize,
+    res: Result<(), String>,
+    after: AfterFn,
+) {
+    let (prompt, eff, msg) = s.org_with_buffer(i, |src| {
+        (take_prompt(src), src.pending_effect.take(), src.msg.take())
+    });
     if let Some((m, err)) = msg {
-        if err { s.ed.set_err(m) } else { s.ed.set_msg(m) }
+        if err {
+            s.ed.set_err(m)
+        } else {
+            s.ed.set_msg(m)
+        }
     }
     if let Err(e) = &res {
         s.ed.set_err(e.clone());
@@ -935,7 +1121,9 @@ fn finish_remote(s: &mut crate::session::Session, i: usize, at: Loc, n0: usize, 
         let at2 = at.clone();
         let then: super::Then = Box::new(move |ed: &mut Editor, ans: String| {
             super::effect(ed, move |s| {
-                let Ok(i) = s.org_buffer(&at2.path) else { return };
+                let Ok(i) = s.org_buffer(&at2.path) else {
+                    return;
+                };
                 s.org_with_buffer(i, |src| orig(src, ans));
                 finish_remote(s, i, at2, n0, Ok(()), after);
             });
@@ -950,10 +1138,16 @@ fn finish_remote(s: &mut crate::session::Session, i: usize, at: Loc, n0: usize, 
         let h = super::syntax::heading_at_or_before(&src.buf, src.cur.line);
         (h.map(|h| (h, src.buf.line(h))), src.line_count())
     });
-    let r = Remote { path: at.path.clone(), old: at, head, delta: n1 as i64 - n0 as i64, ok: res.is_ok() };
+    let r = Remote {
+        path: at.path.clone(),
+        old: at,
+        head,
+        delta: n1 as i64 - n0 as i64,
+        ok: res.is_ok(),
+    };
     // Remember the change for org-agenda-undo.
     if let Some(v) = s.ed.org_view.as_deref_mut() {
-        v.0.undo.push(r.path.clone());
+        v.undo.push(r.path.clone());
     }
     after(s, r);
 }

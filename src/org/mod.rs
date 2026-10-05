@@ -4,6 +4,7 @@
 //! chords, the user's `Space o` leader, and `:org-NAME` runs any ported
 //! command by its upstream name.
 
+pub mod agenda;
 pub mod babel;
 pub mod buf;
 pub mod capture;
@@ -47,10 +48,8 @@ pub fn colview_active(_ed: &mut Editor) -> Option<Result<(), String>> {
     None
 }
 
-/// A generated Org buffer (agenda and other views); see agenda.rs.
-pub struct View {
-    pub name: String,
-}
+/// A generated Org buffer: an agenda view (see agenda/mod.rs).
+pub use agenda::View;
 
 /// Per-buffer Org state.
 #[derive(Default)]
@@ -718,7 +717,9 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         return false;
     }
     if ed.org_keys.is_empty() {
-        let kept = if insert {
+        let kept = if ed.org_view.is_some() {
+            agenda::vim_keeps(ed, k)
+        } else if insert {
             vim_keeps_insert(k)
         } else {
             vim_keeps_normal(k)
@@ -801,6 +802,7 @@ type Module = fn(&mut Editor, &str, Prefix) -> Option<Result<(), String>>;
 /// Every module's command table, tried in order.
 const MODULES: &[Module] = &[
     fold::command,
+    agenda::command,
     dispatch::command,
     structure::command,
     todo::command,
@@ -1042,6 +1044,7 @@ pub fn command_names() -> Vec<&'static str> {
         .iter()
         .chain(keymap::AGENDA_MAP)
         .map(|(_, c)| *c)
+        .chain(agenda::NAMES.iter().copied())
         .collect();
     v.sort_unstable();
     v.dedup();
