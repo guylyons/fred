@@ -159,8 +159,8 @@ fn parse_motion(keys: &[Key]) -> Parse<(Motion, usize)> {
 /// Commands that take one character argument.
 const ARG_CMDS: &[char] = &['r', 'm', 'Z', ' ', 'g'];
 const SIMPLE: &[char] = &[
-    'x', 'X', 's', 'S', 'J', 'p', 'P', 'o', 'O', 'i', 'a', 'I', 'A', 'u', 'D', 'C', 'Y', 'V', ':',
-    '/', '?', '.', 'r', 'm', 'Z', ' ', 'g',
+    'x', 'X', 's', 'S', 'J', 'p', 'P', 'o', 'O', 'i', 'a', 'I', 'A', 'u', 'D', 'C', 'Y', 'V', 'v',
+    ':', '/', '?', '.', 'r', 'm', 'Z', ' ', 'g',
 ];
 
 fn parse(keys: &[Key]) -> Parse<Cmd> {
@@ -248,9 +248,17 @@ fn parse(keys: &[Key]) -> Parse<Cmd> {
 pub fn normal_key(ed: &mut Editor, k: Key) {
     if k.is(KeyCode::Esc) || k == Key::ctrl('c') {
         ed.vim.pending.clear();
-        if matches!(ed.mode, Mode::VisualLine { .. }) {
+        if ed.visual_lines().is_some() {
             ed.mode = Mode::Normal;
         }
+        return;
+    }
+    if let Mode::Visual { anchor } = ed.mode
+        && ed.vim.pending.is_empty()
+        && let Some(c) = k.char()
+        && VISUAL.contains(&c)
+    {
+        visual_chars(ed, anchor, c);
         return;
     }
     if let Mode::VisualLine { anchor } = ed.mode
@@ -267,7 +275,7 @@ pub fn normal_key(ed: &mut Editor, k: Key) {
         Parse::Invalid => ed.vim.pending.clear(),
         Parse::Done(cmd) => {
             let keys = std::mem::take(&mut ed.vim.pending);
-            if matches!(ed.mode, Mode::VisualLine { .. }) {
+            if ed.visual_lines().is_some() {
                 let allowed = match &cmd {
                     Cmd::Move { .. } => true,
                     Cmd::Simple { key, .. } => {
@@ -287,13 +295,55 @@ pub fn normal_key(ed: &mut Editor, k: Key) {
 
 pub use insert::insert_key;
 
-/// Keys that act on the selection in Visual-line mode.
+/// Keys that act on the selection in Visual and Visual-line mode.
 const VISUAL: &[char] = &[
-    'd', 'x', 'X', 'D', 'y', 'Y', 'c', 's', 'S', 'C', 'J', ':', 'V', 'o', 'K',
+    'd', 'x', 'X', 'D', 'y', 'Y', 'c', 's', 'S', 'C', 'J', ':', 'V', 'v', 'o', 'K',
 ];
 
+/// A key in charwise Visual mode; the uppercase ones act on whole lines, as in vim.
+fn visual_chars(ed: &mut Editor, anchor: (usize, usize), c: char) {
+    match c {
+        'v' => ed.mode = Mode::Normal,
+        'V' => ed.mode = Mode::VisualLine { anchor: anchor.0 },
+        'o' => {
+            ed.mode = Mode::Visual {
+                anchor: ed.cur.pos(),
+            };
+            ed.set_cursor(anchor.0, anchor.1);
+        }
+        'd' | 'x' | 'y' | 'c' | 's' => {
+            ed.mode = Mode::Normal;
+            if ed.generated() && c != 'y' {
+                ed.set_err("generated Git buffer is read-only");
+                return;
+            }
+            let (from, to) = (anchor.min(ed.cur.pos()), anchor.max(ed.cur.pos()));
+            let line = ed.buf.line(to.0);
+            // On an empty line the selection takes its line break.
+            let to = if to.1 < line.len() {
+                (to.0, crate::text::next_grapheme(&line, to.1))
+            } else if to.0 + 1 < ed.line_count() {
+                (to.0 + 1, 0)
+            } else {
+                (to.0, line.len())
+            };
+            let op = match c {
+                'x' => 'd',
+                's' => 'c',
+                c => c,
+            };
+            ed.undo.begin(ed.cur.pos());
+            ops::apply_op(ed, op, ops::Span::Chars(from, to));
+            if ed.mode != Mode::Insert {
+                ed.undo.end(ed.cur.pos());
+            }
+        }
+        _ => visual(ed, anchor.0, c),
+    }
+}
+
 fn visual(ed: &mut Editor, anchor: usize, c: char) {
-    if ed.generated() && !matches!(c, 'y' | 'Y' | ':' | 'V' | 'o') {
+    if ed.generated() && !matches!(c, 'y' | 'Y' | ':' | 'V' | 'v' | 'o') {
         ed.mode = Mode::Normal;
         ed.set_err("generated Git buffer is read-only");
         return;
@@ -302,6 +352,11 @@ fn visual(ed: &mut Editor, anchor: usize, c: char) {
     ed.mode = Mode::Normal;
     match c {
         'V' => {}
+        'v' => {
+            ed.mode = Mode::Visual {
+                anchor: (anchor, 0),
+            }
+        }
         'o' => {
             ed.mode = Mode::VisualLine {
                 anchor: ed.cur.line,
@@ -567,6 +622,11 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
         (KeyCode::Char('V'), false) => {
             ed.mode = Mode::VisualLine {
                 anchor: ed.cur.line,
+            }
+        }
+        (KeyCode::Char('v'), false) => {
+            ed.mode = Mode::Visual {
+                anchor: ed.cur.pos(),
             }
         }
         (KeyCode::Char('d'), true) | (KeyCode::PageDown, _) | (KeyCode::Char('f'), true) => {

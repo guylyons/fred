@@ -381,6 +381,26 @@ fn visual_selection_is_reversed() {
 }
 
 #[test]
+fn charwise_visual_reverses_just_the_selection() {
+    let mut s = Screen::new(20, 5);
+    let e = editor("abcd\nefgh\nij", "lvj");
+    s.draw(&e);
+    let b = s.term.backend().buffer();
+    let rev = |x, y| b[(x, y)].modifier.contains(Modifier::REVERSED);
+    // Text starts at column 4: b-d of the first line, e-f of the second.
+    assert_eq!(
+        (4..8).map(|x| rev(x, 0)).collect::<Vec<_>>(),
+        [false, true, true, true]
+    );
+    assert_eq!(
+        (4..8).map(|x| rev(x, 1)).collect::<Vec<_>>(),
+        [true, true, false, false]
+    );
+    assert!(!rev(4, 2));
+    assert!(s.row(4).contains("VISUAL") || s.row(3).contains("VISUAL"));
+}
+
+#[test]
 fn relative_numbers() {
     let mut s = Screen::new(20, 5);
     s.cfg.relative_numbers = true;

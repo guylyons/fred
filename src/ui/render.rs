@@ -109,6 +109,29 @@ fn reversed(spans: &mut Vec<Span<'static>>) {
     }
 }
 
+/// `st` with the bytes in `r` reversed.
+fn reverse_bytes(st: &Option<LineStyles>, r: std::ops::Range<usize>) -> Option<LineStyles> {
+    let mut cuts: Vec<usize> = st
+        .iter()
+        .flatten()
+        .flat_map(|(_, s)| [s.start, s.end])
+        .chain([r.start, r.end])
+        .collect();
+    cuts.sort_unstable();
+    cuts.dedup();
+    let mut styler = Styler::new(st);
+    let spans = cuts.windows(2).map(|w| {
+        let s = styler.at(w[0]);
+        let s = if r.contains(&w[0]) {
+            s.add_modifier(Modifier::REVERSED)
+        } else {
+            s
+        };
+        (s, w[0]..w[1])
+    });
+    Some(spans.collect())
+}
+
 fn digits(n: usize) -> usize {
     n.to_string().len()
 }
@@ -153,6 +176,7 @@ fn mode_name(m: &Mode) -> &'static str {
         Mode::Normal => "NORMAL",
         Mode::Insert => "INSERT",
         Mode::VisualLine { .. } => "V-LINE",
+        Mode::Visual { .. } => "VISUAL",
         Mode::Command(_) => "COMMAND",
         Mode::Pick(p) => match p.kind {
             Kind::Files => "FIND",
@@ -213,17 +237,17 @@ pub fn mouse(
         ed.handle_key(crate::key::Key::new(code));
         return;
     }
-    if ed.explain.is_some() && matches!(event.kind, MouseEventKind::Down(_)) {
-        if let Some(b) = view.explain_box
-            && b.contains((event.column, event.row).into())
-        {
-            // Its ✕ closes it; other clicks inside leave it be.
-            if event.row == b.y && event.column + 4 >= b.right() {
-                ed.explain = None;
-            }
-            return;
+    // A click elsewhere leaves the explain box open and does what it would.
+    if ed.explain.is_some()
+        && matches!(event.kind, MouseEventKind::Down(_))
+        && let Some(b) = view.explain_box
+        && b.contains((event.column, event.row).into())
+    {
+        // Its ✕ closes it; other clicks inside leave it be.
+        if event.row == b.y && event.column + 4 >= b.right() {
+            ed.explain = None;
         }
-        // A click elsewhere leaves it open and does what it would.
+        return;
     }
     if event.row >= area.bottom().saturating_sub(2) || matches!(ed.mode, Mode::Command(_)) {
         view.last_click = None;
@@ -604,8 +628,13 @@ pub fn draw(
     } else {
         hl.styles(&ed.buf, view.top..last, budget)
     };
+    // Charwise Visual: its first and last positions, both included.
+    let chars = match ed.mode {
+        Mode::Visual { anchor } => Some((anchor.min(ed.cur.pos()), anchor.max(ed.cur.pos()))),
+        _ => None,
+    };
     let sel = match ed.mode {
-        Mode::VisualLine { anchor } => Some((anchor.min(ed.cur.line), anchor.max(ed.cur.line))),
+        Mode::VisualLine { .. } | Mode::Visual { .. } => ed.visual_lines(),
         Mode::Command(ref cl) if cl.kind == ':' && cl.text.starts_with("'<,'>") => ed
             .marks
             .get(&'<')
@@ -648,13 +677,32 @@ pub fn draw(
         } else {
             styles.get(l - view.top).cloned().flatten()
         };
+        let in_sel = sel.is_some_and(|(a, b)| l >= a && l <= b);
+        let mut selected = in_sel;
+        // A charwise selection's partial first or last line reverses just its bytes.
+        let st = match chars {
+            Some((a, b)) if in_sel => {
+                let lo = if l == a.0 { a.1 } else { 0 };
+                let hi = if l == b.0 && b.1 < line.len() {
+                    crate::text::next_grapheme(&line, b.1)
+                } else {
+                    line.len() + 1
+                };
+                if lo == 0 && hi > line.len() {
+                    st
+                } else {
+                    selected = false;
+                    reverse_bytes(&st, lo..hi)
+                }
+            }
+            _ => st,
+        };
         // Org: descriptive links and hidden markers, except on the cursor line.
         let (line, st) = if ed.org.is_some() && l != ed.cur.line {
             crate::org::face::conceal(line, st, &org_settings)
         } else {
             (line, st)
         };
-        let selected = sel.is_some_and(|(a, b)| l >= a && l <= b);
         // Rows of this line already scrolled off the top.
         let skip = if l == view.top { view.top_row } else { 0 };
         let first_y = y;
@@ -742,7 +790,7 @@ pub fn draw(
                     Style::default().bg(Color::Indexed(237)),
                 );
             }
-            if cfg.hl_line && l == ed.cur.line && !selected && !splash {
+            if cfg.hl_line && l == ed.cur.line && !in_sel && !splash {
                 buf.set_style(
                     Rect::new(ox + gutter as u16, oy + *y as u16, cols as u16, 1),
                     Style::default().bg(Color::Indexed(235)),
@@ -931,7 +979,7 @@ fn mode_color(m: &Mode) -> Color {
     match m {
         Mode::Normal => Color::Blue,
         Mode::Insert => Color::Green,
-        Mode::VisualLine { .. } => Color::Magenta,
+        Mode::VisualLine { .. } | Mode::Visual { .. } => Color::Magenta,
         Mode::Command(_) => Color::Yellow,
         Mode::Pick(_) => Color::Cyan,
     }
