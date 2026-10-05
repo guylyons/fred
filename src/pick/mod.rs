@@ -918,7 +918,11 @@ pub fn org_menu(ed: &mut Editor, title: &str) {
             } else {
                 format!("[{key}]  {label}")
             },
-            hl: if key.is_empty() { vec![] } else { vec![(1, 1 + key.len())] },
+            hl: if key.is_empty() {
+                vec![]
+            } else {
+                vec![(1, 1 + key.len())]
+            },
             path: PathBuf::new(),
             line: index,
             col: 0,

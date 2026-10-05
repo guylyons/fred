@@ -36,6 +36,80 @@ pub(super) enum Outcome {
     /// A network command whose configuration was already written.
     ConfiguredGit(GitInvocation),
     Saved(Repo, Result<(), String>),
+    /// Text for the unnamed register (the kill ring) and a message.
+    Copy(String, String),
+    /// Answer a question without asking (the commit at point).
+    Answer(Repo, Question, Vec<String>, Vec<String>),
+    /// A shell command for the terminal.
+    Shell(String),
+}
+/// magit-log-select: the current branch's log, in which picking a commit
+/// answers QUESTION (after ANSWERS). INITIAL is the commit to start on;
+/// otherwise the first that is not a fixup!, squash! or amend! commit.
+fn log_select(
+    repo: Repo,
+    question: Question,
+    answers: Vec<String>,
+    defaults: Vec<String>,
+    message: String,
+    initial: Option<String>,
+    origin: usize,
+) -> Result<Outcome, String> {
+    let head = repo.current_branch().unwrap_or_else(|_| "HEAD".into());
+    let mut view = View::status(repo, Default::default());
+    // magit-log-select-mode's magit-log-default-arguments.
+    view.kind = Kind::Log(
+        vec![head],
+        vec!["--graph".into(), "-n256".into(), "--decorate".into()],
+    );
+    view.rows.clear();
+    view.return_to = origin;
+    view.select = Some(Box::new(crate::magit::Select {
+        question,
+        answers,
+        defaults,
+        message,
+    }));
+    refresh_view(&mut view)?;
+    let fallback = view
+        .rows
+        .iter()
+        .position(|r| {
+            matches!(r.action, Some(RowAction::Commit(_)))
+                && !["fixup! ", "squash! ", "amend! "]
+                    .iter()
+                    .any(|p| r.text.contains(p))
+        })
+        .unwrap_or(0);
+    Ok(Outcome::View(
+        Box::new(view),
+        initial.map(RowAction::Commit),
+        fallback,
+    ))
+}
+/// What a hunk patch at point is used for.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PatchUse {
+    Apply,
+    Reverse,
+    ReverseIndex,
+}
+/// The patch for the hunk (or file) at LINE of a diff, commit or stash buffer.
+fn diff_patch_at(view: &View, line: usize) -> Result<Vec<u8>, String> {
+    let repo = &view.repo;
+    // The raw output and the rows before it (a diff buffer's title).
+    let (bytes, offset) = match &view.kind {
+        Kind::Diff(target, args) => (repo.diff_output(target, args)?, 1),
+        Kind::Patch(id) => (repo.commit_patch(id)?, 0),
+        Kind::StashPatch(stash) => (repo.stash_patch(stash)?, 0),
+        _ => return Err("Not in a diff buffer".into()),
+    };
+    if bytes.len() > 1024 * 1024 {
+        return Err("Diff too large to apply from here".into());
+    }
+    let lines: Vec<&[u8]> = bytes.split(|b| *b == b'\n').collect();
+    let at = line.checked_sub(offset).ok_or("No hunk or file at point")?;
+    crate::magit::diff::hunk_patch(&lines, at)
 }
 pub(super) struct Job {
     input_generation: u64,
@@ -79,9 +153,194 @@ impl Session {
             }
             return;
         }
+        if let Action::Saved(inner) = action {
+            self.saving_done = true;
+            self.magit_action(*inner);
+            self.saving_done = false;
+            return;
+        }
+        if let Action::SaveAnswered(path, save, rest, inner) = action {
+            if save
+                && let Some(i) =
+                    (0..self.bufs.len()).find(|&i| self.ed_at(i).path.as_ref() == Some(&path))
+            {
+                let origin = self.cur;
+                self.show(i);
+                self.write(None, false, None);
+                if origin != self.cur && origin < self.bufs.len() {
+                    self.show(origin);
+                }
+            }
+            return self.ask_save(rest, inner);
+        }
+        // magit-save-repository-buffers (magit-maybe-save-repository-buffers
+        // before refreshes and Git commands).
+        if !self.saving_done
+            && matches!(
+                action,
+                Action::Status
+                    | Action::Refresh
+                    | Action::RefreshAll
+                    | Action::Commit
+                    | Action::Answered(..)
+                    | Action::Submit(..)
+                    | Action::Net(_)
+                    | Action::GitRun(_)
+                    | Action::Workflow(_)
+            )
+        {
+            let how = self.save_buffers;
+            let root = Repo::discover(&self.magit_from()).ok().map(|r| r.root);
+            let modified: Vec<PathBuf> = match (how, &root) {
+                (Some(_), Some(root)) => (0..self.bufs.len())
+                    .filter_map(|i| {
+                        let ed = self.ed_at(i);
+                        (ed.buf.modified
+                            && ed.magit.is_none()
+                            && !ed.generated()
+                            && ed.commit_repo.is_none())
+                        .then(|| ed.path.clone())
+                        .flatten()
+                        .filter(|p| swap::canonical(p).starts_with(root))
+                    })
+                    .collect(),
+                _ => vec![],
+            };
+            if !modified.is_empty() {
+                if how == Some(true) {
+                    return self.ask_save(modified, Box::new(action));
+                }
+                let origin = self.cur;
+                for p in &modified {
+                    if let Some(i) =
+                        (0..self.bufs.len()).find(|&i| self.ed_at(i).path.as_ref() == Some(p))
+                    {
+                        self.show(i);
+                        self.write(None, false, None);
+                    }
+                }
+                if origin != self.cur && origin < self.bufs.len() {
+                    self.show(origin);
+                }
+            }
+        }
+        // magit-process-kill works while a Git process runs.
+        if action == Action::ListRepositories {
+            let origin = self.cur;
+            let home = std::env::var_os("HOME")
+                .map(PathBuf::from)
+                .unwrap_or_default();
+            self.start_magit(move || {
+                let mut view = View::status(Repo { root: home }, Default::default());
+                view.kind = Kind::Repos;
+                view.rows.clear();
+                view.return_to = origin;
+                refresh_view(&mut view)?;
+                Ok(Outcome::View(Box::new(view), None, 1))
+            });
+            return;
+        }
+        if let Action::RepolistMark(mark) = action {
+            let line = self.ed.cur.line;
+            let Some(view) = self.ed.magit.as_mut().filter(|v| v.kind == Kind::Repos) else {
+                return self.ed.set_err("Not in a repository list");
+            };
+            let Some(RowAction::Repo(p)) = view.action_at(line) else {
+                return;
+            };
+            if mark {
+                view.marked.insert(p);
+            } else {
+                view.marked.remove(&p);
+            }
+            if let Some(row) = view.rows.get_mut(line) {
+                row.text.replace_range(..1, if mark { "*" } else { " " });
+            }
+            let view = view.as_ref().clone();
+            // tabulated-list-put-tag ... t: and move to the next line.
+            self.install_magit(
+                view,
+                None,
+                (line + 1).min(self.ed.line_count().saturating_sub(1)),
+            );
+            return;
+        }
+        if matches!(action, Action::RepolistFetch | Action::RepolistFindFile) {
+            let Some(view) = self.ed.magit.as_deref().filter(|v| v.kind == Kind::Repos) else {
+                return self.ed.set_err("Not in a repository list");
+            };
+            // magit-repolist--get-repos: the marked ones, else all (confirmed).
+            let mut repos: Vec<PathBuf> = view
+                .rows
+                .iter()
+                .filter_map(|r| match &r.action {
+                    Some(RowAction::Repo(p)) if view.marked.contains(p) => Some(p.clone()),
+                    _ => None,
+                })
+                .collect();
+            if repos.is_empty() {
+                if crate::magit::options::confirm("repolist-all") {
+                    let repo = view.repo.clone();
+                    let q = if action == Action::RepolistFetch {
+                        crate::magit::misc::Op::RepolistAll(true)
+                    } else {
+                        crate::magit::misc::Op::RepolistAll(false)
+                    };
+                    crate::magit::prompt(
+                        &mut self.ed,
+                        crate::magit::Prompt::Ask(
+                            repo,
+                            Question::Misc(q),
+                            vec![],
+                            vec![
+                                "Nothing selected.  Act on ALL displayed repositories? (y or n) "
+                                    .into(),
+                            ],
+                            vec![],
+                        ),
+                    );
+                    return;
+                }
+                repos = view
+                    .rows
+                    .iter()
+                    .filter_map(|r| match &r.action {
+                        Some(RowAction::Repo(p)) => Some(p.clone()),
+                        _ => None,
+                    })
+                    .collect();
+            }
+            return self.repolist_act(action == Action::RepolistFetch, repos);
+        }
+        if action == Action::TodoHelp {
+            return self.ed.set_msg(
+                "Rebase todo: p r e s f d set action  x exec  b break  l label  t reset  M merge  \
+                 M-j/M-k move  RET show  ZZ run  ZQ cancel",
+            );
+        }
+        if action == Action::ProcessKill {
+            let n = Repo::discover(&self.magit_from())
+                .map_or(0, |r| crate::magit::repo::kill_running(&r.root));
+            return if n == 0 {
+                self.ed.set_err("No process at point")
+            } else {
+                self.ed.set_msg(format!("Killed {n} Git process(es)"))
+            };
+        }
         if self.magit_job.is_some() || self.pending_git.is_some() || self.git_busy {
             self.ed.set_err("Git operation in progress");
             return;
+        }
+        // magit-pre-refresh-hook.
+        if action == Action::Refresh
+            && let Some(view) = self.ed.magit.as_deref()
+        {
+            crate::magit::options::run_hook("magit-pre-refresh-hook", &view.repo.root);
+        }
+        // magit-refresh-verbose times every refresh.
+        if self.refresh_verbose && action == Action::Refresh && self.profile_once.is_none() {
+            let calls = crate::magit::repo::CALLS_COUNT.load(std::sync::atomic::Ordering::Relaxed);
+            self.profile_once = Some((std::time::Instant::now(), calls));
         }
         if let Action::Stash(operation) = action {
             let Some(mut view) = self.ed.magit.as_deref().cloned() else {
@@ -164,10 +423,10 @@ impl Session {
             return self.file_answered(repo, op, answers, args);
         }
         if let Action::Answered(repo, Question::Branch(op), answers, defaults) = action {
-            let origin = self.cur;
+            let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, 'b'));
             self.start_magit(move || {
                 let merged = merge_answers(&answers, &defaults);
-                let next = repo.branch_step(op, &merged, &defaults);
+                let next = repo.branch_step_args(op, &merged, &defaults, &args);
                 Ok(branch_outcome(repo, next, origin))
             });
             return;
@@ -306,7 +565,13 @@ impl Session {
                     }
                 };
                 args.push(format!("-- {}", file.to_string_lossy()));
-                diff_view(repo, target, args, origin)
+                // magit-diff-buffer-file-locked: its own buffer per file.
+                let mut outcome = diff_view(repo, target, args, origin)?;
+                if let Outcome::View(view, ..) = &mut outcome {
+                    view.locked =
+                        crate::magit::options::flag("magit-diff-buffer-file-locked", true);
+                }
+                Ok(outcome)
             });
             return;
         }
@@ -326,6 +591,68 @@ impl Session {
                 ))
             });
             return;
+        }
+        if let Action::Answered(
+            repo,
+            Question::Misc(crate::magit::misc::Op::LogJump),
+            answers,
+            defaults,
+        ) = action
+        {
+            return self.log_jump(repo, merge_answers(&answers, &defaults));
+        }
+        if let Action::Answered(
+            _,
+            Question::Misc(op @ crate::magit::misc::Op::RepolistAll(_)),
+            answers,
+            _,
+        ) = action
+        {
+            if !matches!(answers.first().map(|a| a.trim()), Some("y" | "yes")) {
+                return self.ed.set_msg("Abort");
+            }
+            let repos = self
+                .ed
+                .magit
+                .as_deref()
+                .map(|v| {
+                    v.rows
+                        .iter()
+                        .filter_map(|r| match &r.action {
+                            Some(RowAction::Repo(p)) => Some(p.clone()),
+                            _ => None,
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            return self.repolist_act(op == crate::magit::misc::Op::RepolistAll(true), repos);
+        }
+        if let Action::Answered(
+            _,
+            Question::Misc(crate::magit::misc::Op::RepolistFile),
+            answers,
+            _,
+        ) = action
+        {
+            let file = answers
+                .first()
+                .map(|a| a.trim().to_owned())
+                .unwrap_or_default();
+            let repos = self.repolist_files.take().unwrap_or_default();
+            if file.is_empty() {
+                return self.ed.set_err("No file");
+            }
+            let mut opened = 0;
+            for r in repos {
+                let p = r.join(&file);
+                if p.is_file() {
+                    self.open_pick(p, None);
+                    opened += 1;
+                }
+            }
+            return self
+                .ed
+                .set_msg(format!("Opened {file} in {opened} repositories"));
         }
         if let Action::Answered(repo, Question::Misc(op), answers, defaults) = action {
             let origin = self.cur;
@@ -347,19 +674,44 @@ impl Session {
                 .as_ref()
                 .filter(|_| self.ed.magit.is_none())
                 .and_then(|p| p.parent().map(Path::to_path_buf));
+            let files = matches!(
+                op,
+                crate::magit::misc::Op::StageFiles(_)
+                    | crate::magit::misc::Op::UnstageFiles
+                    | crate::magit::misc::Op::RemovingFile
+            );
             let at_point =
                 self.ed
                     .magit
                     .as_ref()
                     .and_then(|v| match v.action_at(self.ed.cur.line) {
-                        Some(RowAction::Commit(id)) => Some(id),
+                        Some(RowAction::Commit(id)) if !files => Some(id),
+                        Some(RowAction::File(p, _) | RowAction::Hunk(p, ..)) if files => {
+                            Some(p.to_string_lossy().into_owned())
+                        }
                         _ => None,
                     });
+            // The visited file is the default file (magit-file-relative-name).
+            let visited = self
+                .ed
+                .path
+                .clone()
+                .filter(|_| files && !self.ed.generated());
             self.start_magit(move || {
                 let repo = Repo::discover(&from)?;
+                let at_point = at_point.or_else(|| {
+                    visited
+                        .and_then(|p| repo_relative(&repo, &p).ok())
+                        .map(|p| p.to_string_lossy().into_owned())
+                });
                 let op = match (op, here) {
                     (crate::magit::misc::Op::GitCommand { topdir: false }, Some(dir)) => {
                         crate::magit::misc::Op::GitCommandIn(
+                            repo_relative(&repo, &dir).unwrap_or_default(),
+                        )
+                    }
+                    (crate::magit::misc::Op::ShellCommand { topdir: false }, Some(dir)) => {
+                        crate::magit::misc::Op::ShellCommandIn(
                             repo_relative(&repo, &dir).unwrap_or_default(),
                         )
                     }
@@ -376,16 +728,22 @@ impl Session {
             });
             return;
         }
-        if matches!(action, Action::TraceDefinition | Action::EditLineCommit) {
+        if matches!(
+            action,
+            Action::TraceDefinition
+                | Action::EditLineCommit
+                | Action::DiffTrace
+                | Action::DiffEditHunk
+        ) {
             let origin = self.cur;
             // The visited file (or blob) and the line / name at point.
-            let blob = self
+            let mut blob = self
                 .ed
                 .blob
                 .as_ref()
                 .map(|b| (b.repo.clone(), b.rev.clone(), b.file.clone()));
             let (from, path) = (self.magit_from(), self.ed.path.clone());
-            let line = self.ed.cur.line + 1;
+            let mut line = self.ed.cur.line + 1;
             let text = self.ed.buf.line(self.ed.cur.line);
             let col = self.ed.cur.byte.min(text.len());
             let is_word = |c: char| c.is_alphanumeric() || c == '_';
@@ -395,11 +753,39 @@ impl Session {
             let end = text[col..]
                 .find(|c: char| !is_word(c))
                 .map_or(text.len(), |i| col + i);
-            let name = text.get(start..end).unwrap_or("").to_owned();
+            let mut name = text.get(start..end).unwrap_or("").to_owned();
+            // From a hunk: the side of the file it shows (magit-diff-visit-file)
+            // and the function the hunk changes.
+            let action = match action {
+                Action::DiffTrace | Action::DiffEditHunk => {
+                    let Some(view) = self.ed.magit.as_deref() else {
+                        return;
+                    };
+                    let Some((rev, file, l)) = diff_visit(view, self.ed.cur.line, false) else {
+                        return self.ed.set_err("No hunk at point");
+                    };
+                    name = self.hunk_defun().and_then(|(_, d)| d).unwrap_or_default();
+                    blob = Some((view.repo.clone(), rev, file));
+                    line = l + 1;
+                    if action == Action::DiffTrace {
+                        Action::TraceDefinition
+                    } else {
+                        Action::EditLineCommit
+                    }
+                }
+                a => a,
+            };
             let log_args = crate::magit::menu_arguments(&self.ed, 'l');
             let rebase_args = crate::magit::menu_arguments(&self.ed, 'r');
             self.start_magit(move || {
                 let (repo, rev, file) = match blob {
+                    // The worktree (or index) side: blame the file itself.
+                    Some((repo, rev, file))
+                        if rev == crate::magit::blob::WORKTREE
+                            || rev == crate::magit::blob::INDEX =>
+                    {
+                        (repo, None, file)
+                    }
                     Some((repo, rev, file)) => (repo, Some(rev), file),
                     None => {
                         let repo = Repo::discover(&from)?;
@@ -531,6 +917,165 @@ impl Session {
             });
             return;
         }
+        if action == Action::DiredAm {
+            let Some(d) = self.ed.dired.as_ref() else {
+                return self.ed.set_err("Not in a dired buffer");
+            };
+            let dir = d.dir.clone();
+            let files = crate::dired::selection(&self.ed);
+            let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, 'w'));
+            self.start_magit(move || {
+                let repo = Repo::discover(&dir)?;
+                if files.is_empty() {
+                    return Err("No patch files selected".into());
+                }
+                let mut argv = vec!["am".to_owned()];
+                argv.extend(args);
+                argv.push("--".into());
+                argv.extend(files.iter().map(|f| f.to_string_lossy().into_owned()));
+                Ok(branch_outcome(
+                    repo,
+                    crate::magit::branch::Next::GitEditor(argv),
+                    origin,
+                ))
+            });
+            return;
+        }
+        if matches!(action, Action::AsyncShell | Action::EdiffStage) {
+            let file = match self
+                .ed
+                .magit
+                .as_deref()
+                .and_then(|v| v.action_at(self.ed.cur.line))
+            {
+                Some(RowAction::File(p, _) | RowAction::Hunk(p, ..)) => Some(p),
+                _ => self.hunk_defun().map(|(f, _)| PathBuf::from(f)),
+            };
+            let Some(file) = file else {
+                return self.ed.set_err("No file at point");
+            };
+            if action == Action::AsyncShell {
+                return self.magit_action(Action::Misc(crate::magit::misc::Op::AsyncShell(file)));
+            }
+            let (origin, from) = (self.cur, self.magit_from());
+            self.start_magit(move || {
+                let repo = Repo::discover(&from)?;
+                let argv = vec![
+                    "add".into(),
+                    "--patch".into(),
+                    "--".into(),
+                    file.to_string_lossy().into_owned(),
+                ];
+                Ok(branch_outcome(
+                    repo,
+                    crate::magit::branch::Next::GitEditor(argv),
+                    origin,
+                ))
+            });
+            return;
+        }
+        if action == Action::UpdateIndex {
+            let Some(b) = self
+                .ed
+                .blob
+                .as_ref()
+                .filter(|b| b.rev == crate::magit::blob::INDEX)
+            else {
+                return self.ed.set_err("Not visiting the index blob of a file");
+            };
+            let (repo, file) = (b.repo.clone(), b.file.clone());
+            let text = self.ed.buf.to_bytes();
+            let origin = self.cur;
+            self.start_magit(move || {
+                let path = crate::magit::repo::literal_pathspec(&file);
+                let staged =
+                    repo.run(&["ls-files".into(), "-s".into(), "--".into(), path], None)?;
+                let mode = String::from_utf8_lossy(&staged)
+                    .split_whitespace()
+                    .next()
+                    .map(str::to_owned)
+                    .ok_or("File is not in the index")?;
+                let id = repo.run(
+                    &["hash-object".into(), "-w".into(), "--stdin".into()],
+                    Some(&text),
+                )?;
+                let id = String::from_utf8_lossy(&id).trim().to_owned();
+                repo.run(
+                    &[
+                        "update-index".into(),
+                        "--cacheinfo".into(),
+                        format!("{mode},{id},{}", file.to_string_lossy()).into(),
+                    ],
+                    None,
+                )?;
+                Ok(branch_outcome(
+                    repo,
+                    crate::magit::branch::Next::Done(Ok(format!(
+                        "Updated index entry of {}",
+                        file.display()
+                    ))),
+                    origin,
+                ))
+            });
+            return;
+        }
+        if let Action::Thing(what) = action {
+            // Placeholders upstream: only a URL at point can be browsed.
+            let line = self.ed.buf.line(self.ed.cur.line);
+            let col = self.ed.cur.byte.min(line.len());
+            let url = line
+                .match_indices("http")
+                .map(|(i, _)| i)
+                .filter(|&i| i <= col)
+                .filter_map(|i| {
+                    let end = line[i..]
+                        .find(|c: char| c.is_whitespace() || "<>\"')".contains(c))
+                        .map_or(line.len(), |e| i + e);
+                    let u = &line[i..end];
+                    (end >= col && (u.starts_with("http://") || u.starts_with("https://")))
+                        .then(|| u.to_owned())
+                })
+                .last();
+            return match (what, url) {
+                ('o', Some(u)) => self.browse(&u),
+                ('o', None) => self
+                    .ed
+                    .set_err("There is no thing at point that could be browsed"),
+                ('e', _) => self
+                    .ed
+                    .set_err("There is no thing at point that could be edited"),
+                _ => self
+                    .ed
+                    .set_err("There is no thing at point that we know how to copy"),
+            };
+        }
+        if action == Action::Info {
+            return self.browse("https://magit.vc/manual/magit/");
+        }
+        if action == Action::AutoRevertMode {
+            self.auto_revert = !self.auto_revert;
+            let on = if self.auto_revert {
+                "enabled"
+            } else {
+                "disabled"
+            };
+            return self.ed.set_msg(format!("Magit-Auto-Revert mode {on}"));
+        }
+        if action == Action::WipMode {
+            self.wip_mode = !self.wip_mode;
+            let on = if self.wip_mode { "enabled" } else { "disabled" };
+            return self.ed.set_msg(format!("Magit-Wip mode {on}"));
+        }
+        if action == Action::WipCommitFile {
+            let Some(path) = self.ed.path.clone().filter(|_| !self.ed.generated()) else {
+                return self.ed.set_err("Not visiting a file");
+            };
+            let file = match Repo::discover(&path).and_then(|r| repo_relative(&r, &path)) {
+                Ok(f) => f,
+                Err(e) => return self.ed.set_err(e),
+            };
+            return self.magit_action(Action::Wip(crate::magit::wip::Op::CommitFile(file)));
+        }
         if let Action::Wip(op) = action {
             let (origin, from) = (self.cur, self.magit_from());
             self.start_magit(move || {
@@ -542,11 +1087,309 @@ impl Session {
             });
             return;
         }
-        if let Action::Answered(_, Question::ReverseDiff(line), answers, _) = action {
+        if let Action::Answered(_, Question::ReverseDiff(line, index), answers, _) = action {
             if !matches!(answers.first().map(|a| a.trim()), Some("y" | "yes")) {
                 return self.ed.set_msg("Abort");
             }
-            return self.apply_diff(true, line);
+            let how = if index {
+                PatchUse::ReverseIndex
+            } else {
+                PatchUse::Reverse
+            };
+            return self.apply_diff(how, line);
+        }
+        if action == Action::CopyDiff {
+            return self.copy_diff();
+        }
+        if let Action::Margin(what) = action {
+            let Some(view) = self.ed.magit.as_mut() else {
+                return self
+                    .ed
+                    .set_err("Magit margin isn't supported in this buffer");
+            };
+            if view.margin.is_none() {
+                view.margin = crate::magit::margin::Margin::for_kind(&view.kind);
+            }
+            let Some(m) = view.margin.as_mut() else {
+                return self
+                    .ed
+                    .set_err("Magit margin isn't supported in this buffer");
+            };
+            match what {
+                'L' => m.shown = !m.shown,
+                'l' => m.cycle_style(),
+                'd' => m.details = !m.details,
+                _ => m.shortstat = !m.shortstat,
+            }
+            // Load stamps (and shortstats) the buffer does not have yet.
+            return self.magit_action(Action::Refresh);
+        }
+        if let Action::DiffToggle(what) = action {
+            let Some(view) = self.ed.magit.as_mut() else {
+                return;
+            };
+            let on = if what == 't' {
+                view.refine = !view.refine;
+                view.refine
+            } else {
+                view.fontify = !view.fontify;
+                view.fontify
+            };
+            let name = if what == 't' {
+                "Hunk refinement"
+            } else {
+                "Hunk fontification"
+            };
+            return self
+                .ed
+                .set_msg(format!("{name} {}", if on { "on" } else { "off" }));
+        }
+        if action == Action::GitGuiBlame {
+            // The visited file at this line, else (upstream reads them) HEAD's.
+            let Some(path) = self.ed.path.clone().filter(|_| !self.ed.generated()) else {
+                return self.ed.set_err("Not visiting a file");
+            };
+            let repo = match Repo::discover(&path) {
+                Ok(r) => r,
+                Err(e) => return self.ed.set_err(e),
+            };
+            let file = match repo_relative(&repo, &path) {
+                Ok(f) => f,
+                Err(e) => return self.ed.set_err(e),
+            };
+            let line = self.ed.cur.line + 1;
+            return self.magit_action(Action::Misc(crate::magit::misc::Op::GitGuiBlame(
+                file, line,
+            )));
+        }
+        if action == Action::AbortDwim {
+            use crate::magit::{merge, patch, rebase, sequence};
+            let repo = match Repo::discover(&self.magit_from()) {
+                Ok(r) => r,
+                Err(e) => return self.ed.set_err(e),
+            };
+            // magit-abort-dwim's order: merge, rebase, am, sequencer, bisect.
+            let workflow = repo.active_workflow().ok().flatten();
+            let next = if workflow == Some("merge") {
+                Action::Merge(merge::Op::Abort)
+            } else if repo.am_in_progress() {
+                Action::Patch(patch::Op::AmAbort)
+            } else if workflow == Some("rebase") {
+                Action::Rebase(rebase::Op::Abort)
+            } else if matches!(workflow, Some("cherry-pick" | "revert")) {
+                Action::Sequence(sequence::Op::Abort)
+            } else if repo.bisecting() {
+                Action::Bisect(crate::magit::bisect::Op::Reset)
+            } else {
+                return self.ed.set_msg("Nothing to abort");
+            };
+            return self.magit_action(next);
+        }
+        if let Action::DebugToggle(which) = action {
+            use crate::magit::repo::{DEBUG, PROFILE, RECORD};
+            use std::sync::atomic::Ordering;
+            let (flag, name) = match which {
+                'd' => (&DEBUG, "Git debug"),
+                'r' => (&RECORD, "Subprocess recording"),
+                'p' => (&PROFILE, "Profiling"),
+                _ => {
+                    self.refresh_verbose = !self.refresh_verbose;
+                    let on = if self.refresh_verbose { "on" } else { "off" };
+                    return self.ed.set_msg(format!("Verbose refresh {on}"));
+                }
+            };
+            let on = !flag.fetch_xor(true, Ordering::Relaxed);
+            return self.ed.set_msg(format!(
+                "{name} {} (see the process buffer)",
+                if on { "on" } else { "off" }
+            ));
+        }
+        if action == Action::ProfileRefresh {
+            if self.ed.magit.is_none() {
+                return self.ed.set_err("Not in a Magit buffer");
+            }
+            let calls = crate::magit::repo::CALLS_COUNT.load(std::sync::atomic::Ordering::Relaxed);
+            self.profile_once = Some((std::time::Instant::now(), calls));
+            return self.magit_action(Action::Refresh);
+        }
+        if action == Action::ZapCaches {
+            for ed in self.editors_mut() {
+                if let Some(v) = &mut ed.magit {
+                    v.stamps.clear();
+                    v.dirty = true;
+                }
+            }
+            if self.ed.magit.is_some() {
+                return self.magit_action(Action::Refresh);
+            }
+            return self.ed.set_msg("Zapped caches");
+        }
+        if action == Action::SaveRepositoryBuffers {
+            let Ok(repo) = Repo::discover(&self.magit_from()) else {
+                return self.ed.set_err("not in a Git repository");
+            };
+            let origin = self.cur;
+            let slots: Vec<usize> = (0..self.bufs.len())
+                .filter(|&i| {
+                    let ed = self.ed_at(i);
+                    ed.buf.modified
+                        && ed.magit.is_none()
+                        && !ed.generated()
+                        && ed
+                            .path
+                            .as_ref()
+                            .is_some_and(|p| swap::canonical(p).starts_with(&repo.root))
+                })
+                .collect();
+            let mut saved = 0;
+            for i in &slots {
+                self.show(*i);
+                if self.write(None, false, None) {
+                    saved += 1;
+                }
+            }
+            if self.cur != origin && origin < self.bufs.len() {
+                self.show(origin);
+            }
+            return self.ed.set_msg(format!(
+                "Saved {saved} buffer(s) in {}",
+                repo.root.display()
+            ));
+        }
+        if action == Action::LogMoveTo {
+            return self.magit_action(Action::Misc(crate::magit::misc::Op::LogJump));
+        }
+        if let Action::NextReference(previous) = action {
+            return self.next_reference(previous);
+        }
+        if action == Action::CycleDiffs {
+            return self.cycle_diffs();
+        }
+        if let Action::Go(backward) = action {
+            let Some(mut view) = self.ed.magit.as_deref().cloned() else {
+                return;
+            };
+            let (from, to) = if backward {
+                (&mut view.back, &mut view.forward)
+            } else {
+                (&mut view.forward, &mut view.back)
+            };
+            let Some(kind) = from.pop() else {
+                return self.ed.set_err(if backward {
+                    "No previous entry in buffer's history"
+                } else {
+                    "No next entry in buffer's history"
+                });
+            };
+            to.push(std::mem::replace(&mut view.kind, kind));
+            view.rows.clear();
+            self.start_magit(move || {
+                refresh_view(&mut view)?;
+                Ok(Outcome::View(Box::new(view), None, 0))
+            });
+            return;
+        }
+        if let Action::DescribeSection(full) = action {
+            let Some(view) = self.ed.magit.as_deref() else {
+                return self.ed.set_err("Not in a Magit buffer");
+            };
+            let line = self.ed.cur.line;
+            let text = match view.action_at(line) {
+                Some(a) if full => format!("{a:?} at line {} in {:?}", line + 1, view.kind),
+                Some(a) => format!("{a:?}"),
+                None => format!("No section at line {}", line + 1),
+            };
+            return self.ed.set_msg(text);
+        }
+        if matches!(action, Action::SelectPick | Action::SelectQuit) {
+            let Some(view) = self.ed.magit.as_deref() else {
+                return;
+            };
+            let Some(select) = view.select.clone() else {
+                return self.ed.set_err("Not selecting a commit");
+            };
+            let repo = view.repo.clone();
+            let picked = match view.action_at(self.ed.cur.line) {
+                Some(RowAction::Commit(id)) => Some(id),
+                _ => None,
+            };
+            if action == Action::SelectPick && picked.is_none() {
+                return self.ed.set_err("No commit at point");
+            }
+            // magit-mode-bury-buffer 'kill: back to where the selection
+            // started, then delete the selection buffer.
+            let (back, me) = (view.return_to, self.cur);
+            if back < self.bufs.len() && back != me {
+                self.show(back);
+            }
+            self.buffer(BufCmd::Delete, &(me + 1).to_string(), true);
+            let Some(id) = picked.filter(|_| action == Action::SelectPick) else {
+                return self.ed.set_msg("Abort");
+            };
+            let mut answers = select.answers;
+            answers.push(id);
+            return self.magit_action(Action::Answered(
+                repo,
+                select.question,
+                answers,
+                select.defaults,
+            ));
+        }
+        if action == Action::BufferLock {
+            let Some(view) = self.ed.magit.as_mut() else {
+                return;
+            };
+            // Upstream cannot lock a status buffer either.
+            if matches!(view.kind, Kind::Status) {
+                return self.ed.set_err("Buffer locking is not supported here");
+            }
+            view.locked = !view.locked;
+            let msg = if view.locked {
+                "Locked buffer to its value"
+            } else {
+                "Unlocked buffer"
+            };
+            return self.ed.set_msg(msg);
+        }
+        if action == Action::SaveMessage {
+            return crate::magit::message::save_message(&mut self.ed);
+        }
+        if let Action::Changelog(gnu) = action {
+            return crate::magit::message::insert_changelog(&mut self.ed, gnu);
+        }
+        if matches!(action, Action::CommitAddLog | Action::AddChangeLogEntry) {
+            let Some((file, defun)) = self.hunk_defun() else {
+                return self.ed.set_err("No file or hunk at point");
+            };
+            if action == Action::AddChangeLogEntry {
+                return self.add_change_log_entry(file, defun);
+            }
+            self.pending_add_log = Some((file, defun));
+            return self.magit_action(Action::Commit);
+        }
+        if action == Action::ReverseInIndex {
+            let Some(view) = self.ed.magit.as_deref() else {
+                return;
+            };
+            // magit-unstage-committed: only committed changes are reversed here.
+            if !crate::magit::options::flag("magit-unstage-committed", true) {
+                return self.ed.set_err("Cannot unstage committed changes");
+            }
+            if !crate::magit::committed_diff(&view.kind) {
+                return self.ed.set_err("Cannot reverse this change in the index");
+            }
+            let (repo, line) = (view.repo.clone(), self.ed.cur.line);
+            crate::magit::prompt(
+                &mut self.ed,
+                crate::magit::Prompt::Ask(
+                    repo,
+                    Question::ReverseDiff(line, true),
+                    vec![],
+                    vec!["Reverse this change in the index? (y or n) ".into()],
+                    vec![],
+                ),
+            );
+            return;
         }
         if let Action::ApplyDiff(reverse) = action {
             use crate::magit::diff::Target;
@@ -573,7 +1416,7 @@ impl Session {
                     &mut self.ed,
                     crate::magit::Prompt::Ask(
                         repo,
-                        Question::ReverseDiff(line),
+                        Question::ReverseDiff(line, false),
                         vec![],
                         vec!["Reverse this change in the worktree? (y or n) ".into()],
                         vec![],
@@ -581,7 +1424,7 @@ impl Session {
                 );
                 return;
             }
-            return self.apply_diff(false, line);
+            return self.apply_diff(PatchUse::Apply, line);
         }
         if let Action::Trailer(key) = action {
             if self.ed.commit_repo.is_none() {
@@ -777,6 +1620,9 @@ impl Session {
             return;
         }
         if action == Action::ProcessBuffer {
+            self.git_log.extend(crate::magit::repo::take_calls());
+            let excess = self.git_log.len().saturating_sub(1000);
+            self.git_log.drain(..excess);
             // magit-process-buffer: this repository's Git commands, newest last.
             let Ok(repo) = Repo::discover(&self.magit_from()) else {
                 return self.ed.set_err("not in a Git repository");
@@ -1221,7 +2067,7 @@ impl Session {
             }
             let count = match self.ed.magit.as_ref().map(|v| &v.kind) {
                 Some(Kind::Refs(_, _, count)) => *count,
-                _ => Default::default(),
+                _ => crate::magit::refs::initial_count(),
             };
             self.start_magit(move || {
                 let repo = Repo::discover(&from)?;
@@ -1605,8 +2451,35 @@ impl Session {
             });
             return;
         }
+        if let Action::Answered(
+            _,
+            Question::Commit(crate::magit::commit::Op::DraftAll),
+            answers,
+            _,
+        ) = action
+        {
+            if !matches!(answers.first().map(|a| a.trim()), Some("y" | "yes")) {
+                return self.ed.set_err("Nothing staged");
+            }
+            // This commit only: --all, as upstream's (cons "--all" args).
+            let added = self
+                .ed
+                .magit_options
+                .insert(crate::magit::MenuOption::CommitAll);
+            self.magit_action(Action::Commit);
+            if added {
+                self.ed
+                    .magit_options
+                    .remove(&crate::magit::MenuOption::CommitAll);
+            }
+            return;
+        }
         if let Action::Answered(repo, Question::Commit(op), answers, defaults) = action {
-            let (origin, args) = (self.cur, crate::magit::commit_arguments(&self.ed));
+            let args = match op.arg_menu() {
+                Some(menu) => crate::magit::menu_arguments(&self.ed, menu),
+                None => crate::magit::commit_arguments(&self.ed),
+            };
+            let origin = self.cur;
             self.start_magit(move || {
                 let merged = merge_answers(&answers, &defaults);
                 let next = repo
@@ -1629,10 +2502,84 @@ impl Session {
                             _ => None,
                         },
                     });
+            let origin = self.cur;
             self.start_magit(move || {
+                use crate::magit::commit::Op as C;
                 let repo = Repo::discover(&from)?;
-                let (prompts, defaults) = repo.commit_prompts(&op, at_point);
-                Ok(Outcome::Ask(repo, Question::Commit(op), defaults, prompts))
+                let (prompts, defaults) = repo.commit_prompts(&op, at_point.clone());
+                let pick =
+                    |verb: &str| format!("Type . or C-c C-c on a commit to {verb}, or q to abort");
+                match &op {
+                    // magit-commit-squash-internal: the commit at point, unless
+                    // magit-commit-squash-confirm (or an instant variant) asks
+                    // for it in magit-log-select, starting on that commit.
+                    C::Fixup
+                    | C::Squash
+                    | C::Alter
+                    | C::Augment
+                    | C::Revise
+                    | C::InstantFixup
+                    | C::InstantSquash => {
+                        let instant = matches!(op, C::InstantFixup | C::InstantSquash);
+                        let confirm = instant
+                            || crate::magit::options::flag("magit-commit-squash-confirm", true);
+                        match at_point {
+                            Some(id) if !confirm => Ok(Outcome::Answer(
+                                repo,
+                                Question::Commit(op),
+                                vec![id.clone()],
+                                vec![id],
+                            )),
+                            initial => {
+                                let msg = pick(&format!("{} it", op_verb(&op)));
+                                log_select(
+                                    repo,
+                                    Question::Commit(op),
+                                    vec![],
+                                    defaults,
+                                    msg,
+                                    initial,
+                                    origin,
+                                )
+                            }
+                        }
+                    }
+                    // Absorb into commits since the one picked, starting at the
+                    // upstream's merge base.
+                    C::Autofixup | C::Absorb | C::AbsorbModules => {
+                        let initial = defaults
+                            .first()
+                            .filter(|d| !d.is_empty())
+                            .and_then(|d| {
+                                repo.read(&["merge-base", "--end-of-options", d, "HEAD"])
+                                    .ok()
+                            })
+                            .map(|o| String::from_utf8_lossy(&o).trim().to_owned());
+                        let msg = pick("absorb into commits since it");
+                        log_select(
+                            repo,
+                            Question::Commit(op),
+                            vec![],
+                            defaults,
+                            msg,
+                            initial,
+                            origin,
+                        )
+                    }
+                    C::ReshelveSince => {
+                        let msg = pick("reshelve it and the commits above it");
+                        log_select(
+                            repo,
+                            Question::Commit(op),
+                            vec![],
+                            vec![String::new()],
+                            msg,
+                            None,
+                            origin,
+                        )
+                    }
+                    _ => Ok(Outcome::Ask(repo, Question::Commit(op), defaults, prompts)),
+                }
             });
             return;
         }
@@ -1677,6 +2624,40 @@ impl Session {
                     (false, R::Continue | R::Abort) => return Err("No rebase in progress".into()),
                     (false, op) => op,
                 };
+                // magit-rebase-interactive-1: the commit at point, else
+                // magit-log-select.
+                if matches!(
+                    op,
+                    R::Interactive | R::EditCommit | R::RewordCommit | R::RemoveCommit
+                ) {
+                    return match at_point {
+                        Some(id) => Ok(Outcome::Answer(
+                            repo,
+                            Question::Rebase(op),
+                            vec![id.clone()],
+                            vec![id],
+                        )),
+                        None => {
+                            let verb = match op {
+                                R::Interactive => "rebase it and all commits above it",
+                                R::EditCommit => "edit it",
+                                R::RewordCommit => "reword its message",
+                                _ => "remove it",
+                            };
+                            let msg =
+                                format!("Type . or C-c C-c on a commit to {verb}, or q to abort");
+                            log_select(
+                                repo,
+                                Question::Rebase(op),
+                                vec![],
+                                vec![String::new()],
+                                msg,
+                                None,
+                                origin,
+                            )
+                        }
+                    };
+                }
                 let (prompts, defaults) = repo.rebase_prompts(&op, at_point)?;
                 if prompts.is_empty() {
                     let next = repo
@@ -1688,6 +2669,20 @@ impl Session {
             });
             return;
         }
+        // git-rebase-confirm-cancel: an edited todo list asks first.
+        if action == Action::RebaseCancel
+            && self.ed.rebase_todo.is_some()
+            && self.ed.buf.modified
+            && crate::magit::options::flag("git-rebase-confirm-cancel", true)
+            && crate::magit::options::confirm("abort-rebase")
+        {
+            return crate::magit::prompt(&mut self.ed, crate::magit::Prompt::TodoCancel);
+        }
+        let action = if action == Action::RebaseCancelConfirmed {
+            Action::RebaseCancel
+        } else {
+            action
+        };
         if action == Action::RebaseFinish || action == Action::RebaseCancel {
             let Some(plan) = self.ed.rebase_todo.take() else {
                 return self.ed.set_err("Not a rebase todo buffer");
@@ -1871,10 +2866,47 @@ impl Session {
             return;
         }
         if let Action::Branch(op) = action {
-            let from = self.magit_from();
+            let (origin, from) = (self.cur, self.magit_from());
+            let args = crate::magit::menu_arguments(&self.ed, 'b');
+            // magit--default-starting-point: the branch at point.
+            let at_point = self
+                .ed
+                .magit
+                .as_ref()
+                .and_then(|v| v.start_point_at(self.ed.cur.line));
             self.start_magit(move || {
                 let repo = Repo::discover(&from)?;
-                let (prompts, defaults) = repo.branch_prompts(&op)?;
+                // magit-branch-read-upstream-first: the start point first.
+                let op = match op {
+                    op @ (crate::magit::branch::Op::Create
+                    | crate::magit::branch::Op::CreateCheckout)
+                        if crate::magit::branch::upstream_first() =>
+                    {
+                        crate::magit::branch::Op::StartFirst(Box::new(op))
+                    }
+                    op => op,
+                };
+                let (mut prompts, mut defaults) = repo.branch_prompts(&op)?;
+                if prompts.is_empty() {
+                    let next = repo.branch_step_args(op, &[], &[], &args);
+                    return Ok(branch_outcome(repo, next, origin));
+                }
+                let start = match op {
+                    crate::magit::branch::Op::StartFirst(_) => Some(0),
+                    crate::magit::branch::Op::Create | crate::magit::branch::Op::CreateCheckout => {
+                        Some(1)
+                    }
+                    _ => None,
+                };
+                if let (Some(i), Some(p)) = (start, at_point)
+                    && i < prompts.len()
+                {
+                    prompts[i] = prompts[i].replace(
+                        &format!("(default {})", defaults[i]),
+                        &format!("(default {p})"),
+                    );
+                    defaults[i] = p;
+                }
                 Ok(Outcome::Ask(repo, Question::Branch(op), defaults, prompts))
             });
             return;
@@ -1913,7 +2945,7 @@ impl Session {
                 | Question::Misc(_)
                 | Question::Wip(_)
                 | Question::Ediff(_)
-                | Question::ReverseDiff(_) => {
+                | Question::ReverseDiff(..) => {
                     unreachable!("handled before the worker")
                 }
                 Question::FindFile => {
@@ -2037,7 +3069,7 @@ impl Session {
                     args,
                     chunks,
                     info,
-                    style: 0,
+                    style: crate::magit::blame::initial_style(kind),
                     kind,
                     rev,
                     version,
@@ -2160,52 +3192,26 @@ impl Session {
             });
             return;
         }
-        if action == Action::Commit
-            && let Some(repo) = self.ed.commit_repo.clone()
+        // git-commit-finish-query-functions: style questions first.
+        if matches!(action, Action::Commit | Action::CommitAnyway) && self.ed.commit_repo.is_some()
         {
-            if self.ed.readonly {
-                self.ed.set_err("commit draft is read-only");
-                return;
-            }
-            if self
-                .ed
-                .path
-                .as_ref()
-                .is_some_and(|p| fileio::changed_on_disk(p, self.stamp.as_ref()))
-            {
-                self.ed
-                    .set_err("commit draft changed on disk; reload before submitting");
-                return;
-            }
-            if let Some(target) = self.ed.commit_mode.target() {
-                match repo.read(&["rev-parse", "--verify", "HEAD"]) {
-                    Ok(head) if String::from_utf8_lossy(&head).trim() == target => (),
-                    _ => {
-                        self.ed
-                            .set_err("HEAD changed; reopen amend/reword for the current commit");
-                        return;
-                    }
+            if action == Action::Commit {
+                let qs = crate::magit::message::style_questions(&self.ed.buf.text());
+                if !qs.is_empty() {
+                    return crate::magit::prompt(
+                        &mut self.ed,
+                        crate::magit::Prompt::CommitStyle(qs),
+                    );
                 }
             }
-            let message = self.ed.buf.to_bytes();
-            let draft = self.ed.path.clone().unwrap_or_default();
-            match repo.commit_invocation(message, draft) {
-                Ok(mut inv) => {
-                    inv.args
-                        .extend(self.ed.commit_args.iter().map(OsString::from));
-                    if let Some(target) = self.ed.commit_mode.target() {
-                        inv.args.push("--amend".into());
-                        inv.expected_head = Some(target.into());
-                    }
-                    if matches!(self.ed.commit_mode, crate::magit::CommitMode::Reword(_)) {
-                        inv.args.push("--only".into());
-                        inv.args.push("--allow-empty".into());
-                    }
-                    self.pending_git = Some(inv);
-                }
-                Err(e) => self.ed.set_err(e),
+            if action == Action::CommitAnyway {
+                // Skip the questions this once.
+                return self.commit_draft();
             }
-            return;
+        }
+        // with-editor-finish in a message Git is waiting for.
+        if action == Action::Commit && self.ed.commit_repo.is_some() {
+            return self.commit_draft();
         }
         if let Action::Switch(row, typed) = action {
             let Some(repo) = self.magit_picker_repo.clone() else {
@@ -2236,15 +3242,24 @@ impl Session {
             }
             if let Some(repo) = self.magit_picker_repo.take() {
                 self.ed.mode = Mode::Normal;
+                // magit-checkout: a branch, or any revision (detaching HEAD),
+                // with magit-branch-arguments.
+                let mut args: Vec<OsString> = vec!["checkout".into()];
+                args.extend(
+                    crate::magit::menu_arguments(&self.ed, 'b')
+                        .into_iter()
+                        .map(OsString::from),
+                );
+                args.extend([name.into(), "--".into()]);
                 self.pending_git = Some(GitInvocation {
                     expected_head: None,
                     repo,
-                    // magit-checkout: a branch, or any revision (detaching HEAD).
-                    args: vec!["checkout".into(), name.into(), "--".into()],
+                    args,
                     input: None,
                     draft: None,
                     draft_stamp: None,
                     editor: false,
+                    env: vec![],
                     after: None,
                 });
             }
@@ -2265,6 +3280,41 @@ impl Session {
             };
             let selected = view.action_at(self.ed.cur.line);
             let fallback = self.ed.cur.line;
+            // magit-revision-use-hash-sections: a hash in a commit message.
+            if action == Action::Visit
+                && selected.is_none()
+                && matches!(view.kind, Kind::Patch(_))
+                && !view.rows[..=self.ed.cur.line.min(view.rows.len().saturating_sub(1))]
+                    .iter()
+                    .any(|r| r.text.starts_with("diff --git"))
+            {
+                let text = self.ed.buf.line(self.ed.cur.line);
+                let col = self.ed.cur.byte.min(text.len());
+                let word_char = |c: char| c.is_ascii_alphanumeric();
+                let start = text[..col]
+                    .rfind(|c: char| !word_char(c))
+                    .map_or(0, |i| i + 1);
+                let end = text[col..]
+                    .find(|c: char| !word_char(c))
+                    .map_or(text.len(), |i| col + i);
+                let word = text[start..end].to_owned();
+                if crate::magit::looks_like_hash(&word) {
+                    let repo = view.repo.clone();
+                    let origin = self.cur;
+                    self.start_magit(move || {
+                        let id = repo
+                            .read(&["rev-parse", "--verify", "-q", &format!("{word}^{{commit}}")])
+                            .map_err(|_| format!("{word} is not a commit"))?;
+                        let id = String::from_utf8_lossy(&id).trim().to_owned();
+                        let mut v = View::status(repo.clone(), Default::default());
+                        v.kind = Kind::Patch(id.clone());
+                        v.rows = display_patch(&repo.commit_patch(&id)?);
+                        v.return_to = origin;
+                        Ok(Outcome::View(Box::new(v), None, 0))
+                    });
+                    return;
+                }
+            }
             if matches!(action, Action::Visit | Action::VisitWorktree) && selected.is_none() {
                 // magit-diff-visit-file / -worktree-file on a diff line.
                 match diff_visit(&view, self.ed.cur.line, action == Action::VisitWorktree) {
@@ -2299,6 +3349,17 @@ impl Session {
                         let origin = view.return_to;
                         self.start_magit(move || stash_view(view.repo, stash, origin));
                     }
+                    // magit-repolist-status.
+                    Some(RowAction::Repo(dir)) => {
+                        let origin = self.cur;
+                        self.start_magit(move || {
+                            Ok(branch_outcome(
+                                Repo { root: dir.clone() },
+                                crate::magit::branch::Next::Status(dir),
+                                origin,
+                            ))
+                        });
+                    }
                     Some(RowAction::Module(module)) => {
                         let origin = self.cur;
                         self.start_magit(move || {
@@ -2308,6 +3369,29 @@ impl Session {
                                 crate::magit::branch::Next::Status(dir),
                                 origin,
                             ))
+                        });
+                    }
+                    // magit-visit-ref-behavior in refs buffers.
+                    Some(RowAction::Commit(_))
+                        if view.kind_is_refs()
+                            && let Some(name) = view.refnames.get(&self.ed.cur.line).cloned()
+                            && let Some(how) = visit_ref(&name) =>
+                    {
+                        let origin = self.cur;
+                        self.start_magit(move || {
+                            let next = match how {
+                                VisitRef::Create(remote) => view.repo.branch_step(
+                                    crate::magit::branch::Op::CheckoutLocal,
+                                    &[remote],
+                                    &[],
+                                ),
+                                VisitRef::Checkout(r) => crate::magit::branch::Next::Git(vec![
+                                    "checkout".into(),
+                                    r,
+                                    "--".into(),
+                                ]),
+                            };
+                            Ok(branch_outcome(view.repo, next, origin))
                         });
                     }
                     Some(RowAction::Commit(id)) => {
@@ -2375,6 +3459,11 @@ impl Session {
                     }
                 }
                 Ok(()) })();
+                // magit-post-stage-hook / magit-post-unstage-hook.
+                if operation.is_ok() {
+                    let hook = if action == Action::Stage { "magit-post-stage-hook" } else { "magit-post-unstage-hook" };
+                    crate::magit::options::run_hook(hook, &view.repo.root);
+                }
                 refresh_view(&mut view)?;
                 match operation { Ok(()) => Ok(Outcome::View(Box::new(view),selected,fallback)), Err(e) => Ok(Outcome::ErrorView(Box::new(view),e,selected,fallback)) }
             });
@@ -2386,6 +3475,12 @@ impl Session {
         });
         let file = if matches!(action, Action::Log | Action::LogHead) {
             inherited
+        } else if action == Action::Status {
+            // magit-status-goto-file-position: the visited file.
+            self.ed
+                .path
+                .clone()
+                .filter(|_| self.ed.magit.is_none() && !self.ed.generated())
         } else if action == Action::FileLog {
             let candidate = self
                 .ed
@@ -2459,9 +3554,11 @@ impl Session {
                         Ok(Outcome::View(Box::new(view), selected, line))
                     } else {
                         let snapshot = repo.status()?;
+                        let rel = file.as_deref().and_then(|p| repo_relative(&repo, p).ok());
                         let mut view = View::new_status(repo, snapshot);
                         view.return_to = origin;
-                        Ok(Outcome::View(Box::new(view), None, 0))
+                        let line = view.initial_line(rel.as_deref());
+                        Ok(Outcome::View(Box::new(view), None, line))
                     }
                 }
                 Action::Stashes | Action::Tags => {
@@ -2521,6 +3618,10 @@ impl Session {
                         let mut inv = repo.operation(operation, "")?;
                         if operation == crate::magit::workflows::Operation::Amend {
                             inv.args.extend(commit_args.into_iter().map(OsString::from));
+                            // magit-commit-extend-override-date nil: keep the date.
+                            if !crate::magit::options::flag("magit-commit-extend-override-date", true) {
+                                inv.env.extend(keep_committer_date(&repo));
+                            }
                         }
                         Ok(Outcome::Git(inv))
                     }
@@ -2541,6 +3642,7 @@ impl Session {
                             draft: None,
                             draft_stamp: None,
                             editor: false,
+                            env: vec![],
                             after: None,
                         }));
                     }
@@ -2550,6 +3652,22 @@ impl Session {
                             .map_err(|_| format!("unknown commit {r:?}"))?,
                         None => vec![],
                     };
+                    // magit-commit-assert with magit-commit-ask-to-stage.
+                    let mut rest = rest;
+                    if !repo.commit_ready(&rest, false)? {
+                        match crate::magit::commit::ask_to_stage() {
+                            None => return Err("Nothing staged".into()),
+                            Some(false) => rest.push("--all".into()),
+                            Some(true) => {
+                                return Ok(Outcome::Ask(
+                                    repo,
+                                    Question::Commit(crate::magit::commit::Op::DraftAll),
+                                    vec![String::new()],
+                                    vec!["Nothing staged.  Commit all uncommitted changes? (y or n) ".into()],
+                                ));
+                            }
+                        }
+                    }
                     Ok(Outcome::Draft(
                         repo,
                         crate::magit::CommitMode::New,
@@ -2638,7 +3756,10 @@ impl Session {
                     return true;
                 }
                 // magit-blame-read-only, except for echo.
-                self.ed.readonly = blame.was_readonly || !blame.echo();
+                // magit-blame-read-only (echo mode never locks the buffer).
+                self.ed.readonly = blame.was_readonly
+                    || (!blame.echo()
+                        && crate::magit::options::flag("magit-blame-read-only", true));
                 self.ed.blame = Some(*blame);
                 self.ed.set_msg("Blaming...done");
             }
@@ -2670,6 +3791,7 @@ impl Session {
                         draft: None,
                         draft_stamp: None,
                         editor: false,
+                        env: vec![],
                         after: None,
                     },
                     result,
@@ -2692,6 +3814,22 @@ impl Session {
                     self.magit_action(Action::Blame(kind));
                 }
             }
+            Ok(Outcome::Shell(cmd)) => {
+                self.pending_shell = Some(cmd);
+            }
+            Ok(Outcome::Answer(repo, question, answers, defaults)) => {
+                self.magit_action(Action::Answered(repo, question, answers, defaults));
+            }
+            Ok(Outcome::Copy(text, message)) => {
+                crate::vim::ops::set_reg(
+                    &mut self.ed,
+                    crate::editor::Register {
+                        text,
+                        linewise: false,
+                    },
+                );
+                self.ed.set_msg(message);
+            }
             Ok(Outcome::Done(repo, message)) => {
                 self.finish_git(
                     GitInvocation {
@@ -2702,11 +3840,18 @@ impl Session {
                         draft: None,
                         draft_stamp: None,
                         editor: false,
+                        env: vec![],
                         after: None,
                     },
                     Ok(()),
                 );
-                self.ed.set_msg(message);
+                // magit-no-message: prefixes of messages not to show.
+                if !crate::magit::options::strings("magit-no-message", &[])
+                    .iter()
+                    .any(|p| message.starts_with(p.as_str()))
+                {
+                    self.ed.set_msg(message);
+                }
             }
             Ok(Outcome::Todo(plan)) => {
                 self.open_pick(plan.todo.clone(), None);
@@ -2801,6 +3946,17 @@ impl Session {
                     .insert(path.clone(), (repo.clone(), mode.clone(), args));
                 self.open_pick(path, None);
                 self.attach_commit_repo();
+                if let Some((file, defun)) = self.pending_add_log.take() {
+                    let (text, line) = crate::magit::message::add_log_insert(
+                        &self.ed.buf.text(),
+                        &file,
+                        defun.as_deref(),
+                    );
+                    crate::magit::message::replace_text(&mut self.ed, &text);
+                    let len = self.ed.buf.line(line).len();
+                    self.ed.set_cursor(line, len);
+                    return true;
+                }
                 self.ed.set_msg(match mode {
                     crate::magit::CommitMode::New => {
                         "Commit draft: :w save; Space m c c commit staged changes"
@@ -2827,12 +3983,58 @@ impl Session {
                     draft: None,
                     draft_stamp: None,
                     editor: false,
+                    env: vec![],
                     after: None,
                 },
                 result,
             ),
         }
         true
+    }
+    /// global-git-commit-mode: a message file Git asked Fred to edit
+    /// (git-commit-filename-regexp) gets the commit draft keys; finishing it
+    /// (Space m c c) saves and quits, as with-editor-finish.
+    pub(super) fn attach_git_commit_mode(&mut self) {
+        const NAMES: [&str; 9] = [
+            "COMMIT_EDITMSG",
+            "MERGE_MSG",
+            "TAG_EDITMSG",
+            "PULLREQ_EDITMSG",
+            "MERGEREQ_EDITMSG",
+            "SQUASH_MSG",
+            "NOTES_EDITMSG",
+            "EDIT_DESCRIPTION",
+            "BRANCH_DESCRIPTION",
+        ];
+        let Some(path) = self.ed.path.clone() else {
+            return;
+        };
+        let named = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| NAMES.contains(&n));
+        // Fred's own drafts (also after a restart) live in its state directory.
+        let own = path.starts_with(self.swap_dir.with_file_name("magit"))
+            || self.magit_drafts.contains_key(&path);
+        if !named
+            || own
+            || self.ed.commit_repo.is_some()
+            || !crate::magit::options::flag("global-git-commit-mode", true)
+        {
+            return;
+        }
+        // Git runs the editor in the worktree; the file is in the git dir.
+        let worktree = path
+            .ancestors()
+            .find(|d| d.file_name().is_some_and(|n| n == ".git"))
+            .and_then(Path::parent)
+            .map(Path::to_path_buf)
+            .or_else(|| std::env::current_dir().ok());
+        if let Some(repo) = worktree.and_then(|d| Repo::discover(&d).ok()) {
+            self.ed.commit_repo = Some(repo);
+            self.ed.commit_mode = crate::magit::CommitMode::New;
+            self.ed.commit_args = vec![];
+        }
     }
     pub(super) fn attach_commit_repo(&mut self) {
         if let Some((repo, mode, args)) =
@@ -2937,48 +4139,531 @@ impl Session {
     /// The visited file (not a blob) for file-dispatch commands.
     /// Apply or reverse the hunk (or file) at LINE of this diff, commit or
     /// stash buffer, from Git's raw output (display text is escaped).
-    fn apply_diff(&mut self, reverse: bool, line: usize) {
+    fn apply_diff(&mut self, how: PatchUse, line: usize) {
         let Some(view) = self.ed.magit.as_deref().cloned() else {
             return;
         };
         let origin = self.cur;
         self.start_magit(move || {
             let repo = view.repo.clone();
-            // The raw output and the rows before it (a diff buffer's title).
-            let (bytes, offset) = match &view.kind {
-                Kind::Diff(target, args) => (repo.diff_output(target, args)?, 1),
-                Kind::Patch(id) => (repo.commit_patch(id)?, 0),
-                Kind::StashPatch(stash) => (repo.stash_patch(stash)?, 0),
-                _ => return Err("Not in a diff buffer".into()),
-            };
-            if bytes.len() > 1024 * 1024 {
-                return Err("Diff too large to apply from here".into());
-            }
-            let lines: Vec<&[u8]> = bytes.split(|b| *b == b'\n').collect();
-            let at = line.checked_sub(offset).ok_or("No hunk or file at point")?;
-            let patch = crate::magit::diff::hunk_patch(&lines, at)?;
+            let patch = diff_patch_at(&view, line)?;
             let mut argv: Vec<OsString> = vec!["apply".into(), "--whitespace=nowarn".into()];
-            if reverse {
-                argv.push("--reverse".into());
+            match how {
+                PatchUse::Reverse => argv.push("--reverse".into()),
+                PatchUse::ReverseIndex => argv.extend(["--reverse".into(), "--cached".into()]),
+                _ => {}
             }
-            let mut check = argv.clone();
-            check.push("--check".into());
-            let r = repo
-                .run(&check, Some(&patch))
-                .and_then(|_| repo.run(&argv, Some(&patch)));
+            // magit-reverse-atomically nil: --reject reverses what applies.
+            let partial = how == PatchUse::Reverse
+                && !crate::magit::options::flag("magit-reverse-atomically", false);
+            let r = if partial {
+                argv.push("--reject".into());
+                repo.run(&argv, Some(&patch))
+            } else {
+                let mut check = argv.clone();
+                check.push("--check".into());
+                repo.run(&check, Some(&patch))
+                    .and_then(|_| repo.run(&argv, Some(&patch)))
+            };
             let next = crate::magit::branch::Next::Done(r.map(|_| {
-                if reverse {
-                    "Reversed in the worktree"
-                } else {
-                    "Applied to the worktree"
+                match how {
+                    PatchUse::Reverse => "Reversed in the worktree",
+                    PatchUse::ReverseIndex => "Reversed in the index",
+                    _ => "Applied to the worktree",
                 }
                 .into()
             }));
             Ok(branch_outcome(repo, next, origin))
         });
     }
+    /// magit-auto-revert-mode: reload unmodified buffers of files under ROOT
+    /// that changed on disk (auto-revert-buffer, without its timer).
+    fn auto_revert_buffers(&mut self, root: &Path) {
+        let origin = self.cur;
+        let stale: Vec<usize> = (0..self.bufs.len())
+            .filter(|&i| {
+                let (ed, stamp) = if i == self.cur {
+                    (&self.ed, self.stamp.as_ref())
+                } else {
+                    match &self.bufs[i] {
+                        Some(p) => (&p.ed, p.stamp.as_ref()),
+                        None => return false,
+                    }
+                };
+                !ed.buf.modified
+                    && ed.magit.is_none()
+                    && ed.commit_repo.is_none()
+                    && !ed.generated()
+                    && ed.path.as_ref().is_some_and(|p| {
+                        swap::canonical(p).starts_with(root)
+                            && p.is_file()
+                            && fileio::changed_on_disk(p, stamp)
+                            // magit-auto-revert-tracked-only.
+                            && (!crate::magit::options::flag("magit-auto-revert-tracked-only", true)
+                                || Repo { root: root.to_path_buf() }
+                                    .run(
+                                        &[
+                                            "ls-files".into(),
+                                            "--error-unmatch".into(),
+                                            "--".into(),
+                                            crate::magit::repo::literal_pathspec(
+                                                &swap::canonical(p)
+                                                    .strip_prefix(root)
+                                                    .map(Path::to_path_buf)
+                                                    .unwrap_or_default(),
+                                            ),
+                                        ],
+                                        None,
+                                    )
+                                    .is_ok())
+                    })
+            })
+            .collect();
+        for i in stale {
+            self.show(i);
+            self.edit(None, false);
+        }
+        if self.cur != origin {
+            self.show(origin);
+        }
+    }
+    /// magit-save-repository-buffers t: ask about each buffer, then run ACTION.
+    fn ask_save(&mut self, mut rest: Vec<PathBuf>, action: Box<Action>) {
+        if rest.is_empty() {
+            return self.magit_action(Action::Saved(action));
+        }
+        let path = rest.remove(0);
+        crate::magit::prompt(
+            &mut self.ed,
+            crate::magit::Prompt::SaveBuffer(path, rest, action),
+        );
+    }
+    /// browse-url: the system's opener, detached.
+    fn browse(&mut self, url: &str) {
+        let opener = if cfg!(target_os = "macos") {
+            "open"
+        } else {
+            "xdg-open"
+        };
+        match std::process::Command::new(opener)
+            .arg(url)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+        {
+            Ok(_) => self.ed.set_msg(format!("Opened {url}")),
+            Err(e) => self.ed.set_err(format!("{opener}: {e}")),
+        }
+    }
+    /// magit-wip-after-save-local-mode: the saved file's worktree wip ref.
+    pub(super) fn wip_after_save(&mut self, path: &Path) {
+        // ponytail: synchronous; a few local plumbing calls per save.
+        let result = Repo::discover(path).and_then(|r| {
+            let file = repo_relative(&r, path)?;
+            // Only tracked files have wip state.
+            r.read(&["ls-files", "--error-unmatch", "--", &file.to_string_lossy()])?;
+            r.wip_commit_file(&file)
+        });
+        match result {
+            // magit-wip-debug: report each autosave.
+            Ok(m) if crate::magit::options::flag("magit-wip-debug", false) => {
+                self.ed.set_msg(format!("magit-wip: {m}"));
+            }
+            Ok(_) => {}
+            Err(e) if !e.contains("did not match") && !e.contains("not a git repository") => {
+                self.ed.set_err(format!("magit-wip: {e}"));
+            }
+            Err(_) => {}
+        }
+    }
+    /// Finish the commit draft (or the message Git is waiting for).
+    fn commit_draft(&mut self) {
+        if self
+            .ed
+            .path
+            .as_ref()
+            .is_some_and(|p| !self.magit_drafts.contains_key(p))
+            && !self
+                .ed
+                .path
+                .as_ref()
+                .is_some_and(|p| p.starts_with(self.swap_dir.with_file_name("magit")))
+        {
+            return self.perform(crate::ex::ExEffect::Write {
+                path: None,
+                force: false,
+                range: None,
+                then_quit: true,
+            });
+        }
+        if let Some(repo) = self.ed.commit_repo.clone() {
+            if self.ed.readonly {
+                self.ed.set_err("commit draft is read-only");
+                return;
+            }
+            if self
+                .ed
+                .path
+                .as_ref()
+                .is_some_and(|p| fileio::changed_on_disk(p, self.stamp.as_ref()))
+            {
+                self.ed
+                    .set_err("commit draft changed on disk; reload before submitting");
+                return;
+            }
+            if let Some(target) = self.ed.commit_mode.target() {
+                match repo.read(&["rev-parse", "--verify", "HEAD"]) {
+                    Ok(head) if String::from_utf8_lossy(&head).trim() == target => (),
+                    _ => {
+                        self.ed
+                            .set_err("HEAD changed; reopen amend/reword for the current commit");
+                        return;
+                    }
+                }
+            }
+            let message = self.ed.buf.to_bytes();
+            let draft = self.ed.path.clone().unwrap_or_default();
+            match repo.commit_invocation(message, draft) {
+                Ok(mut inv) => {
+                    inv.args
+                        .extend(self.ed.commit_args.iter().map(OsString::from));
+                    if let Some(target) = self.ed.commit_mode.target() {
+                        inv.args.push("--amend".into());
+                        inv.expected_head = Some(target.into());
+                    }
+                    if matches!(self.ed.commit_mode, crate::magit::CommitMode::Reword(_)) {
+                        inv.args.push("--only".into());
+                        inv.args.push("--allow-empty".into());
+                        // magit-commit-reword-override-date nil: keep the date.
+                        if !crate::magit::options::flag("magit-commit-reword-override-date", true) {
+                            inv.env.extend(keep_committer_date(&repo));
+                        }
+                    }
+                    self.pending_git = Some(inv);
+                }
+                Err(e) => self.ed.set_err(e),
+            }
+        }
+    }
+    /// magit-repolist-fetch (git remote update in each, in the terminal) or
+    /// -find-file-other-frame (open the file in each repository).
+    fn repolist_act(&mut self, fetch: bool, repos: Vec<PathBuf>) {
+        if fetch {
+            let q = crate::magit::misc::shell_quote;
+            let n = repos.len();
+            let cmd = repos
+                .iter()
+                .enumerate()
+                .map(|(i, r)| {
+                    let dir = r.to_string_lossy();
+                    format!(
+                        "echo {}; (cd {} && git remote update)",
+                        q(&format!("({}/{n}) Fetching in {dir}...", i + 1)),
+                        q(&dir)
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("; ");
+            self.pending_shell = Some(cmd);
+            return;
+        }
+        self.repolist_files = Some(repos);
+        crate::magit::prompt(
+            &mut self.ed,
+            crate::magit::Prompt::Ask(
+                Repo {
+                    root: PathBuf::new(),
+                },
+                Question::Misc(crate::magit::misc::Op::RepolistFile),
+                vec![],
+                vec!["Find file in repositories: ".into()],
+                vec![],
+            ),
+        );
+    }
+    /// magit-log-move-to-revision: in this log buffer, else the log of all
+    /// branches.
+    fn log_jump(&mut self, repo: Repo, answers: Vec<String>) {
+        let rev = answers.first().cloned().unwrap_or_default();
+        let in_log = self
+            .ed
+            .magit
+            .as_deref()
+            .filter(|v| v.repo == repo && matches!(v.kind, Kind::Log(..)))
+            .cloned();
+        let origin = self.cur;
+        let args = crate::magit::menu_arguments(&self.ed, 'l');
+        self.start_magit(move || {
+            if rev.is_empty() || rev.starts_with('-') || rev.chars().any(char::is_control) {
+                return Err(format!("invalid revision {rev:?}"));
+            }
+            let id = repo
+                .read(&[
+                    "rev-parse",
+                    "--verify",
+                    "-q",
+                    "--end-of-options",
+                    &format!("{rev}^{{commit}}"),
+                ])
+                .map_err(|_| format!("unknown revision {rev:?}"))?;
+            let id = String::from_utf8_lossy(&id).trim().to_owned();
+            let view = match in_log {
+                Some(v) => v,
+                None => {
+                    let mut v = View::status(repo.clone(), Default::default());
+                    v.kind = Kind::Log(vec!["--branches".into()], args);
+                    v.rows.clear();
+                    v.return_to = origin;
+                    refresh_view(&mut v)?;
+                    v
+                }
+            };
+            if !view
+                .rows
+                .iter()
+                .any(|r| r.action == Some(RowAction::Commit(id.clone())))
+            {
+                return Err(format!("{rev} isn't visible in the current log buffer"));
+            }
+            Ok(Outcome::View(
+                Box::new(view),
+                Some(RowAction::Commit(id)),
+                0,
+            ))
+        });
+    }
+    /// magit-next-reference: the next line naming a ref (a log's
+    /// decorations, a refs buffer's refs, status headers).
+    fn next_reference(&mut self, previous: bool) {
+        let Some(view) = self.ed.magit.as_deref() else {
+            return;
+        };
+        let is_ref = |i: usize| {
+            let text = view.rows.get(i).map_or("", |r| r.text.as_str());
+            match &view.kind {
+                Kind::Refs(..) => matches!(view.rows[i].action, Some(RowAction::Commit(_))),
+                Kind::Status => ["Head:", "Merge:", "Rebase:", "Push:", "Tag:"]
+                    .iter()
+                    .any(|p| text.starts_with(p)),
+                _ => {
+                    // "hash (refs) subject", after any graph.
+                    let t = text.trim_start_matches(|c: char| "*|/\\ _-.".contains(c));
+                    t.split_once(' ').is_some_and(|(h, rest)| {
+                        h.len() >= 7
+                            && h.bytes().all(|b| b.is_ascii_hexdigit())
+                            && rest.starts_with('(')
+                    })
+                }
+            }
+        };
+        let cur = self.ed.cur.line;
+        let found = if previous {
+            (0..cur).rev().find(|&i| is_ref(i))
+        } else {
+            (cur + 1..view.rows.len()).find(|&i| is_ref(i))
+        };
+        match found {
+            Some(i) => self.ed.set_cursor(i, 0),
+            None => self.ed.set_msg("No more references"),
+        }
+    }
+    /// magit-section-cycle-diffs: in status, show every staged and unstaged
+    /// file's diff, or hide them all when they are all shown.
+    fn cycle_diffs(&mut self) {
+        let Some(mut view) = self.ed.magit.as_deref().cloned() else {
+            return;
+        };
+        if view.kind != Kind::Status {
+            return self.ed.set_msg("No diff sections to cycle here");
+        }
+        let files: Vec<(PathBuf, bool)> = view
+            .snapshot
+            .entries
+            .iter()
+            .flat_map(|e| {
+                let mut v = vec![];
+                if e.staged && !e.conflict {
+                    v.push((e.path.clone(), true));
+                }
+                if e.unstaged && !e.conflict && !e.untracked {
+                    v.push((e.path.clone(), false));
+                }
+                v
+            })
+            .collect();
+        let selected = view.action_at(self.ed.cur.line);
+        let fallback = self.ed.cur.line;
+        view.closed.remove(&Section::Staged);
+        view.closed.remove(&Section::Unstaged);
+        if files.iter().all(|f| view.expanded.contains(f)) {
+            view.expanded.clear();
+            view.rebuild();
+            return self.install_magit(view, selected, fallback);
+        }
+        self.start_magit(move || {
+            for key in files {
+                let diff = view.repo.diff(&key.0, key.1)?;
+                view.diffs.insert(key.clone(), diff);
+                view.expanded.insert(key);
+            }
+            view.rebuild();
+            Ok(Outcome::View(Box::new(view), selected, fallback))
+        });
+    }
+    /// The file and function (from the hunk header) of the change at point.
+    fn hunk_defun(&self) -> Option<(String, Option<String>)> {
+        let view = self.ed.magit.as_deref()?;
+        let line = self.ed.cur.line;
+        match view.action_at(line) {
+            Some(RowAction::Hunk(path, staged, hunk, _)) => {
+                let diff = view.diffs.get(&(path.clone(), staged))?;
+                let h = diff.hunks.get(hunk)?;
+                let text = String::from_utf8_lossy(&diff.bytes[h.start..h.end]);
+                let ctx = crate::magit::message::hunk_defun(text.lines());
+                return Some((path.to_string_lossy().into_owned(), ctx));
+            }
+            Some(RowAction::File(path, _)) => {
+                return Some((path.to_string_lossy().into_owned(), None));
+            }
+            _ => {}
+        }
+        // A diff buffer's raw lines: the nearest hunk header and file above.
+        let rows = &view.rows;
+        let mut defun = None;
+        for i in (0..=line.min(rows.len().checked_sub(1)?)).rev() {
+            let t = rows[i].text.as_str();
+            if defun.is_none() && t.starts_with("@@") {
+                defun = Some(crate::magit::message::hunk_defun(
+                    rows[i..]
+                        .iter()
+                        .map(|r| r.text.as_str())
+                        .take_while(|l| !l.starts_with("diff ")),
+                ));
+            }
+            if let Some(f) = t.strip_prefix("+++ b/") {
+                return Some((f.to_owned(), defun.flatten()));
+            }
+            if let Some(rest) = t.strip_prefix("diff --git a/") {
+                let f = rest.rsplit_once(" b/").map_or(rest, |(_, b)| b);
+                return Some((f.to_owned(), defun.flatten()));
+            }
+        }
+        None
+    }
+    /// magit-add-change-log-entry: a dated ChangeLog item for the change at
+    /// point, in the nearest ChangeLog (add-log's find-change-log).
+    fn add_change_log_entry(&mut self, file: String, defun: Option<String>) {
+        let Some(view) = self.ed.magit.as_deref() else {
+            return;
+        };
+        let repo = view.repo.clone();
+        let dir = repo.root.join(&file);
+        let log = dir
+            .ancestors()
+            .skip(1)
+            .take_while(|d| d.starts_with(&repo.root))
+            .map(|d| d.join("ChangeLog"))
+            .find(|p| p.is_file())
+            .unwrap_or_else(|| repo.root.join("ChangeLog"));
+        let rel = log
+            .parent()
+            .and_then(|d| {
+                repo.root
+                    .join(&file)
+                    .strip_prefix(d)
+                    .ok()
+                    .map(Path::to_path_buf)
+            })
+            .unwrap_or_else(|| PathBuf::from(&file));
+        let ident = crate::magit::message::ident(&repo);
+        let (name, email) = ident
+            .rsplit_once(" <")
+            .map(|(n, e)| (n.to_owned(), e.trim_end_matches('>').to_owned()))
+            .unwrap_or((ident.clone(), String::new()));
+        let today = crate::magit::message::today();
+        let old = std::fs::read_to_string(&log).unwrap_or_default();
+        let text = crate::magit::message::change_log_add(
+            &old,
+            &format!("{today}  {name}  <{email}>"),
+            &rel.to_string_lossy(),
+            defun.as_deref(),
+        );
+        if let Err(e) = crate::fileio::write(&log, text.as_bytes(), None, false) {
+            return self.ed.set_err(e);
+        }
+        self.open_pick(log, None);
+        if let Some(i) = self
+            .ed
+            .buf
+            .text()
+            .lines()
+            .position(|l| l.starts_with('\t') && l.ends_with(": "))
+        {
+            let len = self.ed.buf.line(i).len();
+            self.ed.set_cursor(i, len);
+        }
+    }
+    /// magit-copy-diff-as-kill: the hunk or file diff at point, else the
+    /// commit at point (or the buffer's revision) as a patch.
+    fn copy_diff(&mut self) {
+        let Some(view) = self.ed.magit.as_deref().cloned() else {
+            return self.ed.set_err("Cannot copy this as a diff");
+        };
+        let line = self.ed.cur.line;
+        let revision = crate::magit::buffer_revision(&self.ed)
+            .filter(|_| matches!(view.kind, Kind::Patch(_) | Kind::Diff(Target::Commit(_), _)));
+        self.start_magit(move || {
+            let repo = view.repo.clone();
+            let text = match view.action_at(line) {
+                Some(RowAction::Hunk(path, staged, hunk, _)) => {
+                    let diff = view
+                        .diffs
+                        .get(&(path, staged))
+                        .ok_or("refresh the diff first")?;
+                    let h = diff.hunks.get(hunk).ok_or("Cannot copy this as a diff")?;
+                    let header = diff.hunks.first().map_or(0, |h| h.start);
+                    let mut patch = diff.bytes[..header].to_vec();
+                    patch.extend_from_slice(&diff.bytes[h.start..h.end]);
+                    patch
+                }
+                Some(RowAction::File(_, Section::Untracked | Section::Conflicts)) => {
+                    return Err("Cannot copy this as a diff".into());
+                }
+                Some(RowAction::File(path, section)) => {
+                    repo.diff(&path, section == Section::Staged)?.bytes
+                }
+                Some(RowAction::Commit(id)) => repo.read(&["show", "-p", "--format=", &id])?,
+                _ => match diff_patch_at(&view, line) {
+                    Ok(patch) => patch,
+                    Err(_) => match &revision {
+                        Some(rev) => repo.read(&["show", "-p", "--format=", rev])?,
+                        None => return Err("Cannot copy this as a diff".into()),
+                    },
+                },
+            };
+            Ok(Outcome::Copy(
+                String::from_utf8_lossy(&text).into_owned(),
+                "Copied diff".into(),
+            ))
+        });
+    }
     fn file_action(&mut self, op: crate::magit::blob::FileOp) {
         use crate::magit::blob::FileOp as O;
+        use crate::magit::misc::Op as M;
+        // magit-file-dispatch offers magit-stage-files / -unstage-files when
+        // no file is visited.
+        let visiting = self.ed.blob.is_some()
+            || self.ed.dired.is_some()
+            || (self.ed.path.is_some() && !self.ed.generated());
+        if !visiting && matches!(op, O::Stage | O::Unstage) {
+            let files = if op == O::Stage {
+                M::StageFiles(false)
+            } else {
+                M::UnstageFiles
+            };
+            return self.magit_action(Action::Misc(files));
+        }
         // magit-dired-stage / -unstage: the marked files or the one at point.
         if self.ed.dired.is_some() && matches!(op, O::Stage | O::Unstage) {
             let files = crate::dired::selection(&self.ed);
@@ -3237,17 +4922,29 @@ impl Session {
         self.reloaded = true;
     }
     fn install_magit(&mut self, mut view: View, selected: Option<RowAction>, fallback: usize) {
-        // Like magit-diff-mode, one diff buffer per repository is refreshed in place.
-        let slot = |kind: &Kind| match kind {
-            Kind::Diff(..) => "Diff".to_owned(),
+        // Like magit-diff-mode, one diff buffer per repository is refreshed in
+        // place, unless locked to its value (magit-toggle-buffer-lock).
+        let slot = |v: &View| match &v.kind {
+            _ if v.select.is_some() => "Select".to_owned(),
+            Kind::Diff(..) if !v.locked => "Diff".to_owned(),
+            // magit-revision-use-dedicated-buffers nil: one revision buffer.
+            Kind::Patch(_)
+                if !v.locked
+                    && !crate::magit::options::flag(
+                        "magit-revision-use-dedicated-buffers",
+                        false,
+                    ) =>
+            {
+                "Revision".to_owned()
+            }
             kind => format!("{kind:?}"),
         };
-        let kind = slot(&view.kind);
+        let kind = slot(&view);
         let repo = view.repo.clone();
         let same = |ed: &Editor| {
             ed.magit
                 .as_ref()
-                .is_some_and(|v| v.repo == repo && slot(&v.kind) == kind)
+                .is_some_and(|v| v.repo == repo && slot(v) == kind)
         };
         if !same(&self.ed) {
             if let Some(i) = self
@@ -3286,6 +4983,25 @@ impl Session {
         } else if let Some(old) = &self.ed.magit {
             view.return_to = old.return_to;
         }
+        // A reused buffer keeps its settings and records the value it showed
+        // (magit-go-backward), unless this is that navigation.
+        if let Some(old) = self
+            .ed
+            .magit
+            .as_deref()
+            .filter(|o| o.repo == repo && slot(o) == kind)
+        {
+            if old.kind != view.kind && view.back.is_empty() && view.forward.is_empty() {
+                view.back = old.back.clone();
+                view.back.push(old.kind.clone());
+            }
+            view.refine = old.refine;
+            view.fontify = old.fontify;
+            view.locked |= old.locked;
+            if old.margin.is_some() {
+                view.margin = old.margin.clone();
+            }
+        }
         self.no_swap = true;
         self.ed.git = crate::git::Gutter::default();
         self.ed.buf = Buffer::from_text(&view.text());
@@ -3311,6 +5027,36 @@ impl Session {
         } else {
             "Git status refreshed".into()
         });
+        crate::magit::options::run_hook("magit-post-refresh-hook", &repo.root);
+        // magit-log-select-show-usage: also in the echo area.
+        if let Some(select) = self.ed.magit.as_ref().and_then(|v| v.select.as_deref()) {
+            let usage = crate::magit::options::string("magit-log-select-show-usage", Some("both"));
+            if matches!(usage.as_deref(), Some("both" | "echo-area")) {
+                let msg = select.message.clone();
+                self.ed.set_msg(msg);
+            }
+        }
+        // magit-refresh-verbose / magit-profile-refresh-buffer.
+        let profile = self.profile_once.take();
+        if self.refresh_verbose || profile.is_some() {
+            let title = self
+                .ed
+                .magit
+                .as_ref()
+                .map(|v| v.title())
+                .unwrap_or_default();
+            let mut msg = format!("Refreshing buffer `{title}'...done");
+            if let Some((start, calls)) = profile {
+                let n = crate::magit::repo::CALLS_COUNT
+                    .load(std::sync::atomic::Ordering::Relaxed)
+                    .saturating_sub(calls);
+                msg.push_str(&format!(
+                    " ({:.3}s, {n} Git calls)",
+                    start.elapsed().as_secs_f64()
+                ));
+            }
+            self.ed.set_msg(msg);
+        }
     }
     fn refresh_gutters(&mut self) {
         for ed in self.editors_mut() {
@@ -3324,27 +5070,40 @@ impl Session {
     }
     pub fn finish_git(&mut self, inv: GitInvocation, result: Result<(), String>) {
         self.git_busy = false;
-        // ponytail: last 100 commands; upstream keeps magit-process-log-max.
         let line = inv
             .args
             .iter()
             .map(|a| a.to_string_lossy())
             .collect::<Vec<_>>()
             .join(" ");
+        let line = crate::magit::repo::stamp_line(line);
         self.git_log
             .push((inv.repo.root.clone(), line, result.clone()));
-        if self.git_log.len() > 100 {
-            self.git_log.drain(..1);
+        // magit-process-log-max sections (nil keeps them all).
+        let max = crate::magit::options::int_or_nil("magit-process-log-max", Some(32))
+            .map_or(usize::MAX, |n| n.max(0) as usize);
+        if self.git_log.len() > max {
+            let excess = self.git_log.len() - max;
+            self.git_log.drain(..excess);
         }
+        // magit-refresh-status-buffer nil: only the current buffer refreshes.
+        let refresh_status = crate::magit::options::flag("magit-refresh-status-buffer", true);
         for ed in self.editors_mut() {
             if let Some(view) = &mut ed.magit
                 && view.repo == inv.repo
+                && (refresh_status || view.kind != Kind::Status)
             {
                 view.dirty = true;
             }
         }
         self.refresh_gutters();
         if let Err(e) = result {
+            // magit-show-process-buffer-hint.
+            let e = if crate::magit::options::flag("magit-show-process-buffer-hint", true) {
+                format!("{e} [Space m $ for details]")
+            } else {
+                e
+            };
             if let Some(mut view) = self.ed.magit.as_deref().cloned() {
                 let selected = view.action_at(self.ed.cur.line);
                 let fallback = self.ed.cur.line;
@@ -3357,7 +5116,39 @@ impl Session {
             }
             return;
         }
-        if let Some(after) = inv.after {
+        if self.auto_revert {
+            self.auto_revert_buffers(&inv.repo.root);
+        }
+        // git-commit-post-finish-hook after a draft's commit, and
+        // magit-post-commit-hook after commits made without one.
+        if inv.draft.is_some() {
+            crate::magit::options::run_hook("git-commit-post-finish-hook", &inv.repo.root);
+        } else if inv.args.first().is_some_and(|a| a == "commit") {
+            crate::magit::options::run_hook("magit-post-commit-hook", &inv.repo.root);
+        }
+        // magit-wip-after-apply-mode: record the state Git left behind.
+        if self.wip_mode
+            && inv.draft.is_none()
+            && let Err(e) = inv.repo.wip_commit("wip-save tracked files after Git")
+            && !e.contains("No commit")
+        {
+            self.ed.set_err(format!("magit-wip: {e}"));
+        }
+        if let Some(crate::magit::repo::After::Git(args)) = inv.after {
+            self.pending_git = Some(GitInvocation {
+                expected_head: None,
+                repo: inv.repo,
+                args: args.into_iter().map(OsString::from).collect(),
+                input: None,
+                draft: None,
+                draft_stamp: None,
+                editor: false,
+                env: vec![],
+                after: None,
+            });
+            return;
+        }
+        if let Some(crate::magit::repo::After::Clone(after)) = inv.after {
             let (origin, repo) = (self.cur, inv.repo);
             self.start_magit(move || {
                 let next = after
@@ -3442,6 +5233,7 @@ fn branch_outcome(repo: Repo, next: crate::magit::branch::Next, origin: usize) -
             draft: None,
             draft_stamp: None,
             editor: false,
+            env: vec![],
             after: None,
         }),
         Next::GitEditor(args) => Outcome::Git(GitInvocation {
@@ -3452,6 +5244,7 @@ fn branch_outcome(repo: Repo, next: crate::magit::branch::Next, origin: usize) -
             draft: None,
             draft_stamp: None,
             editor: true,
+            env: vec![],
             after: None,
         }),
         Next::Todo(plan) => Outcome::Todo(plan),
@@ -3463,12 +5256,14 @@ fn branch_outcome(repo: Repo, next: crate::magit::branch::Next, origin: usize) -
             match view {
                 Ok(mut view) => {
                     view.return_to = origin;
-                    Outcome::View(Box::new(view), None, 0)
+                    let line = view.initial_line(None);
+                    Outcome::View(Box::new(view), None, line)
                 }
                 Err(e) => Outcome::Saved(repo, Err(e)),
             }
         }
         Next::Visit(path) => Outcome::VisitFile(path, 0),
+        Next::Shell(cmd) => Outcome::Shell(cmd),
         Next::Invoke(inv) => Outcome::Git(inv),
         Next::View(kind) => {
             let mut view = View::status(repo.clone(), Default::default());
@@ -3504,9 +5299,24 @@ fn diff_visit(view: &View, line: usize, worktree: bool) -> Option<(String, PathB
     if worktree {
         return Some((WORKTREE.to_owned(), loc.file, loc.line - 1));
     }
+    // magit-diff-visit-prefer-worktree: staged and unstaged changes visit
+    // the worktree file.
+    if matches!(view.kind, Kind::Diff(Target::Staged | Target::Unstaged, _))
+        && crate::magit::options::flag("magit-diff-visit-prefer-worktree", false)
+    {
+        return Some((WORKTREE.to_owned(), loc.file, loc.line - 1));
+    }
     let old = |rev: String| Some((rev, loc.old_file.clone(), loc.old_line - 1));
     let new = |rev: String| Some((rev, loc.file.clone(), loc.line - 1));
-    let pick = |a: String, b: String| if loc.removed { old(a) } else { new(b) };
+    // magit-diff-visit-previous-blob nil: always the new side.
+    let previous = crate::magit::options::flag("magit-diff-visit-previous-blob", true);
+    let pick = |a: String, b: String| {
+        if loc.removed && previous {
+            old(a)
+        } else {
+            new(b)
+        }
+    };
     match &view.kind {
         Kind::Diff(Target::Staged, _) => pick("HEAD".into(), INDEX.into()),
         Kind::Diff(Target::Unstaged, _) => pick(INDEX.into(), WORKTREE.into()),
@@ -3701,7 +5511,42 @@ fn stash_view(
     Ok(Outcome::View(Box::new(view), None, 0))
 }
 fn refresh_view(view: &mut View) -> Result<(), String> {
+    refresh_rows(view)?;
+    view.load_stamps()
+}
+fn refresh_rows(view: &mut View) -> Result<(), String> {
     view.dirty = false;
+    if view.kind == Kind::Repos {
+        // tabulated-list: a header line, then a marker column and the cells.
+        let (cols, table) = crate::magit::repos::table()?;
+        let header: Vec<String> = cols
+            .iter()
+            .map(|c| crate::magit::repos::pad(&c.header, c))
+            .collect();
+        let mut rows = vec![Row {
+            text: format!("  {}", header.join(" ").trim_end()),
+            action: None,
+        }];
+        view.marked.retain(|p| table.iter().any(|(_, q, _)| q == p));
+        for (_, path, cells) in table {
+            let text: Vec<String> = cols
+                .iter()
+                .zip(&cells)
+                .map(|(c, v)| crate::magit::repos::pad(&label(Path::new(v)), c))
+                .collect();
+            let mark = if view.marked.contains(&path) {
+                "*"
+            } else {
+                " "
+            };
+            rows.push(Row {
+                text: format!("{mark} {}", text.join(" ").trim_end()),
+                action: Some(RowAction::Repo(path)),
+            });
+        }
+        view.rows = rows;
+        return Ok(());
+    }
     if let Kind::Diff(target, args) = &view.kind {
         let mut rows = vec![Row {
             text: format!("{} (gr refresh, q return)", target.title()),
@@ -3742,7 +5587,11 @@ fn refresh_view(view: &mut View) -> Result<(), String> {
             ),
             action: None,
         }];
-        for (text, id) in view.repo.refs_rows(focus, args, *count)? {
+        view.refnames.clear();
+        for (text, id, name) in view.repo.refs_rows_named(focus, args, *count)? {
+            if let Some(n) = name {
+                view.refnames.insert(rows.len(), n);
+            }
             rows.push(Row {
                 text: label(Path::new(&text)),
                 action: id.map(RowAction::Commit),
@@ -3756,13 +5605,18 @@ fn refresh_view(view: &mut View) -> Result<(), String> {
             text: "Modules (Enter visit, Space m o actions, gr refresh, q return)".into(),
             action: None,
         }];
-        for (text, module) in view.repo.module_rows()? {
+        let (header, modules) = view.repo.module_rows()?;
+        rows.push(Row {
+            text: label(Path::new(&header)),
+            action: None,
+        });
+        for (text, module) in modules {
             rows.push(Row {
                 text: label(Path::new(&text)),
                 action: Some(RowAction::Module(module)),
             });
         }
-        if rows.len() == 1 {
+        if rows.len() == 2 {
             rows.push(Row {
                 text: "No modules".into(),
                 action: None,
@@ -3858,11 +5712,15 @@ fn reflog_view(repo: Repo, target: String, origin: usize) -> Result<Outcome, Str
 fn refresh_log(view: &mut View) -> Result<(), String> {
     if let Kind::Reflog(target) = &view.kind {
         // magit-reflog-refresh-buffer, limited by magit-reflog-limit (256).
+        let limit = format!(
+            "-n{}",
+            crate::magit::options::int("magit-reflog-limit", 256).max(1)
+        );
         let out = view.repo.read(&[
             "reflog",
             "show",
             "--format=%H%x00%gd%x00%gs",
-            "-n256",
+            &limit,
             "--end-of-options",
             target,
             "--",
@@ -3894,17 +5752,31 @@ fn refresh_log(view: &mut View) -> Result<(), String> {
         return Ok(());
     }
     if let Kind::Log(revs, args) = &view.kind {
-        // magit-log-refresh-buffer: header line, then the washed log.
+        // magit-log-refresh-buffer: header line, then the washed log; a
+        // magit-log-select buffer shows its usage instead.
         let mut rows = vec![Row {
-            text: format!(
-                "Commits in {}{} (Enter inspect, = limit, + more, gr refresh, q return)",
-                label(Path::new(&revs.join(" "))),
-                if args.is_empty() {
-                    String::new()
-                } else {
-                    format!(" {}", label(Path::new(&args.join(" "))))
+            text: match &view.select {
+                // magit-log-select-show-usage: header-line (or both).
+                Some(select)
+                    if matches!(
+                        crate::magit::options::string("magit-log-select-show-usage", Some("both"))
+                            .as_deref(),
+                        Some("both" | "header-line")
+                    ) =>
+                {
+                    select.message.clone()
                 }
-            ),
+                Some(_) => "Select a commit".into(),
+                None => format!(
+                    "Commits in {}{} (Enter inspect, = limit, + more, gr refresh, q return)",
+                    label(Path::new(&revs.join(" "))),
+                    if args.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" {}", label(Path::new(&args.join(" "))))
+                    }
+                ),
+            },
             action: None,
         }];
         let lines = view.repo.log_lines(revs, args, &[])?;
@@ -3942,10 +5814,8 @@ fn refresh_log(view: &mut View) -> Result<(), String> {
     for c in commits {
         view.rows.push(Row {
             text: format!(
-                "{} {} {} {}",
+                "{} {}",
                 &c.id[..c.id.len().min(8)],
-                c.date,
-                label(Path::new(&c.author)),
                 label(Path::new(&c.subject))
             ),
             action: Some(RowAction::Commit(c.id)),
@@ -4031,4 +5901,54 @@ fn refresh_refs(view: &mut View) -> Result<(), String> {
         });
     }
     Ok(())
+}
+
+/// GIT_COMMITTER_DATE set to HEAD's (magit-rev-format "%cD").
+fn keep_committer_date(repo: &Repo) -> Option<(String, String)> {
+    repo.read(&["log", "-1", "--format=%cD", "HEAD"])
+        .ok()
+        .map(|o| {
+            (
+                "GIT_COMMITTER_DATE".into(),
+                String::from_utf8_lossy(&o).trim().to_owned(),
+            )
+        })
+}
+/// What magit-visit-ref does instead of showing the commit.
+enum VisitRef {
+    /// create-branch: a local branch for this remote branch.
+    Create(String),
+    /// checkout-any / checkout-branch.
+    Checkout(String),
+}
+/// magit-visit-ref-behavior: ["create-branch", "checkout-any",
+/// "checkout-branch"] (focus-on-ref needs a prefix argument Fred lacks).
+fn visit_ref(name: &str) -> Option<VisitRef> {
+    let how = crate::magit::options::strings("magit-visit-ref-behavior", &[]);
+    let has = |s: &str| how.iter().any(|h| h == s);
+    if let Some(remote) = name.strip_prefix("refs/remotes/")
+        && has("create-branch")
+    {
+        return Some(VisitRef::Create(remote.to_owned()));
+    }
+    let short = name
+        .strip_prefix("refs/heads/")
+        .or_else(|| name.strip_prefix("refs/remotes/"))
+        .or_else(|| name.strip_prefix("refs/tags/"))
+        .unwrap_or(name);
+    if has("checkout-any") || (has("checkout-branch") && name.starts_with("refs/heads/")) {
+        return Some(VisitRef::Checkout(short.to_owned()));
+    }
+    None
+}
+/// The verb magit-commit-squash-internal's log-select message uses.
+fn op_verb(op: &crate::magit::commit::Op) -> &'static str {
+    use crate::magit::commit::Op as C;
+    match op {
+        C::Fixup | C::InstantFixup => "fixup",
+        C::Squash | C::InstantSquash => "squash into",
+        C::Alter => "alter",
+        C::Augment => "augment",
+        _ => "revise",
+    }
 }

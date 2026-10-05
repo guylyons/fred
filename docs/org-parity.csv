@@ -2846,123 +2846,123 @@ org-lint.el,,function,org-lint-checker-function,missing,,"Access slot ""function
 org-lint.el,,function,org-lint-checker-name--inliner,missing,,
 org-lint.el,,function,org-lint-checker-function--inliner,missing,,
 org-lint.el,,function,org-lint-checker-summary--inliner,missing,,
-org-list.el,172,option,org-cycle-include-plain-lists,missing,,"When t, make TAB cycle visibility on plain list items."
-org-list.el,195,option,org-list-demote-modify-bullet,missing,,Default bullet type installed when demoting an item.
-org-list.el,237,option,org-plain-list-ordered-item-terminator,missing,,The character that makes a line with leading number an ordered list item.
-org-list.el,253,option,org-list-allow-alphabetical,missing,,Non-nil means single character alphabetical bullets are allowed.
-org-list.el,271,option,org-list-two-spaces-after-bullet-regexp,missing,,A regular expression matching bullets that should have 2 spaces after them.
-org-list.el,283,option,org-list-automatic-rules,missing,,Non-nil means apply set of rules when acting on lists.
-org-list.el,316,option,org-list-use-circular-motion,missing,,Non-nil means commands implying motion in lists should be cyclic.
-org-list.el,338,option,org-checkbox-children-only-statistics,missing,,Non-nil means checkbox statistics counts only the state of direct children.
-org-list.el,347,option,org-list-indent-offset,missing,,Additional indentation for sub-items in a list.
-org-list.el,378,function,org-item-re,missing,,Return the correct regular expression for plain lists.
-org-list.el,403,function,org-item-beginning-re,missing,,Regexp matching the beginning of a plain list item.
-org-list.el,407,function,org-list-at-regexp-after-bullet-p,missing,,Is point at a list item with REGEXP after bullet?
-org-list.el,421,function,org-list-in-valid-context-p,missing,,Is point in a context where lists are allowed?
-org-list.el,425,function,org-in-item-p,missing,,"Return item beginning position when in a plain list, nil otherwise."
-org-list.el,491,function,org-at-item-p,missing,,Is point in a line starting a hand-formatted item?
-org-list.el,503,function,org-at-item-bullet-p,missing,,Is point at the bullet of a plain list item?
-org-list.el,509,function,org-at-item-timer-p,missing,,Is point at a line starting a plain list item with a timer?
-org-list.el,514,function,org-at-item-description-p,missing,,Is point at a description list item?
-org-list.el,518,function,org-at-item-checkbox-p,missing,,Is point at a line starting a plain-list item with a checklet?
-org-list.el,522,function,org-at-item-counter-p,missing,,Is point at a line starting a plain-list item with a counter?
-org-list.el,532,function,org-list-context,missing,,"Determine context, and its boundaries, around point."
-org-list.el,597,function,org-list-struct,missing,,Return structure of list at point.
-org-list.el,773,function,org-list-struct-assoc-end,missing,,Associate proper ending point to items in STRUCT.
-org-list.el,796,function,org-list-prevs-alist,missing,,Return alist between item and previous item in STRUCT.
-org-list.el,805,function,org-list-parents-alist,missing,,Return alist between item and parent in STRUCT.
-org-list.el,844,function,org-list--delete-metadata,missing,,Delete metadata from the heading at point.
-org-list.el,859,function,org-list-get-nth,missing,,Return the Nth value of KEY in STRUCT.
-org-list.el,863,function,org-list-set-nth,missing,,Set the Nth value of KEY in STRUCT to NEW.
-org-list.el,868,function,org-list-get-ind,missing,,Return indentation of ITEM in STRUCT.
-org-list.el,872,function,org-list-set-ind,missing,,Set indentation of ITEM in STRUCT to IND.
-org-list.el,877,function,org-list-get-bullet,missing,,Return bullet of ITEM in STRUCT.
-org-list.el,881,function,org-list-set-bullet,missing,,Set bullet of ITEM in STRUCT to BULLET.
-org-list.el,886,function,org-list-get-counter,missing,,Return counter of ITEM in STRUCT.
-org-list.el,890,function,org-list-get-checkbox,missing,,Return checkbox of ITEM in STRUCT or nil.
-org-list.el,894,function,org-list-set-checkbox,missing,,Set checkbox of ITEM in STRUCT to CHECKBOX.
-org-list.el,899,function,org-list-get-tag,missing,,Return end position of ITEM in STRUCT.
-org-list.el,903,function,org-list-get-item-end,missing,,Return end position of ITEM in STRUCT.
-org-list.el,907,function,org-list-get-item-end-before-blank,missing,,"Return point at end of ITEM in STRUCT, before any blank line."
-org-list.el,915,function,org-list-get-parent,missing,,Return parent of ITEM or nil.
-org-list.el,922,function,org-list-has-child-p,missing,,Non-nil if ITEM has a child.
-org-list.el,934,function,org-list-get-next-item,missing,,"Return next item in same sub-list as ITEM, or nil."
-org-list.el,940,function,org-list-get-prev-item,missing,,"Return previous item in same sub-list as ITEM, or nil."
-org-list.el,946,function,org-list-get-subtree,missing,,"List all items having ITEM as a common ancestor, or nil."
-org-list.el,959,function,org-list-get-all-items,missing,,List all items in the same sub-list as ITEM.
-org-list.el,972,function,org-list-get-children,missing,,"List all children of ITEM, or nil."
-org-list.el,982,function,org-list-get-top-point,missing,,Return point at beginning of list.
-org-list.el,987,function,org-list-get-bottom-point,missing,,Return point at bottom of list.
-org-list.el,993,function,org-list-get-list-begin,missing,,Return point at beginning of sub-list ITEM belongs.
-org-list.el,1002,function,org-list-get-first-item,missing,,Return point at beginning of sub-list ITEM belongs.
-org-list.el,1004,function,org-list-get-last-item,missing,,Return point at last item of sub-list ITEM belongs.
-org-list.el,1013,function,org-list-get-list-end,missing,,Return point at end of sub-list ITEM belongs.
-org-list.el,1019,function,org-list-get-list-type,missing,,"Return the type of the list containing ITEM, as a symbol."
-org-list.el,1033,function,org-list-get-item-number,missing,,Return ITEM's sequence number.
-org-list.el,1071,function,org-list-search-generic,missing,,Search a string in valid contexts for lists.
-org-list.el,1086,function,org-list-search-backward,missing,,Like `re-search-backward' but stop only where lists are recognized.
-org-list.el,1093,function,org-list-search-forward,missing,,Like `re-search-forward' but stop only where lists are recognized.
-org-list.el,1104,function,org-list-bullet-string,missing,,Return BULLET with the correct number of whitespaces.
-org-list.el,1118,function,org-list-swap-items,missing,,Swap item starting at BEG-A with item starting at BEG-B in STRUCT.
-org-list.el,1189,function,org-list-separating-blank-lines-number,missing,,Return number of blank lines that should separate items in list.
-org-list.el,1244,function,org-list-insert-item,missing,,Insert a new list item at POS and return the new structure.
-org-list.el,1379,function,org-list-delete-item,missing,,Remove ITEM from the list and return the new structure.
-org-list.el,1415,function,org-list-send-item,missing,,Send ITEM to destination DEST.
-org-list.el,1531,function,org-list-struct-outdent,missing,,Outdent items between positions START and END.
-org-list.el,1563,function,org-list-struct-indent,missing,,Indent items between positions START and END.
-org-list.el,1625,function,org-list-use-alpha-bul-p,missing,,Non-nil if list starting at FIRST can have alphabetical bullets.
-org-list.el,1649,function,org-list-inc-bullet-maybe,missing,,Increment BULLET if applicable.
-org-list.el,1666,function,org-list-struct-fix-bul,missing,,Verify and correct bullets in STRUCT.
-org-list.el,1734,function,org-list-struct-fix-ind,missing,,Verify and correct indentation in STRUCT.
-org-list.el,1762,function,org-list-struct-fix-box,missing,,Verify and correct checkboxes in STRUCT.
-org-list.el,1824,function,org-list-struct-fix-item-end,missing,,Verify and correct each item end position in STRUCT.
-org-list.el,1848,function,org-list-struct-apply-struct,missing,,Apply set difference between STRUCT and OLD-STRUCT to the buffer.
-org-list.el,2004,function,org-list-write-struct,missing,,"Correct bullets, checkboxes and indentation in list at point."
-org-list.el,2040,function,org-apply-on-list,missing,,Call FUNCTION on each item of the list at point.
-org-list.el,2065,function,org-list-set-item-visibility,missing,,Set visibility of ITEM in STRUCT to VIEW.
-org-list.el,2089,function,org-list-item-body-column,missing,,Return column at which body of ITEM should start.
-org-list.el,2105,function,org-list-get-item-begin,missing,,"Return item beginning position when in a plain list, nil otherwise."
-org-list.el,2107,command,org-beginning-of-item,missing,,Go to the beginning of the current item.
-org-list.el,2114,command,org-beginning-of-item-list,missing,,Go to the beginning item of the current list or sublist.
-org-list.el,2126,command,org-end-of-item-list,missing,,Go to the end of the current list or sublist.
-org-list.el,2138,command,org-end-of-item,missing,,Go to the end of the current item.
-org-list.el,2149,command,org-previous-item,missing,,Move to the beginning of the previous item.
-org-list.el,2167,command,org-next-item,missing,,Move to the beginning of the next item.
-org-list.el,2185,command,org-move-item-down,missing,,"Move the item at point down, i.e. swap with following item."
-org-list.el,2206,command,org-move-item-up,missing,,"Move the item at point up, i.e. swap with previous item."
-org-list.el,2225,command,org-insert-item,missing,,Insert a new item at the current level.
-org-list.el,2267,command,org-list-repair,missing,,"Fix indentation, bullets and checkboxes in the list at point."
-org-list.el,2275,command,org-cycle-list-bullet,missing,,Cycle through the different itemize/enumerate bullets.
-org-list.el,2364,command,org-list-checkbox-radio-mode,missing,,"When turned on, use list checkboxes as radio buttons."
-org-list.el,2370,command,org-toggle-radio-button,missing,,Toggle off all checkboxes and toggle on the one at point.
-org-list.el,2398,function,org-at-radio-list-p,missing,,Is point at a list item with radio buttons?
-org-list.el,2413,command,org-toggle-checkbox,missing,,Toggle the checkbox in the current line.
-org-list.el,2517,command,org-reset-checkbox-state-subtree,missing,,Reset all checkboxes in an entry subtree.
-org-list.el,2534,command,org-update-checkbox-count,missing,,Update the checkbox statistics in the current section.
-org-list.el,2665,function,org-get-checkbox-statistics-face,missing,,Select the face for checkbox statistics.
-org-list.el,2678,function,org-update-checkbox-count-maybe,missing,,Update checkbox statistics unless turned off by user.
-org-list.el,2689,function,org-list-indent-item-generic,missing,,Indent a local list item including its children.
-org-list.el,2783,command,org-outdent-item,missing,,"Outdent a local list item, but not its children."
-org-list.el,2800,command,org-indent-item,missing,,"Indent a local list item, but not its children."
-org-list.el,2817,command,org-outdent-item-tree,missing,,Outdent a local list item including its children.
-org-list.el,2834,command,org-indent-item-tree,missing,,Indent a local list item including its children.
-org-list.el,2852,function,org-cycle-item-indentation,missing,,Cycle levels of indentation of an empty item.
-org-list.el,2930,command,org-sort-list,missing,,Sort list items.
-org-list.el,3056,command,org-toggle-item,missing,,"Convert headings or normal lines to items, items to normal lines."
-org-list.el,3264,function,org-list-to-lisp,missing,,Parse the list at point and maybe DELETE it.
-org-list.el,3352,command,org-list-make-subtree,missing,,Convert the plain list at point into a subtree.
-org-list.el,3364,function,org-list-to-generic,missing,,Convert a LIST parsed through `org-list-to-lisp' to a custom format.
-org-list.el,3493,function,org-list--depth,missing,,Return the level of ELEMENT within current plain list.
-org-list.el,3499,function,org-list--trailing-newlines,missing,,Return the number of trailing newlines in STRING.
-org-list.el,3506,function,org-list--generic-eval,missing,,Evaluate VALUE according to its type.
-org-list.el,3515,function,org-list--to-generic-plain-list,missing,,Return a transcoder for `plain-list' elements.
-org-list.el,3555,function,org-list--to-generic-item,missing,,Return a transcoder for `item' elements.
-org-list.el,3628,function,org-list-to-latex,missing,,Convert LIST into a LaTeX list.
-org-list.el,3636,function,org-list-to-html,missing,,Convert LIST into a HTML list.
-org-list.el,3644,function,org-list-to-texinfo,missing,,Convert LIST into a Texinfo list.
-org-list.el,3652,function,org-list-to-org,missing,,Convert LIST into an Org plain list.
-org-list.el,3671,function,org-list-to-subtree,missing,,Convert LIST into an Org subtree.
-org-list.el,,option,org-list-checkbox-radio-mode-hook,missing,,Hook run after entering or leaving `org-list-checkbox-radio-mode'.
+org-list.el,172,option,org-cycle-include-plain-lists,partial,TAB cycles items (list::cycle_item); nil disables; `integrate` (items as heading children) not supported,"When t, make TAB cycle visibility on plain list items."
+org-list.el,195,option,org-list-demote-modify-bullet,done,read as an alist from [org] (TOML pairs or a Lisp string); applied by struct_indent,Default bullet type installed when demoting an item.
+org-list.el,237,option,org-plain-list-ordered-item-terminator,done,"t, 46 (?.) or 41 (?)); item regexps and bullet cycling follow it",The character that makes a line with leading number an ordered list item.
+org-list.el,253,option,org-list-allow-alphabetical,done,"alphabetical bullets and counters (use_alpha, fix_bul, cycle_list_bullet)",Non-nil means single character alphabetical bullets are allowed.
+org-list.el,271,option,org-list-two-spaces-after-bullet-regexp,done,Emacs regexp translated (emacs_re) in bullet_string/item_body_column,A regular expression matching bullets that should have 2 spaces after them.
+org-list.el,283,option,org-list-automatic-rules,done,checkbox and indent rules (structure::rule),Non-nil means apply set of rules when acting on lists.
+org-list.el,316,option,org-list-use-circular-motion,done,org-next/previous-item and org-move-item-up/down wrap,Non-nil means commands implying motion in lists should be cyclic.
+org-list.el,338,option,org-checkbox-children-only-statistics,done,also read under the obsolete name org-checkbox-hierarchical-statistics; COOKIE_DATA recursive,Non-nil means checkbox statistics counts only the state of direct children.
+org-list.el,347,option,org-list-indent-offset,done,fix_ind adds it to sub-item indentation,Additional indentation for sub-items in a list.
+org-list.el,378,function,org-item-re,internal,list::structure::item_res (cached per alphabetical/terminator),Return the correct regular expression for plain lists.
+org-list.el,403,function,org-item-beginning-re,internal,list::structure::item_res().1,Regexp matching the beginning of a plain list item.
+org-list.el,407,function,org-list-at-regexp-after-bullet-p,internal,list::at_regexp_after_bullet,Is point at a list item with REGEXP after bullet?
+org-list.el,421,function,org-list-in-valid-context-p,internal,list::structure::valid_context,Is point in a context where lists are allowed?
+org-list.el,425,function,org-in-item-p,internal,list::structure::in_item,"Return item beginning position when in a plain list, nil otherwise."
+org-list.el,491,function,org-at-item-p,internal,list::structure::at_item (item regexp outside forbidden blocks),Is point in a line starting a hand-formatted item?
+org-list.el,503,function,org-at-item-bullet-p,internal,list::at_item_bullet,Is point at the bullet of a plain list item?
+org-list.el,509,function,org-at-item-timer-p,internal,list::at_item_timer,Is point at a line starting a plain list item with a timer?
+org-list.el,514,function,org-at-item-description-p,internal,list::at_item_description,Is point at a description list item?
+org-list.el,518,function,org-at-item-checkbox-p,internal,list::at_item_checkbox,Is point at a line starting a plain-list item with a checklet?
+org-list.el,522,function,org-at-item-counter-p,internal,list::at_item_counter,Is point at a line starting a plain-list item with a counter?
+org-list.el,532,function,org-list-context,internal,list::structure::context (drawer/block/invalid; inlinetask branch inactive: org-inlinetask not loaded),"Determine context, and its boundaries, around point."
+org-list.el,597,function,org-list-struct,internal,"list::structure::list_struct (Struct of Item records, byte positions)",Return structure of list at point.
+org-list.el,773,function,org-list-struct-assoc-end,internal,list::structure::assoc_end,Associate proper ending point to items in STRUCT.
+org-list.el,796,function,org-list-prevs-alist,internal,list::structure::Struct::prevs,Return alist between item and previous item in STRUCT.
+org-list.el,805,function,org-list-parents-alist,internal,list::structure::Struct::parents,Return alist between item and parent in STRUCT.
+org-list.el,844,function,org-list--delete-metadata,internal,list::delete_metadata,Delete metadata from the heading at point.
+org-list.el,859,function,org-list-get-nth,adapted,Item fields,Return the Nth value of KEY in STRUCT.
+org-list.el,863,function,org-list-set-nth,adapted,Item fields,Set the Nth value of KEY in STRUCT to NEW.
+org-list.el,868,function,org-list-get-ind,internal,list::structure::Struct::ind,Return indentation of ITEM in STRUCT.
+org-list.el,872,function,org-list-set-ind,adapted,Item::ind,Set indentation of ITEM in STRUCT to IND.
+org-list.el,877,function,org-list-get-bullet,internal,list::structure::Struct::bullet,Return bullet of ITEM in STRUCT.
+org-list.el,881,function,org-list-set-bullet,adapted,Item::bullet,Set bullet of ITEM in STRUCT to BULLET.
+org-list.el,886,function,org-list-get-counter,adapted,Item::counter,Return counter of ITEM in STRUCT.
+org-list.el,890,function,org-list-get-checkbox,internal,list::structure::Struct::checkbox,Return checkbox of ITEM in STRUCT or nil.
+org-list.el,894,function,org-list-set-checkbox,adapted,Item::checkbox,Set checkbox of ITEM in STRUCT to CHECKBOX.
+org-list.el,899,function,org-list-get-tag,adapted,Item::tag,Return end position of ITEM in STRUCT.
+org-list.el,903,function,org-list-get-item-end,internal,list::structure::Struct::end,Return end position of ITEM in STRUCT.
+org-list.el,907,function,org-list-get-item-end-before-blank,internal,list::structure::Struct::end_before_blank,"Return point at end of ITEM in STRUCT, before any blank line."
+org-list.el,915,function,org-list-get-parent,internal,list::structure::parent,Return parent of ITEM or nil.
+org-list.el,922,function,org-list-has-child-p,internal,list::structure::Struct::has_child,Non-nil if ITEM has a child.
+org-list.el,934,function,org-list-get-next-item,internal,list::structure::next_item,"Return next item in same sub-list as ITEM, or nil."
+org-list.el,940,function,org-list-get-prev-item,internal,list::structure::prev_item,"Return previous item in same sub-list as ITEM, or nil."
+org-list.el,946,function,org-list-get-subtree,internal,list::structure::Struct::subtree,"List all items having ITEM as a common ancestor, or nil."
+org-list.el,959,function,org-list-get-all-items,internal,list::structure::all_items,List all items in the same sub-list as ITEM.
+org-list.el,972,function,org-list-get-children,internal,list::structure::children,"List all children of ITEM, or nil."
+org-list.el,982,function,org-list-get-top-point,internal,list::structure::Struct::top,Return point at beginning of list.
+org-list.el,987,function,org-list-get-bottom-point,internal,list::structure::Struct::bottom,Return point at bottom of list.
+org-list.el,993,function,org-list-get-list-begin,internal,list::structure::list_begin,Return point at beginning of sub-list ITEM belongs.
+org-list.el,1002,function,org-list-get-first-item,internal,list::structure::list_begin,Return point at beginning of sub-list ITEM belongs.
+org-list.el,1004,function,org-list-get-last-item,internal,list::structure::last_item,Return point at last item of sub-list ITEM belongs.
+org-list.el,1013,function,org-list-get-list-end,internal,list::structure::list_end,Return point at end of sub-list ITEM belongs.
+org-list.el,1019,function,org-list-get-list-type,internal,list::structure::Struct::list_type,"Return the type of the list containing ITEM, as a symbol."
+org-list.el,1033,function,org-list-get-item-number,internal,list::structure::Struct::item_number,Return ITEM's sequence number.
+org-list.el,1071,function,org-list-search-generic,internal,list::search_forward (valid-context loop),Search a string in valid contexts for lists.
+org-list.el,1086,function,org-list-search-backward,internal,list::buf::Buf::re_search_backward within the list context; no ported caller needs the generic form,Like `re-search-backward' but stop only where lists are recognized.
+org-list.el,1093,function,org-list-search-forward,internal,list::search_forward,Like `re-search-forward' but stop only where lists are recognized.
+org-list.el,1104,function,org-list-bullet-string,internal,list::structure::bullet_string,Return BULLET with the correct number of whitespaces.
+org-list.el,1118,function,org-list-swap-items,internal,list::structure::swap_items (folds of both items kept),Swap item starting at BEG-A with item starting at BEG-B in STRUCT.
+org-list.el,1189,function,org-list-separating-blank-lines-number,internal,list::structure::blank_lines_number,Return number of blank lines that should separate items in list.
+org-list.el,1244,function,org-list-insert-item,internal,list::structure::insert_item,Insert a new list item at POS and return the new structure.
+org-list.el,1379,function,org-list-delete-item,internal,list::structure::delete_item,Remove ITEM from the list and return the new structure.
+org-list.el,1415,function,org-list-send-item,internal,list::structure::send_item (Dest::Pos/Begin/End/Nth/Kill/Delete; Kill returns the text),Send ITEM to destination DEST.
+org-list.el,1531,function,org-list-struct-outdent,internal,list::structure::struct_outdent,Outdent items between positions START and END.
+org-list.el,1563,function,org-list-struct-indent,internal,list::structure::struct_indent,Indent items between positions START and END.
+org-list.el,1625,function,org-list-use-alpha-bul-p,internal,list::structure::use_alpha,Non-nil if list starting at FIRST can have alphabetical bullets.
+org-list.el,1649,function,org-list-inc-bullet-maybe,internal,list::structure::inc_bullet,Increment BULLET if applicable.
+org-list.el,1666,function,org-list-struct-fix-bul,internal,list::structure::fix_bul,Verify and correct bullets in STRUCT.
+org-list.el,1734,function,org-list-struct-fix-ind,internal,list::structure::fix_ind,Verify and correct indentation in STRUCT.
+org-list.el,1762,function,org-list-struct-fix-box,internal,list::structure::fix_box,Verify and correct checkboxes in STRUCT.
+org-list.el,1824,function,org-list-struct-fix-item-end,internal,list::structure::fix_item_end,Verify and correct each item end position in STRUCT.
+org-list.el,1848,function,org-list-struct-apply-struct,internal,list::structure::apply_struct,Apply set difference between STRUCT and OLD-STRUCT to the buffer.
+org-list.el,2004,function,org-list-write-struct,internal,list::structure::write_struct,"Correct bullets, checkboxes and indentation in list at point."
+org-list.el,2040,function,org-apply-on-list,done,"Rust API list::apply_on_list(buf, init, f); Elisp functions are not evaluated",Call FUNCTION on each item of the list at point.
+org-list.el,2065,function,org-list-set-item-visibility,internal,list::set_item_visibility (outline fold spec),Set visibility of ITEM in STRUCT to VIEW.
+org-list.el,2089,function,org-list-item-body-column,internal,list::item_body_column,Return column at which body of ITEM should start.
+org-list.el,2105,function,org-list-get-item-begin,internal,list::structure::in_item,"Return item beginning position when in a plain list, nil otherwise."
+org-list.el,2107,command,org-beginning-of-item,done,list::goto_cmd,Go to the beginning of the current item.
+org-list.el,2114,command,org-beginning-of-item-list,done,list::goto_cmd,Go to the beginning item of the current list or sublist.
+org-list.el,2126,command,org-end-of-item-list,done,list::goto_cmd,Go to the end of the current list or sublist.
+org-list.el,2138,command,org-end-of-item,done,list::goto_cmd,Go to the end of the current item.
+org-list.el,2149,command,org-previous-item,done,errors and circular motion as upstream,Move to the beginning of the previous item.
+org-list.el,2167,command,org-next-item,done,errors and circular motion as upstream,Move to the beginning of the next item.
+org-list.el,2185,command,org-move-item-down,done,swap or circular send; column and item/children/block visibility kept,"Move the item at point down, i.e. swap with following item."
+org-list.el,2206,command,org-move-item-up,done,swap or circular send; column and visibility kept,"Move the item at point up, i.e. swap with previous item."
+org-list.el,2225,command,org-insert-item,done,"split per org-M-RET-may-split-line, blank lines per org-blank-before-new-entry, C-u checkbox, description term; timer lists call org-timer-item",Insert a new item at the current level.
+org-list.el,2267,command,org-list-repair,done,list::repair,"Fix indentation, bullets and checkboxes in the list at point."
+org-list.el,2275,command,org-cycle-list-bullet,done,numeric prefix picks the Nth bullet; `previous` is the Fred command org-cycle-list-bullet-previous (for S-left),Cycle through the different itemize/enumerate bullets.
+org-list.el,2364,command,org-list-checkbox-radio-mode,done,per-buffer flag (list::State.radio_mode); C-c C-c then toggles radio buttons,"When turned on, use list checkboxes as radio buttons."
+org-list.el,2370,command,org-toggle-radio-button,done,list::toggle_radio_button,Toggle off all checkboxes and toggle on the one at point.
+org-list.el,2398,function,org-at-radio-list-p,internal,list::at_radio_list (#+attr_org: :radio of the sub-list),Is point at a list item with radio buttons?
+org-list.el,2413,command,org-toggle-checkbox,done,"item, heading (after meta data) and Visual-line region; C-u presence, C-u C-u [-]; ORDERED blocking",Toggle the checkbox in the current line.
+org-list.el,2517,command,org-reset-checkbox-state-subtree,done,list::reset_checkbox_state_subtree,Reset all checkboxes in an entry subtree.
+org-list.el,2534,command,org-update-checkbox-count,done,"section / C-u whole buffer / narrowed scope; containers item, drawer, block; COOKIE_DATA todo left to the TODO statistics; API list::update_checkbox_count_in",Update the checkbox statistics in the current section.
+org-list.el,2665,function,org-get-checkbox-statistics-face,adapted,cookie faces are drawn by face.rs,Select the face for checkbox statistics.
+org-list.el,2678,function,org-update-checkbox-count-maybe,done,"API list::update_checkbox_count_in(ed, scope, true); org-checkbox-statistics-hook not run (no Elisp hooks)",Update checkbox statistics unless turned off by user.
+org-list.el,2689,function,org-list-indent-item-generic,internal,list::indent_item_generic (repeated S-M-left/right reuse the zone),Indent a local list item including its children.
+org-list.el,2783,command,org-outdent-item,done,also for a Visual-line region,"Outdent a local list item, but not its children."
+org-list.el,2800,command,org-indent-item,done,also for a Visual-line region,"Indent a local list item, but not its children."
+org-list.el,2817,command,org-outdent-item-tree,done,"whole list at the top item (indent rule), * bullet becomes - at column 0",Outdent a local list item including its children.
+org-list.el,2834,command,org-indent-item-tree,done,whole list at the top item (indent rule),Indent a local list item including its children.
+org-list.el,2852,function,org-cycle-item-indentation,done,list::cycle_item_indentation from org-cycle (TAB) on an empty item,Cycle levels of indentation of an empty item.
+org-list.el,2930,command,org-sort-list,partial,"a/n/t/x and reversed via a key menu; f/F need a key function: Rust callers pass closures, interactive f reports a missing extractor; strings compare bytewise (C collation)",Sort list items.
+org-list.el,3056,command,org-toggle-item,done,"lines, items and headings (TODO to checkbox, meta data removed, footnote definitions moved after the list), C-u single item, region","Convert headings or normal lines to items, items to normal lines."
+org-list.el,3264,function,org-list-to-lisp,internal,list::export::to_lisp,Parse the list at point and maybe DELETE it.
+org-list.el,3352,command,org-list-make-subtree,done,C-c C-*; heading blank lines per org-blank-before-new-entry,Convert the plain list at point into a subtree.
+org-list.el,3364,function,org-list-to-generic,partial,list::export::to_generic with Rust Params (strings or closures); no export engine: backend item contents stay Org text (:raw implied),Convert a LIST parsed through `org-list-to-lisp' to a custom format.
+org-list.el,3493,function,org-list--depth,internal,list::export::depth argument of plain_list/item,Return the level of ELEMENT within current plain list.
+org-list.el,3499,function,org-list--trailing-newlines,internal,list::export::trailing_newlines,Return the number of trailing newlines in STRING.
+org-list.el,3506,function,org-list--generic-eval,internal,list::export::Gen::eval,Evaluate VALUE according to its type.
+org-list.el,3515,function,org-list--to-generic-plain-list,internal,list::export::plain_list,Return a transcoder for `plain-list' elements.
+org-list.el,3555,function,org-list--to-generic-item,internal,list::export::item,Return a transcoder for `item' elements.
+org-list.el,3628,function,org-list-to-latex,partial,list::export::to_latex: itemize/enumerate/description and checkboxes; item contents not transcoded,Convert LIST into a LaTeX list.
+org-list.el,3636,function,org-list-to-html,partial,list::export::to_html: ul/ol/dl and checkboxes; item contents not transcoded,Convert LIST into a HTML list.
+org-list.el,3644,function,org-list-to-texinfo,partial,list::export::to_texinfo: itemize/enumerate/table; item contents not transcoded,Convert LIST into a Texinfo list.
+org-list.el,3652,function,org-list-to-org,done,list::export::to_org,Convert LIST into an Org plain list.
+org-list.el,3671,function,org-list-to-subtree,done,list::export::to_subtree,Convert LIST into an Org subtree.
+org-list.el,,option,org-list-checkbox-radio-mode-hook,adapted,no Elisp hooks; the mode is a per-buffer flag,Hook run after entering or leaving `org-list-checkbox-radio-mode'.
 org-macro.el,93,function,org-macro--makeargs,missing,,Compute the formal arglist to use for TEMPLATE.
 org-macro.el,106,function,org-macro--set-templates,missing,,Set template for the macro NAME.
 org-macro.el,138,function,org-macro--collect-macros,missing,,Collect macro definitions in current buffer and setup files.
