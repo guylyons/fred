@@ -223,8 +223,7 @@ pub fn mouse(
             }
             return;
         }
-        // A click elsewhere closes it, and still does what it would.
-        ed.explain = None;
+        // A click elsewhere leaves it open and does what it would.
     }
     if event.row >= area.bottom().saturating_sub(2) || matches!(ed.mode, Mode::Command(_)) {
         view.last_click = None;

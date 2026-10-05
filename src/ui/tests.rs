@@ -1318,13 +1318,12 @@ fn explain_box_sits_above_the_selection_until_closed() {
     let b = s.view.explain_box.unwrap();
     super::render::mouse(&mut e, &mut s.view, &s.cfg, area, click(b.right() - 2, b.y));
     assert!(e.explain.is_none());
-    // A click away closes it and moves the cursor; so does Esc.
+    // A click away moves the cursor but leaves it open; only Esc closes it.
     e.explain = Some((crate::ex::addr::Range { start: 4, end: 5 }, "x".into()));
     s.draw(&e);
     super::render::mouse(&mut e, &mut s.view, &s.cfg, area, click(6, 7));
-    assert!(e.explain.is_none());
+    assert!(e.explain.is_some(), "clicks away leave it open");
     assert_eq!(e.cur.line, 7);
-    e.explain = Some((crate::ex::addr::Range { start: 4, end: 5 }, "x".into()));
     e.handle_key(Key::ch('j'));
     assert!(e.explain.is_some(), "other keys leave it open");
     e.handle_key(Key::new(KeyCode::Esc));
