@@ -81,7 +81,7 @@ full-family points for partial command wrappers.
 | magit.el | 9 | 3 |
 
 Current inventory: 773 commands and 237 options. Of the commands, 771 are
-partial, none missing and 2 n/a; 124 options are partial, 23 missing and 90 n/a.
+partial, none missing and 2 n/a; 125 options are partial, 22 missing and 90 n/a.
 `n/a` marks Emacs-only surfaces (Lisp hooks and functions, faces, windows,
 Ediff, Cygwin, TRAMP, mode lighters) with the reason in the ledger; it is
 not a claim of parity. The runtime surface

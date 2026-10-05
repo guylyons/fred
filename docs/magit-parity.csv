@@ -102,7 +102,7 @@ magit-base.el,426,option,magit-update-other-window-delay,n/a,"Emacs-specific (de
 magit-base.el,444,option,magit-view-git-manual-method,n/a,"Emacs-specific (default-directory, windows, Info, minor modes, tab-width, buffer names, global keymaps or Lisp githook bridge); Fred's equivalent is fixed or uses Space m",explicit
 magit-base.el,721,command,magit-whitespace-disallowed,partial,space typed in a new-branch-name prompt inserts -,explicit
 magit-base.el,865,command,magit-emacs-Q-command,n/a,copies an 'emacs -Q' debugging command line; Fred has no Emacs to start (fred --version identifies the build),explicit
-magit-bisect.el,33,option,magit-bisect-show-graph,missing,,explicit
+magit-bisect.el,33,option,magit-bisect-show-graph,partial,Bisect Rest uses --graph unless false,explicit
 magit-bisect.el,57,command,magit-bisect,partial,Space m G (upstream B is the user's blame key) with -n -p and B/s; g/m/k/r while bisecting; term-old/new values missing,explicit
 magit-bisect.el,93,command,magit-bisect-start,partial,Space m G B; merge-base and clean-tree asserts,explicit
 magit-bisect.el,141,command,magit-bisect-reset,partial,r with y/n,explicit
@@ -904,7 +904,7 @@ magit-stash.el,,command,transient:magit-stash:--all,partial,-a,runtime
 magit-stash.el,,command,transient:magit-stash:--include-untracked,partial,-u,runtime
 magit-status.el,40,option,magit-status-mode-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
 magit-status.el,45,option,magit-status-headers-hook,partial,default hook order except error/diff-filter headers; not configurable,explicit
-magit-status.el,69,option,magit-status-sections-hook,partial,"default hook partly: headers, files, stashes, log sections; merge-log, sequences and bisect missing; not configurable",explicit
+magit-status.el,69,option,magit-status-sections-hook,partial,"upstream's default sections in order: headers, merge log, rebase/am/sequencer sequences, bisect output/rest/log, files, stashes, log sections (a Lisp list cannot be customized)",explicit
 magit-status.el,91,option,magit-status-initial-section,partial,[N] or section names,explicit
 magit-status.el,118,option,magit-status-goto-file-position,partial,status from a file buffer starts on that file's row (not its hunk line),explicit
 magit-status.el,137,option,magit-status-show-hashes-in-headers,partial,default nil behavior; not configurable,explicit

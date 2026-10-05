@@ -317,6 +317,13 @@ pub enum Section {
     UnpushedUpstream,
     UnpulledPush,
     UnpulledUpstream,
+    /// magit-insert-merge-log, -rebase/-am/-sequencer-sequence and the
+    /// bisect sections.
+    Merging,
+    Sequence,
+    BisectOutput,
+    BisectRest,
+    BisectLog,
 }
 impl Section {
     fn name(self) -> &'static str {
@@ -330,6 +337,11 @@ impl Section {
             Self::UnpushedUpstream => "Unpushed to @{upstream}",
             Self::UnpulledPush => "Unpulled from <push-remote>",
             Self::UnpulledUpstream => "Unpulled from @{upstream}",
+            Self::Merging => "Merging",
+            Self::Sequence => "Sequence",
+            Self::BisectOutput => "Bisect output",
+            Self::BisectRest => "Bisect Rest",
+            Self::BisectLog => "Bisect Log",
         }
     }
     pub(crate) fn contains(self, e: &repo::Entry) -> bool {
@@ -655,11 +667,34 @@ impl View {
                 action: None,
             });
         }
-        if let Some(operation) = &self.snapshot.operation {
+        if let Some(operation) = &self.snapshot.operation
+            && self.snapshot.extra.sequences.is_empty()
+        {
             self.rows.push(Row {
                 text: format!("In progress: {operation}"),
                 action: None,
             });
+        }
+        // The in-progress sections of magit-status-sections-hook.
+        for (section, heading, lines) in &self.snapshot.extra.sequences {
+            let shut = self.closed.contains(section);
+            self.rows.push(Row {
+                text: String::new(),
+                action: None,
+            });
+            self.rows.push(Row {
+                text: format!("{} {heading}", if shut { ">" } else { "v" }),
+                action: Some(RowAction::Section(*section)),
+            });
+            if shut {
+                continue;
+            }
+            for (text, commit) in lines {
+                self.rows.push(Row {
+                    text: format!("  {}", label(std::path::Path::new(text))),
+                    action: commit.clone().map(RowAction::Commit),
+                });
+            }
         }
         self.rows.push(Row {
             text: "Tab expand  s stage  u unstage  gr refresh  Enter visit  q return".into(),

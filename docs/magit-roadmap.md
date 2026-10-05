@@ -392,3 +392,11 @@ default directory; magit-clone runs the regular clone at once unless
 magit-clone-always-transient); whitespace painting, visit options,
 process hint and timestamps. Options: 98 partial / 51 missing / 88 n/a.
 Score remains 3%.
+
+October 5 status-sequence checkpoint: status buffers now show upstream's
+in-progress sections — "Merging X:" with incoming commits, "Rebasing X onto
+Y" (remaining todo, stop/join/work/gone, done, onto), "Applying patches",
+"Cherry Picking"/"Reverting", and the bisect output, Bisect Rest (with
+magit-bisect-show-graph) and Bisect Log sections. More options: remote-add
+pushDefault, module gitdir trashing, patch save arguments, pull-or-fetch.
+Options: 126 partial / 21 missing / 90 n/a. Score remains 3%.

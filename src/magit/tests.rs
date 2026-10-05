@@ -4574,3 +4574,63 @@ fn branch_start_point_first_and_upstream_adjustment() {
     assert!(git(d.path(), &["branch", "--list", "topic"]).starts_with(b"  topic"));
     assert!(super::branch::upstream_first());
 }
+#[test]
+fn status_shows_in_progress_sequences() {
+    use super::Section;
+    let (d, r) = setup();
+    committed(d.path(), b"base\n");
+    let main = r.current_branch().unwrap();
+    git(d.path(), &["checkout", "-qb", "topic"]);
+    fs::write(d.path().join("f"), "topic\n").unwrap();
+    git(d.path(), &["commit", "-qam", "topic change"]);
+    git(d.path(), &["checkout", "-q", &main]);
+    fs::write(d.path().join("f"), "main\n").unwrap();
+    git(d.path(), &["commit", "-qam", "main change"]);
+    // A conflicted merge: Merging topic: with the incoming commit.
+    let _ = Command::new("git")
+        .arg("-C")
+        .arg(d.path())
+        .args(["merge", "-q", "topic"])
+        .output();
+    let seq = r.status_extra().sequences;
+    let (s, heading, rows) = &seq[0];
+    assert_eq!(*s, Section::Merging);
+    assert_eq!(heading, "Merging topic:");
+    assert!(
+        rows[0].0.ends_with("topic change") && rows[0].1.is_some(),
+        "{rows:?}"
+    );
+    git(d.path(), &["merge", "--abort"]);
+    // A stopped cherry-pick: Cherry Picking with join and onto rows.
+    let _ = Command::new("git")
+        .arg("-C")
+        .arg(d.path())
+        .args(["cherry-pick", "topic"])
+        .output();
+    let seq = r.status_extra().sequences;
+    let (_, heading, rows) = &seq[0];
+    assert_eq!(heading, "Cherry Picking");
+    assert!(rows.iter().any(|(t, _)| t.starts_with("join ")), "{rows:?}");
+    assert!(rows.last().unwrap().0.starts_with("onto "), "{rows:?}");
+    git(d.path(), &["cherry-pick", "--abort"]);
+    // Bisecting: output, rest and log sections.
+    git(d.path(), &["bisect", "start"]);
+    git(d.path(), &["bisect", "bad"]);
+    let seq = r.status_extra().sequences;
+    let kinds: Vec<Section> = seq.iter().map(|s| s.0).collect();
+    assert_eq!(
+        kinds,
+        [
+            Section::BisectOutput,
+            Section::BisectRest,
+            Section::BisectLog
+        ]
+    );
+    assert!(
+        seq[2].2.iter().any(|(t, _)| t.contains("git bisect bad")),
+        "{:?}",
+        seq[2]
+    );
+    git(d.path(), &["bisect", "reset"]);
+    assert!(r.status_extra().sequences.is_empty());
+}
