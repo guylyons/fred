@@ -26,6 +26,28 @@ pub struct Info {
 /// magit-blame-styles' default entries; Fred has no virtual lines, so headings
 /// become a left margin and lines a chunk-boundary rule.
 pub const STYLES: [&str; 3] = ["headings", "highlight", "lines"];
+
+/// magit-blame-styles: the styles in cycle order, by name (Fred draws the
+/// three upstream styles; their per-key settings are fixed).
+pub fn styles() -> Vec<&'static str> {
+    let names = super::options::strings("magit-blame-styles", &STYLES);
+    let v: Vec<&'static str> = names
+        .iter()
+        .filter_map(|n| STYLES.iter().find(|s| *s == n).copied())
+        .collect();
+    if v.is_empty() { STYLES.to_vec() } else { v }
+}
+
+/// The initial style: the first, or magit-blame-echo-style for echo mode.
+pub fn initial_style(kind: Kind) -> usize {
+    if kind == Kind::Echo {
+        let echo =
+            super::options::string("magit-blame-echo-style", Some("lines")).unwrap_or_default();
+        styles().iter().position(|s| *s == echo).unwrap_or(0)
+    } else {
+        0
+    }
+}
 pub const HEADING_WIDTH: usize = 48;
 
 /// magit-blame-type plus echo, which is addition without read-only keys.
@@ -210,7 +232,8 @@ impl Blame {
         self.kind == Kind::Echo
     }
     pub fn style(&self) -> &'static str {
-        STYLES[self.style % STYLES.len()]
+        let s = styles();
+        s[self.style % s.len()]
     }
     pub fn chunk_at(&self, line: usize) -> Option<&Chunk> {
         self.chunks
@@ -411,7 +434,7 @@ pub fn cycle(ed: &mut Editor) {
         return;
     }
     if let Some(b) = &mut ed.blame {
-        b.style = (b.style + 1) % STYLES.len();
+        b.style = (b.style + 1) % styles().len();
         let style = b.style();
         ed.set_msg(format!("Blame style: {style}"));
     }

@@ -3041,7 +3041,7 @@ impl Session {
                     args,
                     chunks,
                     info,
-                    style: 0,
+                    style: crate::magit::blame::initial_style(kind),
                     kind,
                     rev,
                     version,
@@ -5499,13 +5499,18 @@ fn refresh_rows(view: &mut View) -> Result<(), String> {
             text: "Modules (Enter visit, Space m o actions, gr refresh, q return)".into(),
             action: None,
         }];
-        for (text, module) in view.repo.module_rows()? {
+        let (header, modules) = view.repo.module_rows()?;
+        rows.push(Row {
+            text: label(Path::new(&header)),
+            action: None,
+        });
+        for (text, module) in modules {
             rows.push(Row {
                 text: label(Path::new(&text)),
                 action: Some(RowAction::Module(module)),
             });
         }
-        if rows.len() == 1 {
+        if rows.len() == 2 {
             rows.push(Row {
                 text: "No modules".into(),
                 action: None,

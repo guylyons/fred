@@ -12,15 +12,67 @@ pub struct Column {
     pub right_align: bool,
 }
 
-/// magit-repolist-columns (default: name, version, B<U, B>U, path).
-pub fn columns() -> Vec<Column> {
-    let col = |h: &str, w: usize, f: &str, r: bool| Column {
+fn col(h: &str, w: usize, f: &str, r: bool) -> Column {
+    Column {
         header: h.into(),
         width: w,
         format: f.into(),
         right_align: r,
-    };
-    let parsed: Option<Vec<Column>> = options::value("magit-repolist-columns")
+    }
+}
+/// magit-repolist-columns (default: name, version, B<U, B>U, path).
+pub fn columns() -> Vec<Column> {
+    columns_for(
+        "magit-repolist-columns",
+        vec![
+            col("Name", 25, "magit-repolist-column-ident", false),
+            col("Version", 25, "magit-repolist-column-version", false),
+            col(
+                "B<U",
+                3,
+                "magit-repolist-column-unpulled-from-upstream",
+                true,
+            ),
+            col("B>U", 3, "magit-repolist-column-unpushed-to-upstream", true),
+            col("Path", 99, "magit-repolist-column-path", false),
+        ],
+    )
+}
+/// magit-submodule-list-columns.
+pub fn module_columns() -> Vec<Column> {
+    columns_for(
+        "magit-submodule-list-columns",
+        vec![
+            col("Path", 25, "magit-modulelist-column-path", false),
+            col("Version", 25, "magit-repolist-column-version", false),
+            col("Branch", 20, "magit-repolist-column-branch", false),
+            col(
+                "B<P",
+                3,
+                "magit-repolist-column-unpulled-from-pushremote",
+                true,
+            ),
+            col(
+                "B<U",
+                3,
+                "magit-repolist-column-unpulled-from-upstream",
+                true,
+            ),
+            col(
+                "B>P",
+                3,
+                "magit-repolist-column-unpushed-to-pushremote",
+                true,
+            ),
+            col("B>U", 3, "magit-repolist-column-unpushed-to-upstream", true),
+            col("S", 3, "magit-repolist-column-stashes", true),
+            col("B", 3, "magit-repolist-column-branches", true),
+        ],
+    )
+}
+/// A columns option ([[HEADER, WIDTH, FUNCTION, PROPS]]), or DEFAULT.
+fn columns_for(option: &str, default: Vec<Column>) -> Vec<Column> {
+    let parsed: Option<Vec<Column>> = options::value(option)
         .and_then(|v| v.as_array().cloned())
         .map(|a| {
             a.iter()
@@ -44,20 +96,7 @@ pub fn columns() -> Vec<Column> {
                 })
                 .collect()
         });
-    parsed.filter(|c| !c.is_empty()).unwrap_or_else(|| {
-        vec![
-            col("Name", 25, "magit-repolist-column-ident", false),
-            col("Version", 25, "magit-repolist-column-version", false),
-            col(
-                "B<U",
-                3,
-                "magit-repolist-column-unpulled-from-upstream",
-                true,
-            ),
-            col("B>U", 3, "magit-repolist-column-unpushed-to-upstream", true),
-            col("Path", 99, "magit-repolist-column-path", false),
-        ]
-    })
+    parsed.filter(|c| !c.is_empty()).unwrap_or(default)
 }
 
 /// magit-repository-directories: [[DIRECTORY, DEPTH], ...] (or a table).
@@ -195,7 +234,7 @@ impl Repo {
                 .unwrap_or_else(|| vec![("N", "N".into()), ("U", "U".into()), ("S", "S".into())])
         };
         match col.format.as_str() {
-            "magit-repolist-column-ident" => id.to_owned(),
+            "magit-repolist-column-ident" | "magit-modulelist-column-path" => id.to_owned(),
             "magit-repolist-column-path" => {
                 let home = std::env::var_os("HOME").map(PathBuf::from);
                 match home.and_then(|h| self.root.strip_prefix(h).ok().map(Path::to_path_buf)) {
@@ -299,7 +338,12 @@ pub fn table_in(dirs: &[(PathBuf, usize)]) -> Result<Table, String> {
             (id, path, cells)
         })
         .collect();
-    let (key, flip) = match options::value("magit-repolist-sort-key") {
+    sort_rows(&cols, &mut rows, "magit-repolist-sort-key");
+    Ok((cols, rows))
+}
+/// Sort by a sort-key option ([COLUMN, FLIP], default ["Path", false]).
+pub fn sort_rows<T>(cols: &[Column], rows: &mut [(T, PathBuf, Vec<String>)], option: &str) {
+    let (key, flip) = match options::value(option) {
         Some(toml::Value::Array(a)) => (
             a.first().and_then(|k| k.as_str()).map(str::to_owned),
             a.get(1).and_then(|f| f.as_bool()).unwrap_or(false),
@@ -326,5 +370,4 @@ pub fn table_in(dirs: &[(PathBuf, usize)]) -> Result<Table, String> {
             rows.reverse();
         }
     }
-    Ok((cols, rows))
 }

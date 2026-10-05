@@ -115,8 +115,8 @@ magit-bisect.el,,command,magit-bisect:--term-new,partial,=n,runtime
 magit-bisect.el,,command,magit-bisect:--term-old,partial,=o,runtime
 magit-bisect.el,,command,transient:magit-bisect:--first-parent,partial,-p,runtime
 magit-bisect.el,,command,transient:magit-bisect:--no-checkout,partial,-n,runtime
-magit-blame.el,39,option,magit-blame-styles,missing,,explicit
-magit-blame.el,134,option,magit-blame-echo-style,missing,,explicit
+magit-blame.el,39,option,magit-blame-styles,partial,"style names in cycle order (headings, highlight, lines); per-style keys fixed",explicit
+magit-blame.el,134,option,magit-blame-echo-style,partial,initial style of echo mode (lines by default),explicit
 magit-blame.el,142,option,magit-blame-time-format,partial,"blame heading dates (local time, as upstream)",explicit
 magit-blame.el,147,option,magit-blame-read-only,partial,nil leaves a blamed buffer editable,explicit
 magit-blame.el,153,option,magit-blame-disable-modes,n/a,"Emacs-specific (default-directory, windows, Info, minor modes, tab-width, buffer names, global keymaps or Lisp githook bridge); Fred's equivalent is fixed or uses Space m",explicit
@@ -927,8 +927,8 @@ magit-status.el,,command,magit-jump-to-untracked,partial,gn in status,runtime
 magit-submodule.el,35,option,magit-module-sections-hook,n/a,list of Lisp section inserters; Fred renders upstream's default sections,explicit
 magit-submodule.el,50,option,magit-module-sections-nested,missing,,explicit
 magit-submodule.el,60,option,magit-submodule-list-mode-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
-magit-submodule.el,68,option,magit-submodule-list-columns,missing,,explicit
-magit-submodule.el,131,option,magit-submodule-list-sort-key,missing,,explicit
+magit-submodule.el,68,option,magit-submodule-list-columns,partial,"columns of magit-list-submodules (upstream default set, column functions by name)",explicit
+magit-submodule.el,131,option,magit-submodule-list-sort-key,partial,"[COLUMN, FLIP]",explicit
 magit-submodule.el,143,option,magit-submodule-list-predicate,n/a,value is an Emacs Lisp function; Fred's built-in equivalent behavior is fixed,explicit
 magit-submodule.el,154,option,magit-submodule-remove-trash-gitdirs,partial,"after removal, offer to trash the modules' gitdirs (trash-module-gitdirs confirmation)",explicit
 magit-submodule.el,171,command,magit-submodule,partial,Space m o: upstream arguments and suffixes; modules read comma separated (no region/prefix-all),explicit

@@ -2832,13 +2832,20 @@ fn submodule_add_populate_list_and_remove() {
         .unwrap());
     git(d.path(), &["commit", "-qm", "add lib"]);
     assert_eq!(r.module_paths().unwrap(), s(&["lib"]));
-    let rows = r.module_rows().unwrap();
-    assert!(rows[0].0.contains("v9"), "{rows:?}");
+    let (header, rows) = r.module_rows().unwrap();
+    assert!(
+        header.starts_with("Path") && header.contains("Version"),
+        "{header}"
+    );
+    assert!(
+        rows[0].0.starts_with("lib") && rows[0].0.contains("v9"),
+        "{rows:?}"
+    );
     // Populate only applies to unpopulated modules; unpopulate, then populate.
     assert!(r.submodule_step(Op::Populate, &s(&["lib"]), &[]).is_err());
     assert!(r.submodule_step(Op::Update, &s(&["nope"]), &[]).is_err());
     run(r.submodule_step(Op::Unpopulate, &s(&["lib"]), &[]).unwrap());
-    assert!(r.module_rows().unwrap()[0].0.contains("(unpopulated)"));
+    assert!(r.module_rows().unwrap().1[0].0.contains("(unpopulated)"));
     run(r.submodule_step(Op::Populate, &s(&["lib"]), &[]).unwrap());
     assert!(d.path().join("lib/x").exists());
     // A dirty module is omitted without --force, and confirmed with it.
