@@ -1105,7 +1105,10 @@ fn magit_status_stage_and_return_in_both_modes() {
         magit_init(&env);
         let mut p = env.fred(&[mode, "f.txt"]);
         p.wait_for("editor", |s| s.contains("NORMAL"));
+        // magit-save-repository-buffers t: decline saving the edited file.
         p.keys(&["iunsaved \x1b", " ms"]);
+        p.wait_text("Save file f.txt? (y or n)");
+        p.keys(&["n\r"]);
         p.wait_for("Git status", |s| {
             s.contains("Head:     main") && s.contains("Untracked files")
         });
@@ -1203,8 +1206,9 @@ fn magit_workflow_menu_prompt_and_terminal_return() {
     p.keys(&[" mb"]);
     p.wait_for("branch menu", |s| s.contains("new spin-off"));
     p.keys(&["c"]);
+    // magit-branch-read-upstream-first: the start point comes first.
     p.wait_for("branch prompt", |s| {
-        s.contains("Create and checkout branch named:")
+        s.contains("Create and checkout branch starting at")
     });
     p.keys(&["cancelled\x1b"]);
     p.wait_for("cancel prompt", |s| s.contains("NORMAL"));

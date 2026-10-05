@@ -1392,9 +1392,10 @@ fn blame_margin_headings_and_lines_shift_text_and_show_message() {
     screen.cfg.numbers = false;
     screen.draw(&e);
     assert!(
-        screen
-            .row(0)
-            .starts_with("Ada                  1970-01-01 00:00 the summa alpha"),
+        screen.row(0).starts_with(&format!(
+            "Ada                  {} the summa alpha",
+            crate::magit::margin::strftime("%F %H:%M", 0)
+        )),
         "{}",
         screen.row(0)
     );
@@ -1470,4 +1471,91 @@ fn org_buffers_fold_conceal_links_and_style_headings() {
     // TODO keyword face: org-todo (red, bold).
     let cell = &s.term.backend().buffer()[(2, 0)];
     assert!(cell.modifier.contains(Modifier::BOLD));
+}
+
+#[test]
+fn magit_log_margin_and_hunk_styles() {
+    use crate::magit::margin::Stamp;
+    use crate::magit::repo::{Repo, Snapshot};
+    use crate::magit::{Kind, Row, RowAction, View};
+    use ratatui::style::{Color, Modifier};
+    let text = "abc12345 subject\ndiff --git a/x.rs b/x.rs\n--- a/x.rs\n+++ b/x.rs\n@@ -1 +1 @@\n-let a = 1;\n+let b = 1;";
+    let mut e = editor(text, "");
+    let mut v = View::status(
+        Repo {
+            root: "/repo".into(),
+        },
+        Snapshot::default(),
+    );
+    v.kind = Kind::Log(vec!["HEAD".into()], vec![]);
+    v.rows = text
+        .lines()
+        .map(|t| Row {
+            text: t.into(),
+            action: None,
+        })
+        .collect();
+    v.rows[0].action = Some(RowAction::Commit("abc12345".into()));
+    v.margin = crate::magit::margin::Margin::for_kind(&v.kind);
+    v.stamps.insert(
+        "abc12345".into(),
+        Stamp {
+            author: "Ann".into(),
+            time: crate::magit::margin::now() - 3 * 86_400,
+            stat: None,
+        },
+    );
+    v.refine = true;
+    v.fontify = true;
+    e.path = Some("/state/magit-views/opaque-hash".into());
+    e.magit = Some(Box::new(v));
+    e.readonly = true;
+    let mut screen = Screen::new(80, 9);
+    screen.cfg.numbers = false;
+    screen.draw(&e);
+    let row = screen.row(0);
+    assert!(row.starts_with("abc12345 subject"), "{row}");
+    assert!(row.contains("Ann") && row.contains(" 3 days"), "{row}");
+    assert!(row.trim_end().ends_with("3 days"), "{row}");
+    // Removed and added lines: tinted, with the changed word reversed.
+    let buf = screen.term.backend().buffer();
+    assert_eq!(buf[(0, 5)].fg, Color::Red);
+    assert_eq!(buf[(1, 5)].bg, Color::Indexed(52));
+    assert!(buf[(5, 5)].modifier.contains(Modifier::REVERSED));
+    assert!(!buf[(1, 5)].modifier.contains(Modifier::REVERSED));
+    assert!(buf[(5, 6)].modifier.contains(Modifier::REVERSED));
+    assert_eq!(buf[(1, 6)].bg, Color::Indexed(22));
+}
+#[test]
+fn magit_diff_paints_trailing_whitespace_on_added_lines() {
+    use crate::magit::repo::{Repo, Snapshot};
+    use crate::magit::{Kind, Row, View};
+    use ratatui::style::Color;
+    let text = "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-old  \n+new  ";
+    let mut e = editor(text, "");
+    let mut v = View::status(
+        Repo {
+            root: "/repo".into(),
+        },
+        Snapshot::default(),
+    );
+    v.kind = Kind::Patch("abc".into());
+    v.rows = text
+        .lines()
+        .map(|t| Row {
+            text: t.into(),
+            action: None,
+        })
+        .collect();
+    e.path = Some("/state/magit-views/opaque".into());
+    e.magit = Some(Box::new(v));
+    e.readonly = true;
+    let mut screen = Screen::new(40, 8);
+    screen.cfg.numbers = false;
+    screen.draw(&e);
+    let buf = screen.term.backend().buffer();
+    // Added line: trailing spaces painted; removed line: not (t = added only).
+    assert_eq!(buf[(4, 5)].bg, Color::Red);
+    assert_ne!(buf[(4, 4)].bg, Color::Red);
+    assert_ne!(buf[(2, 5)].bg, Color::Red);
 }

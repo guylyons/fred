@@ -280,8 +280,12 @@ impl Repo {
                     &id,
                 ])
                 .map(|o| {
+                    // magit-list-publishing-branches: magit-published-branches only.
+                    let listed =
+                        super::options::strings("magit-published-branches", &["origin/master"]);
                     String::from_utf8_lossy(&o)
                         .lines()
+                        .filter(|b| listed.iter().any(|l| l == b))
                         .map(str::to_owned)
                         .collect::<Vec<_>>()
                 })
@@ -466,6 +470,7 @@ impl Plan {
             draft: None,
             draft_stamp: None,
             editor: true,
+            env: vec![],
             after: None,
         })
     }
@@ -549,7 +554,8 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             return true;
         }
         // Space stays the leader (Space m ...).
-        KeyCode::Enter => {
+        // git-rebase-show-commit (RET) and -show-or-scroll-down (DEL).
+        KeyCode::Enter | KeyCode::Backspace => {
             ed.pending_effect = Some(ExEffect::Magit(super::Action::RebaseShowCommit));
             return true;
         }
@@ -593,7 +599,8 @@ fn set_action(ed: &mut Editor, action: &str) {
         return;
     }
     splice(ed, line, 1, &[format!("{action} {rest}")]);
-    if line + 1 < ed.buf.len_lines() {
+    // git-rebase-auto-advance.
+    if super::options::flag("git-rebase-auto-advance", true) && line + 1 < ed.buf.len_lines() {
         ed.set_cursor(line + 1, 0);
     }
 }

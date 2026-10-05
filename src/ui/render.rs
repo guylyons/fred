@@ -114,7 +114,10 @@ fn digits(n: usize) -> usize {
 }
 
 pub fn gutter_width(ed: &Editor, cfg: &Config) -> usize {
-    let numbers = if cfg.numbers || cfg.relative_numbers {
+    // magit-section-disable-line-numbers.
+    let magit_off = ed.magit.is_some()
+        && crate::magit::options::flag("magit-section-disable-line-numbers", true);
+    let numbers = if (cfg.numbers || cfg.relative_numbers) && !magit_off {
         digits(ed.line_count()).max(3) + 1
     } else {
         0
@@ -279,6 +282,17 @@ pub fn mouse(
                 ed.set_cursor(line, byte);
                 ed.popup = None;
                 ed.vim.pending.clear();
+                // magit-mouse-toggle-section: a click on a section's v/>.
+                if ed.magit.is_some() {
+                    let indicator = text.len() - text.trim_start().len();
+                    if byte == indicator
+                        && matches!(text[indicator..].chars().next(), Some('v' | '>'))
+                        && text[indicator..].chars().nth(1) == Some(' ')
+                    {
+                        ed.handle_key(crate::key::Key::new(crate::key::KeyCode::Tab));
+                        return;
+                    }
+                }
                 if ed.dired.as_ref().is_some_and(|d| !d.editing) {
                     view.detached = true;
                     if view.double_click(false, line) {
@@ -293,6 +307,235 @@ pub fn mouse(
         }
         _ => {}
     }
+}
+
+/// A Magit buffer line's colors: headings, and diff lines with
+/// magit-diff-fontify-hunk's syntax colors over an added/removed tint and
+/// magit-diff-refine-hunk's changed words.
+fn magit_styles(ed: &Editor, hl: &Highlighter, l: usize, line: &str) -> LineStyles {
+    let Some(view) = ed.magit.as_deref() else {
+        return vec![];
+    };
+    let text = line.trim_start();
+    let color = if text.starts_with('+') {
+        Color::Green
+    } else if text.starts_with('-') {
+        Color::Red
+    } else if text.starts_with("@@") {
+        Color::Cyan
+    } else if text.starts_with("Head:") || text.starts_with("v ") || text.starts_with("> ") {
+        Color::Yellow
+    } else {
+        Color::Reset
+    };
+    let base = vec![(Style::default().fg(color), 0..line.len())];
+    // Status buffers indent a file's diff by four columns.
+    let indent = if view.kind == crate::magit::Kind::Status {
+        4
+    } else {
+        0
+    };
+    let Some(body) = line.get(indent..) else {
+        return base;
+    };
+    let sign = body.chars().next();
+    if !matches!(sign, Some('+' | '-' | ' ')) || body.starts_with("+++") || body.starts_with("---")
+    {
+        return base;
+    }
+    // Inside a hunk: its header, then the file (diff header or status row).
+    let mut in_hunk = false;
+    let mut path = None;
+    for k in (0..l).rev().take(5000) {
+        let t = ed.buf.line(k);
+        let Some(t) = t.get(indent..) else {
+            if let Some(crate::magit::RowAction::File(p, _)) = view.action_at(k) {
+                path = Some(p);
+            }
+            break;
+        };
+        if t.starts_with("@@") {
+            in_hunk = true;
+        } else if let Some(f) = t.strip_prefix("+++ b/") {
+            path = Some(std::path::PathBuf::from(f));
+            break;
+        } else if let Some(rest) = t.strip_prefix("diff --git a/") {
+            path = rest
+                .rsplit_once(" b/")
+                .map(|(_, b)| std::path::PathBuf::from(b));
+            break;
+        } else if t.starts_with("diff ")
+            || !(t.starts_with(['+', '-', ' ', '\\']) || (in_hunk && !t.is_empty()))
+        {
+            if let Some(crate::magit::RowAction::File(p, _)) = view.action_at(k) {
+                path = Some(p);
+            }
+            break;
+        }
+    }
+    if !in_hunk {
+        return base;
+    }
+    let start = indent + 1;
+    let tint = match sign {
+        Some('+') => Some(Color::Indexed(22)),
+        Some('-') => Some(Color::Indexed(52)),
+        _ => None,
+    };
+    let content_style = |st: Style| match tint {
+        Some(bg) => st.bg(bg),
+        None => st,
+    };
+    let mut spans: LineStyles = vec![(Style::default().fg(color), 0..start.min(line.len()))];
+    let syntax = view
+        .fontify
+        .then(|| {
+            path.as_deref()
+                .and_then(|p| hl.one_line(p, &line[start.min(line.len())..]))
+        })
+        .flatten();
+    match syntax {
+        Some(st) => {
+            let mut at = start;
+            for (s, r) in st {
+                let r = r.start + start..r.end + start;
+                if r.start > at {
+                    spans.push((content_style(Style::default()), at..r.start));
+                }
+                at = r.end;
+                spans.push((content_style(s), r));
+            }
+            if at < line.len() {
+                spans.push((content_style(Style::default()), at..line.len()));
+            }
+        }
+        None => spans.push((
+            Style::default().fg(color),
+            start.min(line.len())..line.len(),
+        )),
+    }
+    // magit-diff-paint-whitespace (t, or "uncommitted"), on the lines
+    // magit-diff-paint-whitespace-lines picks (t added, "both", "all"),
+    // with magit-diff-highlight-trailing.
+    let opts = crate::magit::options::value;
+    let paint = match opts("magit-diff-paint-whitespace") {
+        Some(toml::Value::Boolean(false)) => false,
+        Some(toml::Value::String(s)) if s == "uncommitted" => {
+            !crate::magit::committed_diff(&view.kind)
+        }
+        _ => true,
+    };
+    let lines_ok = match opts("magit-diff-paint-whitespace-lines") {
+        Some(toml::Value::String(s)) if s == "both" => sign != Some(' '),
+        Some(toml::Value::String(s)) if s == "all" => true,
+        _ => sign == Some('+'),
+    };
+    // magit-diff-highlight-indentation: [[DIR-REGEXP, "tabs" or N]], the
+    // last matching the repository path wins.
+    if paint
+        && lines_ok
+        && let Some(toml::Value::Array(rules)) = opts("magit-diff-highlight-indentation")
+    {
+        let root = view.repo.root.to_string_lossy().into_owned();
+        let indent = rules
+            .iter()
+            .rev()
+            .filter_map(|r| r.as_array())
+            .find_map(|r| {
+                let re = r.first()?.as_str()?;
+                regex::Regex::new(&crate::magit::options::emacs_regex(re))
+                    .ok()?
+                    .is_match(&root)
+                    .then(|| r.get(1).cloned())
+                    .flatten()
+            });
+        let content = &line[start.min(line.len())..];
+        let lead = content.len() - content.trim_start_matches([' ', '\t']).len();
+        let bad = match indent {
+            Some(toml::Value::String(t)) if t == "tabs" => content[..lead]
+                .find('\t')
+                .map(|i| i..content[..lead].rfind('\t').map_or(i, |j| j + 1)),
+            Some(toml::Value::Integer(n)) if n > 0 => content[..lead]
+                .find(&" ".repeat(n as usize))
+                .map(|i| i..lead),
+            _ => None,
+        };
+        if let Some(r) = bad {
+            spans = paint_range(
+                spans,
+                start + r.start..start + r.end,
+                Style::default().bg(Color::Red),
+            );
+        }
+    }
+    if paint && lines_ok && crate::magit::options::flag("magit-diff-highlight-trailing", true) {
+        let content = &line[start.min(line.len())..];
+        let trimmed = content.trim_end_matches([' ', '\t']).len();
+        if trimmed < content.len() {
+            let r = start + trimmed..line.len();
+            spans = paint_range(spans, r, Style::default().bg(Color::Red));
+        }
+    }
+    if view.refine && tint.is_some() {
+        let rows: Vec<String> = ((l.saturating_sub(200))..(l + 200).min(ed.line_count()))
+            .map(|k| ed.buf.line(k).get(indent..).unwrap_or("").to_owned())
+            .collect();
+        let lines: Vec<&str> = rows.iter().map(String::as_str).collect();
+        let me = l - l.saturating_sub(200);
+        if let Some(other) = crate::magit::diff::refine_partner(&lines, me) {
+            let (old, new) = if sign == Some('-') {
+                (&lines[me][1..], &lines[other][1..])
+            } else {
+                (&lines[other][1..], &lines[me][1..])
+            };
+            let (a, b) = crate::magit::diff::refine(old, new);
+            let changed = if sign == Some('-') { a } else { b };
+            spans = emphasize(spans, &changed, start);
+        }
+    }
+    spans
+}
+
+/// Give RANGE of the spans STYLE's background (spans stay sorted).
+fn paint_range(spans: LineStyles, range: std::ops::Range<usize>, style: Style) -> LineStyles {
+    let mut out = vec![];
+    for (st, r) in spans {
+        let a = r.start.max(range.start).min(r.end);
+        let b = r.end.min(range.end).max(a);
+        if r.start < a {
+            out.push((st, r.start..a));
+        }
+        if a < b {
+            out.push((st.patch(style), a..b));
+        }
+        if b < r.end {
+            out.push((st, b..r.end));
+        }
+    }
+    out
+}
+/// Split styled spans so the byte ranges in CHANGED (offset by SHIFT) gain
+/// reverse video, keeping the spans sorted and non-overlapping.
+fn emphasize(spans: LineStyles, changed: &[std::ops::Range<usize>], shift: usize) -> LineStyles {
+    let mut out = vec![];
+    for (st, r) in spans {
+        let mut at = r.start;
+        for c in changed {
+            let c = (c.start + shift).max(r.start)..(c.end + shift).min(r.end);
+            if c.start >= c.end || c.start < at {
+                continue;
+            }
+            if c.start > at {
+                out.push((st, at..c.start));
+            }
+            out.push((st.add_modifier(Modifier::REVERSED), c.clone()));
+            at = c.end;
+        }
+        if at < r.end {
+            out.push((st, at..r.end));
+        }
+    }
+    out
 }
 
 /// Draw the editor; the frame area is the whole inline window.
@@ -336,6 +579,12 @@ pub fn draw(
     let sign = git_column(ed).min(gutter - blame_w);
     let blame = ed.blame.as_ref().filter(|b| b.version == ed.buf.version);
     let cols = (area.width as usize).saturating_sub(gutter).max(1);
+    // magit-margin: author and date right-aligned beside commit rows, when
+    // the window leaves the text at least as wide as the margin.
+    let margin_w = ed.magit.as_ref().map_or(0, |v| v.margin_width() + 1);
+    let margin_w = if cols >= margin_w * 2 { margin_w } else { 0 };
+    let cols = cols - margin_w;
+    let now = crate::magit::margin::now();
     if panel == 0 && ed.zap.is_none() {
         view.scroll(ed, rows.max(1), cols, cfg.wrap);
     }
@@ -392,20 +641,7 @@ pub fn draw(
             line.push_str("...");
         }
         let st = if ed.magit.is_some() {
-            let text = line.trim_start();
-            let color = if text.starts_with('+') {
-                Color::Green
-            } else if text.starts_with('-') {
-                Color::Red
-            } else if text.starts_with("@@") {
-                Color::Cyan
-            } else if text.starts_with("Head:") || text.starts_with("v ") || text.starts_with("> ")
-            {
-                Color::Yellow
-            } else {
-                Color::Reset
-            };
-            Some(vec![(Style::default().fg(color), 0..line.len())])
+            Some(magit_styles(ed, hl, l, &line))
         } else if ed.dired.is_some() {
             Some(crate::dired::styles(ed, l))
         } else if ed.org.is_some() {
@@ -483,6 +719,19 @@ pub fn draw(
                 &Line::from(spans),
                 cols as u16,
             );
+            if margin_w > 0
+                && row == 0
+                && let Some(text) = ed.magit.as_ref().and_then(|v| v.margin_at(l, now))
+            {
+                let text = format!(" {text}");
+                buf.set_stringn(
+                    ox + (gutter + cols) as u16,
+                    oy + *y as u16,
+                    text,
+                    margin_w,
+                    Style::default().fg(Color::Indexed(244)),
+                );
+            }
             // magit-blame highlight style: the first line of each chunk.
             if row == 0
                 && blame.is_some_and(|b| {

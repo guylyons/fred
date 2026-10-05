@@ -24,6 +24,16 @@ pub enum Op {
     AbsorbModules,
     /// magit-commit-autofixup (needs git-autofixup).
     Autofixup,
+    /// magit-commit-absorb (needs git-absorb).
+    Absorb,
+    /// magit-commit-create with nothing staged: commit everything (--all)?
+    DraftAll,
+    /// magit-reshelve-since: the first commit (picked in a log), then the
+    /// date for it.
+    ReshelveSince,
+    ReshelveSinceDate(String),
+    /// Nothing staged: confirm absorbing all unstaged changes.
+    AbsorbAll(String),
 }
 
 impl Op {
@@ -38,7 +48,14 @@ impl Op {
             Op::InstantFixup => ("--fixup=", false, false, true),
             Op::InstantSquash => ("--squash=", false, false, true),
             Op::StageAll(op, _) | Op::Published(op, ..) | Op::Merges(op, ..) => op.shape(),
-            Op::Reshelve | Op::AbsorbModules | Op::Autofixup => ("", false, true, false),
+            Op::Reshelve
+            | Op::AbsorbModules
+            | Op::Autofixup
+            | Op::Absorb
+            | Op::AbsorbAll(_)
+            | Op::ReshelveSince
+            | Op::ReshelveSinceDate(_)
+            | Op::DraftAll => ("", false, true, false),
         }
     }
     fn verb(&self) -> &'static str {
@@ -49,10 +66,45 @@ impl Op {
             Op::Augment => "Augment",
             Op::Revise => "Revise",
             Op::StageAll(op, _) | Op::Published(op, ..) | Op::Merges(op, ..) => op.verb(),
-            Op::Reshelve => "Reshelve",
-            Op::AbsorbModules | Op::Autofixup => "Absorb into",
+            Op::Reshelve | Op::ReshelveSince | Op::ReshelveSinceDate(_) => "Reshelve",
+            Op::DraftAll => "Commit",
+            Op::AbsorbModules | Op::Autofixup | Op::Absorb | Op::AbsorbAll(_) => "Absorb into",
         }
     }
+    /// The transient whose arguments this suffix reads instead of magit-commit's.
+    pub fn arg_menu(&self) -> Option<char> {
+        match self {
+            Op::Autofixup => Some('H'),
+            Op::Absorb | Op::AbsorbAll(_) => Some('A'),
+            // magit-reshelve-since signs with magit-rebase-arguments' key.
+            Op::ReshelveSince | Op::ReshelveSinceDate(_) => Some('r'),
+            _ => None,
+        }
+    }
+}
+
+/// magit-commit-ask-to-stage: None (nil) refuses, Some(false) (stage)
+/// commits everything without asking, Some(true) (t, verbose) asks.
+pub fn ask_to_stage() -> Option<bool> {
+    match super::options::value("magit-commit-ask-to-stage") {
+        Some(toml::Value::Boolean(false)) => None,
+        Some(toml::Value::String(s)) if s == "stage" => Some(false),
+        _ => Some(true),
+    }
+}
+/// magit-git-executable-find: NAME on PATH or in git's exec path
+/// ("git NAME --help" would open a man page instead).
+fn git_exec_exists(repo: &Repo, name: &str) -> bool {
+    let exec_path = repo
+        .read(&["--exec-path"])
+        .map(|o| String::from_utf8_lossy(&o).trim().to_owned())
+        .unwrap_or_default();
+    std::env::var_os("PATH")
+        .map(|p| std::env::split_paths(&p).collect::<Vec<_>>())
+        .unwrap_or_default()
+        .into_iter()
+        .chain([std::path::PathBuf::from(exec_path)])
+        .any(|d| d.join(name).is_file())
 }
 
 impl Repo {
@@ -65,7 +117,7 @@ impl Repo {
         if *op == Op::Reshelve {
             return self.reshelve_prompt();
         }
-        if matches!(op, Op::AbsorbModules | Op::Autofixup) {
+        if matches!(op, Op::AbsorbModules | Op::Autofixup | Op::Absorb) {
             // Commits since the upstream (its merge base for autofixup).
             let d = self
                 .current_branch()
@@ -88,32 +140,87 @@ impl Repo {
         let at = |i: usize| a.get(i).map(String::as_str).unwrap_or("");
         match op {
             Op::Reshelve => return self.reshelve(at(0), args),
+            Op::ReshelveSince => {
+                let commit = at(0).trim();
+                if commit.is_empty() || commit.starts_with('-') {
+                    return Err(format!("invalid commit {commit:?}"));
+                }
+                let current = self
+                    .current_branch()
+                    .map_err(|_| "Refusing to reshelve detached head".to_owned())?;
+                let range = format!("{commit}^..{current}");
+                let count: i64 = String::from_utf8_lossy(&self.read(&[
+                    "rev-list",
+                    "--count",
+                    "--end-of-options",
+                    &range,
+                ])?)
+                .trim()
+                .parse()
+                .unwrap_or(0);
+                // The default: one minute per commit, ending now.
+                let now = super::margin::now() - count * 60;
+                let default = super::margin::strftime("%F %T %z", now);
+                return Ok(Next::Ask(
+                    Question::Commit(Op::ReshelveSinceDate(commit.to_owned())),
+                    vec![format!("Date for first commit (default {default}): ")],
+                    vec![default],
+                ));
+            }
+            Op::ReshelveSinceDate(commit) => return self.reshelve_since(&commit, at(0), args),
             Op::AbsorbModules => return self.absorb_modules(at(0).trim()),
-            Op::Autofixup => {
+            Op::Autofixup | Op::Absorb => {
                 let since = at(0).trim();
                 if since.is_empty() || since.starts_with('-') {
                     return Err(format!("invalid commit {since:?}"));
                 }
-                // executable-find: git-autofixup on PATH or in git's exec path
-                // ("git autofixup --help" would open a man page instead).
-                let exec_path = self
-                    .read(&["--exec-path"])
-                    .map(|o| String::from_utf8_lossy(&o).trim().to_owned())
-                    .unwrap_or_default();
-                let found = std::env::var_os("PATH")
-                    .map(|p| std::env::split_paths(&p).collect::<Vec<_>>())
-                    .unwrap_or_default()
-                    .into_iter()
-                    .chain([std::path::PathBuf::from(exec_path)])
-                    .any(|d| d.join("git-autofixup").is_file());
-                if !found {
-                    return Err("This command requires git-autofixup".into());
+                let tool = if op == Op::Absorb {
+                    "git-absorb"
+                } else {
+                    "git-autofixup"
+                };
+                if !git_exec_exists(self, tool) {
+                    return Err(format!("This command requires {tool}"));
                 }
                 let base = self
                     .read(&["merge-base", "--end-of-options", since, "HEAD"])
                     .map(|o| String::from_utf8_lossy(&o).trim().to_owned())
                     .map_err(|_| format!("unknown commit {since:?}"))?;
-                return Ok(Next::Git(vec!["autofixup".into(), "-vv".into(), base]));
+                let staged = !self.ok(&["diff", "--cached", "--quiet"]);
+                let unstaged = !self.ok(&["diff", "--quiet"]);
+                if op == Op::Autofixup {
+                    if !staged && !unstaged {
+                        return Err("There are no changes that could be absorbed".into());
+                    }
+                    let mut argv = vec!["autofixup".to_owned()];
+                    argv.extend(args.iter().cloned());
+                    argv.push(base);
+                    return Ok(Next::Git(argv));
+                }
+                if !staged {
+                    if !unstaged {
+                        return Err("There are no changes that could be absorbed".into());
+                    }
+                    return Ok(Next::Ask(
+                        Question::Commit(Op::AbsorbAll(base)),
+                        vec!["Nothing staged.  Absorb all unstaged changes? (y or n) ".into()],
+                        vec![String::new()],
+                    ));
+                }
+                let mut argv = vec!["absorb".to_owned()];
+                argv.extend(args.iter().cloned());
+                argv.extend(["-b".into(), base]);
+                return Ok(Next::Git(argv));
+            }
+            Op::AbsorbAll(base) => {
+                if !matches!(at(0), "y" | "yes") {
+                    return Err("Abort".into());
+                }
+                self.read(&["add", "-u", "--", ":/"])?;
+                let mut argv = vec!["absorb".to_owned()];
+                argv.extend(args.iter().cloned());
+                argv.extend(["-b".into(), base]);
+                return Ok(Next::Git(argv));
             }
             _ => {}
         }
@@ -165,7 +272,15 @@ impl Repo {
         .trim()
         .to_owned();
         let (_, edit, nopatch, rebase) = op.shape();
-        // magit-commit-assert.
+        // magit-commit-assert, with magit-commit-ask-to-stage.
+        let mut args = args;
+        if !nopatch && !self.commit_ready(&args, !edit)? {
+            match ask_to_stage() {
+                None => return Err("Nothing staged".into()),
+                Some(false) => args.push("--all".into()),
+                Some(true) => {}
+            }
+        }
         if !nopatch && !self.commit_ready(&args, !edit)? {
             return Ok(Next::Ask(
                 Question::Commit(Op::StageAll(Box::new(op), id)),
@@ -204,6 +319,12 @@ impl Repo {
                         .lines()
                         .filter_map(|l| l.split_once(' '))
                         .filter(|(name, oid)| !name.ends_with("/HEAD") && *oid != id)
+                        // magit-list-publishing-branches: magit-published-branches only.
+                        .filter(|(name, _)| {
+                            super::options::strings("magit-published-branches", &["origin/master"])
+                                .iter()
+                                .any(|l| l == name)
+                        })
                         .map(|(name, _)| name.to_owned())
                         .collect::<Vec<_>>()
                 })
@@ -278,7 +399,7 @@ impl Repo {
     }
     /// Something to commit: staged changes, or unstaged ones with --all, or
     /// (for non-strict variants) an argument that makes an empty commit useful.
-    fn commit_ready(&self, args: &[String], strict: bool) -> Result<bool, String> {
+    pub(crate) fn commit_ready(&self, args: &[String], strict: bool) -> Result<bool, String> {
         let staged = self.read(&["diff", "--cached", "--quiet"]).is_err();
         let unstaged = self.read(&["diff", "--quiet"]).is_err();
         if staged || (unstaged && args.iter().any(|a| a == "--all")) {
@@ -383,6 +504,125 @@ impl Repo {
             return Err(String::from_utf8_lossy(&out.stderr).trim().to_owned());
         }
         Ok(Next::Done(Ok("Reshelved HEAD".into())))
+    }
+    /// magit-reshelve-since: give the commits since COMMIT (inclusive) on the
+    /// current branch consecutive dates a minute apart, from DATE. Upstream
+    /// runs git filter-branch; Fred rewrites them with commit-tree.
+    pub fn reshelve_since(
+        &self,
+        commit: &str,
+        date: &str,
+        args: &[String],
+    ) -> Result<Next, String> {
+        let date = date.trim();
+        if date.is_empty() || date.starts_with('-') || date.chars().any(char::is_control) {
+            return Err(format!("invalid date {date:?}"));
+        }
+        let current = self
+            .current_branch()
+            .map_err(|_| "Refusing to reshelve detached head".to_owned())?;
+        // git's own date parser, through --since.
+        let parsed =
+            String::from_utf8_lossy(&self.read(&["rev-parse", &format!("--since={date}")])?)
+                .trim()
+                .to_owned();
+        let mut secs: i64 = parsed
+            .strip_prefix("--max-age=")
+            .and_then(|s| s.parse().ok())
+            .ok_or_else(|| format!("invalid date {date:?}"))?;
+        let zone = date
+            .split_whitespace()
+            .last()
+            .filter(|z| (z.starts_with('+') || z.starts_with('-')) && z.len() == 5)
+            .unwrap_or("+0000")
+            .to_owned();
+        let range = format!("{commit}^..{current}");
+        let old_tip = String::from_utf8_lossy(&self.read(&["rev-parse", &current])?)
+            .trim()
+            .to_owned();
+        let revs = String::from_utf8_lossy(&self.read(&[
+            "rev-list",
+            "--reverse",
+            "--topo-order",
+            "--end-of-options",
+            &range,
+        ])?)
+        .into_owned();
+        let sign = args.iter().find(|a| a.starts_with("--gpg-sign"));
+        let committer_only = super::options::flag("magit-reshelve-since-committer-only", false);
+        let mut map: std::collections::HashMap<String, String> = Default::default();
+        let mut tip = old_tip.clone();
+        for rev in revs.lines() {
+            let info = String::from_utf8_lossy(&self.read(&[
+                "log",
+                "-1",
+                "--format=%T%x00%P%x00%an%x00%ae%x00%ad%x00%cn%x00%ce",
+                "--date=raw",
+                rev,
+            ])?)
+            .into_owned();
+            let f: Vec<&str> = info.trim_end().split('\0').collect();
+            let [tree, parents, an, ae, ad, cn, ce] = f[..] else {
+                return Err(format!("cannot read {rev}"));
+            };
+            let message = self.read(&["log", "-1", "--format=%B", rev])?;
+            let mut argv: Vec<String> = vec!["commit-tree".into()];
+            for p in parents.split_whitespace() {
+                argv.extend([
+                    "-p".into(),
+                    map.get(p).cloned().unwrap_or_else(|| p.to_owned()),
+                ]);
+            }
+            if let Some(s) = sign {
+                argv.push(s.replacen("--gpg-sign", "-S", 1).replacen("-S=", "-S", 1));
+            }
+            argv.push(tree.into());
+            let stamp = format!("{secs} {zone}");
+            let author_date = if committer_only {
+                ad.to_owned()
+            } else {
+                stamp.clone()
+            };
+            let out = self
+                .command()
+                .env("GIT_AUTHOR_NAME", an)
+                .env("GIT_AUTHOR_EMAIL", ae)
+                .env("GIT_AUTHOR_DATE", &author_date)
+                .env("GIT_COMMITTER_NAME", cn)
+                .env("GIT_COMMITTER_EMAIL", ce)
+                .env("GIT_COMMITTER_DATE", &stamp)
+                .args(&argv)
+                .stdin(std::process::Stdio::piped())
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .spawn()
+                .and_then(|mut child| {
+                    use std::io::Write;
+                    child
+                        .stdin
+                        .take()
+                        .expect("piped stdin")
+                        .write_all(&message)?;
+                    child.wait_with_output()
+                })
+                .map_err(|e| e.to_string())?;
+            if !out.status.success() {
+                return Err(String::from_utf8_lossy(&out.stderr).trim().to_owned());
+            }
+            let new = String::from_utf8_lossy(&out.stdout).trim().to_owned();
+            map.insert(rev.to_owned(), new.clone());
+            tip = new;
+            secs += 60;
+        }
+        self.read(&[
+            "update-ref",
+            "-m",
+            "reshelve",
+            &format!("refs/heads/{current}"),
+            &tip,
+            &old_tip,
+        ])?;
+        Ok(Next::Done(Ok(format!("Reshelved {} commits", map.len()))))
     }
     /// magit-commit-absorb-modules: a fixup commit per modified module,
     /// targeting the last commit since COMMIT that touched it.

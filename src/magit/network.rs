@@ -22,6 +22,10 @@ pub enum Op {
     PullRemote,
     PullUpstream,
     PullElsewhere,
+    /// magit-pull-into-upstream: fast-forward the local upstream from its own.
+    PullIntoUpstream,
+    /// magit-push-to-remote: git push -v [ARGS] REMOTE, no refspec.
+    PushToRemote,
 }
 
 impl Op {
@@ -30,8 +34,10 @@ impl Op {
         use Op::*;
         match self {
             PushRemote | PushUpstream | PushElsewhere | PushOther | PushRefspecs | PushMatching
-            | PushTag | PushTags => 'p',
-            PullRemote | PullUpstream | PullElsewhere => 'P',
+            | PushTag | PushTags | PushToRemote => 'p',
+            PullRemote | PullUpstream | PullElsewhere | PullIntoUpstream => 'P',
+            // magit-fetch-modules has its own transient.
+            FetchModules => 'Z',
             _ => 'f',
         }
     }
@@ -89,20 +95,20 @@ impl Repo {
             Ok(b) => self.config(&format!("branch.{b}.remote")),
             Err(_) => None,
         };
-        // magit-primary-remote: magit.primaryRemote, then "upstream", then "origin".
-        let primary = || {
-            self.config("magit.primaryRemote")
-                .into_iter()
-                .chain(["upstream".into(), "origin".into()])
-                .find(|r| remotes.contains(r))
-        };
         Ok(upstream.filter(|r| remotes.contains(r)).or_else(|| {
             if remotes.len() == 1 {
                 remotes.first().cloned()
             } else {
-                primary()
+                self.primary_remote(&remotes)
             }
         }))
+    }
+    /// magit-primary-remote: magit.primaryRemote, then "upstream", then "origin".
+    pub(super) fn primary_remote(&self, remotes: &[String]) -> Option<String> {
+        self.config("magit.primaryRemote")
+            .into_iter()
+            .chain(["upstream".into(), "origin".into()])
+            .find(|r| remotes.contains(r))
     }
     fn only_remote(&self) -> Result<Option<String>, String> {
         let remotes = self.remotes()?;
@@ -163,7 +169,13 @@ impl Repo {
                     FetchRemote => "fetch from there",
                     _ => "pull from there",
                 };
-                one(&format!("Set branch.{branch}.pushRemote and {verb}: "))
+                // magit-prefer-push-default: offer remote.pushDefault instead.
+                let var = if super::options::flag("magit-prefer-push-default", false) {
+                    "remote.pushDefault".to_owned()
+                } else {
+                    format!("branch.{branch}.pushRemote")
+                };
+                one(&format!("Set {var} and {verb}: "))
             }
             PushUpstream | PullUpstream => {
                 let branch = self.current_branch()?;
@@ -198,6 +210,8 @@ impl Repo {
                 "Fetch using refspec: ".into(),
             ]),
             PullElsewhere => one("Pull: "),
+            PullIntoUpstream => Ok(vec![]),
+            PushToRemote => one("Push to remote: "),
         }
     }
 
@@ -224,7 +238,12 @@ impl Repo {
                     Some(remote) if answers.is_empty() => remote,
                     _ => {
                         let remote = self.known_remote(answer(0)?)?;
-                        self.read(&["config", &format!("branch.{branch}.pushRemote"), &remote])?;
+                        let var = if super::options::flag("magit-prefer-push-default", false) {
+                            "remote.pushDefault".to_owned()
+                        } else {
+                            format!("branch.{branch}.pushRemote")
+                        };
+                        self.read(&["config", &var, &remote])?;
                         remote
                     }
                 };
@@ -352,8 +371,34 @@ impl Repo {
                 add(&["fetch", checked(answer(0)?)?, checked(answer(1)?)?]);
                 add(&args.iter().map(String::as_str).collect::<Vec<_>>());
             }
-            // magit-fetch-modules' own default arguments, not magit-fetch's.
-            FetchModules => add(&["fetch", "--recurse-submodules", "--verbose", "--jobs=4"]),
+            // magit-fetch-modules: its own transient's arguments.
+            FetchModules => {
+                add(&["fetch", "--recurse-submodules"]);
+                add(&args.iter().map(String::as_str).collect::<Vec<_>>());
+            }
+            PullIntoUpstream => {
+                // magit-pull--upstreams: a local upstream whose own upstream is remote.
+                let up1 = self
+                    .upstream_of(&self.current_branch()?)
+                    .filter(|u| self.local_branch(u));
+                let up2 = up1.as_deref().and_then(|u| self.upstream_of(u));
+                let (Some(up1), Some(up2)) = (up1, up2) else {
+                    return Err("Cannot perform background update of upstream branch".into());
+                };
+                let (remote, branch) = self.split_branch(&up2)?;
+                if remote == "." {
+                    return Err("Cannot perform background update of upstream branch".into());
+                }
+                // Upstream fetches, then update-ref's the branch to FETCH_HEAD
+                // unconditionally; a forced refspec does both in one command.
+                add(&["fetch", &remote, &format!("+{branch}:refs/heads/{up1}")]);
+            }
+            PushToRemote => {
+                let remote = self.known_remote(answer(0)?)?;
+                add(&["push", "-v"]);
+                add(&args.iter().map(String::as_str).collect::<Vec<_>>());
+                add(&[&remote]);
+            }
             PullElsewhere => {
                 let (remote, branch) = self.split_branch(answer(0)?)?;
                 add(&["pull"]);
@@ -369,6 +414,7 @@ impl Repo {
             draft: None,
             draft_stamp: None,
             editor: false,
+            env: vec![],
             after: None,
         })
     }

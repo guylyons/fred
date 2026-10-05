@@ -18,6 +18,48 @@ pub enum Op {
     GitConfigFile,
     RemoteSetHead,
     RemoteUnsetHead,
+    /// magit-stage-files (ignored files too when true) / magit-unstage-files.
+    StageFiles(bool),
+    UnstageFiles,
+    /// magit-show-commit-removing-file.
+    RemovingFile,
+    /// magit-log-move-to-revision's question (answered by the session).
+    LogJump,
+    /// magit-shell-command(-topdir): in the repository root, or this directory.
+    ShellCommand {
+        topdir: bool,
+    },
+    ShellCommandIn(std::path::PathBuf),
+    /// magit-run's Launch group: gitk (with arguments) or git gui.
+    Gitk(&'static str),
+    GitGui,
+    /// magit-run-git-gui-blame: file and line from the visited file.
+    GitGuiBlame(std::path::PathBuf, usize),
+    /// magit-debug-git-executable.
+    DebugGit,
+    /// magit-do-async-shell-command on this repository-relative file.
+    AsyncShell(std::path::PathBuf),
+    /// magit-repolist: act on all listed repositories (fetch when true)?
+    RepolistAll(bool),
+    /// magit-repolist-find-file-other-frame's file name.
+    RepolistFile,
+}
+
+/// Quote a word for sh.
+pub fn shell_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
+}
+
+/// magit-completing-read-multiple: comma-separated repository-relative files.
+fn files(answer: &str) -> Result<Vec<std::ffi::OsString>, String> {
+    let mut out = vec![];
+    for f in answer.split(',').map(str::trim).filter(|f| !f.is_empty()) {
+        out.push(super::repo::literal_pathspec(&super::blob::relative(f)?));
+    }
+    if out.is_empty() {
+        return Err("No file selected".into());
+    }
+    Ok(out)
 }
 
 /// split-string-shell-command: words, with '...' and "..." quoting and
@@ -97,7 +139,64 @@ impl Repo {
                     vec![String::new()],
                 )
             }
-            Op::GitConfigFile => (vec![], vec![]),
+            Op::GitConfigFile
+            | Op::Gitk(_)
+            | Op::GitGui
+            | Op::GitGuiBlame(..)
+            | Op::DebugGit
+            | Op::RepolistAll(_)
+            | Op::RepolistFile => (vec![], vec![]),
+            Op::ShellCommand { .. } | Op::ShellCommandIn(_) => {
+                // magit-shell-command-verbose-prompt names the directory.
+                let prompt = if super::options::flag("magit-shell-command-verbose-prompt", true) {
+                    let dir = match op {
+                        Op::ShellCommandIn(d) => self.root.join(d),
+                        _ => self.root.clone(),
+                    };
+                    format!("Async shell command in {}: ", dir.display())
+                } else {
+                    "Async shell command: ".into()
+                };
+                (vec![prompt], vec![String::new()])
+            }
+            Op::AsyncShell(file) => (
+                vec![format!("& on {}: ", file.display())],
+                vec![String::new()],
+            ),
+            Op::RemovingFile => {
+                let d = at_point.unwrap_or_default();
+                let suffix = if d.is_empty() {
+                    String::new()
+                } else {
+                    format!(" (default {d})")
+                };
+                (
+                    vec![format!("Show commit removing file{suffix}: ")],
+                    vec![d],
+                )
+            }
+            Op::LogJump => {
+                // The commit at point (its fixup target), else the branch.
+                let d = at_point
+                    .and_then(|c| self.fixup_target(&c))
+                    .or_else(|| self.current_branch().ok())
+                    .unwrap_or_default();
+                (vec![format!("In log, jump to (default {d}): ")], vec![d])
+            }
+            Op::StageFiles(_) | Op::UnstageFiles => {
+                let d = at_point.unwrap_or_default();
+                let verb = match op {
+                    Op::StageFiles(true) => "Stage ignored file,s",
+                    Op::StageFiles(false) => "Stage file,s",
+                    _ => "Unstage file,s",
+                };
+                let suffix = if d.is_empty() {
+                    String::new()
+                } else {
+                    format!(" (default {d})")
+                };
+                (vec![format!("{verb}{suffix}: ")], vec![d])
+            }
             Op::RemoteSetHead | Op::RemoteUnsetHead => {
                 let d = self.current_remote().ok().flatten().unwrap_or_default();
                 let verb = if *op == Op::RemoteSetHead {
@@ -168,6 +267,115 @@ impl Repo {
                     self.root.join(String::from_utf8_lossy(&p).trim()),
                 ))
             }
+            Op::RemovingFile => {
+                let file = super::blob::relative(at(0))?;
+                let out = self.run(
+                    &[
+                        "log".into(),
+                        "--format=%H".into(),
+                        "--diff-filter=D".into(),
+                        "--full-history".into(),
+                        "-n".into(),
+                        "1".into(),
+                        "--".into(),
+                        super::repo::literal_pathspec(&file),
+                    ],
+                    None,
+                )?;
+                let id = String::from_utf8_lossy(&out).trim().to_owned();
+                if id.is_empty() {
+                    return Err(format!("{} has not been removed", at(0)));
+                }
+                Ok(Next::Show(super::diff::Target::Commit(id)))
+            }
+            Op::LogJump | Op::RepolistAll(_) | Op::RepolistFile => {
+                Err("answered by the repository list".into())
+            }
+            Op::AsyncShell(file) => {
+                let cmd = at(0);
+                if cmd.is_empty() {
+                    return Err("No command".into());
+                }
+                // dired-do-shell-command: "*" stands for the file, else it is
+                // appended.
+                let quoted = shell_quote(&file.to_string_lossy());
+                let cmd = if cmd.contains('*') {
+                    cmd.replace('*', &quoted)
+                } else {
+                    format!("{cmd} {quoted}")
+                };
+                Ok(Next::Shell(format!(
+                    "cd {} && {cmd}",
+                    shell_quote(&self.root.to_string_lossy())
+                )))
+            }
+            Op::ShellCommand { .. } | Op::ShellCommandIn(_) => {
+                let cmd = at(0);
+                if cmd.is_empty() {
+                    return Err("No command".into());
+                }
+                let dir = match &op {
+                    Op::ShellCommandIn(d) => self.root.join(d),
+                    _ => self.root.clone(),
+                };
+                Ok(Next::Shell(format!(
+                    "cd {} && {cmd}",
+                    shell_quote(&dir.to_string_lossy())
+                )))
+            }
+            Op::Gitk(args) => {
+                let gitk = super::options::string("magit-gitk-executable", None)
+                    .unwrap_or_else(|| "gitk".into());
+                self.launch(&gitk, args.split_whitespace().collect())
+            }
+            Op::GitGui => self.launch("git", vec!["gui"]),
+            Op::GitGuiBlame(file, line) => {
+                let line = format!("--line={line}");
+                let file = file.to_string_lossy().into_owned();
+                self.launch("git", vec!["gui", "blame", &line, "HEAD", "--", &file])
+            }
+            Op::DebugGit => {
+                let version = self.read(&["--version"])?;
+                let exec = self.read(&["--exec-path"])?;
+                let which = std::env::var_os("PATH")
+                    .map(|p| std::env::split_paths(&p).collect::<Vec<_>>())
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|d| d.join("git"))
+                    .find(|p| p.is_file())
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_else(|| "git (not on PATH)".into());
+                Ok(Next::Done(Ok(format!(
+                    "{which}: {}, exec-path {}",
+                    String::from_utf8_lossy(&version).trim(),
+                    String::from_utf8_lossy(&exec).trim()
+                ))))
+            }
+            Op::StageFiles(force) => {
+                let mut argv: Vec<std::ffi::OsString> = vec!["add".into()];
+                if force {
+                    argv.push("--force".into());
+                }
+                argv.push("--".into());
+                argv.extend(files(at(0))?);
+                self.run(&argv, None)?;
+                super::options::run_hook("magit-post-stage-hook", &self.root);
+                Ok(Next::Done(Ok("Staged".into())))
+            }
+            Op::UnstageFiles => {
+                // magit-unstage-1: git rm --cached before the first commit.
+                let born = self.read(&["rev-parse", "--verify", "-q", "HEAD"]).is_ok();
+                let mut argv: Vec<std::ffi::OsString> = if born {
+                    vec!["reset".into(), "-q".into(), "HEAD".into()]
+                } else {
+                    vec!["rm".into(), "--cached".into(), "-q".into()]
+                };
+                argv.push("--".into());
+                argv.extend(files(at(0))?);
+                self.run(&argv, None)?;
+                super::options::run_hook("magit-post-unstage-hook", &self.root);
+                Ok(Next::Done(Ok("Unstaged".into())))
+            }
             Op::RemoteSetHead | Op::RemoteUnsetHead => {
                 let r = at(0);
                 if !self.remotes()?.iter().any(|x| x == r) {
@@ -186,5 +394,54 @@ impl Repo {
                 ]))
             }
         }
+    }
+}
+
+impl Repo {
+    /// magit-rev-fixup-target: the commit a fixup!/squash!/amend! commit
+    /// targets (by its subject), else the commit itself.
+    pub fn fixup_target(&self, commit: &str) -> Option<String> {
+        let subject = self
+            .read(&["log", "-1", "--format=%s", "--end-of-options", commit, "--"])
+            .ok()?;
+        let subject = String::from_utf8_lossy(&subject).trim().to_owned();
+        let target = ["fixup! ", "squash! ", "amend! "]
+            .iter()
+            .find_map(|p| subject.strip_prefix(p));
+        let Some(target) = target else {
+            return Some(commit.to_owned());
+        };
+        let out = self
+            .read(&[
+                "log",
+                "-1",
+                "--format=%h",
+                "--fixed-strings",
+                &format!("--grep={target}"),
+                "--end-of-options",
+                &format!("{commit}~"),
+                "--",
+            ])
+            .ok()?;
+        Some(String::from_utf8_lossy(&out).trim().to_owned()).filter(|s| !s.is_empty())
+    }
+}
+
+impl Repo {
+    /// magit-process-file with DESTINATION 0: start a graphical tool in the
+    /// repository and do not wait for it.
+    fn launch(&self, program: &str, args: Vec<&str>) -> Result<Next, String> {
+        std::process::Command::new(program)
+            .args(&args)
+            .current_dir(&self.root)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .map_err(|e| format!("{program}: {e}"))?;
+        Ok(Next::Done(Ok(format!(
+            "Started {program} {}",
+            args.join(" ")
+        ))))
     }
 }

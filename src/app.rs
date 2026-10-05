@@ -502,6 +502,7 @@ fn run_git(ui: &mut Ui, s: &mut Session, inv: crate::magit::repo::GitInvocation)
                 .join(" ")
         );
         let mut cmd = inv.repo.command();
+        cmd.envs(inv.env.iter().map(|(k, v)| (k, v)));
         if inv.editor
             && let Ok(exe) = std::env::current_exe()
         {
@@ -558,6 +559,9 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
     if let Some(h) = args.height {
         cfg.height = h;
     }
+    // Magit's options are process-wide (Git work runs on worker threads).
+    let unknown = crate::magit::options::set(cfg.magit.0.clone());
+    let cfg_err = cfg_err.or_else(|| unknown.into_iter().next());
     let (mut s, leftover) = match Session::open(args.file.clone(), &cfg, &swap::swap_dir()) {
         Ok(x) => x,
         Err(e) => {

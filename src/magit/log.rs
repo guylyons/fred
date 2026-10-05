@@ -23,9 +23,6 @@ pub enum Op {
     Cherry,
 }
 
-/// magit-log-merged-commit-count.
-const MERGED_COUNT: usize = 20;
-
 /// One washed log line: graph prefix, then a commit or a continuation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Line {
@@ -44,7 +41,21 @@ fn rev(v: &str) -> Result<&str, String> {
 pub fn git_args(args: &[String]) -> Result<Vec<String>, String> {
     let mut out = vec![];
     // magit-log-refresh-buffer drops --graph when --reverse is used.
-    let reverse = args.iter().any(|a| a == "--reverse");
+    // magit-log-remove-graph-args: these drop --graph too.
+    let drop_graph = args.iter().any(|a| a == "--reverse")
+        || super::options::strings(
+            "magit-log-remove-graph-args",
+            &["--follow", "-G", "-S", "-L"],
+        )
+        .iter()
+        .any(|g| {
+            args.iter()
+                .any(|a| a == g || (g.len() == 2 && a.starts_with(g.as_str())))
+        });
+    let reverse = drop_graph;
+    // magit-log-show-signatures-limit: no signatures above this many commits.
+    let sig_limit = super::options::int("magit-log-show-signatures-limit", 256);
+    let too_many = limit(args).is_none_or(|n| n as i64 > sig_limit);
     for a in args {
         if let Some(n) = a.strip_prefix("-n") {
             n.parse::<usize>()
@@ -56,6 +67,7 @@ pub fn git_args(args: &[String]) -> Result<Vec<String>, String> {
                 "--color" | "--decorate" | "++header" | "--follow"
             )
             && !(reverse && a == "--graph")
+            && !(too_many && a == "--show-signature")
         {
             out.push(a.clone());
         }
@@ -283,7 +295,8 @@ impl Repo {
         let first_parent = lines(&["rev-list", "--first-parent", &b])?;
         if first_parent.contains(&c) {
             // Commit is directly on this branch: show surrounding history.
-            let half = MERGED_COUNT / 2;
+            // magit-log-merged-commit-count.
+            let half = super::options::int("magit-log-merged-commit-count", 20).max(2) as usize / 2;
             let from = id(&format!("{c}~{half}")).unwrap_or_else(|_| {
                 lines(&["rev-list", "--max-parents=0", &c])
                     .ok()
@@ -358,9 +371,18 @@ impl Repo {
         let mut argv: Vec<std::ffi::OsString> = vec![
             "log".into(),
             "--no-color".into(),
-            "--format=%x1e%H%x1f%D%x1f%ad%x1f%an%x1f%s".into(),
-            "--date=short".into(),
+            "--format=%x1e%H%x1f%D%x1f%s".into(),
         ];
+        // ++header: magit-log-revision-headers-format below each commit.
+        if args.iter().any(|a| a == "++header") {
+            let headers = super::options::string(
+                "magit-log-revision-headers-format",
+                Some("%+b%+N\nAuthor:    %aN <%aE>\nCommitter: %cN <%cE>"),
+            )
+            .unwrap_or_default()
+            .replace('\n', "%n    ");
+            argv[2] = format!("--format=%x1e%H%x1f%D%x1f%s%n    {headers}").into();
+        }
         argv.extend(git_args(args)?.into_iter().map(Into::into));
         argv.extend(revs.iter().map(Into::into));
         argv.push("--".into());
@@ -391,14 +413,28 @@ impl Repo {
                             String::new()
                         };
                         let id = get(0);
-                        Line {
-                            text: label(std::path::Path::new(&format!(
-                                "{graph}{} {} {} {refs}{}",
+                        // magit-log-wash-rev: hash, refs, then the summary;
+                        // author and date go in the margin.
+                        // magit-log-show-refname-after-summary.
+                        let text = if super::options::flag(
+                            "magit-log-show-refname-after-summary",
+                            false,
+                        ) {
+                            format!(
+                                "{graph}{} {}{}",
                                 &id[..8],
                                 get(2),
-                                get(3),
-                                get(4)
-                            ))),
+                                if refs.is_empty() {
+                                    String::new()
+                                } else {
+                                    format!(" {}", refs.trim_end())
+                                }
+                            )
+                        } else {
+                            format!("{graph}{} {refs}{}", &id[..8], get(2))
+                        };
+                        Line {
+                            text: label(std::path::Path::new(&text)),
                             commit: Some(id.to_owned()).filter(|i| !i.is_empty()),
                         }
                     }

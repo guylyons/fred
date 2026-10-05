@@ -159,6 +159,8 @@ pub struct Editor {
     pub commit_history: Option<(usize, String)>,
     pub magit_menu: Option<char>,
     pub magit_prompt: Option<crate::magit::Prompt>,
+    /// magit-revision-stack: (commit, repository toplevel), newest last.
+    pub revision_stack: Vec<(String, std::path::PathBuf)>,
     pub commit_mode: crate::magit::CommitMode,
     pub commit_repo: Option<crate::magit::repo::Repo>,
     /// File operation requested by an ex command, performed by the app.
@@ -235,6 +237,7 @@ impl Editor {
             commit_history: None,
             magit_menu: None,
             magit_prompt: None,
+            revision_stack: vec![],
             commit_mode: crate::magit::CommitMode::New,
             commit_repo: None,
             pending_effect: None,
@@ -262,6 +265,7 @@ impl Editor {
     /// file: the register, last search, histories and project.
     pub fn inherit(&mut self, old: &mut Editor) {
         self.reg = std::mem::take(&mut old.reg);
+        self.revision_stack = std::mem::take(&mut old.revision_stack);
         self.last_pat = old.last_pat.take();
         self.last_search_fwd = old.last_search_fwd;
         self.project = Arc::clone(&old.project);
@@ -627,6 +631,17 @@ impl Editor {
                 }
             }
             KeyCode::Tab | KeyCode::BackTab => self.complete_cmdline(k.code == KeyCode::BackTab),
+            // magit-whitespace-disallowed: a space in a branch name is a dash.
+            KeyCode::Char(' ')
+                if !k.ctrl
+                    && !k.alt
+                    && self
+                        .magit_prompt
+                        .as_ref()
+                        .is_some_and(crate::magit::reads_branch_name) =>
+            {
+                cl.edit(Key::ch('-'))
+            }
             _ => cl.edit(k),
         }
     }

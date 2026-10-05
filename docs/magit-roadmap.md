@@ -47,12 +47,11 @@ additional behavior reopens its row and lowers the score until it is covered.
 
 ## Execution queue
 
-Submodule, subtree and patch/am batches done. Bundles and clone done.
-Refs, sparse checkout and gitignore done. Next: the remaining diff and
-log commands (reference movement, log-select), then commit menu remainder,
-subtrees, patches/bundles, clone, refs view, sparse checkout and gitignore,
-recording each accepted gate's evidence here. The baseline's UI map and
-scenario matrix remain open.
+Customization configuration is wired for 21 upstream options (all partial).
+Next: repository-list commands and their directory/column options, then remaining
+customization behavior, complete menu/section mapping and the source-linked
+acceptance scenario matrix. Keep incomplete command behavior and safety/recovery
+gaps open; command-name coverage alone does not close a family.
 
 At every implementation commit, update the command ledger and this queue. Report
 the same score even when useful partial functionality lands but no acceptance
@@ -317,3 +316,99 @@ ref (p n), delete shelved branch, commit-buffer jumps, blame visit-file,
 half commit limit and version by name; review fixes for hunk apply
 (raw output, confirmation, renames) and smerge's C-c. Ledger 669 partial /
 104 missing commands. Score remains 3%.
+
+October 4 branch/network checkpoint: branch -m/-r reach every checkout
+(lifting the dirty check for --merge), B updates the default branch from
+the branch and remote menus, and :Magit gains branch-or-checkout,
+checkout-remote-ref (terminal fetch, then FETCH_HEAD via a chained Git
+command), pull-into-upstream and push-to-remote. Ledger 676 partial / 97
+missing commands. Score remains 3%.
+
+October 4 apply/commit-message checkpoint: u reverses committed changes in
+the index (magit-unstage-committed), C adds a changelog stub to the commit
+draft, the absorb and autofixup transients carry their arguments (c x opens
+autofixup's, as C-u x does upstream), F s/u read files when no file is
+visited, drafts save messages with C-c M-s and insert GNU/plain changelogs
+built from Git's hunk-header function context, and ChangeLog files get
+dated entries. Ledger 693 partial / 80 missing commands. Score remains 3%.
+
+October 4 margin/log-select checkpoint: log, reflog, stash, cherry, refs
+and status buffers get magit-margin's right-aligned author and age (L, l,
+d, x; per-buffer defaults), diffs gain hunk fontification (on) and word
+refinement (t), commit fixup/squash/absorb and rebase i/m/w/k pick their
+commit in magit-log-select-mode when none is at point, and logs gain
+=g, C-c C-r references, move-to-revision, history (C-c C-b/C-f) and M-Tab
+diff cycling. Ledger 714 partial / 59 missing commands. Score remains 3%.
+
+October 4 run/tools checkpoint: Space m ! gains shell commands and the
+gitk/git gui/mergetool --gui launchers; the mergetool menu gains its six
+variables; f m opens magit-fetch-modules' transient; abort-dwim, wip-mode
+(after save and after Git commands), per-file wip commits, auto-revert of
+unmodified buffers, git-commit-mode for message files Git opens in Fred,
+debug/record/profiling toggles feeding the process buffer, & shell
+commands, dired am, update-index, and dash-for-space in branch names.
+Ledger 757 partial / 16 missing commands. Score remains 3%.
+
+October 4 history-tools checkpoint: magit-pop-revision-stack (C-c C-w;
+ys/yb push), magit-reshelve-since (log-select, plumbing rewrite),
+C-c C-t / C-c C-e from hunks, process-kill for background Git, and the
+menu-bar menus mapped to transients. Ledger 765 partial / 8 missing
+commands (repolist, which needs magit-repository-directories, and two
+Emacs-only commands). Score remains 3%.
+
+October 4 customization checkpoint: `[magit]` TOML settings wire confirmation,
+counts, margins, hunk styling, squash selection, autorevert/WIP and diagnostic
+defaults ([scenarios and limits](magit-options-acceptance.md)). Independent review
+corrected action misclassification and margin overflow. Ledger: 765 partial / 8
+missing commands; 25 partial / 212 missing options. No acceptance gate closes;
+score remains 3%. Next: repository list, remaining customization behavior and
+baseline mapping/scenario gates.
+
+October 5 repository-list checkpoint: magit-list-repositories lists the
+repositories under magit-repository-directories with upstream's default
+columns (name, version, B<U, B>U, path), configurable columns, flags and
+sort key; RET status, m/u marks, f fetch (marked or, confirmed, all) and
+5 find-file. Ledger 771 partial / 2 missing commands (Emacs-only
+git-commit-elisp-text-mode and magit-emacs-Q-command). Score remains 3%.
+
+October 5 options checkpoint: 35 more options wired (commit style checks,
+executables, wip namespace/merge, trash, rename push target, save-repository
+buffers, hooks as shell commands, rebase todo options and more; see
+magit-options-acceptance.md). Ledger 771 partial / 2 missing commands;
+64 partial / 173 missing options. Score remains 3%.
+
+October 5 options checkpoint 2: refs display options, status initial
+position/file limits/refresh, commit ask-to-stage (drafts now refuse or ask
+when nothing is staged, as upstream), extend/reword committer dates (via a
+new GitInvocation env), and magit-published-branches (upstream default
+origin/master). Ledger: 80 partial / 71 missing / 86 n/a options.
+Score remains 3%.
+
+October 5 revision/clone checkpoint: revision buffers follow
+magit-revision-mode (ref labels and hash, headers format, Parent/Merged/
+Contained/Follows/Precedes, unindented message, notes, diffstat, diff);
+clone options (name-to-url, url formats, pushDefault, remote HEAD,
+default directory; magit-clone runs the regular clone at once unless
+magit-clone-always-transient); whitespace painting, visit options,
+process hint and timestamps. Options: 98 partial / 51 missing / 88 n/a.
+Score remains 3%.
+
+October 5 status-sequence checkpoint: status buffers now show upstream's
+in-progress sections — "Merging X:" with incoming commits, "Rebasing X onto
+Y" (remaining todo, stop/join/work/gone, done, onto), "Applying patches",
+"Cherry Picking"/"Reverting", and the bisect output, Bisect Rest (with
+magit-bisect-show-graph) and Bisect Log sections. More options: remote-add
+pushDefault, module gitdir trashing, patch save arguments, pull-or-fetch.
+Options: 125 partial / 22 missing / 90 n/a. Score remains 3%.
+
+October 5 stopping checkpoint (user request): every upstream command and
+option now has a Fred mapping or an explicit n/a reason. Ledger: commands
+771 partial / 0 missing / 2 n/a; options 144 partial / 0 missing / 93 n/a.
+Last batch: ref-at-point (RET behaviors in refs buffers, start-point
+defaults with magit-prefer-remote-upstream), hash words in revision
+messages, indentation highlighting. Partial means implemented with the
+limits recorded per row, not accepted. Score remains 3%: no roadmap row has
+passed its five acceptance gates (source/option mapping, menus, behavior,
+real-Git/UI/error scenarios, independent review). Next: the baseline UI map
+and scenario matrix, then per-track acceptance reviews starting with
+status/diff/commit.

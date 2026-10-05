@@ -1,19 +1,19 @@
 source_file,source_line,kind,symbol,state,fred_behavior,origin
-git-commit.el,142,option,git-commit-major-mode,missing,,explicit
-git-commit.el,169,option,git-commit-setup-hook,missing,,explicit
-git-commit.el,194,option,git-commit-finish-query-functions,missing,,explicit
-git-commit.el,211,option,git-commit-style-convention-checks,missing,,explicit
-git-commit.el,220,option,git-commit-summary-max-length,missing,,explicit
-git-commit.el,233,option,git-commit-trailers,missing,,explicit
-git-commit.el,253,option,git-commit-use-local-message-ring,missing,,explicit
-git-commit.el,262,option,git-commit-cd-to-toplevel,missing,,explicit
+git-commit.el,142,option,git-commit-major-mode,n/a,value is an Emacs Lisp function; Fred's built-in equivalent behavior is fixed,explicit
+git-commit.el,169,option,git-commit-setup-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
+git-commit.el,194,option,git-commit-finish-query-functions,partial,only git-commit-check-style-conventions (Lisp functions cannot run),explicit
+git-commit.el,211,option,git-commit-style-convention-checks,partial,non-empty-second-line and overlong-summary-line ask before a draft is finished,explicit
+git-commit.el,220,option,git-commit-summary-max-length,partial,limit for overlong-summary-line (no highlighting),explicit
+git-commit.el,233,option,git-commit-trailers,partial,listed in the C-c C-i prompt (no completion),explicit
+git-commit.el,253,option,git-commit-use-local-message-ring,partial,nil (default): one ring in Fred's config directory; t: per repository,explicit
+git-commit.el,262,option,git-commit-cd-to-toplevel,n/a,"Emacs-specific (default-directory, windows, Info, minor modes, tab-width, buffer names, global keymaps or Lisp githook bridge); Fred's equivalent is fixed or uses Space m",explicit
 git-commit.el,758,command,git-commit-prev-message,partial,M-k / gk (evil-collection) in a draft: recent commit messages from the log (upstream: session comment ring),explicit
 git-commit.el,786,command,git-commit-next-message,partial,M-j / gj; back past the newest restores the draft,explicit
 git-commit.el,792,command,git-commit-search-message-backward,partial,C-c M-p steps to older messages (no regexp search),explicit
 git-commit.el,803,command,git-commit-search-message-forward,partial,C-c M-n steps to newer messages (no regexp search),explicit
-git-commit.el,814,command,git-commit-save-message,missing,,explicit
-git-commit.el,872,command,git-commit-insert-changelog-gnu,missing,,explicit
-git-commit.el,890,command,git-commit-insert-changelog-plain,missing,,explicit
+git-commit.el,814,command,git-commit-save-message,partial,"C-c M-s in a draft; per-repository ring file, newest first, 32 entries, consulted by M-p/M-k before the log",explicit
+git-commit.el,872,command,git-commit-insert-changelog-gnu,partial,:Magit name; defuns from Git hunk-header function context (no which-function),explicit
+git-commit.el,890,command,git-commit-insert-changelog-plain,partial,:Magit name; same defun source,explicit
 git-commit.el,909,command,git-commit-insert-trailer,partial,"C-c C-i / C-c Tab: ""Key: value"" through git interpret-trailers",explicit
 git-commit.el,933,command,git-commit-ack,partial,C-c C-a (default your ident),explicit
 git-commit.el,938,command,git-commit-modified,partial,C-c C-m,explicit
@@ -25,19 +25,19 @@ git-commit.el,967,command,git-commit-reported,partial,C-c C-p,explicit
 git-commit.el,972,command,git-commit-suggested,partial,C-c M-i,explicit
 git-commit.el,977,command,git-commit-co-authored,partial,:Magit git-commit-co-authored in a draft (or C-c C-i),explicit
 git-commit.el,982,command,git-commit-co-developed,partial,:Magit git-commit-co-developed in a draft (or C-c C-i),explicit
-git-commit.el,1294,option,git-commit-post-finish-hook,missing,,explicit
-git-commit.el,1313,option,git-commit-post-finish-hook-timeout,missing,,explicit
-git-commit.el,,command,git-commit-elisp-text-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+git-commit.el,1294,option,git-commit-post-finish-hook,partial,hook adapted: a list of shell commands run in the repository toplevel; after a draft's commit,explicit
+git-commit.el,1313,option,git-commit-post-finish-hook-timeout,n/a,"Emacs-specific (default-directory, windows, Info, minor modes, tab-width, buffer names, global keymaps or Lisp githook bridge); Fred's equivalent is fixed or uses Space m",explicit
+git-commit.el,,command,git-commit-elisp-text-mode,n/a,Emacs major mode for Lisp commit messages; Fred has no Emacs Lisp modes,runtime
 git-commit.el,,command,git-commit-insert-pseudo-header,partial,"C-c C-i reads any ""Key: value"" trailer",runtime
-git-commit.el,,command,git-commit-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-git-commit.el,,command,git-commit-mode-menu,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-git-commit.el,,command,global-git-commit-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-git-commit.el,,option,git-commit-mode-hook,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-git-commit.el,,option,global-git-commit-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-git-commit.el,,option,global-git-commit-mode-hook,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-git-rebase.el,91,option,git-rebase-auto-advance,missing,,explicit
-git-rebase.el,96,option,git-rebase-show-instructions,missing,,explicit
-git-rebase.el,101,option,git-rebase-confirm-cancel,missing,,explicit
+git-commit.el,,command,git-commit-mode,partial,Fred drafts and Git-opened message files,runtime
+git-commit.el,,command,git-commit-mode-menu,partial,:Magit name; the commit transient,runtime
+git-commit.el,,command,global-git-commit-mode,partial,message files Git opens in Fred get draft keys; Space m c c saves and quits,runtime
+git-commit.el,,option,git-commit-mode-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,runtime
+git-commit.el,,option,global-git-commit-mode,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),runtime
+git-commit.el,,option,global-git-commit-mode-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,runtime
+git-rebase.el,91,option,git-rebase-auto-advance,partial,action keys move to the next line,explicit
+git-rebase.el,96,option,git-rebase-show-instructions,partial,"Git's instructions are shown; under evil-collection its keys equal Magit's, so no rewrite is needed; nil does not hide them",explicit
+git-rebase.el,101,option,git-rebase-confirm-cancel,partial,ZQ on an edited todo asks (abort-rebase confirmation),explicit
 git-rebase.el,236,command,git-rebase-pick,partial,p in todo buffers,explicit
 git-rebase.el,242,command,git-rebase-drop,partial,d (evil-collection),explicit
 git-rebase.el,248,command,git-rebase-reword,partial,r,explicit
@@ -61,48 +61,48 @@ git-rebase.el,690,command,git-rebase-break,partial,b,explicit
 git-rebase.el,704,command,git-rebase-undo,partial,u (Fred undo),explicit
 git-rebase.el,726,command,git-rebase-show-commit,partial,Enter: the line's commit in a diff buffer,explicit
 git-rebase.el,731,command,git-rebase-show-or-scroll-up,partial,SPC shows the commit (no scrolling),explicit
-git-rebase.el,741,command,git-rebase-show-or-scroll-down,missing,,explicit
+git-rebase.el,741,command,git-rebase-show-or-scroll-down,partial,Backspace in the todo buffer shows the commit (no scrolling),explicit
 git-rebase.el,751,command,git-rebase-backward-line,partial,k under evil-collection,explicit
-git-rebase.el,,command,git-rebase-mode-menu,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-apply.el,55,option,magit-delete-by-moving-to-trash,missing,,explicit
-magit-apply.el,66,option,magit-unstage-committed,missing,,explicit
-magit-apply.el,82,option,magit-reverse-atomically,missing,,explicit
-magit-apply.el,94,option,magit-post-stage-hook,missing,,explicit
-magit-apply.el,102,option,magit-post-unstage-hook,missing,,explicit
+git-rebase.el,,command,git-rebase-mode-menu,partial,:Magit name; the todo buffer's keys,runtime
+magit-apply.el,55,option,magit-delete-by-moving-to-trash,partial,discarded untracked/new files go to the macOS or XDG trash,explicit
+magit-apply.el,66,option,magit-unstage-committed,partial,nil: u on committed changes errors,explicit
+magit-apply.el,82,option,magit-reverse-atomically,partial,nil reverses with --reject from diff buffers,explicit
+magit-apply.el,94,option,magit-post-stage-hook,partial,hook adapted: a list of shell commands run in the repository toplevel,explicit
+magit-apply.el,102,option,magit-post-unstage-hook,partial,hook adapted: a list of shell commands run in the repository toplevel,explicit
 magit-apply.el,113,command,magit-apply,partial,a on a hunk or file in diff/commit/stash buffers: git apply to the worktree (a on a commit: cherry-apply),explicit
 magit-apply.el,285,command,magit-stage,partial,s; file/hunk only; region and section staging missing,explicit
-magit-apply.el,312,command,magit-stage-files,missing,,explicit
+magit-apply.el,312,command,magit-stage-files,partial,"Space m F s without a visited file; :Magit; comma-separated files, default the file at point",explicit
 magit-apply.el,331,command,magit-stage-modified,partial,S: git add -u,explicit
 magit-apply.el,410,command,magit-unstage,partial,u; file/hunk only; region and section unstaging missing,explicit
-magit-apply.el,437,command,magit-unstage-files,missing,,explicit
+magit-apply.el,437,command,magit-unstage-files,partial,Space m F u without a visited file; rm --cached before the first commit,explicit
 magit-apply.el,463,command,magit-unstage-all,partial,"U: confirms, reset (or rm --cached when unborn)",explicit
 magit-apply.el,488,command,magit-discard,partial,"x in status (evil-collection): hunk, file, section; untracked deleted via git clean; always confirms",explicit
 magit-apply.el,686,command,magit-reverse,partial,- in status (staged changes) and on hunks/files in diff/commit/stash buffers; on a commit: revert-no-commit,explicit
-magit-apply.el,744,command,magit-reverse-in-index,missing,,explicit
-magit-apply.el,765,command,magit-copy-diff-as-kill,missing,,explicit
+magit-apply.el,744,command,magit-reverse-in-index,partial,"u on a committed hunk/file (magit-unstage-committed t), confirmed",explicit
+magit-apply.el,765,command,magit-copy-diff-as-kill,partial,":Magit name; hunk, file diff, or commit patch to the unnamed register",explicit
 magit-apply.el,792,command,magit-smerge-keep-current,partial,C-c ^ RET (the side at point) on the conflict at point in the file buffer (not on status hunks),explicit
 magit-apply.el,797,command,magit-smerge-keep-upper,partial,C-c ^ u on the conflict at point in the file buffer (not on status hunks),explicit
 magit-apply.el,802,command,magit-smerge-keep-base,partial,C-c ^ b on the conflict at point in the file buffer (not on status hunks),explicit
 magit-apply.el,807,command,magit-smerge-keep-lower,partial,C-c ^ l on the conflict at point in the file buffer (not on status hunks),explicit
 magit-apply.el,812,command,magit-smerge-keep-all,partial,C-c ^ a on the conflict at point in the file buffer (not on status hunks),explicit
-magit-autorevert.el,49,option,auto-revert-buffer-list-filter,missing,,explicit
-magit-autorevert.el,76,option,magit-auto-revert-tracked-only,missing,,explicit
-magit-autorevert.el,88,option,magit-auto-revert-immediately,missing,,explicit
-magit-autorevert.el,,command,magit-auto-revert-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-autorevert.el,,option,magit-auto-revert-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-autorevert.el,,option,magit-auto-revert-mode-hook,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-base.el,60,option,magit-completing-read-function,missing,,explicit
-magit-base.el,78,option,magit-dwim-selection,missing,,explicit
-magit-base.el,156,option,magit-no-confirm,missing,,explicit
-magit-base.el,342,option,magit-slow-confirm,missing,,explicit
-magit-base.el,358,option,magit-no-message,missing,,explicit
-magit-base.el,381,option,magit-verbose-messages,missing,,explicit
-magit-base.el,401,option,magit-ellipsis,missing,,explicit
-magit-base.el,426,option,magit-update-other-window-delay,missing,,explicit
-magit-base.el,444,option,magit-view-git-manual-method,missing,,explicit
-magit-base.el,721,command,magit-whitespace-disallowed,missing,,explicit
-magit-base.el,865,command,magit-emacs-Q-command,missing,,explicit
-magit-bisect.el,33,option,magit-bisect-show-graph,missing,,explicit
+magit-autorevert.el,49,option,auto-revert-buffer-list-filter,n/a,value is an Emacs Lisp function; Fred's built-in equivalent behavior is fixed,explicit
+magit-autorevert.el,76,option,magit-auto-revert-tracked-only,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
+magit-autorevert.el,88,option,magit-auto-revert-immediately,partial,Fred reverts right after each Git command (t); there is no timer for nil,explicit
+magit-autorevert.el,,command,magit-auto-revert-mode,partial,on by default; after Git commands unmodified repository buffers changed on disk reload; :Magit toggles,runtime
+magit-autorevert.el,,option,magit-auto-revert-mode,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),runtime
+magit-autorevert.el,,option,magit-auto-revert-mode-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,runtime
+magit-base.el,60,option,magit-completing-read-function,n/a,value is an Emacs Lisp function; Fred's built-in equivalent behavior is fixed,explicit
+magit-base.el,78,option,magit-dwim-selection,partial,"Fred acts on the stash at point (apply/pop/branch) and asks before dropping, as the default; not configurable",explicit
+magit-base.el,156,option,magit-no-confirm,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
+magit-base.el,342,option,magit-slow-confirm,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
+magit-base.el,358,option,magit-no-message,partial,prefixes of Magit completion messages not shown,explicit
+magit-base.el,381,option,magit-verbose-messages,partial,Fred always shows the concise messages (nil behavior),explicit
+magit-base.el,401,option,magit-ellipsis,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
+magit-base.el,426,option,magit-update-other-window-delay,n/a,"Emacs-specific (default-directory, windows, Info, minor modes, tab-width, buffer names, global keymaps or Lisp githook bridge); Fred's equivalent is fixed or uses Space m",explicit
+magit-base.el,444,option,magit-view-git-manual-method,n/a,"Emacs-specific (default-directory, windows, Info, minor modes, tab-width, buffer names, global keymaps or Lisp githook bridge); Fred's equivalent is fixed or uses Space m",explicit
+magit-base.el,721,command,magit-whitespace-disallowed,partial,space typed in a new-branch-name prompt inserts -,explicit
+magit-base.el,865,command,magit-emacs-Q-command,n/a,copies an 'emacs -Q' debugging command line; Fred has no Emacs to start (fred --version identifies the build),explicit
+magit-bisect.el,33,option,magit-bisect-show-graph,partial,Bisect Rest uses --graph unless false,explicit
 magit-bisect.el,57,command,magit-bisect,partial,Space m G (upstream B is the user's blame key) with -n -p and B/s; g/m/k/r while bisecting; term-old/new values missing,explicit
 magit-bisect.el,93,command,magit-bisect-start,partial,Space m G B; merge-base and clean-tree asserts,explicit
 magit-bisect.el,141,command,magit-bisect-reset,partial,r with y/n,explicit
@@ -115,13 +115,13 @@ magit-bisect.el,,command,magit-bisect:--term-new,partial,=n,runtime
 magit-bisect.el,,command,magit-bisect:--term-old,partial,=o,runtime
 magit-bisect.el,,command,transient:magit-bisect:--first-parent,partial,-p,runtime
 magit-bisect.el,,command,transient:magit-bisect:--no-checkout,partial,-n,runtime
-magit-blame.el,39,option,magit-blame-styles,missing,,explicit
-magit-blame.el,134,option,magit-blame-echo-style,missing,,explicit
-magit-blame.el,142,option,magit-blame-time-format,missing,,explicit
-magit-blame.el,147,option,magit-blame-read-only,missing,,explicit
-magit-blame.el,153,option,magit-blame-disable-modes,missing,,explicit
-magit-blame.el,160,option,magit-blame-mode-lighter,missing,,explicit
-magit-blame.el,165,option,magit-blame-goto-chunk-hook,missing,,explicit
+magit-blame.el,39,option,magit-blame-styles,partial,"style names in cycle order (headings, highlight, lines); per-style keys fixed",explicit
+magit-blame.el,134,option,magit-blame-echo-style,partial,initial style of echo mode (lines by default),explicit
+magit-blame.el,142,option,magit-blame-time-format,partial,"blame heading dates (local time, as upstream)",explicit
+magit-blame.el,147,option,magit-blame-read-only,partial,nil leaves a blamed buffer editable,explicit
+magit-blame.el,153,option,magit-blame-disable-modes,n/a,"Emacs-specific (default-directory, windows, Info, minor modes, tab-width, buffer names, global keymaps or Lisp githook bridge); Fred's equivalent is fixed or uses Space m",explicit
+magit-blame.el,160,option,magit-blame-mode-lighter,n/a,"Emacs faces, overlays, fringes, images, tooltips or mode-line lighters; Fred's terminal UI has fixed equivalents",explicit
+magit-blame.el,165,option,magit-blame-goto-chunk-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
 magit-blame.el,766,command,magit-blame-echo,partial,"Space m B m; lines style, message row shows chunk; editing allowed",explicit
 magit-blame.el,790,command,magit-blame-addition,partial,Space m B b; gutter margin styles; recursive blame on a blamed chunk needs blob buffers,explicit
 magit-blame.el,798,command,magit-blame-removal,partial,Blob buffers r / Space m B r; --reverse with orig/prev swap; recursion into previous blob,explicit
@@ -142,23 +142,23 @@ magit-blame.el,,command,magit-blame:-M,partial,-M without value,runtime
 magit-blame.el,,command,transient:magit-blame:--first-parent,partial,-P,runtime
 magit-blame.el,,command,transient:magit-blame:--root,partial,-r,runtime
 magit-blame.el,,command,transient:magit-blame:-w,partial,"-w, on by default",runtime
-magit-blame.el,,option,magit-blame-mode-hook,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-blame.el,,option,magit-blame-read-only-mode-hook,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-branch.el,38,option,magit-branch-read-upstream-first,missing,,explicit
-magit-branch.el,53,option,magit-branch-name-suggestions,missing,,explicit
-magit-branch.el,60,option,magit-branch-prefer-remote-upstream,missing,,explicit
-magit-branch.el,107,option,magit-branch-adjust-remote-upstream-alist,missing,,explicit
-magit-branch.el,169,option,magit-branch-rename-push-target,missing,,explicit
-magit-branch.el,197,option,magit-branch-direct-configure,missing,,explicit
-magit-branch.el,206,option,magit-published-branches,missing,,explicit
+magit-blame.el,,option,magit-blame-mode-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,runtime
+magit-blame.el,,option,magit-blame-read-only-mode-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,runtime
+magit-branch.el,38,option,magit-branch-read-upstream-first,partial,"t (default) asks the start point, then the name; fallback; false name first",explicit
+magit-branch.el,53,option,magit-branch-name-suggestions,partial,listed in the name prompt (no completion),explicit
+magit-branch.el,60,option,magit-branch-prefer-remote-upstream,partial,names or regexps: a new branch from such a local branch tracks its remote upstream,explicit
+magit-branch.el,107,option,magit-branch-adjust-remote-upstream-alist,partial,"[[UPSTREAM, REGEXP or [NAMES]]] after creating from a remote branch",explicit
+magit-branch.el,169,option,magit-branch-rename-push-target,partial,t offers to rename the push branch remotely; local-only/forge-only/nil keep only pushRemote,explicit
+magit-branch.el,197,option,magit-branch-direct-configure,partial,branch menu shows d u r p R P directly (C still opens the full set),explicit
+magit-branch.el,206,option,magit-published-branches,partial,"only these remote branches count as published (default origin/master, as upstream)",explicit
 magit-branch.el,215,command,magit-branch,partial,"Space m b menu with upstream keys b/l/c/s/n/S/m/x/k; direct configure group, C configure, hidden o/r/w/W/h/H and -m/-r missing",explicit
 magit-branch.el,265,command,magit-checkout,partial,"Space m b b picker of local and remote branches; Enter checks out, a typed revision detaches; -m/-r arguments missing",explicit
 magit-branch.el,285,command,magit-branch-create,partial,"Space m b n; name validated (check-ref-format, not taken) then start point; upstream adjustment alist missing",explicit
 magit-branch.el,298,command,magit-branch-and-checkout,partial,Space m b c; stash@{N} start uses git stash branch,explicit
-magit-branch.el,314,command,magit-branch-or-checkout,missing,,explicit
+magit-branch.el,314,command,magit-branch-or-checkout,partial,:Magit name; checkout a revision or create one from a start point,explicit
 magit-branch.el,340,command,magit-branch-checkout,partial,"Space m b l; local, remote-tracking (creates branch, sets pushRemote unless pushDefault), or new name with start point; refuses with uncommitted changes",explicit
 magit-branch.el,428,command,magit-branch-orphan,partial,Space m b o,explicit
-magit-branch.el,434,command,magit-checkout-remote-ref,missing,,explicit
+magit-branch.el,434,command,magit-checkout-remote-ref,partial,:Magit name (level 0 upstream); terminal fetch then checkout FETCH_HEAD,explicit
 magit-branch.el,517,command,magit-branch-spinout,partial,"Space m b S; stays on branch unless dirty, hard-resets it to merge-base; region FROM missing",explicit
 magit-branch.el,527,command,magit-branch-spinoff,partial,"Space m b s; new branch tracks old, old moves back to merge-base; region FROM missing",explicit
 magit-branch.el,602,command,magit-branch-reset,partial,"Space m b x; non-current via update-ref, current via reset --hard after yes when dirty; prefix set-upstream missing",explicit
@@ -175,8 +175,8 @@ magit-branch.el,,command,magit-branch.autoSetupMerge,partial,C =m (upstream a m)
 magit-branch.el,,command,magit-branch.autoSetupRebase,partial,C =r (upstream a r),runtime
 magit-branch.el,,command,magit-pull.rebase,partial,C R cycles,runtime
 magit-branch.el,,command,magit-remote.pushDefault,partial,C P cycles remotes,runtime
-magit-branch.el,,command,transient:magit-branch:--merge,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-branch.el,,command,transient:magit-branch:--recurse-submodules,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-branch.el,,command,transient:magit-branch:--merge,partial,branch -m; checkout/create-checkout pass it and it lifts the uncommitted-changes check,runtime
+magit-branch.el,,command,transient:magit-branch:--recurse-submodules,partial,branch -r; passed to checkout,runtime
 magit-bundle.el,37,command,magit-bundle,partial,Space m & (no upstream dispatch key): c v l,explicit
 magit-bundle.el,46,command,magit-bundle-create,partial,"& c menu j: file (default TOP.bundle), refnames; arguments; --branches= etc. need a typed value",explicit
 magit-bundle.el,77,command,magit-bundle-create-tracked,partial,"j t: tag, branch, refs, file; upstream tag message format",explicit
@@ -189,13 +189,13 @@ magit-bundle.el,,command,transient:magit-bundle-create:--exclude=,partial,menu a
 magit-bundle.el,,command,transient:magit-bundle-create:--glob=,partial,menu argument,runtime
 magit-bundle.el,,command,transient:magit-bundle-create:--remotes=,partial,menu argument,runtime
 magit-bundle.el,,command,transient:magit-bundle-create:--tags=,partial,menu argument,runtime
-magit-clone.el,33,option,magit-clone-set-remote-head,missing,,explicit
-magit-clone.el,39,option,magit-clone-set-remote.pushDefault,missing,,explicit
-magit-clone.el,50,option,magit-clone-default-directory,missing,,explicit
-magit-clone.el,61,option,magit-clone-always-transient,missing,,explicit
-magit-clone.el,70,option,magit-clone-name-alist,missing,,explicit
-magit-clone.el,96,option,magit-clone-url-format,missing,,explicit
-magit-clone.el,115,option,magit-post-clone-hook,missing,,explicit
+magit-clone.el,33,option,magit-clone-set-remote-head,partial,t keeps refs/remotes/<remote>/HEAD,explicit
+magit-clone.el,39,option,magit-clone-set-remote.pushDefault,partial,"ask (default) adds a y/n prompt, t sets, false never",explicit
+magit-clone.el,50,option,magit-clone-default-directory,partial,directory relative destinations resolve against (no function values),explicit
+magit-clone.el,61,option,magit-clone-always-transient,partial,false (default): Space m C / C clone at once; :Magit magit-clone-transient and -regular/-shallow/... names,explicit
+magit-clone.el,70,option,magit-clone-name-alist,partial,"[[REGEXP, HOST, USER]] (Emacs regexps translated); names without :// or @ become urls",explicit
+magit-clone.el,96,option,magit-clone-url-format,partial,"string or {host = format, t = default} with %h and %n",explicit
+magit-clone.el,115,option,magit-post-clone-hook,partial,hook adapted: a list of shell commands run in the repository toplevel; in the new repository,explicit
 magit-clone.el,127,command,magit-clone,partial,Space m C (dispatch C; commit stays on c): fetch/setup/sharing arguments,explicit
 magit-clone.el,172,command,magit-clone-regular,partial,"C C: background clone (no credential prompts), then status; remote HEAD unset; pushDefault question skipped",explicit
 magit-clone.el,179,command,magit-clone-shallow,partial,C s: --depth=1 (no prefix depth),explicit
@@ -215,12 +215,12 @@ magit-clone.el,,command,transient:magit-clone:--separate-git-dir=,partial,menu a
 magit-clone.el,,command,transient:magit-clone:--shared,partial,menu argument,runtime
 magit-clone.el,,command,transient:magit-clone:--single-branch,partial,menu argument,runtime
 magit-clone.el,,command,transient:magit-clone:--template=,partial,menu argument,runtime
-magit-commit.el,36,option,magit-commit-ask-to-stage,missing,,explicit
-magit-commit.el,45,option,magit-commit-show-diff,missing,,explicit
-magit-commit.el,51,option,magit-commit-extend-override-date,missing,,explicit
-magit-commit.el,57,option,magit-commit-reword-override-date,missing,,explicit
-magit-commit.el,63,option,magit-commit-squash-confirm,missing,,explicit
-magit-commit.el,74,option,magit-commit-diff-inhibit-same-window,missing,,explicit
+magit-commit.el,36,option,magit-commit-ask-to-stage,partial,"t/verbose ask, stage commits all, nil refuses (verbose does not show the unstaged diff); drafts and fixups",explicit
+magit-commit.el,45,option,magit-commit-show-diff,partial,Fred shows one buffer: the staged diff is C-c C-d in the draft,explicit
+magit-commit.el,51,option,magit-commit-extend-override-date,partial,nil keeps HEAD's committer date on extend,explicit
+magit-commit.el,57,option,magit-commit-reword-override-date,partial,nil keeps HEAD's committer date on reword,explicit
+magit-commit.el,63,option,magit-commit-squash-confirm,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
+magit-commit.el,74,option,magit-commit-diff-inhibit-same-window,n/a,window placement; Fred shows one buffer at a time,explicit
 magit-commit.el,117,command,magit-commit,partial,Space m C; source create/edit groups and common switches; remaining commands/options missing,explicit
 magit-commit.el,208,command,magit-commit-create,partial,Space m c c; draft creation/submission; complete source options/editor behavior missing,explicit
 magit-commit.el,222,command,magit-commit-extend,partial,Space m C e; no-message-edit amendment; prefix date customization missing,explicit
@@ -235,56 +235,56 @@ magit-commit.el,361,command,magit-commit-instant-fixup,partial,Space m C F; comm
 magit-commit.el,376,command,magit-commit-instant-squash,partial,Space m C S,explicit
 magit-commit.el,501,command,magit-commit-reshelve,partial,Space m c d: date (default now); author date too for your own commit,explicit
 magit-commit.el,535,command,magit-commit-absorb-modules,partial,c X: fixup per modified module since a commit (default upstream; no log-select),explicit
-magit-commit.el,558,command,magit-commit-absorb,missing,,explicit
+magit-commit.el,558,command,magit-commit-absorb,partial,"Space m c ... :Magit magit-commit-absorb opens its transient (-f -v seeded); x runs git absorb -b, offering to stage all unstaged changes; commit read by prompt not log-select",explicit
 magit-commit.el,601,command,magit-commit-autofixup,partial,c x: git autofixup -vv against the merge base; requires git-autofixup; no own menu,explicit
-magit-commit.el,773,command,magit-commit-add-log,missing,,explicit
-magit-commit.el,833,option,magit-post-commit-hook,missing,,explicit
-magit-commit.el,,command,magit-autofixup:--context,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-commit.el,,command,magit-autofixup:--strict,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-commit.el,773,command,magit-commit-add-log,partial,C on a file/hunk in status or diff buffers; opens the draft and adds * file (defun):,explicit
+magit-commit.el,833,option,magit-post-commit-hook,partial,hook adapted: a list of shell commands run in the repository toplevel; after commits made without a draft,explicit
+magit-commit.el,,command,magit-autofixup:--context,partial,-c in the autofixup transient (Space m c x),runtime
+magit-commit.el,,command,magit-autofixup:--strict,partial,-s in the autofixup transient,runtime
 magit-commit.el,,command,magit-commit:--date,partial,-D reads a value,runtime
 magit-commit.el,,command,magit-commit:--reedit-message,partial,-c: draft starts from that message,runtime
 magit-commit.el,,command,magit-commit:--reuse-message,partial,-C: commits at once with that message,runtime
-magit-commit.el,,command,transient:magit-commit-absorb:--force,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-commit.el,,command,transient:magit-commit-absorb:--verbose,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-commit.el,,command,transient:magit-commit-autofixup:-vv,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-commit.el,,command,transient:magit-commit-absorb:--force,partial,-f in the absorb transient,runtime
+magit-commit.el,,command,transient:magit-commit-absorb:--verbose,partial,"-v in the absorb transient, on by default",runtime
+magit-commit.el,,command,transient:magit-commit-autofixup:-vv,partial,"-v in the autofixup transient, on by default",runtime
 magit-commit.el,,command,transient:magit-commit:--all,partial,-a,runtime
 magit-commit.el,,command,transient:magit-commit:--allow-empty,partial,-e,runtime
 magit-commit.el,,command,transient:magit-commit:--no-verify,partial,-n,runtime
 magit-commit.el,,command,transient:magit-commit:--reset-author,partial,-R,runtime
 magit-commit.el,,command,transient:magit-commit:--verbose,partial,-v (seeded); diff not shown in the draft,runtime
-magit-diff.el,123,option,magit-diff-mode-hook,missing,,explicit
-magit-diff.el,128,option,magit-diff-sections-hook,missing,,explicit
-magit-diff.el,136,option,magit-diff-expansion-threshold,missing,,explicit
-magit-diff.el,154,option,magit-diff-highlight-hunk-body,missing,,explicit
-magit-diff.el,160,option,magit-diff-highlight-hunk-region-functions,missing,,explicit
-magit-diff.el,193,option,magit-diff-unmarked-lines-keep-foreground,missing,,explicit
-magit-diff.el,202,option,magit-diff-refine-hunk,missing,,explicit
-magit-diff.el,219,option,magit-diff-fontify-hunk,missing,,explicit
-magit-diff.el,246,option,magit-diff-refine-ignore-whitespace,missing,,explicit
-magit-diff.el,254,option,magit-diff-adjust-tab-width,missing,,explicit
-magit-diff.el,282,option,magit-diff-paint-whitespace,missing,,explicit
-magit-diff.el,305,option,magit-diff-paint-whitespace-lines,missing,,explicit
-magit-diff.el,318,option,magit-diff-highlight-trailing,missing,,explicit
-magit-diff.el,325,option,magit-diff-highlight-indentation,missing,,explicit
-magit-diff.el,343,option,magit-diff-hide-trailing-cr-characters,missing,,explicit
-magit-diff.el,350,option,magit-diff-extra-stat-arguments,missing,,explicit
-magit-diff.el,364,option,magit-format-file-function,missing,,explicit
-magit-diff.el,381,option,magit-diff-buffer-file-locked,missing,,explicit
-magit-diff.el,395,option,magit-revision-mode-hook,missing,,explicit
-magit-diff.el,404,option,magit-revision-sections-hook,missing,,explicit
-magit-diff.el,416,option,magit-revision-wash-message-hook,missing,,explicit
-magit-diff.el,434,option,magit-revision-headers-format,missing,,explicit
-magit-diff.el,451,option,magit-revision-insert-related-refs,missing,,explicit
-magit-diff.el,468,option,magit-revision-insert-related-refs-display-alist,missing,,explicit
-magit-diff.el,493,option,magit-revision-use-hash-sections,missing,,explicit
-magit-diff.el,517,option,magit-revision-show-gravatars,missing,,explicit
-magit-diff.el,545,option,magit-revision-fill-summary-line,missing,,explicit
-magit-diff.el,563,option,magit-revision-filter-files-on-follow,missing,,explicit
-magit-diff.el,580,option,magit-revision-use-dedicated-buffers,missing,,explicit
-magit-diff.el,602,option,magit-diff-visit-prefer-worktree,missing,,explicit
-magit-diff.el,622,option,magit-diff-visit-previous-blob,missing,,explicit
-magit-diff.el,771,option,magit-diff-specify-hunk-foreground,missing,,explicit
-magit-diff.el,896,option,magit-diff-use-indicator-faces,missing,,explicit
+magit-diff.el,123,option,magit-diff-mode-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
+magit-diff.el,128,option,magit-diff-sections-hook,n/a,list of Lisp section inserters; Fred renders upstream's default sections,explicit
+magit-diff.el,136,option,magit-diff-expansion-threshold,n/a,"Emacs-specific (default-directory, windows, Info, minor modes, tab-width, buffer names, global keymaps or Lisp githook bridge); Fred's equivalent is fixed or uses Space m",explicit
+magit-diff.el,154,option,magit-diff-highlight-hunk-body,n/a,"Emacs faces, overlays, fringes, images, tooltips or mode-line lighters; Fred's terminal UI has fixed equivalents",explicit
+magit-diff.el,160,option,magit-diff-highlight-hunk-region-functions,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
+magit-diff.el,193,option,magit-diff-unmarked-lines-keep-foreground,n/a,"Emacs faces, overlays, fringes, images, tooltips or mode-line lighters; Fred's terminal UI has fixed equivalents",explicit
+magit-diff.el,202,option,magit-diff-refine-hunk,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
+magit-diff.el,219,option,magit-diff-fontify-hunk,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
+magit-diff.el,246,option,magit-diff-refine-ignore-whitespace,partial,whitespace-only word changes are not emphasized,explicit
+magit-diff.el,254,option,magit-diff-adjust-tab-width,n/a,"Emacs-specific (default-directory, windows, Info, minor modes, tab-width, buffer names, global keymaps or Lisp githook bridge); Fred's equivalent is fixed or uses Space m",explicit
+magit-diff.el,282,option,magit-diff-paint-whitespace,partial,"t or ""uncommitted"" (diffs that are not committed)",explicit
+magit-diff.el,305,option,magit-diff-paint-whitespace-lines,partial,"t added, ""both"", ""all""",explicit
+magit-diff.el,318,option,magit-diff-highlight-trailing,partial,trailing spaces/tabs get a red background,explicit
+magit-diff.el,325,option,magit-diff-highlight-indentation,partial,"[[DIR-REGEXP, ""tabs"" or N]] on painted lines",explicit
+magit-diff.el,343,option,magit-diff-hide-trailing-cr-characters,partial,Fred always hides a CRLF's CR in diff buffers,explicit
+magit-diff.el,350,option,magit-diff-extra-stat-arguments,partial,list of extra --stat arguments in revision buffers (no function values),explicit
+magit-diff.el,364,option,magit-format-file-function,n/a,value is an Emacs Lisp function; Fred's built-in equivalent behavior is fixed,explicit
+magit-diff.el,381,option,magit-diff-buffer-file-locked,partial,file diff buffers are locked to their file (t),explicit
+magit-diff.el,395,option,magit-revision-mode-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
+magit-diff.el,404,option,magit-revision-sections-hook,n/a,list of Lisp section inserters; Fred renders upstream's default sections,explicit
+magit-diff.el,416,option,magit-revision-wash-message-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
+magit-diff.el,434,option,magit-revision-headers-format,partial,git log format after the ref labels and hash,explicit
+magit-diff.el,451,option,magit-revision-insert-related-refs,partial,"t, mixed, all, false: Parent, Merged, Contained, Follows, Precedes",explicit
+magit-diff.el,468,option,magit-revision-insert-related-refs-display-alist,partial,"{parents = false, ...}",explicit
+magit-diff.el,493,option,magit-revision-use-hash-sections,partial,"RET on a hash in a revision buffer's message visits it (quicker default; quick, quickest, slow, false)",explicit
+magit-diff.el,517,option,magit-revision-show-gravatars,n/a,"Emacs faces, overlays, fringes, images, tooltips or mode-line lighters; Fred's terminal UI has fixed equivalents",explicit
+magit-diff.el,545,option,magit-revision-fill-summary-line,partial,width (or true for 70),explicit
+magit-diff.el,563,option,magit-revision-filter-files-on-follow,partial,nil behavior: revisions from a --follow log show every file,explicit
+magit-diff.el,580,option,magit-revision-use-dedicated-buffers,partial,nil (default) reuses one revision buffer; t one per commit,explicit
+magit-diff.el,602,option,magit-diff-visit-prefer-worktree,partial,staged/unstaged diffs visit the worktree file,explicit
+magit-diff.el,622,option,magit-diff-visit-previous-blob,partial,nil always visits the new side,explicit
+magit-diff.el,771,option,magit-diff-specify-hunk-foreground,n/a,"Emacs faces, overlays, fringes, images, tooltips or mode-line lighters; Fred's terminal UI has fixed equivalents",explicit
+magit-diff.el,896,option,magit-diff-use-indicator-faces,n/a,"Emacs faces, overlays, fringes, images, tooltips or mode-line lighters; Fred's terminal UI has fixed equivalents",explicit
 magit-diff.el,1104,command,magit-diff,partial,"Space m d menu; -b -w -i -W -A -X -M -x -s =g and d/r/p/u/s/w/c/t; -- files, -U, level-5 args, persistence (set/save) missing",explicit
 magit-diff.el,1120,command,magit-diff-refresh,partial,Space m D (dispatch D): menu d's arguments; g applies them to the diff buffer; set/save missing,explicit
 magit-diff.el,1307,command,magit-diff-dwim,partial,"Space m d d; status section/file/hunk, log commit, stash, revision/diff buffers; region ranges, unmerged, module contexts missing",explicit
@@ -297,15 +297,15 @@ magit-diff.el,1518,command,magit-diff-while-committing,partial,C-c C-d in a comm
 magit-diff.el,1529,command,magit-diff-buffer-file,partial,"Space m F d: the visited file since HEAD, or a blob buffer's commit, limited to the file",explicit
 magit-diff.el,1560,command,magit-diff-paths,partial,Space m d p; repository-relative files via --no-index; file completion missing,explicit
 magit-diff.el,1581,command,magit-show-commit,partial,"Enter in log and Space m d c (at point or prompted) with diff args; revision sections, buffer locking and dedicated buffers missing",explicit
-magit-diff.el,1627,command,magit-show-commit-removing-file,missing,,explicit
+magit-diff.el,1627,command,magit-show-commit-removing-file,partial,:Magit name; default the file at point,explicit
 magit-diff.el,1688,command,magit-diff-switch-range-type,partial,D r: A..B <-> A...B,explicit
 magit-diff.el,1704,command,magit-diff-flip-revs,partial,D f: B..A,explicit
 magit-diff.el,1718,command,magit-diff-toggle-file-filter,partial,Space m D F: swaps the buffer's -- file limit with a suspended one,explicit
 magit-diff.el,1743,command,magit-diff-less-context,partial,= in a diff buffer (evil-collection),explicit
 magit-diff.el,1748,command,magit-diff-more-context,partial,+ in a diff buffer,explicit
 magit-diff.el,1753,command,magit-diff-default-context,partial,~ in a diff buffer (evil-collection),explicit
-magit-diff.el,1798,command,magit-diff-toggle-refine-hunk,missing,,explicit
-magit-diff.el,1820,command,magit-diff-toggle-fontify-hunk,missing,,explicit
+magit-diff.el,1798,command,magit-diff-toggle-refine-hunk,partial,t in the diff refresh menu; word-level reverse video for paired -/+ lines (all hunks at once),explicit
+magit-diff.el,1820,command,magit-diff-toggle-fontify-hunk,partial,T in the diff refresh menu; syntax colors by file extension over an added/removed tint,explicit
 magit-diff.el,1845,command,magit-diff-visit-file,partial,"Enter on a diff line: the blob at that revision (old side for removed lines) or the worktree file, at the line",explicit
 magit-diff.el,1887,command,magit-diff-visit-file-other-window,partial,Fred has no windows: same as Enter,explicit
 magit-diff.el,1896,command,magit-diff-visit-file-other-frame,partial,Fred has no frames: same as Enter,explicit
@@ -314,7 +314,7 @@ magit-diff.el,1926,command,magit-diff-visit-worktree-file-other-window,partial,F
 magit-diff.el,1932,command,magit-diff-visit-worktree-file-other-frame,partial,Fred has no frames: same as C-j,explicit
 magit-diff.el,2179,command,magit-diff-show-or-scroll-up,partial,Enter shows the commit at point (no scrolling of another window),explicit
 magit-diff.el,2190,command,magit-diff-show-or-scroll-down,partial,Enter shows the commit at point (no scrolling of another window),explicit
-magit-diff.el,2256,command,magit-section-cycle-diffs,missing,,explicit
+magit-diff.el,2256,command,magit-section-cycle-diffs,partial,"M-Tab in status: every staged/unstaged file diff, or none",explicit
 magit-diff.el,2288,command,magit-revision-jump,partial,:Magit: headers (no transient),explicit
 magit-diff.el,2316,command,magit-jump-to-revision-diffstat,partial,:Magit (also gd),explicit
 magit-diff.el,2335,command,magit-jump-to-revision-diff,partial,:Magit (also gd),explicit
@@ -346,16 +346,16 @@ magit-dired.el,39,command,magit-dired-jump,partial,:Magit magit-dired-jump: the 
 magit-dired.el,55,command,magit-dired-stage,partial,Space m F s in dired: marked files or the one at point,explicit
 magit-dired.el,61,command,magit-dired-unstage,partial,Space m F u in dired,explicit
 magit-dired.el,67,command,magit-dired-log,partial,"Space m F l in dired: marked files, else the directory",explicit
-magit-dired.el,87,command,magit-dired-am-apply-patches,missing,,explicit
-magit-dired.el,101,command,magit-do-async-shell-command,missing,,explicit
-magit-ediff.el,44,option,magit-ediff-quit-hook,missing,,explicit
-magit-ediff.el,57,option,magit-ediff-dwim-resolve-function,missing,,explicit
-magit-ediff.el,65,option,magit-ediff-dwim-show-on-hunks,missing,,explicit
-magit-ediff.el,75,option,magit-ediff-show-stash-with-index,missing,,explicit
+magit-dired.el,87,command,magit-dired-am-apply-patches,partial,:Magit name in dired; marked files with the am menu's arguments,explicit
+magit-dired.el,101,command,magit-do-async-shell-command,partial,& on a file or hunk; dired-style * substitution; runs in the terminal,explicit
+magit-ediff.el,44,option,magit-ediff-quit-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
+magit-ediff.el,57,option,magit-ediff-dwim-resolve-function,n/a,value is an Emacs Lisp function; Fred's built-in equivalent behavior is fixed,explicit
+magit-ediff.el,65,option,magit-ediff-dwim-show-on-hunks,n/a,Ediff is not available; Fred adapts magit-ediff to git difftool/mergetool,explicit
+magit-ediff.el,75,option,magit-ediff-show-stash-with-index,n/a,Ediff is not available; Fred adapts magit-ediff to git difftool/mergetool,explicit
 magit-ediff.el,117,command,magit-ediff,partial,E in Magit buffers / Space m E: git difftool and mergetool in the terminal (no Ediff),explicit
 magit-ediff.el,134,command,magit-ediff-resolve-all,partial,E M: git mergetool -- FILE,explicit
 magit-ediff.el,197,command,magit-ediff-resolve-rest,partial,E m: git mergetool -- FILE,explicit
-magit-ediff.el,233,command,magit-ediff-stage,missing,,explicit
+magit-ediff.el,233,command,magit-ediff-stage,partial,E s; adapted to git add --patch for the file (Fred has no Ediff),explicit
 magit-ediff.el,274,command,magit-ediff-compare,partial,E r: difftool A [B],explicit
 magit-ediff.el,336,command,magit-ediff-dwim,partial,e: by the section at point,explicit
 magit-ediff.el,410,command,magit-ediff-show-staged,partial,E i: difftool --cached,explicit
@@ -364,42 +364,42 @@ magit-ediff.el,442,command,magit-ediff-show-working-tree,partial,E w: difftool H
 magit-ediff.el,454,command,magit-ediff-show-commit,partial,E c: difftool C^ C,explicit
 magit-ediff.el,464,command,magit-ediff-show-stash,partial,E z: difftool S^ S,explicit
 magit-extras.el,46,command,magit-git-mergetool,partial,"E t menu: -t tool, m invoke (terminal, no --gui)",explicit
-magit-extras.el,127,command,magit-run-git-gui-blame,missing,,explicit
-magit-extras.el,154,option,magit-gitk-executable,missing,,explicit
-magit-extras.el,167,command,magit-run-git-gui,missing,,explicit
-magit-extras.el,173,command,magit-run-gitk,missing,,explicit
-magit-extras.el,179,command,magit-run-gitk-branches,missing,,explicit
-magit-extras.el,185,command,magit-run-gitk-all,missing,,explicit
-magit-extras.el,193,command,magit-project-status,missing,,explicit
-magit-extras.el,210,command,magit-project-dispatch,missing,,explicit
+magit-extras.el,127,command,magit-run-git-gui-blame,partial,":Magit name; visited file at the current line, HEAD (no revision prompt)",explicit
+magit-extras.el,154,option,magit-gitk-executable,partial,program the gitk launchers start,explicit
+magit-extras.el,167,command,magit-run-git-gui,partial,! g,explicit
+magit-extras.el,173,command,magit-run-gitk,partial,Space m ! k; started detached in the repository,explicit
+magit-extras.el,179,command,magit-run-gitk-branches,partial,! b,explicit
+magit-extras.el,185,command,magit-run-gitk-all,partial,! a,explicit
+magit-extras.el,193,command,magit-project-status,partial,:Magit name; Fred has no project.el: the current repository's status,explicit
+magit-extras.el,210,command,magit-project-dispatch,partial,:Magit name; the dispatch menu for the current repository,explicit
 magit-extras.el,241,command,magit-previous-line,partial,k (evil),explicit
 magit-extras.el,264,command,magit-next-line,partial,j (evil),explicit
 magit-extras.el,288,command,magit-clean,partial,:Magit magit-clean (typed yes; magit-clean-ignored for -x),explicit
-magit-extras.el,307,command,magit-generate-changelog,missing,,explicit
-magit-extras.el,338,command,magit-add-change-log-entry,missing,,explicit
-magit-extras.el,351,command,magit-add-change-log-entry-other-window,missing,,explicit
+magit-extras.el,307,command,magit-generate-changelog,partial,:Magit name; GNU entries from the committing diff (HEAD^ when amending),explicit
+magit-extras.el,338,command,magit-add-change-log-entry,partial,":Magit name; nearest ChangeLog, today's author heading, item per file/defun",explicit
+magit-extras.el,351,command,magit-add-change-log-entry-other-window,partial,:Magit name; as magit-add-change-log-entry,explicit
 magit-extras.el,364,command,magit-edit-line-commit,partial,"F e: blame the line, rebase edit its commit (or check it out when not on HEAD)",explicit
-magit-extras.el,405,command,magit-diff-edit-hunk-commit,missing,,explicit
-magit-extras.el,432,option,magit-reshelve-since-committer-only,missing,,explicit
-magit-extras.el,440,command,magit-reshelve-since,missing,,explicit
-magit-extras.el,530,option,magit-pop-revision-stack-format,missing,,explicit
-magit-extras.el,577,option,magit-copy-revision-abbreviated,missing,,explicit
-magit-extras.el,584,command,magit-pop-revision-stack,missing,,explicit
+magit-extras.el,405,command,magit-diff-edit-hunk-commit,partial,"C-c C-e on a hunk; blames the shown side's line, then rebase-edits that commit",explicit
+magit-extras.el,432,option,magit-reshelve-since-committer-only,partial,keeps author dates,explicit
+magit-extras.el,440,command,magit-reshelve-since,partial,":Magit name; log-select the first commit, read its date; rewritten with commit-tree (no filter-branch), --gpg-sign from the rebase menu",explicit
+magit-extras.el,530,option,magit-pop-revision-stack-format,partial,[POINT EOB INDEX-REGEXP] with %N; Emacs regexp groups translated,explicit
+magit-extras.el,577,option,magit-copy-revision-abbreviated,partial,ys/yb copy and stack the short hash,explicit
+magit-extras.el,584,command,magit-pop-revision-stack,partial,"C-c C-w in drafts; ys/yb push commits; default format (point and end entries, numbered); empty stack errors instead of reading a revision",explicit
 magit-extras.el,651,command,magit-copy-section-value,partial,"ys: commit, file, stash, module",explicit
 magit-extras.el,711,command,magit-copy-buffer-revision,partial,yb,explicit
 magit-extras.el,758,command,magit-display-repository-buffer,partial,F G: the repository's status buffer (no buffer choice),explicit
 magit-extras.el,766,command,magit-switch-to-repository-buffer,partial,:Magit name: the status buffer,explicit
 magit-extras.el,773,command,magit-switch-to-repository-buffer-other-window,partial,Fred has no windows: the status buffer,explicit
 magit-extras.el,780,command,magit-switch-to-repository-buffer-other-frame,partial,Fred has no frames: the status buffer,explicit
-magit-extras.el,807,command,magit-abort-dwim,missing,,explicit
+magit-extras.el,807,command,magit-abort-dwim,partial,":Magit name; merge, am, rebase, sequencer, then bisect, each with its own confirmation",explicit
 magit-extras.el,819,command,magit-back-to-indentation,partial,^ is magit-section-up; Vim 0/_ move to the line start,explicit
 magit-extras.el,,command,magit-git-mergetool:--tool,partial,-t,runtime
-magit-extras.el,,command,magit-merge.guitool,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-extras.el,,command,magit-merge.tool,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-extras.el,,command,magit-mergetool.hideResolved,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-extras.el,,command,magit-mergetool.keepBackup,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-extras.el,,command,magit-mergetool.keepTemporaries,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-extras.el,,command,magit-mergetool.writeToTemp,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-extras.el,,command,magit-merge.guitool,partial,"=t in the mergetool menu; global, read from git mergetool --tool-help",runtime
+magit-extras.el,,command,magit-merge.tool,partial,=T in the mergetool menu,runtime
+magit-extras.el,,command,magit-mergetool.hideResolved,partial,-r cycles true/false/unset (global),runtime
+magit-extras.el,,command,magit-mergetool.keepBackup,partial,-b,runtime
+magit-extras.el,,command,magit-mergetool.keepTemporaries,partial,-k,runtime
+magit-extras.el,,command,magit-mergetool.writeToTemp,partial,-w,runtime
 magit-fetch.el,34,command,magit-fetch,partial,"Space m f menu; arguments and p/u/e/a/o/r/m suffixes; -u unshallow (level 7), C configure, dynamic descriptions missing",explicit
 magit-fetch.el,62,command,magit-fetch-from-pushremote,partial,Space m f p; sets pushRemote when unusable; prefix-arg change missing,explicit
 magit-fetch.el,90,command,magit-fetch-from-upstream,partial,Space m f u; magit-get-current-remote resolution; :if hiding missing (errors instead),explicit
@@ -410,8 +410,8 @@ magit-fetch.el,137,command,magit-fetch-all,partial,Space m f a,explicit
 magit-fetch.el,143,command,magit-fetch-all-prune,partial,Space m P F (remote update --prune); also :Magit magit-fetch-all-prune,explicit
 magit-fetch.el,152,command,magit-fetch-all-no-prune,partial,Space m P f; also :Magit magit-fetch-all-no-prune,explicit
 magit-fetch.el,159,command,magit-fetch-modules,partial,o f and Space m f m,explicit
-magit-fetch.el,,command,transient:magit-fetch-modules:--jobs=,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-fetch.el,,command,transient:magit-fetch-modules:--verbose,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-fetch.el,,command,transient:magit-fetch-modules:--jobs=,partial,"-j in the fetch-modules transient (f m / o f), seeded 4",runtime
+magit-fetch.el,,command,transient:magit-fetch-modules:--verbose,partial,"-v, on by default",runtime
 magit-fetch.el,,command,transient:magit-fetch:--force,partial,-F,runtime
 magit-fetch.el,,command,transient:magit-fetch:--prune,partial,-p,runtime
 magit-fetch.el,,command,transient:magit-fetch:--tags,partial,-t,runtime
@@ -419,7 +419,7 @@ magit-fetch.el,,command,transient:magit-fetch:--unshallow,partial,-u,runtime
 magit-files.el,53,command,magit-find-file,partial,"Space m F v; revision and file prompts with defaults; {index}; position kept by line number, not mapped through diffs; completion missing",explicit
 magit-files.el,63,command,magit-find-file-other-window,partial,Fred has no windows: same as magit-find-file (Space m F v),explicit
 magit-files.el,73,command,magit-find-file-other-frame,partial,Fred has no frames: same as magit-find-file,explicit
-magit-files.el,363,command,magit-update-index,missing,,explicit
+magit-files.el,363,command,magit-update-index,partial,:Magit name in an {index} blob buffer,explicit
 magit-files.el,401,command,magit-find-git-config-file,partial,:Magit: visits the repository config file,explicit
 magit-files.el,417,command,magit-find-git-config-file-other-window,partial,Fred has no windows: same as magit-find-git-config-file,explicit
 magit-files.el,433,command,magit-find-git-config-file-other-frame,partial,Fred has no frames: same as magit-find-git-config-file,explicit
@@ -439,19 +439,19 @@ magit-files.el,746,command,magit-file-checkout,partial,"Space m F ,c; revision a
 magit-files.el,,command,magit-blob-mode,partial,Read-only blob buffers with p/n/b/r/f/q and gr refresh; syntax from file name,runtime
 magit-files.el,,command,magit-stage-buffer-file,partial,F s,runtime
 magit-files.el,,command,magit-unstage-buffer-file,partial,F u,runtime
-magit-files.el,,option,magit-blob-mode-hook,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-git.el,88,option,magit-git-output-coding-system,missing,,explicit
-magit-git.el,113,option,magit-git-executable,missing,,explicit
-magit-git.el,150,option,magit-remote-git-executable,missing,,explicit
-magit-git.el,159,option,magit-run-hooks-from-githooks,missing,,explicit
-magit-git.el,172,option,magit-user-githook-file,missing,,explicit
-magit-git.el,211,option,magit-git-global-arguments,missing,,explicit
-magit-git.el,237,option,magit-prefer-remote-upstream,missing,,explicit
-magit-git.el,251,option,magit-list-refs-namespaces,missing,,explicit
-magit-git.el,265,option,magit-list-refs-sortby,missing,,explicit
-magit-git.el,293,option,magit-cygwin-mount-points,missing,,explicit
-magit-git.el,328,command,magit-toggle-git-debug,missing,,explicit
-magit-git.el,824,command,magit-debug-git-executable,missing,,explicit
+magit-files.el,,option,magit-blob-mode-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,runtime
+magit-git.el,88,option,magit-git-output-coding-system,n/a,"Windows/Cygwin, coding-system, pty/pipe or TRAMP setting; Fred runs Git directly (UTF-8 bytes, terminal for interaction)",explicit
+magit-git.el,113,option,magit-git-executable,partial,program for every background and terminal Git command,explicit
+magit-git.el,150,option,magit-remote-git-executable,n/a,"Windows/Cygwin, coding-system, pty/pipe or TRAMP setting; Fred runs Git directly (UTF-8 bytes, terminal for interaction)",explicit
+magit-git.el,159,option,magit-run-hooks-from-githooks,n/a,"Emacs-specific (default-directory, windows, Info, minor modes, tab-width, buffer names, global keymaps or Lisp githook bridge); Fred's equivalent is fixed or uses Space m",explicit
+magit-git.el,172,option,magit-user-githook-file,n/a,"Emacs-specific (default-directory, windows, Info, minor modes, tab-width, buffer names, global keymaps or Lisp githook bridge); Fred's equivalent is fixed or uses Space m",explicit
+magit-git.el,211,option,magit-git-global-arguments,partial,"prepended to every Git command; Fred's own safety arguments are built in, so the upstream default list is not repeated",explicit
+magit-git.el,237,option,magit-prefer-remote-upstream,partial,"start-point default from the branch at point (refs rows, log labels): remote first when t",explicit
+magit-git.el,251,option,magit-list-refs-namespaces,partial,namespaces of the checkout picker (Fred default heads and remotes),explicit
+magit-git.el,265,option,magit-list-refs-sortby,partial,for-each-ref --sort keys of the checkout picker,explicit
+magit-git.el,293,option,magit-cygwin-mount-points,n/a,"Windows/Cygwin, coding-system, pty/pipe or TRAMP setting; Fred runs Git directly (UTF-8 bytes, terminal for interaction)",explicit
+magit-git.el,328,command,magit-toggle-git-debug,partial,:Magit name; failing background Git calls listed in the process buffer,explicit
+magit-git.el,824,command,magit-debug-git-executable,partial,":Magit name; path, version and exec-path",explicit
 magit-gitignore.el,34,command,magit-gitignore,partial,Space m I (upstream i is the user's init): t s p g; w W u U,explicit
 magit-gitignore.el,52,command,magit-gitignore-in-topdir,partial,I t: default from the file at point; staged,explicit
 magit-gitignore.el,61,command,magit-gitignore-in-subdir,partial,I s: directory then pattern; staged,explicit
@@ -461,26 +461,26 @@ magit-gitignore.el,159,command,magit-skip-worktree,partial,I w: tracked files on
 magit-gitignore.el,171,command,magit-no-skip-worktree,partial,I W,explicit
 magit-gitignore.el,182,command,magit-assume-unchanged,partial,I u,explicit
 magit-gitignore.el,194,command,magit-no-assume-unchanged,partial,I U,explicit
-magit-log.el,76,option,magit-log-mode-hook,missing,,explicit
-magit-log.el,81,option,magit-log-remove-graph-args,missing,,explicit
-magit-log.el,95,option,magit-log-revision-headers-format,missing,,explicit
-magit-log.el,104,option,magit-log-auto-more,missing,,explicit
-magit-log.el,111,option,magit-log-margin,missing,,explicit
-magit-log.el,136,option,magit-log-margin-show-committer-date,missing,,explicit
-magit-log.el,148,option,magit-log-show-refname-after-summary,missing,,explicit
-magit-log.el,155,option,magit-log-wash-summary-hook,missing,,explicit
-magit-log.el,173,option,magit-log-trailer-labels,missing,,explicit
-magit-log.el,190,option,magit-log-header-line-function,missing,,explicit
-magit-log.el,198,option,magit-log-trace-definition-function,missing,,explicit
-magit-log.el,210,option,magit-log-color-graph-limit,missing,,explicit
-magit-log.el,220,option,magit-log-show-signatures-limit,missing,,explicit
-magit-log.el,267,option,magit-log-buffer-file-locked,missing,,explicit
-magit-log.el,276,option,magit-log-select-show-usage,missing,,explicit
-magit-log.el,288,option,magit-log-select-margin,missing,,explicit
-magit-log.el,320,option,magit-cherry-sections-hook,missing,,explicit
-magit-log.el,328,option,magit-cherry-margin,missing,,explicit
-magit-log.el,360,option,magit-log-section-commit-count,partial,default 10 used; not configurable,explicit
-magit-log.el,369,option,magit-log-merged-commit-count,missing,,explicit
+magit-log.el,76,option,magit-log-mode-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
+magit-log.el,81,option,magit-log-remove-graph-args,partial,these arguments drop --graph,explicit
+magit-log.el,95,option,magit-log-revision-headers-format,partial,++header (log -h) shows it under each commit (indented),explicit
+magit-log.el,104,option,magit-log-auto-more,partial,moving past the last section doubles the commit limit,explicit
+magit-log.el,111,option,magit-log-margin,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
+magit-log.el,136,option,magit-log-margin-show-committer-date,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
+magit-log.el,148,option,magit-log-show-refname-after-summary,partial,ref labels after the subject,explicit
+magit-log.el,155,option,magit-log-wash-summary-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
+magit-log.el,173,option,magit-log-trailer-labels,n/a,its value is a Lisp formatting function (plus %(trailers) options),explicit
+magit-log.el,190,option,magit-log-header-line-function,n/a,value is an Emacs Lisp function; Fred's built-in equivalent behavior is fixed,explicit
+magit-log.el,198,option,magit-log-trace-definition-function,n/a,value is an Emacs Lisp function; Fred's built-in equivalent behavior is fixed,explicit
+magit-log.el,210,option,magit-log-color-graph-limit,n/a,Fred draws logs without Git's colors (--color is never passed),explicit
+magit-log.el,220,option,magit-log-show-signatures-limit,partial,--show-signature dropped above this commit limit (or with none),explicit
+magit-log.el,267,option,magit-log-buffer-file-locked,partial,file log buffers are per file (t behavior),explicit
+magit-log.el,276,option,magit-log-select-show-usage,partial,both/header-line/echo-area,explicit
+magit-log.el,288,option,magit-log-select-margin,partial,margin of selection logs,explicit
+magit-log.el,320,option,magit-cherry-sections-hook,n/a,list of Lisp section inserters; Fred renders upstream's default sections,explicit
+magit-log.el,328,option,magit-cherry-margin,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
+magit-log.el,360,option,magit-log-section-commit-count,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
+magit-log.el,369,option,magit-log-merged-commit-count,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
 magit-log.el,525,command,magit-log,partial,"Space m l: upstream groups (commit limiting, history simplification, ordering, formatting) with free-form values; Log l/o/h/u/L/b/a/R/B/T/m and Reflog r/O/H; missing shortlog, wiplog, -- files, set/save",explicit
 magit-log.el,556,command,magit-log-refresh,partial,"L in Magit buffers (evil default) / :Magit: log arguments shared with l; g applies them to this log buffer (no set/save, margin)",explicit
 magit-log.el,699,command,magit-log-current,partial,Space m l l: current branch (or HEAD) with menu arguments; inherits the file of a file-log buffer,explicit
@@ -495,7 +495,7 @@ magit-log.el,787,command,magit-log-all,partial,Space m l a,explicit
 magit-log.el,793,command,magit-log-reflog,partial,Space m l R,explicit
 magit-log.el,799,command,magit-log-buffer-file,partial,"Space m L: literal file history, follow rename option, refresh, commit inspection/return; missing region/revision/custom arguments",explicit
 magit-log.el,825,command,magit-log-trace-definition,partial,Space m F t: git log -L :NAME:file for the word at point (no which-function),explicit
-magit-log.el,854,command,magit-diff-trace-definition,missing,,explicit
+magit-log.el,854,command,magit-diff-trace-definition,partial,C-c C-t on a hunk; the hunk's function by Git's funcname,explicit
 magit-log.el,862,command,magit-log-merged,partial,"Space m l m: native (no git-when-merged) M^1..M, or first-parent neighborhood of a commit on the branch",explicit
 magit-log.el,911,command,magit-delete-shelved-branch,partial,:Magit magit-delete-shelved-branch,explicit
 magit-log.el,919,command,magit-log-toggle-commit-limit,partial,= in a log buffer (default 256),explicit
@@ -503,23 +503,23 @@ magit-log.el,926,command,magit-log-double-commit-limit,partial,+ in a log buffer
 magit-log.el,931,command,magit-log-half-commit-limit,partial,:Magit (evil-collection leaves - to revert),explicit
 magit-log.el,955,command,magit-log-bury-buffer,partial,q in log buffers returns,explicit
 magit-log.el,972,command,magit-log-move-to-parent,partial,C-c C-n in a log buffer,explicit
-magit-log.el,989,command,magit-log-move-to-revision,missing,,explicit
+magit-log.el,989,command,magit-log-move-to-revision,partial,":Magit name (Vim keeps j); this log, else all branches",explicit
 magit-log.el,1018,command,magit-shortlog,partial,Space m l s opens menu S: -n -s -e -g (author/committer; trailer: missing) -f -w; seeded --numbered --summary,explicit
 magit-log.el,1046,command,magit-shortlog-since,partial,S s: REV.. default current tag,explicit
 magit-log.el,1054,command,magit-shortlog-range,partial,"S r: revision or range, default at point",explicit
-magit-log.el,1083,command,magit-previous-reference,missing,,explicit
-magit-log.el,1094,command,magit-next-reference,missing,,explicit
-magit-log.el,1692,command,magit-toggle-log-margin-style,missing,,explicit
-magit-log.el,1870,command,magit-log-select-pick,missing,,explicit
-magit-log.el,1880,command,magit-log-select-quit,missing,,explicit
+magit-log.el,1083,command,magit-previous-reference,partial,:Magit name,explicit
+magit-log.el,1094,command,magit-next-reference,partial,"C-c C-r; decorated log rows, refs rows, status ref headers",explicit
+magit-log.el,1692,command,magit-toggle-log-margin-style,partial,x in the log refresh menu: shortstat margin,explicit
+magit-log.el,1870,command,magit-log-select-pick,partial,. e C-c C-c in a selection log,explicit
+magit-log.el,1880,command,magit-log-select-quit,partial,q C-c C-k in a selection log,explicit
 magit-log.el,1930,command,magit-cherry,partial,"Space m Y: head/upstream headers and +/- cherry commits, newest first; upstream default is the current branch's",explicit
 magit-log.el,,command,magit-jump-to-unpulled-from-pushremote,partial,gfp in status,runtime
 magit-log.el,,command,magit-jump-to-unpulled-from-upstream,partial,gfu in status,runtime
 magit-log.el,,command,magit-jump-to-unpushed-to-pushremote,partial,gpp in status,runtime
 magit-log.el,,command,magit-jump-to-unpushed-to-upstream,partial,gpu in status (also recent commits),runtime
-magit-log.el,,command,magit-log-select-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,magit-log-select-mode,partial,"commit fixup/squash/alter/augment/revise/instant, absorb/autofixup and rebase i/m/w/k without a commit at point",runtime
 magit-log.el,,command,magit-log:--*-order,partial,-o cycles topo/author-date/date,runtime
-magit-log.el,,command,magit-log:--graph-lane-limit,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-log.el,,command,magit-log:--graph-lane-limit,partial,=g in the log menu,runtime
 magit-log.el,,command,magit-log:--grep,partial,-F reads a value,runtime
 magit-log.el,,command,magit-log:--since,partial,=s reads a value (no date reader),runtime
 magit-log.el,,command,magit-log:--until,partial,=u reads a value (no date reader),runtime
@@ -557,10 +557,10 @@ magit-log.el,,command,transient:magit-shortlog:--group=,partial,-g cycles author
 magit-log.el,,command,transient:magit-shortlog:--numbered,partial,menu S argument,runtime
 magit-log.el,,command,transient:magit-shortlog:--summary,partial,menu S argument,runtime
 magit-log.el,,command,transient:magit-shortlog:-w,partial,menu S argument,runtime
-magit-margin.el,76,command,magit-margin-settings,missing,,explicit
-magit-margin.el,85,command,magit-toggle-margin,missing,,explicit
-magit-margin.el,99,command,magit-cycle-margin-style,missing,,explicit
-magit-margin.el,118,command,magit-toggle-margin-details,missing,,explicit
+magit-margin.el,76,command,magit-margin-settings,partial,L in reflog/refs/cherry buffers; :Magit; L l d (and v in refs),explicit
+magit-margin.el,85,command,magit-toggle-margin,partial,L in the margin menu and log refresh menu; right-aligned author and age per commit/stash row,explicit
+magit-margin.el,99,command,magit-cycle-margin-style,partial,"l: age, abbreviated age, %Y-%m-%d %H:%M",explicit
+magit-margin.el,118,command,magit-toggle-margin-details,partial,"d: author column (18 wide, ellipsis)",explicit
 magit-merge.el,37,command,magit-merge,partial,"Space m M with -f/-n (incompatible) and -s strategy choices; m/a resolve to commit/abort while merging; -X options, gpg-sign, signoff missing",explicit
 magit-merge.el,89,command,magit-merge-plain,partial,"Space m M m; --no-edit, octopus via commas, dirty worktree refused; prefix nocommit missing",explicit
 magit-merge.el,108,command,magit-merge-editmsg,partial,Space m M e; merge --no-commit --no-ff then Fred commit draft with MERGE_MSG (no Git editor),explicit
@@ -577,45 +577,45 @@ magit-merge.el,,command,transient:magit-merge:--ff-only,partial,Space m M argume
 magit-merge.el,,command,transient:magit-merge:--no-ff,partial,Space m M argument,runtime
 magit-merge.el,,command,transient:magit-merge:-Xignore-all-space,partial,-w,runtime
 magit-merge.el,,command,transient:magit-merge:-Xignore-space-change,partial,-b,runtime
-magit-mode.el,60,option,magit-mode-hook,missing,,explicit
-magit-mode.el,67,option,magit-setup-buffer-hook,missing,,explicit
-magit-mode.el,83,option,magit-pre-refresh-hook,missing,,explicit
-magit-mode.el,98,option,magit-post-refresh-hook,missing,,explicit
-magit-mode.el,121,option,magit-display-buffer-function,missing,,explicit
-magit-mode.el,137,option,magit-pre-display-buffer-hook,missing,,explicit
-magit-mode.el,146,option,magit-post-display-buffer-hook,missing,,explicit
-magit-mode.el,154,option,magit-generate-buffer-name-function,missing,,explicit
-magit-mode.el,162,option,magit-buffer-name-format,missing,,explicit
-magit-mode.el,198,option,magit-uniquify-buffer-names,missing,,explicit
-magit-mode.el,204,option,magit-bury-buffer-function,missing,,explicit
-magit-mode.el,213,option,magit-prefix-use-buffer-arguments,missing,,explicit
-magit-mode.el,245,option,magit-direct-use-buffer-arguments,missing,,explicit
-magit-mode.el,278,option,magit-region-highlight-hook,missing,,explicit
-magit-mode.el,290,option,magit-create-buffer-hook,missing,,explicit
-magit-mode.el,298,option,magit-post-create-buffer-hook,missing,,explicit
-magit-mode.el,307,option,magit-refresh-buffer-hook,missing,,explicit
-magit-mode.el,313,option,magit-refresh-status-buffer,missing,,explicit
-magit-mode.el,327,option,magit-refresh-verbose,missing,,explicit
-magit-mode.el,333,option,magit-save-repository-buffers,missing,,explicit
+magit-mode.el,60,option,magit-mode-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
+magit-mode.el,67,option,magit-setup-buffer-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
+magit-mode.el,83,option,magit-pre-refresh-hook,partial,hook adapted: a list of shell commands run in the repository toplevel (the save-buffers default is the separate option),explicit
+magit-mode.el,98,option,magit-post-refresh-hook,partial,hook adapted: a list of shell commands run in the repository toplevel,explicit
+magit-mode.el,121,option,magit-display-buffer-function,n/a,value is an Emacs Lisp function; Fred's built-in equivalent behavior is fixed,explicit
+magit-mode.el,137,option,magit-pre-display-buffer-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
+magit-mode.el,146,option,magit-post-display-buffer-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
+magit-mode.el,154,option,magit-generate-buffer-name-function,n/a,value is an Emacs Lisp function; Fred's built-in equivalent behavior is fixed,explicit
+magit-mode.el,162,option,magit-buffer-name-format,n/a,Fred has no Emacs buffer names; the status line shows each view's title,explicit
+magit-mode.el,198,option,magit-uniquify-buffer-names,n/a,"Emacs-specific (default-directory, windows, Info, minor modes, tab-width, buffer names, global keymaps or Lisp githook bridge); Fred's equivalent is fixed or uses Space m",explicit
+magit-mode.el,204,option,magit-bury-buffer-function,n/a,value is an Emacs Lisp function; Fred's built-in equivalent behavior is fixed,explicit
+magit-mode.el,213,option,magit-prefix-use-buffer-arguments,partial,selected behavior: log and diff menus start from the current buffer's arguments,explicit
+magit-mode.el,245,option,magit-direct-use-buffer-arguments,partial,selected behavior: g/refresh reuse the buffer's arguments,explicit
+magit-mode.el,278,option,magit-region-highlight-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
+magit-mode.el,290,option,magit-create-buffer-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
+magit-mode.el,298,option,magit-post-create-buffer-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
+magit-mode.el,307,option,magit-refresh-buffer-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
+magit-mode.el,313,option,magit-refresh-status-buffer,partial,nil leaves other status buffers alone after Git commands,explicit
+magit-mode.el,327,option,magit-refresh-verbose,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
+magit-mode.el,333,option,magit-save-repository-buffers,partial,"t asks per modified repository buffer, dontask saves, false never (before refreshes and Git commands)",explicit
 magit-mode.el,438,command,magit-delete-thing,partial,x in status = discard (evil-collection),explicit
 magit-mode.el,446,command,magit-visit-thing,partial,"Enter (file, hunk, commit, stash, module, diff line)",explicit
-magit-mode.el,459,command,magit-edit-thing,missing,,explicit
-magit-mode.el,470,command,magit-browse-thing,missing,,explicit
-magit-mode.el,480,command,magit-copy-thing,missing,,explicit
-magit-mode.el,490,command,magit-info,missing,,explicit
-magit-mode.el,958,command,magit-toggle-buffer-lock,missing,,explicit
+magit-mode.el,459,command,magit-edit-thing,partial,C-c C-e; placeholder error as upstream,explicit
+magit-mode.el,470,command,magit-browse-thing,partial,C-c C-o; URL at point opened with open/xdg-open,explicit
+magit-mode.el,480,command,magit-copy-thing,partial,C-c C-w; placeholder error as upstream,explicit
+magit-mode.el,490,command,magit-info,partial,:Magit name; the online manual,explicit
+magit-mode.el,958,command,magit-toggle-buffer-lock,partial,b in log/diff refresh menus; a locked diff buffer is not reused (Fred log buffers are always per value),explicit
 magit-mode.el,1005,command,magit-mode-bury-buffer,partial,q returns to the previous buffer,explicit
 magit-mode.el,1046,command,magit-refresh,partial,Space m s / gr; selected view; full buffer refresh semantics missing,explicit
 magit-mode.el,1081,command,magit-refresh-all,partial,gR,explicit
 magit-mode.el,1097,command,magit-refresh-buffer,partial,gr,explicit
-magit-mode.el,1213,command,magit-profile-refresh-buffer,missing,,explicit
-magit-mode.el,1226,command,magit-toggle-profiling,missing,,explicit
-magit-mode.el,1334,command,magit-save-repository-buffers,missing,,explicit
-magit-mode.el,1407,command,magit-go-backward,missing,,explicit
-magit-mode.el,1414,command,magit-go-forward,missing,,explicit
-magit-mode.el,1562,command,magit-zap-caches,missing,,explicit
-magit-mode.el,1598,command,magit-toggle-verbose-refresh,missing,,explicit
-magit-mode.el,,command,magit-mode-menu,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-mode.el,1213,command,magit-profile-refresh-buffer,partial,:Magit name; one timed refresh,explicit
+magit-mode.el,1226,command,magit-toggle-profiling,partial,:Magit name; background calls listed with durations (no elp),explicit
+magit-mode.el,1334,command,magit-save-repository-buffers,partial,:Magit name; saves modified buffers visiting repository files,explicit
+magit-mode.el,1407,command,magit-go-backward,partial,C-c C-b in diff buffers (reused buffers keep a history),explicit
+magit-mode.el,1414,command,magit-go-forward,partial,C-c C-f,explicit
+magit-mode.el,1562,command,magit-zap-caches,partial,:Magit name; drops margin stamps and refreshes,explicit
+magit-mode.el,1598,command,magit-toggle-verbose-refresh,partial,:Magit name; refresh time and call count in the echo area,explicit
+magit-mode.el,,command,magit-mode-menu,partial,:Magit name; the dispatch transient lists the same commands,runtime
 magit-notes.el,34,command,magit-notes,partial,"Space m T (magit-dispatch key) with c/d/C/D config, -n, -s strategy and T/r/m/p; c/a commit/abort while merging; -r --ref missing",explicit
 magit-notes.el,110,command,magit-notes-edit,partial,Space m T T (Fred as Git editor),explicit
 magit-notes.el,121,command,magit-notes-remove,partial,Space m T r,explicit
@@ -630,7 +630,7 @@ magit-notes.el,,command,magit-notes.displayRef,partial,Space m T d (comma separa
 magit-notes.el,,command,magit-notes:--ref,partial,-r in the notes menu: git notes --ref=REF edit/remove,runtime
 magit-notes.el,,command,magit-notes:--strategy,partial,-s cycles upstream choices,runtime
 magit-notes.el,,command,transient:magit-notes:--dry-run,partial,-n,runtime
-magit-patch.el,35,option,magit-patch-save-arguments,missing,,explicit
+magit-patch.el,35,option,magit-patch-save-arguments,partial,"""buffer"", [""exclude"", ARGS...] (default [exclude --stat]) or an argument list",explicit
 magit-patch.el,56,command,magit-patch,partial,Space m W: c w a s r,explicit
 magit-patch.el,66,command,magit-patch-create,partial,W c menu K (C-m x keys are =x); range or commit (single commit = X^..X); in-process format-patch; visits cover letter; no -- files,explicit
 magit-patch.el,243,command,magit-patch-apply,partial,W a menu a: -i -c -3; file relative to the toplevel,explicit
@@ -656,36 +656,36 @@ magit-patch.el,,command,transient:magit-patch-create:--cover-letter,partial,menu
 magit-patch.el,,command,transient:magit-patch-create:--ignore-all-space,partial,menu argument,runtime
 magit-patch.el,,command,transient:magit-patch-create:--ignore-space-change,partial,menu argument,runtime
 magit-patch.el,,command,transient:magit-patch-create:--rfc,partial,menu argument,runtime
-magit-process.el,52,option,magit-process-connection-type,missing,,explicit
-magit-process.el,61,option,magit-need-cygwin-noglob,missing,,explicit
-magit-process.el,85,option,magit-process-popup-time,missing,,explicit
-magit-process.el,92,option,magit-process-log-max,missing,,explicit
-magit-process.el,102,option,magit-process-error-tooltip-max-lines,missing,,explicit
-magit-process.el,114,option,magit-credential-cache-daemon-socket,missing,,explicit
-magit-process.el,146,option,magit-process-yes-or-no-prompt-regexp,missing,,explicit
-magit-process.el,160,option,magit-process-password-prompt-regexps,missing,,explicit
-magit-process.el,185,option,magit-process-find-password-functions,missing,,explicit
-magit-process.el,204,option,magit-process-username-prompt-regexps,missing,,explicit
-magit-process.el,211,option,magit-process-prompt-functions,missing,,explicit
-magit-process.el,240,option,magit-process-ensure-unix-line-ending,missing,,explicit
-magit-process.el,246,option,magit-process-display-mode-line-error,missing,,explicit
-magit-process.el,255,option,magit-show-process-buffer-hint,missing,,explicit
-magit-process.el,277,option,magit-process-apply-ansi-colors,missing,,explicit
-magit-process.el,295,option,magit-process-timestamp-format,missing,,explicit
+magit-process.el,52,option,magit-process-connection-type,n/a,"Windows/Cygwin, coding-system, pty/pipe or TRAMP setting; Fred runs Git directly (UTF-8 bytes, terminal for interaction)",explicit
+magit-process.el,61,option,magit-need-cygwin-noglob,n/a,"Windows/Cygwin, coding-system, pty/pipe or TRAMP setting; Fred runs Git directly (UTF-8 bytes, terminal for interaction)",explicit
+magit-process.el,85,option,magit-process-popup-time,n/a,"terminal Git commands own the screen while they run, so their output is always visible",explicit
+magit-process.el,92,option,magit-process-log-max,partial,process buffer entries kept (false keeps all),explicit
+magit-process.el,102,option,magit-process-error-tooltip-max-lines,n/a,"Emacs faces, overlays, fringes, images, tooltips or mode-line lighters; Fred's terminal UI has fixed equivalents",explicit
+magit-process.el,114,option,magit-credential-cache-daemon-socket,n/a,"Emacs answers Git's prompts in the minibuffer; Fred hands interactive Git commands the terminal, so Git prompts directly",explicit
+magit-process.el,146,option,magit-process-yes-or-no-prompt-regexp,n/a,"Emacs answers Git's prompts in the minibuffer; Fred hands interactive Git commands the terminal, so Git prompts directly",explicit
+magit-process.el,160,option,magit-process-password-prompt-regexps,n/a,"Emacs answers Git's prompts in the minibuffer; Fred hands interactive Git commands the terminal, so Git prompts directly",explicit
+magit-process.el,185,option,magit-process-find-password-functions,n/a,value is an Emacs Lisp function; Fred's built-in equivalent behavior is fixed,explicit
+magit-process.el,204,option,magit-process-username-prompt-regexps,n/a,"Emacs answers Git's prompts in the minibuffer; Fred hands interactive Git commands the terminal, so Git prompts directly",explicit
+magit-process.el,211,option,magit-process-prompt-functions,n/a,value is an Emacs Lisp function; Fred's built-in equivalent behavior is fixed,explicit
+magit-process.el,240,option,magit-process-ensure-unix-line-ending,n/a,"Windows/Cygwin, coding-system, pty/pipe or TRAMP setting; Fred runs Git directly (UTF-8 bytes, terminal for interaction)",explicit
+magit-process.el,246,option,magit-process-display-mode-line-error,n/a,"Emacs faces, overlays, fringes, images, tooltips or mode-line lighters; Fred's terminal UI has fixed equivalents",explicit
+magit-process.el,255,option,magit-show-process-buffer-hint,partial,Git errors end with [Space m $ for details],explicit
+magit-process.el,277,option,magit-process-apply-ansi-colors,n/a,the terminal shows Git's own colors while a command runs,explicit
+magit-process.el,295,option,magit-process-timestamp-format,partial,strftime prefix of process buffer entries,explicit
 magit-process.el,367,command,magit-process-buffer,partial,"` in Magit buffers (evil-collection), Space m $: this repository's terminal Git commands and errors (output itself goes to the terminal)",explicit
-magit-process.el,404,command,magit-process-kill,missing,,explicit
-magit-process.el,429,command,magit-toggle-subprocess-record,missing,,explicit
-magit-pull.el,33,option,magit-pull-or-fetch,missing,,explicit
+magit-process.el,404,command,magit-process-kill,partial,:Magit name; SIGTERM to the repository's running background Git processes (terminal ones stop with C-c),explicit
+magit-process.el,429,command,magit-toggle-subprocess-record,partial,:Magit name; every background Git call listed,explicit
+magit-pull.el,33,option,magit-pull-or-fetch,partial,pull menu gains f F o s m fetch suffixes,explicit
 magit-pull.el,42,command,magit-pull,partial,"Space m P menu; -f/-r/-F arguments and p/u/e suffixes; -A, U, r/C configure, magit-pull-or-fetch missing",explicit
 magit-pull.el,95,command,magit-pull-from-pushremote,partial,Space m P p; sets pushRemote when unusable,explicit
 magit-pull.el,123,command,magit-pull-from-upstream,partial,Space m P u; sets upstream via branch --set-upstream-to when unset,explicit
-magit-pull.el,165,command,magit-pull-into-upstream,missing,,explicit
+magit-pull.el,165,command,magit-pull-into-upstream,partial,:Magit name; one forced fetch refspec = upstream's fetch + update-ref,explicit
 magit-pull.el,195,command,magit-pull-branch,partial,Space m P e; local or remote-tracking source,explicit
 magit-pull.el,,command,magit-pull:--rebase,partial,-r cycles true/merges/interactive/false/off; incompatible with --ff-only,runtime
 magit-pull.el,,command,transient:magit-pull:--autostash,partial,-A,runtime
 magit-pull.el,,command,transient:magit-pull:--ff-only,partial,-f; incompatible with rebasing choices,runtime
 magit-pull.el,,command,transient:magit-pull:--force,partial,-F,runtime
-magit-push.el,33,option,magit-push-options,missing,,explicit
+magit-push.el,33,option,magit-push-options,partial,offered in the -o prompt (no completion),explicit
 magit-push.el,42,command,magit-push,partial,"Space m p menu; arguments and p/u/e/o/r/m/T/t suffixes; dynamic target descriptions, -o, notes, C configure missing",explicit
 magit-push.el,96,command,magit-push-current-to-pushremote,partial,"Space m p p; prompts/sets branch.<b>.pushRemote when unset; prefix-arg change, set-and-push confirm and remote completion missing",explicit
 magit-push.el,132,command,magit-push-current-to-upstream,partial,Space m p u; prompts remote/branch and adds --set-upstream when unset; completion/defaults missing,explicit
@@ -697,7 +697,7 @@ magit-push.el,253,command,magit-push-tags,partial,Space m p t; single remote use
 magit-push.el,264,command,magit-push-tag,partial,Space m p T; tag validated; completion missing,explicit
 magit-push.el,274,command,magit-push-notes-ref,partial,"Space m p n: notes ref, then remote",explicit
 magit-push.el,285,command,magit-push-implicitly,partial,":Magit magit-push-implicitly (git push -v, no arguments menu)",explicit
-magit-push.el,363,command,magit-push-to-remote,missing,,explicit
+magit-push.el,363,command,magit-push-to-remote,partial,:Magit name; push -v ARGS REMOTE,explicit
 magit-push.el,,command,magit-push:--push-option,partial,-o reads a value,runtime
 magit-push.el,,command,transient:magit-push:--dry-run,partial,-n,runtime
 magit-push.el,,command,transient:magit-push:--follow-tags,partial,-t,runtime
@@ -706,23 +706,23 @@ magit-push.el,,command,transient:magit-push:--force-with-lease,partial,-f,runtim
 magit-push.el,,command,transient:magit-push:--no-verify,partial,-h,runtime
 magit-push.el,,command,transient:magit-push:--set-upstream,partial,-u (shown at default level; upstream hides at level 5),runtime
 magit-push.el,,command,transient:magit-push:--tags,partial,-T,runtime
-magit-reflog.el,34,option,magit-reflog-limit,missing,,explicit
-magit-reflog.el,42,option,magit-reflog-margin,missing,,explicit
+magit-reflog.el,34,option,magit-reflog-limit,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
+magit-reflog.el,42,option,magit-reflog-margin,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
 magit-reflog.el,113,command,magit-reflog-current,partial,Space m l r; branch or HEAD; 256 entries; RET shows commit,explicit
 magit-reflog.el,120,command,magit-reflog-other,partial,Space m l O; prompted ref,explicit
 magit-reflog.el,126,command,magit-reflog-head,partial,Space m l H,explicit
-magit-refs.el,38,option,magit-refs-mode-hook,missing,,explicit
-magit-refs.el,44,option,magit-refs-sections-hook,missing,,explicit
-magit-refs.el,55,option,magit-refs-show-commit-count,missing,,explicit
-magit-refs.el,73,option,magit-refs-pad-commit-counts,missing,,explicit
-magit-refs.el,94,option,magit-refs-show-remote-prefix,missing,,explicit
-magit-refs.el,103,option,magit-refs-show-branch-descriptions,missing,,explicit
-magit-refs.el,112,option,magit-refs-margin,missing,,explicit
-magit-refs.el,143,option,magit-refs-margin-for-tags,missing,,explicit
-magit-refs.el,153,option,magit-refs-primary-column-width,missing,,explicit
-magit-refs.el,172,option,magit-refs-focus-column-width,missing,,explicit
-magit-refs.el,189,option,magit-refs-filter-alist,missing,,explicit
-magit-refs.el,214,option,magit-visit-ref-behavior,missing,,explicit
+magit-refs.el,38,option,magit-refs-mode-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
+magit-refs.el,44,option,magit-refs-sections-hook,n/a,list of Lisp section inserters; Fred renders upstream's default sections,explicit
+magit-refs.el,55,option,magit-refs-show-commit-count,partial,"initial count display (""all"", ""branch"", false); v cycles",explicit
+magit-refs.el,73,option,magit-refs-pad-commit-counts,partial,extra space beside upstream ahead/behind counts (push counts are not shown),explicit
+magit-refs.el,94,option,magit-refs-show-remote-prefix,partial,remote branches keep their remote/ prefix,explicit
+magit-refs.el,103,option,magit-refs-show-branch-descriptions,partial,first description line instead of the subject,explicit
+magit-refs.el,112,option,magit-refs-margin,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
+magit-refs.el,143,option,magit-refs-margin-for-tags,partial,tag rows get no margin unless true,explicit
+magit-refs.el,153,option,magit-refs-primary-column-width,partial,"width or [MIN, MAX]",explicit
+magit-refs.el,172,option,magit-refs-focus-column-width,partial,focus column width when counts are shown,explicit
+magit-refs.el,189,option,magit-refs-filter-alist,partial,"[[REGEXP, SHOW]]; first match decides (Rust regex syntax, no functions)",explicit
+magit-refs.el,214,option,magit-visit-ref-behavior,partial,"create-branch, checkout-any, checkout-branch on RET in refs buffers (focus-on-ref needs a prefix argument)",explicit
 magit-refs.el,336,command,magit-show-refs,partial,Space m y: -c -M -m -N -n -s; y c o v; buffer arguments seed the menu in a refs buffer,explicit
 magit-refs.el,394,command,magit-show-refs-head,partial,y y,explicit
 magit-refs.el,401,command,magit-show-refs-current,partial,y c,explicit
@@ -735,9 +735,9 @@ magit-refs.el,,command,transient:magit-show-refs:--merged,partial,menu argument,
 magit-refs.el,,command,transient:magit-show-refs:--merged=,partial,menu argument,runtime
 magit-refs.el,,command,transient:magit-show-refs:--no-merged,partial,menu argument,runtime
 magit-refs.el,,command,transient:magit-show-refs:--no-merged=,partial,menu argument,runtime
-magit-remote.el,33,option,magit-remote-add-set-remote.pushDefault,missing,,explicit
-magit-remote.el,48,option,magit-remote-direct-configure,missing,,explicit
-magit-remote.el,57,option,magit-prefer-push-default,missing,,explicit
+magit-remote.el,33,option,magit-remote-add-set-remote.pushDefault,partial,"ask, ask-if-unset (default), a remote name, false",explicit
+magit-remote.el,48,option,magit-remote-direct-configure,partial,remote menu shows the remote variables directly,explicit
+magit-remote.el,57,option,magit-prefer-push-default,partial,unset push remote prompts set remote.pushDefault,explicit
 magit-remote.el,66,command,magit-remote,partial,"Space m M (upstream dispatch key) with -f (default) and a/r/k/p/P; direct variables, C configure, d u, z unshallow missing",explicit
 magit-remote.el,100,command,magit-remote-add,partial,"Space m M a; owner-replaced url default, ask-if-unset remote.pushDefault, -f fetch via terminal",explicit
 magit-remote.el,123,command,magit-remote-rename,partial,Space m M r; push variables follow,explicit
@@ -746,7 +746,7 @@ magit-remote.el,153,command,magit-remote-prune,partial,Space m M p (remote prune
 magit-remote.el,159,command,magit-remote-prune-refspecs,partial,"Space m M P; ls-remote comparison, confirm stale refspecs and their branches, all-stale default/remove/abort",explicit
 magit-remote.el,237,command,magit-remote-set-head,partial,:Magit magit-remote-set-head (--auto),explicit
 magit-remote.el,252,command,magit-remote-unset-head,partial,:Magit magit-remote-unset-head,explicit
-magit-remote.el,259,command,magit-update-default-branch,missing,,explicit
+magit-remote.el,259,command,magit-update-default-branch,partial,"branch/remote B; fetch --prune, set-head --auto, rename and re-point upstreams",explicit
 magit-remote.el,291,command,magit-remote-unshallow,partial,M z: offers the standard refspec for a single non-wildcard one,explicit
 magit-remote.el,311,command,magit-remote-configure,partial,Space m M C: current remote,explicit
 magit-remote.el,,command,magit-remote.<remote>.fetch,partial,e U,runtime
@@ -756,17 +756,17 @@ magit-remote.el,,command,magit-remote.<remote>.pushurl,partial,e s,runtime
 magit-remote.el,,command,magit-remote.<remote>.tagopt,partial,e O cycles,runtime
 magit-remote.el,,command,magit-remote.<remote>.url,partial,e u (empty unsets; one value),runtime
 magit-remote.el,,command,transient:magit-remote:-f,partial,"-f in Space m M, on by default",runtime
-magit-repos.el,40,option,magit-repository-directories,missing,,explicit
-magit-repos.el,60,option,magit-repolist-mode-hook,missing,,explicit
-magit-repos.el,68,option,magit-repolist-columns,missing,,explicit
-magit-repos.el,121,option,magit-repolist-column-flag-alist,missing,,explicit
-magit-repos.el,137,option,magit-repolist-sort-key,missing,,explicit
-magit-repos.el,152,command,magit-list-repositories,missing,,explicit
-magit-repos.el,162,command,magit-repolist-status,missing,,explicit
-magit-repos.el,169,command,magit-repolist-mark,missing,,explicit
-magit-repos.el,175,command,magit-repolist-unmark,missing,,explicit
-magit-repos.el,180,command,magit-repolist-fetch,missing,,explicit
-magit-repos.el,187,command,magit-repolist-find-file-other-frame,missing,,explicit
+magit-repos.el,40,option,magit-repository-directories,partial,"[[DIR, DEPTH], ...] (or a DIR = DEPTH table); ~ expanded",explicit
+magit-repos.el,60,option,magit-repolist-mode-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
+magit-repos.el,68,option,magit-repolist-columns,partial,"[[HEADER, WIDTH, FUNCTION, PROPS]]; upstream's column functions by name; :right-align",explicit
+magit-repos.el,121,option,magit-repolist-column-flag-alist,partial,"[[PREDICATE, FLAG]] for the three builtin predicates",explicit
+magit-repos.el,137,option,magit-repolist-sort-key,partial,"[COLUMN, FLIP]; numbers for right-aligned columns",explicit
+magit-repos.el,152,command,magit-list-repositories,partial,":Magit name; Magit Repositories view (header, marker column, columns, sort key)",explicit
+magit-repos.el,162,command,magit-repolist-status,partial,RET on a repository: its status,explicit
+magit-repos.el,169,command,magit-repolist-mark,partial,m marks (*) and moves down,explicit
+magit-repos.el,175,command,magit-repolist-unmark,partial,u unmarks and moves down,explicit
+magit-repos.el,180,command,magit-repolist-fetch,partial,"f: git remote update in each marked (else all, confirmed via repolist-all) repository, sequentially in the terminal",explicit
+magit-repos.el,187,command,magit-repolist-find-file-other-frame,partial,5: the file opened in each marked (else all) repository (no frames in Fred),explicit
 magit-reset.el,34,command,magit-reset,partial,"Space m X (upstream X) with b branch, f file, m/s/h/k/i/w",explicit
 magit-reset.el,49,command,magit-reset-mixed,partial,Space m X m,explicit
 magit-reset.el,56,command,magit-reset-soft,partial,Space m X s,explicit
@@ -775,20 +775,20 @@ magit-reset.el,72,command,magit-reset-keep,partial,Space m X k,explicit
 magit-reset.el,79,command,magit-reset-index,partial,Space m X i (git reset COMMIT -- .),explicit
 magit-reset.el,88,command,magit-reset-worktree,partial,Space m X w via temporary index checkout-index --all --force,explicit
 magit-reset.el,99,command,magit-reset-quickly,partial,"o in Magit buffers (evil-collection): reset --mixed, default commit at point",explicit
-magit-section.el,145,option,magit-section-highlight-current,missing,,explicit
-magit-section.el,151,option,magit-section-highlight-selection,missing,,explicit
+magit-section.el,145,option,magit-section-highlight-current,n/a,"Emacs faces, overlays, fringes, images, tooltips or mode-line lighters; Fred's terminal UI has fixed equivalents",explicit
+magit-section.el,151,option,magit-section-highlight-selection,n/a,"Emacs faces, overlays, fringes, images, tooltips or mode-line lighters; Fred's terminal UI has fixed equivalents",explicit
 magit-section.el,160,option,magit-section-show-child-count,partial,default t behavior; not configurable,explicit
-magit-section.el,167,option,magit-section-cache-visibility,missing,,explicit
-magit-section.el,184,option,magit-section-initial-visibility-alist,missing,,explicit
-magit-section.el,212,option,magit-section-visibility-indicators,missing,,explicit
-magit-section.el,284,option,magit-section-keep-region-overlay,missing,,explicit
-magit-section.el,322,option,magit-section-disable-line-numbers,missing,,explicit
+magit-section.el,167,option,magit-section-cache-visibility,n/a,"Emacs-specific (default-directory, windows, Info, minor modes, tab-width, buffer names, global keymaps or Lisp githook bridge); Fred's equivalent is fixed or uses Space m",explicit
+magit-section.el,184,option,magit-section-initial-visibility-alist,partial,"table of section = ""show""/""hide"" for status sections (untracked unstaged staged stashes unpushed unpulled recent)",explicit
+magit-section.el,212,option,magit-section-visibility-indicators,n/a,"Emacs faces, overlays, fringes, images, tooltips or mode-line lighters; Fred's terminal UI has fixed equivalents",explicit
+magit-section.el,284,option,magit-section-keep-region-overlay,n/a,"Emacs faces, overlays, fringes, images, tooltips or mode-line lighters; Fred's terminal UI has fixed equivalents",explicit
+magit-section.el,322,option,magit-section-disable-line-numbers,partial,Magit buffers hide line numbers unless false,explicit
 magit-section.el,803,command,magit-section-forward,partial,"C-j (on a file/hunk C-j visits the worktree file, as evil-collection section maps)",explicit
 magit-section.el,822,command,magit-section-backward,partial,C-k,explicit
 magit-section.el,860,command,magit-section-up,partial,gh in status,explicit
 magit-section.el,867,command,magit-section-forward-sibling,partial,gj ] M-j,explicit
 magit-section.el,879,command,magit-section-backward-sibling,partial,gk [ M-k,explicit
-magit-section.el,891,command,magit-mouse-set-point,missing,,explicit
+magit-section.el,891,command,magit-mouse-set-point,partial,click sets point (Fred's mouse support),explicit
 magit-section.el,945,command,magit-section-show,partial,via levels; evil z keys are off by default,explicit
 magit-section.el,960,command,magit-section-hide,partial,via levels; evil z keys are off by default,explicit
 magit-section.el,978,command,magit-section-toggle,partial,Tab / za (files and headings; hunks always open),explicit
@@ -806,9 +806,9 @@ magit-section.el,1144,command,magit-section-show-level-3,partial,3 in status,exp
 magit-section.el,1149,command,magit-section-show-level-3-all,partial,M-3,explicit
 magit-section.el,1154,command,magit-section-show-level-4,partial,4 in status,explicit
 magit-section.el,1159,command,magit-section-show-level-4-all,partial,M-4,explicit
-magit-section.el,1164,command,magit-mouse-toggle-section,missing,,explicit
-magit-section.el,1182,command,magit-describe-section-briefly,missing,,explicit
-magit-section.el,1219,command,magit-describe-section,missing,,explicit
+magit-section.el,1164,command,magit-mouse-toggle-section,partial,click on a section's v/> indicator,explicit
+magit-section.el,1182,command,magit-describe-section-briefly,partial,:Magit name,explicit
+magit-section.el,1219,command,magit-describe-section,partial,:Magit name; section value and buffer in the echo area,explicit
 magit-sequence.el,96,command,magit-sequencer-continue,partial,Space m x/v c; guarded continuation,explicit
 magit-sequence.el,108,command,magit-sequencer-skip,partial,Space m x/v s; guarded skip,explicit
 magit-sequence.el,117,command,magit-sequencer-abort,partial,Space m x/v a; guarded abort,explicit
@@ -875,8 +875,8 @@ magit-sparse-checkout.el,95,command,magit-sparse-checkout-add,partial,> a,explic
 magit-sparse-checkout.el,114,command,magit-sparse-checkout-reapply,partial,> r,explicit
 magit-sparse-checkout.el,123,command,magit-sparse-checkout-disable,partial,> d,explicit
 magit-sparse-checkout.el,,command,transient:magit-sparse-checkout:--sparse-index,partial,-i,runtime
-magit-stash.el,41,option,magit-stash-sections-hook,missing,,explicit
-magit-stash.el,53,option,magit-stashes-margin,missing,,explicit
+magit-stash.el,41,option,magit-stash-sections-hook,n/a,list of Lisp section inserters; Fred renders upstream's default sections,explicit
+magit-stash.el,53,option,magit-stashes-margin,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
 magit-stash.el,91,command,magit-stash,partial,Space m z; source menu groups and -u/-a switches; worktree/snapshot/transform groups still missing,explicit
 magit-stash.el,124,command,magit-stash-both,partial,Space m z z/u; Git push implementation; plumbing/options differ,explicit
 magit-stash.el,140,command,magit-stash-index,partial,Space m z i; Git --staged implementation; source edge cases need comparison,explicit
@@ -902,16 +902,16 @@ magit-stash.el,,command,transient:magit-stash-push:--keep-index,partial,-k,runti
 magit-stash.el,,command,transient:magit-stash-push:--no-keep-index,partial,-K,runtime
 magit-stash.el,,command,transient:magit-stash:--all,partial,-a,runtime
 magit-stash.el,,command,transient:magit-stash:--include-untracked,partial,-u,runtime
-magit-status.el,40,option,magit-status-mode-hook,missing,,explicit
+magit-status.el,40,option,magit-status-mode-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
 magit-status.el,45,option,magit-status-headers-hook,partial,default hook order except error/diff-filter headers; not configurable,explicit
-magit-status.el,69,option,magit-status-sections-hook,partial,"default hook partly: headers, files, stashes, log sections; merge-log, sequences and bisect missing; not configurable",explicit
-magit-status.el,91,option,magit-status-initial-section,missing,,explicit
-magit-status.el,118,option,magit-status-goto-file-position,missing,,explicit
+magit-status.el,69,option,magit-status-sections-hook,partial,"upstream's default sections in order: headers, merge log, rebase/am/sequencer sequences, bisect output/rest/log, files, stashes, log sections (a Lisp list cannot be customized)",explicit
+magit-status.el,91,option,magit-status-initial-section,partial,[N] or section names,explicit
+magit-status.el,118,option,magit-status-goto-file-position,partial,status from a file buffer starts on that file's row (not its hunk line),explicit
 magit-status.el,137,option,magit-status-show-hashes-in-headers,partial,default nil behavior; not configurable,explicit
-magit-status.el,147,option,magit-status-show-untracked-files,missing,,explicit
-magit-status.el,184,option,magit-status-file-list-limit,missing,,explicit
-magit-status.el,192,option,magit-status-margin,missing,,explicit
-magit-status.el,222,option,magit-status-use-buffer-arguments,missing,,explicit
+magit-status.el,147,option,magit-status-show-untracked-files,partial,"true / ""all"" / false",explicit
+magit-status.el,184,option,magit-status-file-list-limit,partial,"untracked files listed, then ""N files not listed""",explicit
+magit-status.el,192,option,magit-status-margin,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
+magit-status.el,222,option,magit-status-use-buffer-arguments,partial,selected behavior for status refreshes,explicit
 magit-status.el,252,command,magit-init,partial,"Space m i; directory prompt (default current, ~ expansion), nested/reinitialize y-or-n confirmation, status after init; directory completion missing",explicit
 magit-status.el,280,command,magit-status,partial,"Space m s; headers (Head/Merge|Rebase/Push/Tags), file sections, stashes, unpushed/recent and unpulled log sections, jumpers; sequence/bisect sections and options missing",explicit
 magit-status.el,350,command,magit-status-here,partial,:Magit magit-status-here (status; point not moved to the file),explicit
@@ -924,13 +924,13 @@ magit-status.el,,command,magit-jump-to-ignored,partial,j i: no ignored-files sec
 magit-status.el,,command,magit-jump-to-skip-worktree,partial,j w: no such section,runtime
 magit-status.el,,command,magit-jump-to-tracked,partial,j t / :Magit: Fred's status has no tracked-files section (upstream's is optional too),runtime
 magit-status.el,,command,magit-jump-to-untracked,partial,gn in status,runtime
-magit-submodule.el,35,option,magit-module-sections-hook,missing,,explicit
-magit-submodule.el,50,option,magit-module-sections-nested,missing,,explicit
-magit-submodule.el,60,option,magit-submodule-list-mode-hook,missing,,explicit
-magit-submodule.el,68,option,magit-submodule-list-columns,missing,,explicit
-magit-submodule.el,131,option,magit-submodule-list-sort-key,missing,,explicit
-magit-submodule.el,143,option,magit-submodule-list-predicate,missing,,explicit
-magit-submodule.el,154,option,magit-submodule-remove-trash-gitdirs,missing,,explicit
+magit-submodule.el,35,option,magit-module-sections-hook,n/a,list of Lisp section inserters; Fred renders upstream's default sections,explicit
+magit-submodule.el,50,option,magit-module-sections-nested,n/a,"only for magit-insert-modules, which is not in the default status sections hook (a Lisp list Fred does not customize)",explicit
+magit-submodule.el,60,option,magit-submodule-list-mode-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
+magit-submodule.el,68,option,magit-submodule-list-columns,partial,"columns of magit-list-submodules (upstream default set, column functions by name)",explicit
+magit-submodule.el,131,option,magit-submodule-list-sort-key,partial,"[COLUMN, FLIP]",explicit
+magit-submodule.el,143,option,magit-submodule-list-predicate,n/a,value is an Emacs Lisp function; Fred's built-in equivalent behavior is fixed,explicit
+magit-submodule.el,154,option,magit-submodule-remove-trash-gitdirs,partial,"after removal, offer to trash the modules' gitdirs (trash-module-gitdirs confirmation)",explicit
 magit-submodule.el,171,command,magit-submodule,partial,Space m o: upstream arguments and suffixes; modules read comma separated (no region/prefix-all),explicit
 magit-submodule.el,218,command,magit-submodule-add,partial,"o a: url, path (default from url), name (default path); --force; no gitdir reuse",explicit
 magit-submodule.el,275,command,magit-submodule-register,partial,o r: unpopulated modules,explicit
@@ -975,37 +975,37 @@ magit-tag.el,,command,transient:magit-tag:--annotate,partial,switch in Space m t
 magit-tag.el,,command,transient:magit-tag:--edit,partial,switch in Space m t,runtime
 magit-tag.el,,command,transient:magit-tag:--force,partial,switch in Space m t,runtime
 magit-tag.el,,command,transient:magit-tag:--sign,partial,switch in Space m t,runtime
-magit-wip.el,43,option,magit-wip-mode-lighter,missing,,explicit
-magit-wip.el,49,option,magit-wip-merge-branch,missing,,explicit
-magit-wip.el,71,option,magit-wip-namespace,missing,,explicit
-magit-wip.el,81,option,magit-wip-debug,missing,,explicit
-magit-wip.el,115,command,magit-wip-commit-buffer-file,missing,,explicit
+magit-wip.el,43,option,magit-wip-mode-lighter,n/a,"Emacs faces, overlays, fringes, images, tooltips or mode-line lighters; Fred's terminal UI has fixed equivalents",explicit
+magit-wip.el,49,option,magit-wip-merge-branch,partial,merge the branch into the wip ref instead of restarting it,explicit
+magit-wip.el,71,option,magit-wip-namespace,partial,"prefix of wip refs (commit, logs, purge)",explicit
+magit-wip.el,81,option,magit-wip-debug,partial,each autosave is reported,explicit
+magit-wip.el,115,command,magit-wip-commit-buffer-file,partial,:Magit name,explicit
 magit-wip.el,149,command,magit-wip-commit,partial,Space m z r / :Magit: index and worktree wip refs (magit-wip-merge-branch nil),explicit
 magit-wip.el,287,command,magit-wip-log-index,partial,Space m l i,explicit
 magit-wip.el,292,command,magit-wip-log-worktree,partial,Space m l w,explicit
 magit-wip.el,297,command,magit-wip-log-current,partial,:Magit magit-wip-log-current: branch plus its wip refs (no tip count),explicit
 magit-wip.el,308,command,magit-wip-log,partial,:Magit magit-wip-log: current branch only (no branch prompt),explicit
 magit-wip.el,350,command,magit-wip-purge,partial,":Magit magit-wip-purge: confirm, delete dangling wip refs",explicit
-magit-wip.el,,command,magit-wip-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-wip.el,,option,magit-wip-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-wip.el,,option,magit-wip-mode-hook,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-magit-worktree.el,33,option,magit-read-worktree-directory-function,missing,,explicit
-magit-worktree.el,46,option,magit-read-worktree-offsite-directory,missing,,explicit
+magit-wip.el,,command,magit-wip-mode,partial,:Magit name toggles; after-save (file) and after Git commands; not before-change,runtime
+magit-wip.el,,option,magit-wip-mode,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),runtime
+magit-wip.el,,option,magit-wip-mode-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,runtime
+magit-worktree.el,33,option,magit-read-worktree-directory-function,n/a,value is an Emacs Lisp function; Fred's built-in equivalent behavior is fixed,explicit
+magit-worktree.el,46,option,magit-read-worktree-offsite-directory,n/a,"only read by magit-read-worktree-directory-offsite, a value of the Lisp-function option magit-read-worktree-directory-function",explicit
 magit-worktree.el,128,command,magit-worktree,partial,Space m Z (magit-dispatch key) with b/c/m/k/g,explicit
 magit-worktree.el,140,command,magit-worktree-checkout,partial,Space m Z b; sibling directory default (magit-read-worktree-directory-sibling); opens its status,explicit
 magit-worktree.el,155,command,magit-worktree-branch,partial,"Space m Z c; new branch, start point, directory",explicit
 magit-worktree.el,169,command,magit-worktree-move,partial,Space m Z m; refuses the main worktree,explicit
 magit-worktree.el,191,command,magit-worktree-delete,partial,Space m Z k; refuses main/locked; dirty needs typed yes; remove --force then prune,explicit
 magit-worktree.el,234,command,magit-worktree-status,partial,Space m Z g; status of another worktree,explicit
-magit.el,77,option,magit-openpgp-default-signing-key,missing,,explicit
-magit.el,247,option,magit-define-global-key-bindings,missing,,explicit
+magit.el,77,option,magit-openpgp-default-signing-key,partial,default for --gpg-sign= prompts,explicit
+magit.el,247,option,magit-define-global-key-bindings,n/a,"Emacs-specific (default-directory, windows, Info, minor modes, tab-width, buffer names, global keymaps or Lisp githook bridge); Fred's equivalent is fixed or uses Space m",explicit
 magit.el,327,command,magit-dispatch,partial,Space m; navigable command panels; full groups/options still missing,explicit
-magit.el,407,option,magit-shell-command-verbose-prompt,missing,,explicit
+magit.el,407,option,magit-shell-command-verbose-prompt,partial,prompt names the directory,explicit
 magit.el,418,command,magit-run,partial,Space m ! / ! in Magit buffers: git subcommand in root or working directory (shell and GUI launchers not ported),explicit
 magit.el,434,command,magit-git-command,partial,"| in Magit buffers (evil-collection), Space m Q: quote-aware words, terminal Git",explicit
 magit.el,446,command,magit-git-command-topdir,partial,! !,explicit
-magit.el,458,command,magit-shell-command,missing,,explicit
-magit.el,468,command,magit-shell-command-topdir,missing,,explicit
+magit.el,458,command,magit-shell-command,partial,"! S; terminal (not asynchronous), in the visited file's directory",explicit
+magit.el,468,command,magit-shell-command-topdir,partial,! s; in the repository root,explicit
 magit.el,587,command,magit-version,partial,:Magit magit-version,explicit
 magit.el,,command,magit:--gpg-sign,partial,"-S in commit, rebase, cherry-pick, revert, merge and am menus",runtime
 magit.el,,command,magit:--signoff,partial,"+s in commit, rebase, cherry-pick, revert and merge menus",runtime
