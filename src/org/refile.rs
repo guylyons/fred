@@ -627,6 +627,9 @@ pub fn archive_location(loc: &str, current: &Path) -> Result<(PathBuf, String), 
 pub fn archive_subtree(ed: &mut Editor) -> Result<(), String> {
     let h = fold::back_to_heading(ed, ed.cur.line).ok_or("Before first headline")?;
     let path = ed.path.clone().ok_or("No file associated to buffer")?;
+    // org-archive-hook (org-attach-archive-delete-maybe); its directory is
+    // resolved now, before the subtree moves.
+    super::call(ed, "org-attach-archive-delete-maybe", Prefix::None)?;
     let abs = std::path::absolute(&path).unwrap_or(path.clone());
     let st = super::settings(ed);
     let doc = Doc::new(&ed.buf, &st, Some(&abs));

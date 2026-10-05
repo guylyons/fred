@@ -5,6 +5,7 @@
 //! command by its upstream name.
 
 pub mod agenda;
+pub mod attach;
 pub mod babel;
 pub mod buf;
 pub mod capture;
@@ -824,6 +825,7 @@ const MODULES: &[Module] = &[
     element::command,
     babel::command,
     entities::command,
+    attach::command,
 ];
 
 thread_local! {
