@@ -9,6 +9,7 @@ pub mod buf;
 pub mod capture;
 pub mod ctx;
 pub mod dispatch;
+pub mod editing;
 pub mod element;
 pub mod face;
 pub mod fold;
@@ -765,6 +766,7 @@ const MODULES: &[Module] = &[
     capture::command,
     refile::command,
     src::command,
+    editing::command,
     table::command,
     list::command,
     time::command,
@@ -892,6 +894,27 @@ pub fn read_date_timestamp(s: &str, with_time: bool, inactive: bool) -> Option<S
 /// The running clock's heading as a refile target (org-refile with 2).
 pub fn clock_target(_s: &crate::session::Session) -> Option<refile::Target> {
     None
+}
+
+/// Typing in a table (org-self-insert-command's table part): true when
+/// the tables module handled the character.
+pub fn table_self_insert(_ed: &mut Editor, _c: char) -> bool {
+    false
+}
+
+/// Clocked minutes in the subtree at `h` (org-clock-sum), from CLOCK lines.
+pub fn clock_minutes(ed: &Editor, h: usize) -> i64 {
+    let end = syntax::subtree_end(&ed.buf, h);
+    let re = crate::org_re!(r"=>\s*(-?\d+):(\d\d)");
+    (h..end)
+        .filter_map(|l| {
+            let t = ed.buf.line(l);
+            if !t.trim_start().starts_with("CLOCK:") {
+                return None;
+            }
+            re.captures(&t).map(|c| c[1].parse::<i64>().unwrap_or(0) * 60 + c[2].parse::<i64>().unwrap_or(0))
+        })
+        .sum()
 }
 
 /// Run a command by name from another command (context dispatchers).
