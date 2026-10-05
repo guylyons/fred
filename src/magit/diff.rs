@@ -409,6 +409,11 @@ pub fn refine(old: &str, new: &str) -> (Vec<std::ops::Range<usize>>, Vec<std::op
             }
         }
     }
+    // magit-diff-refine-ignore-whitespace (smerge's default, t).
+    if super::options::flag("magit-diff-refine-ignore-whitespace", true) {
+        a.retain(|r| !old[r.clone()].trim().is_empty());
+        b.retain(|r| !new[r.clone()].trim().is_empty());
+    }
     (a, b)
 }
 

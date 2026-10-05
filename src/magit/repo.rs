@@ -130,6 +130,8 @@ impl Repo {
     }
     pub fn command(&self) -> Command {
         let mut c = Command::new(git_executable());
+        // magit-git-global-arguments (Fred's own defaults are built in).
+        c.args(super::options::strings("magit-git-global-arguments", &[]));
         c.arg("-C").arg(&self.root);
         // Fred owns commit-message editing; continuations accept the existing message.
         c.env("GIT_EDITOR", "true");
@@ -710,22 +712,27 @@ impl Repo {
         }
         out.push('\n');
         let mut bytes = out.into_bytes();
-        // magit-insert-revision-diff (magit-show-commit's --stat by default).
-        bytes.extend(self.read(&[
-            "-c",
-            "core.quotePath=false",
-            "show",
-            "--format=",
-            "--stat",
-            "-p",
-            "--no-ext-diff",
-            "--no-textconv",
-            "--no-color",
-            "--src-prefix=a/",
-            "--dst-prefix=b/",
-            id,
-            "--",
-        ])?);
+        // magit-insert-revision-diff (magit-show-commit's --stat by default),
+        // with magit-diff-extra-stat-arguments.
+        let mut show: Vec<String> = ["-c", "core.quotePath=false", "show", "--format=", "--stat"]
+            .map(String::from)
+            .to_vec();
+        show.extend(options::strings("magit-diff-extra-stat-arguments", &[]));
+        show.extend(
+            [
+                "-p",
+                "--no-ext-diff",
+                "--no-textconv",
+                "--no-color",
+                "--src-prefix=a/",
+                "--dst-prefix=b/",
+                id,
+                "--",
+            ]
+            .map(String::from),
+        );
+        let show: Vec<&str> = show.iter().map(String::as_str).collect();
+        bytes.extend(self.read(&show)?);
         Ok(bytes)
     }
     pub fn commit_invocation(

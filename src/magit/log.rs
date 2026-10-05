@@ -53,6 +53,9 @@ pub fn git_args(args: &[String]) -> Result<Vec<String>, String> {
                 .any(|a| a == g || (g.len() == 2 && a.starts_with(g.as_str())))
         });
     let reverse = drop_graph;
+    // magit-log-show-signatures-limit: no signatures above this many commits.
+    let sig_limit = super::options::int("magit-log-show-signatures-limit", 256);
+    let too_many = limit(args).is_none_or(|n| n as i64 > sig_limit);
     for a in args {
         if let Some(n) = a.strip_prefix("-n") {
             n.parse::<usize>()
@@ -64,6 +67,7 @@ pub fn git_args(args: &[String]) -> Result<Vec<String>, String> {
                 "--color" | "--decorate" | "++header" | "--follow"
             )
             && !(reverse && a == "--graph")
+            && !(too_many && a == "--show-signature")
         {
             out.push(a.clone());
         }
@@ -401,12 +405,26 @@ impl Repo {
                         let id = get(0);
                         // magit-log-wash-rev: hash, refs, then the summary;
                         // author and date go in the margin.
-                        Line {
-                            text: label(std::path::Path::new(&format!(
-                                "{graph}{} {refs}{}",
+                        // magit-log-show-refname-after-summary.
+                        let text = if super::options::flag(
+                            "magit-log-show-refname-after-summary",
+                            false,
+                        ) {
+                            format!(
+                                "{graph}{} {}{}",
                                 &id[..8],
-                                get(2)
-                            ))),
+                                get(2),
+                                if refs.is_empty() {
+                                    String::new()
+                                } else {
+                                    format!(" {}", refs.trim_end())
+                                }
+                            )
+                        } else {
+                            format!("{graph}{} {refs}{}", &id[..8], get(2))
+                        };
+                        Line {
+                            text: label(std::path::Path::new(&text)),
                             commit: Some(id.to_owned()).filter(|i| !i.is_empty()),
                         }
                     }

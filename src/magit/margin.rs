@@ -68,6 +68,10 @@ impl Margin {
         }
         Some(m)
     }
+    /// A margin option's own value.
+    pub fn parse_option(name: &str) -> Option<Margin> {
+        Self::parse(super::options::value(name))
+    }
     /// (INIT STYLE WIDTH AUTHOR AUTHOR-WIDTH) as a TOML array, e.g.
     /// `[true, "age", "magit-log-margin-width", true, 18]`.
     fn parse(v: Option<toml::Value>) -> Option<Margin> {

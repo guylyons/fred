@@ -582,6 +582,15 @@ impl View {
     /// The margin text for a line, when the margin is shown.
     pub fn margin_at(&self, line: usize, now: i64) -> Option<String> {
         let m = self.margin.as_ref().filter(|m| m.shown)?;
+        // magit-refs-margin-for-tags: tag rows get a margin only when set.
+        if matches!(self.kind, Kind::Refs(..))
+            && !options::flag("magit-refs-margin-for-tags", false)
+            && self.rows[..line]
+                .iter()
+                .any(|r| r.action.is_none() && r.text.starts_with("Tags ("))
+        {
+            return None;
+        }
         let id = match &self.rows.get(line)?.action {
             Some(RowAction::Commit(id)) => id,
             Some(RowAction::Stash(s)) => &s.id,
@@ -601,6 +610,12 @@ impl View {
     pub fn load_stamps(&mut self) -> Result<(), String> {
         if self.margin.is_none() {
             self.margin = margin::Margin::for_kind(&self.kind);
+            // magit-log-select-margin for selection logs.
+            if self.select.is_some()
+                && let Some(m) = margin::Margin::parse_option("magit-log-select-margin")
+            {
+                self.margin = Some(m);
+            }
         }
         let Some(m) = self.margin.clone().filter(|m| m.shown) else {
             return Ok(());
@@ -1665,6 +1680,17 @@ fn section_move(ed: &mut Editor, mv: Move) {
             .rev()
             .find(|&i| start(i) && rows[i].action.as_ref().map_or(0, level) < lvl),
     };
+    // magit-log-auto-more: moving past the last commit doubles the limit.
+    if target.is_none()
+        && mv == Move::Next
+        && options::flag("magit-log-auto-more", false)
+        && let Some(Kind::Log(_, args)) = ed.magit.as_mut().map(|v| &mut v.kind)
+        && let Some(n) = log::limit(args)
+    {
+        *args = log::with_limit(args, Some(n.saturating_mul(2)));
+        ed.pending_effect = Some(ExEffect::Magit(Action::Refresh));
+        return;
+    }
     match target {
         Some(i) => ed.set_cursor(i, 0),
         None => ed.set_msg("No more sections"),
@@ -2177,6 +2203,38 @@ fn margin_entries() -> Vec<(&'static str, &'static str, &'static str, Action)> {
     ]
 }
 pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Action)> {
+    let mut v = base_entries(menu);
+    // magit-branch-direct-configure / magit-remote-direct-configure: the
+    // variables right in the branch and remote menus.
+    let direct = |name, from: char, groups: &[&str]| {
+        if options::flag(name, true) {
+            base_entries(from)
+                .into_iter()
+                .filter(|e| groups.contains(&e.1))
+                .collect::<Vec<_>>()
+        } else {
+            vec![]
+        }
+    };
+    match menu {
+        'b' => v.extend(direct(
+            "magit-branch-direct-configure",
+            'c',
+            &["Configure branch", "Configure repository defaults"],
+        )),
+        'O' => v.extend(direct(
+            "magit-remote-direct-configure",
+            'e',
+            &["Configure remote"],
+        )),
+        _ => {}
+    }
+    // An entry already in the menu keeps its key.
+    let mut seen = std::collections::HashSet::new();
+    v.retain(|e| seen.insert(e.0));
+    v
+}
+fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Action)> {
     use Action::*;
     use workflows::{Operation::*, StashAction};
     match menu {
@@ -3179,7 +3237,7 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
         ],
         // magit-log-refresh: the log arguments, then g applies them here.
         'R' => {
-            let mut v: Vec<_> = menu_entries('l')
+            let mut v: Vec<_> = base_entries('l')
                 .into_iter()
                 .filter(|e| !matches!(e.1, "Log" | "Reflog" | "Other" | "Wiplog"))
                 .collect();

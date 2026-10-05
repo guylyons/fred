@@ -93,6 +93,13 @@ pub fn insert_trailer(ed: &mut Editor, key: &str, value: &str) {
 
 /// log-edit-comment-ring, kept per repository (git-commit-save-message).
 fn ring_path(repo: &Repo) -> Option<std::path::PathBuf> {
+    // git-commit-use-local-message-ring nil: one ring for all repositories
+    // (tests keep theirs local).
+    if !super::options::flag("git-commit-use-local-message-ring", cfg!(test)) {
+        let dir = crate::config::config_path().parent()?.to_path_buf();
+        let _ = std::fs::create_dir_all(&dir);
+        return Some(dir.join("magit-message-ring"));
+    }
     let p = repo
         .read(&["rev-parse", "--git-path", "fred-message-ring"])
         .ok()?;
@@ -236,7 +243,23 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             ed.magit_prompt = Some(super::Prompt::Trailer(None));
             ed.open_cmdline('=', "");
             if let Mode::Command(cl) = &mut ed.mode {
-                cl.prompt = "Insert trailer (Key: value): ".into();
+                // git-commit-trailers: the known keys.
+                let keys = super::options::strings(
+                    "git-commit-trailers",
+                    &[
+                        "Acked-by",
+                        "Modified-by",
+                        "Reviewed-by",
+                        "Signed-off-by",
+                        "Tested-by",
+                        "Cc",
+                        "Reported-by",
+                        "Suggested-by",
+                        "Co-authored-by",
+                        "Co-developed-by",
+                    ],
+                );
+                cl.prompt = format!("Insert trailer ({}) Key: value: ", keys.join(" "));
             }
         } else if k == Key::ctrl('s') {
             insert_trailer(ed, "Signed-off-by", "");

@@ -3660,7 +3660,10 @@ impl Session {
                     return true;
                 }
                 // magit-blame-read-only, except for echo.
-                self.ed.readonly = blame.was_readonly || !blame.echo();
+                // magit-blame-read-only (echo mode never locks the buffer).
+                self.ed.readonly = blame.was_readonly
+                    || (!blame.echo()
+                        && crate::magit::options::flag("magit-blame-read-only", true));
                 self.ed.blame = Some(*blame);
                 self.ed.set_msg("Blaming...done");
             }
@@ -4160,11 +4163,16 @@ impl Session {
             r.read(&["ls-files", "--error-unmatch", "--", &file.to_string_lossy()])?;
             r.wip_commit_file(&file)
         });
-        if let Err(e) = result
-            && !e.contains("did not match")
-            && !e.contains("not a git repository")
-        {
-            self.ed.set_err(format!("magit-wip: {e}"));
+        match result {
+            // magit-wip-debug: report each autosave.
+            Ok(m) if crate::magit::options::flag("magit-wip-debug", false) => {
+                self.ed.set_msg(format!("magit-wip: {m}"));
+            }
+            Ok(_) => {}
+            Err(e) if !e.contains("did not match") && !e.contains("not a git repository") => {
+                self.ed.set_err(format!("magit-wip: {e}"));
+            }
+            Err(_) => {}
         }
     }
     /// Finish the commit draft (or the message Git is waiting for).
