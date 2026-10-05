@@ -27,8 +27,14 @@ mod query;
 mod tests;
 
 pub use ast::*;
-pub use interpret::{format_date, interpret, interpret_value, normalize_string, remove_indentation, table_align, timestamp_string};
-pub use objects::{escape as link_escape, expand_abbrev, macro_escape_arguments, macro_extract_arguments, parse_time_string, unescape as link_unescape};
+pub use interpret::{
+    format_date, interpret, interpret_value, normalize_string, remove_indentation, table_align,
+    timestamp_string,
+};
+pub use objects::{
+    escape as link_escape, expand_abbrev, macro_escape_arguments, macro_extract_arguments,
+    parse_time_string, unescape as link_unescape,
+};
 pub use parser::{Ctx, DEFAULT_LINK_TYPES, ListItem, escape_code, unescape_code};
 pub use query::{at_point, context};
 
@@ -41,7 +47,9 @@ use std::sync::LazyLock;
 pub fn command(_ed: &mut Editor, name: &str, _arg: Prefix) -> Option<Result<(), String>> {
     match name {
         // Fred reparses on demand: there is no cache to reset or refresh.
-        "org-element-cache-reset" | "org-element-cache-refresh" | "org-element-update-syntax" => Some(Ok(())),
+        "org-element-cache-reset" | "org-element-cache-refresh" | "org-element-update-syntax" => {
+            Some(Ok(()))
+        }
         _ => None,
     }
 }
@@ -77,8 +85,17 @@ pub fn parse_buffer_with(text: &str, st: &Settings, opts: &Opts) -> Tree {
     cx.category = category(text, opts.path.as_deref());
     if text.contains("<<<") {
         // org-update-radio-target-regexp: the radio targets of the text.
-        let t = parse_with(text, &cx, &Opts { granularity: Granularity::Object, ..opts.clone() });
-        let targets = t.map(t.root, Some(&[Type::RadioTarget]), |t, n| t.str(n, "value").map(str::to_owned));
+        let t = parse_with(
+            text,
+            &cx,
+            &Opts {
+                granularity: Granularity::Object,
+                ..opts.clone()
+            },
+        );
+        let targets = t.map(t.root, Some(&[Type::RadioTarget]), |t, n| {
+            t.str(n, "value").map(str::to_owned)
+        });
         cx.set_radio_targets(targets);
     }
     parse_with(text, &cx, opts)
@@ -92,7 +109,14 @@ fn parse_with(text: &str, cx: &Ctx, opts: &Opts) -> Tree {
         p.t.put(root, "path", path.to_string_lossy().into_owned());
     }
     let cb = p.t.contents_begin(root).unwrap_or(0);
-    p.parse_elements(cb, text.len(), parser::Mode::FirstSection, None, opts.granularity, root);
+    p.parse_elements(
+        cb,
+        text.len(),
+        parser::Mode::FirstSection,
+        None,
+        opts.granularity,
+        root,
+    );
     p.t.root = root;
     p.t
 }
@@ -108,7 +132,10 @@ fn category(text: &str, path: Option<&std::path::Path>) -> Option<String> {
         let c = crate::org::options::string("org-category", "");
         (!c.is_empty() && c != "nil").then_some(c)
     })
-    .or_else(|| path.and_then(|p| p.file_stem()).map(|s| s.to_string_lossy().into_owned()))
+    .or_else(|| {
+        path.and_then(|p| p.file_stem())
+            .map(|s| s.to_string_lossy().into_owned())
+    })
 }
 
 /// org-element-parse-secondary-string: objects of S allowed by
@@ -116,7 +143,11 @@ fn category(text: &str, path: Option<&std::path::Path>) -> Option<String> {
 pub fn parse_secondary_string(s: &str, restriction: &[Type], st: &Settings) -> Tree {
     let cx = Ctx::new(st);
     let mut p = parser::P::new(s, &cx);
-    let objs = if s.is_empty() { vec![] } else { p.parse_objects(0, s.len(), restriction, None) };
+    let objs = if s.is_empty() {
+        vec![]
+    } else {
+        p.parse_objects(0, s.len(), restriction, None)
+    };
     let root = p.t.anonymous(objs);
     p.t.root = root;
     p.t
@@ -131,7 +162,17 @@ fn with_default_parser<R>(text: &str, f: impl FnOnce(&mut parser::P) -> R) -> R 
 }
 
 /// org-entity-get: (name latex math-p html ascii latin1 utf-8).
-pub fn entity(name: &str) -> Option<&'static (&'static str, &'static str, bool, &'static str, &'static str, &'static str, &'static str)> {
+pub fn entity(
+    name: &str,
+) -> Option<&'static (
+    &'static str,
+    &'static str,
+    bool,
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static str,
+)> {
     entities::ENTITIES.iter().find(|e| e.0 == name)
 }
 
@@ -142,22 +183,54 @@ fn without(set: &[Type], drop: &[Type]) -> Vec<Type> {
 }
 
 const MINIMAL: &[Type] = &[
-    T::Bold, T::Code, T::Entity, T::Italic, T::LatexFragment, T::StrikeThrough, T::Subscript,
-    T::Superscript, T::Underline, T::Verbatim,
+    T::Bold,
+    T::Code,
+    T::Entity,
+    T::Italic,
+    T::LatexFragment,
+    T::StrikeThrough,
+    T::Subscript,
+    T::Superscript,
+    T::Underline,
+    T::Verbatim,
 ];
-static STANDARD: LazyLock<Vec<Type>> = LazyLock::new(|| without(ALL_OBJECTS, &[T::CitationReference, T::TableCell]));
+static STANDARD: LazyLock<Vec<Type>> =
+    LazyLock::new(|| without(ALL_OBJECTS, &[T::CitationReference, T::TableCell]));
 static NO_LINE_BREAK: LazyLock<Vec<Type>> = LazyLock::new(|| without(&STANDARD, &[T::LineBreak]));
 static FOR_CITATIONS: LazyLock<Vec<Type>> = LazyLock::new(|| {
-    without(&NO_LINE_BREAK, &[T::Citation, T::CitationReference, T::FootnoteReference, T::Link])
+    without(
+        &NO_LINE_BREAK,
+        &[
+            T::Citation,
+            T::CitationReference,
+            T::FootnoteReference,
+            T::Link,
+        ],
+    )
 });
 static KEYWORD: LazyLock<Vec<Type>> = LazyLock::new(|| without(&STANDARD, &[T::FootnoteReference]));
 static LINK: LazyLock<Vec<Type>> = LazyLock::new(|| {
-    let mut v = vec![T::ExportSnippet, T::InlineBabelCall, T::InlineSrcBlock, T::Macro, T::StatisticsCookie];
+    let mut v = vec![
+        T::ExportSnippet,
+        T::InlineBabelCall,
+        T::InlineSrcBlock,
+        T::Macro,
+        T::StatisticsCookie,
+    ];
     v.extend_from_slice(MINIMAL);
     v
 });
 static TABLE_CELL: LazyLock<Vec<Type>> = LazyLock::new(|| {
-    let mut v = vec![T::Citation, T::ExportSnippet, T::FootnoteReference, T::Link, T::Macro, T::RadioTarget, T::Target, T::Timestamp];
+    let mut v = vec![
+        T::Citation,
+        T::ExportSnippet,
+        T::FootnoteReference,
+        T::Link,
+        T::Macro,
+        T::RadioTarget,
+        T::Target,
+        T::Timestamp,
+    ];
     v.extend_from_slice(MINIMAL);
     v
 });
@@ -165,8 +238,15 @@ static TABLE_CELL: LazyLock<Vec<Type>> = LazyLock::new(|| {
 /// org-element-restriction: object types allowed in TYPE.
 pub fn restriction(t: Type) -> &'static [Type] {
     match t {
-        T::Bold | T::FootnoteReference | T::Italic | T::Paragraph | T::StrikeThrough | T::Subscript
-        | T::Superscript | T::Underline | T::VerseBlock => &STANDARD,
+        T::Bold
+        | T::FootnoteReference
+        | T::Italic
+        | T::Paragraph
+        | T::StrikeThrough
+        | T::Subscript
+        | T::Superscript
+        | T::Underline
+        | T::VerseBlock => &STANDARD,
         T::Citation => &[T::CitationReference],
         T::CitationReference => &FOR_CITATIONS,
         T::Headline | T::Inlinetask | T::Item => &NO_LINE_BREAK,
@@ -209,7 +289,8 @@ pub fn nested_p(t: &Tree, a: NodeId, b: NodeId) -> bool {
 /// without their trailing blank lines.  Returns the new text and the
 /// position after the moved A (the end of B's old place).
 pub fn swap_a_b(text: &str, t: &Tree, a: NodeId, b: NodeId) -> Result<(String, usize), String> {
-    let pos = |n: NodeId, k: fn(&Tree, NodeId) -> Option<usize>| k(t, n).ok_or("Cannot swap elements");
+    let pos =
+        |n: NodeId, k: fn(&Tree, NodeId) -> Option<usize>| k(t, n).ok_or("Cannot swap elements");
     let (beg_a, beg_b) = (pos(a, Tree::begin)?, pos(b, Tree::begin)?);
     let special = beg_a > 0 && text.as_bytes()[beg_a - 1] != b'\n';
     if special && (t.kind(b) != T::Paragraph || t.begin(b) != t.contents_begin(b)) {
@@ -226,7 +307,10 @@ pub fn swap_a_b(text: &str, t: &Tree, a: NodeId, b: NodeId) -> Result<(String, u
     let mut ind_b = String::new();
     if special {
         let bol = text[..beg_b].rfind('\n').map_or(0, |i| i + 1);
-        ind_b = text[bol..].chars().take_while(|c| *c == ' ' || *c == '\t').collect();
+        ind_b = text[bol..]
+            .chars()
+            .take_while(|c| *c == ' ' || *c == '\t')
+            .collect();
         body_b = body_b.trim_start_matches([' ', '\t']).to_owned();
     }
     let mut out = String::with_capacity(text.len());

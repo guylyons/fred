@@ -24,9 +24,7 @@ const TS_INACTIVE_NG: &str = r"\[(?:[0-9]{4}-[0-9]{2}-[0-9]{2}(?: .*?)?)\]";
 
 re!(
     CURRENT,
-    &format!(
-        r"(?im)\A(?:([ \t]*\\begin\{{[A-Za-z0-9*]+\}})|([ \t]*:[-_\w]+:[ \t]*$)|([ \t]*:(?: |$))|([ \t]*#\+BEGIN:[ \t]*\S)|([ \t]*#\+)(?:BEGIN_(\S+)|(CALL:)|(\S+:))|(\[fn:[-_\w]+\])|([ \t]*-----+[ \t]*$)|(%%\())"
-    )
+    r"(?im)\A(?:([ \t]*\\begin\{[A-Za-z0-9*]+\})|([ \t]*:[-_\w]+:[ \t]*$)|([ \t]*:(?: |$))|([ \t]*#\+BEGIN:[ \t]*\S)|([ \t]*#\+)(?:BEGIN_(\S+)|(CALL:)|(\S+:))|(\[fn:[-_\w]+\])|([ \t]*-----+[ \t]*$)|(%%\())"
 );
 re!(
     AFFILIATED,
@@ -36,7 +34,10 @@ re!(
     PROPERTY_DRAWER,
     r"(?im)\A[ \t]*:PROPERTIES:[ \t]*\n(?:[ \t]*:\S+:(?:[ \t].*)?[ \t]*\n)*?[ \t]*:END:[ \t]*$"
 );
-re!(PROPERTY, r"(?m)\A([ \t]*)(:(\S+):)(?:($)|[ \t]+(.*?))([ \t]*)$");
+re!(
+    PROPERTY,
+    r"(?m)\A([ \t]*)(:(\S+):)(?:($)|[ \t]+(.*?))([ \t]*)$"
+);
 re!(DRAWER, r"(?m)\A[ \t]*:([-_\w]+):[ \t]*$");
 re!(DYN_OPEN, r"(?i)\A[ \t]*#\+BEGIN:[ \t]*(\S+)(?:[ \t]+(.+))?");
 re!(FOOTNOTE_DEF, r"\A\[fn:([-_\w]+)\]");
@@ -44,7 +45,10 @@ re!(LATEX_BEGIN, r"(?i)\A[ \t]*\\begin\{([A-Za-z0-9*]+)\}");
 re!(KEYWORD, r"\A[ \t]*#\+(\S*):");
 re!(SPECIAL, r"(?im)\A[ \t]*#\+BEGIN_(\S+)[ \t]*(.*)[ \t]*$");
 re!(EXAMPLE, r"(?im)\A[ \t]*#\+BEGIN_EXAMPLE(?: +(.*))?");
-re!(EXPORT, r"(?im)\A[ \t]*#\+BEGIN_EXPORT(?:[ \t]+(\S+))?[ \t]*$");
+re!(
+    EXPORT,
+    r"(?im)\A[ \t]*#\+BEGIN_EXPORT(?:[ \t]+(\S+))?[ \t]*$"
+);
 re!(
     SRC,
     r#"(?im)\A[ \t]*#\+BEGIN_SRC(?: +(\S+))?((?: +(?:-(?:l ".+"|[ikr])|[-+]n(?: *[0-9]+)?))+)?(.*)[ \t]*$"#
@@ -79,9 +83,12 @@ re!(TABLE_EL_RULE, r"(?m)\A[ \t]*\+(?:-+\+)+[ \t]*$");
 // ponytail: unbounded cache, keyed by pattern (radio target sets per
 // document add entries); add eviction if documents churn targets.
 fn cached(pattern: &str) -> Regex {
-    static CACHE: LazyLock<std::sync::Mutex<HashMap<String, Regex>>> = LazyLock::new(Default::default);
+    static CACHE: LazyLock<std::sync::Mutex<HashMap<String, Regex>>> =
+        LazyLock::new(Default::default);
     let mut c = CACHE.lock().unwrap_or_else(|e| e.into_inner());
-    c.entry(pattern.to_owned()).or_insert_with(|| Regex::new(pattern).unwrap()).clone()
+    c.entry(pattern.to_owned())
+        .or_insert_with(|| Regex::new(pattern).unwrap())
+        .clone()
 }
 
 /// Parse environment: what upstream reads from buffer-local variables.
@@ -107,16 +114,41 @@ pub struct Ctx {
 
 /// org-link-parameters link types after org-mode loads org-modules.
 pub const DEFAULT_LINK_TYPES: &[&str] = &[
-    "id", "eww", "rmail", "mhe", "irc", "info", "gnus", "docview", "bibtex", "bbdb", "w3m", "doi",
-    "file+sys", "file+emacs", "shell", "news", "mailto", "https", "http", "ftp", "shortdoc", "help",
-    "file", "elisp", "attachment",
+    "id",
+    "eww",
+    "rmail",
+    "mhe",
+    "irc",
+    "info",
+    "gnus",
+    "docview",
+    "bibtex",
+    "bbdb",
+    "w3m",
+    "doi",
+    "file+sys",
+    "file+emacs",
+    "shell",
+    "news",
+    "mailto",
+    "https",
+    "http",
+    "ftp",
+    "shortdoc",
+    "help",
+    "file",
+    "elisp",
+    "attachment",
 ];
 
 fn regexp_opt(words: &[String]) -> String {
     let mut w: Vec<&String> = words.iter().collect();
     // Longest first, as regexp-opt matches the longest alternative.
     w.sort_by(|a, b| b.len().cmp(&a.len()).then(a.cmp(b)));
-    w.iter().map(|s| regex::escape(s)).collect::<Vec<_>>().join("|")
+    w.iter()
+        .map(|s| regex::escape(s))
+        .collect::<Vec<_>>()
+        .join("|")
 }
 
 impl Ctx {
@@ -158,12 +190,16 @@ impl Ctx {
             && let Some(l) = v.list()
         {
             for e in l {
-                if let (Some(k), Some(r)) = (e.car().and_then(|x| x.str()), e.cdr().str().map(str::to_owned)) {
+                if let (Some(k), Some(r)) = (
+                    e.car().and_then(|x| x.str()),
+                    e.cdr().str().map(str::to_owned),
+                ) {
                     link_abbrevs.push((k.to_owned(), r));
                 }
             }
         }
-        let inlinetask_min = crate::org::options::int("org-inlinetask-min-level", 15).max(0) as usize;
+        let inlinetask_min =
+            crate::org::options::int("org-inlinetask-min-level", 15).max(0) as usize;
         let fs = crate::org::options::string("org-footnote-section", "Footnotes");
         Ctx {
             todo: st.todo_names().into_iter().map(str::to_owned).collect(),
@@ -192,7 +228,11 @@ impl Ctx {
             let alts: Vec<String> = targets
                 .iter()
                 .map(|t| {
-                    let parts: Vec<String> = t.split(' ').filter(|p| !p.is_empty()).map(regex::escape).collect();
+                    let parts: Vec<String> = t
+                        .split(' ')
+                        .filter(|p| !p.is_empty())
+                        .map(regex::escape)
+                        .collect();
                     parts.join(r"\s+")
                 })
                 .collect();
@@ -210,7 +250,11 @@ impl Ctx {
             return usize::MAX;
         }
         let limit = self.inlinetask_min.saturating_sub(1);
-        if self.odd_levels { (limit * 2).saturating_sub(1) } else { limit }
+        if self.odd_levels {
+            (limit * 2).saturating_sub(1)
+        } else {
+            limit
+        }
     }
 
     fn inlinetask_stars(&self) -> usize {
@@ -314,7 +358,13 @@ pub(super) struct P<'a> {
 
 impl<'a> P<'a> {
     pub fn new(s: &'a str, cx: &'a Ctx) -> P<'a> {
-        P { s, t: Tree::new(), cx, structs: HashMap::new(), invisible: vec![] }
+        P {
+            s,
+            t: Tree::new(),
+            cx,
+            structs: HashMap::new(),
+            invisible: vec![],
+        }
     }
 
     // ---- buffer motions ----
@@ -470,7 +520,10 @@ impl<'a> P<'a> {
     }
 
     fn at_headline(&self, p: usize) -> bool {
-        self.at_bol(p) && self.headline_stars(p).is_some_and(|n| n <= self.cx.max_headline_stars())
+        self.at_bol(p)
+            && self
+                .headline_stars(p)
+                .is_some_and(|n| n <= self.cx.max_headline_stars())
     }
 
     /// Stars of a `^\*+ ` line at P.
@@ -572,7 +625,9 @@ impl<'a> P<'a> {
             }
             if let Some(m) = c.get(6) {
                 return match m.as_str().to_uppercase().as_str() {
-                    "CENTER" => self.greater_block_parser(q, limit, aff, Type::CenterBlock, "CENTER"),
+                    "CENTER" => {
+                        self.greater_block_parser(q, limit, aff, Type::CenterBlock, "CENTER")
+                    }
                     "QUOTE" => self.greater_block_parser(q, limit, aff, Type::QuoteBlock, "QUOTE"),
                     "COMMENT" => self.comment_block_parser(q, limit, aff),
                     "EXAMPLE" => self.example_block_parser(q, limit, aff),
@@ -604,7 +659,8 @@ impl<'a> P<'a> {
                 return self.diary_sexp_parser(q, limit, aff);
             }
         }
-        if self.s[q..].trim_start_matches([' ', '\t']).starts_with('|') || self.table_el_p(q, limit) {
+        if self.s[q..].trim_start_matches([' ', '\t']).starts_with('|') || self.table_el_p(q, limit)
+        {
             return self.table_parser(q, limit, aff);
         }
         if self.looking_at_p(&self.cx.item_re, q) {
@@ -639,7 +695,11 @@ impl<'a> P<'a> {
         match found {
             None => {
                 // At limit: the last line must be a rule.
-                let last = if self.at_bol(limit) && limit > 0 { self.bol(limit - 1) } else { self.bol(limit) };
+                let last = if self.at_bol(limit) && limit > 0 {
+                    self.bol(limit - 1)
+                } else {
+                    self.bol(limit)
+                };
                 self.looking_at_p(&TABLE_EL_RULE, last)
             }
             Some(l) if l == next => false,
@@ -670,14 +730,28 @@ impl<'a> P<'a> {
         if !self.at_bol(origin) {
             return ((origin, vec![]), origin);
         }
-        let restrict: &[Type] = if parse { super::restriction(Type::Keyword) } else { &[] };
+        let restrict: &[Type] = if parse {
+            super::restriction(Type::Keyword)
+        } else {
+            &[]
+        };
         let mut out: Vec<(String, Value)> = vec![];
         let mut p = origin;
         while p < limit {
-            let Some(c) = self.looking_at(&AFFILIATED, p) else { break };
-            let raw = c.get(1).or(c.get(3)).or(c.get(4)).unwrap().as_str().to_uppercase();
+            let Some(c) = self.looking_at(&AFFILIATED, p) else {
+                break;
+            };
+            let raw = c
+                .get(1)
+                .or(c.get(3))
+                .or(c.get(4))
+                .unwrap()
+                .as_str()
+                .to_uppercase();
             let kwd = match raw.as_str() {
-                "DATA" | "LABEL" | "RESNAME" | "SOURCE" | "SRCNAME" | "TBLNAME" => "NAME".to_owned(),
+                "DATA" | "LABEL" | "RESNAME" | "SOURCE" | "SRCNAME" | "TBLNAME" => {
+                    "NAME".to_owned()
+                }
                 "RESULT" => "RESULTS".to_owned(),
                 "HEADERS" => "HEADER".to_owned(),
                 _ => raw,
@@ -687,7 +761,9 @@ impl<'a> P<'a> {
             let ve = self.skip_back(self.eol(p), BLANK, 0);
             let dual = kwd == "CAPTION" || kwd == "RESULTS";
             let dual_value = match span(&c, 2, p) {
-                Some((a, b)) if dual && parsed => Value::Secondary(self.parse_objects(a, b, restrict, None)),
+                Some((a, b)) if dual && parsed => {
+                    Value::Secondary(self.parse_objects(a, b, restrict, None))
+                }
                 Some((a, b)) if dual => Value::Str(self.s[a..b].to_owned()),
                 _ => Value::Nil,
             };
@@ -758,7 +834,14 @@ impl<'a> P<'a> {
     // ---- greater elements ----
 
     /// center-block and quote-block parsers.
-    fn greater_block_parser(&mut self, p: usize, limit: usize, aff: Aff, ty: Type, name: &str) -> NodeId {
+    fn greater_block_parser(
+        &mut self,
+        p: usize,
+        limit: usize,
+        aff: Aff,
+        ty: Type,
+        name: &str,
+    ) -> NodeId {
         let end_name = format!("#+END_{name}");
         let Some(block_end) = self.find_line(p, limit, |l| block_end_line(l, &end_name)) else {
             return self.paragraph_parser(p, limit, aff);
@@ -786,12 +869,17 @@ impl<'a> P<'a> {
         let Some(drawer_end) = self.find_line(from, limit, |l| block_end_line(l, ":END:")) else {
             return self.paragraph_parser(p, limit, aff);
         };
-        let name = self.looking_at(&DRAWER, p).map(|c| c[1].to_owned()).unwrap_or_default();
+        let name = self
+            .looking_at(&DRAWER, p)
+            .map(|c| c[1].to_owned())
+            .unwrap_or_default();
         let after = self.next_line(p);
         let q = self.skip_fwd(after, WS, self.len());
         let q = self.bol(q);
         let cb = (q < drawer_end).then_some(q);
-        let pre_blank = self.count_lines(p, cb.unwrap_or(drawer_end)).saturating_sub(1);
+        let pre_blank = self
+            .count_lines(p, cb.unwrap_or(drawer_end))
+            .saturating_sub(1);
         let before_blank = self.next_line(drawer_end);
         let end = self.end_after_blank(before_blank, limit);
         self.el(
@@ -819,7 +907,10 @@ impl<'a> P<'a> {
         };
         let c = self.looking_at(&DYN_OPEN, p);
         let name = c.as_ref().map(|c| c[1].to_owned());
-        let args = c.as_ref().and_then(|c| c.get(2)).map(|m| m.as_str().to_owned());
+        let args = c
+            .as_ref()
+            .and_then(|c| c.get(2))
+            .map(|m| m.as_str().to_owned());
         let cb = self.next_line(p);
         let cb = (cb < block_end).then_some(cb);
         let before_blank = self.next_line(block_end);
@@ -841,7 +932,10 @@ impl<'a> P<'a> {
     }
 
     fn footnote_definition_parser(&mut self, p: usize, limit: usize, aff: Aff) -> NodeId {
-        let label = self.looking_at(&FOOTNOTE_DEF, p).map(|c| c[1].to_owned()).unwrap_or_default();
+        let label = self
+            .looking_at(&FOOTNOTE_DEF, p)
+            .map(|c| c[1].to_owned())
+            .unwrap_or_default();
         let from = self.eol(p);
         let end = match FOOTNOTE_SEPARATOR.find_at(&self.s[..limit], from) {
             None => limit,
@@ -891,7 +985,9 @@ impl<'a> P<'a> {
     /// drawer at P (a line start), as (UPCASED-KEY, value).
     fn node_properties(&self, p: usize) -> Vec<(String, Value)> {
         let mut out: Vec<(String, Value)> = vec![];
-        let Some(m) = PROPERTY_DRAWER.find(&self.s[p..]) else { return out };
+        let Some(m) = PROPERTY_DRAWER.find(&self.s[p..]) else {
+            return out;
+        };
         let end = p + m.end();
         let mut l = self.next_line(p);
         while self.eol(l) < end {
@@ -972,7 +1068,10 @@ impl<'a> P<'a> {
             vec![
                 ("begin", Self::pos(p)),
                 ("end", Self::pos(end)),
-                ("pre-blank", Self::pos(cb.map_or(0, |c| self.count_lines(p, c).saturating_sub(1)))),
+                (
+                    "pre-blank",
+                    Self::pos(cb.map_or(0, |c| self.count_lines(p, c).saturating_sub(1))),
+                ),
                 ("contents-begin", Value::opt_int(cb)),
                 ("contents-end", Value::opt_int(ce)),
                 ("true-level", Self::pos(true_level)),
@@ -980,7 +1079,11 @@ impl<'a> P<'a> {
             vec![],
         );
         self.headline_title(id, p, raw_secondary);
-        let pb = if ce.is_some() { 0 } else { self.count_lines(p, end).saturating_sub(1) };
+        let pb = if ce.is_some() {
+            0
+        } else {
+            self.count_lines(p, end).saturating_sub(1)
+        };
         self.t.put(id, "post-blank", pb);
         self.t.put(id, "post-affiliated", p);
         self.headline_deferred(id, p);
@@ -1036,7 +1139,13 @@ impl<'a> P<'a> {
             }
             p = self.skip_fwd(p, BLANK, self.len());
         }
-        let todo_type = todo.as_ref().map(|k| if self.cx.done.contains(k) { "done" } else { "todo" });
+        let todo_type = todo.as_ref().map(|k| {
+            if self.cx.done.contains(k) {
+                "done"
+            } else {
+                "todo"
+            }
+        });
         let mut priority = None;
         if let Some(c) = PRIORITY.captures(&s[p..eol]) {
             let v = &c[2];
@@ -1048,7 +1157,9 @@ impl<'a> P<'a> {
             p += c.get(0).unwrap().end();
         }
         let mut commented = false;
-        if s[p..eol].starts_with("COMMENT") && matches!(s.as_bytes().get(p + 7), None | Some(b' ') | Some(b'\n')) {
+        if s[p..eol].starts_with("COMMENT")
+            && matches!(s.as_bytes().get(p + 7), None | Some(b' ') | Some(b'\n'))
+        {
             commented = true;
             p += 7;
             if p < eol {
@@ -1076,7 +1187,11 @@ impl<'a> P<'a> {
             t.put(id, "priority", pr);
         }
         if !tags.is_empty() {
-            t.put(id, "tags", Value::List(tags.into_iter().map(Value::Str).collect()));
+            t.put(
+                id,
+                "tags",
+                Value::List(tags.into_iter().map(Value::Str).collect()),
+            );
         }
         if let Some(k) = todo {
             t.put(id, "todo-keyword", k);
@@ -1132,15 +1247,26 @@ impl<'a> P<'a> {
             vec![
                 ("begin", Self::pos(p)),
                 ("end", Self::pos(end)),
-                ("pre-blank", Self::pos(cb.map_or(0, |c| self.count_lines(p, c).saturating_sub(1)))),
+                (
+                    "pre-blank",
+                    Self::pos(cb.map_or(0, |c| self.count_lines(p, c).saturating_sub(1))),
+                ),
                 ("contents-begin", Value::opt_int(cb)),
                 ("contents-end", Value::opt_int(ce)),
             ],
             vec![],
         );
         self.headline_title(id, p, raw_secondary);
-        self.t.node_mut(id).props.retain(|(k, _)| k != "footnote-section-p");
-        self.t.put(id, "post-blank", self.count_lines(task_end.unwrap_or(p), end).saturating_sub(1));
+        self.t
+            .node_mut(id)
+            .props
+            .retain(|(k, _)| k != "footnote-section-p");
+        self.t.put(
+            id,
+            "post-blank",
+            self.count_lines(task_end.unwrap_or(p), end)
+                .saturating_sub(1),
+        );
         self.t.put(id, "post-affiliated", p);
         if task_end.is_some() {
             self.headline_deferred(id, p);
@@ -1167,7 +1293,11 @@ impl<'a> P<'a> {
             }
         });
         let item_end = st.iter().find(|i| i.pos == begin).map_or(limit, |i| i.end);
-        let end = limit.min(if self.at_bol(item_end) { item_end } else { self.next_line(item_end) });
+        let end = limit.min(if self.at_bol(item_end) {
+            item_end
+        } else {
+            self.next_line(item_end)
+        });
         let start = match tag_span {
             Some((a, _)) if bullet.contains(['.', ')']) => a,
             _ => begin + c.get(0).unwrap().end(),
@@ -1196,12 +1326,18 @@ impl<'a> P<'a> {
                 ("counter", counter.map_or(Value::Nil, Value::Int)),
                 ("structure", structure),
                 ("pre-blank", Self::pos(pre_blank)),
-                ("post-blank", Self::pos(self.count_lines(ce.unwrap_or(begin), end))),
+                (
+                    "post-blank",
+                    Self::pos(self.count_lines(ce.unwrap_or(begin), end)),
+                ),
                 ("post-affiliated", Self::pos(begin)),
             ],
             vec![],
         );
-        let raw_tag = st.iter().find(|i| i.pos == begin).and_then(|i| i.tag.clone());
+        let raw_tag = st
+            .iter()
+            .find(|i| i.pos == begin)
+            .and_then(|i| i.tag.clone());
         if let Some(tag) = raw_tag {
             if raw_secondary {
                 self.t.put(id, "tag", tag);
@@ -1226,7 +1362,11 @@ impl<'a> P<'a> {
         loop {
             if p >= limit {
                 let end = self.next_line(self.skip_back(p, WS, 0));
-                let end = if self.skip_back(p, WS, 0) == self.len() { self.len() } else { end };
+                let end = if self.skip_back(p, WS, 0) == self.len() {
+                    self.len()
+                } else {
+                    end
+                };
                 for mut i in items.drain(..) {
                     i.end = end;
                     done.push(i);
@@ -1249,7 +1389,11 @@ impl<'a> P<'a> {
                 }
                 let c = self.looking_at(&FULL_ITEM, p).unwrap();
                 let bullet = c[1].to_owned();
-                let tag = if bullet.contains(['-', '+', '*']) { c.get(4).map(|m| m.as_str().to_owned()) } else { None };
+                let tag = if bullet.contains(['-', '+', '*']) {
+                    c.get(4).map(|m| m.as_str().to_owned())
+                } else {
+                    None
+                };
                 items.push(ListItem {
                     pos: p,
                     ind,
@@ -1262,7 +1406,10 @@ impl<'a> P<'a> {
                 p = self.next_line(p);
                 continue;
             }
-            if self.s[p..self.eol(p)].bytes().all(|b| b == b' ' || b == b'\t') {
+            if self.s[p..self.eol(p)]
+                .bytes()
+                .all(|b| b == b' ' || b == b'\t')
+            {
                 p = self.next_line(p);
                 continue;
             }
@@ -1283,13 +1430,16 @@ impl<'a> P<'a> {
                 let rest = &t[7..];
                 let name: String = rest.chars().take_while(|c| !c.is_whitespace()).collect();
                 let target = format!("#+END{name}");
-                if let Some(l) = self.find_line(self.next_line(p), limit, |l| block_end_line(l, &target)) {
+                if let Some(l) =
+                    self.find_line(self.next_line(p), limit, |l| block_end_line(l, &target))
+                {
                     p = l;
                 } else if self.find_line(p, limit, |l| block_end_line(l, &target)) == Some(p) {
                     // The opening line itself cannot close.
                 }
             } else if self.looking_at_p(&DRAWER, p)
-                && let Some(l) = self.find_line(self.next_line(p), limit, |l| block_end_line(l, ":END:"))
+                && let Some(l) =
+                    self.find_line(self.next_line(p), limit, |l| block_end_line(l, ":END:"))
             {
                 p = l;
             }
@@ -1304,19 +1454,30 @@ impl<'a> P<'a> {
         }
         let blank = |l: usize| -> Option<usize> {
             let e = self.eol(l);
-            (e < self.len() && self.s[l..e].bytes().all(|b| b == b' ' || b == b'\t')).then_some(e + 1)
+            (e < self.len() && self.s[l..e].bytes().all(|b| b == b' ' || b == b'\t'))
+                .then_some(e + 1)
         };
         blank(p).and_then(blank).is_some()
     }
 
-    fn plain_list_parser(&mut self, p: usize, limit: usize, aff: Aff, structure: Option<Struct>) -> NodeId {
+    fn plain_list_parser(
+        &mut self,
+        p: usize,
+        limit: usize,
+        aff: Aff,
+        structure: Option<Struct>,
+    ) -> NodeId {
         let st = match structure {
             Some(s) if s.iter().any(|i| i.pos == p) => s,
             _ => self.list_struct(p, limit),
         };
         let first = st.iter().find(|i| i.pos == p).cloned();
         let t = self.s[p..].trim_start_matches([' ', '\t']);
-        let ty = if t.as_bytes().first().is_some_and(|b| b.is_ascii_alphanumeric()) {
+        let ty = if t
+            .as_bytes()
+            .first()
+            .is_some_and(|b| b.is_ascii_alphanumeric())
+        {
             "ordered"
         } else if first.as_ref().is_some_and(|i| i.tag.is_some()) {
             "descriptive"
@@ -1353,7 +1514,9 @@ impl<'a> P<'a> {
 
     fn property_drawer_parser(&mut self, p: usize, limit: usize) -> NodeId {
         let cb = self.next_line(p);
-        let end_line = self.find_line(p, limit, |l| block_end_line(l, ":END:")).unwrap_or(cb);
+        let end_line = self
+            .find_line(p, limit, |l| block_end_line(l, ":END:"))
+            .unwrap_or(cb);
         let ce = (end_line > cb).then_some(end_line);
         let before_blank = self.next_line(end_line);
         let end = self.end_after_blank(before_blank, limit);
@@ -1403,7 +1566,10 @@ impl<'a> P<'a> {
             Type::SpecialBlock,
             vec![
                 ("type", Value::Str(ty)),
-                ("parameters", Value::opt_str(nw(params.as_deref()).map(trim))),
+                (
+                    "parameters",
+                    Value::opt_str(nw(params.as_deref()).map(trim)),
+                ),
                 ("begin", Self::pos(aff.0)),
                 ("end", Self::pos(end)),
                 ("contents-begin", Value::opt_int(cb)),
@@ -1419,7 +1585,10 @@ impl<'a> P<'a> {
 
     fn babel_call_parser(&mut self, p: usize, limit: usize, aff: Aff) -> NodeId {
         let before_blank = self.next_line(p);
-        let colon = self.s[p..before_blank].find(':').map(|i| p + i + 1).unwrap_or(p);
+        let colon = self.s[p..before_blank]
+            .find(':')
+            .map(|i| p + i + 1)
+            .unwrap_or(p);
         let q = self.skip_fwd(colon, BLANK, self.len());
         let eol = self.eol(q);
         let value = trim(&self.s[q..eol]).to_owned();
@@ -1457,7 +1626,10 @@ impl<'a> P<'a> {
 
     fn clock_parser(&mut self, p: usize, limit: usize) -> NodeId {
         let eol = self.eol(p);
-        let after = self.s[p..eol].to_ascii_uppercase().find("CLOCK:").map_or(p, |i| p + i + 6);
+        let after = self.s[p..eol]
+            .to_ascii_uppercase()
+            .find("CLOCK:")
+            .map_or(p, |i| p + i + 6);
         let q = self.skip_fwd(after, BLANK, self.len());
         let value = super::objects::timestamp_parser(self, q, self.len());
         let from = value.and_then(|v| self.t.end(v)).unwrap_or(q).min(eol);
@@ -1474,7 +1646,11 @@ impl<'a> P<'a> {
             q = self.skip_fwd(q, BLANK, self.len());
         }
         let post_blank = self.count_lines(before_blank, q);
-        let status = if duration.is_some() { "closed" } else { "running" };
+        let status = if duration.is_some() {
+            "closed"
+        } else {
+            "running"
+        };
         let id = self.t.create(
             Type::Clock,
             vec![
@@ -1523,12 +1699,22 @@ impl<'a> P<'a> {
 
     /// Blocks with a value: (contents-begin, contents-end, before-blank,
     /// end), or None when unterminated.
-    fn value_block(&self, p: usize, limit: usize, name: &str) -> Option<(usize, usize, usize, usize)> {
+    fn value_block(
+        &self,
+        p: usize,
+        limit: usize,
+        name: &str,
+    ) -> Option<(usize, usize, usize, usize)> {
         let target = format!("#+END_{name}");
         let ce = self.find_line(p, limit, |l| block_end_line(l, &target))?;
         let cb = self.next_line(p);
         let before_blank = self.next_line(ce);
-        Some((cb, ce, before_blank, self.end_after_blank(before_blank, limit)))
+        Some((
+            cb,
+            ce,
+            before_blank,
+            self.end_after_blank(before_blank, limit),
+        ))
     }
 
     fn comment_block_parser(&mut self, p: usize, limit: usize, aff: Aff) -> NodeId {
@@ -1571,7 +1757,9 @@ impl<'a> P<'a> {
         let Some((cb, ce, bb, end)) = self.value_block(p, limit, "EXAMPLE") else {
             return self.paragraph_parser(p, limit, aff);
         };
-        let switches = self.looking_at(&EXAMPLE, p).and_then(|c| c.get(1).map(|m| m.as_str().to_owned()));
+        let switches = self
+            .looking_at(&EXAMPLE, p)
+            .and_then(|c| c.get(1).map(|m| m.as_str().to_owned()));
         let sw = analyze_switches(switches.as_deref());
         let value = unescape_code(self.sub(cb, ce));
         let mut props = vec![
@@ -1590,7 +1778,9 @@ impl<'a> P<'a> {
         let Some((cb, ce, bb, end)) = self.value_block(p, limit, "EXPORT") else {
             return self.paragraph_parser(p, limit, aff);
         };
-        let backend = self.looking_at(&EXPORT, p).and_then(|c| c.get(1).map(|m| m.as_str().to_uppercase()));
+        let backend = self
+            .looking_at(&EXPORT, p)
+            .and_then(|c| c.get(1).map(|m| m.as_str().to_uppercase()));
         let value = unescape_code(self.sub(cb, ce));
         self.el(
             Type::ExportBlock,
@@ -1618,7 +1808,8 @@ impl<'a> P<'a> {
         let end_area = if self.at_bol(l) && l > 0 { l - 1 } else { l };
         let end_area = end_area.max(p);
         let end = self.end_after_blank(before_blank, limit);
-        let value: Vec<String> = self.sub(p, end_area)
+        let value: Vec<String> = self
+            .sub(p, end_area)
             .split('\n')
             .map(|line| {
                 let t = line.trim_start_matches([' ', '\t']);
@@ -1655,7 +1846,11 @@ impl<'a> P<'a> {
     }
 
     fn keyword_parser(&mut self, p: usize, limit: usize, aff: Aff) -> NodeId {
-        let begin = if aff.1.is_empty() && aff.0 != p { p } else { aff.0 };
+        let begin = if aff.1.is_empty() && aff.0 != p {
+            p
+        } else {
+            aff.0
+        };
         let c = self.looking_at(&KEYWORD, p);
         let key = c.as_ref().map(|c| c[1].to_uppercase()).unwrap_or_default();
         let vstart = c.as_ref().map_or(p, |c| p + c.get(0).unwrap().end());
@@ -1677,7 +1872,10 @@ impl<'a> P<'a> {
     }
 
     fn latex_environment_parser(&mut self, p: usize, limit: usize, aff: Aff) -> NodeId {
-        let name = self.looking_at(&LATEX_BEGIN, p).map(|c| c[1].to_owned()).unwrap_or_default();
+        let name = self
+            .looking_at(&LATEX_BEGIN, p)
+            .map(|c| c[1].to_owned())
+            .unwrap_or_default();
         let target = format!("\\end{{{name}}}");
         let found = self.find_line(p, limit, |l| {
             ends_with_ci(l.trim_end_matches([' ', '\t']), &target)
@@ -1704,8 +1902,12 @@ impl<'a> P<'a> {
     fn node_property_parser(&mut self, p: usize) -> NodeId {
         let c = self.looking_at(&PROPERTY, p);
         let key = c.as_ref().map(|c| c[3].to_owned()).unwrap_or_default();
-        let value = c.as_ref().map(|c| c.get(5).map_or("", |m| m.as_str()).to_owned());
-        let mend = c.as_ref().map_or(self.eol(p), |c| p + c.get(0).unwrap().end());
+        let value = c
+            .as_ref()
+            .map(|c| c.get(5).map_or("", |m| m.as_str()).to_owned());
+        let mend = c
+            .as_ref()
+            .map_or(self.eol(p), |c| p + c.get(0).unwrap().end());
         let end = self.len().min(mend + 1);
         self.t.create(
             Type::NodeProperty,
@@ -1725,7 +1927,11 @@ impl<'a> P<'a> {
         let cb = p;
         let mut q = self.eol(p);
         let before_blank = loop {
-            let found = self.cx.paragraph_separate.find_at(&self.s[..limit], q).map(|m| self.bol(m.start()));
+            let found = self
+                .cx
+                .paragraph_separate
+                .find_at(&self.s[..limit], q)
+                .map(|m| self.bol(m.start()));
             let Some(l) = found else {
                 break limit;
             };
@@ -1737,7 +1943,11 @@ impl<'a> P<'a> {
                 break limit;
             }
         };
-        let before_blank = if before_blank == limit { limit } else { self.bol(before_blank) };
+        let before_blank = if before_blank == limit {
+            limit
+        } else {
+            self.bol(before_blank)
+        };
         let ce = self.next_line(self.skip_back(before_blank, WS, cb));
         let ce = ce.min(self.len());
         let end = self.end_after_blank(before_blank, limit);
@@ -1762,13 +1972,17 @@ impl<'a> P<'a> {
         let line = &self.s[l..self.eol(l)];
         let t = line.trim_start_matches([' ', '\t']);
         if self.looking_at_p(&DRAWER, l) {
-            return self.find_line(self.next_line(l), limit, |x| block_end_line(x, ":END:")).is_some();
+            return self
+                .find_line(self.next_line(l), limit, |x| block_end_line(x, ":END:"))
+                .is_some();
         }
         if t.len() > 8 && starts_with_ci(t, "#+BEGIN_") {
             let name: String = t[8..].chars().take_while(|c| !c.is_whitespace()).collect();
             if !name.is_empty() {
                 let target = format!("#+END_{name}");
-                return self.find_line(l, limit, |x| block_end_line(x, &target)).is_some();
+                return self
+                    .find_line(l, limit, |x| block_end_line(x, &target))
+                    .is_some();
             }
         }
         if let Some(c) = self.looking_at(&LATEX_BEGIN, l) {
@@ -1780,7 +1994,9 @@ impl<'a> P<'a> {
                 .is_some();
         }
         if let Some(c) = DUAL_KW.captures(t) {
-            return ["CAPTION", "RESULTS"].iter().any(|k| k.eq_ignore_ascii_case(&c[1]));
+            return ["CAPTION", "RESULTS"]
+                .iter()
+                .any(|k| k.eq_ignore_ascii_case(&c[1]));
         }
         true
     }
@@ -1838,7 +2054,11 @@ impl<'a> P<'a> {
             return self.paragraph_parser(p, limit, aff);
         };
         let c = self.looking_at(&SRC, p);
-        let g = |i: usize| c.as_ref().and_then(|c| c.get(i)).map(|m| m.as_str().to_owned());
+        let g = |i: usize| {
+            c.as_ref()
+                .and_then(|c| c.get(i))
+                .map(|m| m.as_str().to_owned())
+        };
         let language = g(1);
         let switches = g(2);
         let params = g(3);
@@ -1846,8 +2066,14 @@ impl<'a> P<'a> {
         let value = unescape_code(self.sub(self.next_line(p), ce));
         let mut props = vec![
             ("language", Value::opt_str(language)),
-            ("switches", Value::opt_str(nw(switches.as_deref()).map(trim))),
-            ("parameters", Value::opt_str(nw(params.as_deref()).map(trim))),
+            (
+                "switches",
+                Value::opt_str(nw(switches.as_deref()).map(trim)),
+            ),
+            (
+                "parameters",
+                Value::opt_str(nw(params.as_deref()).map(trim)),
+            ),
             ("begin", Self::pos(aff.0)),
             ("end", Self::pos(end)),
         ];
@@ -1898,9 +2124,26 @@ impl<'a> P<'a> {
                 ("end", Self::pos(end)),
                 ("type", Value::sym(if org { "org" } else { "table.el" })),
                 ("tblfm", Value::List(tblfm)),
-                ("contents-begin", if org { Self::pos(p) } else { Value::Nil }),
-                ("contents-end", if org { Self::pos(table_end) } else { Value::Nil }),
-                ("value", if org { Value::Nil } else { Value::Str(self.s[p..table_end].to_owned()) }),
+                (
+                    "contents-begin",
+                    if org { Self::pos(p) } else { Value::Nil },
+                ),
+                (
+                    "contents-end",
+                    if org {
+                        Self::pos(table_end)
+                    } else {
+                        Value::Nil
+                    },
+                ),
+                (
+                    "value",
+                    if org {
+                        Value::Nil
+                    } else {
+                        Value::Str(self.s[p..table_end].to_owned())
+                    },
+                ),
                 ("post-blank", Self::pos(self.count_lines(before_blank, end))),
                 ("post-affiliated", Self::pos(p)),
             ],
@@ -2046,7 +2289,9 @@ pub fn paired(s: &str, p: usize, open: u8, limit: usize) -> Option<(&str, usize)
 fn analyze_switches(sw: Option<&str>) -> Vec<(&'static str, Value)> {
     let number_lines = sw.and_then(|s| NUMBER_LINES.captures(s)).map(|c| {
         let kind = if &c[1] == "-" { "new" } else { "continued" };
-        let n = c.get(2).map_or(0, |m| m.as_str().parse::<i64>().unwrap_or(1) - 1);
+        let n = c
+            .get(2)
+            .map_or(0, |m| m.as_str().parse::<i64>().unwrap_or(1) - 1);
         Value::cons(Value::sym(kind), Value::Int(n))
     });
     let preserve = sw.is_some_and(|s| SW_I.is_match(s));
@@ -2058,7 +2303,9 @@ fn analyze_switches(sw: Option<&str>) -> Vec<(&'static str, Value)> {
         None => true,
         Some(s) => retain && !SW_K.is_match(s),
     };
-    let label_fmt = sw.and_then(|s| LABEL_FMT.captures(s)).map(|c| c[1].to_owned());
+    let label_fmt = sw
+        .and_then(|s| LABEL_FMT.captures(s))
+        .map(|c| c[1].to_owned());
     vec![
         ("number-lines", number_lines.unwrap_or(Value::Nil)),
         ("preserve-indent", Value::from(preserve)),

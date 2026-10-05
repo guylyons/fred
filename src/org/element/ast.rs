@@ -111,45 +111,130 @@ use Type as T;
 
 /// org-element-all-elements.
 pub const ALL_ELEMENTS: &[Type] = &[
-    T::BabelCall, T::CenterBlock, T::Clock, T::Comment, T::CommentBlock, T::DiarySexp, T::Drawer,
-    T::DynamicBlock, T::ExampleBlock, T::ExportBlock, T::FixedWidth, T::FootnoteDefinition,
-    T::Headline, T::HorizontalRule, T::Inlinetask, T::Item, T::Keyword, T::LatexEnvironment,
-    T::NodeProperty, T::Paragraph, T::PlainList, T::Planning, T::PropertyDrawer, T::QuoteBlock,
-    T::Section, T::SpecialBlock, T::SrcBlock, T::Table, T::TableRow, T::VerseBlock,
+    T::BabelCall,
+    T::CenterBlock,
+    T::Clock,
+    T::Comment,
+    T::CommentBlock,
+    T::DiarySexp,
+    T::Drawer,
+    T::DynamicBlock,
+    T::ExampleBlock,
+    T::ExportBlock,
+    T::FixedWidth,
+    T::FootnoteDefinition,
+    T::Headline,
+    T::HorizontalRule,
+    T::Inlinetask,
+    T::Item,
+    T::Keyword,
+    T::LatexEnvironment,
+    T::NodeProperty,
+    T::Paragraph,
+    T::PlainList,
+    T::Planning,
+    T::PropertyDrawer,
+    T::QuoteBlock,
+    T::Section,
+    T::SpecialBlock,
+    T::SrcBlock,
+    T::Table,
+    T::TableRow,
+    T::VerseBlock,
 ];
 
 /// org-element-greater-elements.
 pub const GREATER_ELEMENTS: &[Type] = &[
-    T::CenterBlock, T::Drawer, T::DynamicBlock, T::FootnoteDefinition, T::Headline, T::Inlinetask,
-    T::Item, T::PlainList, T::PropertyDrawer, T::QuoteBlock, T::Section, T::SpecialBlock, T::Table,
+    T::CenterBlock,
+    T::Drawer,
+    T::DynamicBlock,
+    T::FootnoteDefinition,
+    T::Headline,
+    T::Inlinetask,
+    T::Item,
+    T::PlainList,
+    T::PropertyDrawer,
+    T::QuoteBlock,
+    T::Section,
+    T::SpecialBlock,
+    T::Table,
     T::OrgData,
 ];
 
 /// org-element-all-objects.
 pub const ALL_OBJECTS: &[Type] = &[
-    T::Bold, T::Citation, T::CitationReference, T::Code, T::Entity, T::ExportSnippet,
-    T::FootnoteReference, T::InlineBabelCall, T::InlineSrcBlock, T::Italic, T::LineBreak,
-    T::LatexFragment, T::Link, T::Macro, T::RadioTarget, T::StatisticsCookie, T::StrikeThrough,
-    T::Subscript, T::Superscript, T::TableCell, T::Target, T::Timestamp, T::Underline, T::Verbatim,
+    T::Bold,
+    T::Citation,
+    T::CitationReference,
+    T::Code,
+    T::Entity,
+    T::ExportSnippet,
+    T::FootnoteReference,
+    T::InlineBabelCall,
+    T::InlineSrcBlock,
+    T::Italic,
+    T::LineBreak,
+    T::LatexFragment,
+    T::Link,
+    T::Macro,
+    T::RadioTarget,
+    T::StatisticsCookie,
+    T::StrikeThrough,
+    T::Subscript,
+    T::Superscript,
+    T::TableCell,
+    T::Target,
+    T::Timestamp,
+    T::Underline,
+    T::Verbatim,
 ];
 
 /// org-element-recursive-objects.
 pub const RECURSIVE_OBJECTS: &[Type] = &[
-    T::Bold, T::Citation, T::FootnoteReference, T::Italic, T::Link, T::Subscript, T::RadioTarget,
-    T::StrikeThrough, T::Superscript, T::TableCell, T::Underline,
+    T::Bold,
+    T::Citation,
+    T::FootnoteReference,
+    T::Italic,
+    T::Link,
+    T::Subscript,
+    T::RadioTarget,
+    T::StrikeThrough,
+    T::Superscript,
+    T::TableCell,
+    T::Underline,
 ];
 
 /// org-element-object-containers.
 pub const OBJECT_CONTAINERS: &[Type] = &[
-    T::Bold, T::Citation, T::FootnoteReference, T::Italic, T::Link, T::Subscript, T::RadioTarget,
-    T::StrikeThrough, T::Superscript, T::TableCell, T::Underline, T::Paragraph, T::TableRow,
+    T::Bold,
+    T::Citation,
+    T::FootnoteReference,
+    T::Italic,
+    T::Link,
+    T::Subscript,
+    T::RadioTarget,
+    T::StrikeThrough,
+    T::Superscript,
+    T::TableCell,
+    T::Underline,
+    T::Paragraph,
+    T::TableRow,
     T::VerseBlock,
 ];
 
 /// org-element-elements-no-affiliated.
 pub const NO_AFFILIATED: &[Type] = &[
-    T::OrgData, T::Comment, T::Clock, T::Headline, T::Inlinetask, T::Item, T::NodeProperty,
-    T::Planning, T::PropertyDrawer, T::Section, T::TableRow,
+    T::OrgData,
+    T::Comment,
+    T::Clock,
+    T::Headline,
+    T::Inlinetask,
+    T::Item,
+    T::NodeProperty,
+    T::Planning,
+    T::PropertyDrawer,
+    T::Section,
+    T::TableRow,
 ];
 
 impl Type {
@@ -349,7 +434,12 @@ impl Tree {
     }
 
     /// org-element-create: a node of KIND with PROPS and CHILDREN.
-    pub fn create(&mut self, kind: Type, props: Vec<(&str, Value)>, children: Vec<NodeId>) -> NodeId {
+    pub fn create(
+        &mut self,
+        kind: Type,
+        props: Vec<(&str, Value)>,
+        children: Vec<NodeId>,
+    ) -> NodeId {
         let id = self.nodes.len();
         self.nodes.push(Node {
             kind,
@@ -396,7 +486,11 @@ impl Tree {
     /// The property when present (even if nil).
     pub fn get(&self, id: NodeId, k: &str) -> Option<&Value> {
         let k = key(k);
-        self.nodes[id].props.iter().find(|(n, _)| n == k).map(|(_, v)| v)
+        self.nodes[id]
+            .props
+            .iter()
+            .find(|(n, _)| n == k)
+            .map(|(_, v)| v)
     }
 
     /// org-element-put-property.
@@ -479,7 +573,9 @@ impl Tree {
     pub fn secondary_p(&self, id: NodeId) -> Option<&'static str> {
         let p = self.parent(id)?;
         self.kind(p).secondary().iter().copied().find(|k| {
-            self.prop(p, k).as_secondary().is_some_and(|v| v.contains(&id))
+            self.prop(p, k)
+                .as_secondary()
+                .is_some_and(|v| v.contains(&id))
         })
     }
 
@@ -497,7 +593,9 @@ impl Tree {
         if t.is_element() || t == T::OrgData {
             return Class::Element;
         }
-        let Some(p) = parent else { return Class::Element };
+        let Some(p) = parent else {
+            return Class::Element;
+        };
         let pt = self.kind(p);
         if pt == T::Anonymous || OBJECT_CONTAINERS.contains(&pt) || self.secondary_p(id).is_some() {
             Class::Object
@@ -520,7 +618,9 @@ impl Tree {
 
     /// org-element-lineage with TYPES: the first ancestor of one of TYPES.
     pub fn lineage_of(&self, id: NodeId, types: &[Type], with_self: bool) -> Option<NodeId> {
-        self.lineage(id, with_self).into_iter().find(|&u| self.is(u, types))
+        self.lineage(id, with_self)
+            .into_iter()
+            .find(|&u| self.is(u, types))
     }
 
     /// org-element-lineage-map.
@@ -606,10 +706,13 @@ impl Tree {
             Some(k) => {
                 let k = k.to_owned();
                 let props = &mut self.nodes[p].props;
-                props.iter_mut().find(|(n, _)| *n == k).and_then(|(_, v)| match v {
-                    Value::Secondary(s) => Some(s),
-                    _ => None,
-                })
+                props
+                    .iter_mut()
+                    .find(|(n, _)| *n == k)
+                    .and_then(|(_, v)| match v {
+                        Value::Secondary(s) => Some(s),
+                        _ => None,
+                    })
             }
             None => Some(&mut self.nodes[p].children),
         }
@@ -648,7 +751,8 @@ impl Tree {
             self.nodes[c].parent = Some(old);
         }
         for k in n.kind.secondary() {
-            if let Some(Value::Secondary(s)) = n.props.iter().find(|(x, _)| x == k).map(|(_, v)| v) {
+            if let Some(Value::Secondary(s)) = n.props.iter().find(|(x, _)| x == k).map(|(_, v)| v)
+            {
                 for &c in s {
                     self.nodes[c].parent = Some(old);
                 }
@@ -795,14 +899,23 @@ impl Tree {
             ignore: &[],
             first_match,
             no_recursion: nr,
-            with_properties: if with_affiliated && objects { vec!["caption"] } else { vec![] },
+            with_properties: if with_affiliated && objects {
+                vec!["caption"]
+            } else {
+                vec![]
+            },
             no_secondary: !objects,
         };
         self.ast_map(data, types, &opts, f)
     }
 
     /// org-element-map with defaults: collect FUN's non-None results.
-    pub fn map<R>(&self, data: NodeId, types: Option<&[Type]>, mut f: impl FnMut(&Tree, NodeId) -> Option<R>) -> Vec<R> {
+    pub fn map<R>(
+        &self,
+        data: NodeId,
+        types: Option<&[Type]>,
+        mut f: impl FnMut(&Tree, NodeId) -> Option<R>,
+    ) -> Vec<R> {
         self.map_with(data, types, false, &[], false, |t, n| match f(t, n) {
             Some(r) => Visit::Value(r),
             None => Visit::Nil,
@@ -810,7 +923,12 @@ impl Tree {
     }
 
     /// org-element-map with FIRST-MATCH.
-    pub fn map_first<R>(&self, data: NodeId, types: Option<&[Type]>, mut f: impl FnMut(&Tree, NodeId) -> Option<R>) -> Option<R> {
+    pub fn map_first<R>(
+        &self,
+        data: NodeId,
+        types: Option<&[Type]>,
+        mut f: impl FnMut(&Tree, NodeId) -> Option<R>,
+    ) -> Option<R> {
         self.map_with(data, types, true, &[], false, |t, n| match f(t, n) {
             Some(r) => Visit::Value(r),
             None => Visit::Nil,

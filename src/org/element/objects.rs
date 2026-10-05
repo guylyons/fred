@@ -23,18 +23,27 @@ re!(EXPORT_SNIPPET, r"\A@@([-A-Za-z0-9]+):");
 re!(FOOTNOTE_REF, r"\A\[fn:(?:([-_\w]+)?(:)|([-_\w]+)\])");
 re!(INLINE_CALL, r"\Acall_([^ \t\n\[(]+)[(\[]");
 re!(INLINE_SRC, r"\Asrc_([^ \t\n\[{]+)[{\[]");
-re!(LATEX_MACRO, r"\A\\[a-zA-Z]+\*?(?:(\[[^\]\[\n{}]*\])|(\{[^{}\n]*\}))*");
+re!(
+    LATEX_MACRO,
+    r"\A\\[a-zA-Z]+\*?(?:(\[[^\]\[\n{}]*\])|(\{[^{}\n]*\}))*"
+);
 re!(LINE_BREAK, r"(?m)\A\\\\[ \t]*$");
 re!(
     LINK_BRACKET,
     r"\A\[\[((?:[^\[\]\\]|\\(?:\\\\)*[\[\]]|\\+[^\[\]])+)\](?:\[((?s:.)+?)\])?\]"
 );
-re!(MACRO, r"\A\{\{\{([a-zA-Z][-a-zA-Z0-9_]*)(\(((?s:.)*?)\))?\}\}\}");
+re!(
+    MACRO,
+    r"\A\{\{\{([a-zA-Z][-a-zA-Z0-9_]*)(\(((?s:.)*?)\))?\}\}\}"
+);
 re!(
     RADIO_TARGET,
     r"\A<<<([^<>\n\r \t]|[^<>\n\r \t][^<>\n\r]*[^<>\n\r \t])>>>"
 );
-re!(TARGET, r"\A<<([^<>\n\r \t]|[^<>\n\r \t][^<>\n\r]*[^<>\n\r \t])>>");
+re!(
+    TARGET,
+    r"\A<<([^<>\n\r \t]|[^<>\n\r \t][^<>\n\r]*[^<>\n\r \t])>>"
+);
 re!(STAT_COOKIE, r"\A\[[0-9]*(%|/[0-9]*)\]");
 re!(
     SUBSCRIPT,
@@ -51,7 +60,10 @@ re!(
     TIMESTAMP_RAW,
     &format!(r"\A([<\[](%%)?.*?)[\]>](?:--({TS_BOTH}))?")
 );
-re!(TIME_RANGE, r"[012]?[0-9]:[0-5][0-9](-([012]?[0-9]):([0-5][0-9]))");
+re!(
+    TIME_RANGE,
+    r"[012]?[0-9]:[0-5][0-9](-([012]?[0-9]):([0-5][0-9]))"
+);
 re!(
     REPEATER,
     r"(\+\+|\.\+|\+)([0-9]+)([hdwmy])(?:/([0-9]+)([hdwmy]))?"
@@ -76,7 +88,11 @@ re!(MACRO_WS, r"[ \t\r\n]+");
 pub(super) const SPACE: &str = r"\t\n\x0B\x0C\r \u{A0}\u{2000}-\u{200B}\u{202F}\u{205F}\u{3000}";
 
 pub(super) fn is_space(c: char) -> bool {
-    matches!(c, '\t' | '\n' | '\x0B' | '\x0C' | '\r' | ' ' | '\u{A0}' | '\u{2000}'..='\u{200B}' | '\u{202F}' | '\u{205F}' | '\u{3000}')
+    matches!(
+        c,
+        '\t' | '\n' | '\x0B' | '\x0C' | '\r' | ' ' | '\u{A0}' | '\u{2000}'
+            ..='\u{200B}' | '\u{202F}' | '\u{205F}' | '\u{3000}'
+    )
 }
 
 fn is_word(c: char) -> bool {
@@ -104,10 +120,18 @@ impl<'a> P<'a> {
         p == n.nb || self.s.as_bytes()[p - 1] == b'\n'
     }
     fn char_before(&self, p: usize, n: N) -> Option<char> {
-        if p <= n.nb { None } else { self.s[..p].chars().next_back() }
+        if p <= n.nb {
+            None
+        } else {
+            self.s[..p].chars().next_back()
+        }
     }
     fn char_at(&self, p: usize, n: N) -> Option<char> {
-        if p >= n.ne { None } else { self.s[p..].chars().next() }
+        if p >= n.ne {
+            None
+        } else {
+            self.s[p..].chars().next()
+        }
     }
     fn prev_char_pos(&self, p: usize) -> usize {
         p - self.s[..p].chars().next_back().map_or(0, char::len_utf8)
@@ -122,7 +146,13 @@ impl<'a> P<'a> {
     }
 
     /// org-element--parse-objects: objects and text between BEG and END.
-    pub fn parse_objects(&mut self, beg: usize, end: usize, restriction: &[Type], parent: Option<NodeId>) -> Vec<NodeId> {
+    pub fn parse_objects(
+        &mut self,
+        beg: usize,
+        end: usize,
+        restriction: &[Type],
+        parent: Option<NodeId>,
+    ) -> Vec<NodeId> {
         if beg > end {
             // Upstream narrows to [END, BEG) but collects text up to END:
             // one empty string (the region only holds blanks).
@@ -134,7 +164,9 @@ impl<'a> P<'a> {
         let mut out = vec![];
         let mut p = beg;
         while p < end {
-            let Some(obj) = self.object_lex(p, n, restriction) else { break };
+            let Some(obj) = self.object_lex(p, n, restriction) else {
+                break;
+            };
             let ob = self.t.begin(obj).unwrap_or(p);
             if p < ob {
                 let txt = self.t.text(&self.s[p..ob]);
@@ -177,12 +209,19 @@ impl<'a> P<'a> {
         if let Some(radio) = &self.cx.radio
             && r.contains(&Type::Link)
         {
-            let from = if self.n_bolp(p, n) { p } else { self.prev_char_pos(p) };
+            let from = if self.n_bolp(p, n) {
+                p
+            } else {
+                self.prev_char_pos(p)
+            };
             // The narrowed buffer: `^' matches at its start.
             let hay = &self.s[n.nb..n.ne];
             let one = |g: usize| g + self.s[g..].chars().next().map_or(1, char::len_utf8);
             if let Some(c) = radio.captures_at(hay, from - n.nb) {
-                let (gs, ge) = (c.get(1).unwrap().start() + n.nb, c.get(1).unwrap().end() + n.nb);
+                let (gs, ge) = (
+                    c.get(1).unwrap().start() + n.nb,
+                    c.get(1).unwrap().end() + n.nb,
+                );
                 if p == self.bol(p) + 1 && p == ge {
                     if let Some(c2) = radio.captures_at(hay, c.get(0).unwrap().end()) {
                         limit = Some(one(c2.get(1).unwrap().start() + n.nb));
@@ -197,7 +236,9 @@ impl<'a> P<'a> {
         let re = self.cx.object_re.clone();
         let mut q = p;
         while q < lim {
-            let Some(m) = re.find_at(hay, q - n.nb) else { break };
+            let Some(m) = re.find_at(hay, q - n.nb) else {
+                break;
+            };
             let at = m.start() + n.nb;
             let result = &self.s[at..m.end() + n.nb];
             let found = self.object_at(at, n, r, result);
@@ -222,10 +263,18 @@ impl<'a> P<'a> {
         let has = |t: Type| r.contains(&t);
         let lower = result.to_ascii_lowercase();
         if lower.starts_with("call_") {
-            return if has(Type::InlineBabelCall) { self.inline_babel_call_parser(p, n) } else { None };
+            return if has(Type::InlineBabelCall) {
+                self.inline_babel_call_parser(p, n)
+            } else {
+                None
+            };
         }
         if lower.starts_with("src_") {
-            return if has(Type::InlineSrcBlock) { self.inline_src_block_parser(p, n) } else { None };
+            return if has(Type::InlineSrcBlock) {
+                self.inline_src_block_parser(p, n)
+            } else {
+                None
+            };
         }
         let second = result.chars().nth(1);
         match result.chars().next()? {
@@ -237,43 +286,109 @@ impl<'a> P<'a> {
                 }
             }
             '_' => {
-                let u = if has(Type::Underline) { self.emphasis(p, n, '_', Type::Underline) } else { None };
-                u.or_else(|| if has(Type::Subscript) { self.script_parser(p, n, Type::Subscript) } else { None })
+                let u = if has(Type::Underline) {
+                    self.emphasis(p, n, '_', Type::Underline)
+                } else {
+                    None
+                };
+                u.or_else(|| {
+                    if has(Type::Subscript) {
+                        self.script_parser(p, n, Type::Subscript)
+                    } else {
+                        None
+                    }
+                })
             }
-            '*' => has(Type::Bold).then(|| self.emphasis(p, n, '*', Type::Bold)).flatten(),
-            '/' => has(Type::Italic).then(|| self.emphasis(p, n, '/', Type::Italic)).flatten(),
-            '~' => has(Type::Code).then(|| self.emphasis(p, n, '~', Type::Code)).flatten(),
-            '=' => has(Type::Verbatim).then(|| self.emphasis(p, n, '=', Type::Verbatim)).flatten(),
-            '+' => has(Type::StrikeThrough).then(|| self.emphasis(p, n, '+', Type::StrikeThrough)).flatten(),
-            '@' => has(Type::ExportSnippet).then(|| self.export_snippet_parser(p, n)).flatten(),
+            '*' => has(Type::Bold)
+                .then(|| self.emphasis(p, n, '*', Type::Bold))
+                .flatten(),
+            '/' => has(Type::Italic)
+                .then(|| self.emphasis(p, n, '/', Type::Italic))
+                .flatten(),
+            '~' => has(Type::Code)
+                .then(|| self.emphasis(p, n, '~', Type::Code))
+                .flatten(),
+            '=' => has(Type::Verbatim)
+                .then(|| self.emphasis(p, n, '=', Type::Verbatim))
+                .flatten(),
+            '+' => has(Type::StrikeThrough)
+                .then(|| self.emphasis(p, n, '+', Type::StrikeThrough))
+                .flatten(),
+            '@' => has(Type::ExportSnippet)
+                .then(|| self.export_snippet_parser(p, n))
+                .flatten(),
             '{' => has(Type::Macro).then(|| self.macro_parser(p, n)).flatten(),
-            '$' => has(Type::LatexFragment).then(|| self.latex_fragment_parser(p, n)).flatten(),
+            '$' => has(Type::LatexFragment)
+                .then(|| self.latex_fragment_parser(p, n))
+                .flatten(),
             '<' => {
                 if second == Some('<') {
-                    let rt = if has(Type::RadioTarget) { self.radio_target_parser(p, n) } else { None };
-                    rt.or_else(|| if has(Type::Target) { self.target_parser(p, n) } else { None })
+                    let rt = if has(Type::RadioTarget) {
+                        self.radio_target_parser(p, n)
+                    } else {
+                        None
+                    };
+                    rt.or_else(|| {
+                        if has(Type::Target) {
+                            self.target_parser(p, n)
+                        } else {
+                            None
+                        }
+                    })
                 } else {
-                    let ts = if has(Type::Timestamp) { timestamp_parser(self, p, n.ne) } else { None };
-                    ts.or_else(|| if has(Type::Link) { self.link_parser(p, n) } else { None })
+                    let ts = if has(Type::Timestamp) {
+                        timestamp_parser(self, p, n.ne)
+                    } else {
+                        None
+                    };
+                    ts.or_else(|| {
+                        if has(Type::Link) {
+                            self.link_parser(p, n)
+                        } else {
+                            None
+                        }
+                    })
                 }
             }
             '\\' => {
                 if second == Some('\\') {
-                    has(Type::LineBreak).then(|| self.line_break_parser(p, n)).flatten()
+                    has(Type::LineBreak)
+                        .then(|| self.line_break_parser(p, n))
+                        .flatten()
                 } else {
-                    let e = if has(Type::Entity) { self.entity_parser(p, n) } else { None };
-                    e.or_else(|| if has(Type::LatexFragment) { self.latex_fragment_parser(p, n) } else { None })
+                    let e = if has(Type::Entity) {
+                        self.entity_parser(p, n)
+                    } else {
+                        None
+                    };
+                    e.or_else(|| {
+                        if has(Type::LatexFragment) {
+                            self.latex_fragment_parser(p, n)
+                        } else {
+                            None
+                        }
+                    })
                 }
             }
             '[' => match second {
                 Some('[') if has(Type::Link) => self.link_parser(p, n),
                 Some('f') if has(Type::FootnoteReference) => self.footnote_reference_parser(p, n),
                 Some('c') if has(Type::Citation) => self.citation_parser(p, n),
-                Some('%' | '/') if has(Type::StatisticsCookie) => self.statistics_cookie_parser(p, n),
+                Some('%' | '/') if has(Type::StatisticsCookie) => {
+                    self.statistics_cookie_parser(p, n)
+                }
                 _ => {
-                    let ts = if has(Type::Timestamp) { timestamp_parser(self, p, n.ne) } else { None };
+                    let ts = if has(Type::Timestamp) {
+                        timestamp_parser(self, p, n.ne)
+                    } else {
+                        None
+                    };
                     ts.or_else(|| {
-                        if has(Type::StatisticsCookie) { self.statistics_cookie_parser(p, n) } else { None }
+                        if has(Type::StatisticsCookie) {
+                            self.statistics_cookie_parser(p, n)
+                        } else {
+                            None
+                        }
                     })
                 }
             },
@@ -352,7 +467,9 @@ impl<'a> P<'a> {
             }
         }
         let e = self.skip_back(closing - 1, b" \r\t\n", 0);
-        let semi = self.s[first_key_end..e.max(first_key_end)].rfind(';').map(|i| first_key_end + i);
+        let semi = self.s[first_key_end..e.max(first_key_end)]
+            .rfind(';')
+            .map(|i| first_key_end + i);
         match semi {
             Some(s) if CITE_KEY.find(&self.s[s..e]).is_none() => {
                 let a = s + 1;
@@ -376,7 +493,12 @@ impl<'a> P<'a> {
         let suffix_end = if sep.is_some() { end - 1 } else { end };
         let id = self.obj(
             Type::CitationReference,
-            vec![("key", Value::Str(k)), ("begin", P::pos(p)), ("end", P::pos(end)), ("post-blank", P::pos(0))],
+            vec![
+                ("key", Value::Str(k)),
+                ("begin", P::pos(p)),
+                ("end", P::pos(end)),
+                ("post-blank", P::pos(0)),
+            ],
         );
         let restr = super::restriction(Type::CitationReference);
         if p < ks {
@@ -448,11 +570,28 @@ impl<'a> P<'a> {
             Type::FootnoteReference,
             vec![
                 ("label", Value::opt_str(label)),
-                ("type", Value::sym(if inline { "inline" } else { "standard" })),
+                (
+                    "type",
+                    Value::sym(if inline { "inline" } else { "standard" }),
+                ),
                 ("begin", P::pos(p)),
                 ("end", P::pos(end)),
-                ("contents-begin", if inline { P::pos(inner_begin) } else { Value::Nil }),
-                ("contents-end", if inline { P::pos(closing - 1) } else { Value::Nil }),
+                (
+                    "contents-begin",
+                    if inline {
+                        P::pos(inner_begin)
+                    } else {
+                        Value::Nil
+                    },
+                ),
+                (
+                    "contents-end",
+                    if inline {
+                        P::pos(closing - 1)
+                    } else {
+                        Value::Nil
+                    },
+                ),
                 ("post-blank", P::pos(end - closing)),
             ],
         ))
@@ -469,7 +608,8 @@ impl<'a> P<'a> {
         let c = self.nlook(&INLINE_CALL, p, n)?;
         let call = c[1].to_owned();
         let mut q = p + c.get(1).unwrap().end();
-        let clean = |s: &str| nw(Some(s)).map(|s| NEWLINE_INDENT.replace_all(trim(s), " ").into_owned());
+        let clean =
+            |s: &str| nw(Some(s)).map(|s| NEWLINE_INDENT.replace_all(trim(s), " ").into_owned());
         let inside = match paired(self.s, q, b'[', n.ne) {
             Some((v, e)) => {
                 q = e;
@@ -541,13 +681,18 @@ impl<'a> P<'a> {
             match b.get(p + 1) {
                 Some(b'(') => s[p..].find("\\)").map(|i| p + i + 2),
                 Some(b'[') => s[p..].find("\\]").map(|i| p + i + 2),
-                _ => self.nlook(&LATEX_MACRO, p, n).map(|c| p + c.get(0).unwrap().end()),
+                _ => self
+                    .nlook(&LATEX_MACRO, p, n)
+                    .map(|c| p + c.get(0).unwrap().end()),
             }
         } else if b.get(p + 1) == Some(&b'$') {
             s[p + 2..].find("$$").map(|i| p + 2 + i + 2)
         } else {
             let prev_ok = self.char_before(p, n) != Some('$');
-            let next_ok = !matches!(b.get(p + 1), Some(b' ' | b'\t' | b'\n' | b',' | b'.' | b';') | None);
+            let next_ok = !matches!(
+                b.get(p + 1),
+                Some(b' ' | b'\t' | b'\n' | b',' | b'.' | b';') | None
+            );
             if prev_ok && next_ok {
                 s[p + 1..].find('$').and_then(|i| {
                     let close = p + 1 + i;
@@ -578,7 +723,14 @@ impl<'a> P<'a> {
             return None;
         }
         let end = self.next_line(p).min(n.ne);
-        Some(self.obj(Type::LineBreak, vec![("begin", P::pos(p)), ("end", P::pos(end)), ("post-blank", P::pos(0))]))
+        Some(self.obj(
+            Type::LineBreak,
+            vec![
+                ("begin", P::pos(p)),
+                ("end", P::pos(end)),
+                ("post-blank", P::pos(0)),
+            ],
+        ))
     }
 
     pub(super) fn link_parser(&mut self, p: usize, n: N) -> Option<NodeId> {
@@ -587,7 +739,11 @@ impl<'a> P<'a> {
         let mut explicit = false;
         let (format, mut ty, mut path, link_end);
         let radio = self.cx.radio.clone().and_then(|re| {
-            let from = if self.n_bolp(p, n) { p } else { self.prev_char_pos(p) };
+            let from = if self.n_bolp(p, n) {
+                p
+            } else {
+                self.prev_char_pos(p)
+            };
             let c = re.captures_at(&self.s[n.nb..n.ne], from - n.nb)?;
             (c.get(0).unwrap().start() + n.nb == from).then(|| {
                 let g = c.get(1).unwrap();
@@ -604,8 +760,15 @@ impl<'a> P<'a> {
             format = "bracket";
             contents = c.get(2).map(|m| (p + m.start(), p + m.end()));
             link_end = p + c.get(0).unwrap().end();
-            let raw = expand_abbrev(&unescape(&NEWLINE_INDENT.replace_all(&c[1], " ")), &self.cx.link_abbrevs);
-            if raw.starts_with('/') || raw.starts_with('~') || raw.starts_with("./") || raw.starts_with("../") {
+            let raw = expand_abbrev(
+                &unescape(&NEWLINE_INDENT.replace_all(&c[1], " ")),
+                &self.cx.link_abbrevs,
+            );
+            if raw.starts_with('/')
+                || raw.starts_with('~')
+                || raw.starts_with("./")
+                || raw.starts_with("../")
+            {
                 ty = "file".to_owned();
                 path = raw.clone();
             } else if let Some(m) = self.cx.link_types_re.captures(&raw) {
@@ -632,15 +795,15 @@ impl<'a> P<'a> {
             explicit = true;
             link_end = p + c.get(0).unwrap().end();
             path = c[2].to_owned();
-        } else if let Some(c) = self.nlook(&self.cx.angle_link, p, n) {
+        } else {
+            let c = self.nlook(&self.cx.angle_link, p, n)?;
             format = "angle";
             ty = c[1].to_owned();
             explicit = true;
             link_end = p + c.get(0).unwrap().end();
-            raw_link = Some(self.s[p + c.get(1).unwrap().start()..p + c.get(2).unwrap().end()].to_owned());
+            raw_link =
+                Some(self.s[p + c.get(1).unwrap().start()..p + c.get(2).unwrap().end()].to_owned());
             path = NEWLINE_INDENT.replace_all(&c[2], "").into_owned();
-        } else {
-            return None;
         }
         let end = self.skip_blank(link_end, n);
         let mut application = None;
@@ -681,7 +844,12 @@ impl<'a> P<'a> {
         let end = self.skip_blank(me, n);
         let args = c.get(3).map(|a| {
             let a = MACRO_WS.replace_all(trim(a.as_str()), " ").into_owned();
-            Value::List(macro_extract_arguments(&a).into_iter().map(Value::Str).collect())
+            Value::List(
+                macro_extract_arguments(&a)
+                    .into_iter()
+                    .map(Value::Str)
+                    .collect(),
+            )
         });
         Some(self.obj(
             Type::Macro,
@@ -793,7 +961,11 @@ static CLOSING: LazyLock<Vec<Regex>> = LazyLock::new(|| {
     ["*", "/", "_", "+", "=", "~"]
         .iter()
         .map(|m| {
-            Regex::new(&format!(r#"(?m)[^{SPACE}]({})(?:[{SPACE}\-.,;:!?'")}}\\\[]|$)"#, regex::escape(m))).unwrap()
+            Regex::new(&format!(
+                r#"(?m)[^{SPACE}]({})(?:[{SPACE}\-.,;:!?'")}}\\\[]|$)"#,
+                regex::escape(m)
+            ))
+            .unwrap()
         })
         .collect()
 });
@@ -835,7 +1007,10 @@ pub(super) fn timestamp_parser(pp: &mut P, p: usize, limit: usize) -> Option<Nod
     let me = p + raw.get(0).unwrap().end();
     let end = pp.skip_fwd(me, b" \t", limit);
     let time_range = TIME_RANGE.captures(&date_start).map(|c| {
-        (c[2].parse::<i64>().unwrap_or(0), c[3].parse::<i64>().unwrap_or(0))
+        (
+            c[2].parse::<i64>().unwrap_or(0),
+            c[3].parse::<i64>().unwrap_or(0),
+        )
     });
     let ranged = date_end.is_some() || time_range.is_some();
     let ty = if diary {
@@ -860,7 +1035,10 @@ pub(super) fn timestamp_parser(pp: &mut P, p: usize, limit: usize) -> Option<Nod
     let mut stop: [Option<i64>; 5] = [None; 5];
     if !diary {
         start = parse_time_string(&date_start).unwrap_or([None; 5]);
-        let e = date_end.as_deref().and_then(parse_time_string).unwrap_or([None; 5]);
+        let e = date_end
+            .as_deref()
+            .and_then(parse_time_string)
+            .unwrap_or([None; 5]);
         stop = [
             e[0].or(start[0]),
             e[1].or(start[1]),
@@ -906,12 +1084,18 @@ pub(super) fn timestamp_parser(pp: &mut P, p: usize, limit: usize) -> Option<Nod
             props.push(("repeater-value", Value::Int(c[2].parse().unwrap_or(0))));
             props.push(("repeater-unit", Value::sym(unit(&c[3]))));
             if let (Some(v), Some(u)) = (c.get(4), c.get(5)) {
-                props.push(("repeater-deadline-value", Value::Int(v.as_str().parse().unwrap_or(0))));
+                props.push((
+                    "repeater-deadline-value",
+                    Value::Int(v.as_str().parse().unwrap_or(0)),
+                ));
                 props.push(("repeater-deadline-unit", Value::sym(unit(u.as_str()))));
             }
         }
         if let Some(c) = WARNING.captures(&raw_value) {
-            props.push(("warning-type", Value::sym(if c.get(1).is_some() { "first" } else { "all" })));
+            props.push((
+                "warning-type",
+                Value::sym(if c.get(1).is_some() { "first" } else { "all" }),
+            ));
             props.push(("warning-value", Value::Int(c[2].parse().unwrap_or(0))));
             props.push(("warning-unit", Value::sym(unit(&c[3]))));
         }
@@ -979,7 +1163,9 @@ pub fn escape(link: &str) -> String {
 /// org-link-expand-abbrev (string replacements; function abbrevs are
 /// not supported).
 pub fn expand_abbrev(link: &str, abbrevs: &[(String, String)]) -> String {
-    let Some(c) = ABBREV.captures(link) else { return link.to_owned() };
+    let Some(c) = ABBREV.captures(link) else {
+        return link.to_owned();
+    };
     let key = &c[1];
     let Some((_, rpl)) = abbrevs.iter().find(|(k, _)| k == key) else {
         return link.to_owned();
@@ -988,7 +1174,12 @@ pub fn expand_abbrev(link: &str, abbrevs: &[(String, String)]) -> String {
     if let Some(i) = rpl.find("%s") {
         format!("{}{}{}", &rpl[..i], tag.unwrap_or(""), &rpl[i + 2..])
     } else if let Some(i) = rpl.find("%h") {
-        format!("{}{}{}", &rpl[..i], url_hexify(tag.unwrap_or("")), &rpl[i + 2..])
+        format!(
+            "{}{}{}",
+            &rpl[..i],
+            url_hexify(tag.unwrap_or("")),
+            &rpl[i + 2..]
+        )
     } else {
         format!("{rpl}{}", tag.unwrap_or(""))
     }
@@ -1020,7 +1211,9 @@ pub fn macro_extract_arguments(s: &str) -> Vec<String> {
             }
             let n = i - start;
             if i < b.len() && b[i] == ',' {
-                out.last_mut().unwrap().extend(std::iter::repeat_n('\\', n / 2));
+                out.last_mut()
+                    .unwrap()
+                    .extend(std::iter::repeat_n('\\', n / 2));
                 if n % 2 == 0 {
                     out.push(String::new());
                 } else {

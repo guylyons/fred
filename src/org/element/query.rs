@@ -57,10 +57,22 @@ pub fn context(text: &str, t: &Tree, pos: usize) -> Option<NodeId> {
     let el = at_point(text, t, pos)?;
     let ty = t.kind(el);
     let bol = text[..pos.min(text.len())].rfind('\n').map_or(0, |i| i + 1);
-    let eol = text[pos.min(text.len())..].find('\n').map_or(text.len(), |i| pos + i);
+    let eol = text[pos.min(text.len())..]
+        .find('\n')
+        .map_or(text.len(), |i| pos + i);
+    // A secondary string is contiguous: plain text widths fill the gaps
+    // around its objects.
     let span = |ids: &[NodeId]| -> Option<(usize, usize)> {
-        let a = ids.iter().filter_map(|&i| t.begin(i)).min()?;
-        let b = ids.iter().filter_map(|&i| t.end(i)).max()?;
+        let first = ids.iter().position(|&i| t.begin(i).is_some())?;
+        let last = ids.iter().rposition(|&i| t.end(i).is_some())?;
+        let len = |s: &[NodeId]| {
+            s.iter()
+                .filter_map(|&i| t.plain_text(i))
+                .map(str::len)
+                .sum::<usize>()
+        };
+        let a = t.begin(ids[first])? - len(&ids[..first]);
+        let b = t.end(ids[last])? + len(&ids[last + 1..]);
         Some((a, b))
     };
     let (objs, region_end): (Vec<NodeId>, usize) = match t.post_affiliated(el) {
@@ -78,7 +90,11 @@ pub fn context(text: &str, t: &Tree, pos: usize) -> Option<NodeId> {
         _ if ty == Type::Item => {
             let tag = t.secondary(el, "tag").to_vec();
             match span(&tag) {
-                Some((a, b)) if bol == t.post_affiliated(el).unwrap_or(0) && pos >= a && pos < b => (tag, b),
+                Some((a, b))
+                    if bol == t.post_affiliated(el).unwrap_or(0) && pos >= a && pos < b =>
+                {
+                    (tag, b)
+                }
                 _ => return Some(el),
             }
         }
@@ -91,7 +107,9 @@ pub fn context(text: &str, t: &Tree, pos: usize) -> Option<NodeId> {
         }
         _ if matches!(ty, Type::Paragraph | Type::TableRow | Type::VerseBlock) => {
             match (t.contents_begin(el), t.contents_end(el)) {
-                (Some(cb), Some(ce)) if pos >= cb && (pos < ce || (pos == ce && ce == text.len())) => {
+                (Some(cb), Some(ce))
+                    if pos >= cb && (pos < ce || (pos == ce && ce == text.len())) =>
+                {
                     (t.contents(el).to_vec(), ce)
                 }
                 _ => return Some(el),
@@ -108,7 +126,9 @@ pub fn context(text: &str, t: &Tree, pos: usize) -> Option<NodeId> {
             if t.kind(o) == Type::PlainText {
                 continue;
             }
-            let (Some(b), Some(e)) = (t.begin(o), t.end(o)) else { continue };
+            let (Some(b), Some(e)) = (t.begin(o), t.end(o)) else {
+                continue;
+            };
             if b > pos {
                 return Some(last.unwrap_or(parent));
             }
@@ -122,7 +142,8 @@ pub fn context(text: &str, t: &Tree, pos: usize) -> Option<NodeId> {
                 && pos >= cb
                 && (pos < ce
                     || (pos == ce
-                        && (pos == region_end || !matches!(text[..pos].chars().next_back(), Some(' ' | '\t')))))
+                        && (pos == region_end
+                            || !matches!(text[..pos].chars().next_back(), Some(' ' | '\t')))))
             {
                 parent = o;
                 objs = t.contents(o).to_vec();

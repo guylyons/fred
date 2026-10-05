@@ -12,13 +12,20 @@ use unicode_width::UnicodeWidthStr;
 
 /// org-element-interpret-data on a node.
 pub fn interpret(t: &Tree, id: NodeId) -> String {
-    Interp { t, over: HashMap::new() }.fun(id, None)
+    Interp {
+        t,
+        over: HashMap::new(),
+    }
+    .fun(id, None)
 }
 
 /// org-element-interpret-data on a property value (secondary string,
 /// string, list of them).
 pub fn interpret_value(t: &Tree, v: &Value) -> String {
-    let i = Interp { t, over: HashMap::new() };
+    let i = Interp {
+        t,
+        over: HashMap::new(),
+    };
     i.value(v, None)
 }
 
@@ -34,7 +41,11 @@ pub fn normalize_string(s: &str, keep_newlines: bool) -> String {
         return String::new();
     }
     if keep_newlines {
-        return if s.ends_with('\n') { s.to_owned() } else { format!("{s}\n") };
+        return if s.ends_with('\n') {
+            s.to_owned()
+        } else {
+            format!("{s}\n")
+        };
     }
     // Strip trailing (newline + blanks)* then add one newline.
     let mut end = s.len();
@@ -61,7 +72,11 @@ fn indent_to(col: usize, tabs: bool) -> String {
 fn width_of_blanks(s: &str) -> usize {
     let mut col = 0;
     for c in s.chars() {
-        col = if c == '\t' { (col / 8 + 1) * 8 } else { col + 1 };
+        col = if c == '\t' {
+            (col / 8 + 1) * 8
+        } else {
+            col + 1
+        };
     }
     col
 }
@@ -96,7 +111,11 @@ pub fn remove_indentation(code: &str) -> String {
         let mut col = 0;
         let mut rest = String::new();
         for (i, c) in ws.char_indices() {
-            let next = if c == '\t' { (col / 8 + 1) * 8 } else { col + 1 };
+            let next = if c == '\t' {
+                (col / 8 + 1) * 8
+            } else {
+                col + 1
+            };
             if col >= min {
                 rest.push_str(&ws[i..]);
                 break;
@@ -118,7 +137,8 @@ static SRC_IND: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)^[ \t]*\S").
 /// The value of a src or example block, reindented as upstream.
 fn block_value(t: &Tree, id: NodeId) -> String {
     let val = t.str(id, "value").unwrap_or("");
-    let preserve = t.flag(id, "preserve-indent") || options::bool("org-src-preserve-indentation", false);
+    let preserve =
+        t.flag(id, "preserve-indent") || options::bool("org-src-preserve-indentation", false);
     let ind = options::int("org-src-content-indentation", 2).max(0) as usize;
     if preserve {
         val.to_owned()
@@ -127,14 +147,20 @@ fn block_value(t: &Tree, id: NodeId) -> String {
     } else {
         let pad = " ".repeat(ind);
         SRC_IND
-            .replace_all(&remove_indentation(val), |c: &regex::Captures| format!("{pad}{}", &c[0]))
+            .replace_all(&remove_indentation(val), |c: &regex::Captures| {
+                format!("{pad}{}", &c[0])
+            })
             .into_owned()
     }
 }
 
 /// org-priority-to-string.
 fn priority_string(p: i64) -> String {
-    if p < 65 { p.to_string() } else { char::from_u32(p as u32).map_or(String::new(), String::from) }
+    if p < 65 {
+        p.to_string()
+    } else {
+        char::from_u32(p as u32).map_or(String::new(), String::from)
+    }
 }
 
 /// Tag alignment shared by headlines and inline tasks.
@@ -225,7 +251,9 @@ pub fn timestamp_string(t: &Tree, id: NodeId) -> String {
         repeat.push_str(&v.to_string());
     }
     repeat.push_str(unit_str(p("repeater-unit")));
-    if let (Some(v), u) = (i("repeater-deadline-value"), p("repeater-deadline-unit")) && u.truthy() {
+    if let (Some(v), u) = (i("repeater-deadline-value"), p("repeater-deadline-unit"))
+        && u.truthy()
+    {
         repeat.push_str(&format!("/{v}{}", unit_str(u)));
     }
     let mut warning = String::new();
@@ -239,7 +267,11 @@ pub fn timestamp_string(t: &Tree, id: NodeId) -> String {
     }
     warning.push_str(unit_str(p("warning-unit")));
     let (hs, mins) = (i("hour-start"), i("minute-start"));
-    let (open, close) = if ty == "inactive" || ty == "inactive-range" { ("[", "]") } else { ("<", ">") };
+    let (open, close) = if ty == "inactive" || ty == "inactive-range" {
+        ("[", "]")
+    } else {
+        ("<", ">")
+    };
     let nw = |s: &str| s.bytes().any(|b| !b" \r\t\n".contains(&b));
     let mut tail = String::new();
     if nw(&repeat) {
@@ -308,7 +340,8 @@ pub fn timestamp_string(t: &Tree, id: NodeId) -> String {
 static NUMBER: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)^(?:[<>]?[-+^.0-9]*[0-9][-+^.0-9eEdDx()%:]*|[<>]?[-+]?0[xX][0-9a-fA-F.]+|[<>]?[-+]?[0-9]+#[0-9a-zA-Z.]+|nan|[-+u]?inf)$").unwrap()
 });
-static ALIGN_COOKIE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\A<([lrc])[0-9]*>\z").unwrap());
+static ALIGN_COOKIE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\A<([lrc])[0-9]*>\z").unwrap());
 
 /// org-table-align on table text (rows starting with `|`).
 pub fn table_align(text: &str) -> String {
@@ -379,12 +412,20 @@ pub fn table_align(text: &str) -> String {
                         }
                     }
                 }
-                let a = fixed.unwrap_or(if numbers as f64 >= 0.5 * non_empty as f64 { "r" } else { "l" });
+                let a = fixed.unwrap_or(if numbers as f64 >= 0.5 * non_empty as f64 {
+                    "r"
+                } else {
+                    "l"
+                });
                 (w, a)
             })
             .unzip()
     };
-    let rule: String = widths.iter().map(|w| "-".repeat(w + 2)).collect::<Vec<_>>().join("+");
+    let rule: String = widths
+        .iter()
+        .map(|w| "-".repeat(w + 2))
+        .collect::<Vec<_>>()
+        .join("+");
     let mut out = String::new();
     for r in &rows {
         out.push_str(&indent);
@@ -414,7 +455,11 @@ pub fn table_align(text: &str) -> String {
 /// org-list-bullet-string.
 fn bullet_string(b: &str) -> String {
     let t = b.trim_end_matches([' ', '\t']);
-    if t.is_empty() { b.to_owned() } else { format!("{t} ") }
+    if t.is_empty() {
+        b.to_owned()
+    } else {
+        format!("{t} ")
+    }
 }
 
 fn inc_bullet(b: &str) -> String {
@@ -444,15 +489,23 @@ pub fn list_repair(text: &str) -> String {
     let n = st.len();
     // Parents and previous siblings.
     let parent: Vec<Option<usize>> = (0..n)
-        .map(|i| (0..i).rev().find(|&j| st[j].ind < st[i].ind && st[j].end > st[i].pos))
+        .map(|i| {
+            (0..i)
+                .rev()
+                .find(|&j| st[j].ind < st[i].ind && st[j].end > st[i].pos)
+        })
         .collect();
-    let prev: Vec<Option<usize>> = (0..n).map(|i| (0..n).find(|&j| st[j].end == st[i].pos && j != i && st[j].ind == st[i].ind)).collect();
+    let prev: Vec<Option<usize>> = (0..n)
+        .map(|i| (0..n).find(|&j| st[j].end == st[i].pos && j != i && st[j].ind == st[i].ind))
+        .collect();
     let mut bul: Vec<String> = st.iter().map(|i| i.bullet.clone()).collect();
     for i in 0..n {
         let counter = st[i].counter.as_deref();
         let num_counter = counter.filter(|c| c.bytes().all(|b| b.is_ascii_digit()));
         let new = match (prev[i], num_counter) {
-            (Some(p), Some(c)) if DIGITS.is_match(&bul[p]) => DIGITS.replace(&bul[p], c).into_owned(),
+            (Some(p), Some(c)) if DIGITS.is_match(&bul[p]) => {
+                DIGITS.replace(&bul[p], c).into_owned()
+            }
             (Some(p), _) => inc_bullet(&bul[p]),
             (None, Some(c)) if DIGITS.is_match(&bul[i]) => DIGITS.replace(&bul[i], c).into_owned(),
             (None, _) => match bul[i].find(|c: char| c.is_ascii_alphanumeric()) {
@@ -471,11 +524,17 @@ pub fn list_repair(text: &str) -> String {
         };
     }
     let mut boxes: Vec<Option<String>> = st.iter().map(|i| i.checkbox.clone()).collect();
-    let mut parents: Vec<usize> = (0..n).filter_map(|i| parent[i]).filter(|&p| boxes[p].is_some()).collect();
+    let mut parents: Vec<usize> = (0..n)
+        .filter_map(|i| parent[i])
+        .filter(|&p| boxes[p].is_some())
+        .collect();
     parents.sort_by_key(|&p| std::cmp::Reverse(ind[p]));
     parents.dedup();
     for p in parents {
-        let kids: Vec<&str> = (0..n).filter(|&c| parent[c] == Some(p)).filter_map(|c| boxes[c].as_deref()).collect();
+        let kids: Vec<&str> = (0..n)
+            .filter(|&c| parent[c] == Some(p))
+            .filter_map(|c| boxes[c].as_deref())
+            .collect();
         let has = |b: &str| kids.contains(&b);
         let nb = if has("[ ]") && has("[X]") || has("[-]") {
             "[-]"
@@ -516,7 +575,9 @@ pub fn list_repair(text: &str) -> String {
                 ind[i] as i64 + 1,
             ),
             None => {
-                let Some(child) = st.iter().position(|i| i.end == up) else { continue };
+                let Some(child) = st.iter().position(|i| i.end == up) else {
+                    continue;
+                };
                 // The least indented line of the slice aligns with CHILD.
                 let mut min = usize::MAX;
                 let mut skip_to: Option<String> = None;
@@ -533,7 +594,8 @@ pub fn list_repair(text: &str) -> String {
                     min = min.min(lead(l));
                     let up8 = l.get(..8).unwrap_or("").to_ascii_uppercase();
                     if up8.starts_with("#+BEGIN:") || up8.starts_with("#+BEGIN_") {
-                        let name: String = l[7..].chars().take_while(|c| !c.is_whitespace()).collect();
+                        let name: String =
+                            l[7..].chars().take_while(|c| !c.is_whitespace()).collect();
                         skip_to = Some(format!("#+END{name}"));
                     } else if is_drawer_line(l) {
                         skip_to = Some(":END:".into());
@@ -584,7 +646,9 @@ fn is_drawer_line(l: &str) -> bool {
     t.len() > 2
         && t.starts_with(':')
         && t.ends_with(':')
-        && t[1..t.len() - 1].chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+        && t[1..t.len() - 1]
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
 }
 
 static FIRST_ORD: LazyLock<Regex> = LazyLock::new(|| Regex::new("[0-9]+|[A-Za-z]").unwrap());
@@ -606,8 +670,16 @@ impl Interp<'_> {
         let t = self.t;
         let ty = t.kind(id);
         let results = match ty {
-            Type::Anonymous => t.contents(id).iter().map(|&c| self.fun(c, parent)).collect(),
-            Type::PlainText => self.over.get(&id).cloned().unwrap_or_else(|| t.node(id).text.clone()),
+            Type::Anonymous => t
+                .contents(id)
+                .iter()
+                .map(|&c| self.fun(c, parent))
+                .collect(),
+            Type::PlainText => self
+                .over
+                .get(&id)
+                .cloned()
+                .unwrap_or_else(|| t.node(id).text.clone()),
             _ if t.contents(id).is_empty() => self.interpreter(id, None),
             _ => {
                 let contents: String = if matches!(ty, Type::Paragraph | Type::VerseBlock) {
@@ -617,10 +689,19 @@ impl Interp<'_> {
                                 && t.contents(p).first() == Some(&id)
                                 && t.int(p, "pre-blank") == Some(0)
                         });
-                    let sub = Interp { t, over: normalize_contents(t, id, ignore_first) };
-                    t.contents(id).iter().map(|&c| sub.fun(c, Some(id))).collect()
+                    let sub = Interp {
+                        t,
+                        over: normalize_contents(t, id, ignore_first),
+                    };
+                    t.contents(id)
+                        .iter()
+                        .map(|&c| sub.fun(c, Some(id)))
+                        .collect()
                 } else {
-                    t.contents(id).iter().map(|&c| self.fun(c, Some(id))).collect()
+                    t.contents(id)
+                        .iter()
+                        .map(|&c| self.fun(c, Some(id)))
+                        .collect()
                 };
                 self.interpreter(id, Some(contents))
             }
@@ -678,8 +759,16 @@ impl Interp<'_> {
         } else {
             (value.clone(), Value::Nil)
         };
-        let dual = if dual.truthy() { format!("[{}]", self.value(&dual, None)) } else { String::new() };
-        format!("#+{}{dual}: {}\n", key.to_lowercase(), self.value(&main, None))
+        let dual = if dual.truthy() {
+            format!("[{}]", self.value(&dual, None))
+        } else {
+            String::new()
+        };
+        format!(
+            "#+{}{dual}: {}\n",
+            key.to_lowercase(),
+            self.value(&main, None)
+        )
     }
 
     /// org-element-TYPE-interpreter.
@@ -697,16 +786,25 @@ impl Interp<'_> {
                 "\n".repeat(t.int(id, "pre-blank").unwrap_or(0).max(0) as usize)
             ),
             Type::DynamicBlock => {
-                let args = t.str(id, "arguments").map_or(String::new(), |a| format!(" {a}"));
+                let args = t
+                    .str(id, "arguments")
+                    .map_or(String::new(), |a| format!(" {a}"));
                 format!("#+begin: {}{args}\n{cn}#+end:", s("block-name"))
             }
             Type::FootnoteDefinition => {
-                let pre = t.int(id, "pre-blank").unwrap_or(1).min(2).max(0) as usize;
-                let body = if pre == 0 { format!(" {}", trim(&c)) } else { format!("{}{c}", "\n".repeat(pre)) };
+                let pre = t.int(id, "pre-blank").unwrap_or(1).clamp(0, 2) as usize;
+                let body = if pre == 0 {
+                    format!(" {}", trim(&c))
+                } else {
+                    format!("{}{c}", "\n".repeat(pre))
+                };
                 format!("[fn:{}]{body}", s("label"))
             }
             Type::Headline => self.headline(id, &c),
-            Type::OrgData => format!("{}{c}", "\n".repeat(t.int(id, "pre-blank").unwrap_or(0).max(0) as usize)),
+            Type::OrgData => format!(
+                "{}{c}",
+                "\n".repeat(t.int(id, "pre-blank").unwrap_or(0).max(0) as usize)
+            ),
             Type::Inlinetask => self.inlinetask(id, contents),
             Type::Item => self.item(id, contents),
             Type::PlainList => list_repair(&c),
@@ -715,16 +813,25 @@ impl Interp<'_> {
             Type::Section | Type::Paragraph => c,
             Type::SpecialBlock => {
                 let ty = s("type");
-                let params = t.str(id, "parameters").map_or(String::new(), |p| format!(" {p}"));
+                let params = t
+                    .str(id, "parameters")
+                    .map_or(String::new(), |p| format!(" {p}"));
                 format!("#+begin_{ty}{params}\n{c}#+end_{ty}")
             }
             Type::BabelCall => {
-                let ih = t.str(id, "inside-header").map_or(String::new(), |h| format!("[{h}]"));
-                let eh = t.str(id, "end-header").map_or(String::new(), |h| format!(" {h}"));
+                let ih = t
+                    .str(id, "inside-header")
+                    .map_or(String::new(), |h| format!("[{h}]"));
+                let eh = t
+                    .str(id, "end-header")
+                    .map_or(String::new(), |h| format!(" {h}"));
                 format!("#+call: {}{ih}({}){eh}", s("call"), s("arguments"))
             }
             Type::Clock => {
-                let ts = t.prop(id, "value").as_node().map_or(String::new(), |v| timestamp_string(t, v));
+                let ts = t
+                    .prop(id, "value")
+                    .as_node()
+                    .map_or(String::new(), |v| timestamp_string(t, v));
                 let d = t.str(id, "duration").map_or(String::new(), |d| {
                     let parts = super::parser::split_string(d, ':');
                     let a = parts.first().map_or("", String::as_str);
@@ -735,17 +842,26 @@ impl Interp<'_> {
             }
             Type::Comment => prefix_lines(&s("value"), "# "),
             Type::CommentBlock => {
-                format!("#+begin_comment\n{}#+end_comment", normalize_string(&remove_indentation(&s("value")), false))
+                format!(
+                    "#+begin_comment\n{}#+end_comment",
+                    normalize_string(&remove_indentation(&s("value")), false)
+                )
             }
             Type::DiarySexp => s("value"),
             Type::ExampleBlock => {
-                let sw = t.str(id, "switches").map_or(String::new(), |x| format!(" {x}"));
+                let sw = t
+                    .str(id, "switches")
+                    .map_or(String::new(), |x| format!(" {x}"));
                 format!(
                     "#+begin_example{sw}\n{}#+end_example",
                     normalize_string(&escape_code(&block_value(t, id)), false)
                 )
             }
-            Type::ExportBlock => format!("#+begin_export {}\n{}#+end_export", t.str(id, "type").unwrap_or("nil"), s("value")),
+            Type::ExportBlock => format!(
+                "#+begin_export {}\n{}#+end_export",
+                t.str(id, "type").unwrap_or("nil"),
+                s("value")
+            ),
             Type::FixedWidth => match t.str(id, "value") {
                 None => String::new(),
                 Some("") => ":\n".to_owned(),
@@ -760,7 +876,11 @@ impl Interp<'_> {
             }
             Type::Planning => {
                 let mut parts = vec![];
-                for (k, kw) in [("deadline", "DEADLINE:"), ("scheduled", "SCHEDULED:"), ("closed", "CLOSED:")] {
+                for (k, kw) in [
+                    ("deadline", "DEADLINE:"),
+                    ("scheduled", "SCHEDULED:"),
+                    ("closed", "CLOSED:"),
+                ] {
                     if let Some(n) = t.prop(id, k).as_node() {
                         parts.push(format!("{kw} {}", timestamp_string(t, n)));
                     }
@@ -805,8 +925,12 @@ impl Interp<'_> {
             Type::VerseBlock => format!("#+begin_verse\n{cn}#+end_verse"),
             Type::Bold => format!("*{cn}*"),
             Type::Citation => {
-                let pre = t.get(id, "prefix").map_or(String::new(), |p| format!("{};", self.value(p, Some(id))));
-                let style = t.str(id, "style").map_or(String::new(), |x| format!("/{x}"));
+                let pre = t
+                    .get(id, "prefix")
+                    .map_or(String::new(), |p| format!("{};", self.value(p, Some(id))));
+                let style = t
+                    .str(id, "style")
+                    .map_or(String::new(), |x| format!("/{x}"));
                 let body = match t.get(id, "suffix") {
                     Some(suf) if suf.truthy() => format!("{c}{}", self.value(suf, Some(id))),
                     _ => {
@@ -825,7 +949,15 @@ impl Interp<'_> {
             ),
             Type::Code => format!("~{}~", s("value")),
             Type::Entity => {
-                format!("\\{}{}", s("name"), if t.flag(id, "use-brackets-p") { "{}" } else { "" })
+                format!(
+                    "\\{}{}",
+                    s("name"),
+                    if t.flag(id, "use-brackets-p") {
+                        "{}"
+                    } else {
+                        ""
+                    }
+                )
             }
             Type::ExportSnippet => format!("@@{}:{}@@", s("back-end"), s("value")),
             Type::FootnoteReference => format!(
@@ -834,12 +966,18 @@ impl Interp<'_> {
                 contents.map_or(String::new(), |c| format!(":{c}"))
             ),
             Type::InlineBabelCall => {
-                let ih = t.str(id, "inside-header").map_or(String::new(), |h| format!("[{h}]"));
-                let eh = t.str(id, "end-header").map_or(String::new(), |h| format!("[{h}]"));
+                let ih = t
+                    .str(id, "inside-header")
+                    .map_or(String::new(), |h| format!("[{h}]"));
+                let eh = t
+                    .str(id, "end-header")
+                    .map_or(String::new(), |h| format!("[{h}]"));
                 format!("call_{}{ih}({}){eh}", s("call"), s("arguments"))
             }
             Type::InlineSrcBlock => {
-                let p = t.str(id, "parameters").map_or(String::new(), |p| format!("[{p}]"));
+                let p = t
+                    .str(id, "parameters")
+                    .map_or(String::new(), |p| format!("[{p}]"));
                 format!("src_{}{p}{{{}}}", s("language"), s("value"))
             }
             Type::Italic => format!("/{cn}/"),
@@ -848,7 +986,10 @@ impl Interp<'_> {
             Type::Macro => {
                 let args = match t.prop(id, "args").as_list() {
                     Some(l) if !l.is_empty() => {
-                        let a: Vec<String> = l.iter().map(|x| x.as_str().unwrap_or("").to_owned()).collect();
+                        let a: Vec<String> = l
+                            .iter()
+                            .map(|x| x.as_str().unwrap_or("").to_owned())
+                            .collect();
                         format!("({})", macro_escape_arguments(&a))
                     }
                     _ => String::new(),
@@ -858,10 +999,18 @@ impl Interp<'_> {
             Type::RadioTarget => format!("<<<{c}>>>"),
             Type::StrikeThrough => format!("+{cn}+"),
             Type::Subscript => {
-                if t.flag(id, "use-brackets-p") { format!("_{{{cn}}}") } else { format!("_{cn}") }
+                if t.flag(id, "use-brackets-p") {
+                    format!("_{{{cn}}}")
+                } else {
+                    format!("_{cn}")
+                }
             }
             Type::Superscript => {
-                if t.flag(id, "use-brackets-p") { format!("^{{{cn}}}") } else { format!("^{cn}") }
+                if t.flag(id, "use-brackets-p") {
+                    format!("^{{{cn}}}")
+                } else {
+                    format!("^{cn}")
+                }
             }
             Type::TableCell => format!(" {c} |"),
             Type::Target => format!("<<{}>>", s("value")),
@@ -905,7 +1054,13 @@ impl Interp<'_> {
     }
 
     fn tags(&self, id: NodeId) -> Option<String> {
-        let tags: Vec<&str> = self.t.prop(id, "tags").as_list()?.iter().filter_map(Value::as_str).collect();
+        let tags: Vec<&str> = self
+            .t
+            .prop(id, "tags")
+            .as_list()?
+            .iter()
+            .filter_map(Value::as_str)
+            .collect();
         (!tags.is_empty()).then(|| format!(":{}:", tags.join(":")))
     }
 
@@ -939,12 +1094,17 @@ impl Interp<'_> {
 
     fn item(&self, id: NodeId, contents: Option<String>) -> String {
         let t = self.t;
-        let tag = t.get(id, "tag").filter(|v| v.truthy()).map(|v| format!("{} :: ", self.value(v, Some(id))));
+        let tag = t
+            .get(id, "tag")
+            .filter(|v| v.truthy())
+            .map(|v| format!("{} :: ", self.value(v, Some(id))));
         let b = t.str(id, "bullet").unwrap_or("-");
         let bullet = if !b.chars().any(|c| c.is_ascii_alphanumeric()) {
             "- ".to_owned()
         } else {
-            match crate::org::sexp::option("org-plain-list-ordered-item-terminator").and_then(|v| v.int()) {
+            match crate::org::sexp::option("org-plain-list-ordered-item-terminator")
+                .and_then(|v| v.int())
+            {
                 Some(41) => "1) ".to_owned(),
                 _ => "1. ".to_owned(),
             }
@@ -965,7 +1125,9 @@ impl Interp<'_> {
         if let Some(c) = contents {
             let ind = " ".repeat(if tag.is_some() { 5 } else { bullet.len() });
             let pre = t.int(id, "pre-blank").unwrap_or(1).clamp(0, 2) as usize;
-            let c = ITEM_IND.replace_all(&c, |m: &regex::Captures| format!("{ind}{}", &m[1])).into_owned();
+            let c = ITEM_IND
+                .replace_all(&c, |m: &regex::Captures| format!("{ind}{}", &m[1]))
+                .into_owned();
             if pre == 0 {
                 out.push_str(trim(&c));
             } else {
@@ -1034,19 +1196,16 @@ fn prefix_lines(s: &str, prefix: &str) -> String {
     out
 }
 
+/// Indentation marks per text node: (start, end, width or blank line).
+type Marks = HashMap<NodeId, Vec<(usize, usize, Option<usize>)>>;
+
 /// org-element-normalize-contents: plain text of a paragraph or verse
 /// block with the common indentation removed (by node).
 fn normalize_contents(t: &Tree, id: NodeId, ignore_first: bool) -> HashMap<NodeId, String> {
     // Indentation marks per text node: (byte range, width or empty).
     let mut marks: HashMap<NodeId, Vec<(usize, usize, Option<usize>)>> = HashMap::new();
     let mut min = usize::MAX;
-    fn walk(
-        t: &Tree,
-        id: NodeId,
-        first: &mut bool,
-        min: &mut usize,
-        marks: &mut HashMap<NodeId, Vec<(usize, usize, Option<usize>)>>,
-    ) -> bool {
+    fn walk(t: &Tree, id: NodeId, first: &mut bool, min: &mut usize, marks: &mut Marks) -> bool {
         for &d in t.contents(id) {
             let text = t.plain_text(d);
             if *first {
