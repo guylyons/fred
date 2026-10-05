@@ -18,7 +18,10 @@ pub enum Fail {
     Error(String),
     /// The user must confirm evaluating a block (org-confirm-babel-evaluate):
     /// ask QUESTION, then retry with KEY approved or denied.
-    Confirm { question: String, key: String },
+    Confirm {
+        question: String,
+        key: String,
+    },
 }
 
 impl From<String> for Fail {
@@ -87,7 +90,11 @@ pub fn context(doc: &Doc, pos: (usize, usize)) -> Option<Context> {
     if doc::holds_objects(&el.kind) && pos.0 < el.stop {
         for o in doc::inlines(pos.0, doc.line(pos.0)) {
             if o.start <= pos.1 && pos.1 < o.end {
-                return Some(if o.call { Context::InlineCall(o, el) } else { Context::InlineSrc(o, el) });
+                return Some(if o.call {
+                    Context::InlineCall(o, el)
+                } else {
+                    Context::InlineSrc(o, el)
+                });
             }
         }
     }
@@ -106,7 +113,10 @@ pub fn parse_begin(line: &str) -> (String, String, String) {
     let rest = &t[t.len().min(11)..];
     let rest_trim = rest.trim_start_matches(' ');
     let lang: String = if rest_trim.len() < rest.len() || rest.is_empty() {
-        rest_trim.chars().take_while(|c| !c.is_whitespace()).collect()
+        rest_trim
+            .chars()
+            .take_while(|c| !c.is_whitespace())
+            .collect()
     } else {
         String::new()
     };
@@ -186,7 +196,8 @@ fn block_value(doc: &Doc, el: &El) -> String {
 }
 
 fn preserve_indentation(switches: &str) -> bool {
-    switches.split_whitespace().any(|s| s == "-i") || options::bool("org-src-preserve-indentation", false)
+    switches.split_whitespace().any(|s| s == "-i")
+        || options::bool("org-src-preserve-indentation", false)
 }
 
 /// The coderef format of a block: `-l "fmt"` or org-coderef-label-format.
@@ -211,8 +222,13 @@ pub fn strip_coderefs(body: &str, fmt: &str) -> String {
             {
                 let label = &stripped[i + pre.len()..];
                 let ok = !label.is_empty()
-                    && label.chars().next().is_some_and(|c| c.is_ascii_alphanumeric() || "-_".contains(c))
-                    && label.chars().all(|c| c.is_ascii_alphanumeric() || "-_ ".contains(c));
+                    && label
+                        .chars()
+                        .next()
+                        .is_some_and(|c| c.is_ascii_alphanumeric() || "-_".contains(c))
+                    && label
+                        .chars()
+                        .all(|c| c.is_ascii_alphanumeric() || "-_ ".contains(c));
                 if ok {
                     return l[..i].trim_end_matches([' ', '\t']).to_owned();
                 }
@@ -225,7 +241,11 @@ pub fn strip_coderefs(body: &str, fmt: &str) -> String {
 
 fn normalize_body(value: &str, preserve: bool) -> String {
     let body = value.strip_suffix('\n').unwrap_or(value);
-    if preserve { body.to_owned() } else { value::remove_indentation(body) }
+    if preserve {
+        body.to_owned()
+    } else {
+        value::remove_indentation(body)
+    }
 }
 
 // ---- properties ----
@@ -248,7 +268,11 @@ fn drawer(doc: &Doc, h: Option<usize>) -> Option<(usize, usize)> {
         Some(h) => h + 1,
         None => {
             let mut l = 0;
-            while l < doc.len() && (doc.line(l).trim().is_empty() || doc.line(l).trim_start().starts_with('#') && !doc.line(l).trim_start().starts_with("#+")) {
+            while l < doc.len()
+                && (doc.line(l).trim().is_empty()
+                    || doc.line(l).trim_start().starts_with('#')
+                        && !doc.line(l).trim_start().starts_with("#+"))
+            {
                 l += 1;
             }
             l
@@ -268,19 +292,26 @@ fn drawer(doc: &Doc, h: Option<usize>) -> Option<(usize, usize)> {
 
 /// org--property-local-values: (base value present, values in order).
 pub fn local_values(doc: &Doc, h: Option<usize>, prop: &str) -> (bool, Vec<String>) {
-    let Some((s, e)) = drawer(doc, h) else { return (false, vec![]) };
+    let Some((s, e)) = drawer(doc, h) else {
+        return (false, vec![]);
+    };
     let mut base = false;
     let mut out = vec![];
     for l in s + 1..e {
         let t = doc.line(l).trim_start();
-        let Some(rest) = t.strip_prefix(':') else { continue };
+        let Some(rest) = t.strip_prefix(':') else {
+            continue;
+        };
         let Some(c) = rest.find(':') else { continue };
         let key = &rest[..c];
         let v = rest[c + 1..].trim();
         if key.eq_ignore_ascii_case(prop) {
             base = true;
             out.push(v.to_owned());
-        } else if key.strip_suffix('+').is_some_and(|k| k.eq_ignore_ascii_case(prop)) {
+        } else if key
+            .strip_suffix('+')
+            .is_some_and(|k| k.eq_ignore_ascii_case(prop))
+        {
             out.push(v.to_owned());
         }
     }
@@ -290,7 +321,11 @@ pub fn local_values(doc: &Doc, h: Option<usize>, prop: &str) -> (bool, Vec<Strin
 /// org-entry-get at line `l` for PROP; with INHERIT, the inherited and
 /// accumulated (`PROP+`) value.
 pub fn entry_get(doc: &Doc, cx: &mut Cx, l: usize, prop: &str, inherit: bool) -> Option<String> {
-    let mut h = if doc.is_empty() { None } else { syntax::heading_at_or_before(&doc.lines, l.min(doc.len() - 1)) };
+    let mut h = if doc.is_empty() {
+        None
+    } else {
+        syntax::heading_at_or_before(&doc.lines, l.min(doc.len() - 1))
+    };
     let mut value: Option<String> = None;
     loop {
         let (base, v) = local_values(doc, h, prop);
@@ -332,7 +367,10 @@ pub fn entry_get(doc: &Doc, cx: &mut Cx, l: usize, prop: &str, inherit: bool) ->
         .map(|(_, v)| v.clone())
         .or_else(|| {
             crate::org::sexp::option("org-global-properties").and_then(|v| {
-                params::alist(&v).into_iter().find(|(k, _)| k.trim_start_matches(':').eq_ignore_ascii_case(prop)).and_then(|(_, v)| as_string(&v))
+                params::alist(&v)
+                    .into_iter()
+                    .find(|(k, _)| k.trim_start_matches(':').eq_ignore_ascii_case(prop))
+                    .and_then(|(_, v)| as_string(&v))
             })
         });
     match (global, value) {
@@ -342,18 +380,37 @@ pub fn entry_get(doc: &Doc, cx: &mut Cx, l: usize, prop: &str, inherit: bool) ->
 }
 
 /// org-babel-params-from-properties.
-pub fn params_from_properties(doc: &Doc, cx: &mut Cx, l: usize, lang: &str, no_eval: bool) -> R<Vec<Params>> {
+pub fn params_from_properties(
+    doc: &Doc,
+    cx: &mut Cx,
+    l: usize,
+    lang: &str,
+    no_eval: bool,
+) -> R<Vec<Params>> {
     let a = entry_get(doc, cx, l, "header-args", true).unwrap_or_default();
-    let b = if lang.is_empty() { String::new() } else { entry_get(doc, cx, l, &format!("header-args:{lang}"), true).unwrap_or_default() };
-    Ok(vec![params::parse_header_arguments(&a, no_eval)?, params::parse_header_arguments(&b, no_eval)?])
+    let b = if lang.is_empty() {
+        String::new()
+    } else {
+        entry_get(doc, cx, l, &format!("header-args:{lang}"), true).unwrap_or_default()
+    };
+    Ok(vec![
+        params::parse_header_arguments(&a, no_eval)?,
+        params::parse_header_arguments(&b, no_eval)?,
+    ])
 }
 
 fn lang_defaults(lang: &str) -> Params {
     let lang = if lang == "elisp" { "emacs-lisp" } else { lang };
-    let name = if super::lang::shell_names().iter().any(|s| s == lang) { "shell" } else { lang };
+    let name = if super::lang::shell_names().iter().any(|s| s == lang) {
+        "shell"
+    } else {
+        lang
+    };
     let mut p = params::default_args(&format!("org-babel-default-header-args:{name}"));
     if name != lang {
-        p.extend(params::default_args(&format!("org-babel-default-header-args:{lang}")));
+        p.extend(params::default_args(&format!(
+            "org-babel-default-header-args:{lang}"
+        )));
     }
     p
 }
@@ -372,7 +429,10 @@ pub fn src_info(doc: &mut Doc, cx: &mut Cx, el: &El, no_eval: bool) -> R<Info> {
     let (lang, switches, parameters) = parse_begin(doc.line(el.post));
     let preserve = preserve_indentation(&switches);
     let body = normalize_body(&block_value(doc, el), preserve);
-    let mut alists = vec![params::default_args("org-babel-default-header-args"), lang_defaults(&lang)];
+    let mut alists = vec![
+        params::default_args("org-babel-default-header-args"),
+        lang_defaults(&lang),
+    ];
     alists.extend(params_from_properties(doc, cx, el.post, &lang, no_eval)?);
     alists.push(params::parse_header_arguments(&parameters, no_eval)?);
     for h in &el.headers {
@@ -397,17 +457,34 @@ pub fn src_info(doc: &mut Doc, cx: &mut Cx, el: &El, no_eval: bool) -> R<Info> {
 }
 
 fn inline_info(doc: &mut Doc, cx: &mut Cx, o: &Inline, no_eval: bool) -> R<Info> {
-    let body = o.body.split('\n').map(str::trim_start).collect::<Vec<_>>().join(" ");
-    let mut alists = vec![params::default_args("org-babel-default-inline-header-args"), lang_defaults(&o.name)];
+    let body = o
+        .body
+        .split('\n')
+        .map(str::trim_start)
+        .collect::<Vec<_>>()
+        .join(" ");
+    let mut alists = vec![
+        params::default_args("org-babel-default-inline-header-args"),
+        lang_defaults(&o.name),
+    ];
     alists.extend(params_from_properties(doc, cx, o.line, &o.name, no_eval)?);
-    alists.push(params::parse_header_arguments(o.inside.as_deref().unwrap_or(""), no_eval)?);
+    alists.push(params::parse_header_arguments(
+        o.inside.as_deref().unwrap_or(""),
+        no_eval,
+    )?);
     let refs: Vec<&[(String, Sexp)]> = alists.iter().map(Vec::as_slice).collect();
     let mut p = params::merge(&refs)?;
     if !no_eval {
         p = process_params(doc, cx, p)?;
     }
     let p = generate_file_param(doc, None, p)?;
-    Ok(Info { lang: o.name.clone(), body, params: p, start: Some((o.line, o.start)), ..Info::default() })
+    Ok(Info {
+        lang: o.name.clone(),
+        body,
+        params: p,
+        start: Some((o.line, o.start)),
+        ..Info::default()
+    })
 }
 
 /// org-babel-generate-file-param.
@@ -433,8 +510,13 @@ fn generate_file_param(doc: &Doc, name: Option<&str>, mut p: Params) -> R<Params
 /// org-babel-graphical-output-file.
 pub fn graphical_output_file(p: &[(String, Sexp)]) -> R<Option<String>> {
     match get_str(p, ":file") {
-        Some(f) => Ok(params::result_params(p).iter().any(|x| x == "graphics").then_some(f)),
-        None if has(p, ":file-ext") => err(":file-ext given but no :file generated; did you forget to name a block?"),
+        Some(f) => Ok(params::result_params(p)
+            .iter()
+            .any(|x| x == "graphics")
+            .then_some(f)),
+        None if has(p, ":file-ext") => {
+            err(":file-ext given but no :file generated; did you forget to name a block?")
+        }
         None => err("No :file header argument given; cannot create graphical result"),
     }
 }
@@ -447,7 +529,12 @@ thread_local! {
 }
 
 pub fn library_get(name: &str) -> Option<Info> {
-    LIBRARY.with(|l| l.borrow().iter().find(|(n, _)| n == name).map(|(_, i)| i.clone()))
+    LIBRARY.with(|l| {
+        l.borrow()
+            .iter()
+            .find(|(n, _)| n == name)
+            .map(|(_, i)| i.clone())
+    })
 }
 
 pub fn library_add(name: String, info: Info) {
@@ -471,7 +558,10 @@ pub fn lob_ingest(doc: &mut Doc, cx: &mut Cx) -> R<usize> {
             }
         }
     }
-    cx.message(format!("{n} source block{} added to Library of Babel", if n > 1 { "s" } else { "" }));
+    cx.message(format!(
+        "{n} source block{} added to Library of Babel",
+        if n > 1 { "s" } else { "" }
+    ));
     Ok(n)
 }
 
@@ -515,12 +605,18 @@ pub fn parse_call(value: &str) -> (String, Option<String>, Option<String>, Optio
 
 /// org-babel-ref-split-args.
 pub fn split_args(s: &str) -> Vec<String> {
-    params::balanced_split(s, params::Alts::Char(',')).iter().map(|a| value::trim(a).to_owned()).collect()
+    params::balanced_split(s, params::Alts::Char(','))
+        .iter()
+        .map(|a| value::trim(a).to_owned())
+        .collect()
 }
 
 /// org-babel-lob--src-info: a named block or call, or a library entry.
 fn lob_src_info(doc: &mut Doc, cx: &mut Cx, reference: &str, eval: bool) -> R<Option<Info>> {
-    if let Some((file, name)) = reference.split_once(':').filter(|(f, n)| !f.is_empty() && !n.is_empty()) {
+    if let Some((file, name)) = reference
+        .split_once(':')
+        .filter(|(f, n)| !f.is_empty() && !n.is_empty())
+    {
         let path = doc.dir().join(file);
         if let Ok(text) = std::fs::read_to_string(&path) {
             let mut other = Doc::new(&text, Some(path));
@@ -557,13 +653,33 @@ pub fn call_info(doc: &mut Doc, cx: &mut Cx, el: &El, no_eval: bool) -> R<Option
     let line = doc.line(el.post).to_owned();
     let value = line.split_once(':').map_or("", |(_, v)| v.trim());
     let (name, inside, args, end) = parse_call(value);
-    lob_info(doc, cx, &name, inside, args, end, el.name.clone(), (el.post, 0), no_eval)
+    lob_info(
+        doc,
+        cx,
+        &name,
+        inside,
+        args,
+        end,
+        el.name.clone(),
+        (el.post, 0),
+        no_eval,
+    )
 }
 
 /// org-babel-lob-get-info for an inline call.
 pub fn inline_call_info(doc: &mut Doc, cx: &mut Cx, o: &Inline, no_eval: bool) -> R<Option<Info>> {
     let args = Some(o.body.clone()).filter(|s| !s.trim().is_empty());
-    lob_info(doc, cx, &o.name, o.inside.clone(), args, o.end_header.clone(), None, (o.line, o.start), no_eval)
+    lob_info(
+        doc,
+        cx,
+        &o.name,
+        o.inside.clone(),
+        args,
+        o.end_header.clone(),
+        None,
+        (o.line, o.start),
+        no_eval,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -581,13 +697,35 @@ fn lob_info(
     let id = doc.mark(begin);
     let saved = cx.location.replace(id);
     let out = (|| -> R<Option<Info>> {
-        let Some(src) = lob_src_info(doc, cx, reference, !no_eval)? else { return Ok(None) };
+        let Some(src) = lob_src_info(doc, cx, reference, !no_eval)? else {
+            return Ok(None);
+        };
         let begin = doc.marker(id);
-        let mut alists = vec![src.params.clone(), params::default_args("org-babel-default-lob-header-args")];
-        alists.extend(params_from_properties(doc, cx, begin.0, &src.lang, no_eval)?);
-        alists.push(params::parse_header_arguments(inside.as_deref().unwrap_or(""), no_eval)?);
-        alists.push(args.as_deref().map(|a| split_args(a).into_iter().map(|r| (":var".to_owned(), Sexp::Str(r))).collect()).unwrap_or_default());
-        alists.push(params::parse_header_arguments(end.as_deref().unwrap_or(""), no_eval)?);
+        let mut alists = vec![
+            src.params.clone(),
+            params::default_args("org-babel-default-lob-header-args"),
+        ];
+        alists.extend(params_from_properties(
+            doc, cx, begin.0, &src.lang, no_eval,
+        )?);
+        alists.push(params::parse_header_arguments(
+            inside.as_deref().unwrap_or(""),
+            no_eval,
+        )?);
+        alists.push(
+            args.as_deref()
+                .map(|a| {
+                    split_args(a)
+                        .into_iter()
+                        .map(|r| (":var".to_owned(), Sexp::Str(r)))
+                        .collect()
+                })
+                .unwrap_or_default(),
+        );
+        alists.push(params::parse_header_arguments(
+            end.as_deref().unwrap_or(""),
+            no_eval,
+        )?);
         let refs: Vec<&[(String, Sexp)]> = alists.iter().map(Vec::as_slice).collect();
         Ok(Some(Info {
             lang: src.lang,
@@ -621,7 +759,11 @@ pub fn process_params(doc: &mut Doc, cx: &mut Cx, p: Params) -> R<Params> {
                 }
             }
             v if v.is_nil() => {}
-            v => vars.push(value::car_cdr(v).map(|(n, v)| (value::princ(&n), v)).ok_or("bad :var")?),
+            v => vars.push(
+                value::car_cdr(v)
+                    .map(|(n, v)| (value::princ(&n), v))
+                    .ok_or("bad :var")?,
+            ),
         }
     }
     let (vars, cnames, rnames) = if has(&p, ":colname-names") && has(&p, ":rowname-names") {
@@ -635,15 +777,30 @@ pub fn process_params(doc: &mut Doc, cx: &mut Cx, p: Params) -> R<Params> {
         );
         (v, Some(c), Some(r))
     };
-    let raw = get(&p, ":results").map(|v| as_string(v).unwrap_or_default()).unwrap_or_default();
+    let raw = get(&p, ":results")
+        .map(|v| as_string(v).unwrap_or_default())
+        .unwrap_or_default();
     let mut rp: Vec<String> = vec![];
-    for x in raw.split_whitespace().map(str::to_owned).chain(params::result_params(&p)) {
+    for x in raw
+        .split_whitespace()
+        .map(str::to_owned)
+        .chain(params::result_params(&p))
+    {
         if !rp.contains(&x) {
             rp.push(x);
         }
     }
-    let pairs = |v: Vec<(String, Sexp)>| list(v.into_iter().map(|(n, x)| value::cons(Sexp::Sym(n), x)).collect());
-    let mut out: Params = vars.into_iter().map(|(n, v)| (":var".to_owned(), value::cons(Sexp::Sym(n), v))).collect();
+    let pairs = |v: Vec<(String, Sexp)>| {
+        list(
+            v.into_iter()
+                .map(|(n, x)| value::cons(Sexp::Sym(n), x))
+                .collect(),
+        )
+    };
+    let mut out: Params = vars
+        .into_iter()
+        .map(|(n, v)| (":var".to_owned(), value::cons(Sexp::Sym(n), v)))
+        .collect();
     let keep = |key: &str, new: Option<Vec<(String, Sexp)>>| -> Sexp {
         match get(&p, key) {
             Some(v) if !v.is_nil() => v.clone(),
@@ -652,19 +809,38 @@ pub fn process_params(doc: &mut Doc, cx: &mut Cx, p: Params) -> R<Params> {
     };
     out.push((":colname-names".into(), keep(":colname-names", cnames)));
     out.push((":rowname-names".into(), keep(":rowname-names", rnames)));
-    let rtype = if rp.iter().any(|x| x == "output") { "output" } else { "value" };
-    out.push((":result-params".into(), list(rp.into_iter().map(Sexp::Str).collect())));
+    let rtype = if rp.iter().any(|x| x == "output") {
+        "output"
+    } else {
+        "value"
+    };
+    out.push((
+        ":result-params".into(),
+        list(rp.into_iter().map(Sexp::Str).collect()),
+    ));
     out.push((":result-type".into(), Sexp::Sym(rtype.into())));
-    out.extend(p.into_iter().filter(|(k, _)| !matches!(k.as_str(), ":colname-names" | ":rowname-names" | ":result-params" | ":result-type" | ":var")));
+    out.extend(p.into_iter().filter(|(k, _)| {
+        !matches!(
+            k.as_str(),
+            ":colname-names" | ":rowname-names" | ":result-params" | ":result-type" | ":var"
+        )
+    }));
     Ok(out)
 }
 
 type Names = Vec<(String, Sexp)>;
 
 /// org-babel-disassemble-tables.
-fn disassemble_tables(vars: Vec<(String, Sexp)>, hlines: Option<String>, colnames: Option<Sexp>, rownames: Option<Sexp>) -> (Vec<(String, Sexp)>, Names, Names) {
+fn disassemble_tables(
+    vars: Vec<(String, Sexp)>,
+    hlines: Option<String>,
+    colnames: Option<Sexp>,
+    rownames: Option<Sexp>,
+) -> (Vec<(String, Sexp)>, Names, Names) {
     let cn = colnames.as_ref().and_then(as_string);
-    let rn_on = rownames.as_ref().is_some_and(|r| !r.is_nil() && as_string(r).as_deref() != Some("no"));
+    let rn_on = rownames
+        .as_ref()
+        .is_some_and(|r| !r.is_nil() && as_string(r).as_deref() != Some("no"));
     let mut cnames = vec![];
     let mut rnames = vec![];
     let vars = vars
@@ -674,7 +850,10 @@ fn disassemble_tables(vars: Vec<(String, Sexp)>, hlines: Option<String>, colname
                 let auto = cn.is_none() || cn.as_deref() == Some("nil");
                 let take = cn.as_deref() != Some("no")
                     && (if auto {
-                        rows.len() > 1 && !is_hline(&rows[0]) && is_hline(&rows[1]) && !rows[2..].iter().any(is_hline)
+                        rows.len() > 1
+                            && !is_hline(&rows[0])
+                            && is_hline(&rows[1])
+                            && !rows[2..].iter().any(is_hline)
                     } else {
                         true
                     });
@@ -684,7 +863,11 @@ fn disassemble_tables(vars: Vec<(String, Sexp)>, hlines: Option<String>, colname
                         rows.remove(0);
                     }
                     let names = rows.first().cloned().unwrap_or(Sexp::Nil);
-                    let skip = if rows.get(1).is_some_and(is_hline) { 2 } else { 1 };
+                    let skip = if rows.get(1).is_some_and(is_hline) {
+                        2
+                    } else {
+                        1
+                    };
                     cnames.push((name.clone(), names));
                     rows = rows.into_iter().skip(skip).collect();
                 }
@@ -719,28 +902,49 @@ pub fn pick_name(names: Option<&Sexp>, selector: Option<&Sexp>) -> Option<Sexp> 
     let names = names.filter(|n| !n.is_nil())?;
     let all = items(names)?;
     match &sel {
-        Sexp::Int(i) => all.get((*i as usize).wrapping_sub(1)).and_then(|p| value::car_cdr(p)).map(|(_, v)| v),
-        Sexp::Str(s) if s == "yes" || s == "t" => all.last().and_then(|p| value::car_cdr(p)).map(|(_, v)| v),
+        Sexp::Int(i) => all
+            .get((*i as usize).wrapping_sub(1))
+            .and_then(|p| value::car_cdr(p))
+            .map(|(_, v)| v),
+        Sexp::Str(s) if s == "yes" || s == "t" => {
+            all.last().and_then(|p| value::car_cdr(p)).map(|(_, v)| v)
+        }
         Sexp::T => all.last().and_then(|p| value::car_cdr(p)).map(|(_, v)| v),
-        Sexp::Sym(s) | Sexp::Str(s) => all.iter().filter_map(value::car_cdr).find(|(n, _)| value::princ(n) == *s).map(|(_, v)| v),
+        Sexp::Sym(s) | Sexp::Str(s) => all
+            .iter()
+            .filter_map(value::car_cdr)
+            .find(|(n, _)| value::princ(n) == *s)
+            .map(|(_, v)| v),
         _ => all.last().and_then(|p| value::car_cdr(p)).map(|(_, v)| v),
     }
 }
 
 /// org-babel-reassemble-table.
 pub fn reassemble_table(table: Sexp, colnames: Option<Sexp>, rownames: Option<Sexp>) -> Sexp {
-    let Some(rows) = items(&table).map(<[Sexp]>::to_vec) else { return table };
+    let Some(rows) = items(&table).map(<[Sexp]>::to_vec) else {
+        return table;
+    };
     let mut rows = rows;
-    if let Some(rn) = rownames.as_ref().and_then(|r| items(r).map(<[Sexp]>::to_vec))
+    if let Some(rn) = rownames
+        .as_ref()
+        .and_then(|r| items(r).map(<[Sexp]>::to_vec))
         && rn.len() == rows.len()
     {
         let mut it = rn.into_iter();
         rows = rows
             .into_iter()
-            .map(|r| if value::listp(&r) && !is_hline(&r) { value::cons(it.next().unwrap_or(str("")), r) } else { r })
+            .map(|r| {
+                if value::listp(&r) && !is_hline(&r) {
+                    value::cons(it.next().unwrap_or(str("")), r)
+                } else {
+                    r
+                }
+            })
             .collect();
     }
-    if let Some(cn) = colnames.as_ref().and_then(|c| items(c).map(<[Sexp]>::to_vec))
+    if let Some(cn) = colnames
+        .as_ref()
+        .and_then(|c| items(c).map(<[Sexp]>::to_vec))
         && let Some(first) = rows.first().and_then(|r| items(r))
         && first.len() == cn.len()
         && !cn.is_empty()
@@ -764,13 +968,18 @@ pub fn reassemble(result: Sexp, p: &[(String, Sexp)]) -> Sexp {
 
 /// org-babel-ref-parse: `name=value` with the value read or resolved.
 pub fn ref_parse(doc: &mut Doc, cx: &mut Cx, assignment: &str) -> R<Option<(String, Sexp)>> {
-    let Some(i) = assignment.find('=').filter(|&i| i > 0) else { return Ok(None) };
+    let Some(i) = assignment.find('=').filter(|&i| i > 0) else {
+        return Ok(None);
+    };
     let var = value::trim(&assignment[..i]).to_owned();
     let r = value::trim(&assignment[i + 1..]).to_owned();
     let out = value::read(&r, false)?;
     if out == Sexp::Str(r.clone()) {
         if r.len() >= 2 && r.starts_with('"') && r.ends_with('"') {
-            return Ok(Some((var, crate::org::sexp::read(&r).map_err(|e| e.to_string())?)));
+            return Ok(Some((
+                var,
+                crate::org::sexp::read(&r).map_err(|e| e.to_string())?,
+            )));
         }
         return Ok(Some((var, ref_resolve(doc, cx, &r)?)));
     }
@@ -780,7 +989,11 @@ pub fn ref_parse(doc: &mut Doc, cx: &mut Cx, assignment: &str) -> R<Option<(Stri
 /// org-in-commented-heading-p at line `l`.
 pub fn in_commented_heading(doc: &Doc, l: usize) -> bool {
     let st = syntax::Settings::default();
-    let mut h = if doc.is_empty() { None } else { syntax::heading_at_or_before(&doc.lines, l.min(doc.len() - 1)) };
+    let mut h = if doc.is_empty() {
+        None
+    } else {
+        syntax::heading_at_or_before(&doc.lines, l.min(doc.len() - 1))
+    };
     while let Some(x) = h {
         if syntax::headline(doc.line(x), &st).is_some_and(|hl| hl.commented) {
             return true;
@@ -793,7 +1006,11 @@ pub fn in_commented_heading(doc: &Doc, l: usize) -> bool {
 /// org-in-archived-heading-p at line `l`.
 pub fn in_archived_heading(doc: &Doc, l: usize) -> bool {
     let st = syntax::Settings::default();
-    let mut h = if doc.is_empty() { None } else { syntax::heading_at_or_before(&doc.lines, l.min(doc.len() - 1)) };
+    let mut h = if doc.is_empty() {
+        None
+    } else {
+        syntax::heading_at_or_before(&doc.lines, l.min(doc.len() - 1))
+    };
     while let Some(x) = h {
         if syntax::headline(doc.line(x), &st).is_some_and(|hl| hl.archived()) {
             return true;
@@ -883,12 +1100,17 @@ fn ref_resolve_1(doc: &mut Doc, cx: &mut Cx, reference: &str) -> R<Sexp> {
         let head = &r[..open];
         let referent = r[open + 1..r.len() - 1].to_owned();
         let (name, hdr) = match head.find('[') {
-            Some(b) if head.ends_with(']') => (head[..b].to_owned(), head[b + 1..head.len() - 1].to_owned()),
+            Some(b) if head.ends_with(']') => {
+                (head[..b].to_owned(), head[b + 1..head.len() - 1].to_owned())
+            }
             _ => (head.to_owned(), String::new()),
         };
         if !name.is_empty() {
             if !referent.is_empty() {
-                args = split_args(&referent).into_iter().map(|a| (":var".to_owned(), Sexp::Str(a))).collect();
+                args = split_args(&referent)
+                    .into_iter()
+                    .map(|a| (":var".to_owned(), Sexp::Str(a)))
+                    .collect();
             }
             if !hdr.is_empty() {
                 let mut h = params::parse_header_arguments(&hdr, false)?;
@@ -899,7 +1121,10 @@ fn ref_resolve_1(doc: &mut Doc, cx: &mut Cx, reference: &str) -> R<Sexp> {
         }
     }
     // file:name
-    if let Some((f, n)) = r.split_once(':').filter(|(f, n)| !f.is_empty() && !n.is_empty()) {
+    if let Some((f, n)) = r
+        .split_once(':')
+        .filter(|(f, n)| !f.is_empty() && !n.is_empty())
+    {
         let path = doc.dir().join(f);
         if path.is_file() {
             let text = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
@@ -921,8 +1146,18 @@ fn ref_resolve_1(doc: &mut Doc, cx: &mut Cx, reference: &str) -> R<Sexp> {
             }
             match el.kind {
                 Kind::Call => {
-                    let Some(info) = call_info(doc, cx, &el, false)? else { return err("Reference not found") };
-                    break 'found execute_src_block(doc, cx, false, Some(info), &p, ExecKind::Call)?.unwrap_or(Sexp::Nil);
+                    let Some(info) = call_info(doc, cx, &el, false)? else {
+                        return err("Reference not found");
+                    };
+                    break 'found execute_src_block(
+                        doc,
+                        cx,
+                        false,
+                        Some(info),
+                        &p,
+                        ExecKind::Call,
+                    )?
+                    .unwrap_or(Sexp::Nil);
                 }
                 Kind::Src if !contents => {
                     let id = doc.mark((el.post, 0));
@@ -943,7 +1178,8 @@ fn ref_resolve_1(doc: &mut Doc, cx: &mut Cx, reference: &str) -> R<Sexp> {
         if let Some(info) = library_get(&r) {
             let mut lp = args.clone();
             lp.push((":results".into(), str("none")));
-            break 'found execute_src_block(doc, cx, false, Some(info), &lp, ExecKind::Src)?.unwrap_or(Sexp::Nil);
+            break 'found execute_src_block(doc, cx, false, Some(info), &lp, ExecKind::Src)?
+                .unwrap_or(Sexp::Nil);
         }
         return err(format!("Reference `{r}' not found in this buffer"));
     };
@@ -957,7 +1193,11 @@ fn ref_resolve_1(doc: &mut Doc, cx: &mut Cx, reference: &str) -> R<Sexp> {
 
 fn format_ref(name: &str, args: &Params, index: Option<&str>, contents: bool) -> String {
     let mut s = name.to_owned();
-    let vars: Vec<String> = args.iter().filter(|(k, _)| k == ":var").filter_map(|(_, v)| as_string(v)).collect();
+    let vars: Vec<String> = args
+        .iter()
+        .filter(|(k, _)| k == ":var")
+        .filter_map(|(_, v)| as_string(v))
+        .collect();
     if !vars.is_empty() {
         s.push_str(&format!("({})", vars.join(", ")));
     }
@@ -1001,19 +1241,34 @@ pub fn index_list(index: &str, lis: &Sexp) -> Sexp {
     let wrap = |n: i64| if n < 0 { len + n } else { n };
     let picked: Vec<Sexp> = if portion.is_empty() || portion == "*" || portion.contains(':') {
         let (a, b) = match portion.split_once(':') {
-            Some((a, b)) => (wrap(a.trim().parse().unwrap_or(0)), wrap(b.trim().parse().unwrap_or(-1))),
+            Some((a, b)) => (
+                wrap(a.trim().parse().unwrap_or(0)),
+                wrap(b.trim().parse().unwrap_or(-1)),
+            ),
             None => (wrap(0), wrap(-1)),
         };
-        (a..=b).map(|n| all.get(n as usize).cloned().unwrap_or(Sexp::Nil)).collect()
+        (a..=b)
+            .map(|n| all.get(n as usize).cloned().unwrap_or(Sexp::Nil))
+            .collect()
     } else {
         let n = wrap(portion.trim().parse().unwrap_or(0));
         vec![all.get(n as usize).cloned().unwrap_or(Sexp::Nil)]
     };
     let mapped: Vec<Sexp> = picked
         .into_iter()
-        .map(|sub| if value::listp(&sub) && !sub.is_nil() { index_list(remainder, &sub) } else { sub })
+        .map(|sub| {
+            if value::listp(&sub) && !sub.is_nil() {
+                index_list(remainder, &sub)
+            } else {
+                sub
+            }
+        })
         .collect();
-    if mapped.len() == 1 { mapped.into_iter().next().unwrap() } else { list(mapped) }
+    if mapped.len() == 1 {
+        mapped.into_iter().next().unwrap()
+    } else {
+        list(mapped)
+    }
 }
 
 /// org-babel-read-element.
@@ -1023,7 +1278,9 @@ pub fn read_element(doc: &Doc, el: &El) -> R<Option<Sexp>> {
             let v: Vec<&str> = (el.post..el.stop)
                 .map(|l| {
                     let t = doc.line(l).trim_start();
-                    t.strip_prefix(": ").or_else(|| t.strip_prefix(':')).unwrap_or(t)
+                    t.strip_prefix(": ")
+                        .or_else(|| t.strip_prefix(':'))
+                        .unwrap_or(t)
                 })
                 .collect();
             let v = value::trim(&v.join("\n")).to_owned();
@@ -1034,7 +1291,11 @@ pub fn read_element(doc: &Doc, el: &El) -> R<Option<Sexp>> {
         Kind::Src | Kind::Example => {
             let v = block_value(doc, el);
             let switches = parse_begin(doc.line(el.post)).1;
-            Some(str(if preserve_indentation(&switches) { v } else { value::remove_indentation(&v) }))
+            Some(str(if preserve_indentation(&switches) {
+                v
+            } else {
+                value::remove_indentation(&v)
+            }))
         }
         Kind::Export => Some(str(value::remove_indentation(&block_value(doc, el)))),
         Kind::Paragraph => {
@@ -1063,13 +1324,21 @@ pub fn read_element(doc: &Doc, el: &El) -> R<Option<Sexp>> {
 
 /// org-babel-read-table.
 pub fn read_table<S: AsRef<str>>(lines: &[S]) -> Sexp {
-    let lines: Vec<&str> = lines.iter().map(AsRef::as_ref).filter(|l| doc::is_table_line(l)).collect();
+    let lines: Vec<&str> = lines
+        .iter()
+        .map(AsRef::as_ref)
+        .filter(|l| doc::is_table_line(l))
+        .collect();
     list(
         value::table_to_lisp(&lines)
             .into_iter()
             .map(|r| match r {
                 None => hline(),
-                Some(c) => list(c.iter().map(|x| value::read(x, true).unwrap_or_else(|_| str(x.clone()))).collect()),
+                Some(c) => list(
+                    c.iter()
+                        .map(|x| value::read(x, true).unwrap_or_else(|_| str(x.clone())))
+                        .collect(),
+                ),
             })
             .collect(),
     )
@@ -1085,9 +1354,15 @@ pub fn read_list(lines: &[String]) -> Sexp {
             continue;
         }
         let li = value::indentation(l);
-        if li == ind && let Some((i, b)) = crate::org::ctx::item_bullet(l) {
+        if li == ind
+            && let Some((i, b)) = crate::org::ctx::item_bullet(l)
+        {
             let mut text = l[i + b.len()..].to_owned();
-            if let Some(rest) = text.strip_prefix("[ ] ").or_else(|| text.strip_prefix("[X] ")).or_else(|| text.strip_prefix("[-] ")) {
+            if let Some(rest) = text
+                .strip_prefix("[ ] ")
+                .or_else(|| text.strip_prefix("[X] "))
+                .or_else(|| text.strip_prefix("[-] "))
+            {
                 text = rest.to_owned();
             }
             items_out.push(text);
@@ -1101,7 +1376,12 @@ pub fn read_list(lines: &[String]) -> Sexp {
             sub = true;
         }
     }
-    list(items_out.iter().map(|t| value::read(t, true).unwrap_or_else(|_| str(t.clone()))).collect())
+    list(
+        items_out
+            .iter()
+            .map(|t| value::read(t, true).unwrap_or_else(|_| str(t.clone())))
+            .collect(),
+    )
 }
 
 /// org-babel-read-link.
@@ -1109,11 +1389,19 @@ fn read_link(doc: &Doc, inner: &str) -> String {
     let raw = inner.split("][").next().unwrap_or(inner);
     let expand = |p: &str| {
         let p = options::expand(p);
-        if p.is_absolute() { p.display().to_string() } else { doc.dir().join(p).display().to_string() }
+        if p.is_absolute() {
+            p.display().to_string()
+        } else {
+            doc.dir().join(p).display().to_string()
+        }
     };
     match raw.split_once(':') {
         Some(("file", rest)) => expand(rest.split("::").next().unwrap_or(rest)),
-        Some((t, _)) if t.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') && !t.is_empty() => raw.to_owned(),
+        Some((t, _))
+            if t.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') && !t.is_empty() =>
+        {
+            raw.to_owned()
+        }
         _ => expand(raw),
     }
 }
@@ -1137,7 +1425,9 @@ fn noweb_refs(line: &str) -> Vec<(usize, usize, String)> {
         let a = from + i;
         let inner = a + s.len();
         // [^ \t\n]\(?:.*?[^ \t\n]\)?
-        let Some(j) = line[inner..].find(&e) else { break };
+        let Some(j) = line[inner..].find(&e) else {
+            break;
+        };
         let mut close = inner + j;
         // The lazy match ends at the first end delimiter after a non-blank.
         let mut id = &line[inner..close];
@@ -1198,7 +1488,10 @@ pub fn expand_noweb(doc: &mut Doc, cx: &mut Cx, info: &Info, context: &str) -> R
             let prefix = &line[last..a];
             let expansion = noweb_expansion(doc, cx, info, &id, context)?;
             let mut interposed = if prefix_on {
-                expansion.split(['\n', '\r']).collect::<Vec<_>>().join(&format!("\n{prefix}"))
+                expansion
+                    .split(['\n', '\r'])
+                    .collect::<Vec<_>>()
+                    .join(&format!("\n{prefix}"))
             } else {
                 expansion
             };
@@ -1234,7 +1527,10 @@ fn noweb_expansion(doc: &mut Doc, cx: &mut Cx, info: &Info, id: &str, context: &
     }
     // A block named ID.
     for el in doc::all_elements(&doc.lines) {
-        if el.kind == Kind::Src && el.name.as_deref() == Some(id) && !in_commented_heading(doc, el.post) {
+        if el.kind == Kind::Src
+            && el.name.as_deref() == Some(id)
+            && !in_commented_heading(doc, el.post)
+        {
             let i = src_info(doc, cx, &el, true)?;
             if let Some((_, m, _)) = &mut cx.noweb {
                 m.entry(id.to_owned()).or_default().push(i.clone());
@@ -1259,22 +1555,46 @@ fn noweb_expansion(doc: &mut Doc, cx: &mut Cx, info: &Info, id: &str, context: &
         }
         cx.noweb = Some((doc.tick, map, true));
     }
-    let blocks = cx.noweb.as_ref().and_then(|(_, m, _)| m.get(id).cloned()).unwrap_or_default();
+    let blocks = cx
+        .noweb
+        .as_ref()
+        .and_then(|(_, m, _)| m.get(id).cloned())
+        .unwrap_or_default();
     if blocks.is_empty() {
-        let langs = crate::org::sexp::option("org-babel-noweb-error-langs").map(|v| items(&v).unwrap_or(&[]).iter().filter_map(as_string).collect::<Vec<_>>()).unwrap_or_default();
+        let langs = crate::org::sexp::option("org-babel-noweb-error-langs")
+            .map(|v| {
+                items(&v)
+                    .unwrap_or(&[])
+                    .iter()
+                    .filter_map(as_string)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
         if options::bool("org-babel-noweb-error-all-langs", false) || langs.contains(&info.lang) {
-            return err(format!("Cannot resolve {}{id}{} (see `org-babel-noweb-error-langs')", noweb_start(), noweb_end()));
+            return err(format!(
+                "Cannot resolve {}{id}{} (see `org-babel-noweb-error-langs')",
+                noweb_start(),
+                noweb_end()
+            ));
         }
         return Ok(String::new());
     }
     expand_references(doc, cx, info, &blocks, context)
 }
 
-fn expand_references(doc: &mut Doc, cx: &mut Cx, _info: &Info, blocks: &[Info], context: &str) -> R<String> {
+fn expand_references(
+    doc: &mut Doc,
+    cx: &mut Cx,
+    _info: &Info,
+    blocks: &[Info],
+    context: &str,
+) -> R<String> {
     let mut out = String::new();
     for (i, b) in blocks.iter().enumerate() {
         if i > 0 {
-            out.push_str(&get_str(&blocks[i - 1].params, ":noweb-sep").unwrap_or_else(|| "\n".into()));
+            out.push_str(
+                &get_str(&blocks[i - 1].params, ":noweb-sep").unwrap_or_else(|| "\n".into()),
+            );
         }
         out.push_str(&expand_block(doc, cx, b, context)?);
     }
@@ -1282,18 +1602,32 @@ fn expand_references(doc: &mut Doc, cx: &mut Cx, _info: &Info, blocks: &[Info], 
 }
 
 fn expand_block(doc: &mut Doc, cx: &mut Cx, i: &Info, context: &str) -> R<String> {
-    let b = if params::noweb_p(&i.params, context) { expand_noweb(doc, cx, i, context)? } else { i.body.clone() };
+    let b = if params::noweb_p(&i.params, context) {
+        expand_noweb(doc, cx, i, context)?
+    } else {
+        i.body.clone()
+    };
     if get_str(&i.params, ":comments").as_deref() != Some("noweb") {
         return Ok(b);
     }
     let (beg, end) = super::tangle::comment_links(doc, i);
-    let wrap = |s: &str| if options::bool("org-babel-tangle-uncomment-comments", false) { s.to_owned() } else { super::lang::comment(&i.lang, s) };
+    let wrap = |s: &str| {
+        if options::bool("org-babel-tangle-uncomment-comments", false) {
+            s.to_owned()
+        } else {
+            super::lang::comment(&i.lang, s)
+        }
+    };
     Ok(format!("{}\n{b}\n{}", wrap(&beg), wrap(&end)))
 }
 
 /// org-babel--expand-body: noweb (:eval) and coderefs removed.
 pub fn expand_body(doc: &mut Doc, cx: &mut Cx, info: &Info) -> R<String> {
-    let expand = if params::noweb_p(&info.params, ":eval") { expand_noweb(doc, cx, info, ":eval")? } else { info.body.clone() };
+    let expand = if params::noweb_p(&info.params, ":eval") {
+        expand_noweb(doc, cx, info, ":eval")?
+    } else {
+        info.body.clone()
+    };
     Ok(match &info.coderef {
         Some(f) => strip_coderefs(&expand, f),
         None => expand,
@@ -1331,11 +1665,19 @@ pub fn sha1_hash(doc: &mut Doc, cx: &mut Cx, info: &Info, context: &str) -> R<St
     p.sort_by(|a, b| a.0.cmp(&b.0));
     const RM: [&str; 6] = ["replace", "silent", "none", "discard", "append", "prepend"];
     let norm = |k: &str, v: &Sexp| -> Option<String> {
-        if v.is_nil() || matches!(v, Sexp::Str(s) if s.is_empty()) || matches!(v, Sexp::Vector(x) if x.is_empty()) {
+        if v.is_nil()
+            || matches!(v, Sexp::Str(s) if s.is_empty())
+            || matches!(v, Sexp::Vector(x) if x.is_empty())
+        {
             return None;
         }
         if k == ":result-params" && value::listp(v) {
-            let mut x: Vec<String> = items(v).unwrap_or(&[]).iter().filter_map(as_string).filter(|s| !RM.contains(&s.as_str())).collect();
+            let mut x: Vec<String> = items(v)
+                .unwrap_or(&[])
+                .iter()
+                .filter_map(as_string)
+                .filter(|s| !RM.contains(&s.as_str()))
+                .collect();
             x.sort();
             return (!x.is_empty()).then(|| prin1(&list(x.into_iter().map(Sexp::Str).collect())));
         }
@@ -1349,19 +1691,32 @@ pub fn sha1_hash(doc: &mut Doc, cx: &mut Cx, info: &Info, context: &str) -> R<St
         Some(prin1(v))
     };
     let parts: Vec<String> = p.iter().filter_map(|(k, v)| norm(k, v)).collect();
-    let body = if params::noweb_p(&info.params, context) { expand_noweb(doc, cx, info, context)? } else { info.body.clone() };
+    let body = if params::noweb_p(&info.params, context) {
+        expand_noweb(doc, cx, info, context)?
+    } else {
+        info.body.clone()
+    };
     let at = info.start.map_or(doc.point.0, |s| s.0);
     let dir = doc.dir();
-    let expanded = expand_full(&mut Env { doc, cx, at, dir }, &info.lang, &body, &info.params)?;
-    Ok(super::sha1::hex(format!("{}-{expanded}", parts.join(":")).as_bytes()))
+    let expanded = expand_full(
+        &mut Env { doc, cx, at, dir },
+        &info.lang,
+        &body,
+        &info.params,
+    )?;
+    Ok(super::sha1::hex(
+        format!("{}-{expanded}", parts.join(":")).as_bytes(),
+    ))
 }
 
 /// org-babel-current-result-hash for the block at POS.
 pub fn current_result_hash(doc: &mut Doc, cx: &mut Cx, pos: (usize, usize)) -> R<Option<String>> {
-    Ok(where_is_result(doc, cx, pos, false, None)?.and_then(|l| match l {
-        Loc::Line(l) => doc::result_hash(doc.line(l)),
-        Loc::Inline(..) => None,
-    }))
+    Ok(
+        where_is_result(doc, cx, pos, false, None)?.and_then(|l| match l {
+            Loc::Line(l) => doc::result_hash(doc.line(l)),
+            Loc::Inline(..) => None,
+        }),
+    )
 }
 
 // ---- execution ----
@@ -1416,7 +1771,11 @@ impl Env<'_> {
             Some(c) => format!("[ Babel evaluation exited with code {c} ]"),
             None => "[ Babel evaluation exited abnormally ]".into(),
         });
-        let first = stderr.lines().find(|l| !l.trim().is_empty()).map(|l| format!(": {}", l.trim())).unwrap_or_default();
+        let first = stderr
+            .lines()
+            .find(|l| !l.trim().is_empty())
+            .map(|l| format!(": {}", l.trim()))
+            .unwrap_or_default();
         cx.message(match code {
             Some(c) => format!("Babel evaluation exited with code {c}{first}"),
             None => format!("Babel evaluation exited abnormally{first}"),
@@ -1443,7 +1802,11 @@ pub fn run_shell(command: &str, input: &str, dir: &Path) -> R<(String, String, O
     let mut child = std::process::Command::new("/bin/sh")
         .arg("-c")
         .arg(command)
-        .current_dir(if dir.is_dir() { dir.to_path_buf() } else { std::env::temp_dir() })
+        .current_dir(if dir.is_dir() {
+            dir.to_path_buf()
+        } else {
+            std::env::temp_dir()
+        })
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
@@ -1477,7 +1840,9 @@ pub fn temp_file(prefix: &str, suffix: &str) -> PathBuf {
     use std::sync::atomic::{AtomicUsize, Ordering};
     static N: AtomicUsize = AtomicUsize::new(0);
     let n = N.fetch_add(1, Ordering::Relaxed);
-    let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.subsec_nanos());
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.subsec_nanos());
     let p = temp_dir().join(format!("{prefix}{n}{nanos:x}{suffix}"));
     let _ = std::fs::write(&p, "");
     p
@@ -1485,7 +1850,10 @@ pub fn temp_file(prefix: &str, suffix: &str) -> PathBuf {
 
 /// shell-quote-argument.
 pub fn shell_quote(s: &str) -> String {
-    if !s.is_empty() && s.chars().all(|c| c.is_ascii_alphanumeric() || "-_./=+,:@%".contains(c)) {
+    if !s.is_empty()
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || "-_./=+,:@%".contains(c))
+    {
         return s.to_owned();
     }
     format!("'{}'", s.replace('\'', "'\\''"))
@@ -1493,12 +1861,21 @@ pub fn shell_quote(s: &str) -> String {
 
 /// The key a confirmation answer is remembered by.
 fn confirm_key(info: &Info, body: &str) -> String {
-    super::sha1::hex(format!("{}\0{}\0{:?}\0{body}", info.lang, info.name.clone().unwrap_or_default(), info.start).as_bytes())
+    super::sha1::hex(
+        format!(
+            "{}\0{}\0{:?}\0{body}",
+            info.lang,
+            info.name.clone().unwrap_or_default(),
+            info.start
+        )
+        .as_bytes(),
+    )
 }
 
 /// org-babel-check-confirm-evaluate: Some(query?) or None (disabled).
 fn check_confirm(cx: &Cx, info: &Info) -> Option<bool> {
-    let eval = get_str(&info.params, ":eval").or_else(|| has(&info.params, ":noeval").then(|| "no".into()));
+    let eval = get_str(&info.params, ":eval")
+        .or_else(|| has(&info.params, ":noeval").then(|| "no".into()));
     let e = eval.as_deref().unwrap_or("");
     if matches!(e, "no" | "never") || (cx.export && matches!(e, "no-export" | "never-export")) {
         return None;
@@ -1514,7 +1891,11 @@ fn check_confirm(cx: &Cx, info: &Info) -> Option<bool> {
 fn check_evaluate(cx: &mut Cx, info: &Info) -> bool {
     let ok = check_confirm(cx, info).is_some();
     if !ok {
-        cx.message(format!("Evaluation of this {} code block{}is disabled.", info.lang, name_string(info)));
+        cx.message(format!(
+            "Evaluation of this {} code block{}is disabled.",
+            info.lang,
+            name_string(info)
+        ));
     }
     ok
 }
@@ -1538,11 +1919,19 @@ fn confirm_evaluate(doc: &mut Doc, cx: &mut Cx, info: &Info) -> R<bool> {
                 return Ok(true);
             }
             if cx.denied.contains(&key) {
-                cx.message(format!("Evaluation of this {} code block{}is aborted.", info.lang, name_string(info)));
+                cx.message(format!(
+                    "Evaluation of this {} code block{}is aborted.",
+                    info.lang,
+                    name_string(info)
+                ));
                 return Ok(false);
             }
             Err(Fail::Confirm {
-                question: format!("Evaluate this {} code block{}on your system? ", info.lang, name_string(info)),
+                question: format!(
+                    "Evaluate this {} code block{}on your system? ",
+                    info.lang,
+                    name_string(info)
+                ),
                 key,
             })
         }
@@ -1550,7 +1939,14 @@ fn confirm_evaluate(doc: &mut Doc, cx: &mut Cx, info: &Info) -> R<bool> {
 }
 
 /// org-babel-execute-src-block. INFO None: the block at point.
-pub fn execute_src_block(doc: &mut Doc, cx: &mut Cx, force: bool, info: Option<Info>, extra: &[(String, Sexp)], kind: ExecKind) -> R<Option<Sexp>> {
+pub fn execute_src_block(
+    doc: &mut Doc,
+    cx: &mut Cx,
+    force: bool,
+    info: Option<Info>,
+    extra: &[(String, Sexp)],
+    kind: ExecKind,
+) -> R<Option<Sexp>> {
     let info = match info {
         Some(i) => i,
         None => match get_info(doc, cx, doc.point, false)? {
@@ -1574,7 +1970,15 @@ pub fn execute_src_block(doc: &mut Doc, cx: &mut Cx, force: bool, info: Option<I
 }
 
 #[allow(clippy::too_many_arguments)]
-fn execute_inner(doc: &mut Doc, cx: &mut Cx, force: bool, mut info: Info, extra: &[(String, Sexp)], kind: ExecKind, start: Option<usize>) -> R<Option<Sexp>> {
+fn execute_inner(
+    doc: &mut Doc,
+    cx: &mut Cx,
+    force: bool,
+    mut info: Info,
+    extra: &[(String, Sexp)],
+    kind: ExecKind,
+    start: Option<usize>,
+) -> R<Option<Sexp>> {
     info.params = params::merge(&[&info.params, extra])?;
     if !check_evaluate(cx, &info) {
         return Ok(None);
@@ -1583,13 +1987,20 @@ fn execute_inner(doc: &mut Doc, cx: &mut Cx, force: bool, mut info: Info, extra:
     let p = info.params.clone();
     let pos = |doc: &Doc| start.map(|m| doc.marker(m));
     let cache = !force && get_str(&p, ":cache").as_deref() == Some("yes");
-    let new_hash = if cache { Some(sha1_hash(doc, cx, &info, ":eval")?) } else { None };
+    let new_hash = if cache {
+        Some(sha1_hash(doc, cx, &info, ":eval")?)
+    } else {
+        None
+    };
     if let (Some(h), Some(at)) = (&new_hash, pos(doc))
         && current_result_hash(doc, cx, at)?.as_deref() == Some(h.as_str())
         && let Some(Loc::Line(l)) = where_is_result(doc, cx, at, false, None)?
     {
         let r = read_result(doc, l + 1)?;
-        cx.message(format!("Cached: {}", prin1(&r.clone().unwrap_or(Sexp::Nil))));
+        cx.message(format!(
+            "Cached: {}",
+            prin1(&r.clone().unwrap_or(Sexp::Nil))
+        ));
         return Ok(r);
     }
     if !confirm_evaluate(doc, cx, &info)? {
@@ -1602,7 +2013,11 @@ fn execute_inner(doc: &mut Doc, cx: &mut Cx, force: bool, mut info: Info, extra:
         None => doc.dir(),
         Some(d) => {
             let d = options::expand(&d);
-            let d = if d.is_absolute() { d } else { doc.dir().join(d) };
+            let d = if d.is_absolute() {
+                d
+            } else {
+                doc.dir().join(d)
+            };
             let mkdirp = get_str(&p, ":mkdirp");
             if !matches!(mkdirp.as_deref(), None | Some("no") | Some("nil")) {
                 std::fs::create_dir_all(&d).map_err(|e| format!("{}: {e}", d.display()))?;
@@ -1630,7 +2045,12 @@ fn execute_inner(doc: &mut Doc, cx: &mut Cx, force: bool, mut info: Info, extra:
     ));
     let t0 = std::time::Instant::now();
     let mut result = {
-        let mut env = Env { doc, cx, at: at_line, dir: dir.clone() };
+        let mut env = Env {
+            doc,
+            cx,
+            at: at_line,
+            dir: dir.clone(),
+        };
         super::lang::execute(&mut env, &lang, &body, &p)?
     };
     let doc_dir = doc.dir();
@@ -1640,24 +2060,35 @@ fn execute_inner(doc: &mut Doc, cx: &mut Cx, force: bool, mut info: Info, extra:
     {
         result = Some(list(vec![list(vec![result.unwrap()])]));
     }
-    let file = rp.iter().any(|x| x == "file").then(|| get_str(&p, ":file")).flatten();
+    let file = rp
+        .iter()
+        .any(|x| x == "file")
+        .then(|| get_str(&p, ":file"))
+        .flatten();
     if let Some(f) = &file {
         if let Some(r) = &result
             && !r.is_nil()
             && !rp.iter().any(|x| x == "link" || x == "graphics")
         {
             let path = dir.join(f);
-            std::fs::write(&path, format_result(r, get_str(&p, ":sep").as_deref())).map_err(|e| format!("{}: {e}", path.display()))?;
+            std::fs::write(&path, format_result(r, get_str(&p, ":sep").as_deref()))
+                .map_err(|e| format!("{}: {e}", path.display()))?;
             if let Some(mode) = get(&p, ":file-mode").and_then(Sexp::int) {
                 use std::os::unix::fs::PermissionsExt;
-                let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode as u32));
+                let _ =
+                    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode as u32));
             }
         }
         result = Some(str(f.clone()));
     }
     if let Some(post) = get_str(&p, ":post") {
         let this = if file.is_some() {
-            str(result_to_file(&doc_dir, &dir, &value::princ(result.as_ref().unwrap_or(&Sexp::Nil)), file_desc(&p, result.as_ref())))
+            str(result_to_file(
+                &doc_dir,
+                &dir,
+                &value::princ(result.as_ref().unwrap_or(&Sexp::Nil)),
+                file_desc(&p, result.as_ref()),
+            ))
         } else {
             result.clone().unwrap_or(Sexp::Nil)
         };
@@ -1672,9 +2103,24 @@ fn execute_inner(doc: &mut Doc, cx: &mut Cx, force: bool, mut info: Info, extra:
     let update = options::string("org-babel-update-intermediate", "nil");
     if !rp.iter().any(|x| x == "none") || (cache && update == "cached") {
         if let Some(at) = pos(doc) {
-            let hash = if rp.iter().any(|x| x == "replace") { new_hash.clone() } else { None };
+            let hash = if rp.iter().any(|x| x == "replace") {
+                new_hash.clone()
+            } else {
+                None
+            };
             let elapsed = t0.elapsed().as_secs_f64();
-            insert_result(doc, cx, result.clone(), &rp, &info, &dir, at, hash, Some(&lang), elapsed)?;
+            insert_result(
+                doc,
+                cx,
+                result.clone(),
+                &rp,
+                &info,
+                &dir,
+                at,
+                hash,
+                Some(&lang),
+                elapsed,
+            )?;
         } else if rp.iter().any(|x| x == "silent") {
             cx.message(prin1(result.as_ref().unwrap_or(&Sexp::Nil)));
         }
@@ -1720,7 +2166,10 @@ pub fn result_to_file(doc_dir: &Path, dir: &Path, result: &str, desc: Option<Str
     } else {
         result.to_owned()
     };
-    format!("[[file:{path}]{}]", desc.map(|d| format!("[{d}]")).unwrap_or_default())
+    format!(
+        "[[file:{path}]{}]",
+        desc.map(|d| format!("[{d}]")).unwrap_or_default()
+    )
 }
 
 /// file-relative-name.
@@ -1759,7 +2208,10 @@ pub fn find_named_result(doc: &Doc, name: &str) -> Option<usize> {
     let kw = options::string("org-babel-results-keyword", "RESULTS");
     for (i, l) in doc.lines.iter().enumerate() {
         let t = l.trim_start();
-        if t.len() < 2 + kw.len() || !t.starts_with("#+") || !t[2..2 + kw.len()].eq_ignore_ascii_case(&kw) {
+        if t.len() < 2 + kw.len()
+            || !t.starts_with("#+")
+            || !t[2..2 + kw.len()].eq_ignore_ascii_case(&kw)
+        {
             continue;
         }
         let Some(c) = t.find(':') else { continue };
@@ -1776,7 +2228,13 @@ pub fn find_named_result(doc: &Doc, name: &str) -> Option<usize> {
 }
 
 /// org-babel--insert-results-keyword at line `at`: the keyword line.
-fn insert_results_keyword(doc: &mut Doc, at: usize, indent: &str, name: Option<&str>, hash: Option<&str>) -> usize {
+fn insert_results_keyword(
+    doc: &mut Doc,
+    at: usize,
+    indent: &str,
+    name: Option<&str>,
+    hash: Option<&str>,
+) -> usize {
     let kw = options::string("org-babel-results-keyword", "RESULTS");
     let hash = match hash {
         None => String::new(),
@@ -1785,7 +2243,10 @@ fn insert_results_keyword(doc: &mut Doc, at: usize, indent: &str, name: Option<&
         }
         Some(h) => format!("[{h}]"),
     };
-    let line = format!("{indent}#+{kw}{hash}:{}", name.map(|n| format!(" {n}")).unwrap_or_default());
+    let line = format!(
+        "{indent}#+{kw}{hash}:{}",
+        name.map(|n| format!(" {n}")).unwrap_or_default()
+    );
     let mut ins = vec![line];
     if at < doc.len() && !doc.line(at).trim().is_empty() {
         ins.push(String::new());
@@ -1801,7 +2262,9 @@ fn clear_results_maybe(doc: &mut Doc, l: usize, hash: Option<&str>) -> bool {
     if doc::result_hash(doc.line(l)).as_deref() == Some(hash) {
         return false;
     }
-    let Some(e) = doc::element_at(&doc.lines, l) else { return false };
+    let Some(e) = doc::element_at(&doc.lines, l) else {
+        return false;
+    };
     let post = e.post;
     doc.splice(post, e.stop - post, vec![]);
     if l != post {
@@ -1815,7 +2278,13 @@ fn indent_of(s: &str) -> String {
 }
 
 /// org-babel-where-is-src-block-result.
-pub fn where_is_result(doc: &mut Doc, _cx: &mut Cx, pos: (usize, usize), insert: bool, hash: Option<&str>) -> R<Option<Loc>> {
+pub fn where_is_result(
+    doc: &mut Doc,
+    _cx: &mut Cx,
+    pos: (usize, usize),
+    insert: bool,
+    hash: Option<&str>,
+) -> R<Option<Loc>> {
     match context(doc, pos) {
         Some(Context::InlineSrc(o, el) | Context::InlineCall(o, el)) => {
             // Results follow the object, maybe on the next paragraph line.
@@ -1852,9 +2321,7 @@ pub fn where_is_result(doc: &mut Doc, _cx: &mut Cx, pos: (usize, usize), insert:
             } else {
                 let (_, sec_end) = doc::section(&doc.lines, el.post);
                 let at_end = el.end >= sec_end || el.end >= doc.len();
-                if !at_end
-                    && let Some(next) = doc::element_at(&doc.lines, el.end)
-                {
+                if !at_end && let Some(next) = doc::element_at(&doc.lines, el.end) {
                     for j in next.begin..=next.post.min(doc.len() - 1) {
                         let t = doc.line(j);
                         if doc::is_result_line(t) && doc::result_value(t).is_empty() {
@@ -1890,8 +2357,17 @@ pub fn result_end(doc: &Doc, l: usize) -> usize {
     }
     match doc::element_at(&doc.lines, l) {
         Some(e)
-            if matches!(e.kind, Kind::Drawer | Kind::Example | Kind::Export | Kind::Fixed | Kind::Src | Kind::List | Kind::Table | Kind::Latex)
-                || matches!(&e.kind, Kind::Block(n) if !matches!(n.as_str(), "center" | "quote" | "verse" | "comment")) =>
+            if matches!(
+                e.kind,
+                Kind::Drawer
+                    | Kind::Example
+                    | Kind::Export
+                    | Kind::Fixed
+                    | Kind::Src
+                    | Kind::List
+                    | Kind::Table
+                    | Kind::Latex
+            ) || matches!(&e.kind, Kind::Block(n) if !matches!(n.as_str(), "center" | "quote" | "verse" | "comment")) =>
         {
             e.stop
         }
@@ -1937,7 +2413,9 @@ pub fn macro_escape(arg: &str) -> String {
 /// Whether R can be turned into a table.
 fn tabulable(r: &Sexp) -> bool {
     match items(r) {
-        Some(x) => x.iter().all(|e| !matches!(e, Sexp::Dotted(..)) && (!value::listp(e) || items(e).is_some())),
+        Some(x) => x
+            .iter()
+            .all(|e| !matches!(e, Sexp::Dotted(..)) && (!value::listp(e) || items(e).is_some())),
         None => false,
     }
 }
@@ -1952,8 +2430,19 @@ fn examplify(text: &str, switches: &str) -> String {
     if size < min {
         return text.lines().map(|l| format!(": {l}\n")).collect();
     }
-    let cap = |s: &str| if options::bool("org-babel-uppercase-example-markers", false) { s.to_uppercase() } else { s.to_owned() };
-    format!("{}{switches}\n{}{}\n", cap("#+begin_example"), escape(text.strip_suffix('\n').unwrap_or(text)) + "\n", cap("#+end_example"))
+    let cap = |s: &str| {
+        if options::bool("org-babel-uppercase-example-markers", false) {
+            s.to_uppercase()
+        } else {
+            s.to_owned()
+        }
+    };
+    format!(
+        "{}{switches}\n{}{}\n",
+        cap("#+begin_example"),
+        escape(text.strip_suffix('\n').unwrap_or(text)) + "\n",
+        cap("#+end_example")
+    )
 }
 
 /// org-babel-insert-result.
@@ -1975,7 +2464,12 @@ pub fn insert_result(
     if let Some(Sexp::Str(s)) = &result
         && has_rp("file")
     {
-        result = Some(str(result_to_file(&doc.dir(), dir, s, file_desc(&info.params, result.as_ref()))));
+        result = Some(str(result_to_file(
+            &doc.dir(),
+            dir,
+            s,
+            file_desc(&info.params, result.as_ref()),
+        )));
     } else if let Some(r) = &result
         && !value::listp(r)
         && !matches!(r, Sexp::Str(_))
@@ -1986,7 +2480,10 @@ pub fn insert_result(
         cx.message(prin1(result.as_ref().unwrap_or(&Sexp::Nil)));
         return Ok(());
     }
-    let inline = matches!(context(doc, at), Some(Context::InlineSrc(..) | Context::InlineCall(..)));
+    let inline = matches!(
+        context(doc, at),
+        Some(Context::InlineSrc(..) | Context::InlineCall(..))
+    );
     if inline {
         let warning = if has_rp("table") {
             Some("`:results table'")
@@ -1995,7 +2492,9 @@ pub fn insert_result(
         } else if result.as_ref().is_some_and(value::listp) {
             Some("list result")
         } else if let Some(Sexp::Str(s)) = &result
-            && s.as_bytes().windows(2).any(|w| w[0] == b'\n' && w[1] != b'\n')
+            && s.as_bytes()
+                .windows(2)
+                .any(|w| w[0] == b'\n' && w[1] != b'\n')
         {
             Some("multiline result")
         } else if has_rp("list") {
@@ -2008,14 +2507,23 @@ pub fn insert_result(
         }
     }
     let existing = where_is_result(doc, cx, at, true, hash.as_deref())?;
-    let switches = get_str(&info.params, ":results_switches").map(|s| format!(" {s}")).unwrap_or_default();
-    let wrap_param = info.params.iter().find(|(k, _)| k == ":wrap").map(|(_, v)| as_string(v).unwrap_or_else(|| "results".into()));
+    let switches = get_str(&info.params, ":results_switches")
+        .map(|s| format!(" {s}"))
+        .unwrap_or_default();
+    let wrap_param = info
+        .params
+        .iter()
+        .find(|(k, _)| k == ":wrap")
+        .map(|(_, v)| as_string(v).unwrap_or_else(|| "results".into()));
     let lang = lang.unwrap_or("none");
     if inline {
         let (l, c) = match existing {
             Some(Loc::Inline(l, c)) => (l, c),
             _ => {
-                let Some(Context::InlineSrc(o, _) | Context::InlineCall(o, _)) = context(doc, at) else { return err("No inline object") };
+                let Some(Context::InlineSrc(o, _) | Context::InlineCall(o, _)) = context(doc, at)
+                else {
+                    return err("No inline object");
+                };
                 let mut s = doc.line(o.line).to_owned();
                 s.insert(o.end, ' ');
                 doc.set(o.line, s);
@@ -2033,12 +2541,19 @@ pub fn insert_result(
             let ty = split.first().copied().unwrap_or("").to_ascii_lowercase();
             match ty.as_str() {
                 "nil" | "no" => text,
-                "export" => format!("{{{{{{results(@@{}:{text}@@)}}}}}}", split.get(1).copied().unwrap_or("none")),
+                "export" => format!(
+                    "{{{{{{results(@@{}:{text}@@)}}}}}}",
+                    split.get(1).copied().unwrap_or("none")
+                ),
                 "example" => format!("{{{{{{results(={text}=)}}}}}}"),
                 "src" => match split.len() {
                     1 => format!("{{{{{{results(src_none{{{text}}})}}}}}}"),
                     2 => format!("{{{{{{results(src_{}{{{text}}})}}}}}}", split[1]),
-                    _ => format!("{{{{{{results(src_{}[{}]{{{text}}})}}}}}}", split[1], split[2..].join(" ")),
+                    _ => format!(
+                        "{{{{{{results(src_{}[{}]{{{text}}})}}}}}}",
+                        split[1],
+                        split[2..].join(" ")
+                    ),
                 },
                 _ => format!("{{{{{{results({text})}}}}}}"),
             }
@@ -2071,7 +2586,9 @@ pub fn insert_result(
         report(cx, &result, rp, elapsed);
         return Ok(());
     }
-    let Some(Loc::Line(kl)) = existing else { return err("Cannot insert results here") };
+    let Some(Loc::Line(kl)) = existing else {
+        return err("Cannot insert results here");
+    };
     let indent = value::indentation(doc.line(kl));
     let mut beg = kl + 1;
     if has_rp("replace") {
@@ -2091,26 +2608,43 @@ pub fn insert_result(
         if has_rp("list") {
             let elems: Vec<Sexp> = match items(r) {
                 Some(x) => x.to_vec(),
-                None => echo(r).split('\n').filter(|s| !s.is_empty()).map(|s| str(s)).collect(),
+                None => echo(r)
+                    .split('\n')
+                    .filter(|s| !s.is_empty())
+                    .map(|s| str(s))
+                    .collect(),
             };
             let lines: Vec<String> = elems
                 .iter()
                 .map(|e| match items(e) {
-                    Some(x) if !x.is_empty() => format!("- {}", x.iter().map(echo).collect::<Vec<_>>().join("\n  ")),
+                    Some(x) if !x.is_empty() => {
+                        format!("- {}", x.iter().map(echo).collect::<Vec<_>>().join("\n  "))
+                    }
                     _ => format!("- {}", echo(e)),
                 })
                 .collect();
             text = value::trim(&lines.join("\n")).to_owned() + "\n";
         } else if tabulable(r) {
-            let all_rows = items(r).unwrap_or(&[]).iter().all(|e| is_hline(e) || value::listp(e));
-            let t = if all_rows { r.clone() } else { list(vec![r.clone()]) };
+            let all_rows = items(r)
+                .unwrap_or(&[])
+                .iter()
+                .all(|e| is_hline(e) || value::listp(e));
+            let t = if all_rows {
+                r.clone()
+            } else {
+                list(vec![r.clone()])
+            };
             text = value::orgtbl(&t).join("\n") + "\n";
         } else if value::listp(r) {
             text = format!("{}\n", value::princ(r));
         }
     }
     let wrap = |text: &str, start: &str, finish: &str, no_escape: bool| -> String {
-        let body = if no_escape { text.to_owned() } else { escape_text(text) };
+        let body = if no_escape {
+            text.to_owned()
+        } else {
+            escape_text(text)
+        };
         format!("{start}\n{body}{finish}\n")
     };
     let is_table = result.as_ref().is_some_and(tabulable);
@@ -2131,7 +2665,12 @@ pub fn insert_result(
     } else if has_rp("org") {
         text = wrap(&text, "#+begin_src org", "#+end_src", false);
     } else if has_rp("code") {
-        text = wrap(&text, &format!("#+begin_src {lang}{switches}"), "#+end_src", false);
+        text = wrap(
+            &text,
+            &format!("#+begin_src {lang}{switches}"),
+            "#+end_src",
+            false,
+        );
     } else if has_rp("raw") {
     } else if has_rp("drawer") || has_rp("wrap") {
         text = wrap(&text, ":results:", ":end:", true);
@@ -2163,7 +2702,11 @@ fn escape_text(text: &str) -> String {
 }
 
 fn report(cx: &mut Cx, result: &Option<Sexp>, rp: &[String], elapsed: f64) {
-    let t = if elapsed > 0.05 { format!(" (took {elapsed:.1}s)") } else { String::new() };
+    let t = if elapsed > 0.05 {
+        format!(" (took {elapsed:.1}s)")
+    } else {
+        String::new()
+    };
     cx.message(match result {
         None if rp.iter().any(|r| r == "value") => format!("Code block returned no value{t}."),
         None => format!("Code block produced no output{t}."),
@@ -2179,7 +2722,10 @@ pub fn remove_result(doc: &mut Doc, cx: &mut Cx, pos: (usize, usize), keep_keywo
         let start = if keep_keyword {
             l + 1
         } else {
-            (0..l).rev().find(|&i| !doc.line(i).trim().is_empty()).map_or(0, |i| i + 1)
+            (0..l)
+                .rev()
+                .find(|&i| !doc.line(i).trim().is_empty())
+                .map_or(0, |i| i + 1)
         };
         let end = result_end(doc, l + 1);
         doc.splice(start, end - start, vec![]);
@@ -2189,7 +2735,9 @@ pub fn remove_result(doc: &mut Doc, cx: &mut Cx, pos: (usize, usize), keep_keywo
 
 /// org-babel-remove-inline-result for the object at POS.
 pub fn remove_inline_result(doc: &mut Doc, pos: (usize, usize)) -> bool {
-    let Some(Context::InlineSrc(o, el) | Context::InlineCall(o, el)) = context(doc, pos) else { return false };
+    let Some(Context::InlineSrc(o, el) | Context::InlineCall(o, el)) = context(doc, pos) else {
+        return false;
+    };
     let mut l = o.line;
     let mut from = o.end;
     loop {
@@ -2221,10 +2769,26 @@ mod tests {
 
     #[test]
     fn begin_line_parts() {
-        assert_eq!(parse_begin("#+begin_src emacs-lisp -n -r -l \"(r:%s)\" :var x=1"), ("emacs-lisp".into(), "-n -r -l \"(r:%s)\"".into(), ":var x=1".into()));
-        assert_eq!(parse_begin("  #+BEGIN_SRC sh :results output"), ("sh".into(), String::new(), ":results output".into()));
-        assert_eq!(parse_begin("#+begin_src"), (String::new(), String::new(), String::new()));
-        assert_eq!(strip_coderefs("a (ref:x)\nb  (ref:y z)", "(ref:%s)"), "a\nb");
+        assert_eq!(
+            parse_begin("#+begin_src emacs-lisp -n -r -l \"(r:%s)\" :var x=1"),
+            (
+                "emacs-lisp".into(),
+                "-n -r -l \"(r:%s)\"".into(),
+                ":var x=1".into()
+            )
+        );
+        assert_eq!(
+            parse_begin("  #+BEGIN_SRC sh :results output"),
+            ("sh".into(), String::new(), ":results output".into())
+        );
+        assert_eq!(
+            parse_begin("#+begin_src"),
+            (String::new(), String::new(), String::new())
+        );
+        assert_eq!(
+            strip_coderefs("a (ref:x)\nb  (ref:y z)", "(ref:%s)"),
+            "a\nb"
+        );
     }
 
     #[test]

@@ -49,7 +49,11 @@ pub fn items(v: &Sexp) -> Option<&[Sexp]> {
 
 /// A list value from items (nil when empty).
 pub fn list(v: Vec<Sexp>) -> Sexp {
-    if v.is_empty() { Sexp::Nil } else { Sexp::List(v) }
+    if v.is_empty() {
+        Sexp::Nil
+    } else {
+        Sexp::List(v)
+    }
 }
 
 /// `(cons a b)`.
@@ -82,7 +86,12 @@ pub fn car_cdr(v: &Sexp) -> Option<(Sexp, Sexp)> {
 /// back, with `.0` added to integral values.
 pub fn float_str(f: f64) -> String {
     if f.is_nan() {
-        return if f.is_sign_negative() { "-0.0e+NaN" } else { "0.0e+NaN" }.into();
+        return if f.is_sign_negative() {
+            "-0.0e+NaN"
+        } else {
+            "0.0e+NaN"
+        }
+        .into();
     }
     if f.is_infinite() {
         return if f < 0.0 { "-1.0e+INF" } else { "1.0e+INF" }.into();
@@ -103,7 +112,11 @@ pub fn float_str(f: f64) -> String {
 /// C's `%.{p}g`.
 fn fmt_g(f: f64, p: usize) -> String {
     if f == 0.0 {
-        return if f.is_sign_negative() { "-0".into() } else { "0".into() };
+        return if f.is_sign_negative() {
+            "-0".into()
+        } else {
+            "0".into()
+        };
     }
     let e = format!("{:.*e}", p - 1, f);
     let (mant, exp) = e.split_once('e').unwrap_or((&e, "0"));
@@ -118,7 +131,11 @@ fn fmt_g(f: f64, p: usize) -> String {
 }
 
 fn strip_zeros(s: &str) -> &str {
-    if s.contains('.') { s.trim_end_matches('0').trim_end_matches('.') } else { s }
+    if s.contains('.') {
+        s.trim_end_matches('0').trim_end_matches('.')
+    } else {
+        s
+    }
 }
 
 /// `prin1-to-string`.
@@ -258,7 +275,9 @@ pub fn string_to_number(s: &str) -> Option<Sexp> {
         return None;
     }
     // ^[0-9e.+ -]+$ on some line of S.
-    let ok = s.split('\n').any(|l| !l.is_empty() && l.chars().all(|c| c.is_ascii_digit() || "e.+ -".contains(c)));
+    let ok = s
+        .split('\n')
+        .any(|l| !l.is_empty() && l.chars().all(|c| c.is_ascii_digit() || "e.+ -".contains(c)));
     if !ok {
         return None;
     }
@@ -306,7 +325,9 @@ pub fn string_read(cell: &str) -> Sexp {
 /// Evaluate a Lisp form written as text: data and simple forms here,
 /// anything else with `emacs --batch`.
 pub fn eval_lisp_text(text: &str) -> Result<Sexp, String> {
-    let form = sexp::read_prefix(text).map(|(f, _)| f).map_err(|e| format!("Invalid read syntax in {text:?}: {e}"))?;
+    let form = sexp::read_prefix(text)
+        .map(|(f, _)| f)
+        .map_err(|e| format!("Invalid read syntax in {text:?}: {e}"))?;
     match eval_simple(&form) {
         Some(v) => Ok(v),
         None => emacs_eval(text.trim()),
@@ -315,7 +336,9 @@ pub fn eval_lisp_text(text: &str) -> Result<Sexp, String> {
 
 fn eval_simple(f: &Sexp) -> Option<Sexp> {
     match f {
-        Sexp::Nil | Sexp::T | Sexp::Int(_) | Sexp::Float(_) | Sexp::Str(_) | Sexp::Vector(_) => Some(f.clone()),
+        Sexp::Nil | Sexp::T | Sexp::Int(_) | Sexp::Float(_) | Sexp::Str(_) | Sexp::Vector(_) => {
+            Some(f.clone())
+        }
         Sexp::Sym(s) if s == "*this*" => Some(this()),
         Sexp::Sym(s) if s.starts_with(':') => Some(f.clone()),
         Sexp::Sym(s) => radix(s),
@@ -323,9 +346,13 @@ fn eval_simple(f: &Sexp) -> Option<Sexp> {
             let head = x[0].sym()?;
             let args = &x[1..];
             match head {
-                "quote" | "function" if args.len() == 1 && !has_comma(&args[0]) => Some(args[0].clone()),
+                "quote" | "function" if args.len() == 1 && !has_comma(&args[0]) => {
+                    Some(args[0].clone())
+                }
                 "identity" if args.len() == 1 => eval_simple(&args[0]),
-                "list" => Some(list(args.iter().map(eval_simple).collect::<Option<Vec<_>>>()?)),
+                "list" => Some(list(
+                    args.iter().map(eval_simple).collect::<Option<Vec<_>>>()?,
+                )),
                 "concat" => {
                     let mut s = String::new();
                     for a in args {
@@ -338,7 +365,13 @@ fn eval_simple(f: &Sexp) -> Option<Sexp> {
                     Some(Sexp::Str(s))
                 }
                 "+" | "*" | "-" => {
-                    let v: Vec<i64> = args.iter().map(|a| eval_simple(a).and_then(|v| v.int().filter(|_| matches!(v, Sexp::Int(_))))).collect::<Option<_>>()?;
+                    let v: Vec<i64> = args
+                        .iter()
+                        .map(|a| {
+                            eval_simple(a)
+                                .and_then(|v| v.int().filter(|_| matches!(v, Sexp::Int(_))))
+                        })
+                        .collect::<Option<_>>()?;
                     Some(Sexp::Int(match head {
                         "+" => v.iter().sum(),
                         "*" => v.iter().product(),
@@ -437,7 +470,9 @@ fn script_escape_inner(s: &str) -> Result<String, String> {
             }
             '\\' => {
                 if !quoted {
-                    return Err("Can't handle backslash outside string in `org-babel-script-escape'".into());
+                    return Err(
+                        "Can't handle backslash outside string in `org-babel-script-escape'".into(),
+                    );
                 }
                 backslash = true;
             }
@@ -457,10 +492,19 @@ pub fn script_escape(s: &str, force: bool) -> Sexp {
     let first = s.chars().next();
     let last = s.chars().last();
     let bracketed = n >= 2
-        && matches!((first, last), (Some('['), Some(']')) | (Some('{'), Some('}')) | (Some('('), Some(')')));
+        && matches!(
+            (first, last),
+            (Some('['), Some(']')) | (Some('{'), Some('}')) | (Some('('), Some(')'))
+        );
     let escaped = if bracketed {
         script_escape_inner(s).map(|e| format!("'{e}"))
-    } else if force || (n > 2 && matches!((first, last), (Some('\''), Some('\'')) | (Some('"'), Some('"')))) {
+    } else if force
+        || (n > 2
+            && matches!(
+                (first, last),
+                (Some('\''), Some('\'')) | (Some('"'), Some('"'))
+            ))
+    {
         script_escape_inner(s)
     } else {
         Ok(s.to_owned())
@@ -540,7 +584,9 @@ pub fn table_to_lisp<S: AsRef<str>>(lines: &[S]) -> Vec<Row> {
     let mut out = vec![];
     for l in lines {
         let t = l.as_ref().trim_start_matches([' ', '\t']);
-        let Some(rest) = t.strip_prefix('|') else { break };
+        let Some(rest) = t.strip_prefix('|') else {
+            break;
+        };
         if rest.starts_with('-') {
             out.push(None);
             continue;
@@ -589,7 +635,11 @@ pub fn align(rows: &[Row], indent: &str) -> Vec<String> {
             if fixed.is_some() || c.is_empty() {
                 continue;
             }
-            if let Some(a) = c.strip_prefix('<').and_then(|x| x.chars().next()).filter(|a| "lrc".contains(*a)) {
+            if let Some(a) = c
+                .strip_prefix('<')
+                .and_then(|x| x.chars().next())
+                .filter(|a| "lrc".contains(*a))
+            {
                 if c.ends_with('>') && c[2..c.len() - 1].bytes().all(|b| b.is_ascii_digit()) {
                     fixed = Some(a == 'r');
                     continue;
@@ -604,13 +654,24 @@ pub fn align(rows: &[Row], indent: &str) -> Vec<String> {
     }
     rows.iter()
         .map(|row| match row {
-            None => format!("{indent}|{}|", widths.iter().map(|w| "-".repeat(w + 2)).collect::<Vec<_>>().join("+")),
+            None => format!(
+                "{indent}|{}|",
+                widths
+                    .iter()
+                    .map(|w| "-".repeat(w + 2))
+                    .collect::<Vec<_>>()
+                    .join("+")
+            ),
             Some(r) => {
                 let fields: Vec<String> = (0..ncols)
                     .map(|i| {
                         let c = r.get(i).map_or("", String::as_str);
                         let pad = " ".repeat(widths[i].saturating_sub(width(c)));
-                        if right[i] { format!(" {pad}{c} ") } else { format!(" {c}{pad} ") }
+                        if right[i] {
+                            format!(" {pad}{c} ")
+                        } else {
+                            format!(" {c}{pad} ")
+                        }
                     })
                     .collect();
                 format!("{indent}|{}|", fields.join("|"))
@@ -652,7 +713,12 @@ pub fn orgtbl(table: &Sexp) -> Vec<String> {
 }
 
 /// orgtbl-to-generic with `:sep`, `:fmt` and `:hline` (no special rows).
-pub fn orgtbl_to_generic(table: &Sexp, sep: &str, fmt: &dyn Fn(&Sexp) -> String, hline: Option<&str>) -> String {
+pub fn orgtbl_to_generic(
+    table: &Sexp,
+    sep: &str,
+    fmt: &dyn Fn(&Sexp) -> String,
+    hline: Option<&str>,
+) -> String {
     let mut out = vec![];
     for r in items(table).unwrap_or(&[]) {
         if is_hline(r) {
@@ -662,7 +728,18 @@ pub fn orgtbl_to_generic(table: &Sexp, sep: &str, fmt: &dyn Fn(&Sexp) -> String,
             continue;
         }
         match items(r) {
-            Some(c) => out.push(c.iter().map(|x| if is_empty_cell(x) { String::new() } else { fmt(x) }).collect::<Vec<_>>().join(sep)),
+            Some(c) => out.push(
+                c.iter()
+                    .map(|x| {
+                        if is_empty_cell(x) {
+                            String::new()
+                        } else {
+                            fmt(x)
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join(sep),
+            ),
             None => out.push(fmt(r)),
         }
     }
@@ -716,7 +793,11 @@ pub fn convert_region(text: &str, sep: Sep) -> Result<Vec<Vec<String>>, String> 
             Sep::Comma => csv_split(l),
             // babel-auto with one line: no separator at all.
             Sep::Auto if single => vec![l.trim().to_owned()],
-            Sep::Auto => l.split(|c| c == ' ' || c == '\t').filter(|c| !c.is_empty()).map(str::to_owned).collect(),
+            Sep::Auto => l
+                .split(|c| c == ' ' || c == '\t')
+                .filter(|c| !c.is_empty())
+                .map(str::to_owned)
+                .collect(),
         })
         .map(|r: Vec<String>| r.into_iter().map(|c| c.replace('|', "")).collect())
         .collect();
@@ -819,13 +900,25 @@ mod tests {
             assert_eq!(read("1foo", inhibit).unwrap(), str("1foo"));
             assert_eq!(read("", inhibit).unwrap(), str(""));
             assert_eq!(read(" \"foo\" ", inhibit).unwrap(), str("foo"));
-            assert_eq!(read(" \"foo with\\\" inside\" ", inhibit).unwrap(), str("foo with\" inside"));
-            assert_eq!(read("\"foo\"(\"bar\"", inhibit).unwrap(), str("\"foo\"(\"bar\""));
-            assert_eq!(read("\"foo\"\"bar\"", inhibit).unwrap(), str("\"foo\"\"bar\""));
+            assert_eq!(
+                read(" \"foo with\\\" inside\" ", inhibit).unwrap(),
+                str("foo with\" inside")
+            );
+            assert_eq!(
+                read("\"foo\"(\"bar\"", inhibit).unwrap(),
+                str("\"foo\"(\"bar\"")
+            );
+            assert_eq!(
+                read("\"foo\"\"bar\"", inhibit).unwrap(),
+                str("\"foo\"\"bar\"")
+            );
         }
         assert_eq!(read("'(1 2)", false).unwrap(), sexp::read("(1 2)").unwrap());
         assert_eq!(read("'(1 2)", true).unwrap(), str("'(1 2)"));
-        assert_eq!(read("[1 2 (foo)]", false).unwrap().to_string(), "[1 2 (foo)]");
+        assert_eq!(
+            read("[1 2 (foo)]", false).unwrap().to_string(),
+            "[1 2 (foo)]"
+        );
         assert_eq!(string_to_number("1e3"), Some(Sexp::Float(1000.0)));
         assert_eq!(string_to_number("010"), Some(Sexp::Int(10)));
         assert_eq!(string_to_number("1 2"), None);
@@ -834,7 +927,10 @@ mod tests {
     #[test]
     fn script_escape_like_upstream() {
         assert_eq!(prin1(&script_escape("[1, 2, 3]", false)), "(1 2 3)");
-        assert_eq!(prin1(&script_escape("[[1, 'a'], [2, \"b\"]]", false)), "((1 \"a\") (2 \"b\"))");
+        assert_eq!(
+            prin1(&script_escape("[[1, 'a'], [2, \"b\"]]", false)),
+            "((1 \"a\") (2 \"b\"))"
+        );
         assert_eq!(prin1(&script_escape("'hi'", false)), "\"hi\"");
         assert_eq!(prin1(&script_escape("{1, 2}", false)), "(1 2)");
         assert_eq!(prin1(&script_escape("plain", false)), "\"plain\"");
@@ -845,11 +941,26 @@ mod tests {
     fn tables_align_and_import() {
         let t = sexp::read("((1 \"a\") hline (10 \"bb\"))").unwrap();
         let t = cons(cons(str("x"), list(vec![str("y")])), t);
-        assert_eq!(orgtbl(&t), vec!["|  x | y  |", "|  1 | a  |", "|----+----|", "| 10 | bb |"]);
-        assert_eq!(prin1(&import_table("line 1\nline 2\n", Sep::Auto).unwrap()), "((\"line\" 1) (\"line\" 2))");
-        assert_eq!(prin1(&import_table("1\t2\n3\t4", Sep::Auto).unwrap()), "((1 2) (3 4))");
-        assert_eq!(prin1(&import_table("hello world", Sep::Auto).unwrap()), "\"hello world\"");
-        assert_eq!(prin1(&import_table("a,\"b,c\"\n1,2", Sep::Auto).unwrap()), "((\"a\" \"b,c\") (1 2))");
+        assert_eq!(
+            orgtbl(&t),
+            vec!["|  x | y  |", "|  1 | a  |", "|----+----|", "| 10 | bb |"]
+        );
+        assert_eq!(
+            prin1(&import_table("line 1\nline 2\n", Sep::Auto).unwrap()),
+            "((\"line\" 1) (\"line\" 2))"
+        );
+        assert_eq!(
+            prin1(&import_table("1\t2\n3\t4", Sep::Auto).unwrap()),
+            "((1 2) (3 4))"
+        );
+        assert_eq!(
+            prin1(&import_table("hello world", Sep::Auto).unwrap()),
+            "\"hello world\""
+        );
+        assert_eq!(
+            prin1(&import_table("a,\"b,c\"\n1,2", Sep::Auto).unwrap()),
+            "((\"a\" \"b,c\") (1 2))"
+        );
         assert_eq!(import_table("", Sep::Auto).unwrap(), Sexp::Nil);
         assert_eq!(remove_indentation("  a\n    b\n"), "a\n  b\n");
     }

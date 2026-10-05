@@ -30,7 +30,11 @@ pub fn set(p: &mut Params, key: &str, v: Sexp) {
 /// `:result-params` as strings.
 pub fn result_params(p: &[(String, Sexp)]) -> Vec<String> {
     match get(p, ":result-params") {
-        Some(v) => value::items(v).unwrap_or(&[]).iter().filter_map(as_string).collect(),
+        Some(v) => value::items(v)
+            .unwrap_or(&[])
+            .iter()
+            .filter_map(as_string)
+            .collect(),
         None => vec![],
     }
 }
@@ -49,9 +53,24 @@ pub const COMMON: &[(&str, Option<&[&[&str]]>)] = &[
     ("cache", Some(&[&["no", "yes"]])),
     ("cmdline", None),
     ("colnames", Some(&[&["nil", "no", "yes"]])),
-    ("comments", Some(&[&["no", "link", "yes", "org", "both", "noweb"]])),
+    (
+        "comments",
+        Some(&[&["no", "link", "yes", "org", "both", "noweb"]]),
+    ),
     ("dir", None),
-    ("eval", Some(&[&["yes", "no", "no-export", "strip-export", "never-export", "eval", "never", "query"]])),
+    (
+        "eval",
+        Some(&[&[
+            "yes",
+            "no",
+            "no-export",
+            "strip-export",
+            "never-export",
+            "eval",
+            "never",
+            "query",
+        ]]),
+    ),
     ("exports", Some(&[&["code", "results", "both", "none"]])),
     ("epilogue", None),
     ("file", None),
@@ -62,7 +81,17 @@ pub const COMMON: &[(&str, Option<&[&[&str]]>)] = &[
     ("mkdirp", Some(&[&["yes", "no"]])),
     ("no-expand", Some(&[])),
     ("noeval", Some(&[])),
-    ("noweb", Some(&[&["yes", "no", "tangle", "strip-tangle", "no-export", "strip-export"]])),
+    (
+        "noweb",
+        Some(&[&[
+            "yes",
+            "no",
+            "tangle",
+            "strip-tangle",
+            "no-export",
+            "strip-export",
+        ]]),
+    ),
     ("noweb-ref", None),
     ("noweb-sep", None),
     ("noweb-prefix", Some(&[&["no", "yes"]])),
@@ -74,7 +103,9 @@ pub const COMMON: &[(&str, Option<&[&[&str]]>)] = &[
         "results",
         Some(&[
             &["file", "list", "vector", "table", "scalar", "verbatim"],
-            &["raw", "html", "latex", "org", "code", "pp", "drawer", "link", "graphics"],
+            &[
+                "raw", "html", "latex", "org", "code", "pp", "drawer", "link", "graphics",
+            ],
             &["replace", "silent", "none", "discard", "append", "prepend"],
             &["output", "value"],
         ]),
@@ -94,40 +125,122 @@ pub fn lang_headers(lang: &str) -> Vec<(&'static str, Option<&'static [&'static 
     let any = |names: &[&'static str]| names.iter().map(|n| (*n, None)).collect::<Vec<_>>();
     match lang {
         "C" => any(&["includes", "defines", "main", "flags", "cmdline", "libs"]),
-        "C++" | "cpp" => any(&["namespaces", "includes", "defines", "main", "flags", "cmdline", "libs"]),
+        "C++" | "cpp" => any(&[
+            "namespaces",
+            "includes",
+            "defines",
+            "main",
+            "flags",
+            "cmdline",
+            "libs",
+        ]),
         "R" => {
             let mut v = any(&[
-                "width", "height", "bg", "units", "pointsize", "antialias", "quality", "compression", "res", "type",
-                "family", "title", "fonts", "version", "paper", "encoding", "pagecentre", "colormodel", "useDingbats",
+                "width",
+                "height",
+                "bg",
+                "units",
+                "pointsize",
+                "antialias",
+                "quality",
+                "compression",
+                "res",
+                "type",
+                "family",
+                "title",
+                "fonts",
+                "version",
+                "paper",
+                "encoding",
+                "pagecentre",
+                "colormodel",
+                "useDingbats",
                 "horizontal",
             ]);
             v.push(("async", Some(&[&["yes", "no"]])));
             v
         }
-        "python" => vec![("return", None), ("python", None), ("async", Some(&[&["yes", "no"]]))],
+        "python" => vec![
+            ("return", None),
+            ("python", None),
+            ("async", Some(&[&["yes", "no"]])),
+        ],
         "emacs-lisp" | "elisp" => any(&["lexical"]),
         "latex" => {
-            let mut v = any(&["border", "fit", "iminoptions", "imoutoptions", "packages", "pdfheight", "pdfpng", "pdfwidth", "headers"]);
+            let mut v = any(&[
+                "border",
+                "fit",
+                "iminoptions",
+                "imoutoptions",
+                "packages",
+                "pdfheight",
+                "pdfpng",
+                "pdfwidth",
+                "headers",
+            ]);
             v.push(("imagemagick", Some(&[&["nil", "t"]])));
             v.push(("buffer", Some(&[&["yes", "no"]])));
             v
         }
         "sqlite" => {
-            let mut v = any(&["db", "header", "echo", "bail", "csv", "column", "html", "line", "list", "separator", "nullvalue"]);
+            let mut v = any(&[
+                "db",
+                "header",
+                "echo",
+                "bail",
+                "csv",
+                "column",
+                "html",
+                "line",
+                "list",
+                "separator",
+                "nullvalue",
+            ]);
             v.push(("readonly-p", Some(&[&["yes", "no"]])));
             v
         }
-        "sql" => any(&["engine", "out-file", "dbhost", "dbport", "dbuser", "dbpassword", "dbinstance", "database"]),
-        "java" => any(&["dir", "classname", "imports", "cmpflag", "cmdline", "cmdarg"]),
+        "sql" => any(&[
+            "engine",
+            "out-file",
+            "dbhost",
+            "dbport",
+            "dbuser",
+            "dbpassword",
+            "dbinstance",
+            "database",
+        ]),
+        "java" => any(&[
+            "dir",
+            "classname",
+            "imports",
+            "cmpflag",
+            "cmdline",
+            "cmdarg",
+        ]),
         "haskell" => any(&["compile"]),
-        "clojure" => vec![("ns", None), ("package", None), ("backend", Some(&[&["inf-clojure", "cider", "slime", "babashka", "nbb"]]))],
+        "clojure" => vec![
+            ("ns", None),
+            ("package", None),
+            (
+                "backend",
+                Some(&[&["inf-clojure", "cider", "slime", "babashka", "nbb"]]),
+            ),
+        ],
         "lisp" => any(&["package"]),
         "scheme" => any(&["host", "port"]),
-        "maxima" => vec![("batch", Some(&[&["batchload", "batch", "load"]])), ("graphics-pkg", Some(&[&["plot", "draw"]]))],
-        "gnuplot" => any(&["title", "lines", "sets", "x-labels", "y-labels", "timefmt", "time-ind", "missing", "term"]),
+        "maxima" => vec![
+            ("batch", Some(&[&["batchload", "batch", "load"]])),
+            ("graphics-pkg", Some(&[&["plot", "draw"]])),
+        ],
+        "gnuplot" => any(&[
+            "title", "lines", "sets", "x-labels", "y-labels", "timefmt", "time-ind", "missing",
+            "term",
+        ]),
         "sed" => any(&[":cmd-line", ":in-file"]),
         "julia" => any(&["width", "horizontal"]),
-        l if super::lang::shell_names().iter().any(|s| s == l) || l == "shell" => vec![("async", Some(&[&["yes", "no"]]))],
+        l if super::lang::shell_names().iter().any(|s| s == l) || l == "shell" => {
+            vec![("async", Some(&[&["yes", "no"]]))]
+        }
         _ => vec![],
     }
 }
@@ -282,7 +395,8 @@ thread_local! {
 
 /// Run F with KEY merged into org-babel-default-header-args.
 pub fn with_default<T>(key: &str, v: Sexp, f: impl FnOnce() -> T) -> T {
-    let old = DEFAULT_EXTRA.with(|d| std::mem::replace(&mut *d.borrow_mut(), vec![(key.to_owned(), v)]));
+    let old =
+        DEFAULT_EXTRA.with(|d| std::mem::replace(&mut *d.borrow_mut(), vec![(key.to_owned(), v)]));
     let out = f();
     DEFAULT_EXTRA.with(|d| *d.borrow_mut() = old);
     out
@@ -304,7 +418,12 @@ fn default_args_1(var: &str) -> Params {
     if let Some(v) = sexp::option(var) {
         return alist(&v);
     }
-    let p = |pairs: &[(&str, &str)]| -> Params { pairs.iter().map(|(k, v)| ((*k).into(), Sexp::Str((*v).into()))).collect() };
+    let p = |pairs: &[(&str, &str)]| -> Params {
+        pairs
+            .iter()
+            .map(|(k, v)| ((*k).into(), Sexp::Str((*v).into())))
+            .collect()
+    };
     match var {
         "org-babel-default-header-args" => p(&[
             (":session", "none"),
@@ -315,18 +434,39 @@ fn default_args_1(var: &str) -> Params {
             (":hlines", "no"),
             (":tangle", "no"),
         ]),
-        "org-babel-default-inline-header-args" => p(&[(":session", "none"), (":results", "replace"), (":exports", "results"), (":hlines", "yes")]),
+        "org-babel-default-inline-header-args" => p(&[
+            (":session", "none"),
+            (":results", "replace"),
+            (":exports", "results"),
+            (":hlines", "yes"),
+        ]),
         "org-babel-default-lob-header-args" => p(&[(":exports", "results")]),
-        "org-babel-default-header-args:emacs-lisp" | "org-babel-default-header-args:elisp" => p(&[(":lexical", "no")]),
-        "org-babel-default-header-args:dot" | "org-babel-default-header-args:plantuml" => p(&[(":results", "file"), (":exports", "results")]),
-        "org-babel-default-header-args:latex" => p(&[(":results", "latex"), (":exports", "results")]),
+        "org-babel-default-header-args:emacs-lisp" | "org-babel-default-header-args:elisp" => {
+            p(&[(":lexical", "no")])
+        }
+        "org-babel-default-header-args:dot" | "org-babel-default-header-args:plantuml" => {
+            p(&[(":results", "file"), (":exports", "results")])
+        }
+        "org-babel-default-header-args:latex" => {
+            p(&[(":results", "latex"), (":exports", "results")])
+        }
         "org-babel-default-header-args:java" => p(&[(":results", "output"), (":dir", ".")]),
         "org-babel-default-header-args:haskell" => p(&[(":padline", "no")]),
         "org-babel-default-header-args:forth" => p(&[(":session", "yes")]),
-        "org-babel-default-header-args:processing" => p(&[(":results", "html"), (":exports", "results")]),
-        "org-babel-default-header-args:org" => p(&[(":results", "raw silent"), (":exports", "code")]),
-        "org-babel-default-header-args:lilypond" => p(&[(":results", "file"), (":exports", "results")]),
-        "org-babel-default-header-args:ditaa" => p(&[(":results", "file graphics"), (":exports", "results"), (":file-ext", "png")]),
+        "org-babel-default-header-args:processing" => {
+            p(&[(":results", "html"), (":exports", "results")])
+        }
+        "org-babel-default-header-args:org" => {
+            p(&[(":results", "raw silent"), (":exports", "code")])
+        }
+        "org-babel-default-header-args:lilypond" => {
+            p(&[(":results", "file"), (":exports", "results")])
+        }
+        "org-babel-default-header-args:ditaa" => p(&[
+            (":results", "file graphics"),
+            (":exports", "results"),
+            (":file-ext", "png"),
+        ]),
         "org-babel-default-header-args:gnuplot" => {
             let mut v = p(&[(":results", "file"), (":exports", "results")]);
             v.push((":session".into(), Sexp::Nil));
@@ -351,7 +491,11 @@ pub fn alist(v: &Sexp) -> Params {
         .filter_map(value::car_cdr)
         .map(|(k, v)| {
             let k = value::princ(&k);
-            let k = if k.starts_with(':') { k } else { format!(":{k}") };
+            let k = if k.starts_with(':') {
+                k
+            } else {
+                format!(":{k}")
+            };
             (k, v)
         })
         .collect()
@@ -359,7 +503,11 @@ pub fn alist(v: &Sexp) -> Params {
 
 /// The header arguments of the exclusive groups of a key.
 fn groups(key: &str) -> &'static [&'static [&'static str]] {
-    COMMON.iter().find(|(k, _)| *k == key).and_then(|(_, v)| *v).unwrap_or(&[])
+    COMMON
+        .iter()
+        .find(|(k, _)| *k == key)
+        .and_then(|(_, v)| *v)
+        .unwrap_or(&[])
 }
 
 /// org-babel-merge-params.
@@ -389,11 +537,16 @@ pub fn merge(alists: &[&[(String, Sexp)]]) -> Result<Params, String> {
                         Sexp::Str(s) => {
                             let n = s.find('=').map(|i| &s[..i]);
                             n.map(|n| n.trim_end_matches([' ', '\t']))
-                                .filter(|n| !n.is_empty() && !n.contains([' ', '\x0c', '\t', '\n', '\r', '\x0b']))
+                                .filter(|n| {
+                                    !n.is_empty()
+                                        && !n.contains([' ', '\x0c', '\t', '\n', '\r', '\x0b'])
+                                })
                                 .map(str::to_owned)
                         }
                         // Processed (name . value) pairs.
-                        v if value::listp(v) && !v.is_nil() => value::car_cdr(v).map(|(n, _)| value::princ(&n)),
+                        v if value::listp(v) && !v.is_nil() => {
+                            value::car_cdr(v).map(|(n, _)| value::princ(&n))
+                        }
                         _ => None,
                     };
                     if let Some(name) = name {
@@ -405,20 +558,34 @@ pub fn merge(alists: &[&[(String, Sexp)]]) -> Result<Params, String> {
                     } else if variable_index < vars.len() && !v.is_nil() {
                         let name = vars[variable_index].0.clone();
                         clearnames.push(name.clone());
-                        vars[variable_index].1 = Sexp::Str(format!("{name}={}", value::as_string(v).unwrap_or_default()));
+                        vars[variable_index].1 = Sexp::Str(format!(
+                            "{name}={}",
+                            value::as_string(v).unwrap_or_default()
+                        ));
                         variable_index += 1;
                     } else if v.is_nil() {
                     } else {
-                        return Err(format!("Variable \"{}\" must be assigned a default value", value::princ(v)));
+                        return Err(format!(
+                            "Variable \"{}\" must be assigned a default value",
+                            value::princ(v)
+                        ));
                     }
                 }
                 ":results" => {
                     let s = value::as_string(v).unwrap_or_default();
-                    merge_excl(&mut results, groups("results"), s.split_whitespace().map(str::to_owned).collect());
+                    merge_excl(
+                        &mut results,
+                        groups("results"),
+                        s.split_whitespace().map(str::to_owned).collect(),
+                    );
                 }
                 ":exports" => {
                     let s = value::as_string(v).unwrap_or_default();
-                    merge_excl(&mut exports, groups("exports"), s.split_whitespace().map(str::to_owned).collect());
+                    merge_excl(
+                        &mut exports,
+                        groups("exports"),
+                        s.split_whitespace().map(str::to_owned).collect(),
+                    );
                 }
                 _ => {
                     params.retain(|(x, _)| x != k);
@@ -427,7 +594,10 @@ pub fn merge(alists: &[&[(String, Sexp)]]) -> Result<Params, String> {
             }
         }
     }
-    let mut out: Params = vars.into_iter().map(|(_, v)| (":var".to_owned(), v)).collect();
+    let mut out: Params = vars
+        .into_iter()
+        .map(|(_, v)| (":var".to_owned(), v))
+        .collect();
     out.extend(params);
     for name in &clearnames {
         for key in [":colname-names", ":rowname-names"] {
@@ -471,7 +641,10 @@ pub fn noweb_p(p: &[(String, Sexp)], context: &str) -> bool {
         ":eval" => &["yes", "no-export", "strip-export", "eval", "strip-tangle"],
         _ => &["yes", "strip-tangle"],
     };
-    get_str(p, ":noweb").unwrap_or_default().split_whitespace().any(|v| allowed.contains(&v))
+    get_str(p, ":noweb")
+        .unwrap_or_default()
+        .split_whitespace()
+        .any(|v| allowed.contains(&v))
 }
 
 /// org-string-distance (Levenshtein).
@@ -481,7 +654,11 @@ pub fn distance(a: &str, b: &str) -> usize {
     for (i, ca) in a.chars().enumerate() {
         let mut cur = vec![i + 1];
         for (j, cb) in b.iter().enumerate() {
-            cur.push((prev[j] + usize::from(ca != *cb)).min(prev[j + 1] + 1).min(cur[j] + 1));
+            cur.push(
+                (prev[j] + usize::from(ca != *cb))
+                    .min(prev[j + 1] + 1)
+                    .min(cur[j] + 1),
+            );
         }
         prev = cur;
     }
@@ -495,11 +672,20 @@ mod tests {
     #[test]
     fn balanced_split_like_upstream() {
         assert_eq!(
-            balanced_split(":a 1 :b [2 3] :c (4 :d (5 6))", Alts::Pair(&[' ', '\t'], &[':'])),
+            balanced_split(
+                ":a 1 :b [2 3] :c (4 :d (5 6))",
+                Alts::Pair(&[' ', '\t'], &[':'])
+            ),
             vec![":a 1", "b [2 3]", "c (4 :d (5 6))"]
         );
-        assert_eq!(balanced_split(":a 1 :b [2 3] :c (4 :d (5 6))", Alts::Char(':')), vec!["a 1 ", "b [2 3] ", "c (4 :d (5 6))"]);
-        assert_eq!(balanced_split("a=\"b c\" d=(e f)", Alts::Char(' ')), vec!["a=\"b c\"", "d=(e f)"]);
+        assert_eq!(
+            balanced_split(":a 1 :b [2 3] :c (4 :d (5 6))", Alts::Char(':')),
+            vec!["a 1 ", "b [2 3] ", "c (4 :d (5 6))"]
+        );
+        assert_eq!(
+            balanced_split("a=\"b c\" d=(e f)", Alts::Char(' ')),
+            vec!["a=\"b c\"", "d=(e f)"]
+        );
     }
 
     #[test]
@@ -514,7 +700,10 @@ mod tests {
     }
 
     fn vars_raw(p: &Params) -> Vec<String> {
-        p.iter().filter(|(k, _)| k == ":var").map(|(_, v)| value::princ(v)).collect()
+        p.iter()
+            .filter(|(k, _)| k == ":var")
+            .map(|(_, v)| value::princ(v))
+            .collect()
     }
 
     #[test]

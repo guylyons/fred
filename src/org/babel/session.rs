@@ -93,8 +93,14 @@ impl Kind {
             Kind::Node(_) => (format!("\n{END}\n"), "org-babel-js-eoe"),
             Kind::Julia(_) => (format!("\n{END}\n"), "org_babel_julia_eoe"),
             Kind::R(_) => ("\ncat('org_babel_R_eoe\\n')\n".into(), "org_babel_R_eoe"),
-            Kind::Haskell => ("\nputStrLn \"org-babel-haskell-eoe\"\n".into(), "org-babel-haskell-eoe"),
-            Kind::Ocaml(_) => ("\n\"org-babel-ocaml-eoe\";;\n".into(), "org-babel-ocaml-eoe"),
+            Kind::Haskell => (
+                "\nputStrLn \"org-babel-haskell-eoe\"\n".into(),
+                "org-babel-haskell-eoe",
+            ),
+            Kind::Ocaml(_) => (
+                "\n\"org-babel-ocaml-eoe\";;\n".into(),
+                "org-babel-ocaml-eoe",
+            ),
             Kind::Plain(_, cmd, marker) => (format!("\n{cmd}\n"), marker.as_str()),
         }
     }
@@ -236,10 +242,19 @@ fn start(kind: &Kind, dir: &Path) -> R<Session> {
             }
         }
     });
-    let mut s = Session { child, stdin, rx, pending: vec![], transcript: String::new(), kind: kind.clone() };
+    let mut s = Session {
+        child,
+        stdin,
+        rx,
+        pending: vec![],
+        transcript: String::new(),
+        kind: kind.clone(),
+    };
     let setup = kind.setup();
     if !setup.is_empty() {
-        s.stdin.write_all(setup.as_bytes()).map_err(|e| e.to_string())?;
+        s.stdin
+            .write_all(setup.as_bytes())
+            .map_err(|e| e.to_string())?;
     }
     Ok(s)
 }
@@ -249,8 +264,12 @@ impl Session {
         let (ending, marker) = self.kind.ending();
         let marker = marker.to_owned();
         let input = format!("{code}{ending}");
-        self.stdin.write_all(input.as_bytes()).and_then(|_| self.stdin.flush()).map_err(|e| format!("Session process is gone: {e}"))?;
-        self.transcript.push_str(&format!("> {}\n", code.replace('\n', "\n> ")));
+        self.stdin
+            .write_all(input.as_bytes())
+            .and_then(|_| self.stdin.flush())
+            .map_err(|e| format!("Session process is gone: {e}"))?;
+        self.transcript
+            .push_str(&format!("> {}\n", code.replace('\n', "\n> ")));
         loop {
             let text = String::from_utf8_lossy(&self.pending).into_owned();
             if let Some(i) = text.find(&marker) {
@@ -288,7 +307,9 @@ pub fn eval(kind: &Kind, name: &str, dir: &Path, code: &str) -> R<String> {
     SESSIONS.with(|s| {
         let mut map = s.borrow_mut();
         let k = key(kind, name);
-        let alive = map.get_mut(&k).is_some_and(|x| matches!(x.child.try_wait(), Ok(None)));
+        let alive = map
+            .get_mut(&k)
+            .is_some_and(|x| matches!(x.child.try_wait(), Ok(None)));
         if !alive {
             map.insert(k.clone(), start(kind, dir)?);
         }
@@ -302,7 +323,11 @@ pub fn eval(kind: &Kind, name: &str, dir: &Path, code: &str) -> R<String> {
 
 /// org-babel-comint-buffer-livep.
 pub fn live(kind: &Kind, name: &str) -> bool {
-    SESSIONS.with(|s| s.borrow_mut().get_mut(&key(kind, name)).is_some_and(|x| matches!(x.child.try_wait(), Ok(None))))
+    SESSIONS.with(|s| {
+        s.borrow_mut()
+            .get_mut(&key(kind, name))
+            .is_some_and(|x| matches!(x.child.try_wait(), Ok(None)))
+    })
 }
 
 /// Start session NAME if it is not running.
@@ -316,7 +341,11 @@ pub fn initiate(kind: &Kind, name: &str, dir: &Path) -> R<()> {
 
 /// The session's input and output so far.
 pub fn transcript(kind: &Kind, name: &str) -> Option<String> {
-    SESSIONS.with(|s| s.borrow().get(&key(kind, name)).map(|x| x.transcript.clone()))
+    SESSIONS.with(|s| {
+        s.borrow()
+            .get(&key(kind, name))
+            .map(|x| x.transcript.clone())
+    })
 }
 
 pub fn kill(kind: &Kind, name: &str) {

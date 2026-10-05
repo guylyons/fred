@@ -32,7 +32,10 @@ fn run(e: &mut Editor, cmd: &str) {
 }
 
 fn text(e: &Editor) -> String {
-    (0..e.line_count()).map(|l| e.buf.line(l)).collect::<Vec<_>>().join("\n")
+    (0..e.line_count())
+        .map(|l| e.buf.line(l))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 fn have(cmd: &str) -> bool {
@@ -71,7 +74,12 @@ fn check(cases: &[(&str, &str, &str)]) {
     for (input, cmd, want) in cases {
         let mut e = buf(input);
         run(&mut e, cmd);
-        assert_eq!(text(&e), want.trim_end_matches('\n'), "{input:?} with {cmd}: {:?}", e.msg);
+        assert_eq!(
+            text(&e),
+            want.trim_end_matches('\n'),
+            "{input:?} with {cmd}: {:?}",
+            e.msg
+        );
     }
 }
 
@@ -80,13 +88,19 @@ fn insert_result_formats() {
     if !have("emacs") {
         return;
     }
-    options::put("org-babel-min-lines-for-block-output", toml::Value::Integer(1));
+    options::put(
+        "org-babel-min-lines-for-block-output",
+        toml::Value::Integer(1),
+    );
     check(&[(
         "<point>#+begin_src emacs-lisp\n\"* Not an headline\"\n#+end_src\n",
         "org-babel-execute-maybe",
         "#+begin_src emacs-lisp\n\"* Not an headline\"\n#+end_src\n\n#+RESULTS:\n#+begin_example\n,* Not an headline\n#+end_example",
     )]);
-    options::put("org-babel-min-lines-for-block-output", toml::Value::Integer(10));
+    options::put(
+        "org-babel-min-lines-for-block-output",
+        toml::Value::Integer(10),
+    );
     check(&[
         (
             "<point>#+begin_src emacs-lisp :results raw\n\"* Not an headline\"\n#+end_src\n",
@@ -157,14 +171,26 @@ fn shell_blocks_like_upstream() {
         return;
     }
     check(&[
-        ("text <point>src_sh{echo 1} more\n", "org-babel-execute-maybe", "text src_sh{echo 1} {{{results(=1=)}}} more\n"),
-        ("text <point>src_sh[:results raw]{echo 1} more\n", "org-babel-execute-maybe", "text src_sh[:results raw]{echo 1} 1\n more\n"),
+        (
+            "text <point>src_sh{echo 1} more\n",
+            "org-babel-execute-maybe",
+            "text src_sh{echo 1} {{{results(=1=)}}} more\n",
+        ),
+        (
+            "text <point>src_sh[:results raw]{echo 1} more\n",
+            "org-babel-execute-maybe",
+            "text src_sh[:results raw]{echo 1} 1\n more\n",
+        ),
         (
             "#+name: inner\n#+begin_src sh\necho in\n#+end_src\n\n<point>#+begin_src sh :noweb yes :results output\n# <<inner>>\necho out\n#+end_src\n",
             "org-babel-execute-maybe",
             "#+name: inner\n#+begin_src sh\necho in\n#+end_src\n\n#+begin_src sh :noweb yes :results output\n# <<inner>>\necho out\n#+end_src\n\n#+RESULTS:\n: out\n",
         ),
-        ("#+begin_src sh\necho a\n#+end_src\n\n#+RESULTS:\n: a\n\nafter\n", "org-babel-remove-result", "#+begin_src sh\necho a\n#+end_src\n\nafter\n"),
+        (
+            "#+begin_src sh\necho a\n#+end_src\n\n#+RESULTS:\n: a\n\nafter\n",
+            "org-babel-remove-result",
+            "#+begin_src sh\necho a\n#+end_src\n\nafter\n",
+        ),
         (
             "* H\n  <point>#+begin_src sh :results output\n  echo a\n  echo b\n  #+end_src\n",
             "org-babel-execute-maybe",
@@ -251,11 +277,20 @@ fn header_args_from_properties_and_result_handling() {
             "org-babel-execute-buffer",
             "* A\n#+begin_src sh\necho 1\n#+end_src\n\n#+RESULTS:\n: 1\n\n* B\n#+begin_src sh\necho 2\n#+end_src\n\n#+RESULTS:\n: 2\n\n#+call: x()\n",
         ),
-        ("<point>#+begin_src emacs-lisp :eval never\n1\n#+end_src\n", "org-babel-execute-maybe", "#+begin_src emacs-lisp :eval never\n1\n#+end_src\n"),
+        (
+            "<point>#+begin_src emacs-lisp :eval never\n1\n#+end_src\n",
+            "org-babel-execute-maybe",
+            "#+begin_src emacs-lisp :eval never\n1\n#+end_src\n",
+        ),
     ]);
-    let mut e = buf("x\n#+name: x\n#+begin_src emacs-lisp\n1\n#+end_src\n\n#+RESULTS: x\n: 1\n\n<point>#+begin_src emacs-lisp\n2\n#+end_src\n\n#+RESULTS:\n: 2\n");
+    let mut e = buf(
+        "x\n#+name: x\n#+begin_src emacs-lisp\n1\n#+end_src\n\n#+RESULTS: x\n: 1\n\n<point>#+begin_src emacs-lisp\n2\n#+end_src\n\n#+RESULTS:\n: 2\n",
+    );
     crate::org::run(&mut e, "org-babel-remove-result-one-or-many", Prefix::U(1));
-    assert_eq!(text(&e), "x\n#+name: x\n#+begin_src emacs-lisp\n1\n#+end_src\n\n#+begin_src emacs-lisp\n2\n#+end_src");
+    assert_eq!(
+        text(&e),
+        "x\n#+name: x\n#+begin_src emacs-lisp\n1\n#+end_src\n\n#+begin_src emacs-lisp\n2\n#+end_src"
+    );
 }
 
 #[test]
@@ -265,11 +300,18 @@ fn file_results_and_inline_calls() {
     }
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("t.org");
-    let mut e = buf("<point>#+begin_src sh :results output file :file out.txt\necho a\n#+end_src\n");
+    let mut e =
+        buf("<point>#+begin_src sh :results output file :file out.txt\necho a\n#+end_src\n");
     e.path = Some(path.clone());
     run(&mut e, "org-babel-execute-maybe");
-    assert_eq!(text(&e), "#+begin_src sh :results output file :file out.txt\necho a\n#+end_src\n\n#+RESULTS:\n[[file:out.txt]]");
-    assert_eq!(std::fs::read_to_string(dir.path().join("out.txt")).unwrap(), "a\n");
+    assert_eq!(
+        text(&e),
+        "#+begin_src sh :results output file :file out.txt\necho a\n#+end_src\n\n#+RESULTS:\n[[file:out.txt]]"
+    );
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("out.txt")).unwrap(),
+        "a\n"
+    );
     check(&[(
         "#+name: square\n#+begin_src emacs-lisp :var n=2\n(* n n)\n#+end_src\n\nResult: <point>call_square(n=3)\n",
         "org-babel-execute-maybe",
@@ -284,19 +326,37 @@ fn tangle_writes_files_with_link_comments() {
     let mut e = buf(src);
     e.path = Some(dir.path().join("t.org"));
     run(&mut e, "org-babel-tangle");
-    assert_eq!(e.msg.as_ref().unwrap().0, "Tangled 3 code blocks from t.org");
+    assert_eq!(
+        e.msg.as_ref().unwrap().0,
+        "Tangled 3 code blocks from t.org"
+    );
     assert_eq!(
         std::fs::read_to_string(dir.path().join("out.el")).unwrap(),
         ";; [[file:t.org::*Top][Top:1]]\n(message \"hi\")\n;; Top:1 ends here\n\n\n\n;; #+name: two\n\n;; [[file:t.org::two][two]]\n2\n;; two ends here\n"
     );
-    assert_eq!(std::fs::read_to_string(dir.path().join("out.sh")).unwrap(), "#!/bin/sh\necho x\n");
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("out.sh")).unwrap(),
+        "#!/bin/sh\necho x\n"
+    );
     use std::os::unix::fs::PermissionsExt;
-    assert_eq!(std::fs::metadata(dir.path().join("out.sh")).unwrap().permissions().mode() & 0o777, 0o755);
+    assert_eq!(
+        std::fs::metadata(dir.path().join("out.sh"))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o755
+    );
     // :tangle yes with noweb references.
-    let mut e = buf("#+begin_src emacs-lisp :tangle yes :noweb yes\n(list <<x>>)\n#+end_src\n#+name: x\n#+begin_src emacs-lisp\n1\n#+end_src\n");
+    let mut e = buf(
+        "#+begin_src emacs-lisp :tangle yes :noweb yes\n(list <<x>>)\n#+end_src\n#+name: x\n#+begin_src emacs-lisp\n1\n#+end_src\n",
+    );
     e.path = Some(dir.path().join("t2.org"));
     run(&mut e, "org-babel-tangle");
-    assert_eq!(std::fs::read_to_string(dir.path().join("t2.el")).unwrap(), "(list 1)\n");
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("t2.el")).unwrap(),
+        "(list 1)\n"
+    );
 }
 
 #[test]
@@ -306,13 +366,319 @@ fn export_evaluates_per_exports() {
     }
     setup();
     let text = "#+begin_src emacs-lisp :exports both\n(+ 1 2)\n#+end_src\n\nText src_emacs-lisp[:exports results]{(* 2 3)} end.\n\n#+begin_src sh :exports none\necho hi\n#+end_src\n\n#+begin_src sh :exports results\necho hi\n#+end_src\n";
-    let out = super::export_process_text(text, None, &Default::default(), &Default::default()).unwrap();
-    assert_eq!(out, "#+begin_src emacs-lisp :exports both\n(+ 1 2)\n#+end_src\n\n#+RESULTS:\n: 3\n\nText {{{results(=6=)}}} end.\n\n#+RESULTS:\n: hi\n");
+    let out =
+        super::export_process_text(text, None, &Default::default(), &Default::default()).unwrap();
+    assert_eq!(
+        out,
+        "#+begin_src emacs-lisp :exports both\n(+ 1 2)\n#+end_src\n\n#+RESULTS:\n: 3\n\nText {{{results(=6=)}}} end.\n\n#+RESULTS:\n: hi\n"
+    );
+}
+
+/// One block per language, results checked against upstream.
+fn lang_case(tool: &str, src: &str, results: &str) {
+    if !have(tool) {
+        return;
+    }
+    let input = format!("<point>{src}");
+    let want = format!("{}\n#+RESULTS:\n{results}", src);
+    check(&[(&input, "org-babel-execute-maybe", &want)]);
+}
+
+#[test]
+fn languages_like_upstream() {
+    lang_case(
+        "perl",
+        "#+begin_src perl :var x=3\n$x * 2\n#+end_src\n",
+        ": 6",
+    );
+    lang_case(
+        "perl",
+        "#+begin_src perl :results output\nprint \"a\\tb\\n\";\n#+end_src\n",
+        ": a\tb",
+    );
+    lang_case(
+        "lua",
+        "#+begin_src lua :var x=2\nreturn x * 3\n#+end_src\n",
+        ": 6",
+    );
+    lang_case(
+        "gcc",
+        "#+begin_src C :includes <stdio.h> :var n=4\nprintf(\"%d\\n\", n*n);\n#+end_src\n",
+        ": 16",
+    );
+    lang_case(
+        "g++",
+        "#+begin_src C++ :includes <iostream>\nstd::cout << \"hi\" << std::endl;\n#+end_src\n",
+        ": hi",
+    );
+    lang_case(
+        "gfortran",
+        "#+begin_src fortran :var n=5\nwrite(*,*) n*2\n#+end_src\n",
+        ": 10",
+    );
+    lang_case(
+        "node",
+        "#+begin_src js :var a=[1,2]\nreturn a.map(x => x * 2)\n#+end_src\n",
+        "| 2 | 4 |",
+    );
+    lang_case(
+        "sh",
+        "#+begin_src css\nbody { color: red }\n#+end_src\n",
+        ": body { color: red }",
+    );
+    lang_case(
+        "sh",
+        "#+begin_src latex\n\\LaTeX{}\n#+end_src\n",
+        "#+begin_export latex\n\\LaTeX{}\n#+end_export",
+    );
+    lang_case(
+        "sh",
+        "#+begin_src makefile\nall:\n\techo hi\n#+end_src\n",
+        ": all:\n: \techo hi",
+    );
+    lang_case(
+        "sh",
+        "#+begin_src processing :var x=1\nellipse(x, 2, 3, 4);\n#+end_src\n",
+        "#+begin_export html\n<script src=\"processing.js\"></script>\n <script type=\"text/processing\" data-processing-target=\"ob-cd1470ca4fe6eb94bcebf27dffe469f6c536bd83\">\nint x=1;\nellipse(x, 2, 3, 4);\n</script> <canvas id=\"ob-cd1470ca4fe6eb94bcebf27dffe469f6c536bd83\"></canvas>\n#+end_export",
+    );
+    lang_case(
+        "bash",
+        "#+begin_src bash :var arr='(\"a\" \"b\") :results output\necho ${arr[1]}\n#+end_src\n",
+        ": b",
+    );
+    lang_case(
+        "sh",
+        "#+begin_src sh :cmdline \"x y\" :results output\necho $2\n#+end_src\n",
+        ": y",
+    );
+    lang_case(
+        "sh",
+        "#+begin_src sh :results value\nexit 3\n#+end_src\n",
+        "",
+    );
+    if have("awk") {
+        check(&[(
+            "#+name: t\n| 1 | 2 |\n| 3 | 4 |\n\n<point>#+begin_src awk :stdin t\n{print $1 + $2}\n#+end_src\n",
+            "org-babel-execute-maybe",
+            "#+name: t\n| 1 | 2 |\n| 3 | 4 |\n\n#+begin_src awk :stdin t\n{print $1 + $2}\n#+end_src\n\n#+RESULTS:\n| 3 |\n| 7 |",
+        )]);
+    }
+    if have("sed") {
+        check(&[(
+            "<point>#+begin_src sed :stdin x :results output\ns/a/b/\n#+end_src\n\n#+name: x\n: aaa\n",
+            "org-babel-execute-maybe",
+            "#+begin_src sed :stdin x :results output\ns/a/b/\n#+end_src\n\n#+RESULTS:\n: baa\n\n#+name: x\n: aaa",
+        )]);
+    }
+    check(&[(
+        "<point>#+begin_src sh :stdin t :results output\ncat\n#+end_src\n\n#+name: t\n| a | b |\n",
+        "org-babel-execute-maybe",
+        "#+begin_src sh :stdin t :results output\ncat\n#+end_src\n\n#+RESULTS:\n: a\tb\n\n#+name: t\n| a | b |",
+    )]);
+}
+
+#[test]
+fn calc_and_org_values() {
+    if !have("emacs") {
+        return;
+    }
+    setup();
+    let mut doc = super::doc::Doc::new(
+        "#+name: ob-calc-table-2\n| 1 | 2 | 3 | 4 | 5 |\n\n#+begin_src calc :results silent verbatim :var a=ob-calc-table-2\n\ta*2 - 2\n#+end_src\n",
+        None,
+    );
+    doc.point = (3, 0);
+    let mut cx = super::core::Cx::default();
+    let r = super::core::execute_src_block(
+        &mut doc,
+        &mut cx,
+        false,
+        None,
+        &[],
+        super::core::ExecKind::Src,
+    )
+    .unwrap();
+    assert_eq!(
+        r,
+        Some(crate::org::sexp::Sexp::Str("[0, 2, 4, 6, 8]".into()))
+    );
+    let mut doc = super::doc::Doc::new(
+        "#+begin_src org :var x=\"world\"\nHello $x\n#+end_src\n",
+        None,
+    );
+    let r = super::core::execute_src_block(
+        &mut doc,
+        &mut cx,
+        false,
+        None,
+        &[],
+        super::core::ExecKind::Src,
+    )
+    .unwrap();
+    assert_eq!(r, Some(crate::org::sexp::Sexp::Str("Hello world".into())));
+    assert_eq!(doc.len(), 3, "org blocks are raw silent");
+}
+
+#[test]
+fn ctrl_c_ctrl_c_runs_blocks_and_calls() {
+    if !have("sh") {
+        return;
+    }
+    let mut e = buf("#+name: f\n#+begin_src sh\necho hi\n#+end_src\n\n<point>#+call: f()\n");
+    e.handle_key(crate::key::Key::ctrl('c'));
+    e.handle_key(crate::key::Key::ctrl('c'));
+    assert_eq!(
+        text(&e),
+        "#+name: f\n#+begin_src sh\necho hi\n#+end_src\n\n#+call: f()\n\n#+RESULTS:\n: hi"
+    );
+}
+
+#[test]
+fn confirmation_asks_and_remembers() {
+    if !have("sh") {
+        return;
+    }
+    setup();
+    options::put("org-confirm-babel-evaluate", toml::Value::Boolean(true));
+    let src = "<point>#+begin_src sh\necho 1\n#+end_src\n";
+    let mut e = org(&src.replace("<point>", ""), "");
+    run(&mut e, "org-babel-execute-maybe");
+    assert_eq!(
+        text(&e),
+        "#+begin_src sh\necho 1\n#+end_src",
+        "waits for an answer"
+    );
+    e.handle_key(crate::key::Key::ch('n'));
+    assert_eq!(
+        e.msg.as_ref().unwrap().0,
+        "Evaluation of this sh code block is aborted."
+    );
+    run(&mut e, "org-babel-execute-maybe");
+    e.handle_key(crate::key::Key::ch('y'));
+    assert_eq!(
+        text(&e),
+        "#+begin_src sh\necho 1\n#+end_src\n\n#+RESULTS:\n: 1"
+    );
+    options::put("org-confirm-babel-evaluate", toml::Value::Boolean(false));
+}
+
+#[test]
+fn navigation_and_editing_commands() {
+    let src = "* H\n#+name: a\n#+begin_src sh\necho a\n#+end_src\n\n#+begin_src sh :results output\necho b\n#+end_src\n";
+    let mut e = buf(src);
+    run(&mut e, "org-babel-next-src-block");
+    assert_eq!(e.cur.line, 2);
+    run(&mut e, "org-babel-next-src-block");
+    assert_eq!(e.cur.line, 6);
+    run(&mut e, "org-babel-next-src-block");
+    assert!(
+        e.msg
+            .as_ref()
+            .unwrap()
+            .0
+            .ends_with("No further code blocks")
+    );
+    run(&mut e, "org-babel-previous-src-block");
+    assert_eq!(e.cur.line, 2);
+    e.set_cursor(3, 0);
+    run(&mut e, "org-babel-goto-src-block-head");
+    assert_eq!(e.cur.line, 2);
+    // Demarcate: split at point.
+    let mut e = buf("#+begin_src emacs-lisp :var x=1\n;; one\n<point>;; two\n#+end_src\n");
+    run(&mut e, "org-babel-demarcate-block");
+    assert_eq!(
+        text(&e),
+        "#+begin_src emacs-lisp :var x=1\n  ;; one\n#+end_src\n\n#+begin_src emacs-lisp :var x=1\n  ;; two\n#+end_src"
+    );
+    // Check: misspelled header.
+    let mut e = buf("<point>#+begin_src sh :cahce yes\necho\n#+end_src\n");
+    run(&mut e, "org-babel-check-src-block");
+    assert!(
+        e.msg
+            .as_ref()
+            .unwrap()
+            .0
+            .ends_with("Supplied header \"cahce\" is suspiciously close to \"cache\"")
+    );
+    // Insert header argument through completion.
+    let mut e = buf("<point>#+begin_src sh\necho\n#+end_src\n");
+    run(&mut e, "org-babel-insert-header-arg");
+    for k in crate::key::parse_keys("dir<Enter>/tmp<Enter>") {
+        e.handle_key(k);
+    }
+    assert_eq!(e.buf.line(0), "#+begin_src sh :dir /tmp");
+}
+
+#[test]
+fn shell_sessions_persist() {
+    if !have("sh") {
+        return;
+    }
+    let mut e = buf(
+        "<point>#+begin_src sh :session s1\nX=42\n#+end_src\n\n#+begin_src sh :session s1 :results output\necho $X\n#+end_src\n",
+    );
+    run(&mut e, "org-babel-execute-maybe");
+    let l = (0..e.line_count())
+        .rfind(|&l| e.buf.line(l).starts_with("#+begin_src"))
+        .unwrap();
+    e.set_cursor(l, 0);
+    run(&mut e, "org-babel-execute-maybe");
+    assert!(text(&e).ends_with("#+RESULTS:\n: 42"), "{}", text(&e));
+    if have("python3") {
+        let mut e = buf(
+            "<point>#+begin_src python :session py :results output\nx = 6\nprint(x * 7)\n#+end_src\n",
+        );
+        run(&mut e, "org-babel-execute-maybe");
+        assert!(text(&e).ends_with("#+RESULTS:\n: 42"), "{}", text(&e));
+        let mut e = buf("<point>#+begin_src python :session py\nx + 1\n#+end_src\n");
+        run(&mut e, "org-babel-execute-maybe");
+        assert!(text(&e).ends_with("#+RESULTS:\n: 7"), "{}", text(&e));
+    }
+}
+
+#[test]
+fn library_of_babel_and_sbe() {
+    if !have("emacs") {
+        return;
+    }
+    setup();
+    let dir = tempfile::tempdir().unwrap();
+    let lib = dir.path().join("lib.org");
+    std::fs::write(
+        &lib,
+        "#+name: lib-double\n#+begin_src emacs-lisp :var n=1\n(* 2 n)\n#+end_src\n",
+    )
+    .unwrap();
+    let mut e = buf("x\n");
+    run(&mut e, "org-babel-lob-ingest");
+    for c in lib.display().to_string().chars() {
+        e.handle_key(crate::key::Key::ch(c));
+    }
+    // The prompt holds the buffer's file name first: replace it.
+    let mut e2 = buf("<point>#+call: lib-double(n=21)\n");
+    let mut d = super::doc::Doc::new(&std::fs::read_to_string(&lib).unwrap(), Some(lib.clone()));
+    super::core::lob_ingest(&mut d, &mut super::core::Cx::default()).unwrap();
+    run(&mut e2, "org-babel-execute-maybe");
+    assert_eq!(text(&e2), "#+call: lib-double(n=21)\n\n#+RESULTS:\n: 42");
+    let e3 = buf("#+name: sq\n#+begin_src emacs-lisp :var x=0\n(* x x)\n#+end_src\n");
+    let r = super::sbe(
+        &e3,
+        "sq",
+        "",
+        &[("x".into(), vec!["7".into()])],
+        &Default::default(),
+    )
+    .unwrap();
+    assert_eq!(r, "49");
+    drop(e);
 }
 
 #[test]
 fn sha1_hash_matches_upstream() {
     let mut e = buf("<point>#+begin_src emacs-lisp :cache yes :var x=1\nx\n#+end_src\n");
     run(&mut e, "org-babel-sha1-hash");
-    assert_eq!(e.msg.as_ref().unwrap().0, "d97aa4375142853b7e06244c008f2c899afdc48a");
+    assert_eq!(
+        e.msg.as_ref().unwrap().0,
+        "d97aa4375142853b7e06244c008f2c899afdc48a"
+    );
 }

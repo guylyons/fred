@@ -24,7 +24,11 @@ impl Doc {
     pub fn new(text: &str, path: Option<PathBuf>) -> Doc {
         let text = text.strip_suffix('\n').unwrap_or(text);
         Doc {
-            lines: if text.is_empty() { vec![] } else { text.split('\n').map(str::to_owned).collect() },
+            lines: if text.is_empty() {
+                vec![]
+            } else {
+                text.split('\n').map(str::to_owned).collect()
+            },
             path,
             ..Doc::default()
         }
@@ -179,20 +183,28 @@ impl El {
 
 fn block_name(l: &str) -> Option<String> {
     let t = l.trim_start();
-    let rest = t.get(..8).filter(|p| p.eq_ignore_ascii_case("#+begin_")).map(|_| &t[8..])?;
+    let rest = t
+        .get(..8)
+        .filter(|p| p.eq_ignore_ascii_case("#+begin_"))
+        .map(|_| &t[8..])?;
     let name: String = rest.chars().take_while(|c| !c.is_whitespace()).collect();
     (!name.is_empty()).then(|| name.to_ascii_lowercase())
 }
 
 fn is_block_end(l: &str, name: &str) -> bool {
     let t = l.trim();
-    t.len() == 6 + name.len() && t[..6].eq_ignore_ascii_case("#+end_") && t[6..].eq_ignore_ascii_case(name)
+    t.len() == 6 + name.len()
+        && t[..6].eq_ignore_ascii_case("#+end_")
+        && t[6..].eq_ignore_ascii_case(name)
 }
 
 fn drawer_name(l: &str) -> Option<&str> {
     let t = l.trim();
     let n = t.strip_prefix(':')?.strip_suffix(':')?;
-    (!n.is_empty() && n.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_')).then_some(n)
+    (!n.is_empty()
+        && n.chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_'))
+    .then_some(n)
 }
 
 pub fn is_fixed(l: &str) -> bool {
@@ -251,7 +263,9 @@ fn parse_one(lines: &[String], i: usize, after_heading: bool, in_list: bool) -> 
         return (Kind::Planning, i + 1);
     }
     if let Some(name) = block_name(l)
-        && let Some(e) = (i + 1..n).take_while(|&j| syntax::level(&lines[j]).is_none()).find(|&j| is_block_end(&lines[j], &name))
+        && let Some(e) = (i + 1..n)
+            .take_while(|&j| syntax::level(&lines[j]).is_none())
+            .find(|&j| is_block_end(&lines[j], &name))
     {
         let kind = match name.as_str() {
             "src" => Kind::Src,
@@ -264,7 +278,11 @@ fn parse_one(lines: &[String], i: usize, after_heading: bool, in_list: bool) -> 
     if let Some(d) = drawer_name(l)
         && let Some(e) = drawer_close(lines, i)
     {
-        let kind = if d.eq_ignore_ascii_case("PROPERTIES") { Kind::PropertyDrawer } else { Kind::Drawer };
+        let kind = if d.eq_ignore_ascii_case("PROPERTIES") {
+            Kind::PropertyDrawer
+        } else {
+            Kind::Drawer
+        };
         return (kind, e + 1);
     }
     if let Some((k, _)) = keyword(l) {
@@ -323,7 +341,10 @@ fn parse_one(lines: &[String], i: usize, after_heading: bool, in_list: bool) -> 
         return (Kind::List, last);
     }
     if l.trim_start().starts_with("\\begin{") {
-        let env: String = l.trim_start()[7..].chars().take_while(|&c| c != '}').collect();
+        let env: String = l.trim_start()[7..]
+            .chars()
+            .take_while(|&c| c != '}')
+            .collect();
         let close = format!("\\end{{{env}}}");
         if let Some(e) = (i..n).find(|&j| lines[j].contains(&close)) {
             return (Kind::Latex, e + 1);
@@ -376,7 +397,10 @@ fn elements_in(lines: &[String], from: usize, to: usize, in_list: bool) -> Vec<E
             }
             j += 1;
         }
-        let attached = j > i && j < to && !blank(&lines[j]) && keyword(&lines[j]).is_none_or(|(k, _)| k == "CALL");
+        let attached = j > i
+            && j < to
+            && !blank(&lines[j])
+            && keyword(&lines[j]).is_none_or(|(k, _)| k == "CALL");
         let post = if attached { j } else { i };
         if !attached {
             name = None;
@@ -395,7 +419,16 @@ fn elements_in(lines: &[String], from: usize, to: usize, in_list: bool) -> Vec<E
         if kind == Kind::Heading {
             end = stop;
         }
-        out.push(El { kind, begin, post, stop, end, name, headers, results });
+        out.push(El {
+            kind,
+            begin,
+            post,
+            stop,
+            end,
+            name,
+            headers,
+            results,
+        });
         i = end;
     }
     out
@@ -412,7 +445,10 @@ fn raw_key(l: &str) -> String {
 /// The hash in `#+RESULTS[hash]:`.
 pub fn result_hash(l: &str) -> Option<String> {
     let t = l.trim_start();
-    let rest = t.get(..9).filter(|p| p.eq_ignore_ascii_case("#+results")).map(|_| &t[9..])?;
+    let rest = t
+        .get(..9)
+        .filter(|p| p.eq_ignore_ascii_case("#+results"))
+        .map(|_| &t[9..])?;
     let inner = rest.strip_prefix('[')?;
     let close = inner.find(']')?;
     let mut h = &inner[..close];
@@ -428,7 +464,10 @@ pub fn result_hash(l: &str) -> Option<String> {
 /// org-babel-result-regexp at the start of `l`: `#+results[...]:`.
 pub fn is_result_line(l: &str) -> bool {
     let t = l.trim_start();
-    if !t.get(..9).is_some_and(|p| p.eq_ignore_ascii_case("#+results")) {
+    if !t
+        .get(..9)
+        .is_some_and(|p| p.eq_ignore_ascii_case("#+results"))
+    {
         return false;
     }
     let rest = &t[9..];
@@ -449,8 +488,12 @@ pub fn result_value(l: &str) -> &str {
 
 /// The start of the section around `l` and its end (the next heading).
 pub fn section(lines: &[String], l: usize) -> (usize, usize) {
-    let start = (0..=l.min(lines.len().saturating_sub(1))).rev().find(|&i| syntax::level(&lines[i]).is_some());
-    let end = (l + 1..lines.len()).find(|&i| syntax::level(&lines[i]).is_some()).unwrap_or(lines.len());
+    let start = (0..=l.min(lines.len().saturating_sub(1)))
+        .rev()
+        .find(|&i| syntax::level(&lines[i]).is_some());
+    let end = (l + 1..lines.len())
+        .find(|&i| syntax::level(&lines[i]).is_some())
+        .unwrap_or(lines.len());
     (start.unwrap_or(0), end)
 }
 
@@ -460,12 +503,16 @@ pub fn element_at(lines: &[String], l: usize) -> Option<El> {
         return None;
     }
     let (s, e) = section(lines, l);
-    let mut el = elements(lines, s, e).into_iter().find(|el| el.begin <= l && l < el.end.max(el.stop))?;
+    let mut el = elements(lines, s, e)
+        .into_iter()
+        .find(|el| el.begin <= l && l < el.end.max(el.stop))?;
     // Descend into containers.
     while let Some((a, b, in_list)) = inner(&el)
         && l >= a
         && l < b
-        && let Some(x) = elements_in(lines, a, b, in_list).into_iter().find(|x| x.begin <= l && l < x.end.max(x.stop))
+        && let Some(x) = elements_in(lines, a, b, in_list)
+            .into_iter()
+            .find(|x| x.begin <= l && l < x.end.max(x.stop))
     {
         el = x;
     }
@@ -477,7 +524,9 @@ fn inner(el: &El) -> Option<(usize, usize, bool)> {
     match &el.kind {
         Kind::List => Some((el.post, el.stop, true)),
         Kind::Drawer => Some((el.post + 1, el.stop - 1, false)),
-        Kind::Block(n) if !matches!(n.as_str(), "comment" | "verse") => Some((el.post + 1, el.stop - 1, false)),
+        Kind::Block(n) if !matches!(n.as_str(), "comment" | "verse") => {
+            Some((el.post + 1, el.stop - 1, false))
+        }
         _ => None,
     }
 }
@@ -545,16 +594,27 @@ pub fn inlines(line_no: usize, l: &str) -> Vec<Inline> {
     let mut out = vec![];
     let mut from = 0;
     while from < l.len() {
-        let next = [l[from..].find("src_"), l[from..].find("call_")].into_iter().flatten().min();
+        let next = [l[from..].find("src_"), l[from..].find("call_")]
+            .into_iter()
+            .flatten()
+            .min();
         let Some(off) = next else { break };
         let start = from + off;
         from = start + 1;
-        if l[..start].chars().next_back().is_some_and(|c| c.is_alphanumeric() || c == '_') {
+        if l[..start]
+            .chars()
+            .next_back()
+            .is_some_and(|c| c.is_alphanumeric() || c == '_')
+        {
             continue;
         }
         let call = l[start..].starts_with("call_");
         let rest = &l[start + if call { 5 } else { 4 }..];
-        let stop: &[char] = if call { &[' ', '\t', '[', '('] } else { &[' ', '\t', '[', '{'] };
+        let stop: &[char] = if call {
+            &[' ', '\t', '[', '(']
+        } else {
+            &[' ', '\t', '[', '{']
+        };
         let nlen = rest.find(stop).unwrap_or(rest.len());
         if nlen == 0 {
             continue;
@@ -563,7 +623,9 @@ pub fn inlines(line_no: usize, l: &str) -> Vec<Inline> {
         let mut p = start + (if call { 5 } else { 4 }) + nlen;
         let mut inside = None;
         if l[p..].starts_with('[') {
-            let Some(e) = paired(&l[p..], '[', ']') else { continue };
+            let Some(e) = paired(&l[p..], '[', ']') else {
+                continue;
+            };
             inside = Some(l[p + 1..p + e - 1].to_owned());
             p += e;
         }
@@ -571,17 +633,29 @@ pub fn inlines(line_no: usize, l: &str) -> Vec<Inline> {
         if !l[p..].starts_with(open) {
             continue;
         }
-        let Some(e) = paired(&l[p..], open, close) else { continue };
+        let Some(e) = paired(&l[p..], open, close) else {
+            continue;
+        };
         let body = l[p + 1..p + e - 1].to_owned();
         p += e;
         let mut end_header = None;
-        if call && l[p..].starts_with('[')
+        if call
+            && l[p..].starts_with('[')
             && let Some(e) = paired(&l[p..], '[', ']')
         {
             end_header = Some(l[p + 1..p + e - 1].to_owned());
             p += e;
         }
-        out.push(Inline { line: line_no, start, end: p, call, name, inside, body, end_header });
+        out.push(Inline {
+            line: line_no,
+            start,
+            end: p,
+            call,
+            name,
+            inside,
+            body,
+            end_header,
+        });
         from = p;
     }
     out
@@ -589,7 +663,10 @@ pub fn inlines(line_no: usize, l: &str) -> Vec<Inline> {
 
 /// Elements whose text may hold inline objects.
 pub fn holds_objects(k: &Kind) -> bool {
-    matches!(k, Kind::Paragraph | Kind::Heading | Kind::List | Kind::Table)
+    matches!(
+        k,
+        Kind::Paragraph | Kind::Heading | Kind::List | Kind::Table
+    )
 }
 
 /// The `{{{results(...)}}}` macro on line `l` at or after `from`
@@ -615,10 +692,15 @@ mod tests {
 
     #[test]
     fn elements_with_affiliated_keywords() {
-        let l = lines("#+name: a\n#+header: :var x=1\n#+begin_src sh\necho\n#+end_src\n\n#+RESULTS[ab12]: a\n: 1\n\n| a |\n|---|\n#+TBLFM: x\npara\ntext\n");
+        let l = lines(
+            "#+name: a\n#+header: :var x=1\n#+begin_src sh\necho\n#+end_src\n\n#+RESULTS[ab12]: a\n: 1\n\n| a |\n|---|\n#+TBLFM: x\npara\ntext\n",
+        );
         let els = all_elements(&l);
         assert_eq!(els[0].kind, Kind::Src);
-        assert_eq!((els[0].begin, els[0].post, els[0].stop, els[0].end), (0, 2, 5, 6));
+        assert_eq!(
+            (els[0].begin, els[0].post, els[0].stop, els[0].end),
+            (0, 2, 5, 6)
+        );
         assert_eq!(els[0].name.as_deref(), Some("a"));
         assert_eq!(els[0].headers, vec![":var x=1"]);
         assert_eq!(els[1].kind, Kind::Fixed);
@@ -634,11 +716,24 @@ mod tests {
 
     #[test]
     fn inline_objects() {
-        let v = inlines(0, "a src_sh[:results raw]{echo {1}} b call_f[:x 1](y=2)[:results html] c");
+        let v = inlines(
+            0,
+            "a src_sh[:results raw]{echo {1}} b call_f[:x 1](y=2)[:results html] c",
+        );
         assert_eq!(v.len(), 2);
-        assert_eq!((v[0].name.as_str(), v[0].inside.as_deref(), v[0].body.as_str()), ("sh", Some(":results raw"), "echo {1}"));
+        assert_eq!(
+            (
+                v[0].name.as_str(),
+                v[0].inside.as_deref(),
+                v[0].body.as_str()
+            ),
+            ("sh", Some(":results raw"), "echo {1}")
+        );
         assert!(v[1].call);
-        assert_eq!((v[1].body.as_str(), v[1].end_header.as_deref()), ("y=2", Some(":results html")));
+        assert_eq!(
+            (v[1].body.as_str(), v[1].end_header.as_deref()),
+            ("y=2", Some(":results html"))
+        );
         assert!(inlines(0, "xsrc_sh{a}").is_empty());
         assert_eq!(results_macro("x {{{results(=1=)}}} y", 1), Some((2, 20)));
     }

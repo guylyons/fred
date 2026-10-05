@@ -41,10 +41,20 @@ use std::sync::Arc;
 
 /// The buffer as a [`Doc`].
 pub fn doc_of(ed: &Editor) -> Doc {
-    let lines = (0..ed.line_count()).map(|l| ed.buf.line(l)).collect::<Vec<_>>();
-    let lines = if lines.len() == 1 && lines[0].is_empty() { vec![] } else { lines };
+    let lines = (0..ed.line_count())
+        .map(|l| ed.buf.line(l))
+        .collect::<Vec<_>>();
+    let lines = if lines.len() == 1 && lines[0].is_empty() {
+        vec![]
+    } else {
+        lines
+    };
     let path = ed.path.as_deref().and_then(|p| std::path::absolute(p).ok());
-    let mut d = Doc { lines, path, ..Doc::default() };
+    let mut d = Doc {
+        lines,
+        path,
+        ..Doc::default()
+    };
     d.point = (ed.cur.line, ed.cur.byte);
     d
 }
@@ -56,7 +66,13 @@ pub fn apply(ed: &mut Editor, doc: &Doc) {
     if old != *new {
         let p = old.iter().zip(new).take_while(|(a, b)| a == b).count();
         let max_s = old.len().min(new.len()) - p;
-        let s = old.iter().rev().zip(new.iter().rev()).take(max_s).take_while(|(a, b)| a == b).count();
+        let s = old
+            .iter()
+            .rev()
+            .zip(new.iter().rev())
+            .take(max_s)
+            .take_while(|(a, b)| a == b)
+            .count();
         let with: Vec<String> = new[p..new.len() - s].to_vec();
         let remove = old.len() - p - s;
         if old.is_empty() {
@@ -76,9 +92,19 @@ type Job = Arc<dyn Fn(&mut Doc, &mut Cx) -> R<()> + Send + Sync>;
 type Then = Box<dyn FnOnce(&mut Editor) + Send>;
 
 /// Run JOB on the buffer; ask and rerun for confirmations; THEN after.
-fn run_job(ed: &mut Editor, approved: HashSet<String>, denied: HashSet<String>, job: Job, then: Option<Then>) {
+fn run_job(
+    ed: &mut Editor,
+    approved: HashSet<String>,
+    denied: HashSet<String>,
+    job: Job,
+    then: Option<Then>,
+) {
     let mut doc = doc_of(ed);
-    let mut cx = Cx { approved: approved.clone(), denied: denied.clone(), ..Cx::default() };
+    let mut cx = Cx {
+        approved: approved.clone(),
+        denied: denied.clone(),
+        ..Cx::default()
+    };
     match job(&mut doc, &mut cx) {
         Ok(()) => {
             apply(ed, &doc);
@@ -92,7 +118,10 @@ fn run_job(ed: &mut Editor, approved: HashSet<String>, denied: HashSet<String>, 
             ed.set_err(e);
         }
         Err(Fail::Confirm { question, key }) => {
-            let entries = vec![("y".to_owned(), "yes".to_owned()), ("n".to_owned(), "no".to_owned())];
+            let entries = vec![
+                ("y".to_owned(), "yes".to_owned()),
+                ("n".to_owned(), "no".to_owned()),
+            ];
             super::menu(ed, &question, entries, move |ed, k| {
                 let (mut a, mut d) = (approved, denied);
                 if k == "y" {
@@ -109,7 +138,7 @@ fn run_job(ed: &mut Editor, approved: HashSet<String>, denied: HashSet<String>, 
 fn finish(ed: &mut Editor, cx: &Cx) {
     if let Some((name, text)) = &cx.show {
         if let Some(link) = name.strip_prefix("\0open:") {
-            open_link(ed, link);
+            open_link(ed, link, text.parse().unwrap_or(0));
         } else {
             show_buffer(ed, name, text);
         }
@@ -138,33 +167,61 @@ pub fn set_export_string(f: fn(&str, &str) -> Option<String>) {
 }
 
 pub fn export_string(body: &str, backend: &str) -> Option<String> {
-    EXPORT_STRING.with(|e| e.get()).and_then(|f| f(body, backend))
+    EXPORT_STRING
+        .with(|e| e.get())
+        .and_then(|f| f(body, backend))
 }
 
 /// Show TEXT in a buffer named NAME (Fred's stand-in for help and
 /// session windows): a file in the Babel temporary directory.
 fn show_buffer(ed: &mut Editor, name: &str, text: &str) {
-    let file: String = name.chars().map(|c| if c.is_alphanumeric() || " .-_[]".contains(c) { c } else { '_' }).collect();
+    let file: String = name
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() || " .-_[]".contains(c) {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
     let path = core::temp_dir().join(file.trim_matches('_'));
     if let Err(e) = std::fs::write(&path, text) {
         ed.set_err(format!("{}: {e}", path.display()));
         return;
     }
     super::effect(ed, move |s| {
-        s.perform(crate::ex::ExEffect::Open { path, line: 0, col: 0, pattern: None });
+        s.perform(crate::ex::ExEffect::Open {
+            path,
+            line: 0,
+            col: 0,
+            pattern: None,
+        });
     });
 }
 
 /// Follow a `[[link]]` from results (org-open-at-point, else visit the file).
-fn open_link(ed: &mut Editor, link: &str) {
-    if super::call(ed, "org-open-at-point", Prefix::None).is_ok() {
+fn open_link(ed: &mut Editor, link: &str, line: usize) {
+    let back = (ed.cur.line, ed.cur.byte);
+    let col = ed.buf.line(line).find("[[").map_or(0, |c| c + 2);
+    ed.set_cursor(line, col);
+    let r = super::call(ed, "org-open-at-point", Prefix::None);
+    ed.set_cursor(back.0, back.1);
+    if r.is_ok() {
         return;
     }
     let file = link.strip_prefix("file:").unwrap_or(link);
     let file = file.split("::").next().unwrap_or(file);
     let path = doc_of(ed).dir().join(super::options::expand(file));
     if path.exists() {
-        super::effect(ed, move |s| s.perform(crate::ex::ExEffect::Open { path, line: 0, col: 0, pattern: None }));
+        super::effect(ed, move |s| {
+            s.perform(crate::ex::ExEffect::Open {
+                path,
+                line: 0,
+                col: 0,
+                pattern: None,
+            })
+        });
     } else {
         ed.set_err(format!("No such file: {}", path.display()));
     }
@@ -180,11 +237,20 @@ fn job(f: impl Fn(&mut Doc, &mut Cx) -> R<()> + Send + Sync + 'static) -> Job {
 /// point. False when there is none.
 pub fn execute_maybe(ed: &mut Editor, arg: Prefix) -> bool {
     let doc = doc_of(ed);
-    if !matches!(core::context(&doc, doc.point), Some(Context::Src(_) | Context::InlineSrc(..) | Context::Call(_) | Context::InlineCall(..))) {
+    if !matches!(
+        core::context(&doc, doc.point),
+        Some(Context::Src(_) | Context::InlineSrc(..) | Context::Call(_) | Context::InlineCall(..))
+    ) {
         return false;
     }
     let force = arg.universal() > 0;
-    run_job(ed, HashSet::new(), HashSet::new(), job(move |d, cx| execute_at(d, cx, d.point, force)), None);
+    run_job(
+        ed,
+        HashSet::new(),
+        HashSet::new(),
+        job(move |d, cx| execute_at(d, cx, d.point, force)),
+        None,
+    );
     true
 }
 
@@ -218,9 +284,18 @@ fn execute_at(d: &mut Doc, cx: &mut Cx, pos: (usize, usize), force: bool) -> R<(
 /// org-babel-exp-process-buffer on TEXT without prompting: blocks that
 /// need confirmation must be in APPROVED (or DENIED); otherwise the
 /// returned error is the [`Fail::Confirm`] to ask about.
-pub fn export_process_text(text: &str, path: Option<PathBuf>, approved: &HashSet<String>, denied: &HashSet<String>) -> Result<String, Fail> {
+pub fn export_process_text(
+    text: &str,
+    path: Option<PathBuf>,
+    approved: &HashSet<String>,
+    denied: &HashSet<String>,
+) -> Result<String, Fail> {
     let mut doc = Doc::new(text, path);
-    let mut cx = Cx { approved: approved.clone(), denied: denied.clone(), ..Cx::default() };
+    let mut cx = Cx {
+        approved: approved.clone(),
+        denied: denied.clone(),
+        ..Cx::default()
+    };
     exp::process_buffer(&mut doc, &mut cx)?;
     Ok(doc.text())
 }
@@ -228,22 +303,47 @@ pub fn export_process_text(text: &str, path: Option<PathBuf>, approved: &HashSet
 /// org-babel-exp-process-buffer for the exporter: evaluates TEXT (the
 /// export copy of this buffer), asking for confirmations, then calls
 /// THEN with the processed text.
-pub fn export_process(ed: &mut Editor, text: String, then: impl FnOnce(&mut Editor, Result<String, String>) + Send + 'static) {
+pub fn export_process(
+    ed: &mut Editor,
+    text: String,
+    then: impl FnOnce(&mut Editor, Result<String, String>) + Send + 'static,
+) {
     let path = ed.path.as_deref().and_then(|p| std::path::absolute(p).ok());
-    export_loop(ed, text, path, HashSet::new(), HashSet::new(), Box::new(then));
+    export_loop(
+        ed,
+        text,
+        path,
+        HashSet::new(),
+        HashSet::new(),
+        Box::new(then),
+    );
 }
 
 type ExportThen = Box<dyn FnOnce(&mut Editor, Result<String, String>) + Send>;
 
-fn export_loop(ed: &mut Editor, text: String, path: Option<PathBuf>, a: HashSet<String>, d: HashSet<String>, then: ExportThen) {
+fn export_loop(
+    ed: &mut Editor,
+    text: String,
+    path: Option<PathBuf>,
+    a: HashSet<String>,
+    d: HashSet<String>,
+    then: ExportThen,
+) {
     match export_process_text(&text, path.clone(), &a, &d) {
         Ok(t) => then(ed, Ok(t)),
         Err(Fail::Error(e)) => then(ed, Err(e)),
         Err(Fail::Confirm { question, key }) => {
-            let entries = vec![("y".to_owned(), "yes".to_owned()), ("n".to_owned(), "no".to_owned())];
+            let entries = vec![
+                ("y".to_owned(), "yes".to_owned()),
+                ("n".to_owned(), "no".to_owned()),
+            ];
             super::menu(ed, &question, entries, move |ed, k| {
                 let (mut a, mut d) = (a, d);
-                if k == "y" { a.insert(key) } else { d.insert(key) };
+                if k == "y" {
+                    a.insert(key)
+                } else {
+                    d.insert(key)
+                };
                 export_loop(ed, text, path, a, d, then);
             });
         }
@@ -252,14 +352,29 @@ fn export_loop(ed: &mut Editor, text: String, path: Option<PathBuf>, a: HashSet<
 
 /// org-sbe: the result of calling SOURCE_BLOCK with HEADER_ARGS and
 /// VARIABLES (name, values; a value prefixed with `$` is a string).
-pub fn sbe(ed: &Editor, source_block: &str, header_args: &str, variables: &[(String, Vec<String>)], approved: &HashSet<String>) -> Result<String, Fail> {
+pub fn sbe(
+    ed: &Editor,
+    source_block: &str,
+    header_args: &str,
+    variables: &[(String, Vec<String>)],
+    approved: &HashSet<String>,
+) -> Result<String, Fail> {
     let mut doc = doc_of(ed);
-    let mut cx = Cx { approved: approved.clone(), ..Cx::default() };
+    let mut cx = Cx {
+        approved: approved.clone(),
+        ..Cx::default()
+    };
     sbe_doc(&mut doc, &mut cx, source_block, header_args, variables)
 }
 
 /// org-sbe on a document.
-pub fn sbe_doc(doc: &mut Doc, cx: &mut Cx, source_block: &str, header_args: &str, variables: &[(String, Vec<String>)]) -> Result<String, Fail> {
+pub fn sbe_doc(
+    doc: &mut Doc,
+    cx: &mut Cx,
+    source_block: &str,
+    header_args: &str,
+    variables: &[(String, Vec<String>)],
+) -> Result<String, Fail> {
     if source_block.is_empty() {
         return Ok(String::new());
     }
@@ -273,20 +388,35 @@ pub fn sbe_doc(doc: &mut Doc, cx: &mut Cx, source_block: &str, header_args: &str
                     quote = true;
                     continue;
                 }
-                out.push(if quote { value::prin1(&Sexp::Str(v.clone())) } else { v.clone() });
+                out.push(if quote {
+                    value::prin1(&Sexp::Str(v.clone()))
+                } else {
+                    v.clone()
+                });
                 quote = false;
             }
             if out.len() > 1 {
-                let read: Vec<String> = out.iter().map(|x| value::prin1(&value::read(x, true).unwrap_or(Sexp::Str(x.clone())))).collect();
+                let read: Vec<String> = out
+                    .iter()
+                    .map(|x| value::prin1(&value::read(x, true).unwrap_or(Sexp::Str(x.clone()))))
+                    .collect();
                 format!("{n}='({})", read.join(" "))
             } else {
                 format!("{n}={}", out.first().cloned().unwrap_or_default())
             }
         })
         .collect();
-    let spec = format!(":var results={source_block}[{header_args}]({})", vars.join(", "));
+    let spec = format!(
+        ":var results={source_block}[{header_args}]({})",
+        vars.join(", ")
+    );
     let p = params::parse_header_arguments(&spec, false)?;
-    let info = core::Info { lang: "emacs-lisp".into(), body: "results".into(), params: p, ..core::Info::default() };
+    let info = core::Info {
+        lang: "emacs-lisp".into(),
+        body: "results".into(),
+        params: p,
+        ..core::Info::default()
+    };
     let silent = vec![(":results".to_owned(), Sexp::Str("silent".into()))];
     let r = core::execute_src_block(doc, cx, false, Some(info), &silent, ExecKind::Src)?;
     let r = r.unwrap_or(Sexp::Nil);
@@ -395,12 +525,8 @@ fn run_command(ed: &mut Editor, name: &str, arg: Prefix) -> Result<(), String> {
                 ed,
                 HashSet::new(),
                 HashSet::new(),
-                job(move |d, cx| {
-                    let info = core::get_info(d, cx, d.point, false)?;
-                    let kind = if matches!(core::context(d, d.point), Some(Context::InlineSrc(..))) { ExecKind::Inline } else { ExecKind::Src };
-                    core::execute_src_block(d, cx, force, info, &[], kind)?;
-                    Ok(())
-                }),
+                // Calls too: org-ctrl-c-ctrl-c sends #+CALL lines here.
+                job(move |d, cx| execute_at(d, cx, d.point, force)),
                 None,
             );
             Ok(())
@@ -443,7 +569,7 @@ fn run_command(ed: &mut Editor, name: &str, arg: Prefix) -> Result<(), String> {
                     }
                     let t = d.line(r).trim().to_owned();
                     if t.starts_with("[[") && t.ends_with("]]") {
-                        cx.show = Some((format!("\0open:{}", &t[2..t.find(']').unwrap_or(t.len())]), String::new()));
+                        cx.show = Some((format!("\0open:{}", &t[2..t.find(']').unwrap_or(t.len())]), r.to_string()));
                         return Ok(());
                     }
                     let res = core::read_result(d, r)?.unwrap_or(Sexp::Nil);
@@ -942,23 +1068,67 @@ fn err_r<T>(s: &str) -> R<T> {
 /// The session a block's language runs in, and its name.
 fn session_kind(info: &core::Info) -> R<(session::Kind, String)> {
     let s = params::get_str(&info.params, ":session").filter(|s| s != "none");
-    let Some(s) = s else { return err_r("This block is not using a session!") };
+    let Some(s) = s else {
+        return err_r("This block is not using a session!");
+    };
     let o = |n: &str, d: &str| super::options::string(n, d);
-    let named = |d: &str| if s.is_empty() { d.to_owned() } else { s.clone() };
+    let named = |d: &str| {
+        if s.is_empty() {
+            d.to_owned()
+        } else {
+            s.clone()
+        }
+    };
     Ok(match info.lang.as_str() {
-        "python" => (session::Kind::Python(o("org-babel-python-command", "auto").replace("auto", "python3")), if s.is_empty() { "*Python*".into() } else if s.starts_with('*') { s.clone() } else { format!("*{s}*") }),
-        "ruby" => (session::Kind::Ruby(o("org-babel-ruby-command", "ruby")), named("ruby")),
-        "R" => (session::Kind::R(o("org-babel-R-command", "R --slave --no-save")), named("*R*")),
-        "julia" => (session::Kind::Julia(o("org-babel-julia-command", "julia")), named("*Julia*")),
-        "js" => (session::Kind::Node(o("org-babel-js-cmd", "node")), named("*Javascript REPL*")),
+        "python" => (
+            session::Kind::Python(o("org-babel-python-command", "auto").replace("auto", "python3")),
+            if s.is_empty() {
+                "*Python*".into()
+            } else if s.starts_with('*') {
+                s.clone()
+            } else {
+                format!("*{s}*")
+            },
+        ),
+        "ruby" => (
+            session::Kind::Ruby(o("org-babel-ruby-command", "ruby")),
+            named("ruby"),
+        ),
+        "R" => (
+            session::Kind::R(o("org-babel-R-command", "R --slave --no-save")),
+            named("*R*"),
+        ),
+        "julia" => (
+            session::Kind::Julia(o("org-babel-julia-command", "julia")),
+            named("*Julia*"),
+        ),
+        "js" => (
+            session::Kind::Node(o("org-babel-js-cmd", "node")),
+            named("*Javascript REPL*"),
+        ),
         "haskell" => (session::Kind::Haskell, named("*ob-haskell*")),
-        "ocaml" => (session::Kind::Ocaml(o("org-babel-ocaml-command", "ocaml")), named("*ocaml-toplevel*")),
+        "ocaml" => (
+            session::Kind::Ocaml(o("org-babel-ocaml-command", "ocaml")),
+            named("*ocaml-toplevel*"),
+        ),
         "octave" | "matlab" => (
-            session::Kind::Plain(o("org-babel-octave-shell-command", "octave -q").split_whitespace().map(str::to_owned).collect(), "disp('org_babel_eoe')".into(), "org_babel_eoe".into()),
+            session::Kind::Plain(
+                o("org-babel-octave-shell-command", "octave -q")
+                    .split_whitespace()
+                    .map(str::to_owned)
+                    .collect(),
+                "disp('org_babel_eoe')".into(),
+                "org_babel_eoe".into(),
+            ),
             named("*Inferior Octave*"),
         ),
-        "shell" | "eshell" => (session::Kind::Shell(core::shell_file_name()), named("*shell*")),
-        l if lang::shell_names().iter().any(|x| x == l) => (session::Kind::Shell(l.to_owned()), named(&format!("*{l}*"))),
+        "shell" | "eshell" => (
+            session::Kind::Shell(core::shell_file_name()),
+            named("*shell*"),
+        ),
+        l if lang::shell_names().iter().any(|x| x == l) => {
+            (session::Kind::Shell(l.to_owned()), named(&format!("*{l}*")))
+        }
         l => return err_r(&format!("No org-babel-initiate-session function for {l}!")),
     })
 }
@@ -966,7 +1136,9 @@ fn session_kind(info: &core::Info) -> R<(session::Kind, String)> {
 /// org-babel-hide-result-toggle at the results line `l`.
 fn toggle_result(ed: &mut Editor, d: &Doc, l: usize, force: Option<bool>) {
     let mut start = l + 1;
-    while start < d.len() && doc::keyword(d.line(start)).is_some_and(|(k, _)| k == "HEADER" || k == "HEADERS") {
+    while start < d.len()
+        && doc::keyword(d.line(start)).is_some_and(|(k, _)| k == "HEADER" || k == "HEADERS")
+    {
         start += 1;
     }
     let end = core::result_end(d, start);
@@ -1005,7 +1177,9 @@ fn execute_range(ed: &mut Editor, n: usize, heading: Option<usize>, force: bool)
             d.point = point;
             Ok(())
         }),
-        Some(Box::new(move |ed: &mut Editor| execute_range(ed, n + 1, heading, force))),
+        Some(Box::new(move |ed: &mut Editor| {
+            execute_range(ed, n + 1, heading, force)
+        })),
     );
 }
 
@@ -1043,7 +1217,10 @@ fn demarcate(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
         crate::editor::Mode::VisualLine { anchor } => Some((anchor.min(p.0), anchor.max(p.0))),
         _ => None,
     };
-    let level = crate::org::syntax::heading_at_or_before(&d.lines, p.0.min(d.len().saturating_sub(1))).and_then(|h| crate::org::syntax::level(d.line(h))).unwrap_or(1);
+    let level =
+        crate::org::syntax::heading_at_or_before(&d.lines, p.0.min(d.len().saturating_sub(1)))
+            .and_then(|h| crate::org::syntax::level(d.line(h)))
+            .unwrap_or(1);
     let stars = format!("{} ", "*".repeat(level));
     let head = core::where_is_head(&d, p.0);
     let info = core::get_info(&mut d, &mut cx, p, true).map_err(err_text)?;
@@ -1056,7 +1233,10 @@ fn demarcate(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
             Some((a, b)) => vec![(a, 0), (b + 1, 0)],
             None => vec![p],
         };
-        let inside = cuts.iter().all(|&(l, c)| (l > body_lo || (l == body_lo && c == 0) || l == body_lo) && (l < body_hi || (l == body_hi && c == 0)));
+        let inside = cuts.iter().all(|&(l, c)| {
+            (l > body_lo || (l == body_lo && c == 0) || l == body_lo)
+                && (l < body_hi || (l == body_hi && c == 0))
+        });
         if !inside || cuts.iter().any(|&(l, _)| l < body_lo || l > body_hi) {
             return Err("Select within the source block body to split it".into());
         }
@@ -1069,7 +1249,10 @@ fn demarcate(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
             for &(cl, cc) in &cuts {
                 if cl == body_lo + i {
                     offsets.push(joined.len() + cc.min(l.len()));
-                    pads.push(value::indentation(&l[..cc.min(l.len())]).max(unicode_width::UnicodeWidthStr::width(&l[..cc.min(l.len())])));
+                    pads.push(
+                        value::indentation(&l[..cc.min(l.len())])
+                            .max(unicode_width::UnicodeWidthStr::width(&l[..cc.min(l.len())])),
+                    );
                 }
             }
             joined.push_str(l);
@@ -1084,11 +1267,25 @@ fn demarcate(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
         let mut bounds = vec![0];
         bounds.extend(offsets);
         bounds.push(joined.len());
-        let parts: Vec<String> = bounds.windows(2).enumerate().map(|(i, w)| format!("{}{}", " ".repeat(pads.get(i).copied().unwrap_or(0)), &joined[w[0]..w[1]])).collect();
+        let parts: Vec<String> = bounds
+            .windows(2)
+            .enumerate()
+            .map(|(i, w)| {
+                format!(
+                    "{}{}",
+                    " ".repeat(pads.get(i).copied().unwrap_or(0)),
+                    &joined[w[0]..w[1]]
+                )
+            })
+            .collect();
         let affiliated: Vec<String> = d.lines[el.begin..el.post].to_vec();
         let begin_line = d.line(el.post).to_owned();
         let end_line = d.line(el.stop - 1).to_owned();
-        let preserve = core::parse_begin(&begin_line).1.split_whitespace().any(|s| s == "-i") || super::options::bool("org-src-preserve-indentation", false);
+        let preserve = core::parse_begin(&begin_line)
+            .1
+            .split_whitespace()
+            .any(|s| s == "-i")
+            || super::options::bool("org-src-preserve-indentation", false);
         let ind = value::indentation(&begin_line);
         let content = ind + super::options::int("org-edit-src-content-indentation", 2) as usize;
         let body_lines = |part: &str| -> Vec<String> {
@@ -1096,31 +1293,65 @@ fn demarcate(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
             if part.trim().is_empty() {
                 return vec![];
             }
-            let b = if preserve { part.to_owned() } else { value::remove_indentation(part) };
-            b.split('\n').map(|l| if preserve || l.trim().is_empty() { l.to_owned() } else { format!("{}{l}", " ".repeat(content)) }).collect()
+            let b = if preserve {
+                part.to_owned()
+            } else {
+                value::remove_indentation(part)
+            };
+            b.split('\n')
+                .map(|l| {
+                    if preserve || l.trim().is_empty() {
+                        l.to_owned()
+                    } else {
+                        format!("{}{l}", " ".repeat(content))
+                    }
+                })
+                .collect()
         };
         let mut out: Vec<String> = vec![];
         let n = parts.len();
         let mut last_start = 0;
         for (i, part) in parts.iter().enumerate() {
             if i > 0 {
-                out.push(if arg != Prefix::None { stars.clone() } else { String::new() });
+                out.push(if arg != Prefix::None {
+                    stars.clone()
+                } else {
+                    String::new()
+                });
             }
             last_start = out.len();
             if i == 0 {
                 out.extend(affiliated.iter().cloned());
             } else {
-                out.extend(affiliated.iter().filter(|l| doc::keyword(l).is_none_or(|(k, _)| k != "NAME" && k != "CAPTION")).cloned());
+                out.extend(
+                    affiliated
+                        .iter()
+                        .filter(|l| {
+                            doc::keyword(l).is_none_or(|(k, _)| k != "NAME" && k != "CAPTION")
+                        })
+                        .cloned(),
+                );
             }
             last_start += out.len() - last_start - 0;
-            let begin = if upper { begin_line.clone() } else { begin_line.clone() };
+            let begin = if upper {
+                begin_line.clone()
+            } else {
+                begin_line.clone()
+            };
             out.push(begin);
             out.extend(body_lines(part));
             out.push(end_line.clone());
             let _ = n;
         }
         // Point at the last block's #+begin line.
-        let last_begin = out.iter().rposition(|l| l.trim_start().to_ascii_lowercase().starts_with("#+begin_src")).unwrap_or(last_start);
+        let last_begin = out
+            .iter()
+            .rposition(|l| {
+                l.trim_start()
+                    .to_ascii_lowercase()
+                    .starts_with("#+begin_src")
+            })
+            .unwrap_or(last_start);
         d.splice(el.begin, el.stop - el.begin, out);
         d.point = (el.begin + last_begin, 0);
         ed.mode = crate::editor::Mode::Normal;
@@ -1130,9 +1361,12 @@ fn demarcate(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
     // Wrap the region (or point) in a new block.
     let lang = info.map(|i| i.lang).or_else(|| {
         // Within blank lines after a block: its language.
-        doc::element_at(&d.lines, p.0).filter(|e| e.kind == Kind::Src).map(|e| core::parse_begin(d.line(e.post)).0)
+        doc::element_at(&d.lines, p.0)
+            .filter(|e| e.kind == Kind::Src)
+            .map(|e| core::parse_begin(d.line(e.post)).0)
     });
-    let upper = doc::element_at(&d.lines, p.0).is_some_and(|e| e.kind == Kind::Src && d.line(e.post).contains("#+BEGIN_SRC"));
+    let upper = doc::element_at(&d.lines, p.0)
+        .is_some_and(|e| e.kind == Kind::Src && d.line(e.post).contains("#+BEGIN_SRC"));
     let insert = move |ed: &mut Editor, lang: String| {
         let mut d = doc_of(ed);
         let p = d.point;
@@ -1160,7 +1394,14 @@ fn demarcate(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
         if arg != Prefix::None {
             lines.push(stars.clone());
         }
-        lines.push(format!("{}{lang}", if upper { "#+BEGIN_SRC " } else { "#+begin_src " }));
+        lines.push(format!(
+            "{}{lang}",
+            if upper {
+                "#+BEGIN_SRC "
+            } else {
+                "#+begin_src "
+            }
+        ));
         lines.extend(body);
         lines.push(if upper { "#+END_SRC" } else { "#+end_src" }.into());
         let first = at + usize::from(arg != Prefix::None);
@@ -1173,7 +1414,23 @@ fn demarcate(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
         Some(l) => insert(ed, l),
         None => {
             let mut langs = lang::loaded();
-            for l in ["C", "C++", "asymptote", "beamer", "calc", "cpp", "ditaa", "desktop", "dot", "elisp", "ocaml", "screen", "sqlite", "toml", "shell"] {
+            for l in [
+                "C",
+                "C++",
+                "asymptote",
+                "beamer",
+                "calc",
+                "cpp",
+                "ditaa",
+                "desktop",
+                "dot",
+                "elisp",
+                "ocaml",
+                "screen",
+                "sqlite",
+                "toml",
+                "shell",
+            ] {
                 if !langs.iter().any(|x| x == l) {
                     langs.push(l.into());
                 }
@@ -1188,8 +1445,11 @@ fn demarcate(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
 fn insert_header_arg(ed: &mut Editor) -> Result<(), String> {
     let (mut d, p) = here(ed);
     let mut cx = Cx::default();
-    let Some(info) = core::get_info(&mut d, &mut cx, p, true).map_err(err_text)? else { return Err("No source block at point".into()) };
-    let mut headers: Vec<(&'static str, Option<&'static [&'static [&'static str]]>)> = params::COMMON.to_vec();
+    let Some(info) = core::get_info(&mut d, &mut cx, p, true).map_err(err_text)? else {
+        return Err("No source block at point".into());
+    };
+    let mut headers: Vec<(&'static str, Option<&'static [&'static [&'static str]]>)> =
+        params::COMMON.to_vec();
     for h in params::lang_headers(&info.lang) {
         headers.retain(|(n, _)| *n != h.0);
         headers.insert(0, h);
@@ -1197,7 +1457,10 @@ fn insert_header_arg(ed: &mut Editor) -> Result<(), String> {
     let names: Vec<String> = headers.iter().map(|(n, _)| (*n).to_owned()).collect();
     let begin = info.start.map_or(p.0, |s| s.0);
     super::complete(ed, "Header Arg: ", names, false, move |ed, header| {
-        let vals = headers.iter().find(|(n, _)| *n == header).and_then(|(_, v)| *v);
+        let vals = headers
+            .iter()
+            .find(|(n, _)| *n == header)
+            .and_then(|(_, v)| *v);
         let put = move |ed: &mut Editor, value: String| {
             let mut d = doc_of(ed);
             let mut l = d.line(begin).to_owned();
@@ -1232,7 +1495,11 @@ fn ask_groups(ed: &mut Editor, mut groups: Vec<&'static [&'static str]>, acc: St
     let mut cands = vec!["default".to_owned()];
     cands.extend(g.iter().map(|s| (*s).to_owned()));
     super::complete(ed, "Value: ", cands, false, move |ed, v| {
-        let acc = if v.is_empty() || v == "default" { acc } else { format!("{acc}{v} ") };
+        let acc = if v.is_empty() || v == "default" {
+            acc
+        } else {
+            format!("{acc}{v} ")
+        };
         ask_groups(ed, groups, acc, put);
     });
 }
