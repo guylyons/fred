@@ -1469,59 +1469,59 @@ org-archive.el,613,command,org-toggle-archive-tag,missing,,Toggle the archive ta
 org-archive.el,637,command,org-archive-set-tag,missing,,Set the ARCHIVE tag.
 org-archive.el,651,command,org-archive-subtree-default,missing,,Archive the current subtree with the default command.
 org-archive.el,658,command,org-archive-subtree-default-with-confirmation,missing,,Archive the current subtree with the default command.
-org-attach-git.el,38,option,org-attach-git-annex-cutoff,missing,,"If non-nil, files larger than this will be annexed instead of stored."
-org-attach-git.el,47,option,org-attach-git-annex-auto-get,missing,,Confirmation preference for automatically getting annex files.
-org-attach-git.el,59,option,org-attach-git-dir,missing,,Attachment directory with the Git repository to use.
-org-attach-git.el,71,function,org-attach-git-use-annex,missing,,Return non-nil if git annex can be used.
-org-attach-git.el,82,function,org-attach-git-annex-get-maybe,missing,,Call git annex get PATH (via shell) if using git annex.
-org-attach-git.el,107,function,org-attach-git-commit,missing,,Commit changes to git if `org-attach-id-dir' is properly initialized.
-org-attach.el,61,option,org-attach-id-dir,missing,,The directory where attachments are stored.
-org-attach.el,69,option,org-attach-dir-relative,missing,,Non-nil means directories in DIR property are added as relative links.
-org-attach.el,77,option,org-attach-auto-tag,missing,,Tag that will be triggered automatically when an entry has an attachment.
-org-attach.el,84,option,org-attach-preferred-new-method,missing,,Preferred way to attach to nodes without existing ID and DIR property.
-org-attach.el,106,option,org-attach-method,missing,,The preferred method to attach a file.
-org-attach.el,123,option,org-attach-expert,missing,,Non-nil means do not show the splash buffer with the attach dispatcher.
-org-attach.el,128,option,org-attach-use-inheritance,missing,,Attachment inheritance for the outline.
-org-attach.el,145,option,org-attach-store-link-p,missing,,Non-nil means store a link to a file when attaching it.
-org-attach.el,158,option,org-attach-archive-delete,missing,,Non-nil means attachments are deleted upon archiving a subtree.
-org-attach.el,169,function,org-attach-id-uuid-folder-format,missing,,Translate an UUID ID into a folder-path.
-org-attach.el,178,function,org-attach-id-ts-folder-format,missing,,Translate an ID based on a timestamp to a folder-path.
-org-attach.el,188,function,org-attach-id-fallback-folder-format,missing,,"Return ""__/X/ID"" folder path as a dumb fallback."
-org-attach.el,203,option,org-attach-id-to-path-function-list,missing,,List of functions used to derive attachment path from an ID string.
-org-attach.el,235,option,org-attach-commands,missing,,The list of commands for the attachment dispatcher.
-org-attach.el,288,option,org-attach-sync-delete-empty-dir,missing,,Determine what to do with an empty attachment directory on sync.
-org-attach.el,300,command,org-attach,missing,,The dispatcher for attachment commands.
-org-attach.el,371,function,org-attach-dir,missing,,Return the directory associated with the current outline node.
-org-attach.el,406,command,org-attach-dir-get-create,missing,,Return existing or new directory associated with the current outline node.
-org-attach.el,436,function,org-attach-dir-from-id,missing,,Return a folder path based on `org-attach-id-dir' and ID.
-org-attach.el,484,function,org-attach-check-absolute-path,missing,,Check if we have enough information to root the attachment directory.
-org-attach.el,495,command,org-attach-set-directory,missing,,Set the DIR node property and ask to move files there.
-org-attach.el,523,command,org-attach-unset-directory,missing,,Remove DIR node property.
-org-attach.el,548,function,org-attach-tag,missing,,Turn the autotag on or (if OFF is set) off.
-org-attach.el,559,function,org-attach-untag,missing,,Turn the autotag off.
-org-attach.el,563,command,org-attach-url,missing,,Attach URL.
-org-attach.el,571,command,org-attach-buffer,missing,,Attach BUFFER-NAME's contents to current outline node.
-org-attach.el,585,command,org-attach-attach,missing,,Move/copy/link FILE into the attachment directory of the current outline node.
-org-attach.el,655,command,org-attach-attach-cp,missing,,Attach a file by copying it.
-org-attach.el,659,command,org-attach-attach-mv,missing,,Attach a file by moving (renaming) it.
-org-attach.el,663,command,org-attach-attach-ln,missing,,Attach a file by creating a hard link to it.
-org-attach.el,669,command,org-attach-attach-lns,missing,,Attach a file by creating a symbolic link to it.
-org-attach.el,677,command,org-attach-new,missing,,Create a new attachment FILE for the current outline node.
-org-attach.el,686,command,org-attach-delete-one,missing,,Delete a single ATTACHMENT.
-org-attach.el,703,command,org-attach-delete-all,missing,,Delete all attachments from the current outline node.
-org-attach.el,722,command,org-attach-sync,missing,,Synchronize the current outline node with its attachments.
-org-attach.el,741,function,org-attach-file-list,missing,,Return a list of files in the attachment DIRECTORY.
-org-attach.el,748,command,org-attach-reveal,missing,,Show the attachment directory of the current outline node.
-org-attach.el,756,command,org-attach-reveal-in-emacs,missing,,Show the attachment directory of the current outline node in `dired'.
-org-attach.el,763,command,org-attach-open,missing,,Open an attachment of the current outline node.
-org-attach.el,781,command,org-attach-open-in-emacs,missing,,"Open attachment, force opening in Emacs."
-org-attach.el,787,function,org-attach-expand,missing,,Return the full path to the current entry's attachment file FILE.
-org-attach.el,792,function,org-attach-expand-links,missing,,Expand links in current buffer.
-org-attach.el,814,function,org-attach-follow,missing,,Open FILE attachment.
-org-attach.el,819,function,org-attach-preview-file,missing,,Preview attachment with PATH in overlay OV.
-org-attach.el,832,function,org-attach-complete-link,missing,,Advise the user with the available files in the attachment directory.
-org-attach.el,850,function,org-attach-archive-delete-maybe,missing,,Maybe delete subtree attachments when archiving.
-org-attach.el,869,command,org-attach-dired-to-subtree,missing,,Attach FILES marked or current file in `dired' to subtree in other window.
+org-attach-git.el,38,option,org-attach-git-annex-cutoff,done,src/org/attach.rs,"If non-nil, files larger than this will be annexed instead of stored."
+org-attach-git.el,47,option,org-attach-git-annex-auto-get,done,src/org/attach.rs,Confirmation preference for automatically getting annex files.
+org-attach-git.el,59,option,org-attach-git-dir,done,src/org/attach.rs,Attachment directory with the Git repository to use.
+org-attach-git.el,71,function,org-attach-git-use-annex,internal,src/org/attach.rs,Return non-nil if git annex can be used.
+org-attach-git.el,82,function,org-attach-git-annex-get-maybe,internal,src/org/attach.rs,Call git annex get PATH (via shell) if using git annex.
+org-attach-git.el,107,function,org-attach-git-commit,internal,src/org/attach.rs,Commit changes to git if `org-attach-id-dir' is properly initialized.
+org-attach.el,61,option,org-attach-id-dir,done,src/org/attach.rs,The directory where attachments are stored.
+org-attach.el,69,option,org-attach-dir-relative,done,src/org/attach.rs,Non-nil means directories in DIR property are added as relative links.
+org-attach.el,77,option,org-attach-auto-tag,done,src/org/attach.rs,Tag that will be triggered automatically when an entry has an attachment.
+org-attach.el,84,option,org-attach-preferred-new-method,done,src/org/attach.rs,Preferred way to attach to nodes without existing ID and DIR property.
+org-attach.el,106,option,org-attach-method,done,src/org/attach.rs,The preferred method to attach a file.
+org-attach.el,123,option,org-attach-expert,adapted,Read: hides the folder header in the dispatcher menu.,Non-nil means do not show the splash buffer with the attach dispatcher.
+org-attach.el,128,option,org-attach-use-inheritance,done,src/org/attach.rs,Attachment inheritance for the outline.
+org-attach.el,145,option,org-attach-store-link-p,done,src/org/attach.rs,Non-nil means store a link to a file when attaching it.
+org-attach.el,158,option,org-attach-archive-delete,done,src/org/attach.rs,Non-nil means attachments are deleted upon archiving a subtree.
+org-attach.el,169,function,org-attach-id-uuid-folder-format,internal,src/org/attach.rs,Translate an UUID ID into a folder-path.
+org-attach.el,178,function,org-attach-id-ts-folder-format,internal,src/org/attach.rs,Translate an ID based on a timestamp to a folder-path.
+org-attach.el,188,function,org-attach-id-fallback-folder-format,internal,src/org/attach.rs,"Return ""__/X/ID"" folder path as a dumb fallback."
+org-attach.el,203,option,org-attach-id-to-path-function-list,done,src/org/attach.rs,List of functions used to derive attachment path from an ID string.
+org-attach.el,235,option,org-attach-commands,adapted,Default dispatcher table in attach.rs COMMANDS (custom tables not read).,The list of commands for the attachment dispatcher.
+org-attach.el,288,option,org-attach-sync-delete-empty-dir,done,src/org/attach.rs,Determine what to do with an empty attachment directory on sync.
+org-attach.el,300,command,org-attach,partial,src/org/attach.rs: Dispatcher menu with every key and C- aliases; from the agenda it errors (needs agenda markers).,The dispatcher for attachment commands.
+org-attach.el,371,function,org-attach-dir,internal,src/org/attach.rs,Return the directory associated with the current outline node.
+org-attach.el,406,command,org-attach-dir-get-create,done,src/org/attach.rs,Return existing or new directory associated with the current outline node.
+org-attach.el,436,function,org-attach-dir-from-id,internal,src/org/attach.rs,Return a folder path based on `org-attach-id-dir' and ID.
+org-attach.el,484,function,org-attach-check-absolute-path,internal,src/org/attach.rs,Check if we have enough information to root the attachment directory.
+org-attach.el,495,command,org-attach-set-directory,done,src/org/attach.rs,Set the DIR node property and ask to move files there.
+org-attach.el,523,command,org-attach-unset-directory,done,src/org/attach.rs,Remove DIR node property.
+org-attach.el,548,function,org-attach-tag,internal,src/org/attach.rs,Turn the autotag on or (if OFF is set) off.
+org-attach.el,559,function,org-attach-untag,internal,src/org/attach.rs,Turn the autotag off.
+org-attach.el,563,command,org-attach-url,done,src/org/attach.rs,Attach URL.
+org-attach.el,571,command,org-attach-buffer,partial,src/org/attach.rs: Completes over Fred buffers; writes the buffer text.,Attach BUFFER-NAME's contents to current outline node.
+org-attach.el,585,command,org-attach-attach,partial,src/org/attach.rs: read-file-name is a minibuffer path (no file completion).,Move/copy/link FILE into the attachment directory of the current outline node.
+org-attach.el,655,command,org-attach-attach-cp,done,src/org/attach.rs,Attach a file by copying it.
+org-attach.el,659,command,org-attach-attach-mv,done,src/org/attach.rs,Attach a file by moving (renaming) it.
+org-attach.el,663,command,org-attach-attach-ln,done,src/org/attach.rs,Attach a file by creating a hard link to it.
+org-attach.el,669,command,org-attach-attach-lns,done,src/org/attach.rs,Attach a file by creating a symbolic link to it.
+org-attach.el,677,command,org-attach-new,done,src/org/attach.rs,Create a new attachment FILE for the current outline node.
+org-attach.el,686,command,org-attach-delete-one,done,src/org/attach.rs,Delete a single ATTACHMENT.
+org-attach.el,703,command,org-attach-delete-all,done,src/org/attach.rs,Delete all attachments from the current outline node.
+org-attach.el,722,command,org-attach-sync,done,src/org/attach.rs,Synchronize the current outline node with its attachments.
+org-attach.el,741,function,org-attach-file-list,internal,src/org/attach.rs,Return a list of files in the attachment DIRECTORY.
+org-attach.el,748,command,org-attach-reveal,done,src/org/attach.rs,Show the attachment directory of the current outline node.
+org-attach.el,756,command,org-attach-reveal-in-emacs,done,src/org/attach.rs,Show the attachment directory of the current outline node in `dired'.
+org-attach.el,763,command,org-attach-open,done,src/org/attach.rs,Open an attachment of the current outline node.
+org-attach.el,781,command,org-attach-open-in-emacs,done,src/org/attach.rs,"Open attachment, force opening in Emacs."
+org-attach.el,787,function,org-attach-expand,internal,src/org/attach.rs,Return the full path to the current entry's attachment file FILE.
+org-attach.el,792,function,org-attach-expand-links,internal,src/org/attach.rs,Expand links in current buffer.
+org-attach.el,814,function,org-attach-follow,internal,src/org/attach.rs,Open FILE attachment.
+org-attach.el,819,function,org-attach-preview-file,adapted,No inline previews in Fred; attachment: links open with org-attach-follow.,Preview attachment with PATH in overlay OV.
+org-attach.el,832,function,org-attach-complete-link,internal,src/org/attach.rs,Advise the user with the available files in the attachment directory.
+org-attach.el,850,function,org-attach-archive-delete-maybe,internal,src/org/attach.rs,Maybe delete subtree attachments when archiving.
+org-attach.el,869,command,org-attach-dired-to-subtree,done,src/org/attach.rs,Attach FILES marked or current file in `dired' to subtree in other window.
 org-capture.el,114,function,org-capture-upgrade-templates,missing,,Update the template list to the new format.
 org-capture.el,144,option,org-capture-templates,missing,,Templates for the creation of new entries.
 org-capture.el,559,option,org-capture-before-finalize-hook,missing,,Hook that is run right before a capture process is finalized.

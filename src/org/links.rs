@@ -381,7 +381,7 @@ pub fn link_at(ed: &Editor) -> Option<Link> {
 
 // ---- storing ----
 
-fn add_stored(ed: &mut Editor, link: String, desc: Option<String>) {
+pub fn add_stored(ed: &mut Editor, link: String, desc: Option<String>) {
     let entry = (link.clone(), desc.clone());
     let msg = STORED.with(|s| {
         let mut s = s.borrow_mut();
@@ -1366,8 +1366,13 @@ pub fn open(ed: &mut Editor, lk: &Link, arg: Prefix) -> Result<(), String> {
                 Err(e) => Err(format!("emacs: {e}")),
             }
         }
-        "attachment" => super::call(ed, "org-attach-open-link", arg)
-            .or_else(|_| open_file(ed, &lk.path, lk.search.clone(), arg, None)),
+        "attachment" => {
+            let target = match &lk.search {
+                Some(s) => format!("{}::{s}", lk.path),
+                None => lk.path.clone(),
+            };
+            super::call_with(ed, "org-attach-follow", arg, target)
+        }
         other => {
             // A configured :follow command (org-link-parameters), as a shell template.
             let follow = super::sexp::option("org-link-parameters").and_then(|v| {
@@ -1459,9 +1464,18 @@ pub fn open_at_point(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
             }
         }
         return match found.len() {
-            0 => match super::call(ed, "org-attach-reveal", arg) {
-                Ok(()) => Ok(()),
-                Err(_) => Err("No link found".into()),
+            // No link: the entry's existing attachment directory.
+            0 => match super::attach::dir(ed, false) {
+                Ok(Some(_)) => {
+                    ed.set_msg("Opening attachment");
+                    let cmd = if arg == Prefix::U(1) {
+                        "org-attach-reveal-in-emacs"
+                    } else {
+                        "org-attach-reveal"
+                    };
+                    super::call(ed, cmd, arg)
+                }
+                _ => Err("No link found".into()),
             },
             1 => {
                 let (_, lk) = found.remove(0);

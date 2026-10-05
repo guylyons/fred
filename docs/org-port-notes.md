@@ -140,3 +140,18 @@ Adaptations:
 - `++` repeaters do not ask "Continue?" after 10 shifts.
 - Commands never see an active Visual region, so org-schedule/org-deadline
   do not loop over headlines in a region.
+
+## Attachments (`src/org/attach.rs`)
+
+org-attach.el and org-attach-git.el. API: `attach::dir(ed, no_fs_check)`
+(org-attach-dir), `attach::with_dir(ed, then)` (org-attach-dir-get-create;
+may prompt), `attach::expand`, `attach::file_list`, `attach::tag`,
+`attach::expand_links` (for export). links.rs follows `attachment:` links
+through `org-attach-follow` (call_with the path); refile.rs's
+archive_subtree runs `org-attach-archive-delete-maybe`;
+`org-attach-dired-to-subtree` (`:org-attach-dired-to-subtree` in dired)
+attaches to the most recent Org buffer (`Session::org_recent_org_buffer`).
+Hooks: org-attach-after-change-hook / org-attach-open-hook are lists of
+names; `org-attach-git-commit` and `org-attach-git-annex-get-maybe` run the
+git CLI. Gaps: no agenda entry point, custom org-attach-commands ignored,
+file prompts take a typed path.

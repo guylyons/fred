@@ -4,6 +4,7 @@
 //! chords, the user's `Space o` leader, and `:org-NAME` runs any ported
 //! command by its upstream name.
 
+pub mod attach;
 pub mod babel;
 pub mod buf;
 pub mod capture;
@@ -816,6 +817,7 @@ const MODULES: &[Module] = &[
     time::command,
     element::command,
     babel::command,
+    attach::command,
 ];
 
 thread_local! {

@@ -157,6 +157,13 @@ impl Session {
         self.bufs.len()
     }
 
+    /// The most recently used Org buffer other than this one.
+    pub fn org_recent_org_buffer(&self) -> Option<usize> {
+        (0..self.bufs.len())
+            .filter(|&i| i != self.cur && self.ed_at(i).org.is_some())
+            .max_by_key(|&i| self.bufs[i].as_ref().map_or(0, |b| b.used))
+    }
+
     /// The path of buffer `i`.
     pub fn org_buffer_path(&self, i: usize) -> Option<PathBuf> {
         self.ed_at(i).path.clone()
