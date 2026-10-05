@@ -4641,3 +4641,18 @@ fn status_shows_in_progress_sequences() {
     git(d.path(), &["bisect", "reset"]);
     assert!(r.status_extra().sequences.is_empty());
 }
+#[test]
+fn log_header_lines_follow_each_commit() {
+    let (d, r) = setup();
+    committed(d.path(), b"one\n");
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    let lines = r.log_lines(&s(&["HEAD"]), &s(&["++header"]), &[]).unwrap();
+    assert!(lines[0].commit.is_some());
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.commit.is_none() && l.text.trim_start().starts_with("Author:    Fred Test")),
+        "{:?}",
+        lines.iter().map(|l| &l.text).collect::<Vec<_>>()
+    );
+}

@@ -373,6 +373,16 @@ impl Repo {
             "--no-color".into(),
             "--format=%x1e%H%x1f%D%x1f%s".into(),
         ];
+        // ++header: magit-log-revision-headers-format below each commit.
+        if args.iter().any(|a| a == "++header") {
+            let headers = super::options::string(
+                "magit-log-revision-headers-format",
+                Some("%+b%+N\nAuthor:    %aN <%aE>\nCommitter: %cN <%cE>"),
+            )
+            .unwrap_or_default()
+            .replace('\n', "%n    ");
+            argv[2] = format!("--format=%x1e%H%x1f%D%x1f%s%n    {headers}").into();
+        }
         argv.extend(git_args(args)?.into_iter().map(Into::into));
         argv.extend(revs.iter().map(Into::into));
         argv.push("--".into());

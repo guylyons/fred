@@ -565,7 +565,13 @@ impl Session {
                     }
                 };
                 args.push(format!("-- {}", file.to_string_lossy()));
-                diff_view(repo, target, args, origin)
+                // magit-diff-buffer-file-locked: its own buffer per file.
+                let mut outcome = diff_view(repo, target, args, origin)?;
+                if let Outcome::View(view, ..) = &mut outcome {
+                    view.locked =
+                        crate::magit::options::flag("magit-diff-buffer-file-locked", true);
+                }
+                Ok(outcome)
             });
             return;
         }
@@ -3759,7 +3765,13 @@ impl Session {
                     },
                     Ok(()),
                 );
-                self.ed.set_msg(message);
+                // magit-no-message: prefixes of messages not to show.
+                if !crate::magit::options::strings("magit-no-message", &[])
+                    .iter()
+                    .any(|p| message.starts_with(p.as_str()))
+                {
+                    self.ed.set_msg(message);
+                }
             }
             Ok(Outcome::Todo(plan)) => {
                 self.open_pick(plan.todo.clone(), None);
@@ -4835,6 +4847,16 @@ impl Session {
         let slot = |v: &View| match &v.kind {
             _ if v.select.is_some() => "Select".to_owned(),
             Kind::Diff(..) if !v.locked => "Diff".to_owned(),
+            // magit-revision-use-dedicated-buffers nil: one revision buffer.
+            Kind::Patch(_)
+                if !v.locked
+                    && !crate::magit::options::flag(
+                        "magit-revision-use-dedicated-buffers",
+                        false,
+                    ) =>
+            {
+                "Revision".to_owned()
+            }
             kind => format!("{kind:?}"),
         };
         let kind = slot(&view);
