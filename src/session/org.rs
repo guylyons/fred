@@ -78,7 +78,14 @@ impl Session {
         if self.ed.path.is_some() || self.ed.org_buffer_name.is_none() {
             return;
         }
-        let Some(back) = self.ed.org_return.take().filter(|&b| b < self.bufs.len() && b != me) else { return };
+        let Some(back) = self
+            .ed
+            .org_return
+            .take()
+            .filter(|&b| b < self.bufs.len() && b != me)
+        else {
+            return;
+        };
         self.show(back);
         self.bufs.remove(me);
         if me < self.cur {
