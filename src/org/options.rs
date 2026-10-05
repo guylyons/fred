@@ -19,6 +19,11 @@ pub fn put(name: &str, v: Value) {
     TABLE.with(|t| t.borrow_mut().insert(name.to_owned(), v));
 }
 
+/// Forget an option (back to the upstream default).
+pub fn remove(name: &str) {
+    TABLE.with(|t| t.borrow_mut().remove(name));
+}
+
 pub fn get(name: &str) -> Option<Value> {
     TABLE.with(|t| t.borrow().get(name).cloned())
 }
