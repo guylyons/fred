@@ -8,6 +8,7 @@ pub mod babel;
 pub mod buf;
 pub mod capture;
 pub mod ctx;
+pub mod dblock;
 pub mod dispatch;
 pub mod editing;
 pub mod element;
@@ -802,6 +803,7 @@ type Module = fn(&mut Editor, &str, Prefix) -> Option<Result<(), String>>;
 const MODULES: &[Module] = &[
     fold::command,
     dispatch::command,
+    dblock::command,
     structure::command,
     todo::command,
     tags::command,
