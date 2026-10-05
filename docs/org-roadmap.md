@@ -53,3 +53,16 @@ Baseline points for pin and inventory accepted (2). UI map open.
 sexps, sparse date trees and org-duration in `src/org/time/` (ledger rows
 updated). Row 7 stays unaccepted until S-arrow dispatch (org-shiftup...) and
 the TODO module's org-auto-repeat-maybe use it.
+
+2026-10-05 stopping point (merged to main at 087ac47 and after):
+ported in this branch — folding/visibility (outline, blocks, drawers,
+narrowing), structure editing, TODO states with logging/notes/repeaters,
+priorities, tags (fast selection, inheritance, matcher, sparse trees),
+properties, links (store/insert/open, IDs, mark ring), capture (templates,
+date trees), refile, archive, `C-c '` edit buffers, org-return and the
+remaining org.el editing commands, descriptive-link display; merged agent
+ports: timestamps/dates/durations, plain lists. Ledger: 249 partial, 118
+done, 75 internal, 41 adapted, 5232 missing. Agent branches in progress
+(tables, element parser, Babel, agenda, clock/colview/timer, footnotes/IDs,
+attach/crypt/protocol/feed/mobile) are merged as they reach green builds.
+No roadmap row has passed all acceptance gates yet; the score stays 2%.

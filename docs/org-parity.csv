@@ -1004,7 +1004,7 @@ ol.el,1592,function,org-link-make-string-for-buffer,missing,,Format LINK with DE
 ol.el,1656,function,org-store-link-functions,missing,,List of functions that are called to create and store a link.
 ol.el,1686,function,org-link-expand-abbrev,missing,,Replace link abbreviations in LINK string.
 ol.el,1746,function,org-link-open,missing,,Open a link object LINK.
-ol.el,1803,command,org-link-open-from-string,missing,,"Open a link in the string S, as if it was in Org mode."
+ol.el,1803,command,org-link-open-from-string,partial,src/org/links.rs: ported command; acceptance gates open,"Open a link in the string S, as if it was in Org mode."
 ol.el,1820,function,org-link--search-headlines,missing,,Search WORDS in headlines in Org mode buffers.
 ol.el,1846,function,org-link-search,missing,,Search for a search string S in the accessible part of the buffer.
 ol.el,2014,function,org-link-heading-search-string,missing,,Make search string for the current headline or STRING.
@@ -1027,18 +1027,18 @@ ol.el,2511,function,org-link--open-shortdoc,missing,,"Open a ""shortdoc"" type l
 ol.el,2528,function,org-link--store-shortdoc,missing,,"Store ""shortdoc"" type link."
 ol.el,2540,function,org-link--complete-shortdoc,missing,,"Create a ""shortdoc"" link using completion."
 ol.el,2562,function,org-link--open-shell,missing,,"Open a ""shell"" type link."
-ol.el,2586,command,org-next-link,missing,,Move forward to the next link.
-ol.el,2629,command,org-previous-link,missing,,Move backward to the previous link.
-ol.el,2636,command,org-toggle-link-display,missing,,Toggle the literal or descriptive display of links in current buffer.
-ol.el,2643,command,org-store-link,missing,,Store a link to the current location.
+ol.el,2586,command,org-next-link,partial,src/org/links.rs: ported command; acceptance gates open,Move forward to the next link.
+ol.el,2629,command,org-previous-link,partial,src/org/links.rs: ported command; acceptance gates open,Move backward to the previous link.
+ol.el,2636,command,org-toggle-link-display,partial,src/org/links.rs: ported command; acceptance gates open,Toggle the literal or descriptive display of links in current buffer.
+ol.el,2643,command,org-store-link,partial,src/org/links.rs: ported command; acceptance gates open,Store a link to the current location.
 ol.el,2828,function,org-link--normalize-filename,missing,,Return FILENAME as required by METHOD.
-ol.el,2854,command,org-insert-link,missing,,"Insert a link.  At the prompt, enter the link."
-ol.el,3024,command,org-insert-all-links,missing,,Insert all links in `org-stored-links'.
-ol.el,3048,command,org-insert-last-stored-link,missing,,Insert the last link stored in `org-stored-links'.
-ol.el,3054,command,org-insert-link-global,missing,,Insert a link like Org mode does.
+ol.el,2854,command,org-insert-link,partial,src/org/links.rs: ported command; acceptance gates open,"Insert a link.  At the prompt, enter the link."
+ol.el,3024,command,org-insert-all-links,partial,src/org/links.rs: ported command; acceptance gates open,Insert all links in `org-stored-links'.
+ol.el,3048,command,org-insert-last-stored-link,partial,src/org/links.rs: ported command; acceptance gates open,Insert the last link stored in `org-stored-links'.
+ol.el,3054,command,org-insert-link-global,partial,src/org/links.rs: ported command; acceptance gates open,Insert a link like Org mode does.
 ol.el,3061,function,org--re-list-search-forward,missing,,"Like `re-search-forward', but REGEXP-LIST is a list of regexps."
 ol.el,3081,function,org--re-list-looking-at,missing,,"Like `looking-at', but REGEXP-LIST is a list of regexps."
-ol.el,3095,command,org-update-radio-target-regexp,missing,,Find all radio targets in this file and update the regular expression.
+ol.el,3095,command,org-update-radio-target-regexp,partial,src/org/links.rs: ported command; acceptance gates open,Find all radio targets in this file and update the regular expression.
 org-agenda.el,114,option,org-agenda-confirm-kill,missing,,"When set, remote killing from the agenda buffer needs confirmation."
 org-agenda.el,124,option,org-agenda-compact-blocks,missing,,Non-nil means make the block agenda more compact.
 org-agenda.el,131,option,org-agenda-block-separator,missing,,The separator between blocks in the agenda.
@@ -1460,15 +1460,15 @@ org-archive.el,160,option,org-archive-finalize-hook,missing,,Hook run after succ
 org-archive.el,173,function,org-add-archive-files,missing,,Splice the archive FILES into the list of files.
 org-archive.el,190,function,org-all-archive-files,missing,,List of all archive files used in the current buffer.
 org-archive.el,203,function,org-archive--compute-location,missing,,Extract and expand the location from archive LOCATION.
-org-archive.el,223,command,org-archive-subtree,missing,,Move the current subtree to the archive.
-org-archive.el,450,command,org-archive-to-archive-sibling,missing,,Archive the current heading by moving it under the archive sibling.
+org-archive.el,223,command,org-archive-subtree,partial,src/org/refile.rs: ported command; acceptance gates open,Move the current subtree to the archive.
+org-archive.el,450,command,org-archive-to-archive-sibling,partial,src/org/refile.rs: ported command; acceptance gates open,Archive the current heading by moving it under the archive sibling.
 org-archive.el,527,function,org-archive-all-done,missing,,Archive sublevels of the current tree without open TODO items.
 org-archive.el,539,function,org-archive-all-old,missing,,Archive sublevels of the current tree with timestamps prior to today.
 org-archive.el,558,function,org-archive-all-matches,missing,,Archive sublevels of the current tree that match PREDICATE.
-org-archive.el,613,command,org-toggle-archive-tag,missing,,Toggle the archive tag for the current headline.
-org-archive.el,637,command,org-archive-set-tag,missing,,Set the ARCHIVE tag.
-org-archive.el,651,command,org-archive-subtree-default,missing,,Archive the current subtree with the default command.
-org-archive.el,658,command,org-archive-subtree-default-with-confirmation,missing,,Archive the current subtree with the default command.
+org-archive.el,613,command,org-toggle-archive-tag,partial,src/org/refile.rs: ported command; acceptance gates open,Toggle the archive tag for the current headline.
+org-archive.el,637,command,org-archive-set-tag,partial,src/org/refile.rs: ported command; acceptance gates open,Set the ARCHIVE tag.
+org-archive.el,651,command,org-archive-subtree-default,partial,src/org/refile.rs: ported command; acceptance gates open,Archive the current subtree with the default command.
+org-archive.el,658,command,org-archive-subtree-default-with-confirmation,partial,src/org/refile.rs: ported command; acceptance gates open,Archive the current subtree with the default command.
 org-attach-git.el,38,option,org-attach-git-annex-cutoff,missing,,"If non-nil, files larger than this will be annexed instead of stored."
 org-attach-git.el,47,option,org-attach-git-annex-auto-get,missing,,Confirmation preference for automatically getting annex files.
 org-attach-git.el,59,option,org-attach-git-dir,missing,,Attachment directory with the Git repository to use.
@@ -1531,16 +1531,16 @@ org-capture.el,598,function,org-capture-put,missing,,Add ELEMENTS to the capture
 org-capture.el,603,function,org-capture-get,missing,,Get PROPERTY from the capture property list `org-capture-plist'.
 org-capture.el,622,option,org-capture-mode-hook,missing,,Hook for the `org-capture-mode' minor mode.
 org-capture.el,625,command,org-capture-mode,missing,,Minor mode for special key bindings in a capture buffer.
-org-capture.el,643,command,org-capture-string,missing,,Capture STRING with the template selected by KEYS.
+org-capture.el,643,command,org-capture-string,partial,src/org/capture.rs: ported command; acceptance gates open,Capture STRING with the template selected by KEYS.
 org-capture.el,650,option,org-capture-templates-contexts,missing,,Alist of capture templates and valid contexts.
 org-capture.el,711,option,org-capture-use-agenda-date,missing,,Non-nil means use the date at point when capturing from agendas.
-org-capture.el,720,command,org-capture,missing,,Capture something.
+org-capture.el,720,command,org-capture,partial,src/org/capture.rs: ported command; acceptance gates open,Capture something.
 org-capture.el,828,function,org-capture-get-template,missing,,Get the template from a file or a function if necessary.
 org-capture.el,844,function,org-capture--run-template-functions,missing,,Run functions associated with KEYWORD on template's plist.
-org-capture.el,855,command,org-capture-finalize,missing,,Finalize the capture process.
-org-capture.el,1009,command,org-capture-refile,missing,,Finalize the current capture and then refile the entry.
-org-capture.el,1043,command,org-capture-kill,missing,,Abort the current capture process.
-org-capture.el,1052,command,org-capture-goto-last-stored,missing,,Go to the location where the last capture note was stored.
+org-capture.el,855,command,org-capture-finalize,partial,src/org/capture.rs: ported command; acceptance gates open,Finalize the capture process.
+org-capture.el,1009,command,org-capture-refile,partial,src/org/capture.rs: ported command; acceptance gates open,Finalize the current capture and then refile the entry.
+org-capture.el,1043,command,org-capture-kill,partial,src/org/dispatch.rs: ported command; acceptance gates open,Abort the current capture process.
+org-capture.el,1052,command,org-capture-goto-last-stored,partial,src/org/capture.rs: ported command; acceptance gates open,Go to the location where the last capture note was stored.
 org-capture.el,1062,function,org-capture-put-target-region-and-position,missing,,Store the initial region with `org-capture-put'.
 org-capture.el,1073,function,org-capture-set-target-location,missing,,Find TARGET buffer and position.
 org-capture.el,1259,function,org-capture-expand-headline,missing,,"Expand functions, symbols and headline names for HEADLINE."
@@ -1560,7 +1560,7 @@ org-capture.el,1688,function,org-capture--position-cursor,missing,,"Move point t
 org-capture.el,1696,function,org-capture-empty-lines-before,missing,,Insert N empty lines before the insertion point.
 org-capture.el,1707,function,org-capture-empty-lines-after,missing,,Set the correct number of empty lines after the inserted string.
 org-capture.el,1721,function,org-capture-set-plist,missing,,Initialize the property list for ENTRY from the template definition.
-org-capture.el,1737,command,org-capture-goto-target,missing,,Go to the target location of a capture template.
+org-capture.el,1737,command,org-capture-goto-target,partial,src/org/capture.rs: ported command; acceptance gates open,Go to the target location of a capture template.
 org-capture.el,1748,function,org-capture-get-indirect-buffer,missing,,Make an indirect BUFFER for a capture process.
 org-capture.el,1763,function,org-capture-verify-tree,missing,,Throw error if TREE is not a valid tree.
 org-capture.el,1769,function,org-capture-select-template,missing,,Select a capture template.
@@ -1841,8 +1841,8 @@ org-compat.el,498,function,org-propertize,missing,,Return a copy of STRING with 
 org-compat.el,499,function,org-select-frame-set-input-focus,missing,,"Select FRAME, raise it, and set input focus, if possible."
 org-compat.el,500,function,org-file-remote-p,missing,,Test whether FILE specifies a location on a remote system.
 org-compat.el,502,function,org-show-context,missing,,Make sure point and context are visible.
-org-compat.el,503,command,org-show-entry,missing,,Show the body directly following its heading.
-org-compat.el,504,command,org-show-children,missing,,Show all direct subheadings of this heading.
+org-compat.el,503,command,org-show-entry,partial,src/org/fold.rs: ported command; acceptance gates open,Show the body directly following its heading.
+org-compat.el,504,command,org-show-children,partial,src/org/fold.rs: ported command; acceptance gates open,Show all direct subheadings of this heading.
 org-compat.el,507,macro,org-re,missing,,Replace posix classes in regular expression S.
 org-compat.el,514,function,org-count,missing,,Count the number of occurrences of ITEM in SEQ.
 org-compat.el,515,function,org-every,missing,,Return true if PREDICATE is true of every element of SEQ or SEQs.
@@ -1900,15 +1900,15 @@ org-compat.el,631,function,org-remove-latex-fragment-image-overlays,missing,,Rem
 org-compat.el,634,function,org-hide-archived-subtrees,missing,,Re-hide all archived subtrees after a visibility state change.
 org-compat.el,637,function,org-flag-region,missing,,"Hide or show lines from FROM to TO, according to FLAG."
 org-compat.el,640,function,org-flag-subtree,missing,,Hide (when FLAG) or reveal subtree at point.
-org-compat.el,643,command,org-hide-entry,missing,,Hide the body directly following this heading.
-org-compat.el,646,command,org-show-subtree,missing,,Show everything after this heading at deeper levels.
+org-compat.el,643,command,org-hide-entry,partial,src/org/fold.rs: ported command; acceptance gates open,Hide the body directly following this heading.
+org-compat.el,646,command,org-show-subtree,partial,src/org/fold.rs: ported command; acceptance gates open,Show everything after this heading at deeper levels.
 org-compat.el,649,function,org--hide-wrapper-toggle,missing,,Toggle visibility for ELEMENT.
-org-compat.el,652,command,org-hide-block-toggle,missing,,Toggle the visibility of the current block.
-org-compat.el,655,command,org-hide-drawer-toggle,missing,,Toggle the visibility of the current drawer.
+org-compat.el,652,command,org-hide-block-toggle,partial,src/org/fold.rs: ported command; acceptance gates open,Toggle the visibility of the current block.
+org-compat.el,655,command,org-hide-drawer-toggle,partial,src/org/fold.rs: ported command; acceptance gates open,Toggle the visibility of the current drawer.
 org-compat.el,658,function,org--hide-drawers,missing,,Hide all drawers between BEGIN and END.
-org-compat.el,661,command,org-hide-block-all,missing,,Fold all blocks in the current buffer.
-org-compat.el,664,command,org-hide-drawer-all,missing,,Fold all drawers in the current buffer or active region BEGIN..END.
-org-compat.el,667,command,org-show-all,missing,,Show all contents in the visible part of the buffer.
+org-compat.el,661,command,org-hide-block-all,partial,src/org/fold.rs: ported command; acceptance gates open,Fold all blocks in the current buffer.
+org-compat.el,664,command,org-hide-drawer-all,partial,src/org/fold.rs: ported command; acceptance gates open,Fold all drawers in the current buffer or active region BEGIN..END.
+org-compat.el,667,command,org-show-all,partial,src/org/fold.rs: ported command; acceptance gates open,Show all contents in the visible part of the buffer.
 org-compat.el,670,function,org-set-startup-visibility,missing,,Set the visibility required by startup options and properties.
 org-compat.el,673,function,org-show-set-visibility,missing,,Set visibility around point according to DETAIL.
 org-compat.el,676,function,org-check-before-invisible-edit,missing,,Check if editing KIND is dangerous with invisible text around.
@@ -1917,7 +1917,7 @@ org-compat.el,682,function,org-show-branches-buffer,missing,,Show all branches i
 org-compat.el,685,function,org-show-siblings,missing,,Show all siblings of the current headline.
 org-compat.el,688,command,org-show-hidden-entry,missing,,Show the body directly following its heading.
 org-compat.el,691,function,org-flag-heading,missing,,Fold/unfold the current heading.  FLAG non-nil means make invisible.
-org-compat.el,697,command,org-set-visibility-according-to-property,missing,,Switch subtree visibility according to VISIBILITY property.
+org-compat.el,697,command,org-set-visibility-according-to-property,partial,src/org/fold.rs: ported command; acceptance gates open,Switch subtree visibility according to VISIBILITY property.
 org-compat.el,702,function,org-optimize-window-after-visibility-change,missing,,Adjust the window after a change in outline visibility.
 org-compat.el,713,function,org-file-url-p,missing,,Non-nil if string S is a URL.
 org-compat.el,731,function,org-cached-entry-get,missing,,
@@ -1948,7 +1948,7 @@ org-compat.el,1029,function,org-add-link-props,missing,,Add these properties to 
 org-compat.el,1032,function,org-make-org-heading-search-string,missing,,Make search string for the current headline or STRING.
 org-compat.el,1035,function,org-make-link-regexps,missing,,Update the link regular expressions.
 org-compat.el,1038,function,org-property-global-value,missing,,
-org-compat.el,1058,command,org-open-link-from-string,missing,,"Open a link in the string S, as if it was in Org mode."
+org-compat.el,1058,command,org-open-link-from-string,partial,src/org/links.rs: ported command; acceptance gates open,"Open a link in the string S, as if it was in Org mode."
 org-compat.el,1061,function,org-add-angle-brackets,missing,,Wrap string S within angle brackets.
 org-compat.el,1075,function,org-display-inline-remove-overlay,missing,,Remove link-preview overlay OV if a corresponding region is modified.
 org-compat.el,1077,function,org--inline-image-overlays,missing,,Return link preview overlays between BEG and END.
@@ -1967,7 +1967,7 @@ org-compat.el,1288,function,org-at-property-block-p,missing,,Non-nil when point 
 org-compat.el,1291,function,org-flag-drawer,missing,,"When FLAG is non-nil, hide the drawer we are at."
 org-compat.el,1321,command,org-hide-block-toggle-maybe,missing,,Toggle visibility of block at point.
 org-compat.el,1329,function,org-hide-block-toggle-all,missing,,Toggle the visibility of all blocks in the current buffer.
-org-compat.el,1345,command,org-return-indent,missing,,Goto next table row or insert a newline and indent.
+org-compat.el,1345,command,org-return-indent,partial,src/org/editing.rs: ported command; acceptance gates open,Goto next table row or insert a newline and indent.
 org-compat.el,1354,macro,org-with-silent-modifications,missing,,
 org-compat.el,1359,function,org-babel-strip-quotes,missing,,"Strip double quotes from around STRING, if applicable."
 org-compat.el,1379,command,org-copy,missing,,"Like `org-refile', but preserve the refiled subtree."
@@ -2039,7 +2039,7 @@ org-compat.el,,function,org-get-buffer-create,missing,,"Return the buffer specif
 org-compat.el,,option,org-sort-agenda-noeffort-is-high,missing,,Non-nil means items without effort estimate are sorted as high effort.
 org-compat.el,,option,org-edit-src-content-indentation,missing,,Indentation for the content of a source code block.
 org-compat.el,,option,org-latex-with-hyperref,missing,,Template for hyperref package options.
-org-compat.el,,command,org-newline-and-indent,missing,,"Insert a newline, then indent according to major mode."
+org-compat.el,,command,org-newline-and-indent,partial,src/org/editing.rs: ported command; acceptance gates open,"Insert a newline, then indent according to major mode."
 org-compat.el,,macro,org-with-undo-amalgamate,missing,,Like `progn' but perform BODY with amalgamated undo barriers.
 org-compat.el,,option,org-agenda-ignore-drawer-properties,missing,,Avoid updating text properties when building the agenda.
 org-compat.el,,function,org-decoded-time-add,missing,,"Add DELTA to TIME, both of which are `decoded-time' structures."
@@ -2113,15 +2113,15 @@ org-cycle.el,216,option,org-cycle-hook,missing,,Hook that is run after `org-cycl
 org-cycle.el,230,option,org-cycle-open-archived-trees,missing,,Non-nil means `org-cycle' will open archived trees.
 org-cycle.el,243,option,org-cycle-link-previews-display,missing,,Non-nil means auto display link previews under subtree when cycling.
 org-cycle.el,264,function,org-cycle-hide-drawers,missing,,Re-hide all drawers after a visibility state change.
-org-cycle.el,288,command,org-cycle,missing,,TAB-action and visibility cycling for Org mode.
-org-cycle.el,448,command,org-cycle-force-archived,missing,,Cycle subtree even if it is archived.
+org-cycle.el,288,command,org-cycle,partial,src/org/fold.rs: ported command; acceptance gates open,TAB-action and visibility cycling for Org mode.
+org-cycle.el,448,command,org-cycle-force-archived,partial,src/org/fold.rs: ported command; acceptance gates open,Cycle subtree even if it is archived.
 org-cycle.el,455,function,org-cycle-internal-global,missing,,Do the global cycling action.
 org-cycle.el,488,function,org-cycle-internal-local,missing,,Do the local cycling action.
-org-cycle.el,606,command,org-cycle-global,missing,,Cycle the global visibility.  For details see `org-cycle'.
+org-cycle.el,606,command,org-cycle-global,partial,src/org/fold.rs: ported command; acceptance gates open,Cycle the global visibility.  For details see `org-cycle'.
 org-cycle.el,621,function,org-cycle-set-startup-visibility,missing,,Set the visibility required by startup options and properties.
-org-cycle.el,650,command,org-cycle-set-visibility-according-to-property,missing,,Switch subtree visibility according to VISIBILITY property.
-org-cycle.el,680,command,org-cycle-overview,missing,,"Switch to overview mode, showing only top-level headlines."
-org-cycle.el,701,command,org-cycle-content,missing,,"Show all headlines in the buffer, like a table of contents."
+org-cycle.el,650,command,org-cycle-set-visibility-according-to-property,partial,src/org/fold.rs: ported command; acceptance gates open,Switch subtree visibility according to VISIBILITY property.
+org-cycle.el,680,command,org-cycle-overview,partial,src/org/fold.rs: ported command; acceptance gates open,"Switch to overview mode, showing only top-level headlines."
+org-cycle.el,701,command,org-cycle-content,partial,src/org/fold.rs: ported command; acceptance gates open,"Show all headlines in the buffer, like a table of contents."
 org-cycle.el,723,function,org-cycle-optimize-window-after-visibility-change,missing,,Adjust the window after a change in outline visibility.
 org-cycle.el,747,function,org-cycle-show-empty-lines,missing,,Show empty lines above all visible headlines.
 org-cycle.el,790,function,org-cycle-hide-archived-subtrees,missing,,Re-hide all archived subtrees after a visibility state change.
@@ -2519,30 +2519,30 @@ org-fold.el,291,function,org-fold-search-forward,missing,,Search next region fol
 org-fold.el,295,macro,org-fold-save-outline-visibility,missing,,Save and restore folding state around BODY.
 org-fold.el,301,function,org-fold-region,missing,,"Hide or show lines from FROM to TO, according to FLAG."
 org-fold.el,302,macro,org-fold-regions,missing,,Fold every region in REGIONS list in current buffer.
-org-fold.el,304,command,org-fold-show-all,missing,,Show all contents in the visible part of the buffer.
+org-fold.el,304,command,org-fold-show-all,partial,src/org/fold.rs: ported command; acceptance gates open,Show all contents in the visible part of the buffer.
 org-fold.el,318,function,org-fold-flag-above-first-heading,missing,,Hide from bob up to the first heading.
 org-fold.el,329,function,org-fold-heading,missing,,Fold/unfold the current heading.  FLAG non-nil means make invisible.
-org-fold.el,344,command,org-fold-hide-entry,missing,,Hide the body directly following this heading.
+org-fold.el,344,command,org-fold-hide-entry,partial,src/org/fold.rs: ported command; acceptance gates open,Hide the body directly following this heading.
 org-fold.el,361,function,org-fold-subtree,missing,,Hide (when FLAG) or reveal subtree at point.
-org-fold.el,372,command,org-fold-hide-subtree,missing,,Hide everything after this heading at deeper levels.
-org-fold.el,378,command,org-fold-hide-sublevels,missing,,"Hide everything but the top LEVELS levels of headers, in whole buffer."
-org-fold.el,420,command,org-fold-show-entry,missing,,Show the body directly following its heading.
+org-fold.el,372,command,org-fold-hide-subtree,partial,src/org/fold.rs: ported command; acceptance gates open,Hide everything after this heading at deeper levels.
+org-fold.el,378,command,org-fold-hide-sublevels,partial,src/org/fold.rs: ported command; acceptance gates open,"Hide everything but the top LEVELS levels of headers, in whole buffer."
+org-fold.el,420,command,org-fold-show-entry,partial,src/org/fold.rs: ported command; acceptance gates open,Show the body directly following its heading.
 org-fold.el,437,command,org-fold-show-hidden-entry,missing,,Show an entry where even the heading is hidden.
 org-fold.el,440,function,org-fold-show-siblings,missing,,Show all siblings of the current headline.
-org-fold.el,448,command,org-fold-show-children,missing,,Show all direct subheadings of this heading.
-org-fold.el,488,command,org-fold-show-subtree,missing,,Show everything after this heading at deeper levels.
-org-fold.el,494,command,org-fold-show-branches,missing,,"Show all subheadings of this heading, but not their bodies."
+org-fold.el,448,command,org-fold-show-children,partial,src/org/fold.rs: ported command; acceptance gates open,Show all direct subheadings of this heading.
+org-fold.el,488,command,org-fold-show-subtree,partial,src/org/fold.rs: ported command; acceptance gates open,Show everything after this heading at deeper levels.
+org-fold.el,494,command,org-fold-show-branches,partial,src/org/fold.rs: ported command; acceptance gates open,"Show all subheadings of this heading, but not their bodies."
 org-fold.el,499,function,org-fold-show-branches-buffer,missing,,Show all branches in the buffer.
 org-fold.el,511,function,org-fold--hide-wrapper-toggle,missing,,Toggle visibility for ELEMENT.
-org-fold.el,562,command,org-fold-hide-block-toggle,missing,,Toggle the visibility of the current block.
-org-fold.el,575,command,org-fold-hide-drawer-toggle,missing,,Toggle the visibility of the current drawer.
-org-fold.el,588,command,org-fold-hide-block-all,missing,,Fold all blocks in the current buffer.
-org-fold.el,593,command,org-fold-hide-drawer-all,missing,,Fold all drawers in the current buffer or active region BEGIN..END.
+org-fold.el,562,command,org-fold-hide-block-toggle,partial,src/org/fold.rs: ported command; acceptance gates open,Toggle the visibility of the current block.
+org-fold.el,575,command,org-fold-hide-drawer-toggle,partial,src/org/fold.rs: ported command; acceptance gates open,Toggle the visibility of the current drawer.
+org-fold.el,588,command,org-fold-hide-block-all,partial,src/org/fold.rs: ported command; acceptance gates open,Fold all blocks in the current buffer.
+org-fold.el,593,command,org-fold-hide-drawer-all,partial,src/org/fold.rs: ported command; acceptance gates open,Fold all drawers in the current buffer or active region BEGIN..END.
 org-fold.el,602,function,org-fold--hide-drawers,missing,,Hide all drawers between BEGIN and END.
 org-fold.el,620,function,org-fold-hide-archived-subtrees,missing,,Re-hide all archived subtrees after a visibility state change.
 org-fold.el,635,function,org-fold-show-context,missing,,Make sure point and context are visible.
 org-fold.el,648,function,org-fold-show-set-visibility,missing,,Set visibility around point according to DETAIL.
-org-fold.el,703,command,org-fold-reveal,missing,,"Show current entry, hierarchy above it, and the following headline."
+org-fold.el,703,command,org-fold-reveal,partial,src/org/fold.rs: ported command; acceptance gates open,"Show current entry, hierarchy above it, and the following headline."
 org-fold.el,727,function,org-fold--isearch-reveal,missing,,Reveal text at POS found by isearch.
 org-fold.el,734,function,org-fold--extend-changed-region,missing,,Consider folded regions in the next/previous line when fixing region visibility.
 org-fold.el,747,function,org-fold--reveal-headline-at-point-delayed,missing,,Reveal header line and empty contents inside.
@@ -2744,7 +2744,7 @@ org-keys.el,318,option,org-return-follows-link,missing,,"Non-nil means on links 
 org-keys.el,329,function,org-key,missing,,Select KEY according to `org-replace-disputed-keys' and `org-disputed-keys'.
 org-keys.el,339,function,org-defkey,missing,,"Define KEY, possibly translated, as returned by `org-key' in KEYMAP to DEF."
 org-keys.el,343,function,org-remap,missing,,"In MAP, remap the functions given in COMMANDS."
-org-keys.el,416,command,org-up-heading,missing,,Move to the visible heading line of which the present line is a subheading.
+org-keys.el,416,command,org-up-heading,partial,src/org/structure.rs: ported command; acceptance gates open,Move to the visible heading line of which the present line is a subheading.
 org-keys.el,686,option,org-use-speed-commands,missing,,Non-nil means activate single letter commands at beginning of a headline.
 org-keys.el,707,option,org-speed-command-hook,missing,,Hook for activating speed commands at strategic locations.
 org-keys.el,726,option,org-speed-commands,missing,,Alist of speed commands.
@@ -3366,10 +3366,10 @@ org-refile.el,243,function,org-refile-cache-check-set,missing,,Check if all the 
 org-refile.el,255,function,org-refile-cache-put,missing,,"Push the refile targets SET into the cache, under IDENTIFIERS."
 org-refile.el,263,function,org-refile-cache-get,missing,,Retrieve the cached value for refile targets given by IDENTIFIERS.
 org-refile.el,273,function,org-refile-get-targets,missing,,Produce a table with refile targets.
-org-refile.el,413,command,org-refile-copy,missing,,"Like `org-refile', but preserve the refiled subtree."
-org-refile.el,420,command,org-refile-reverse,missing,,Refile while temporarily toggling `org-reverse-note-order'.
-org-refile.el,433,command,org-refile,missing,,Move the entry or entries at point to another heading.
-org-refile.el,643,command,org-refile-goto-last-stored,missing,,Go to the location where the last refile was stored.
+org-refile.el,413,command,org-refile-copy,partial,src/org/refile.rs: ported command; acceptance gates open,"Like `org-refile', but preserve the refiled subtree."
+org-refile.el,420,command,org-refile-reverse,partial,src/org/refile.rs: ported command; acceptance gates open,Refile while temporarily toggling `org-reverse-note-order'.
+org-refile.el,433,command,org-refile,partial,src/org/refile.rs: ported command; acceptance gates open,Move the entry or entries at point to another heading.
+org-refile.el,643,command,org-refile-goto-last-stored,partial,src/org/refile.rs: ported command; acceptance gates open,Go to the location where the last refile was stored.
 org-refile.el,650,function,org-refile--get-location,missing,,"When user refile to REFLOC, find the associated target in TBL."
 org-refile.el,661,function,org-refile-get-location,missing,,"Prompt the user for a refile location, using PROMPT."
 org-refile.el,727,function,org-refile-check-position,missing,,Check if the refile pointer matches the headline to which it points.
@@ -3425,16 +3425,16 @@ org-src.el,1099,function,org-src-coderef-regexp,missing,,Return regexp matching 
 org-src.el,1117,command,org-edit-footnote-reference,missing,,Edit definition of footnote reference at point.
 org-src.el,1177,command,org-edit-table.el,missing,,"Edit ""table.el"" table at point."
 org-src.el,1201,command,org-edit-latex-fragment,missing,,Edit LaTeX fragment at point.
-org-src.el,1241,command,org-edit-latex-environment,missing,,Edit LaTeX environment at point.
-org-src.el,1263,command,org-edit-export-block,missing,,Edit export block at point.
-org-src.el,1298,command,org-edit-comment-block,missing,,Edit comment block at point.
-org-src.el,1321,command,org-edit-src-code,missing,,Edit the source or example block at point.
-org-src.el,1373,command,org-edit-inline-src-code,missing,,Edit inline source code at point.
-org-src.el,1406,command,org-edit-fixed-width-region,missing,,Edit the fixed-width ASCII drawing at point.
-org-src.el,1432,command,org-edit-src-abort,missing,,Abort editing of the src code and return to the Org buffer.
+org-src.el,1241,command,org-edit-latex-environment,partial,src/org/src.rs: ported command; acceptance gates open,Edit LaTeX environment at point.
+org-src.el,1263,command,org-edit-export-block,partial,src/org/src.rs: ported command; acceptance gates open,Edit export block at point.
+org-src.el,1298,command,org-edit-comment-block,partial,src/org/src.rs: ported command; acceptance gates open,Edit comment block at point.
+org-src.el,1321,command,org-edit-src-code,partial,src/org/src.rs: ported command; acceptance gates open,Edit the source or example block at point.
+org-src.el,1373,command,org-edit-inline-src-code,partial,src/org/src.rs: ported command; acceptance gates open,Edit inline source code at point.
+org-src.el,1406,command,org-edit-fixed-width-region,partial,src/org/src.rs: ported command; acceptance gates open,Edit the fixed-width ASCII drawing at point.
+org-src.el,1432,command,org-edit-src-abort,partial,src/org/src.rs: ported command; acceptance gates open,Abort editing of the src code and return to the Org buffer.
 org-src.el,1437,command,org-edit-src-continue,missing,,Unconditionally return to buffer editing area under point.
-org-src.el,1447,command,org-edit-src-save,missing,,Save parent buffer with current state source-code buffer.
-org-src.el,1482,command,org-edit-src-exit,missing,,Kill current sub-editing buffer and return to source buffer.
+org-src.el,1447,command,org-edit-src-save,partial,src/org/src.rs: ported command; acceptance gates open,Save parent buffer with current state source-code buffer.
+org-src.el,1482,command,org-edit-src-exit,partial,src/org/src.rs: ported command; acceptance gates open,Kill current sub-editing buffer and return to source buffer.
 org-table.el,102,option,orgtbl-optimized,missing,,Non-nil means use the optimized table editor version for `orgtbl-mode'.
 org-table.el,116,option,orgtbl-radio-table-templates,missing,,Templates for radio tables in different major modes.
 org-table.el,170,option,org-table-header-line-p,missing,,Activate `org-table-header-line-mode' by default?
@@ -3726,17 +3726,17 @@ org-timer.el,465,function,org-timer--run-countdown-timer,missing,,Start countdow
 org-timer.el,479,function,org-timer--get-timer-title,missing,,Construct timer title.
 org-version.el,5,function,org-release,missing,,The release version of Org.
 org-version.el,11,function,org-git-version,missing,,The Git version of Org mode.
-org.el,106,command,org-global-cycle,missing,,Cycle the global visibility.  For details see `org-cycle'.
-org.el,107,command,org-overview,missing,,"Switch to overview mode, showing only top-level headlines."
-org.el,108,command,org-content,missing,,"Show all headlines in the buffer, like a table of contents."
-org.el,109,command,org-reveal,missing,,"Show current entry, hierarchy above it, and the following headline."
-org.el,110,command,org-force-cycle-archived,missing,,Cycle subtree even if it is archived.
+org.el,106,command,org-global-cycle,partial,src/org/fold.rs: ported command; acceptance gates open,Cycle the global visibility.  For details see `org-cycle'.
+org.el,107,command,org-overview,partial,src/org/fold.rs: ported command; acceptance gates open,"Switch to overview mode, showing only top-level headlines."
+org.el,108,command,org-content,partial,src/org/fold.rs: ported command; acceptance gates open,"Show all headlines in the buffer, like a table of contents."
+org.el,109,command,org-reveal,partial,src/org/fold.rs: ported command; acceptance gates open,"Show current entry, hierarchy above it, and the following headline."
+org.el,110,command,org-force-cycle-archived,partial,src/org/editing.rs: ported command; acceptance gates open,Cycle subtree even if it is archived.
 org.el,138,function,org-make-priority-regexp,missing,,Generate a correct `org-priority-regexp' using `org-priority'
 org.el,268,option,org-babel-load-languages,missing,,Languages which can be evaluated in Org buffers.
 org.el,273,function,org-babel-do-load-languages,missing,,Load the languages defined in `org-babel-load-languages'.
 org.el,287,command,org-babel-load-file,missing,,Load Emacs Lisp source code blocks in the Org FILE.
 org.el,383,option,org-clone-delete-id,missing,,Remove ID property of clones of a subtree.
-org.el,396,command,org-version,missing,,Show the Org version.
+org.el,396,command,org-version,partial,src/org/editing.rs: ported command; acceptance gates open,Show the Org version.
 org.el,772,option,org-mode-hook,missing,,"Mode hook for Org mode, run after the mode was turned on."
 org.el,777,option,org-load-hook,missing,,Hook that is run after org.el has been loaded.
 org.el,786,option,org-log-buffer-setup-hook,missing,,Hook that is run after an Org log buffer is created.
@@ -3782,7 +3782,7 @@ org.el,1771,option,org-yank-folded-subtrees,missing,,"Non-nil means when yanking
 org.el,1780,option,org-yank-adjusted-subtrees,missing,,"Non-nil means when yanking subtrees, adjust the level."
 org.el,1787,option,org-M-RET-may-split-line,missing,,Non-nil means M-RET will split the line at the cursor position.
 org.el,1813,option,org-insert-heading-respect-content,missing,,Non-nil means insert new headings after the current subtree.
-org.el,1813,command,org-insert-heading-respect-content,missing,,Insert heading with `org-insert-heading-respect-content' set to t.
+org.el,1813,command,org-insert-heading-respect-content,partial,src/org/structure.rs: ported command; acceptance gates open,Insert heading with `org-insert-heading-respect-content' set to t.
 org.el,1823,option,org-blank-before-new-entry,missing,,Should `org-insert-heading' leave a blank line before new heading/item?
 org.el,1841,option,org-insert-heading-hook,missing,,Hook being run after inserting a new heading.
 org.el,1851,option,org-highlight-sparse-tree-matches,missing,,Non-nil means highlight all matches that define a sparse tree.
@@ -3909,9 +3909,9 @@ org.el,4163,option,org-agenda-skip-archived-trees,missing,,Non-nil means the age
 org.el,4172,option,org-columns-skip-archived-trees,missing,,Non-nil means ignore archived trees when creating column view.
 org.el,4178,option,org-sparse-tree-open-archived-trees,partial,date sparse trees (time::occur),Non-nil means sparse tree construction shows matches in archived trees.
 org.el,4186,option,org-sparse-tree-default-date-type,missing,,The default date type when building a sparse tree.
-org.el,4207,command,org-advertized-archive-subtree,missing,,Move the current subtree to the archive.
+org.el,4207,command,org-advertized-archive-subtree,partial,src/org/editing.rs: ported command; acceptance gates open,Move the current subtree to the archive.
 org.el,4385,option,org-group-tags,missing,,"When non-nil (the default), use group tags."
-org.el,4394,command,org-toggle-tags-groups,missing,,Toggle support for group tags.
+org.el,4394,command,org-toggle-tags-groups,partial,src/org/tags.rs: ported command; acceptance gates open,Toggle support for group tags.
 org.el,4408,function,org--tag-add-to-alist,missing,,Merge tags from ALIST1 into ALIST2.
 org.el,4442,function,org-tags-sort,missing,,Sort tags TAG1 and TAG2 according to the value of `org-tags-sort-function'.
 org.el,4461,function,org-tags-sort-hierarchy,missing,,Sort tags TAG1 and TAG2 by the tag hierarchy.
@@ -3930,18 +3930,18 @@ org.el,4980,function,org--confirm-resource-safe,missing,,"Ask the user if URI sh
 org.el,5049,function,org-extract-log-state-settings,missing,,Extract the log state setting from a TODO keyword string.
 org.el,5061,function,org-remove-keyword-keys,missing,,Remove a pair of parenthesis at the end of each string in LIST.
 org.el,5069,function,org-assign-fast-keys,missing,,Assign fast keys to a keyword-key alist.
-org.el,5103,command,org-org-menu,missing,,Org menu.
-org.el,5104,command,org-tbl-menu,missing,,Org Table menu.
+org.el,5103,command,org-org-menu,partial,src/org/editing.rs: ported command; acceptance gates open,Org menu.
+org.el,5104,command,org-tbl-menu,partial,src/org/editing.rs: ported command; acceptance gates open,Org Table menu.
 org.el,5108,function,org-before-change-function,missing,,Every change indicates that a table might need an update.
 org.el,5164,function,org--set-tab-width,missing,,Set `tab-width' to be 8.
-org.el,5169,command,org-mode,missing,,"Outline-based notes management and organizer, alias"
+org.el,5169,command,org-mode,partial,src/org/mod.rs: ported command; acceptance gates open,"Outline-based notes management and organizer, alias"
 org.el,5411,function,org-find-invisible-foreground,missing,,
 org.el,5425,function,org-current-time,done,"time::read::current_time(rounding, past)","Current time, possibly rounded to ROUNDING-MINUTES."
 org.el,5444,function,org-today,done,time::today,"Return today date, considering `org-extend-today-until'."
 org.el,5454,function,org-create-multibrace-regexp,missing,,Create a regular expression which will match a balanced sexp.
 org.el,5493,function,org-rear-nonsticky-at,missing,,
 org.el,5514,function,org-do-emphasis-faces,missing,,Run through the buffer and emphasize strings.
-org.el,5576,command,org-emphasize,missing,,"Insert or change an emphasis, i.e. a font like bold or italic."
+org.el,5576,command,org-emphasize,partial,src/org/editing.rs: ported command; acceptance gates open,"Insert or change an emphasis, i.e. a font like bold or italic."
 org.el,5621,option,org-activate-links,missing,,Types of links that should be highlighted in Org files.
 org.el,5621,function,org-activate-links,missing,,Add link properties to links.
 org.el,5700,function,org-activate-code,missing,,
@@ -3965,7 +3965,7 @@ org.el,6104,function,org-re-property,missing,,Return a regexp matching a PROPERT
 org.el,6139,function,org-font-lock-hook,missing,,Run `org-font-lock-hook' within LIMIT.
 org.el,6154,function,org-set-font-lock-defaults,missing,,Set font lock defaults for the current buffer.
 org.el,6299,command,org-toggle-pretty-entities,missing,,Toggle the composition display of entities as UTF8 characters.
-org.el,6316,command,org-toggle-custom-properties-visibility,missing,,Display or hide properties in `org-custom-properties'.
+org.el,6316,command,org-toggle-custom-properties-visibility,partial,src/org/editing.rs: ported command; acceptance gates open,Display or hide properties in `org-custom-properties'.
 org.el,6343,function,org-fontify-entities,missing,,Find an entity to fontify.
 org.el,6369,function,org-fontify-like-in-org-mode,missing,,Fontify string S like in Org mode.
 org.el,6381,function,org-get-level-face,missing,,Get the right face for match N in font-lock matching of headlines.
@@ -3985,25 +3985,25 @@ org.el,6554,function,org-entry-beginning-position,missing,,Return the beginning 
 org.el,6558,function,org-entry-end-position,missing,,Return the end position of the current entry.
 org.el,6562,function,org-subtree-end-visible-p,missing,,Is the end of the current subtree visible?
 org.el,6567,function,org-first-headline-recenter,missing,,Move cursor to the first headline and recenter the headline.
-org.el,6588,command,org-tree-to-indirect-buffer,missing,,Create indirect buffer and narrow it to current subtree.
+org.el,6588,command,org-tree-to-indirect-buffer,partial,src/org/editing.rs: ported command; acceptance gates open,Create indirect buffer and narrow it to current subtree.
 org.el,6658,function,org-get-indirect-buffer,missing,,Return an indirect buffer based on BUFFER.
 org.el,6675,function,org-set-frame-title,missing,,Set the title of the current frame to the string TITLE.
 org.el,6683,function,org--blank-before-heading-p,missing,,Non-nil when an empty line should precede a new heading here.
-org.el,6706,command,org-insert-heading,missing,,Insert a new heading or an item with the same depth at point.
+org.el,6706,command,org-insert-heading,partial,src/org/structure.rs: ported command; acceptance gates open,Insert a new heading or an item with the same depth at point.
 org.el,6850,function,org-N-empty-lines-before-current,missing,,Make the number of empty lines before current exactly N.
 org.el,6863,function,org-get-heading,missing,,"Return the heading of the current entry, without the stars."
 org.el,6896,function,org-heading-components,missing,,Return the components of the current heading.
 org.el,6918,function,org-get-entry,missing,,"Get the entry text, after heading, entire subtree."
-org.el,6924,command,org-edit-headline,missing,,Edit the current headline.
-org.el,6951,command,org-insert-heading-after-current,missing,,"Insert a new heading with same level as current, after current subtree."
-org.el,6964,command,org-insert-todo-heading-respect-content,missing,,"Call `org-insert-todo-heading', inserting after current subtree."
-org.el,6972,command,org-insert-todo-heading,missing,,Insert a new heading with the same level and TODO state as current heading.
-org.el,7009,command,org-insert-subheading,missing,,Insert a new subheading and demote it.
-org.el,7022,command,org-insert-todo-subheading,missing,,Insert a new subheading with TODO keyword or checkbox and demote it.
-org.el,7044,command,org-promote-subtree,missing,,Promote the entire subtree.
-org.el,7054,command,org-demote-subtree,missing,,Demote the entire subtree.
-org.el,7064,command,org-do-promote,missing,,Promote the current heading higher up the tree.
-org.el,7077,command,org-do-demote,missing,,Demote the current heading lower down the tree.
+org.el,6924,command,org-edit-headline,partial,src/org/editing.rs: ported command; acceptance gates open,Edit the current headline.
+org.el,6951,command,org-insert-heading-after-current,partial,src/org/editing.rs: ported command; acceptance gates open,"Insert a new heading with same level as current, after current subtree."
+org.el,6964,command,org-insert-todo-heading-respect-content,partial,src/org/structure.rs: ported command; acceptance gates open,"Call `org-insert-todo-heading', inserting after current subtree."
+org.el,6972,command,org-insert-todo-heading,partial,src/org/structure.rs: ported command; acceptance gates open,Insert a new heading with the same level and TODO state as current heading.
+org.el,7009,command,org-insert-subheading,partial,src/org/structure.rs: ported command; acceptance gates open,Insert a new subheading and demote it.
+org.el,7022,command,org-insert-todo-subheading,partial,src/org/structure.rs: ported command; acceptance gates open,Insert a new subheading with TODO keyword or checkbox and demote it.
+org.el,7044,command,org-promote-subtree,partial,src/org/structure.rs: ported command; acceptance gates open,Promote the entire subtree.
+org.el,7054,command,org-demote-subtree,partial,src/org/structure.rs: ported command; acceptance gates open,Demote the entire subtree.
+org.el,7064,command,org-do-promote,partial,src/org/structure.rs: ported command; acceptance gates open,Promote the current heading higher up the tree.
+org.el,7077,command,org-do-demote,partial,src/org/structure.rs: ported command; acceptance gates open,Demote the current heading lower down the tree.
 org.el,7090,function,org-fix-position-after-promote,missing,,Fix cursor position and indentation after demoting/promoting.
 org.el,7101,function,org-current-level,missing,,"Return the level of the current entry, or nil if before the first headline."
 org.el,7110,function,org-get-previous-line-level,missing,,Return the outline depth of the last headline before the current line.
@@ -4012,35 +4012,35 @@ org.el,7127,function,org-level-increment,missing,,Return the number of stars tha
 org.el,7133,function,org-get-valid-level,missing,,Rectify a level change under the influence of `org-odd-levels-only'.
 org.el,7145,function,org-promote,missing,,Promote the current heading higher up the tree.
 org.el,7165,function,org-demote,missing,,Demote the current heading lower down the tree.
-org.el,7180,command,org-cycle-level,missing,,Cycle the level of an empty headline through possible states.
+org.el,7180,command,org-cycle-level,partial,src/org/structure.rs: ported command; acceptance gates open,Cycle the level of an empty headline through possible states.
 org.el,7218,function,org-map-tree,missing,,Call FUN for every heading underneath the current one.
 org.el,7230,function,org-map-region,missing,,Call FUN for every heading between BEG and END.
 org.el,7248,function,org-fixup-indentation,missing,,Change the indentation in the current entry by DIFF.
-org.el,7358,command,org-convert-to-odd-levels,missing,,Convert an Org file with all levels allowed to one with odd levels.
-org.el,7374,command,org-convert-to-oddeven-levels,missing,,Convert an Org file with only odd levels to one with odd/even levels.
+org.el,7358,command,org-convert-to-odd-levels,partial,src/org/structure.rs: ported command; acceptance gates open,Convert an Org file with all levels allowed to one with odd levels.
+org.el,7374,command,org-convert-to-oddeven-levels,partial,src/org/structure.rs: ported command; acceptance gates open,Convert an Org file with only odd levels to one with odd/even levels.
 org.el,7398,function,org-tr-level,missing,,Make N odd if required.
-org.el,7404,command,org-move-subtree-up,missing,,Move the current subtree up past ARG headlines of the same level.
+org.el,7404,command,org-move-subtree-up,partial,src/org/structure.rs: ported command; acceptance gates open,Move the current subtree up past ARG headlines of the same level.
 org.el,7409,function,org-clean-visibility-after-subtree-move,missing,,Fix visibility issues after moving a subtree.
-org.el,7439,command,org-move-subtree-down,missing,,Move the current subtree down past ARG headlines of the same level.
-org.el,7506,command,org-cut-subtree,missing,,Cut the current subtree into the clipboard.
-org.el,7513,command,org-copy-subtree,missing,,Copy the current subtree into the clipboard.
-org.el,7558,command,org-paste-subtree,missing,,"Paste the clipboard as a subtree, with modification of headline level."
+org.el,7439,command,org-move-subtree-down,partial,src/org/structure.rs: ported command; acceptance gates open,Move the current subtree down past ARG headlines of the same level.
+org.el,7506,command,org-cut-subtree,partial,src/org/structure.rs: ported command; acceptance gates open,Cut the current subtree into the clipboard.
+org.el,7513,command,org-copy-subtree,partial,src/org/structure.rs: ported command; acceptance gates open,Copy the current subtree into the clipboard.
+org.el,7558,command,org-paste-subtree,partial,src/org/structure.rs: ported command; acceptance gates open,"Paste the clipboard as a subtree, with modification of headline level."
 org.el,7683,function,org-kill-is-subtree-p,missing,,"Check if the current kill is an outline subtree, or a set of trees."
 org.el,7714,function,org-save-markers-in-region,missing,,Check markers in region.
 org.el,7729,function,org-check-and-save-marker,missing,,Check if MARKER is between BEG and END.
 org.el,7738,function,org-reinstall-markers-in-region,missing,,Move all remembered markers to their position relative to BEG.
-org.el,7744,command,org-narrow-to-subtree,missing,,Narrow buffer to the current subtree.
-org.el,7768,command,org-toggle-narrow-to-subtree,missing,,Narrow to the subtree at point or widen a narrowed buffer.
-org.el,7777,command,org-narrow-to-block,missing,,Narrow buffer to the current block.
-org.el,7787,command,org-clone-subtree-with-time-shift,missing,,Clone the task (subtree) at point N times.
+org.el,7744,command,org-narrow-to-subtree,partial,src/org/fold.rs: ported command; acceptance gates open,Narrow buffer to the current subtree.
+org.el,7768,command,org-toggle-narrow-to-subtree,partial,src/org/fold.rs: ported command; acceptance gates open,Narrow to the subtree at point or widen a narrowed buffer.
+org.el,7777,command,org-narrow-to-block,partial,src/org/fold.rs: ported command; acceptance gates open,Narrow buffer to the current block.
+org.el,7787,command,org-clone-subtree-with-time-shift,partial,src/org/editing.rs: ported command; acceptance gates open,Clone the task (subtree) at point N times.
 org.el,7909,function,org--get-outline-path-1,missing,,Return outline path to current headline.
 org.el,7942,function,org-get-outline-path,missing,,Return the outline path to the current entry.
 org.el,7965,function,org-format-outline-path,missing,,Format the outline path PATH for display.
 org.el,7996,function,org-get-title,missing,,Collect title from the provided `org-mode' BUFFER-OR-FILE.
-org.el,8010,command,org-display-outline-path,missing,,Display the current outline path in the echo area.
-org.el,8047,command,org-sort,missing,,"Call `org-sort-entries', `org-table-sort-lines' or `org-sort-list'."
+org.el,8010,command,org-display-outline-path,partial,src/org/editing.rs: ported command; acceptance gates open,Display the current outline path in the echo area.
+org.el,8047,command,org-sort,partial,src/org/editing.rs: ported command; acceptance gates open,"Call `org-sort-entries', `org-table-sort-lines' or `org-sort-list'."
 org.el,8057,function,org-sort-remove-invisible,missing,,Remove emphasis markers and any invisible property from string S.
-org.el,8096,command,org-sort-entries,missing,,Sort entries on a certain level of an outline tree.
+org.el,8096,command,org-sort-entries,partial,src/org/editing.rs: ported command; acceptance gates open,Sort entries on a certain level of an outline tree.
 org.el,8348,function,org-contextualize-keys,missing,,Return valid elements in ALIST depending on CONTEXTS.
 org.el,8400,function,org-contextualize-validate-key,missing,,Check CONTEXTS for agenda or capture KEY.
 org.el,8427,function,org-string-collate-greaterp,missing,,Return non-nil if S1 is greater than S2 in collation order.
@@ -4058,15 +4058,15 @@ org.el,8622,function,org--file-apps-entry-locator-p,missing,,Non-nil if ENTRY sh
 org.el,8639,function,org--file-apps-regexp-alist,missing,,Convert extensions to regular expressions in the cars of LIST.
 org.el,8659,function,org--open-file-format-command,missing,,Format MAILCAP-COMMAND to launch viewer for the FILE.
 org.el,8728,function,org-open-file,missing,,Open the file at PATH.
-org.el,8874,command,org-open-at-point-global,missing,,Follow a link or a timestamp like Org mode does.
-org.el,8912,command,org-open-at-point,missing,,Open thing at point.
+org.el,8874,command,org-open-at-point-global,partial,src/org/links.rs: ported command; acceptance gates open,Follow a link or a timestamp like Org mode does.
+org.el,8912,command,org-open-at-point,partial,src/org/links.rs: ported command; acceptance gates open,Open thing at point.
 org.el,9044,function,org-offer-links-in-entry,missing,,Offer links in the current entry and return the selected link.
 org.el,9112,function,org--link-at-point,missing,,`thing-at-point' provider function.
 org.el,9116,function,org--bounds-of-link-at-point,missing,,`bounds-of-thing-at-point' provider function.
 org.el,9123,function,org--forward-sentence-thing-at-point-provider,missing,,`forward-thing' provider function.
 org.el,9131,function,org-do-occur,missing,,Call the Emacs command `occur'.
-org.el,9167,command,org-mark-ring-push,missing,,Put the current position into the mark ring and rotate it.
-org.el,9182,command,org-mark-ring-goto,missing,,Jump to the previous position in the mark ring.
+org.el,9167,command,org-mark-ring-push,partial,src/org/links.rs: ported command; acceptance gates open,Put the current position into the mark ring and rotate it.
+org.el,9182,command,org-mark-ring-goto,partial,src/org/links.rs: ported command; acceptance gates open,Jump to the previous position in the mark ring.
 org.el,9204,function,org-follow-timestamp-link,missing,,Open an agenda view for the timestamp date/range at point.
 org.el,9238,function,org-get-org-file,missing,,"Read a filename, with default directory `org-directory'."
 org.el,9245,function,org-notes-order-reversed-p,missing,,Check if the current file should receive notes in reversed order.
@@ -4089,18 +4089,18 @@ org.el,9525,function,org--insert-structure-template-mks,missing,,Present `org-st
 org.el,9583,function,org--insert-structure-template-unique-keys,missing,,"Make a list of unique, two characters long elements from KEYS."
 org.el,9608,command,org-insert-block-template,missing,,Insert a block structure of the type #+begin_foo/#+end_foo.
 org.el,9609,command,org-insert-structure-template,missing,,Insert a block structure of the type #+begin_foo/#+end_foo.
-org.el,9665,command,org-toggle-comment,missing,,Change the COMMENT state of an entry.
+org.el,9665,command,org-toggle-comment,partial,src/org/todo.rs: ported command; acceptance gates open,Change the COMMENT state of an entry.
 org.el,9700,function,org-current-effective-time,partial,time::current_effective_time (no last clock-out time),Return current time adjusted for `org-extend-today-until' variable.
-org.el,9713,command,org-todo-yesterday,missing,,Like `org-todo' but the time of change will be 23:59 of yesterday.
+org.el,9713,command,org-todo-yesterday,partial,src/org/todo.rs: ported command; acceptance gates open,Like `org-todo' but the time of change will be 23:59 of yesterday.
 org.el,9726,command,org-cancel-repeater,missing,,Cancel all the repeaters in entry by setting their numeric value to zero.
 org.el,9727,command,org-cancel-repeaters,missing,,Cancel all the repeaters in entry by setting their numeric value to zero.
-org.el,9747,command,org-todo,missing,,Change the TODO state of an item.
+org.el,9747,command,org-todo,partial,src/org/face.rs: ported command; acceptance gates open,Change the TODO state of an item.
 org.el,10007,function,org-block-todo-from-children-or-siblings-or-parent,missing,,"Block turning an entry into a TODO, using the hierarchy."
 org.el,10076,option,org-track-ordered-property-with-tag,missing,,Should the ORDERED property also be shown as a tag?
-org.el,10095,command,org-toggle-ordered-property,missing,,Toggle the ORDERED property of the current entry.
+org.el,10095,command,org-toggle-ordered-property,partial,src/org/todo.rs: ported command; acceptance gates open,Toggle the ORDERED property of the current entry.
 org.el,10113,function,org-block-todo-from-checkboxes,missing,,"Block turning an entry into a TODO, using checkboxes."
 org.el,10146,function,org-entry-blocked-p,missing,,Non-nil if entry at point is blocked.
-org.el,10157,command,org-update-statistics-cookies,missing,,"Update the statistics cookie, either from TODO or from checkboxes."
+org.el,10157,command,org-update-statistics-cookies,partial,src/org/todo.rs: ported command; acceptance gates open,"Update the statistics cookie, either from TODO or from checkboxes."
 org.el,10204,function,org-update-parent-todo-statistics,missing,,Update any statistics cookie in the parent of the current headline.
 org.el,10325,function,org-todo-trigger-tag-changes,missing,,Apply the changes defined in `org-todo-state-tags-triggers'.
 org.el,10340,function,org-local-logging,missing,,Get logging settings from a property VALUE.
@@ -4112,7 +4112,7 @@ org.el,10497,function,org-get-todo-state,missing,,Return the TODO keyword of the
 org.el,10506,function,org-at-date-range-p,done,time::stamp::date_range_at,Non-nil if point is inside a date range.
 org.el,10530,function,org-get-repeat,done,"time::get_repeat(ed, h); stamp::repeat_of for a string",Check if there is a timestamp with repeater in this entry.
 org.el,10560,function,org-auto-repeat-maybe,partial,"time::auto_repeat(ed, h): CLOSED/SCHEDULED cleanup and all repeater shifts; state reset, LAST_REPEAT, logging are the TODO module's; no y-or-n after 10 ++ shifts",Check if the current headline contains a repeated timestamp.
-org.el,10722,command,org-show-todo-tree,missing,,Make a compact tree which shows all headlines marked with TODO.
+org.el,10722,command,org-show-todo-tree,partial,src/org/todo.rs: ported command; acceptance gates open,Make a compact tree which shows all headlines marked with TODO.
 org.el,10747,function,org--deadline-or-schedule,missing,,Insert DEADLINE or SCHEDULE information in current entry.
 org.el,10832,command,org-deadline,done,"C-c C-d; C-u removes, C-u C-u warning delay, repeater/warning kept, CLOSED removed; no active-region loop (Org commands never see a Visual region)","Insert a ""DEADLINE:"" string with a timestamp to make a deadline."
 org.el,10853,command,org-schedule,done,"C-c C-s; C-u removes, C-u C-u delay, repeater kept, CLOSED removed; no active-region loop","Insert a ""SCHEDULED:"" string with a timestamp to schedule an item."
@@ -4121,7 +4121,7 @@ org.el,10882,function,org-get-deadline-time,internal,"time::planning_get(ed, h, 
 org.el,10890,function,org-remove-timestamp-with-keyword,done,time::remove_timestamp_with_keyword (planning line),Remove all time stamps with KEYWORD in the current entry.
 org.el,10918,function,org-at-planning-p,missing,,Non-nil when point is on a planning info line.
 org.el,10934,function,org-add-planning-info,done,"time::set_planning / time::add_planning_info, upstream order and org-adapt-indentation",Insert new timestamp with keyword in the planning line.
-org.el,11062,command,org-add-note,missing,,Add a note to the current entry.
+org.el,11062,command,org-add-note,partial,src/org/todo.rs: ported command; acceptance gates open,Add a note to the current entry.
 org.el,11068,function,org-log-beginning,missing,,Return expected start of log notes in current entry.
 org.el,11159,function,org-add-log-setup,missing,,Set up the post command hook to take a note.
 org.el,11176,function,org--log-note-format-regexp,missing,,Return a regexp matching log note FORMAT.
@@ -4129,25 +4129,25 @@ org.el,11191,function,org-skip-over-state-notes,missing,,Skip past the list of S
 org.el,11208,function,org-add-log-note,missing,,"Pop up a window for taking a note, and add this note later."
 org.el,11246,function,org-store-log-note,missing,,"Finish taking a log note, and insert it to where it belongs."
 org.el,11339,function,org-remove-empty-drawer-at,missing,,Remove an empty drawer at position POS.
-org.el,11355,command,org-sparse-tree,missing,,"Create a sparse tree, prompt for the details."
-org.el,11426,command,org-occur,missing,,Make a compact tree showing all matches of REGEXP.
+org.el,11355,command,org-sparse-tree,partial,src/org/todo.rs: ported command; acceptance gates open,"Create a sparse tree, prompt for the details."
+org.el,11426,command,org-occur,partial,src/org/todo.rs: ported command; acceptance gates open,Make a compact tree showing all matches of REGEXP.
 org.el,11475,function,org-occur-next-match,missing,,Function for `next-error-function' to find sparse tree matches.
 org.el,11501,function,org-highlight-new-match,missing,,Highlight from BEG to END and mark the highlight is an occur headline.
-org.el,11508,command,org-remove-occur-highlights,missing,,Remove the occur highlights from the buffer.
+org.el,11508,command,org-remove-occur-highlights,partial,src/org/editing.rs: ported command; acceptance gates open,Remove the occur highlights from the buffer.
 org.el,11523,function,org-priority-valid-cookie-string-p,missing,,"Return t if the PRIORITY is a valid priority cookie, nil otherwise."
 org.el,11531,function,org-priority-valid-value-p,missing,,"Return t if the PRIORITY is a valid priority value (0-64, A-Z), nil otherwise."
 org.el,11548,function,org-priority-number-p,missing,,"Return t if the PRIORITY is an integer 0 through 64, inclusive, nil otherwise."
 org.el,11553,function,org-priority-to-string,missing,,Return a string form of PRIORITY based on whether it's numeric or alphabetic.
-org.el,11562,command,org-priority-up,missing,,Increase the priority of the current item.
-org.el,11567,command,org-priority-down,missing,,Decrease the priority of the current item.
-org.el,11572,command,org-priority,missing,,Change the priority of an item.
-org.el,11701,command,org-show-priority,missing,,Show the priority of the current item as number.
-org.el,11702,command,org-priority-show,missing,,Show the priority of the current item as number.
+org.el,11562,command,org-priority-up,partial,src/org/todo.rs: ported command; acceptance gates open,Increase the priority of the current item.
+org.el,11567,command,org-priority-down,partial,src/org/todo.rs: ported command; acceptance gates open,Decrease the priority of the current item.
+org.el,11572,command,org-priority,partial,src/org/todo.rs: ported command; acceptance gates open,Change the priority of an item.
+org.el,11701,command,org-show-priority,partial,src/org/editing.rs: ported command; acceptance gates open,Show the priority of the current item as number.
+org.el,11702,command,org-priority-show,partial,src/org/todo.rs: ported command; acceptance gates open,Show the priority of the current item as number.
 org.el,11715,function,org-get-priority,missing,,Find priority cookie and return priority.
 org.el,11752,function,org-scan-tags,missing,,Scan headline tags with inheritance and produce output ACTION.
 org.el,11904,function,org-remove-uninherited-tags,missing,,Remove all tags that are not inherited from the list TAGS.
-org.el,11925,command,org-match-sparse-tree,missing,,Create a sparse tree according to tags string MATCH.
-org.el,11941,command,org-tags-sparse-tree,missing,,Create a sparse tree according to tags string MATCH.
+org.el,11925,command,org-match-sparse-tree,partial,src/org/tags.rs: ported command; acceptance gates open,Create a sparse tree according to tags string MATCH.
+org.el,11941,command,org-tags-sparse-tree,partial,src/org/tags.rs: ported command; acceptance gates open,Create a sparse tree according to tags string MATCH.
 org.el,11943,function,org-global-tags-completion-table,missing,,Return the list of all tags in all agenda buffer/files.
 org.el,11963,function,org-make-tags-matcher,missing,,Create the TAGS/TODO matcher form for the selection string MATCH.
 org.el,12191,function,org--tags-expand-group,missing,,"Recursively expand all tags in GROUP, according to TAG-GROUPS."
@@ -4156,10 +4156,10 @@ org.el,12281,function,org-op-to-function,missing,,Turn an operator into the appr
 org.el,12297,function,org-add-prop-inherited,missing,,
 org.el,12300,function,org-toggle-tag,missing,,Toggle the tag TAG for the current line.
 org.el,12319,function,org--align-tags-here,missing,,Align tags on the current headline to TO-COL.
-org.el,12350,command,org-set-tags-command,missing,,Set the tags for the current visible entry.
+org.el,12350,command,org-set-tags-command,partial,src/org/tags.rs: ported command; acceptance gates open,Set the tags for the current visible entry.
 org.el,12432,function,org-align-tags,missing,,Align tags in current entry.
 org.el,12459,function,org-set-tags,missing,,"Set the tags of the current entry to TAGS, replacing current tags."
-org.el,12497,command,org-change-tag-in-region,missing,,Add or remove TAG for each entry in the region.
+org.el,12497,command,org-change-tag-in-region,partial,src/org/tags.rs: ported command; acceptance gates open,Add or remove TAG for each entry in the region.
 org.el,12539,function,org-tags-completion-function,missing,,Complete tag STRING.
 org.el,12578,function,org-fast-tag-insert,missing,,"Insert KWD, and the TAGS, the latter with face FACE."
 org.el,12585,function,org-fast-tag-show-exit,missing,,
@@ -4176,9 +4176,9 @@ org.el,13174,function,org--update-property-plist,missing,,Associate KEY to VAL i
 org.el,13184,function,org-get-property-block,missing,,Return the (beg . end) range of the body of the property drawer.
 org.el,13214,function,org-at-property-drawer-p,missing,,Non-nil when point is at the first line of a property drawer.
 org.el,13233,function,org-at-property-p,missing,,Non-nil when point is inside a property drawer.
-org.el,13244,command,org-property-action,missing,,Do an action on properties.
-org.el,13256,command,org-inc-effort,missing,,Increment the value of the effort property in the current entry.
-org.el,13263,command,org-set-effort,missing,,Set the effort property of the current entry.
+org.el,13244,command,org-property-action,partial,src/org/props.rs: ported command; acceptance gates open,Do an action on properties.
+org.el,13256,command,org-inc-effort,partial,src/org/props.rs: ported command; acceptance gates open,Increment the value of the effort property in the current entry.
+org.el,13263,command,org-set-effort,partial,src/org/props.rs: ported command; acceptance gates open,Set the effort property of the current entry.
 org.el,13299,function,org-entry-properties,missing,,Get all properties of the current entry.
 org.el,13501,function,org--property-local-values,missing,,Return value for PROPERTY in current entry or at EPOM.
 org.el,13521,function,org--property-global-or-keyword-value,missing,,Return value for PROPERTY as defined by global properties or by keyword.
@@ -4197,23 +4197,23 @@ org.el,13709,function,org-entry-put,missing,,Set PROPERTY to VALUE for entry at 
 org.el,13788,function,org-buffer-property-keys,missing,,Get all property keys in the current buffer.
 org.el,13865,function,org-property-values,missing,,List all non-nil values of property KEY in current buffer.
 org.el,13876,function,org-insert-property-drawer,missing,,Insert a property drawer into the current entry.
-org.el,13902,command,org-insert-drawer,missing,,Insert a drawer at point.
+org.el,13902,command,org-insert-drawer,partial,src/org/props.rs: ported command; acceptance gates open,Insert a drawer at point.
 org.el,13982,function,org-set-property-function,missing,,Get the function that should be used to set PROPERTY.
 org.el,13988,function,org-read-property-value,missing,,"Read value for PROPERTY, as a string."
 org.el,14024,function,org-read-property-name,missing,,Read a property name.
-org.el,14037,command,org-set-property-and-value,missing,,Allow setting [PROPERTY]: [value] direction from prompt.
-org.el,14054,command,org-set-property,missing,,"In the current entry, set PROPERTY to VALUE."
+org.el,14037,command,org-set-property-and-value,partial,src/org/props.rs: ported command; acceptance gates open,Allow setting [PROPERTY]: [value] direction from prompt.
+org.el,14054,command,org-set-property,partial,src/org/props.rs: ported command; acceptance gates open,"In the current entry, set PROPERTY to VALUE."
 org.el,14080,function,org-find-property,missing,,Find first entry in buffer that sets PROPERTY.
-org.el,14101,command,org-delete-property,missing,,"In the current entry, delete PROPERTY."
-org.el,14119,command,org-delete-property-globally,missing,,"Remove PROPERTY globally, from all entries."
+org.el,14101,command,org-delete-property,partial,src/org/props.rs: ported command; acceptance gates open,"In the current entry, delete PROPERTY."
+org.el,14119,command,org-delete-property-globally,partial,src/org/props.rs: ported command; acceptance gates open,"Remove PROPERTY globally, from all entries."
 org.el,14139,command,org-compute-property-at-point,missing,,Compute the property at point.
 org.el,14161,function,org-property-get-allowed-values,missing,,Get allowed values at EPOM for the property PROPERTY.
-org.el,14194,command,org-property-previous-allowed-value,missing,,Switch to the next allowed value for this property.
-org.el,14199,command,org-property-next-allowed-value,missing,,Switch to the next allowed value for this property.
+org.el,14194,command,org-property-previous-allowed-value,partial,src/org/props.rs: ported command; acceptance gates open,Switch to the next allowed value for this property.
+org.el,14199,command,org-property-next-allowed-value,partial,src/org/props.rs: ported command; acceptance gates open,Switch to the next allowed value for this property.
 org.el,14231,function,org-find-olp,missing,,Return a marker pointing to the entry at outline path OLP.
 org.el,14269,function,org-find-exact-headline-in-buffer,missing,,Find node HEADING in BUFFER.
 org.el,14287,function,org-find-exact-heading-in-directory,missing,,"Find Org node headline HEADING in all "".org"" files in directory DIR."
-org.el,14303,command,org-find-entry-with-id,missing,,Locate the entry that contains the ID property with exact value IDENT.
+org.el,14303,command,org-find-entry-with-id,partial,src/org/editing.rs: ported command; acceptance gates open,Locate the entry that contains the ID property with exact value IDENT.
 org.el,14322,command,org-time-stamp,done,alias of org-timestamp,Prompt for a date/time and insert a time stamp.
 org.el,14323,command,org-timestamp,done,"C-c .: prompt, replace keeping repeater, twice for a range, C-u time, C-u C-u now",Prompt for a date/time and insert a time stamp.
 org.el,14395,function,org-get-compact-tod,done,time::stamp::compact_tod,
@@ -4287,11 +4287,11 @@ org.el,16067,command,org-date-from-calendar,adapted,C-c <: inserts or changes to
 org.el,16081,option,org-image-actual-width,missing,,"When non-nil, use the actual width of images when inlining them."
 org.el,16128,option,org-agenda-inhibit-startup,missing,,Inhibit startup when preparing agenda buffers.
 org.el,16137,option,org-agenda-ignore-properties,missing,,Avoid updating text properties when building the agenda.
-org.el,16151,command,org-save-all-org-buffers,missing,,Save all Org buffers without user confirmation.
-org.el,16159,command,org-revert-all-org-buffers,missing,,Revert all Org buffers.
-org.el,16188,command,org-switchb,missing,,Switch between Org buffers.
+org.el,16151,command,org-save-all-org-buffers,partial,src/org/editing.rs: ported command; acceptance gates open,Save all Org buffers without user confirmation.
+org.el,16159,command,org-revert-all-org-buffers,partial,src/org/editing.rs: ported command; acceptance gates open,Revert all Org buffers.
+org.el,16188,command,org-switchb,partial,src/org/editing.rs: ported command; acceptance gates open,Switch between Org buffers.
 org.el,16235,function,org-agenda-file-p,missing,,"Return non-nil, if FILE is an agenda file."
-org.el,16244,command,org-edit-agenda-file-list,missing,,Edit the list of agenda files.
+org.el,16244,command,org-edit-agenda-file-list,partial,src/org/editing.rs: ported command; acceptance gates open,Edit the list of agenda files.
 org.el,16267,function,org-store-new-agenda-file-list,missing,,Set new value for the agenda file list and save it correctly.
 org.el,16287,function,org-read-agenda-file-list,missing,,Read the list of agenda files from a file.
 org.el,16307,command,org-cycle-agenda-files,missing,,Cycle through the files in `org-agenda-files'.
@@ -4302,13 +4302,13 @@ org.el,16374,function,org-check-agenda-file,missing,,"Make sure FILE exists.  If
 org.el,16386,function,org-get-agenda-file-buffer,missing,,Get an agenda buffer visiting FILE.
 org.el,16398,function,org-release-buffers,missing,,"Release all buffers in list, asking the user for confirmation when needed."
 org.el,16411,command,org-agenda-prepare-buffers,missing,,"Create buffers for all agenda files, protect archived trees and comments."
-org.el,16473,command,org-cdlatex-mode,missing,,Toggle the minor `org-cdlatex-mode'.
+org.el,16473,command,org-cdlatex-mode,partial,src/org/editing.rs: ported command; acceptance gates open,Toggle the minor `org-cdlatex-mode'.
 org.el,16491,function,org--math-p,missing,,Return t inside math fragments or running `cdlatex-math-symbol'.
 org.el,16515,function,turn-on-org-cdlatex,missing,,Unconditionally turn on `org-cdlatex-mode'.
 org.el,16519,function,org-try-cdlatex-tab,missing,,"Check if it makes sense to execute `cdlatex-tab', and do it if yes."
-org.el,16538,command,org-cdlatex-underscore-caret,missing,,Execute `cdlatex-sub-superscript' in LaTeX fragments.
-org.el,16547,command,org-cdlatex-math-modify,missing,,Execute `cdlatex-math-modify' in LaTeX fragments.
-org.el,16556,command,org-cdlatex-environment-indent,missing,,Execute `cdlatex-environment' and indent the inserted environment.
+org.el,16538,command,org-cdlatex-underscore-caret,partial,src/org/editing.rs: ported command; acceptance gates open,Execute `cdlatex-sub-superscript' in LaTeX fragments.
+org.el,16547,command,org-cdlatex-math-modify,partial,src/org/editing.rs: ported command; acceptance gates open,Execute `cdlatex-math-modify' in LaTeX fragments.
+org.el,16556,command,org-cdlatex-environment-indent,partial,src/org/editing.rs: ported command; acceptance gates open,Execute `cdlatex-environment' and indent the inserted environment.
 org.el,16616,function,org-inside-LaTeX-fragment-p,missing,,Test if point is inside a LaTeX fragment or environment.
 org.el,16625,function,org-inside-latex-macro-p,missing,,Is point inside a LaTeX macro or its arguments?
 org.el,16631,function,org--make-preview-overlay,missing,,Build an overlay between BEG and END using IMAGE file.
@@ -4317,7 +4317,7 @@ org.el,16659,function,org--latex-preview-region,missing,,Preview LaTeX fragments
 org.el,16674,command,org-latex-preview,missing,,Toggle preview of the LaTeX fragment at point.
 org.el,16743,function,org-format-latex,missing,,Replace LaTeX fragments with links to an image.
 org.el,16867,function,org-place-formula-image,missing,,Place an overlay from BEG to END showing MOVEFILE.
-org.el,16886,command,org-create-math-formula,missing,,Convert LATEX-FRAG to MathML and store it in MATHML-FILE.
+org.el,16886,command,org-create-math-formula,partial,src/org/editing.rs: ported command; acceptance gates open,Convert LATEX-FRAG to MathML and store it in MATHML-FILE.
 org.el,16950,function,org-format-latex-as-mathml,missing,,Use `org-create-math-formula' but check local cache first.
 org.el,16980,function,org-format-latex-as-html,missing,,Convert LATEX-FRAGMENT to HTML.
 org.el,16988,function,org--get-display-dpi,missing,,Get the DPI of the display.
@@ -4331,87 +4331,87 @@ org.el,17178,function,org-latex-color-format,missing,,Convert COLOR-NAME to a RG
 org.el,17184,function,org-normalize-color,missing,,Return string to be used as color value for an RGB component.
 org.el,17192,function,org-fix-tags-on-the-fly,missing,,Align tags in headline at point.
 org.el,17200,function,org--speed-command-p,missing,,Return non-nil when current command is a speed command.
-org.el,17210,command,org-self-insert-command,missing,,"Like `self-insert-command', use `overwrite-mode' for whitespace in tables."
-org.el,17275,command,org-delete-backward-char,missing,,"Like `delete-backward-char', insert whitespace at field end in tables."
-org.el,17294,command,org-delete-char,missing,,"Like `delete-char', but insert whitespace at field end in tables."
-org.el,17350,command,org-transpose-words,missing,,Transpose words for Org.
+org.el,17210,command,org-self-insert-command,partial,src/org/editing.rs: ported command; acceptance gates open,"Like `self-insert-command', use `overwrite-mode' for whitespace in tables."
+org.el,17275,command,org-delete-backward-char,partial,src/org/editing.rs: ported command; acceptance gates open,"Like `delete-backward-char', insert whitespace at field end in tables."
+org.el,17294,command,org-delete-char,partial,src/org/editing.rs: ported command; acceptance gates open,"Like `delete-char', but insert whitespace at field end in tables."
+org.el,17350,command,org-transpose-words,partial,src/org/editing.rs: ported command; acceptance gates open,Transpose words for Org.
 org.el,17499,function,org-modifier-cursor-error,missing,,"Throw an error, a modified cursor command was applied in wrong context."
 org.el,17503,function,org-shiftselect-error,missing,,Throw an error because Shift-Cursor command was applied in wrong context.
 org.el,17509,function,org-call-for-shift-select,missing,,
-org.el,17513,command,org-shifttab,missing,,Global visibility cycling or move to previous table field.
-org.el,17530,command,org-shiftmetaleft,missing,,Promote subtree or delete table column.
-org.el,17557,command,org-shiftmetaright,missing,,Demote subtree or insert table column.
-org.el,17584,command,org-shiftmetaup,missing,,Drag the line at point up.
-org.el,17605,command,org-shiftmetadown,missing,,Drag the line at point down.
+org.el,17513,command,org-shifttab,partial,src/org/fold.rs: ported command; acceptance gates open,Global visibility cycling or move to previous table field.
+org.el,17530,command,org-shiftmetaleft,partial,src/org/structure.rs: ported command; acceptance gates open,Promote subtree or delete table column.
+org.el,17557,command,org-shiftmetaright,partial,src/org/structure.rs: ported command; acceptance gates open,Demote subtree or insert table column.
+org.el,17584,command,org-shiftmetaup,partial,src/org/structure.rs: ported command; acceptance gates open,Drag the line at point up.
+org.el,17605,command,org-shiftmetadown,partial,src/org/structure.rs: ported command; acceptance gates open,Drag the line at point down.
 org.el,17626,function,org-hidden-tree-error,missing,,
-org.el,17630,command,org-metaleft,missing,,"Promote heading, list item at point or move table column left."
-org.el,17667,command,org-metaright,missing,,"Demote heading, list item at point or move table column right."
+org.el,17630,command,org-metaleft,partial,src/org/structure.rs: ported command; acceptance gates open,"Promote heading, list item at point or move table column left."
+org.el,17667,command,org-metaright,partial,src/org/structure.rs: ported command; acceptance gates open,"Demote heading, list item at point or move table column right."
 org.el,17708,function,org-check-for-hidden,missing,,Check if there are hidden headlines/items in the current visual line.
-org.el,17735,command,org-metaup,missing,,Move subtree up or move table row up.
-org.el,17815,command,org-metadown,missing,,Move subtree down or move table row down.
-org.el,17881,command,org-shiftup,missing,,Act on current element according to context.
-org.el,17920,command,org-shiftdown,missing,,Act on current element according to context.
-org.el,17960,command,org-shiftright,missing,,Act on the current element according to context.
-org.el,18011,command,org-shiftleft,missing,,Act on current element according to context.
-org.el,18062,command,org-shiftcontrolright,missing,,Switch to next TODO set.
-org.el,18075,command,org-shiftcontrolleft,missing,,Switch to previous TODO set.
-org.el,18088,command,org-shiftcontrolup,missing,,Change timestamps synchronously up in CLOCK log lines.
-org.el,18100,command,org-shiftcontroldown,missing,,Change timestamps synchronously down in CLOCK log lines.
-org.el,18112,command,org-increase-number-at-point,missing,,Increment the number at point.
-org.el,18131,command,org-decrease-number-at-point,missing,,Decrement the number at point.
-org.el,18138,command,org-ctrl-c-ret,missing,,Call `org-table-hline-and-move' or `org-insert-heading'.
-org.el,18145,command,org-copy-visible,missing,,Copy the visible parts of the region.
-org.el,18162,command,org-copy-special,missing,,Copy region in table or copy current subtree.
-org.el,18170,command,org-cut-special,missing,,Cut region in table or cut current subtree.
-org.el,18178,command,org-paste-special,missing,,"Paste rectangular region into table, or paste subtree relative to level."
-org.el,18187,command,org-edit-special,missing,,Call a special editor for the element at point.
-org.el,18268,command,org-ctrl-c-ctrl-c,missing,,"Set tags in headline, or update according to changed information at point."
-org.el,18528,command,org-mode-restart,missing,,Restart `org-mode'.
-org.el,18539,command,org-kill-note-or-show-branches,missing,,"Abort storing current note, or show just branches."
-org.el,18554,command,org-delete-indentation,missing,,Join current line to previous and fix whitespace at join.
-org.el,18622,command,org-open-line,missing,,"Insert a new row in tables, call `open-line' elsewhere."
+org.el,17735,command,org-metaup,partial,src/org/structure.rs: ported command; acceptance gates open,Move subtree up or move table row up.
+org.el,17815,command,org-metadown,partial,src/org/structure.rs: ported command; acceptance gates open,Move subtree down or move table row down.
+org.el,17881,command,org-shiftup,partial,src/org/dispatch.rs: ported command; acceptance gates open,Act on current element according to context.
+org.el,17920,command,org-shiftdown,partial,src/org/dispatch.rs: ported command; acceptance gates open,Act on current element according to context.
+org.el,17960,command,org-shiftright,partial,src/org/dispatch.rs: ported command; acceptance gates open,Act on the current element according to context.
+org.el,18011,command,org-shiftleft,partial,src/org/dispatch.rs: ported command; acceptance gates open,Act on current element according to context.
+org.el,18062,command,org-shiftcontrolright,partial,src/org/dispatch.rs: ported command; acceptance gates open,Switch to next TODO set.
+org.el,18075,command,org-shiftcontrolleft,partial,src/org/dispatch.rs: ported command; acceptance gates open,Switch to previous TODO set.
+org.el,18088,command,org-shiftcontrolup,partial,src/org/dispatch.rs: ported command; acceptance gates open,Change timestamps synchronously up in CLOCK log lines.
+org.el,18100,command,org-shiftcontroldown,partial,src/org/dispatch.rs: ported command; acceptance gates open,Change timestamps synchronously down in CLOCK log lines.
+org.el,18112,command,org-increase-number-at-point,partial,src/org/editing.rs: ported command; acceptance gates open,Increment the number at point.
+org.el,18131,command,org-decrease-number-at-point,partial,src/org/editing.rs: ported command; acceptance gates open,Decrement the number at point.
+org.el,18138,command,org-ctrl-c-ret,partial,src/org/structure.rs: ported command; acceptance gates open,Call `org-table-hline-and-move' or `org-insert-heading'.
+org.el,18145,command,org-copy-visible,partial,src/org/structure.rs: ported command; acceptance gates open,Copy the visible parts of the region.
+org.el,18162,command,org-copy-special,partial,src/org/structure.rs: ported command; acceptance gates open,Copy region in table or copy current subtree.
+org.el,18170,command,org-cut-special,partial,src/org/structure.rs: ported command; acceptance gates open,Cut region in table or cut current subtree.
+org.el,18178,command,org-paste-special,partial,src/org/structure.rs: ported command; acceptance gates open,"Paste rectangular region into table, or paste subtree relative to level."
+org.el,18187,command,org-edit-special,partial,src/org/src.rs: ported command; acceptance gates open,Call a special editor for the element at point.
+org.el,18268,command,org-ctrl-c-ctrl-c,partial,src/org/dispatch.rs: ported command; acceptance gates open,"Set tags in headline, or update according to changed information at point."
+org.el,18528,command,org-mode-restart,partial,src/org/editing.rs: ported command; acceptance gates open,Restart `org-mode'.
+org.el,18539,command,org-kill-note-or-show-branches,partial,src/org/fold.rs: ported command; acceptance gates open,"Abort storing current note, or show just branches."
+org.el,18554,command,org-delete-indentation,partial,src/org/editing.rs: ported command; acceptance gates open,Join current line to previous and fix whitespace at join.
+org.el,18622,command,org-open-line,partial,src/org/editing.rs: ported command; acceptance gates open,"Insert a new row in tables, call `open-line' elsewhere."
 org.el,18632,function,org--newline,missing,,Call `newline-and-indent' or just `newline'.
-org.el,18642,command,org-return,missing,,Goto next table row or insert a newline.
-org.el,18729,command,org-return-and-maybe-indent,missing,,"Goto next table row, or insert a newline, maybe indented."
-org.el,18740,command,org-ctrl-c-tab,missing,,"Toggle columns width in a table, or show children."
-org.el,18757,command,org-ctrl-c-star,missing,,"Compute table, or change heading status of lines."
-org.el,18769,command,org-ctrl-c-minus,missing,,Insert separator line in table or modify bullet status of line.
-org.el,18785,command,org-toggle-heading,missing,,"Convert headings to normal text, or items or text to headings."
-org.el,18895,command,org-meta-return,missing,,Insert a new heading or wrap a region in a table.
+org.el,18642,command,org-return,partial,src/org/editing.rs: ported command; acceptance gates open,Goto next table row or insert a newline.
+org.el,18729,command,org-return-and-maybe-indent,partial,src/org/editing.rs: ported command; acceptance gates open,"Goto next table row, or insert a newline, maybe indented."
+org.el,18740,command,org-ctrl-c-tab,partial,src/org/fold.rs: ported command; acceptance gates open,"Toggle columns width in a table, or show children."
+org.el,18757,command,org-ctrl-c-star,partial,src/org/structure.rs: ported command; acceptance gates open,"Compute table, or change heading status of lines."
+org.el,18769,command,org-ctrl-c-minus,partial,src/org/structure.rs: ported command; acceptance gates open,Insert separator line in table or modify bullet status of line.
+org.el,18785,command,org-toggle-heading,partial,src/org/structure.rs: ported command; acceptance gates open,"Convert headings to normal text, or items or text to headings."
+org.el,18895,command,org-meta-return,partial,src/org/structure.rs: ported command; acceptance gates open,Insert a new heading or wrap a region in a table.
 org.el,18908,function,org-in-subtree-not-table-p,missing,,Are we in a subtree and not in a table?
-org.el,19165,command,org-info,missing,,Read documentation for Org in the info system.
-org.el,19171,command,org-browse-news,missing,,Browse the news for the latest major release.
-org.el,19179,command,org-submit-bug-report,missing,,Submit a bug report on Org via mail.
-org.el,19250,command,org-submit-feature-request,missing,,Submit a feature request to Org mode.
-org.el,19268,command,org-submit-patch,missing,,Submit a patch for Org via mail.
+org.el,19165,command,org-info,partial,src/org/editing.rs: ported command; acceptance gates open,Read documentation for Org in the info system.
+org.el,19171,command,org-browse-news,partial,src/org/editing.rs: ported command; acceptance gates open,Browse the news for the latest major release.
+org.el,19179,command,org-submit-bug-report,partial,src/org/editing.rs: ported command; acceptance gates open,Submit a bug report on Org via mail.
+org.el,19250,command,org-submit-feature-request,partial,src/org/editing.rs: ported command; acceptance gates open,Submit a feature request to Org mode.
+org.el,19268,command,org-submit-patch,partial,src/org/editing.rs: ported command; acceptance gates open,Submit a patch for Org via mail.
 org.el,19300,function,org-install-agenda-files-menu,missing,,Install agenda file menu.
-org.el,19324,command,org-require-autoloaded-modules,missing,,
-org.el,19331,command,org-reload,missing,,Reload all Org Lisp files.
-org.el,19381,command,org-customize,missing,,Call the customize function with org as argument.
-org.el,19388,command,org-create-customize-menu,missing,,"Create a full customization menu for Org mode, insert it into the menu."
+org.el,19324,command,org-require-autoloaded-modules,partial,src/org/editing.rs: ported command; acceptance gates open,
+org.el,19331,command,org-reload,partial,src/org/editing.rs: ported command; acceptance gates open,Reload all Org Lisp files.
+org.el,19381,command,org-customize,partial,src/org/editing.rs: ported command; acceptance gates open,Call the customize function with org as argument.
+org.el,19388,command,org-create-customize-menu,partial,src/org/editing.rs: ported command; acceptance gates open,"Create a full customization menu for Org mode, insert it into the menu."
 org.el,19409,function,org-in-clocktable-p,missing,,Check if the cursor is in a clocktable.
 org.el,19420,function,org-in-verbatim-emphasis,missing,,
 org.el,19426,function,org-goto-marker-or-bmk,missing,,"Go to MARKER, widen if necessary.  When marker is not live, try BOOKMARK."
 org.el,19441,function,org-quote-csv-field,missing,,Quote field for inclusion in CSV material.
-org.el,19447,command,org-force-self-insert,missing,,Needed to enforce self-insert under remapping.
+org.el,19447,command,org-force-self-insert,partial,src/org/editing.rs: ported command; acceptance gates open,Needed to enforce self-insert under remapping.
 org.el,19452,function,org-quote-vert,missing,,"Replace ""|"" with ""\vert""."
 org.el,19458,function,org-in-src-block-p,missing,,Return t when point is at a source block element.
 org.el,19477,function,org-context,missing,,Return a list of contexts of the current cursor position.
 org.el,19597,function,org-between-regexps-p,missing,,Non-nil when point is between matches of START-RE and END-RE.
 org.el,19629,function,org-in-block-p,missing,,Non-nil when point belongs to a block whose name belongs to NAMES.
-org.el,19655,command,org-occur-in-agenda-files,missing,,Call `multi-occur' with buffers for all agenda files.
-org.el,19698,command,org-occur-link-in-agenda-files,missing,,Create a link and search for it in the agendas.
+org.el,19655,command,org-occur-in-agenda-files,partial,src/org/editing.rs: ported command; acceptance gates open,Call `multi-occur' with buffers for all agenda files.
+org.el,19698,command,org-occur-link-in-agenda-files,partial,src/org/editing.rs: ported command; acceptance gates open,Create a link and search for it in the agendas.
 org.el,19708,function,org-back-over-empty-lines,missing,,"Move backwards over whitespace, to the beginning of the first empty line."
 org.el,19722,function,org-file-image-p,missing,,Return non-nil if FILE is an image.
 org.el,19727,function,org-get-cursor-date,missing,,Return the date at cursor in as a time.
-org.el,19761,command,org-mark-subtree,missing,,Mark the current subtree.
+org.el,19761,command,org-mark-subtree,partial,src/org/structure.rs: ported command; acceptance gates open,Mark the current subtree.
 org.el,19778,function,org--at-headline-data-p,missing,,Return non-nil when `point' or BEG is inside headline metadata.
 org.el,19810,function,org--get-expected-indentation,missing,,"Expected indentation column for current line, according to ELEMENT."
 org.el,19932,function,org--align-node-property,missing,,Align node property at point.
-org.el,19947,command,org-indent-line,missing,,Indent line depending on context.
-org.el,20053,command,org-indent-region,missing,,Indent each non-blank line in the region.
-org.el,20174,command,org-indent-drawer,missing,,Indent the drawer at point.
-org.el,20186,command,org-indent-block,missing,,Indent the block at point.
+org.el,19947,command,org-indent-line,partial,src/org/editing.rs: ported command; acceptance gates open,Indent line depending on context.
+org.el,20053,command,org-indent-region,partial,src/org/editing.rs: ported command; acceptance gates open,Indent each non-blank line in the region.
+org.el,20174,command,org-indent-drawer,partial,src/org/editing.rs: ported command; acceptance gates open,Indent the drawer at point.
+org.el,20186,command,org-indent-block,partial,src/org/editing.rs: ported command; acceptance gates open,Indent the block at point.
 org.el,20221,function,org-setup-filling,missing,,
 org.el,20243,function,org-fill-line-break-nobreak-p,missing,,Non-nil when a new line at point would create an Org line break.
 org.el,20250,function,org-fill-paragraph-with-timestamp-nobreak-p,missing,,Non-nil when a new line at point would split a timestamp.
@@ -4419,17 +4419,17 @@ org.el,20255,function,org-fill-n-macro-as-item-nobreak-p,missing,,Non-nil when a
 org.el,20261,function,org-adaptive-fill-paragraph-function,missing,,Compute a fill prefix for the current line in paragraph.
 org.el,20279,function,org-adaptive-fill-function,missing,,Compute a fill prefix for the current line.
 org.el,20338,function,org-fill-element,missing,,"Fill element at point, when applicable."
-org.el,20459,command,org-fill-paragraph,missing,,"Fill element at point, when applicable."
+org.el,20459,command,org-fill-paragraph,partial,src/org/editing.rs: ported command; acceptance gates open,"Fill element at point, when applicable."
 org.el,20514,function,org-auto-fill-function,missing,,Auto-fill function.
 org.el,20525,function,org-comment-line-break-function,missing,,"Break line at point and indent, continuing comment if within one."
-org.el,20545,command,org-toggle-fixed-width,missing,,Toggle fixed-width markup.
+org.el,20545,command,org-toggle-fixed-width,partial,src/org/editing.rs: ported command; acceptance gates open,Toggle fixed-width markup.
 org.el,20669,function,org-block-map,missing,,Call FUNCTION at the head of all source blocks in the current buffer.
-org.el,20683,command,org-next-block,missing,,Jump to the next block.
-org.el,20724,command,org-previous-block,missing,,Jump to the previous block.
-org.el,20750,command,org-setup-comments-handling,missing,,
+org.el,20683,command,org-next-block,partial,src/org/editing.rs: ported command; acceptance gates open,Jump to the next block.
+org.el,20724,command,org-previous-block,partial,src/org/editing.rs: ported command; acceptance gates open,Jump to the previous block.
+org.el,20750,command,org-setup-comments-handling,partial,src/org/editing.rs: ported command; acceptance gates open,
 org.el,20759,function,org-insert-comment,missing,,Insert an empty comment above current line.
 org.el,20783,function,org-comment-or-uncomment-region,missing,,Comment or uncomment each non-blank line in the region.
-org.el,20859,command,org-comment-dwim,missing,,Call the comment command you mean.
+org.el,20859,command,org-comment-dwim,partial,src/org/editing.rs: ported command; acceptance gates open,Call the comment command you mean.
 org.el,20874,function,org-timestamp-from-string,done,time::stamp::Timestamp::from_string,"Convert Org timestamp S, as a string, into a timestamp object."
 org.el,20882,function,org-timestamp-from-time,done,time::stamp::Timestamp::from_time,Convert a time value into a timestamp object.
 org.el,20902,function,org-timestamp-to-time,done,time::stamp::Timestamp::to_tm,Convert TIMESTAMP object into an Emacs internal time value.
@@ -4452,13 +4452,13 @@ org.el,21200,function,org--dnd-multi-local-file-handler,missing,,Handle file URL
 org.el,21211,function,org--dnd-local-file-handler,missing,,Handle file URL as per ACTION.
 org.el,21233,function,org--dnd-attach-file,missing,,Attach filename given by URL using method pertaining to ACTION.
 org.el,21292,function,org--dnd-xds-function,missing,,Handle file with FILENAME dropped via XDS protocol.
-org.el,21323,command,org-reftex-citation,missing,,Use `reftex-citation' to insert a citation into the buffer.
-org.el,21352,command,org-beginning-of-line,missing,,Go to the beginning of the current visible line.
-org.el,21416,command,org-end-of-line,missing,,"Go to the end of the line, but before ellipsis, if any."
-org.el,21479,command,org-backward-sentence,missing,,"Go to beginning of sentence, or beginning of table field."
-org.el,21499,command,org-forward-sentence,missing,,"Go to end of sentence, or end of table field."
-org.el,21529,command,org-kill-line,missing,,"Kill line, to tags or end of line."
-org.el,21561,command,org-yank,missing,,"Yank.  If the kill is a subtree, treat it specially."
+org.el,21323,command,org-reftex-citation,partial,src/org/editing.rs: ported command; acceptance gates open,Use `reftex-citation' to insert a citation into the buffer.
+org.el,21352,command,org-beginning-of-line,partial,src/org/editing.rs: ported command; acceptance gates open,Go to the beginning of the current visible line.
+org.el,21416,command,org-end-of-line,partial,src/org/editing.rs: ported command; acceptance gates open,"Go to the end of the line, but before ellipsis, if any."
+org.el,21479,command,org-backward-sentence,partial,src/org/editing.rs: ported command; acceptance gates open,"Go to beginning of sentence, or beginning of table field."
+org.el,21499,command,org-forward-sentence,partial,src/org/editing.rs: ported command; acceptance gates open,"Go to end of sentence, or end of table field."
+org.el,21529,command,org-kill-line,partial,src/org/editing.rs: ported command; acceptance gates open,"Kill line, to tags or end of line."
+org.el,21561,command,org-yank,partial,src/org/editing.rs: ported command; acceptance gates open,"Yank.  If the kill is a subtree, treat it specially."
 org.el,21590,function,org-yank-generic,missing,,Perform some yank-like command.
 org.el,21648,function,org-yank-folding-would-swallow-text,missing,,Would `hide-subtree' at BEG swallow any text after END?
 org.el,21663,function,org-back-to-heading,missing,,Go back to beginning of heading or inlinetask.
@@ -4484,10 +4484,10 @@ org.el,21900,function,org-get-previous-sibling,missing,,"Move to previous headin
 org.el,21913,function,org-end-of-subtree,missing,,Goto to the end of a visible subtree at point or ELEMENT and return point.
 org.el,21949,function,org-end-of-meta-data,missing,,Skip planning line and properties drawer in current entry.
 org.el,21985,function,org--line-fully-invisible-p,missing,,Return non-nil if the current line is fully invisible.
-org.el,21995,command,org-forward-heading-same-level,missing,,Move forward to the ARG'th subheading at same level as this one.
-org.el,22029,command,org-backward-heading-same-level,missing,,Move backward to the ARG'th subheading at same level as this one.
-org.el,22035,command,org-next-visible-heading,missing,,Move to the next visible heading line.
-org.el,22058,command,org-previous-visible-heading,missing,,Move to the previous visible heading.
+org.el,21995,command,org-forward-heading-same-level,partial,src/org/structure.rs: ported command; acceptance gates open,Move forward to the ARG'th subheading at same level as this one.
+org.el,22029,command,org-backward-heading-same-level,partial,src/org/structure.rs: ported command; acceptance gates open,Move backward to the ARG'th subheading at same level as this one.
+org.el,22035,command,org-next-visible-heading,partial,src/org/structure.rs: ported command; acceptance gates open,Move to the next visible heading line.
+org.el,22058,command,org-previous-visible-heading,partial,src/org/structure.rs: ported command; acceptance gates open,Move to the previous visible heading.
 org.el,22064,command,org-forward-paragraph,missing,,"Move forward by a paragraph, or equivalent, unit."
 org.el,22088,command,org-backward-paragraph,missing,,"Move backward by a paragraph, or equivalent, unit."
 org.el,22115,function,org--paragraph-at-point,missing,,"Return paragraph, or equivalent, element at point."
@@ -4502,11 +4502,11 @@ org.el,22478,command,org-drag-element-forward,missing,,Move forward element at p
 org.el,22513,command,org-drag-line-forward,missing,,Drag the line at point ARG lines forward.
 org.el,22527,command,org-drag-line-backward,missing,,Drag the line at point ARG lines backward.
 org.el,22532,command,org-mark-element,missing,,"Put point at beginning of this element, mark at end."
-org.el,22553,command,org-narrow-to-element,missing,,Narrow buffer to current element.
+org.el,22553,command,org-narrow-to-element,partial,src/org/fold.rs: ported command; acceptance gates open,Narrow buffer to current element.
 org.el,22572,command,org-transpose-element,missing,,"Transpose current and previous elements, keeping blank lines between."
-org.el,22581,command,org-unindent-buffer,missing,,Un-indent the visible part of the buffer.
+org.el,22581,command,org-unindent-buffer,partial,src/org/editing.rs: ported command; acceptance gates open,Un-indent the visible part of the buffer.
 org.el,22602,function,org-make-options-regexp,missing,,Make a regular expression for keyword lines.
-org.el,22614,command,org-info-find-node,missing,,Find Info documentation NODENAME or Org documentation according context.
+org.el,22614,command,org-info-find-node,partial,src/org/editing.rs: ported command; acceptance gates open,Find Info documentation NODENAME or Org documentation according context.
 org.el,,option,org-log-state-notes-into-drawer,missing,,Non-nil means insert state change notes and time stamps into a drawer.
 org.el,,option,org-cdlatex-mode-hook,missing,,Hook run after entering or leaving `org-cdlatex-mode'.
 org.el,,option,org-default-priority,missing,,The default priority of TODO items.
