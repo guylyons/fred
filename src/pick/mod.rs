@@ -807,6 +807,26 @@ pub fn pick_key(ed: &mut Editor, k: Key) {
                 pattern: None,
             });
         }
+        // Left goes up a directory; Right goes into the selected one, or
+        // the first listed while the prompt is selected.
+        KeyCode::Left if p.kind == Kind::Browse => {
+            if let Some(q) = browse::up(browse::split(&p.query.text).0) {
+                set_query(p, q);
+                p.update(&ed.project, &ed.buf, Instant::now());
+            }
+        }
+        KeyCode::Right if p.kind == Kind::Browse => {
+            let dir = if p.prompt {
+                p.rows.iter().find(|r| r.text.ends_with('/'))
+            } else {
+                p.rows.get(p.sel).filter(|r| r.text.ends_with('/'))
+            };
+            if let Some(name) = dir.map(|r| r.text.clone()) {
+                let d = browse::split(&p.query.text).0.to_string();
+                set_query(p, format!("{d}{name}"));
+                p.update(&ed.project, &ed.buf, Instant::now());
+            }
+        }
         KeyCode::Backspace if p.kind == Kind::Browse && browse::up(&p.query.text).is_some() => {
             let q = browse::up(&p.query.text).unwrap();
             set_query(p, q);
