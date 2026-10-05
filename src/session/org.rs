@@ -32,6 +32,61 @@ impl Session {
         self.show(self.bufs.len() - 1);
     }
 
+    /// Show a generated read-only buffer named `name` holding `text`
+    /// (with-output-to-temp-buffer: `*Org Entity Help*`); a buffer of that
+    /// name is replaced. `org` turns Org mode on in it. Returns its index.
+    pub fn org_temp_buffer(&mut self, name: &str, text: &str, org: bool) -> usize {
+        let mut ed = make_editor(Buffer::from_text(text), &self.cfg);
+        if org {
+            ed.org = Some(Box::default());
+        }
+        ed.org_buffer_name = Some(name.to_owned());
+        ed.readonly = true;
+        let same = |e: &Editor| e.path.is_none() && e.org_buffer_name.as_deref() == Some(name);
+        if same(&self.ed) {
+            ed.org_return = self.ed.org_return;
+            self.ed = ed;
+            self.reloaded = true;
+            return self.cur;
+        }
+        ed.org_return = Some(self.cur);
+        if let Some(i) = (0..self.bufs.len()).find(|&i| i != self.cur && same(self.ed_at(i))) {
+            if let Some(p) = self.bufs[i].as_mut() {
+                p.ed = ed;
+            }
+            self.show(i);
+            return i;
+        }
+        let swap = self.swap_dir.join(format!("org-temp-{}", self.bufs.len()));
+        self.bufs.push(Some(Parked {
+            ed,
+            stamp: None,
+            swap_path: swap,
+            lossy: false,
+            no_swap: true,
+            swap_state: SwapState::None,
+            used: 0,
+        }));
+        self.show(self.bufs.len() - 1);
+        self.cur
+    }
+
+    /// Leave a temporary buffer (quit-window): back to the buffer it was
+    /// shown from, dropping it.
+    pub fn org_quit_temp(&mut self) {
+        let me = self.cur;
+        if self.ed.path.is_some() || self.ed.org_buffer_name.is_none() {
+            return;
+        }
+        let Some(back) = self.ed.org_return.take().filter(|&b| b < self.bufs.len() && b != me) else { return };
+        self.show(back);
+        self.bufs.remove(me);
+        if me < self.cur {
+            self.cur -= 1;
+        }
+        self.clock += 1;
+    }
+
     /// Finish the special buffer being edited (`abort` for C-c C-k).
     pub fn org_finish(&mut self, abort: bool) {
         let Some(slot) = self.ed.org_finish.take() else {

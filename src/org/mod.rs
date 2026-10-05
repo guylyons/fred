@@ -11,6 +11,7 @@ pub mod ctx;
 pub mod dispatch;
 pub mod editing;
 pub mod element;
+pub mod entities;
 pub mod face;
 pub mod fold;
 pub mod keymap;
@@ -81,6 +82,8 @@ pub struct Org {
     pub region: Option<(usize, usize)>,
     /// Plain-list state (org-list.el).
     pub list: list::State,
+    /// org-pretty-entities toggled in this buffer (None: the option).
+    pub pretty_entities: Option<bool>,
 }
 
 /// org-region-active-p: the region's lines.
@@ -816,6 +819,7 @@ const MODULES: &[Module] = &[
     time::command,
     element::command,
     babel::command,
+    entities::command,
 ];
 
 thread_local! {
