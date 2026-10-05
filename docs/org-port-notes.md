@@ -92,3 +92,51 @@ Preserve the user's uncommitted `notes.md`; never `git add -A`.
   for every ported command; reproduce messages, prompts and edge cases.
 - Update `docs/org-parity.csv` rows (`state`, `fred_behavior`) for the
   symbols a batch ports.
+
+## Time (`src/org/time/`)
+
+Timestamps, the date prompt, scheduling, repeaters, diary sexps and
+org-duration. Submodules: `civil` (Gregorian arithmetic, libc local time,
+`format-time-string`, injectable now: `civil::set_now`), `stamp` (the
+timestamp object and regexps, org-timestamp-change on strings), `read`
+(org-read-date-analyze and Emacs `parse-time-string`), `diary`, `duration`.
+
+API for other modules:
+- `time::read_date(ed, ReadOpts, then)`: org-read-date; `then(ed, Analysis)`
+  gets `tm`, `time_given`, `end_time`; `read::date_string` is the string form.
+- `time::set_planning(ed, h, Some((Planning, ts_text)), &remove)` and
+  `time::add_planning_info(ed, h, Some((Planning, tm, with_time)), &remove)`:
+  org-add-planning-info. `planning_get`, `remove_timestamp_with_keyword`.
+- `time::auto_repeat(ed, h) -> Result<Option<String>, String>`: the
+  timestamp half of org-auto-repeat-maybe (the TODO module resets the
+  state, writes LAST_REPEAT and logs first).
+- `time::change_at_point` / `change_at` / `stamp::change`: org-timestamp-change.
+- `time::insert_timestamp`, `stamp::stamp_text`, `stamp::time_stamp_format`.
+- `time::schedule(ed, deadline, arg, Some(time))`: org-schedule/org-deadline
+  with a TIME argument.
+- Logging: when org-log-reschedule/org-log-redeadline apply, the time module
+  stores a `time::LogRequest` and calls `org-add-log-setup` by name; the
+  logging module takes it with `time::take_log_request()`.
+- `time::occur(ed, re, keep)`: org-occur with a callback (sparse trees);
+  `time::set_ts_type` is org-ts-type for org-sparse-tree's `c`.
+- `time::clock_update_time_maybe(ed, l)` for the clock module.
+- `time::duration::{to_minutes, from_minutes, is_duration, Format}`.
+
+Adaptations:
+- No calendar window. The prompt shows the live interpretation
+  (`Date+time [2026-10-04] => <2026-10-09 Fri>: `, `(=>F)` when pushed to
+  the future). The keys of org-read-date-minibuffer-local-map (S-arrows,
+  M-S-arrows, `<` `>` C-v M-v, `.` on an empty answer, `!`) move a virtual
+  calendar date that joins the answer as upstream's org-ans2.
+- org-goto-calendar (C-c >) sets that date (from the timestamp on the line,
+  or today) and reports it with the day's holidays; the org-calendar-*
+  commands move it; org-date-from-calendar (C-c <) inserts it or changes the
+  timestamp at point to it.
+- org-display-custom-times is per buffer (`Org::custom_times`, then
+  `#+STARTUP: customtime`, then the option): `time::display_custom_times`;
+  the renderer replaces `stamp::custom_overlays(line)` ranges.
+- Holidays for org-calendar-holiday/org-class: US general holidays, Good
+  Friday, Easter, Christmas (other calendars not computed).
+- `++` repeaters do not ask "Continue?" after 10 shifts.
+- Commands never see an active Visual region, so org-schedule/org-deadline
+  do not loop over headlines in a region.

@@ -15,6 +15,8 @@ pub enum Spec {
     Outline,
     Block,
     Drawer,
+    /// Narrowing (narrow-to-region): text outside is not part of the buffer.
+    Narrow,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -22,6 +24,7 @@ pub struct Specs {
     pub outline: Folds,
     pub block: Folds,
     pub drawer: Folds,
+    pub narrow: Folds,
 }
 
 impl Specs {
@@ -30,11 +33,17 @@ impl Specs {
             Spec::Outline => &mut self.outline,
             Spec::Block => &mut self.block,
             Spec::Drawer => &mut self.drawer,
+            Spec::Narrow => &mut self.narrow,
         }
     }
 
     pub fn line_change(&mut self, at: usize, removed: usize, inserted: usize) {
-        for f in [&mut self.outline, &mut self.block, &mut self.drawer] {
+        for f in [
+            &mut self.outline,
+            &mut self.block,
+            &mut self.drawer,
+            &mut self.narrow,
+        ] {
             f.line_change(at, removed, inserted);
         }
     }
@@ -48,7 +57,12 @@ fn specs(ed: &mut Editor) -> Option<&mut Specs> {
 fn sync(ed: &mut Editor) {
     let Some(o) = &ed.org else { return };
     let mut all = Folds::default();
-    for f in [&o.specs.outline, &o.specs.block, &o.specs.drawer] {
+    for f in [
+        &o.specs.outline,
+        &o.specs.block,
+        &o.specs.drawer,
+        &o.specs.narrow,
+    ] {
         for &(s, e) in f.ranges() {
             all.hide(s, e);
         }
@@ -133,7 +147,9 @@ pub fn hide_entry(ed: &mut Editor, l: usize) {
 
 /// org-fold-show-children: direct children (or LEVEL levels below).
 pub fn show_children(ed: &mut Editor, l: usize, levels: Option<usize>) {
-    let Some(h) = back_to_heading(ed, l) else { return };
+    let Some(h) = back_to_heading(ed, l) else {
+        return;
+    };
     let parent = level(&line(ed, h)).unwrap_or(1);
     let max = parent + levels.unwrap_or(1).max(1);
     let end = syntax::subtree_end(&ed.buf, h);
@@ -153,7 +169,9 @@ pub fn show_children(ed: &mut Editor, l: usize, levels: Option<usize>) {
 
 /// org-fold-show-subtree.
 pub fn show_subtree(ed: &mut Editor, l: usize) {
-    let Some(h) = back_to_heading(ed, l) else { return };
+    let Some(h) = back_to_heading(ed, l) else {
+        return;
+    };
     let end = syntax::subtree_end(&ed.buf, h);
     region(ed, h, end - 1, false, Spec::Outline);
 }
@@ -206,7 +224,9 @@ pub fn content(ed: &mut Editor, arg: Option<usize>) {
 
 /// org-fold-hide-sublevels.
 pub fn hide_sublevels(ed: &mut Editor, levels: usize) {
-    let Some(beg) = (0..n(ed)).find(|&i| is_heading(ed, i)) else { return };
+    let Some(beg) = (0..n(ed)).find(|&i| is_heading(ed, i)) else {
+        return;
+    };
     region(ed, beg, n(ed) - 1, true, Spec::Outline);
     for i in beg..n(ed) {
         if level(&line(ed, i)).is_some_and(|lv| lv <= levels) {
@@ -228,14 +248,21 @@ pub fn wrapper_at(ed: &Editor, l: usize, drawer: bool) -> Option<(usize, usize)>
                 && s.starts_with(':')
                 && s.ends_with(':')
                 && !s.eq_ignore_ascii_case(":END:")
-                && s[1..s.len() - 1].chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+                && s[1..s.len() - 1]
+                    .chars()
+                    .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
         };
         if is_start(t) {
-            let end = (l + 1..n(ed)).take_while(|&i| !is_heading(ed, i)).find(|&i| line(ed, i).trim().eq_ignore_ascii_case(":END:"))?;
+            let end = (l + 1..n(ed))
+                .take_while(|&i| !is_heading(ed, i))
+                .find(|&i| line(ed, i).trim().eq_ignore_ascii_case(":END:"))?;
             return Some((l, end));
         }
         if is_end {
-            let start = (0..l).rev().take_while(|&i| !is_heading(ed, i)).find(|&i| is_start(line(ed, i).trim()))?;
+            let start = (0..l)
+                .rev()
+                .take_while(|&i| !is_heading(ed, i))
+                .find(|&i| is_start(line(ed, i).trim()))?;
             return Some((start, l));
         }
         return None;
@@ -248,7 +275,7 @@ pub fn wrapper_at(ed: &Editor, l: usize, drawer: bool) -> Option<(usize, usize)>
         return Some((l, end));
     }
     if lower.starts_with("#+begin:") {
-        let end = (l + 1..n(ed)).find(|&i| line(ed, i).trim().to_ascii_lowercase() == "#+end:")?;
+        let end = (l + 1..n(ed)).find(|&i| line(ed, i).trim().eq_ignore_ascii_case("#+end:"))?;
         return Some((l, end));
     }
     if let Some(name) = lower.strip_prefix("#+end_") {
@@ -264,10 +291,16 @@ pub fn wrapper_at(ed: &Editor, l: usize, drawer: bool) -> Option<(usize, usize)>
 
 /// org-fold--hide-wrapper-toggle; `force` Some(false) shows, Some(true) hides.
 pub fn toggle_wrapper(ed: &mut Editor, l: usize, drawer: bool, force: Option<bool>) -> bool {
-    let Some((s, e)) = wrapper_at(ed, l, drawer) else { return false };
+    let Some((s, e)) = wrapper_at(ed, l, drawer) else {
+        return false;
+    };
     let spec = if drawer { Spec::Drawer } else { Spec::Block };
     let folded = ed.org.as_ref().is_some_and(|o| {
-        let f = if drawer { &o.specs.drawer } else { &o.specs.block };
+        let f = if drawer {
+            &o.specs.drawer
+        } else {
+            &o.specs.block
+        };
         f.hidden(s + 1)
     });
     let flag = force.unwrap_or(!folded);
@@ -295,7 +328,10 @@ pub fn hide_drawers(ed: &mut Editor, beg: usize, end: usize) {
 pub fn hide_blocks(ed: &mut Editor) {
     let mut l = 0;
     while l < n(ed) {
-        if line(ed, l).trim_start().to_ascii_lowercase().starts_with("#+begin")
+        if line(ed, l)
+            .trim_start()
+            .to_ascii_lowercase()
+            .starts_with("#+begin")
             && let Some((s, e)) = wrapper_at(ed, l, false)
         {
             region(ed, s + 1, e, true, Spec::Block);
@@ -374,7 +410,9 @@ fn cycle_hook(ed: &mut Editor, state: &str, h: usize) {
             hide_archived(ed, h, end);
             let st = super::settings(ed);
             if syntax::headline(&line(ed, h), &st).is_some_and(|x| x.archived()) {
-                ed.set_msg("Subtree is archived and stays closed.  Use `C-c C-<tab>' to cycle it anyway.");
+                ed.set_msg(
+                    "Subtree is archived and stays closed.  Use `C-c C-<tab>' to cycle it anyway.",
+                );
             }
         }
     }
@@ -402,12 +440,18 @@ pub fn startup_visibility(ed: &mut Editor) {
         _ => show_all(ed, &[Spec::Outline, Spec::Block, Spec::Drawer]),
     }
     if folded != "showeverything" {
-        if st.opt_bool("org-cycle-hide-block-startup", st.opt_bool("org-hide-block-startup", false)) {
+        if st.opt_bool(
+            "org-cycle-hide-block-startup",
+            st.opt_bool("org-hide-block-startup", false),
+        ) {
             hide_blocks(ed);
         }
         visibility_by_property(ed);
         hide_archived(ed, 0, n(ed));
-        if st.opt_bool("org-cycle-hide-drawer-startup", st.opt_bool("org-hide-drawer-startup", true)) {
+        if st.opt_bool(
+            "org-cycle-hide-drawer-startup",
+            st.opt_bool("org-hide-drawer-startup", true),
+        ) {
             hide_drawers(ed, 0, n(ed));
         }
         show_empty_lines(ed, 0, n(ed));
@@ -435,9 +479,7 @@ fn visibility_property(ed: &Editor, h: usize) -> Option<String> {
             if inside {
                 return None;
             }
-        } else if inside
-            && let Some(rest) = t.strip_prefix(":VISIBILITY:")
-        {
+        } else if inside && let Some(rest) = t.strip_prefix(":VISIBILITY:") {
             return Some(rest.trim().to_owned());
         }
     }
@@ -450,7 +492,9 @@ pub fn visibility_by_property(ed: &mut Editor) {
         if !is_heading(ed, h) {
             continue;
         }
-        let Some(state) = visibility_property(ed, h) else { continue };
+        let Some(state) = visibility_property(ed, h) else {
+            continue;
+        };
         fold_subtree(ed, h, true);
         match state.as_str() {
             "folded" => {}
@@ -485,7 +529,10 @@ fn context_detail(key: &str) -> String {
             .and_then(|l| {
                 l.iter()
                     .find(|e| e.car().and_then(|c| c.str()) == Some(key))
-                    .or_else(|| l.iter().find(|e| e.car().and_then(|c| c.str()) == Some("default")))
+                    .or_else(|| {
+                        l.iter()
+                            .find(|e| e.car().and_then(|c| c.str()) == Some("default"))
+                    })
             })
             .and_then(|e| e.cdr().str().map(str::to_owned))
             .unwrap_or_else(|| "ancestors".into()),
@@ -504,12 +551,64 @@ pub fn show_context_for(ed: &mut Editor, l: usize, key: &str) {
     show_set_visibility(ed, l, &detail);
 }
 
+/// The narrowed region (first, last line), if narrowed.
+pub fn narrowed(ed: &Editor) -> Option<(usize, usize)> {
+    let o = ed.org.as_ref()?;
+    let r = o.specs.narrow.ranges();
+    if r.is_empty() {
+        return None;
+    }
+    let n = ed.line_count();
+    let start = if r[0].0 == 0 { r[0].1 + 1 } else { 0 };
+    let end = match r.last() {
+        Some(&(s, e)) if e + 1 >= n && s > 0 => s - 1,
+        _ => n - 1,
+    };
+    Some((start.min(n - 1), end.max(start).min(n - 1)))
+}
+
+/// narrow-to-region on lines `s..=e`.
+pub fn narrow(ed: &mut Editor, s: usize, e: usize) {
+    widen(ed);
+    let n = ed.line_count();
+    if s > 0 {
+        region(ed, 0, s - 1, true, Spec::Narrow);
+    }
+    if e + 1 < n {
+        region(ed, e + 1, n - 1, true, Spec::Narrow);
+    }
+    if ed.cur.line < s || ed.cur.line > e {
+        ed.set_cursor(s, 0);
+    }
+}
+
+/// widen.
+pub fn widen(ed: &mut Editor) {
+    let n = ed.line_count();
+    region(ed, 0, n - 1, false, Spec::Narrow);
+}
+
 /// Reveal line `l` after a search or jump (isearch context).
 pub fn show_context(ed: &mut Editor, l: usize) {
+    if let Some((s, e)) = narrowed(ed)
+        && (l < s || l > e)
+    {
+        // Outside the narrowing: stay inside it.
+        let to = if l < s { s } else { e };
+        ed.set_cursor(to, 0);
+        if hidden(ed, to) {
+            show_context(ed, to);
+        }
+        return;
+    }
     show_context_for(ed, l, "isearch");
     if hidden(ed, l) {
         // Still hidden (a fold spec this detail does not open): open it.
         show_all_specs(ed, l, l);
+    }
+    if ed.cur.line == l && hidden(ed, l) {
+        let to = ed.folds.prev_visible(l);
+        ed.set_cursor(to, 0);
     }
 }
 
@@ -525,6 +624,7 @@ pub fn show_set_visibility(ed: &mut Editor, l: usize, detail: &str) {
                 let range = ed.org.as_ref().and_then(|o| match spec {
                     Spec::Block => o.specs.block.range_at(l),
                     Spec::Drawer => o.specs.drawer.range_at(l),
+                    Spec::Narrow => None,
                     Spec::Outline => o.specs.outline.range_at(l),
                 });
                 if let Some((s, e)) = range {
@@ -561,8 +661,10 @@ pub fn show_set_visibility(ed: &mut Editor, l: usize, detail: &str) {
             s = x;
         }
     }
-    if matches!(detail, "ancestors" | "ancestors-full" | "lineage" | "tree" | "canonical" | "t")
-        && let Some(h) = back_to_heading(ed, l)
+    if matches!(
+        detail,
+        "ancestors" | "ancestors-full" | "lineage" | "tree" | "canonical" | "t"
+    ) && let Some(h) = back_to_heading(ed, l)
     {
         let mut p = h;
         while let Some(up) = syntax::parent(&ed.buf, p) {
@@ -637,7 +739,11 @@ fn cycle_local(ed: &mut Editor, h: usize, repeat: bool) {
         "children"
     } else if (rest_blank && children_skipped) || (repeat && status == Some("children")) {
         region(ed, h + 1, eos, false, Spec::Outline);
-        ed.set_msg(if children_skipped { "SUBTREE (NO CHILDREN)" } else { "SUBTREE" });
+        ed.set_msg(if children_skipped {
+            "SUBTREE (NO CHILDREN)"
+        } else {
+            "SUBTREE"
+        });
         "subtree"
     } else {
         region(ed, h + 1, eos, true, Spec::Outline);
@@ -672,7 +778,18 @@ pub fn cycle(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
             return Ok(());
         }
         Prefix::U(1) => {
-            cycle_global(ed, repeated(ed, &["org-cycle", "org-shifttab", "org-cycle-global", "org-global-cycle"]));
+            cycle_global(
+                ed,
+                repeated(
+                    ed,
+                    &[
+                        "org-cycle",
+                        "org-shifttab",
+                        "org-cycle-global",
+                        "org-global-cycle",
+                    ],
+                ),
+            );
             return Ok(());
         }
         Prefix::Num(_) | Prefix::Minus => {
@@ -696,7 +813,11 @@ pub fn cycle(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
     }
     let l = ed.cur.line;
     let text = line(ed, l);
-    if super::options::bool("org-cycle-global-at-bob", false) && l == 0 && ed.cur.byte == 0 && level(&text).is_none() {
+    if super::options::bool("org-cycle-global-at-bob", false)
+        && l == 0
+        && ed.cur.byte == 0
+        && level(&text).is_none()
+    {
         cycle_global(ed, repeated(ed, &["org-cycle"]));
         return Ok(());
     }
@@ -725,8 +846,11 @@ pub mod hooks {
     use crate::editor::Editor;
 
     /// org-cycle-level: TAB on a new empty heading cycles its level.
-    pub fn cycle_level(_ed: &mut Editor) -> Result<bool, String> {
-        Ok(false)
+    pub fn cycle_level(ed: &mut Editor) -> Result<bool, String> {
+        if !super::super::options::bool("org-cycle-level-after-item/entry-creation", true) {
+            return Ok(false);
+        }
+        super::super::structure::cycle_level(ed)
     }
     /// In a table: org-table-next-field.
     pub fn table_tab(ed: &mut Editor) -> Result<bool, String> {
@@ -759,11 +883,15 @@ pub mod hooks {
     }
     /// org-table-toggle-column-width in a table.
     pub fn table_width(ed: &mut Editor) -> Option<Result<(), String>> {
-        ctx::at_table(ed, ed.cur.line).then(|| call(ed, "org-table-toggle-column-width", Prefix::None))
+        ctx::at_table(ed, ed.cur.line)
+            .then(|| call(ed, "org-table-toggle-column-width", Prefix::None))
     }
     /// A pending log note (org-finish-function), finished or aborted.
-    pub fn finish_note(_ed: &mut Editor, _abort: bool) -> Option<Result<(), String>> {
-        None
+    pub fn finish_note(ed: &mut Editor, abort: bool) -> Option<Result<(), String>> {
+        ed.org_finish.is_some().then(|| {
+            super::super::effect(ed, move |s| s.org_finish(abort));
+            Ok(())
+        })
     }
 }
 
@@ -870,10 +998,18 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
             Ok(())
         }
         "org-fold-hide-block-toggle" | "org-hide-block-toggle" => {
-            if toggle_wrapper(ed, l, false, None) { Ok(()) } else { Err("Not at a block".into()) }
+            if toggle_wrapper(ed, l, false, None) {
+                Ok(())
+            } else {
+                Err("Not at a block".into())
+            }
         }
         "org-fold-hide-drawer-toggle" | "org-hide-drawer-toggle" => {
-            if toggle_wrapper(ed, l, true, None) { Ok(()) } else { Err("Not at a drawer".into()) }
+            if toggle_wrapper(ed, l, true, None) {
+                Ok(())
+            } else {
+                Err("Not at a drawer".into())
+            }
         }
         "org-fold-hide-block-all" | "org-hide-block-all" => {
             hide_blocks(ed);
@@ -883,13 +1019,67 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
             hide_drawers(ed, 0, n_lines(ed));
             Ok(())
         }
-        "org-cycle-set-visibility-according-to-property" | "org-set-visibility-according-to-property" => {
+        "org-cycle-set-visibility-according-to-property"
+        | "org-set-visibility-according-to-property" => {
             visibility_by_property(ed);
             Ok(())
         }
         "org-set-startup-visibility" | "org-cycle-set-startup-visibility" => {
             startup_visibility(ed);
             Ok(())
+        }
+        "org-narrow-to-subtree" => match back_to_heading(ed, l) {
+            Some(h) => {
+                let end = syntax::subtree_end(&ed.buf, h);
+                narrow(ed, h, end.saturating_sub(1));
+                Ok(())
+            }
+            None => Err("Not in a subtree".into()),
+        },
+        "org-narrow-to-block" => match super::ctx::block_at(ed, l)
+            .map(|(_, b, e)| (b, e))
+            .or_else(|| wrapper_at(ed, l, false))
+        {
+            Some((b, e)) => {
+                narrow(ed, b, e);
+                Ok(())
+            }
+            None => Err("Not in a block".into()),
+        },
+        "org-narrow-to-element" => {
+            // The paragraph, block, drawer or subtree at point.
+            if super::ctx::at_heading(ed, l) {
+                let end = syntax::subtree_end(&ed.buf, l);
+                narrow(ed, l, end - 1);
+            } else if let Some((b, e)) =
+                wrapper_at(ed, l, false).or_else(|| wrapper_at(ed, l, true))
+            {
+                narrow(ed, b, e);
+            } else {
+                let blank = |i: usize| line(ed, i).trim().is_empty();
+                let mut s = l;
+                while s > 0 && !blank(s - 1) && !super::ctx::at_heading(ed, s - 1) {
+                    s -= 1;
+                }
+                let mut e = l;
+                while e + 1 < n_lines(ed) && !blank(e + 1) && !super::ctx::at_heading(ed, e + 1) {
+                    e += 1;
+                }
+                narrow(ed, s, e);
+            }
+            Ok(())
+        }
+        "widen" | "org-widen" => {
+            widen(ed);
+            Ok(())
+        }
+        "org-toggle-narrow-to-subtree" => {
+            if narrowed(ed).is_some() {
+                widen(ed);
+                Ok(())
+            } else {
+                command(ed, "org-narrow-to-subtree", arg).unwrap()
+            }
         }
         "org-ctrl-c-tab" => {
             if let Some(r) = hooks::table_width(ed) {
@@ -959,10 +1149,17 @@ fn global_cycle(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
             Ok(())
         }
         _ => {
-            let repeat = repeated(ed, &["org-cycle", "org-shifttab", "org-cycle-global", "org-global-cycle"]);
+            let repeat = repeated(
+                ed,
+                &[
+                    "org-cycle",
+                    "org-shifttab",
+                    "org-cycle-global",
+                    "org-global-cycle",
+                ],
+            );
             cycle_global(ed, repeat);
             Ok(())
         }
     }
 }
-
