@@ -939,7 +939,7 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
             let c = super::take_call_arg()
                 .and_then(|s| s.chars().next())
                 .unwrap_or('|');
-            if c != '|' || !super::table_self_insert(ed, c) {
+            if !super::table_self_insert(ed, c) {
                 vim_insert(ed, Key::ch(c));
             }
             Ok(())

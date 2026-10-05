@@ -467,6 +467,7 @@ impl Editor {
             if let Some(o) = &mut self.org {
                 o.specs.line_change(ch.at, ch.removed, ch.inserted);
             }
+            crate::org::table::line_change(self, ch.at, ch.removed, ch.inserted);
             self.marks
                 .retain(|_, l| *l < ch.at || *l >= ch.at + ch.removed);
             for l in self.marks.values_mut() {

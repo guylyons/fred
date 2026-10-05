@@ -710,6 +710,9 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         run(ed, cmd, arg);
         return true;
     }
+    if table::orgtbl_key(ed, k) {
+        return true;
+    }
     let Some(map) = active_map(ed) else {
         return false;
     };
@@ -993,8 +996,8 @@ pub fn clock_target(_s: &crate::session::Session) -> Option<refile::Target> {
 
 /// Typing in a table (org-self-insert-command's table part): true when
 /// the tables module handled the character.
-pub fn table_self_insert(_ed: &mut Editor, _c: char) -> bool {
-    false
+pub fn table_self_insert(ed: &mut Editor, c: char) -> bool {
+    table::self_insert(ed, c)
 }
 
 /// Clocked minutes in the subtree at `h` (org-clock-sum), from CLOCK lines.
@@ -1087,7 +1090,8 @@ pub fn ex(ed: &mut Editor, text: &str) -> bool {
     if !(name.starts_with("org-")
         || name.starts_with("orgtbl-")
         || name.starts_with("gl/org")
-        || name == "org-mode")
+        || name == "org-mode"
+        || name == "turn-on-orgtbl")
     {
         return false;
     }
