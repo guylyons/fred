@@ -26,6 +26,28 @@ pub struct Info {
 /// magit-blame-styles' default entries; Fred has no virtual lines, so headings
 /// become a left margin and lines a chunk-boundary rule.
 pub const STYLES: [&str; 3] = ["headings", "highlight", "lines"];
+
+/// magit-blame-styles: the styles in cycle order, by name (Fred draws the
+/// three upstream styles; their per-key settings are fixed).
+pub fn styles() -> Vec<&'static str> {
+    let names = super::options::strings("magit-blame-styles", &STYLES);
+    let v: Vec<&'static str> = names
+        .iter()
+        .filter_map(|n| STYLES.iter().find(|s| *s == n).copied())
+        .collect();
+    if v.is_empty() { STYLES.to_vec() } else { v }
+}
+
+/// The initial style: the first, or magit-blame-echo-style for echo mode.
+pub fn initial_style(kind: Kind) -> usize {
+    if kind == Kind::Echo {
+        let echo =
+            super::options::string("magit-blame-echo-style", Some("lines")).unwrap_or_default();
+        styles().iter().position(|s| *s == echo).unwrap_or(0)
+    } else {
+        0
+    }
+}
 pub const HEADING_WIDTH: usize = 48;
 
 /// magit-blame-type plus echo, which is addition without read-only keys.
@@ -199,38 +221,19 @@ pub fn unquote(s: &str) -> PathBuf {
     PathBuf::from(std::ffi::OsString::from_vec(out))
 }
 
-/// "%F %H:%M" in the commit's own zone.
-// ponytail: upstream formats in Emacs' local zone; Fred has no tz database.
-fn time(secs: i64, tz: &str) -> String {
-    let offset = tz
-        .get(1..5)
-        .and_then(|d| Some(d[..2].parse::<i64>().ok()? * 3600 + d[2..].parse::<i64>().ok()? * 60))
-        .map_or(0, |o| if tz.starts_with('-') { -o } else { o });
-    let t = secs + offset;
-    let (days, rem) = (t.div_euclid(86400), t.rem_euclid(86400));
-    // Howard Hinnant's civil_from_days.
-    let z = days + 719468;
-    let era = z.div_euclid(146097);
-    let doe = z - era * 146097;
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = doy - (153 * mp + 2) / 5 + 1;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 };
-    let y = yoe + era * 400 + i64::from(m <= 2);
-    format!(
-        "{y:04}-{m:02}-{d:02} {:02}:{:02}",
-        rem / 3600,
-        rem % 3600 / 60
-    )
+/// magit-blame-time-format ("%F %H:%M"), in local time as upstream.
+fn time(secs: i64, _tz: &str) -> String {
+    let format = super::options::string("magit-blame-time-format", None)
+        .unwrap_or_else(|| "%F %H:%M".into());
+    super::margin::strftime(&format, secs)
 }
-
 impl Blame {
     pub fn echo(&self) -> bool {
         self.kind == Kind::Echo
     }
     pub fn style(&self) -> &'static str {
-        STYLES[self.style % STYLES.len()]
+        let s = styles();
+        s[self.style % s.len()]
     }
     pub fn chunk_at(&self, line: usize) -> Option<&Chunk> {
         self.chunks
@@ -431,7 +434,7 @@ pub fn cycle(ed: &mut Editor) {
         return;
     }
     if let Some(b) = &mut ed.blame {
-        b.style = (b.style + 1) % STYLES.len();
+        b.style = (b.style + 1) % styles().len();
         let style = b.style();
         ed.set_msg(format!("Blame style: {style}"));
     }

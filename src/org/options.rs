@@ -70,7 +70,9 @@ pub fn strings(name: &str, default: &[&str]) -> Vec<String> {
 /// `~/` expanded.
 pub fn expand(path: &str) -> std::path::PathBuf {
     match path.strip_prefix("~/").or((path == "~").then_some("")) {
-        Some(rest) => std::path::PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(rest),
+        Some(rest) => {
+            std::path::PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(rest)
+        }
         None => std::path::PathBuf::from(path),
     }
 }
@@ -83,5 +85,9 @@ pub fn directory() -> std::path::PathBuf {
 /// A file option relative to org-directory.
 pub fn file(name: &str, default: &str) -> std::path::PathBuf {
     let f = expand(&string(name, default));
-    if f.is_absolute() { f } else { directory().join(f) }
+    if f.is_absolute() {
+        f
+    } else {
+        directory().join(f)
+    }
 }
