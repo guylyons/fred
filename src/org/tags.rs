@@ -23,13 +23,19 @@ pub fn inherit_p(tag: &str) -> bool {
         None | Some(Sexp::T) => true,
         Some(Sexp::Nil) => false,
         Some(Sexp::Str(re)) => super::re::compile(&re, false).is_ok_and(|r| r.is_match(tag)),
-        Some(v) => v.list().is_some_and(|l| l.iter().any(|x| x.str() == Some(tag))),
+        Some(v) => v
+            .list()
+            .is_some_and(|l| l.iter().any(|x| x.str() == Some(tag))),
     }
 }
 
 /// org-make-tag-string.
 pub fn make_tag_string(tags: &[String]) -> String {
-    if tags.is_empty() { String::new() } else { format!(":{}:", tags.join(":")) }
+    if tags.is_empty() {
+        String::new()
+    } else {
+        format!(":{}:", tags.join(":"))
+    }
 }
 
 /// Tag groups: (group tag, members) from the tag alist (org-tag-alist-to-groups).
@@ -60,7 +66,8 @@ pub fn groups(st: &Settings) -> Vec<(String, Vec<String>)> {
                 }
             }
             TagEntry::Tag(t, _) => {
-                if ingroup && after_grouptags
+                if ingroup
+                    && after_grouptags
                     && let Some((_, m)) = &mut cur
                 {
                     m.push(t.clone());
@@ -101,10 +108,14 @@ fn exclusive_groups(st: &Settings) -> Vec<Vec<String>> {
 pub fn set_tags(ed: &mut Editor, h: usize, tags: &[String]) {
     let st = super::settings(ed);
     let line = ed.buf.line(h);
-    let Some(hl) = syntax::headline(&line, &st) else { return };
+    let Some(hl) = syntax::headline(&line, &st) else {
+        return;
+    };
     let mut tags: Vec<String> = tags.to_vec();
     if let Some(f) = super::sexp::option("org-tags-sort-function").filter(Sexp::truthy) {
-        let desc = f.sym().is_some_and(|s| s.contains("string>") || s.contains("greaterp"));
+        let desc = f
+            .sym()
+            .is_some_and(|s| s.contains("string>") || s.contains("greaterp"));
         tags.sort();
         if desc {
             tags.reverse();
@@ -113,7 +124,10 @@ pub fn set_tags(ed: &mut Editor, h: usize, tags: &[String]) {
     if tags == hl.tags {
         return;
     }
-    let base_end = hl.tags_range.as_ref().map_or(line.trim_end().len(), |r| r.start);
+    let base_end = hl
+        .tags_range
+        .as_ref()
+        .map_or(line.trim_end().len(), |r| r.start);
     let mut base = line[..base_end].trim_end_matches([' ', '\t']).to_owned();
     if syntax::level(&format!("{base} ")).is_some() && syntax::level(&base).is_none() {
         // Only stars left: keep the space that makes it a heading.
@@ -139,7 +153,14 @@ pub fn set_tags(ed: &mut Editor, h: usize, tags: &[String]) {
 /// org-align-tags on one heading.
 pub fn align(ed: &mut Editor, h: usize) {
     let text = ed.buf.line(h);
-    let mut b = super::buf::EBuf::new(&text, if ed.cur.line == h { ed.cur.byte.min(text.len()) } else { 0 });
+    let mut b = super::buf::EBuf::new(
+        &text,
+        if ed.cur.line == h {
+            ed.cur.byte.min(text.len())
+        } else {
+            0
+        },
+    );
     structure::align_tags_here(&mut b, structure::tags_column());
     if b.s != text {
         super::set_line(ed, h, &b.s);
@@ -161,7 +182,9 @@ pub fn align_all(ed: &mut Editor) {
 /// org-toggle-tag: returns true when the tag is now on.
 pub fn toggle_tag(ed: &mut Editor, h: usize, tag: &str, onoff: Option<bool>) -> bool {
     let st = super::settings(ed);
-    let mut current = syntax::headline(&ed.buf.line(h), &st).map(|x| x.tags).unwrap_or_default();
+    let mut current = syntax::headline(&ed.buf.line(h), &st)
+        .map(|x| x.tags)
+        .unwrap_or_default();
     let on = match onoff {
         Some(false) => false,
         Some(true) => true,
@@ -201,13 +224,19 @@ fn tag_table(ed: &Editor, st: &Settings) -> Vec<TagEntry> {
     if st.tags.iter().any(|e| matches!(e, TagEntry::Tag(..))) {
         let mut t = st.tags.clone();
         for b in buffer_tags(ed) {
-            if !t.iter().any(|e| matches!(e, TagEntry::Tag(n, _) if *n == b)) {
+            if !t
+                .iter()
+                .any(|e| matches!(e, TagEntry::Tag(n, _) if *n == b))
+            {
                 t.push(TagEntry::Tag(b, None));
             }
         }
         t
     } else {
-        buffer_tags(ed).into_iter().map(|t| TagEntry::Tag(t, None)).collect()
+        buffer_tags(ed)
+            .into_iter()
+            .map(|t| TagEntry::Tag(t, None))
+            .collect()
     }
 }
 
@@ -215,7 +244,16 @@ const FAST_KEYS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ{|}
 
 /// Keys for each tag in a table (explicit, else derived from the name).
 fn assign_keys(table: &[TagEntry]) -> Vec<(String, char)> {
-    let explicit: Vec<char> = table.iter().filter_map(|e| if let TagEntry::Tag(_, Some(k)) = e { Some(*k) } else { None }).collect();
+    let explicit: Vec<char> = table
+        .iter()
+        .filter_map(|e| {
+            if let TagEntry::Tag(_, Some(k)) = e {
+                Some(*k)
+            } else {
+                None
+            }
+        })
+        .collect();
     let mut out: Vec<(String, char)> = vec![];
     let mut pool = FAST_KEYS.chars();
     for e in table {
@@ -226,7 +264,12 @@ fn assign_keys(table: &[TagEntry]) -> Vec<(String, char)> {
         let key = match k {
             Some(k) => *k,
             None => {
-                let auto = t.trim_start_matches('@').chars().next().map(|c| c.to_ascii_lowercase()).unwrap_or(' ');
+                let auto = t
+                    .trim_start_matches('@')
+                    .chars()
+                    .next()
+                    .map(|c| c.to_ascii_lowercase())
+                    .unwrap_or(' ');
                 if !explicit.contains(&auto) && !out.iter().any(|(_, c)| *c == auto) {
                     auto
                 } else {
@@ -261,9 +304,19 @@ struct Fast {
 /// org-fast-tag-selection as a key menu that stays open until RET.
 fn fast_selection(ed: &mut Editor, f: Fast) {
     let mut entries: Vec<(String, String)> = vec![];
-    entries.push((String::new(), format!("Inherited: {}", f.inherited.join(" "))));
+    entries.push((
+        String::new(),
+        format!("Inherited: {}", f.inherited.join(" ")),
+    ));
     entries.push((String::new(), format!("Current: {}", f.current.join(" "))));
-    entries.push((String::new(), if f.single { "Next change exits".into() } else { String::new() }));
+    entries.push((
+        String::new(),
+        if f.single {
+            "Next change exits".into()
+        } else {
+            String::new()
+        },
+    ));
     for (t, k) in &f.keys {
         let mark = if f.current.contains(t) {
             " ✓"
@@ -280,55 +333,67 @@ fn fast_selection(ed: &mut Editor, f: Fast) {
     entries.push(("RET".into(), "accept".into()));
     entries.push((" ".into(), "clear".into()));
     entries.push(("TAB".into(), "edit (completion)".into()));
-    entries.push(("C-c".into(), if f.single { "multi".into() } else { "single".into() }));
+    entries.push((
+        "C-c".into(),
+        if f.single {
+            "multi".into()
+        } else {
+            "single".into()
+        },
+    ));
     let state = f.clone();
     ed.org_menu_enter = Some("RET".into());
-    super::menu(ed, "Tags [a-z..]:toggle [SPC]:clear [RET]:accept [TAB]:edit", entries, move |ed, k| {
-        let mut f = state;
-        let mut exit_now = false;
-        match k.as_str() {
-            "RET" => return finish_fast(ed, f),
-            " " => {
-                f.current.clear();
-                exit_now = f.single;
-            }
-            "C-c" => f.single = !f.single,
-            "TAB" => {
-                let all = buffer_tags(ed);
-                let f2 = f.clone();
-                super::complete(ed, "Tag: ", all, false, move |ed, t| {
-                    let mut f = f2;
-                    if !t.trim().is_empty() {
-                        add_or_remove(&mut f, t.trim());
-                    }
-                    if f.single {
-                        finish_fast(ed, f);
-                    } else {
-                        fast_selection(ed, f);
-                    }
-                });
-                return;
-            }
-            key => {
-                let c = key.chars().next().unwrap_or(' ');
-                if let Some((t, _)) = f.todo_keys.iter().find(|(_, k)| *k == c).cloned() {
-                    let save = ed.cur;
-                    ed.set_cursor(f.h, 0);
-                    let _ = super::todo::todo_to(ed, Some(t));
-                    ed.cur = save;
-                    exit_now = f.single;
-                } else if let Some((t, _)) = f.keys.iter().find(|(_, k)| *k == c).cloned() {
-                    add_or_remove(&mut f, &t);
+    super::menu(
+        ed,
+        "Tags [a-z..]:toggle [SPC]:clear [RET]:accept [TAB]:edit",
+        entries,
+        move |ed, k| {
+            let mut f = state;
+            let mut exit_now = false;
+            match k.as_str() {
+                "RET" => return finish_fast(ed, f),
+                " " => {
+                    f.current.clear();
                     exit_now = f.single;
                 }
+                "C-c" => f.single = !f.single,
+                "TAB" => {
+                    let all = buffer_tags(ed);
+                    let f2 = f.clone();
+                    super::complete(ed, "Tag: ", all, false, move |ed, t| {
+                        let mut f = f2;
+                        if !t.trim().is_empty() {
+                            add_or_remove(&mut f, t.trim());
+                        }
+                        if f.single {
+                            finish_fast(ed, f);
+                        } else {
+                            fast_selection(ed, f);
+                        }
+                    });
+                    return;
+                }
+                key => {
+                    let c = key.chars().next().unwrap_or(' ');
+                    if let Some((t, _)) = f.todo_keys.iter().find(|(_, k)| *k == c).cloned() {
+                        let save = ed.cur;
+                        ed.set_cursor(f.h, 0);
+                        let _ = super::todo::todo_to(ed, Some(t));
+                        ed.cur = save;
+                        exit_now = f.single;
+                    } else if let Some((t, _)) = f.keys.iter().find(|(_, k)| *k == c).cloned() {
+                        add_or_remove(&mut f, &t);
+                        exit_now = f.single;
+                    }
+                }
             }
-        }
-        if exit_now {
-            finish_fast(ed, f);
-        } else {
-            fast_selection(ed, f);
-        }
-    });
+            if exit_now {
+                finish_fast(ed, f);
+            } else {
+                fast_selection(ed, f);
+            }
+        },
+    );
 }
 
 fn add_or_remove(f: &mut Fast, tag: &str) {
@@ -344,7 +409,8 @@ fn add_or_remove(f: &mut Fast, tag: &str) {
     }
     // Sort in display order.
     let order: Vec<&String> = f.keys.iter().map(|(t, _)| t).collect();
-    f.current.sort_by_key(|t| order.iter().position(|o| *o == t).unwrap_or(usize::MAX));
+    f.current
+        .sort_by_key(|t| order.iter().position(|o| *o == t).unwrap_or(usize::MAX));
 }
 
 fn finish_fast(ed: &mut Editor, f: Fast) {
@@ -368,7 +434,11 @@ pub fn set_tags_command(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
         let table = tag_table(ed, &st);
         let names: Vec<String> = assign_keys(&table).into_iter().map(|(t, _)| t).collect();
         super::read(ed, "Tags: ", "", move |ed, s| {
-            let tags: Vec<String> = s.split([':', ' ']).filter(|t| !t.is_empty()).map(str::to_owned).collect();
+            let tags: Vec<String> = s
+                .split([':', ' '])
+                .filter(|t| !t.is_empty())
+                .map(str::to_owned)
+                .collect();
             ed.undo.begin(ed.cur.pos());
             for &h in &heads {
                 set_tags(ed, h, &tags);
@@ -399,11 +469,16 @@ pub fn set_tags_command(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
     if use_fast {
         let include_todo = super::options::bool("org-fast-tag-selection-include-todo", false);
         let todo_keys = if include_todo {
-            st.seqs.iter().flat_map(|s| s.todo.iter().chain(&s.done)).filter_map(|k| k.key.map(|c| (k.name.clone(), c))).collect()
+            st.seqs
+                .iter()
+                .flat_map(|s| s.todo.iter().chain(&s.done))
+                .filter_map(|k| k.key.map(|c| (k.name.clone(), c)))
+                .collect()
         } else {
             vec![]
         };
-        let single = super::sexp::option("org-fast-tag-selection-single-key").is_some_and(|v| v.truthy());
+        let single =
+            super::sexp::option("org-fast-tag-selection-single-key").is_some_and(|v| v.truthy());
         fast_selection(
             ed,
             Fast {
@@ -451,7 +526,12 @@ enum Term {
     /// `{regexp}` on tags.
     TagRe(String),
     /// PROP op value, with `*` (must exist).
-    Prop { name: String, op: String, value: Operand, star: bool },
+    Prop {
+        name: String,
+        op: String,
+        value: Operand,
+        star: bool,
+    },
 }
 
 /// A compiled matcher (org-make-tags-matcher).
@@ -507,7 +587,9 @@ fn next_term(s: &str) -> Option<(Option<char>, String, &str)> {
         i
     };
     let after = &rest[name_len..];
-    for op in ["<=", ">=", "=<", "=>", "<>", "!=", "/=", "==", "<", ">", "="] {
+    for op in [
+        "<=", ">=", "=<", "=>", "<>", "!=", "/=", "==", "<", ">", "=",
+    ] {
         if name_len > 0 && after.starts_with(op) {
             let mut v = &after[op.len()..];
             let star = v.starts_with('*');
@@ -516,19 +598,32 @@ fn next_term(s: &str) -> Option<(Option<char>, String, &str)> {
             }
             let vlen = if v.starts_with('{') {
                 v.find('}')? + 1
-            } else if v.starts_with('"') {
-                v[1..].find('"')? + 2
+            } else if let Some(q) = v.strip_prefix('"') {
+                q.find('"')? + 2
             } else {
-                v.bytes().take_while(|c| c.is_ascii_digit() || matches!(c, b'.' | b'-' | b'e' | b'E' | b'+')).count()
+                v.bytes()
+                    .take_while(|c| {
+                        c.is_ascii_digit() || matches!(c, b'.' | b'-' | b'e' | b'E' | b'+')
+                    })
+                    .count()
             };
             if vlen == 0 {
                 return None;
             }
-            let term = format!("{}{op}{}{}", &rest[..name_len], if star { "*" } else { "" }, &v[..vlen]);
+            let term = format!(
+                "{}{op}{}{}",
+                &rest[..name_len],
+                if star { "*" } else { "" },
+                &v[..vlen]
+            );
             return Some((sign, term, &v[vlen..]));
         }
     }
-    let tag_len = rest.chars().take_while(|c| syntax::is_tag_char(*c)).map(char::len_utf8).sum::<usize>();
+    let tag_len = rest
+        .chars()
+        .take_while(|c| syntax::is_tag_char(*c))
+        .map(char::len_utf8)
+        .sum::<usize>();
     if tag_len == 0 {
         return None;
     }
@@ -539,9 +634,13 @@ fn parse_term(t: &str, now: i64) -> Term {
     if let Some(re) = t.strip_prefix('{').and_then(|x| x.strip_suffix('}')) {
         return Term::TagRe(re.to_owned());
     }
-    for op in ["<=", ">=", "=<", "=>", "<>", "!=", "/=", "==", "<", ">", "="] {
+    for op in [
+        "<=", ">=", "=<", "=>", "<>", "!=", "/=", "==", "<", ">", "=",
+    ] {
         if let Some(i) = t.find(op)
-            && t[..i].chars().all(|c| c.is_alphanumeric() || c == '_' || c == '\\' || c == '-')
+            && t[..i]
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '_' || c == '\\' || c == '-')
             && i > 0
         {
             let name = t[..i].replace('\\', "").to_uppercase();
@@ -560,7 +659,12 @@ fn parse_term(t: &str, now: i64) -> Term {
             } else {
                 Operand::Num(v.parse().unwrap_or(0.0))
             };
-            return Term::Prop { name, op: op.to_owned(), value, star };
+            return Term::Prop {
+                name,
+                op: op.to_owned(),
+                value,
+                star,
+            };
         }
     }
     Term::Tag(t.to_owned())
@@ -641,7 +745,11 @@ pub fn expand_groups(m: &str, st: &Settings) -> String {
             rest = &rest[e + 1..];
             continue;
         }
-        let w: usize = rest.chars().take_while(|c| syntax::is_tag_char(*c)).map(char::len_utf8).sum();
+        let w: usize = rest
+            .chars()
+            .take_while(|c| syntax::is_tag_char(*c))
+            .map(char::len_utf8)
+            .sum();
         if w == 0 {
             let c = rest.chars().next().unwrap();
             res.push(c);
@@ -649,12 +757,22 @@ pub fn expand_groups(m: &str, st: &Settings) -> String {
             continue;
         }
         let word = &rest[..w];
-        let is_prop = rest[w..].starts_with(['<', '>', '=', '!', '/']) && !rest[w..].starts_with("/");
+        let is_prop =
+            rest[w..].starts_with(['<', '>', '=', '!', '/']) && !rest[w..].starts_with("/");
         if !is_prop && gs.iter().any(|(g, _)| g.eq_ignore_ascii_case(word)) {
             let tags = expand(word);
-            let (re_tags, plain): (Vec<String>, Vec<String>) = tags.into_iter().partition(|t| t.starts_with('{'));
-            let regular = plain.iter().map(|t| regex::escape(t)).collect::<Vec<_>>().join("\\|");
-            let regexps = re_tags.iter().map(|t| t.trim_start_matches('{').trim_end_matches('}').to_owned()).collect::<Vec<_>>().join("\\|");
+            let (re_tags, plain): (Vec<String>, Vec<String>) =
+                tags.into_iter().partition(|t| t.starts_with('{'));
+            let regular = plain
+                .iter()
+                .map(|t| regex::escape(t))
+                .collect::<Vec<_>>()
+                .join("\\|");
+            let regexps = re_tags
+                .iter()
+                .map(|t| t.trim_start_matches('{').trim_end_matches('}').to_owned())
+                .collect::<Vec<_>>()
+                .join("\\|");
             res.push_str(&if plain.is_empty() {
                 format!("{{{regexps}}}")
             } else if re_tags.is_empty() {
@@ -726,7 +844,13 @@ impl Matcher {
                 '"' if !brace => quote = !quote,
                 '{' if !quote => brace = true,
                 '}' if !quote => brace = false,
-                '/' if !quote && !brace && !expanded[..i].ends_with(['<', '>', '=', '!']) && !expanded[i + 1..].starts_with('=') => split = Some(i),
+                '/' if !quote
+                    && !brace
+                    && !expanded[..i].ends_with(['<', '>', '=', '!'])
+                    && !expanded[i + 1..].starts_with('=') =>
+                {
+                    split = Some(i)
+                }
                 _ => {}
             }
         }
@@ -743,8 +867,16 @@ impl Matcher {
         };
         Matcher {
             source: m.to_owned(),
-            tags: if tagsm.trim().is_empty() { vec![] } else { parse_or(&tagsm, now) },
-            todo: if todom.trim().is_empty() { vec![] } else { parse_or(&todom, now) },
+            tags: if tagsm.trim().is_empty() {
+                vec![]
+            } else {
+                parse_or(&tagsm, now)
+            },
+            todo: if todom.trim().is_empty() {
+                vec![]
+            } else {
+                parse_or(&todom, now)
+            },
             todo_only,
         }
     }
@@ -752,10 +884,19 @@ impl Matcher {
     fn term(t: &Term, e: &EntryInfo, todo_part: bool) -> bool {
         match t {
             Term::Tag(tag) if todo_part => e.todo == Some(tag.as_str()),
-            Term::TagRe(re) if todo_part => super::re::compile(re, false).is_ok_and(|r| e.todo.is_some_and(|t| r.is_match(t))),
+            Term::TagRe(re) if todo_part => {
+                super::re::compile(re, false).is_ok_and(|r| e.todo.is_some_and(|t| r.is_match(t)))
+            }
             Term::Tag(tag) => e.tags.iter().any(|t| t == tag),
-            Term::TagRe(re) => super::re::compile(re, false).is_ok_and(|r| e.tags.iter().any(|t| r.is_match(t))),
-            Term::Prop { name, op, value, star } => {
+            Term::TagRe(re) => {
+                super::re::compile(re, false).is_ok_and(|r| e.tags.iter().any(|t| r.is_match(t)))
+            }
+            Term::Prop {
+                name,
+                op,
+                value,
+                star,
+            } => {
                 let v = match name.as_str() {
                     "LEVEL" => Some(e.level.to_string()),
                     "TODO" => e.todo.map(str::to_owned),
@@ -776,10 +917,17 @@ impl Matcher {
                 match value {
                     Operand::Regexp(re) => {
                         let m = super::re::compile(re, false).is_ok_and(|r| r.is_match(&v));
-                        if matches!(op.as_str(), "<>" | "!=" | "/=") { !m } else { m }
+                        if matches!(op.as_str(), "<>" | "!=" | "/=") {
+                            !m
+                        } else {
+                            m
+                        }
                     }
                     Operand::Str(s) => cmp(v.as_str().cmp(s.as_str())),
-                    Operand::Time(t) => match matcher_time(&format!("<{}>", v.trim_matches(['<', '>', '[', ']'])), 0) {
+                    Operand::Time(t) => match matcher_time(
+                        &format!("<{}>", v.trim_matches(['<', '>', '[', ']'])),
+                        0,
+                    ) {
                         Some(x) => cmp(x.cmp(t)),
                         None => false,
                     },
@@ -796,20 +944,32 @@ impl Matcher {
         if self.todo_only && !e.todo.is_some_and(|t| (e.not_done)(t)) {
             return false;
         }
-        let eval = |or: &[Vec<(bool, Term)>], todo: bool| or.is_empty() || or.iter().any(|and| and.iter().all(|(neg, t)| Self::term(t, e, todo) != *neg));
+        let eval = |or: &[Vec<(bool, Term)>], todo: bool| {
+            or.is_empty()
+                || or
+                    .iter()
+                    .any(|and| and.iter().all(|(neg, t)| Self::term(t, e, todo) != *neg))
+        };
         eval(&self.tags, false) && eval(&self.todo, true)
     }
 }
 
 /// Entries of `b` matching `m`: heading lines (org-scan-tags).
-pub fn scan<L: Lines + ?Sized>(b: &L, st: &Settings, file: Option<&std::path::Path>, m: &Matcher) -> Vec<usize> {
+pub fn scan<L: Lines + ?Sized>(
+    b: &L,
+    st: &Settings,
+    file: Option<&std::path::Path>,
+    m: &Matcher,
+) -> Vec<usize> {
     let doc = Doc::new(b, st, file);
     let mut out = vec![];
     let sublevels = super::sexp::option("org-tags-match-list-sublevels").is_none_or(|v| v.truthy());
     let mut skip_until = 0;
     for l in 0..b.n_lines() {
         let line = b.line_text(l);
-        let Some(h) = syntax::headline(&line, st) else { continue };
+        let Some(h) = syntax::headline(&line, st) else {
+            continue;
+        };
         if l < skip_until {
             continue;
         }
@@ -869,19 +1029,27 @@ fn change_tag_in_region(ed: &mut Editor) -> Result<(), String> {
     let (lo, hi) = ed.org_region.ok_or("No active region")?;
     let tags = buffer_tags(ed);
     super::complete(ed, "Tag: ", tags, false, move |ed, tag| {
-        super::menu(ed, "[s]et or [r]emove?", vec![("s".into(), "set".into()), ("r".into(), "remove".into())], move |ed, k| {
-            let off = k == "r";
-            ed.undo.begin(ed.cur.pos());
-            let mut cnt = 0;
-            for l in lo..=hi {
-                if ctx::at_heading(ed, l) {
-                    toggle_tag(ed, l, &tag, Some(!off));
-                    cnt += 1;
+        super::menu(
+            ed,
+            "[s]et or [r]emove?",
+            vec![("s".into(), "set".into()), ("r".into(), "remove".into())],
+            move |ed, k| {
+                let off = k == "r";
+                ed.undo.begin(ed.cur.pos());
+                let mut cnt = 0;
+                for l in lo..=hi {
+                    if ctx::at_heading(ed, l) {
+                        toggle_tag(ed, l, &tag, Some(!off));
+                        cnt += 1;
+                    }
                 }
-            }
-            ed.undo.end(ed.cur.pos());
-            ed.set_msg(format!("Tag :{tag}: {} in {cnt} headings", if off { "removed" } else { "set" }));
-        });
+                ed.undo.end(ed.cur.pos());
+                ed.set_msg(format!(
+                    "Tag :{tag}: {} in {cnt} headings",
+                    if off { "removed" } else { "set" }
+                ));
+            },
+        );
     });
     Ok(())
 }
@@ -893,13 +1061,18 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
         "org-toggle-tags-groups" => {
             let on = !super::options::bool("org-group-tags", true);
             super::options::put("org-group-tags", toml::Value::Boolean(on));
-            ed.set_msg(format!("Groups tags support has been turned {}", if on { "on" } else { "off" }));
+            ed.set_msg(format!(
+                "Groups tags support has been turned {}",
+                if on { "on" } else { "off" }
+            ));
             Ok(())
         }
         "org-match-sparse-tree" | "org-tags-sparse-tree" => {
             let todo_only = !arg.is_none();
             let tags = buffer_tags(ed);
-            super::complete(ed, "Match: ", tags, false, move |ed, m| match_sparse_tree(ed, todo_only, &m));
+            super::complete(ed, "Match: ", tags, false, move |ed, m| {
+                match_sparse_tree(ed, todo_only, &m)
+            });
             Ok(())
         }
         _ => return None,
@@ -911,12 +1084,29 @@ mod tests {
     use super::super::tests::org;
     use super::*;
 
-    fn eval(m: &str, todo: Option<&str>, tags: &[&str], level: usize, props: &[(&str, &str)]) -> bool {
+    fn eval(
+        m: &str,
+        todo: Option<&str>,
+        tags: &[&str],
+        level: usize,
+        props: &[(&str, &str)],
+    ) -> bool {
         let st = syntax::settings("#+TODO: TODO NEXT | DONE".lines(), None);
         let tags: Vec<String> = tags.iter().map(|s| s.to_string()).collect();
-        let prop = |p: &str| props.iter().find(|(k, _)| k.eq_ignore_ascii_case(p)).map(|(_, v)| v.to_string());
+        let prop = |p: &str| {
+            props
+                .iter()
+                .find(|(k, _)| k.eq_ignore_ascii_case(p))
+                .map(|(_, v)| v.to_string())
+        };
         let not_done = |t: &str| t != "DONE";
-        Matcher::new(m, &st, 0).matches(&EntryInfo { todo, tags: &tags, level, prop: &prop, not_done: &not_done })
+        Matcher::new(m, &st, 0).matches(&EntryInfo {
+            todo,
+            tags: &tags,
+            level,
+            prop: &prop,
+            not_done: &not_done,
+        })
     }
 
     #[test]
@@ -932,10 +1122,22 @@ mod tests {
         assert!(!eval("/!", Some("DONE"), &[], 1, &[]));
         assert!(eval("Effort<2", None, &[], 1, &[("Effort", "1")]));
         assert!(eval("LEVEL=2", None, &[], 2, &[]));
-        assert!(eval("WITH={Sarah}", None, &[], 1, &[("WITH", "Sarah, Bob")]));
+        assert!(eval(
+            "WITH={Sarah}",
+            None,
+            &[],
+            1,
+            &[("WITH", "Sarah, Bob")]
+        ));
         assert!(eval("CAT=\"x\"", None, &[], 1, &[("CAT", "x")]));
         assert!(!eval("PROP<>*\"x\"", None, &[], 1, &[]));
-        assert!(eval("work-PROP=\"y\"", None, &["work"], 1, &[("PROP", "z")]));
+        assert!(eval(
+            "work-PROP=\"y\"",
+            None,
+            &["work"],
+            1,
+            &[("PROP", "z")]
+        ));
         assert!(eval("TODO=\"NEXT\"", Some("NEXT"), &[], 1, &[]));
         assert_eq!(days_from_civil(1970, 1, 2), 1);
     }
@@ -944,11 +1146,20 @@ mod tests {
     fn group_tags_expand() {
         let st = syntax::settings("#+TAGS: [ Work : Lab Conf ]".lines(), None);
         let x = expand_groups("Work", &st);
-        assert!(x.starts_with("{\\<\\(?:") && x.contains("Lab") && x.contains("Conf"), "{x}");
+        assert!(
+            x.starts_with("{\\<\\(?:") && x.contains("Lab") && x.contains("Conf"),
+            "{x}"
+        );
         let tags = vec!["Lab".to_string()];
         let prop = |_: &str| None;
         let nd = |_: &str| true;
-        assert!(Matcher::new("Work", &st, 0).matches(&EntryInfo { todo: None, tags: &tags, level: 1, prop: &prop, not_done: &nd }));
+        assert!(Matcher::new("Work", &st, 0).matches(&EntryInfo {
+            todo: None,
+            tags: &tags,
+            level: 1,
+            prop: &prop,
+            not_done: &nd
+        }));
     }
 
     #[test]
@@ -973,7 +1184,10 @@ mod tests {
     fn fast_tag_selection_menu() {
         let e = org("#+TAGS: work(w) home(h)\n* A", "j<C-c><C-q>w<Enter>");
         assert!(e.buf.line(1).ends_with(":work:"), "{}", e.buf.line(1));
-        let e = org("#+TAGS: { work(w) home(h) }\n* A :work:", "j<C-c><C-q>h<Enter>");
+        let e = org(
+            "#+TAGS: { work(w) home(h) }\n* A :work:",
+            "j<C-c><C-q>h<Enter>",
+        );
         assert!(e.buf.line(1).ends_with(":home:"), "{}", e.buf.line(1));
         let e = org("* A", "<C-c><C-q>x:y<Enter>");
         assert!(e.buf.line(0).ends_with(":x:y:"), "{}", e.buf.line(0));

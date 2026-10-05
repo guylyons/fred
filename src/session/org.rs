@@ -17,7 +17,9 @@ impl Session {
         ed.org_finish = Some(crate::org::FinishSlot::new(finish));
         ed.org_return = Some(self.cur);
         ed.set_cursor(cursor.0, cursor.1);
-        let swap = self.swap_dir.join(format!("org-special-{}", self.bufs.len()));
+        let swap = self
+            .swap_dir
+            .join(format!("org-special-{}", self.bufs.len()));
         self.bufs.push(Some(Parked {
             ed,
             stamp: None,
@@ -86,7 +88,11 @@ impl Session {
     }
 
     /// Run `f` on the buffer visiting `path` (opened if needed).
-    pub fn org_with_file<R>(&mut self, path: &Path, f: impl FnOnce(&mut Editor) -> R) -> Result<R, String> {
+    pub fn org_with_file<R>(
+        &mut self,
+        path: &Path,
+        f: impl FnOnce(&mut Editor) -> R,
+    ) -> Result<R, String> {
         let i = self.org_buffer(path)?;
         Ok(self.org_with_buffer(i, f))
     }
@@ -139,7 +145,11 @@ impl Session {
         if before != self.cur {
             self.show(before);
         }
-        if ok { Ok(()) } else { Err(self.ed.msg.clone().map(|m| m.0).unwrap_or_default()) }
+        if ok {
+            Ok(())
+        } else {
+            Err(self.ed.msg.clone().map(|m| m.0).unwrap_or_default())
+        }
     }
 
     /// Number of buffers.
@@ -170,8 +180,12 @@ mod tests {
                 std::fs::write(dir.path().join(n), c).unwrap();
             }
             let mut cfg = Config::default();
-            cfg.org.0.insert("org-directory".into(), toml::Value::String(dir.path().display().to_string()));
-            let (s, _) = Session::open(Some(dir.path().join(open)), &cfg, &dir.path().join("swap")).unwrap();
+            cfg.org.0.insert(
+                "org-directory".into(),
+                toml::Value::String(dir.path().display().to_string()),
+            );
+            let (s, _) =
+                Session::open(Some(dir.path().join(open)), &cfg, &dir.path().join("swap")).unwrap();
             T { dir, s }
         }
         fn keys(&mut self, k: &str) {
@@ -190,9 +204,18 @@ mod tests {
 
     #[test]
     fn refile_between_files() {
-        let mut t = T::new(&[("a.org", "* Move me\nbody\n* Stay"), ("b.org", "* Target\n** Old")], "a.org");
+        let mut t = T::new(
+            &[
+                ("a.org", "* Move me\nbody\n* Stay"),
+                ("b.org", "* Target\n** Old"),
+            ],
+            "a.org",
+        );
         let b = t.dir.path().join("b.org").display().to_string();
-        crate::org::options::put("org-refile-targets", toml::Value::String(format!("'((\"{b}\" :maxlevel . 2))")));
+        crate::org::options::put(
+            "org-refile-targets",
+            toml::Value::String(format!("'((\"{b}\" :maxlevel . 2))")),
+        );
         t.keys("<C-c><C-w>Target<Enter>");
         assert_eq!(t.s.ed.buf.text(), "* Stay", "{:?}", t.s.ed.msg);
         assert_eq!(t.text_of("b.org"), "* Target\n** Old\n** Move me\nbody");
@@ -215,7 +238,10 @@ mod tests {
         assert_eq!(t.s.ed.buf.text(), "* P :p:\n* Q", "{:?}", t.s.ed.msg);
         let arch = t.file("a.org_archive");
         assert!(arch.starts_with("\nArchived entries from file "), "{arch}");
-        assert!(arch.contains("* DONE Old\n:PROPERTIES:\n:ARCHIVE_TIME:"), "{arch}");
+        assert!(
+            arch.contains("* DONE Old\n:PROPERTIES:\n:ARCHIVE_TIME:"),
+            "{arch}"
+        );
         assert!(arch.contains(":ARCHIVE_OLPATH: P\n"), "{arch}");
         assert!(arch.contains(":ARCHIVE_ITAGS: p\n"), "{arch}");
         assert!(arch.contains(":ARCHIVE_TODO: DONE\n"), "{arch}");
@@ -225,7 +251,10 @@ mod tests {
     #[test]
     fn capture_into_notes_headline_and_finish() {
         crate::org::set_now(Some(1_780_000_000));
-        let mut t = T::new(&[("notes.org", "* Tasks\n* Other"), ("src.txt", "hello")], "src.txt");
+        let mut t = T::new(
+            &[("notes.org", "* Tasks\n* Other"), ("src.txt", "hello")],
+            "src.txt",
+        );
         crate::org::options::put(
             "org-capture-templates",
             toml::Value::String("'((\"w\" \"Work todo\" entry (file+headline org-default-notes-file \"Tasks\") \"* TICKET %?\\nEntered on %U\\n** Description\\n** Notes\\n** Resolution\"))".into()),
@@ -237,22 +266,42 @@ mod tests {
         t.keys("Fix it<C-c><C-c>");
         let text = t.file("notes.org");
         let ts = crate::org::timestamp(1_780_000_000, true, true);
-        assert_eq!(text, format!("* Tasks\n** TICKET Fix it\nEntered on {ts}\n*** Description\n*** Notes\n*** Resolution\n* Other"));
-        assert_eq!(t.s.ed.path.as_ref().unwrap().file_name().unwrap(), "src.txt");
+        assert_eq!(
+            text,
+            format!(
+                "* Tasks\n** TICKET Fix it\nEntered on {ts}\n*** Description\n*** Notes\n*** Resolution\n* Other"
+            )
+        );
+        assert_eq!(
+            t.s.ed.path.as_ref().unwrap().file_name().unwrap(),
+            "src.txt"
+        );
         crate::org::options::put("org-capture-templates", toml::Value::Boolean(false));
         crate::org::set_now(None);
     }
 
     #[test]
     fn edit_src_block_in_a_dedicated_buffer() {
-        let mut t = T::new(&[("a.org", "* H\n#+begin_src python\n  print(1)\n  * star\n#+end_src\n")], "a.org");
+        let mut t = T::new(
+            &[(
+                "a.org",
+                "* H\n#+begin_src python\n  print(1)\n  * star\n#+end_src\n",
+            )],
+            "a.org",
+        );
         t.keys("jj<C-c>'");
-        assert_eq!(t.s.ed.org_buffer_name.as_deref(), Some("*Org Src a.org[ python ]*"));
+        assert_eq!(
+            t.s.ed.org_buffer_name.as_deref(),
+            Some("*Org Src a.org[ python ]*")
+        );
         assert_eq!(t.s.ed.buf.text(), "print(1)\n* star");
         assert_eq!(t.s.ed.cur.line, 0);
         assert!(t.s.ed.org.is_none());
         t.keys("A + 1<Esc><C-c>'");
-        assert_eq!(t.s.ed.buf.text(), "* H\n#+begin_src python\n  print(1) + 1\n  ,* star\n#+end_src");
+        assert_eq!(
+            t.s.ed.buf.text(),
+            "* H\n#+begin_src python\n  print(1) + 1\n  ,* star\n#+end_src"
+        );
         assert!(t.s.ed.org_buffer_name.is_none());
         // Abort leaves the block alone.
         t.keys("jj<C-c>'Ox<Esc><C-c><C-k>");

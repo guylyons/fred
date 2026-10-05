@@ -54,7 +54,11 @@ fn kinds(lines: &[String]) -> Vec<Kind> {
             continue;
         }
         let tt = t.trim_end();
-        if tt.len() > 2 && tt.starts_with(':') && tt.ends_with(':') && !tt[1..tt.len() - 1].contains(' ') {
+        if tt.len() > 2
+            && tt.starts_with(':')
+            && tt.ends_with(':')
+            && !tt[1..tt.len() - 1].contains(' ')
+        {
             drawer = !tt.eq_ignore_ascii_case(":END:");
             out.push(Kind::Drawer);
             continue;
@@ -133,10 +137,18 @@ pub fn face_style(face: &Sexp) -> Style {
         }
         Sexp::Sym(name) => st = named_face(name),
         _ => {
-            if let Some(c) = face.plist_get(":foreground").and_then(|v| v.str()).and_then(hex) {
+            if let Some(c) = face
+                .plist_get(":foreground")
+                .and_then(|v| v.str())
+                .and_then(hex)
+            {
                 st = st.fg(c);
             }
-            if let Some(c) = face.plist_get(":background").and_then(|v| v.str()).and_then(hex) {
+            if let Some(c) = face
+                .plist_get(":background")
+                .and_then(|v| v.str())
+                .and_then(hex)
+            {
                 st = st.bg(c);
             }
             if face.plist_get(":weight").and_then(|v| v.sym()) == Some("bold") {
@@ -176,17 +188,25 @@ fn named_face(name: &str) -> Style {
 pub fn keyword_style(st: &Settings, kw: &str) -> Style {
     if let Some(list) = st.opt("org-todo-keyword-faces")
         && let Some(entries) = list.list()
-        && let Some(e) = entries.iter().find(|e| e.car().and_then(Sexp::str) == Some(kw))
+        && let Some(e) = entries
+            .iter()
+            .find(|e| e.car().and_then(Sexp::str) == Some(kw))
     {
         return face_style(&e.cdr());
     }
-    if st.is_done(kw) { named_face("org-done") } else { named_face("org-todo") }
+    if st.is_done(kw) {
+        named_face("org-done")
+    } else {
+        named_face("org-todo")
+    }
 }
 
 fn priority_style(st: &Settings, p: u32) -> Style {
     if let Some(list) = st.opt("org-priority-faces")
         && let Some(entries) = list.list()
-        && let Some(e) = entries.iter().find(|e| e.car().and_then(Sexp::int) == Some(p as i64))
+        && let Some(e) = entries
+            .iter()
+            .find(|e| e.car().and_then(Sexp::int) == Some(p as i64))
     {
         return face_style(&e.cdr());
     }
@@ -194,9 +214,17 @@ fn priority_style(st: &Settings, p: u32) -> Style {
 }
 
 fn level_style(st: &Settings, lvl: usize) -> Style {
-    let n = if st.opt_bool("org-odd-levels-only", false) { lvl.div_ceil(2) } else { lvl };
+    let n = if st.opt_bool("org-odd-levels-only", false) {
+        lvl.div_ceil(2)
+    } else {
+        lvl
+    };
     let cycle = super::options::bool("org-cycle-level-faces", true);
-    let i = if cycle { (n.max(1) - 1) % 8 } else { (n.max(1) - 1).min(7) };
+    let i = if cycle {
+        (n.max(1) - 1) % 8
+    } else {
+        (n.max(1) - 1).min(7)
+    };
     Style::default().fg(LEVELS[i]).add_modifier(Modifier::BOLD)
 }
 
@@ -222,21 +250,20 @@ pub fn styles(ed: &Editor, l: usize, st: &Settings) -> LineStyles {
         Kind::Drawer => {
             let t = line.trim_start();
             let off = line.len() - t.len();
-            if t.starts_with(':') {
-                let end = t[1..].find(':').map_or(t.len(), |i| i + 2);
+            if let Some(rest) = t.strip_prefix(':') {
+                let end = rest.find(':').map_or(t.len(), |i| i + 2);
                 let drawer = t.trim_end().ends_with(':') && end == t.trim_end().len();
-                let style = if drawer { Style::default().fg(Color::Blue) } else { Style::default().fg(Color::Cyan) };
+                let style = if drawer {
+                    Style::default().fg(Color::Blue)
+                } else {
+                    Style::default().fg(Color::Cyan)
+                };
                 push(&mut out, style, off..off + end);
             }
             return out;
         }
         Kind::Table => {
-            let t = line.trim_start();
-            let style = if t.starts_with("|-") || t.starts_with("+-") {
-                Style::default().fg(Color::Blue)
-            } else {
-                Style::default().fg(Color::Blue)
-            };
+            let style = Style::default().fg(Color::Blue);
             push(&mut out, style, 0..line.len());
             inline(&line, &mut out, st);
             return out;
@@ -254,7 +281,11 @@ pub fn styles(ed: &Editor, l: usize, st: &Settings) -> LineStyles {
         }
         let done = h.todo.as_deref().is_some_and(|k| st.is_done(k));
         if done && st.opt_bool("org-fontify-done-headline", true) {
-            push(&mut out, Style::default().fg(Color::DarkGray), h.title.clone());
+            push(
+                &mut out,
+                Style::default().fg(Color::DarkGray),
+                h.title.clone(),
+            );
         }
         if let (Some(k), Some(r)) = (&h.todo, &h.todo_range) {
             push(&mut out, keyword_style(st, k), r.clone());
@@ -264,7 +295,13 @@ pub fn styles(ed: &Editor, l: usize, st: &Settings) -> LineStyles {
         }
         inline(&line[..h.title.end], &mut out, st);
         if let Some(r) = &h.tags_range {
-            push(&mut out, Style::default().add_modifier(Modifier::BOLD).fg(Color::Gray), r.clone());
+            push(
+                &mut out,
+                Style::default()
+                    .add_modifier(Modifier::BOLD)
+                    .fg(Color::Gray),
+                r.clone(),
+            );
         }
         return out;
     }
@@ -275,7 +312,9 @@ pub fn styles(ed: &Editor, l: usize, st: &Settings) -> LineStyles {
             let vstart = line.len() - value.len();
             push(&mut out, gray, 0..vstart);
             let vstyle = match key.as_str() {
-                "TITLE" => Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD),
+                "TITLE" => Style::default()
+                    .fg(Color::Blue)
+                    .add_modifier(Modifier::BOLD),
                 "AUTHOR" | "DATE" | "EMAIL" | "SUBTITLE" => Style::default().fg(Color::Blue),
                 _ => gray,
             };
@@ -297,7 +336,11 @@ pub fn styles(ed: &Editor, l: usize, st: &Settings) -> LineStyles {
     for kw in ["SCHEDULED:", "DEADLINE:", "CLOSED:", "CLOCK:"] {
         let mut from = 0;
         while let Some(i) = line[from..].find(kw) {
-            push(&mut out, Style::default().fg(Color::Cyan), from + i..from + i + kw.len());
+            push(
+                &mut out,
+                Style::default().fg(Color::Cyan),
+                from + i..from + i + kw.len(),
+            );
             from += i + kw.len();
         }
     }
@@ -306,10 +349,18 @@ pub fn styles(ed: &Editor, l: usize, st: &Settings) -> LineStyles {
         push(&mut out, Style::default().fg(Color::Yellow), off..off + b);
         let rest = &t[b..];
         if rest.starts_with("[ ] ") || rest.starts_with("[X] ") || rest.starts_with("[-] ") {
-            push(&mut out, Style::default().add_modifier(Modifier::BOLD), off + b..off + b + 3);
+            push(
+                &mut out,
+                Style::default().add_modifier(Modifier::BOLD),
+                off + b..off + b + 3,
+            );
         }
         if let Some(i) = rest.find(" :: ") {
-            push(&mut out, Style::default().add_modifier(Modifier::BOLD), off + b..off + b + i);
+            push(
+                &mut out,
+                Style::default().add_modifier(Modifier::BOLD),
+                off + b..off + b + i,
+            );
         }
     }
     inline(&line, &mut out, st);
@@ -325,8 +376,15 @@ pub fn bullet_len(t: &str) -> Option<usize> {
         return Some(1);
     }
     let d = t.bytes().take_while(u8::is_ascii_digit).count();
-    let a = if d == 0 && t.len() > 1 && t.as_bytes()[0].is_ascii_alphabetic() { 1 } else { d };
-    if a > 0 && matches!(t.as_bytes().get(a), Some(b'.' | b')')) && matches!(t.as_bytes().get(a + 1), Some(b' ') | None) {
+    let a = if d == 0 && t.len() > 1 && t.as_bytes()[0].is_ascii_alphabetic() {
+        1
+    } else {
+        d
+    };
+    if a > 0
+        && matches!(t.as_bytes().get(a), Some(b'.' | b')'))
+        && matches!(t.as_bytes().get(a + 1), Some(b' ') | None)
+    {
         return Some((a + 2).min(t.len()));
     }
     None
@@ -335,8 +393,12 @@ pub fn bullet_len(t: &str) -> Option<usize> {
 /// Objects inside a line: links, timestamps, emphasis, footnotes, targets,
 /// macros and statistics cookies.
 fn inline(line: &str, out: &mut LineStyles, _st: &Settings) {
-    let link = Style::default().fg(Color::Cyan).add_modifier(Modifier::UNDERLINED);
-    let date = Style::default().fg(Color::Magenta).add_modifier(Modifier::UNDERLINED);
+    let link = Style::default()
+        .fg(Color::Cyan)
+        .add_modifier(Modifier::UNDERLINED);
+    let date = Style::default()
+        .fg(Color::Magenta)
+        .add_modifier(Modifier::UNDERLINED);
     let b = line.as_bytes();
     let mut i = 0;
     while i < b.len() {
@@ -351,7 +413,13 @@ fn inline(line: &str, out: &mut LineStyles, _st: &Settings) {
         if rest.starts_with("[fn:")
             && let Some(e) = rest.find(']')
         {
-            push(out, Style::default().fg(Color::Cyan).add_modifier(Modifier::UNDERLINED), i..i + e + 1);
+            push(
+                out,
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::UNDERLINED),
+                i..i + e + 1,
+            );
             i += e + 1;
             continue;
         }
@@ -365,7 +433,11 @@ fn inline(line: &str, out: &mut LineStyles, _st: &Settings) {
         if rest.starts_with("<<")
             && let Some(e) = rest.find(">>")
         {
-            push(out, Style::default().add_modifier(Modifier::UNDERLINED), i..i + e + 2);
+            push(
+                out,
+                Style::default().add_modifier(Modifier::UNDERLINED),
+                i..i + e + 2,
+            );
             i += e + 2;
             continue;
         }
@@ -376,8 +448,14 @@ fn inline(line: &str, out: &mut LineStyles, _st: &Settings) {
             i += e + 3;
             continue;
         }
-        if rest.starts_with("http://") || rest.starts_with("https://") || rest.starts_with("file:") || rest.starts_with("mailto:") {
-            let e = rest.find(|c: char| c.is_whitespace() || c == ']' || c == '>').unwrap_or(rest.len());
+        if rest.starts_with("http://")
+            || rest.starts_with("https://")
+            || rest.starts_with("file:")
+            || rest.starts_with("mailto:")
+        {
+            let e = rest
+                .find(|c: char| c.is_whitespace() || c == ']' || c == '>')
+                .unwrap_or(rest.len());
             push(out, link, i..i + e);
             i += e;
             continue;
@@ -385,10 +463,16 @@ fn inline(line: &str, out: &mut LineStyles, _st: &Settings) {
         if rest.starts_with('[')
             && let Some(e) = rest.find(']')
             && e > 1
-            && rest[1..e].chars().all(|c| c.is_ascii_digit() || c == '/' || c == '%')
+            && rest[1..e]
+                .chars()
+                .all(|c| c.is_ascii_digit() || c == '/' || c == '%')
             && (rest[1..e].contains('/') || rest[1..e].ends_with('%'))
         {
-            push(out, Style::default().fg(Color::Red).add_modifier(Modifier::BOLD), i..i + e + 1);
+            push(
+                out,
+                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                i..i + e + 1,
+            );
             i += e + 1;
             continue;
         }
@@ -456,7 +540,11 @@ pub fn emphasis_len(line: &str, i: usize) -> Option<usize> {
 /// Hide link brackets and targets (org-link-descriptive), emphasis
 /// markers (org-hide-emphasis-markers) and macro braces
 /// (org-hide-macro-markers) on a line that does not hold the cursor.
-pub fn conceal(line: String, st: Option<LineStyles>, settings: &Settings) -> (String, Option<LineStyles>) {
+pub fn conceal(
+    line: String,
+    st: Option<LineStyles>,
+    settings: &Settings,
+) -> (String, Option<LineStyles>) {
     let mut hide: Vec<std::ops::Range<usize>> = vec![];
     if settings.opt_bool("org-link-descriptive", true) && line.contains("[[") {
         for lk in super::links::links_in(&line, settings) {
@@ -497,7 +585,9 @@ pub fn conceal(line: String, st: Option<LineStyles>, settings: &Settings) -> (St
     if settings.opt_bool("org-hide-macro-markers", false) {
         let mut from = 0;
         while let Some(s) = line[from..].find("{{{").map(|x| x + from) {
-            let Some(e) = line[s..].find("}}}").map(|x| x + s) else { break };
+            let Some(e) = line[s..].find("}}}").map(|x| x + s) else {
+                break;
+            };
             hide.push(s..s + 3);
             hide.push(e..e + 3);
             from = e + 3;
@@ -540,14 +630,22 @@ mod conceal_tests {
     #[test]
     fn hides_link_targets_and_markers() {
         let st = syntax::settings("".lines(), None);
-        let (l, _) = conceal("see [[https://x.org][the site]] and [[t]]".into(), None, &st);
+        let (l, _) = conceal(
+            "see [[https://x.org][the site]] and [[t]]".into(),
+            None,
+            &st,
+        );
         assert_eq!(l, "see the site and t");
         let st = syntax::settings("#+STARTUP: literallinks".lines(), None);
         let (l, _) = conceal("[[a][b]]".into(), None, &st);
         assert_eq!(l, "[[a][b]]");
         let st = syntax::settings("".lines(), None);
         super::super::options::put("org-hide-emphasis-markers", toml::Value::Boolean(true));
-        let (l, s) = conceal("a *bold* b".into(), Some(vec![(Style::default(), 2..8)]), &st);
+        let (l, s) = conceal(
+            "a *bold* b".into(),
+            Some(vec![(Style::default(), 2..8)]),
+            &st,
+        );
         assert_eq!(l, "a bold b");
         assert_eq!(s.unwrap()[0].1, 2..6);
         super::super::options::put("org-hide-emphasis-markers", toml::Value::Boolean(false));

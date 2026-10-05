@@ -13,13 +13,9 @@ pub mod editing;
 pub mod element;
 pub mod face;
 pub mod fold;
+pub mod keymap;
 pub mod links;
 pub mod list;
-pub mod table;
-pub mod tags;
-pub mod time;
-pub mod todo;
-pub mod keymap;
 pub mod options;
 pub mod props;
 pub mod re;
@@ -28,6 +24,10 @@ pub mod sexp;
 pub mod src;
 pub mod structure;
 pub mod syntax;
+pub mod table;
+pub mod tags;
+pub mod time;
+pub mod todo;
 
 use crate::editor::{Editor, Mode};
 use crate::key::{Key, KeyCode};
@@ -85,7 +85,8 @@ pub struct Org {
 
 /// org-region-active-p: the region's lines.
 pub fn region(ed: &Editor) -> Option<(usize, usize)> {
-    ed.org_region.or_else(|| ed.org.as_ref().and_then(|o| o.region))
+    ed.org_region
+        .or_else(|| ed.org.as_ref().and_then(|o| o.region))
 }
 
 fn set_region(ed: &mut Editor, r: Option<(usize, usize)>) {
@@ -215,8 +216,16 @@ pub fn localtime(t: i64) -> (i64, i64, i64, i64, i64, i64) {
 pub fn timestamp(t: i64, with_time: bool, inactive: bool) -> String {
     let (y, m, d, hh, mm, wd) = localtime(t);
     let day = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][wd as usize];
-    let body = if with_time { format!("{y:04}-{m:02}-{d:02} {day} {hh:02}:{mm:02}") } else { format!("{y:04}-{m:02}-{d:02} {day}") };
-    if inactive { format!("[{body}]") } else { format!("<{body}>") }
+    let body = if with_time {
+        format!("{y:04}-{m:02}-{d:02} {day} {hh:02}:{mm:02}")
+    } else {
+        format!("{y:04}-{m:02}-{d:02} {day}")
+    };
+    if inactive {
+        format!("[{body}]")
+    } else {
+        format!("<{body}>")
+    }
 }
 
 /// Ask the session to run `f`.
@@ -238,7 +247,11 @@ pub fn attach(ed: &mut Editor) {
     if ed.org.is_some() || ed.magit.is_some() || ed.dired.is_some() {
         return;
     }
-    let first = if ed.buf.len_lines() > 0 { ed.buf.line(0) } else { String::new() };
+    let first = if ed.buf.len_lines() > 0 {
+        ed.buf.line(0)
+    } else {
+        String::new()
+    };
     if !is_org(ed.path.as_deref(), &first) {
         return;
     }
@@ -313,7 +326,12 @@ pub fn delete_lines(ed: &mut Editor, at: usize, n: usize) {
 // ---- prompts and menus ----
 
 /// Read a string in the minibuffer, then `then(answer)`. Esc cancels.
-pub fn read(ed: &mut Editor, prompt: &str, initial: &str, then: impl FnOnce(&mut Editor, String) + Send + 'static) {
+pub fn read(
+    ed: &mut Editor,
+    prompt: &str,
+    initial: &str,
+    then: impl FnOnce(&mut Editor, String) + Send + 'static,
+) {
     ed.org_then = Some(Box::new(then));
     ed.open_cmdline('o', initial);
     if let Mode::Command(cl) = &mut ed.mode {
@@ -386,7 +404,9 @@ fn picker_key(ed: &mut Editor, k: Key) -> bool {
             let abort = k.is(KeyCode::Esc)
                 || k == Key::ctrl('g')
                 || k == Key::ctrl('c')
-                || (k == Key::ch('q') && ed.org_menu_typed.is_empty() && !keys.iter().any(|x| x == "q"));
+                || (k == Key::ch('q')
+                    && ed.org_menu_typed.is_empty()
+                    && !keys.iter().any(|x| x == "q"));
             if abort {
                 ed.mode = Mode::Normal;
                 ed.org_then = None;
@@ -413,7 +433,7 @@ fn picker_key(ed: &mut Editor, k: Key) -> bool {
                         _ => return true,
                     };
                     let typed = format!("{}{c}", ed.org_menu_typed);
-                    if keys.iter().any(|x| *x == typed) {
+                    if keys.contains(&typed) {
                         Some(typed)
                     } else if keys.iter().any(|x| x.starts_with(&typed)) {
                         ed.org_menu_typed = typed;
@@ -474,7 +494,10 @@ pub fn parse_keys(desc: &str) -> Option<Vec<Key>> {
 fn parse_key(tok: &str) -> Option<Key> {
     let mut mods = String::new();
     let mut rest = tok;
-    while rest.len() > 2 && rest.as_bytes()[1] == b'-' && matches!(rest.as_bytes()[0], b'C' | b'M' | b'S' | b's') {
+    while rest.len() > 2
+        && rest.as_bytes()[1] == b'-'
+        && matches!(rest.as_bytes()[0], b'C' | b'M' | b'S' | b's')
+    {
         if rest.as_bytes()[0] == b's' {
             return None; // super
         }
@@ -546,9 +569,15 @@ fn vim_keeps_normal(k: Key) -> bool {
         KeyCode::Char(c) if k.ctrl && !k.alt => "abdefjknopqrstuvwxyz6^_/l".contains(c),
         KeyCode::Char(_) => !k.ctrl && !k.alt,
         KeyCode::Enter | KeyCode::Backspace | KeyCode::Delete => !k.ctrl && !k.alt && !k.shift,
-        KeyCode::Up | KeyCode::Down | KeyCode::Left | KeyCode::Right | KeyCode::Home | KeyCode::End | KeyCode::PageUp | KeyCode::PageDown | KeyCode::Esc => {
-            !k.ctrl && !k.alt && !k.shift
-        }
+        KeyCode::Up
+        | KeyCode::Down
+        | KeyCode::Left
+        | KeyCode::Right
+        | KeyCode::Home
+        | KeyCode::End
+        | KeyCode::PageUp
+        | KeyCode::PageDown
+        | KeyCode::Esc => !k.ctrl && !k.alt && !k.shift,
         _ => false,
     }
 }
@@ -559,9 +588,14 @@ fn vim_keeps_insert(k: Key) -> bool {
         KeyCode::Char(c) if k.ctrl && !k.alt => "wuhnprovdtkeyaxz".contains(c),
         KeyCode::Char(c) => !k.ctrl && !k.alt && c != '|',
         KeyCode::Backspace | KeyCode::Delete | KeyCode::Esc => !k.ctrl && !k.alt,
-        KeyCode::Up | KeyCode::Down | KeyCode::Left | KeyCode::Right | KeyCode::Home | KeyCode::End | KeyCode::PageUp | KeyCode::PageDown => {
-            !k.ctrl && !k.alt && !k.shift
-        }
+        KeyCode::Up
+        | KeyCode::Down
+        | KeyCode::Left
+        | KeyCode::Right
+        | KeyCode::Home
+        | KeyCode::End
+        | KeyCode::PageUp
+        | KeyCode::PageDown => !k.ctrl && !k.alt && !k.shift,
         _ => false,
     }
 }
@@ -575,7 +609,9 @@ enum Lookup {
 fn lookup(maps: &[Map], seq: &[Key]) -> Lookup {
     let mut prefix = false;
     for (desc, cmd) in maps.iter().flat_map(|m| m.iter()) {
-        let Some(keys) = parse_keys(desc) else { continue };
+        let Some(keys) = parse_keys(desc) else {
+            continue;
+        };
         if keys == seq {
             return Lookup::Exact(cmd);
         }
@@ -682,14 +718,22 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         return false;
     }
     if ed.org_keys.is_empty() {
-        let kept = if insert { vim_keeps_insert(k) } else { vim_keeps_normal(k) };
+        let kept = if insert {
+            vim_keeps_insert(k)
+        } else {
+            vim_keeps_normal(k)
+        };
         // A Vim count or operator in progress keeps its keys too.
-        let digits = ed.vim.pending.iter().all(|p| p.char().is_some_and(|c| c.is_ascii_digit()));
+        let digits = ed
+            .vim
+            .pending
+            .iter()
+            .all(|p| p.char().is_some_and(|c| c.is_ascii_digit()));
         if kept || !digits {
-            if ed.org_view.is_none() {
-                if let Some(o) = &mut ed.org {
-                    o.last_command = None;
-                }
+            if ed.org_view.is_none()
+                && let Some(o) = &mut ed.org
+            {
+                o.last_command = None;
             }
             return false;
         }
@@ -799,20 +843,40 @@ pub fn agenda_files() -> Vec<std::path::PathBuf> {
     let mut out = vec![];
     let list: Vec<String> = match sexp::option("org-agenda-files") {
         Some(sexp::Sexp::Str(f)) => std::fs::read_to_string(options::expand(&f))
-            .map(|t| t.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')).map(str::to_owned).collect())
+            .map(|t| {
+                t.lines()
+                    .map(str::trim)
+                    .filter(|l| !l.is_empty() && !l.starts_with('#'))
+                    .map(str::to_owned)
+                    .collect()
+            })
             .unwrap_or_default(),
-        Some(v) => v.list().unwrap_or(&[]).iter().filter_map(|x| x.str().map(str::to_owned)).collect(),
+        Some(v) => v
+            .list()
+            .unwrap_or(&[])
+            .iter()
+            .filter_map(|x| x.str().map(str::to_owned))
+            .collect(),
         None => vec![],
     };
     for f in list {
         let p = options::expand(&f);
-        let p = if p.is_relative() { options::directory().join(p) } else { p };
+        let p = if p.is_relative() {
+            options::directory().join(p)
+        } else {
+            p
+        };
         if p.is_dir() {
             let mut files: Vec<std::path::PathBuf> = std::fs::read_dir(&p)
                 .map(|d| {
                     d.flatten()
                         .map(|e| e.path())
-                        .filter(|f| f.is_file() && f.file_name().is_some_and(|n| re.as_ref().is_none_or(|r| r.is_match(&n.to_string_lossy()))))
+                        .filter(|f| {
+                            f.is_file()
+                                && f.file_name().is_some_and(|n| {
+                                    re.as_ref().is_none_or(|r| r.is_match(&n.to_string_lossy()))
+                                })
+                        })
                         .collect()
                 })
                 .unwrap_or_default();
@@ -827,10 +891,19 @@ pub fn agenda_files() -> Vec<std::path::PathBuf> {
 
 /// org-id-find: the file and heading line of entry ID, searching open
 /// buffers, the agenda files and org-id-locations.
-pub fn find_id_file(s: &mut crate::session::Session, id: &str) -> Option<(std::path::PathBuf, usize)> {
-    let mut files: Vec<std::path::PathBuf> = (0..s.org_buffer_count()).filter_map(|i| s.org_buffer_path(i)).filter(|p| p.extension().is_some_and(|e| e == "org")).collect();
+pub fn find_id_file(
+    s: &mut crate::session::Session,
+    id: &str,
+) -> Option<(std::path::PathBuf, usize)> {
+    let mut files: Vec<std::path::PathBuf> = (0..s.org_buffer_count())
+        .filter_map(|i| s.org_buffer_path(i))
+        .filter(|p| p.extension().is_some_and(|e| e == "org"))
+        .collect();
     files.extend(agenda_files());
-    let loc = options::expand(&options::string("org-id-locations-file", "~/.emacs.d/.org-id-locations"));
+    let loc = options::expand(&options::string(
+        "org-id-locations-file",
+        "~/.emacs.d/.org-id-locations",
+    ));
     if let Ok(text) = std::fs::read_to_string(&loc)
         && let Ok(v) = sexp::read(&text)
     {
@@ -869,7 +942,11 @@ pub fn read_date_timestamp(s: &str, with_time: bool, inactive: bool) -> Option<S
     let today = tags::days_from_civil(y, m, d);
     let (days, time) = if s.is_empty() || s == "." || s == "today" {
         (today, None)
-    } else if let Some(n) = s.strip_prefix('+').and_then(|r| r.strip_suffix('d')).and_then(|n| n.parse::<i64>().ok()) {
+    } else if let Some(n) = s
+        .strip_prefix('+')
+        .and_then(|r| r.strip_suffix('d'))
+        .and_then(|n| n.parse::<i64>().ok())
+    {
         (today + n, None)
     } else {
         let (date, time) = match s.split_once(' ') {
@@ -877,7 +954,11 @@ pub fn read_date_timestamp(s: &str, with_time: bool, inactive: bool) -> Option<S
             None => (s, None),
         };
         let mut it = date.split('-');
-        let (yy, mo, dd) = (it.next()?.parse().ok()?, it.next()?.parse().ok()?, it.next()?.parse().ok()?);
+        let (yy, mo, dd) = (
+            it.next()?.parse().ok()?,
+            it.next()?.parse().ok()?,
+            it.next()?.parse().ok()?,
+        );
         (tags::days_from_civil(yy, mo, dd), time.map(str::to_owned))
     };
     let (yy, mo, dd) = capture::civil_from_days(days);
@@ -888,7 +969,11 @@ pub fn read_date_timestamp(s: &str, with_time: bool, inactive: bool) -> Option<S
         (None, false) => String::new(),
     };
     let body = format!("{yy:04}-{mo:02}-{dd:02} {wd}{t}");
-    Some(if inactive { format!("[{body}]") } else { format!("<{body}>") })
+    Some(if inactive {
+        format!("[{body}]")
+    } else {
+        format!("<{body}>")
+    })
 }
 
 /// The running clock's heading as a refile target (org-refile with 2).
@@ -912,7 +997,8 @@ pub fn clock_minutes(ed: &Editor, h: usize) -> i64 {
             if !t.trim_start().starts_with("CLOCK:") {
                 return None;
             }
-            re.captures(&t).map(|c| c[1].parse::<i64>().unwrap_or(0) * 60 + c[2].parse::<i64>().unwrap_or(0))
+            re.captures(&t)
+                .map(|c| c[1].parse::<i64>().unwrap_or(0) * 60 + c[2].parse::<i64>().unwrap_or(0))
         })
         .sum()
 }
@@ -987,7 +1073,11 @@ pub fn ex(ed: &mut Editor, text: &str) -> bool {
     } else {
         name
     };
-    if !(name.starts_with("org-") || name.starts_with("orgtbl-") || name.starts_with("gl/org") || name == "org-mode") {
+    if !(name.starts_with("org-")
+        || name.starts_with("orgtbl-")
+        || name.starts_with("gl/org")
+        || name == "org-mode")
+    {
         return false;
     }
     let arg = std::mem::take(&mut ed.org_arg);

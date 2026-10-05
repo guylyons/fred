@@ -17,7 +17,12 @@ pub fn translate(e: &str) -> String {
                 }
                 '[' if chars.get(i + 1) == Some(&':') => {
                     // [:alpha:] passes through unchanged.
-                    let end = chars[i..].iter().collect::<String>().find(":]").map(|j| i + j + 2).unwrap_or(i + 1);
+                    let end = chars[i..]
+                        .iter()
+                        .collect::<String>()
+                        .find(":]")
+                        .map(|j| i + j + 2)
+                        .unwrap_or(i + 1);
                     out.extend(&chars[i..end]);
                     i = end;
                     continue;
@@ -150,6 +155,10 @@ mod tests {
         assert_eq!(translate(r"\<\(?:Work\|Lab\)\>"), r"\b(?:Work|Lab)\b");
         assert_eq!(translate(r"[[:alpha:]_]+\s-*"), r"[[:alpha:]_]+\s*");
         assert_eq!(translate(r"[]a]"), r"[\]a]");
-        assert!(compile(r"^\*+ \(TODO\)", false).unwrap().is_match("** TODO x"));
+        assert!(
+            compile(r"^\*+ \(TODO\)", false)
+                .unwrap()
+                .is_match("** TODO x")
+        );
     }
 }

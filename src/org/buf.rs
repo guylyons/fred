@@ -57,7 +57,10 @@ impl EBuf {
                 .take(max_suf)
                 .take_while(|(a, b)| a == b)
                 .count();
-            let with: Vec<String> = new[pre..new.len() - suf].iter().map(|s| s.to_string()).collect();
+            let with: Vec<String> = new[pre..new.len() - suf]
+                .iter()
+                .map(|s| s.to_string())
+                .collect();
             let remove = old.len() - suf - pre;
             if remove == 0 && with.is_empty() {
                 // Nothing (cannot happen when texts differ).
@@ -109,7 +112,9 @@ impl EBuf {
     }
 
     pub fn bol_at(&self, pos: usize) -> usize {
-        self.s[..pos.min(self.s.len())].rfind('\n').map_or(0, |i| i + 1)
+        self.s[..pos.min(self.s.len())]
+            .rfind('\n')
+            .map_or(0, |i| i + 1)
     }
 
     pub fn eol_at(&self, pos: usize) -> usize {
@@ -264,7 +269,8 @@ impl EBuf {
 
     /// looking-at: the match of `re` anchored at point.
     pub fn looking_at<'a>(&'a self, re: &Regex) -> Option<regex::Captures<'a>> {
-        re.captures_at(&self.s, self.pt).filter(|c| c.get(0).unwrap().start() == self.pt)
+        re.captures_at(&self.s, self.pt)
+            .filter(|c| c.get(0).unwrap().start() == self.pt)
     }
 
     /// Whether the line at point matches `re` from its start (org-match-line).
@@ -275,7 +281,11 @@ impl EBuf {
     }
 
     /// re-search-forward: point moves to the match end.
-    pub fn re_search_forward(&mut self, re: &Regex, bound: Option<usize>) -> Option<(usize, usize)> {
+    pub fn re_search_forward(
+        &mut self,
+        re: &Regex,
+        bound: Option<usize>,
+    ) -> Option<(usize, usize)> {
         let limit = bound.unwrap_or(self.s.len()).min(self.s.len());
         if self.pt > limit {
             return None;
@@ -287,7 +297,11 @@ impl EBuf {
 
     /// re-search-backward: the last match starting before point; point
     /// moves to its start.
-    pub fn re_search_backward(&mut self, re: &Regex, bound: Option<usize>) -> Option<(usize, usize)> {
+    pub fn re_search_backward(
+        &mut self,
+        re: &Regex,
+        bound: Option<usize>,
+    ) -> Option<(usize, usize)> {
         let lo = bound.unwrap_or(0);
         let mut found = None;
         // Matches anchored at each line start or anywhere: scan candidates.
@@ -296,7 +310,8 @@ impl EBuf {
             match re.find_at(&self.s, start) {
                 Some(m) if m.start() <= self.pt && m.start() >= lo => {
                     found = Some((m.start(), m.end()));
-                    start = m.start() + self.s[m.start()..].chars().next().map_or(1, char::len_utf8);
+                    start =
+                        m.start() + self.s[m.start()..].chars().next().map_or(1, char::len_utf8);
                 }
                 _ => break,
             }

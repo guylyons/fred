@@ -1447,19 +1447,28 @@ fn magit_menus_render_as_transient_popups() {
 
 #[test]
 fn org_buffers_fold_conceal_links_and_style_headings() {
-    let mut e = Editor::new(Buffer::from_text("* TODO Task :work:\nbody [[https://x.org][site]]\n** Child\n* Other [[https://y.org][y]]"));
+    let mut e = Editor::new(Buffer::from_text(
+        "* TODO Task :work:\nbody [[https://x.org][site]]\n** Child\n* Other [[https://y.org][y]]",
+    ));
     e.path = Some("t.org".into());
     crate::org::attach(&mut e);
     let mut s = Screen::new(60, 8);
     s.cfg.numbers = false;
     s.draw(&e);
-    assert_eq!(s.row(0).trim_end().split_whitespace().collect::<Vec<_>>(), vec!["*", "TODO", "Task", ":work:"]);
+    assert_eq!(
+        s.row(0).split_whitespace().collect::<Vec<_>>(),
+        vec!["*", "TODO", "Task", ":work:"]
+    );
     assert_eq!(s.row(1), "body site");
     for k in parse_keys("j") {
         e.handle_key(k);
     }
     s.draw(&e);
-    assert_eq!(s.row(1), "body [[https://x.org][site]]", "the cursor line is literal");
+    assert_eq!(
+        s.row(1),
+        "body [[https://x.org][site]]",
+        "the cursor line is literal"
+    );
     assert_eq!(s.row(3), "* Other y");
     for k in parse_keys("k<Tab>") {
         e.handle_key(k);

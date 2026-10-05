@@ -108,7 +108,10 @@ impl Settings {
 
     /// An option for this buffer: `#+STARTUP` overrides, then the config.
     pub fn opt(&self, name: &str) -> Option<Sexp> {
-        self.locals.get(name).cloned().or_else(|| super::sexp::option(name))
+        self.locals
+            .get(name)
+            .cloned()
+            .or_else(|| super::sexp::option(name))
     }
 
     pub fn opt_bool(&self, name: &str, default: bool) -> bool {
@@ -162,7 +165,10 @@ pub fn parse_keyword(k: &str) -> Keyword {
         _ => None,
     };
     let (enter, leave) = match rest.split_once('/') {
-        Some((a, b)) => (a.chars().next().and_then(log), b.chars().next().and_then(log)),
+        Some((a, b)) => (
+            a.chars().next().and_then(log),
+            b.chars().next().and_then(log),
+        ),
         None => (rest.chars().next().and_then(log), None),
     };
     Keyword {
@@ -200,7 +206,10 @@ pub fn option_todo_seqs() -> Vec<TodoSeq> {
     };
     // A plain list of keywords: one sequence (org-todo-interpretation).
     if list.iter().all(|x| matches!(x, Sexp::Str(_))) {
-        let words: Vec<String> = list.iter().filter_map(|x| x.str().map(str::to_owned)).collect();
+        let words: Vec<String> = list
+            .iter()
+            .filter_map(|x| x.str().map(str::to_owned))
+            .collect();
         return vec![todo_seq(false, &words)];
     }
     list.iter()
@@ -208,7 +217,10 @@ pub fn option_todo_seqs() -> Vec<TodoSeq> {
             let items = seq.list()?;
             let (head, rest) = items.split_first()?;
             let is_type = head.str() == Some("type");
-            let words: Vec<String> = rest.iter().filter_map(|x| x.str().map(str::to_owned)).collect();
+            let words: Vec<String> = rest
+                .iter()
+                .filter_map(|x| x.str().map(str::to_owned))
+                .collect();
             Some(todo_seq(is_type, &words))
         })
         .collect()
@@ -325,7 +337,10 @@ pub fn keyword_line(line: &str) -> Option<(String, &str)> {
 
 /// Settings from a buffer's lines (and SETUPFILE includes, read from disk
 /// relative to `dir`).
-pub fn settings<'a>(lines: impl Iterator<Item = &'a str>, dir: Option<&std::path::Path>) -> Settings {
+pub fn settings<'a>(
+    lines: impl Iterator<Item = &'a str>,
+    dir: Option<&std::path::Path>,
+) -> Settings {
     let mut kw: Vec<(String, String)> = vec![];
     let mut seen = vec![];
     collect_keywords(lines, dir, &mut kw, &mut seen);
@@ -334,7 +349,9 @@ pub fn settings<'a>(lines: impl Iterator<Item = &'a str>, dir: Option<&std::path
         ..Settings::default()
     };
     fn all<'a>(kw: &'a [(String, String)], k: &'a str) -> impl Iterator<Item = &'a str> {
-        kw.iter().filter(move |(key, _)| key == k).map(|(_, v)| v.as_str())
+        kw.iter()
+            .filter(move |(key, _)| key == k)
+            .map(|(_, v)| v.as_str())
     }
     let first = |k: &'static str| all(&kw, k).next();
     let all = |k: &'static str| all(&kw, k);
@@ -385,7 +402,11 @@ pub fn settings<'a>(lines: impl Iterator<Item = &'a str>, dir: Option<&std::path
             let val = val.trim();
             // `NAME+` appends to a previous value.
             if let Some(base) = k.strip_suffix('+') {
-                match st.properties.iter_mut().find(|(n, _)| n.eq_ignore_ascii_case(base)) {
+                match st
+                    .properties
+                    .iter_mut()
+                    .find(|(n, _)| n.eq_ignore_ascii_case(base))
+                {
                     Some((_, old)) => {
                         old.push(' ');
                         old.push_str(val);
@@ -414,7 +435,8 @@ pub fn settings<'a>(lines: impl Iterator<Item = &'a str>, dir: Option<&std::path
         let pair = if let Some(rest) = v.strip_prefix('"') {
             rest.find("\" ").map(|i| (&rest[..i], rest[i + 2..].trim()))
         } else {
-            v.split_once(char::is_whitespace).map(|(a, b)| (a, b.trim()))
+            v.split_once(char::is_whitespace)
+                .map(|(a, b)| (a, b.trim()))
         };
         if let Some((a, b)) = pair {
             st.links.push((a.into(), b.into()));
@@ -422,7 +444,10 @@ pub fn settings<'a>(lines: impl Iterator<Item = &'a str>, dir: Option<&std::path
     }
     let opt_char = |name: &str, d: char| {
         super::sexp::option(name)
-            .and_then(|v| v.int().or_else(|| v.str().and_then(|s| priority_value(s).map(i64::from))))
+            .and_then(|v| {
+                v.int()
+                    .or_else(|| v.str().and_then(|s| priority_value(s).map(i64::from)))
+            })
             .map_or(d as u32, |v| v as u32)
     };
     st.priorities = (
@@ -433,17 +458,28 @@ pub fn settings<'a>(lines: impl Iterator<Item = &'a str>, dir: Option<&std::path
     if let Some(p) = first("PRIORITIES") {
         let v: Vec<&str> = p.split_whitespace().collect();
         if let [h, l, d, ..] = v.as_slice()
-            && let (Some(h), Some(l), Some(d)) = (priority_value(h), priority_value(l), priority_value(d))
+            && let (Some(h), Some(l), Some(d)) =
+                (priority_value(h), priority_value(l), priority_value(d))
         {
             st.priorities = (h, l, d);
         }
     }
     let typ: Vec<TodoSeq> = all("TYP_TODO")
-        .map(|v| todo_seq(true, &v.split_whitespace().map(str::to_owned).collect::<Vec<_>>()))
+        .map(|v| {
+            todo_seq(
+                true,
+                &v.split_whitespace().map(str::to_owned).collect::<Vec<_>>(),
+            )
+        })
         .collect();
     let seq: Vec<TodoSeq> = all("TODO")
         .chain(all("SEQ_TODO"))
-        .map(|v| todo_seq(false, &v.split_whitespace().map(str::to_owned).collect::<Vec<_>>()))
+        .map(|v| {
+            todo_seq(
+                false,
+                &v.split_whitespace().map(str::to_owned).collect::<Vec<_>>(),
+            )
+        })
         .collect();
     st.seqs = typ.into_iter().chain(seq).collect();
     st.seqs.retain(|s| !s.todo.is_empty() || !s.done.is_empty());
@@ -644,7 +680,9 @@ pub fn headline(line: &str, st: &Settings) -> Option<Headline> {
             let group = &trimmed[s..];
             if group.len() >= 3
                 && group.starts_with(':')
-                && group[1..group.len() - 1].chars().all(|c| c == ':' || is_tag_char(c))
+                && group[1..group.len() - 1]
+                    .chars()
+                    .all(|c| c == ':' || is_tag_char(c))
             {
                 tags = group
                     .split(':')
@@ -661,8 +699,7 @@ pub fn headline(line: &str, st: &Settings) -> Option<Headline> {
     let end = end.max(pos);
     let mut title_start = pos;
     let comment = super::options::string("org-comment-string", "COMMENT");
-    let commented = line[pos..end] == comment
-        || line[pos..end].starts_with(&format!("{comment} "));
+    let commented = line[pos..end] == comment || line[pos..end].starts_with(&format!("{comment} "));
     if commented {
         title_start = skip_spaces((pos + comment.len()).min(end));
     }
@@ -738,7 +775,9 @@ pub fn entry_end<L: Lines + ?Sized>(b: &L, h: usize) -> usize {
 /// Parent heading of the heading at `h`.
 pub fn parent<L: Lines + ?Sized>(b: &L, h: usize) -> Option<usize> {
     let lvl = level(&b.line_text(h))?;
-    (0..h).rev().find(|&i| level(&b.line_text(i)).is_some_and(|n| n < lvl))
+    (0..h)
+        .rev()
+        .find(|&i| level(&b.line_text(i)).is_some_and(|n| n < lvl))
 }
 
 /// Direct children headings of `h`.
@@ -793,8 +832,14 @@ mod tests {
         assert_eq!(st.todo_names(), vec!["TODO", "WAIT", "DONE", "CANCELED"]);
         assert_eq!(st.done_names(), vec!["DONE", "CANCELED"]);
         let wait = st.keyword("WAIT").unwrap();
-        assert_eq!((wait.key, wait.enter, wait.leave), (Some('w'), Some(Log::Note), Some(Log::Time)));
-        assert_eq!(st.opt_sym("org-startup-folded", "showeverything"), "content");
+        assert_eq!(
+            (wait.key, wait.enter, wait.leave),
+            (Some('w'), Some(Log::Note), Some(Log::Time))
+        );
+        assert_eq!(
+            st.opt_sym("org-startup-folded", "showeverything"),
+            "content"
+        );
         assert_eq!(st.opt_sym("org-log-done", "nil"), "time");
         assert_eq!(st.tag_names(), vec!["@work", "@home", "laptop"]);
         assert_eq!(st.priorities, (1, 5, 3));
@@ -802,7 +847,12 @@ mod tests {
         // Without #+TODO: the default sequence.
         let st = settings("* a".lines(), None);
         assert_eq!(st.todo_names(), vec!["TODO", "DONE"]);
-        assert_eq!(todo_seq(false, &["A".into(), "B".into(), "C".into()]).done.len(), 1);
+        assert_eq!(
+            todo_seq(false, &["A".into(), "B".into(), "C".into()])
+                .done
+                .len(),
+            1
+        );
     }
 
     #[test]
@@ -830,7 +880,10 @@ mod tests {
 
     #[test]
     fn navigation() {
-        let b: Vec<String> = "* a\nx\n** b\n*** c\n** d\n* e".lines().map(String::from).collect();
+        let b: Vec<String> = "* a\nx\n** b\n*** c\n** d\n* e"
+            .lines()
+            .map(String::from)
+            .collect();
         assert_eq!(subtree_end(&b, 0), 5);
         assert_eq!(subtree_end(&b, 2), 4);
         assert_eq!(children(&b, 0), vec![2, 4]);

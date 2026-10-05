@@ -9,7 +9,10 @@ use crate::editor::Editor;
 use crate::org_re;
 
 /// Run `f` on an Emacs-like copy of the buffer, then write it back.
-pub fn with_buf<T>(ed: &mut Editor, f: impl FnOnce(&mut EBuf) -> Result<T, String>) -> Result<T, String> {
+pub fn with_buf<T>(
+    ed: &mut Editor,
+    f: impl FnOnce(&mut EBuf) -> Result<T, String>,
+) -> Result<T, String> {
     let mut b = EBuf::load(ed);
     let r = f(&mut b);
     if r.is_ok() {
@@ -27,7 +30,11 @@ pub fn alist_option(name: &str, key: &str, fallback: Sexp) -> Sexp {
         // A non-list value applies to every key.
         return v;
     };
-    let find = |k: &str| list.iter().find(|e| e.car().and_then(Sexp::str) == Some(k)).map(Sexp::cdr);
+    let find = |k: &str| {
+        list.iter()
+            .find(|e| e.car().and_then(Sexp::str) == Some(k))
+            .map(Sexp::cdr)
+    };
     find(key).or_else(|| find("default")).unwrap_or(fallback)
 }
 
@@ -54,13 +61,15 @@ pub fn valid_level(odd: bool, level: usize, change: i64) -> usize {
 
 /// org--blank-before-heading-p.
 fn blank_before_heading(b: &EBuf, parent: bool) -> bool {
-    match alist_option("org-blank-before-new-entry", "heading", Sexp::Sym("auto".into())) {
+    match alist_option(
+        "org-blank-before-new-entry",
+        "heading",
+        Sexp::Sym("auto".into()),
+    ) {
         Sexp::Sym(s) if s == "auto" => {
             let mut c = EBuf::new(&b.s, b.pt);
-            if !c.back_to_heading() {
-                if !c.next_heading() {
-                    return false;
-                }
+            if !c.back_to_heading() && !c.next_heading() {
+                return false;
             }
             if parent {
                 c.up_heading_safe();
@@ -241,7 +250,12 @@ pub fn align_tags_here(b: &mut EBuf, to_col: i64) {
     let blank_start = x.pt;
     let width = unicode_width::UnicodeWidthStr::width(tags_text.as_str()) as i64;
     let min = super::buf::column(&b.s[b.bol()..blank_start]) as i64 + 1;
-    let new = (if to_col >= 0 { to_col } else { to_col.abs() - width }).max(min) as usize;
+    let new = (if to_col >= 0 {
+        to_col
+    } else {
+        to_col.abs() - width
+    })
+    .max(min) as usize;
     let current = super::buf::column(&b.s[b.bol()..tags_start]);
     let origin = b.pt;
     let column = b.current_column();
@@ -260,7 +274,13 @@ pub fn align_tags_here(b: &mut EBuf, to_col: i64) {
 }
 
 /// org-promote / org-demote on the heading at point (`change` = -1/+1).
-fn change_heading_level(b: &mut EBuf, change: i64, odd: bool, top_ok: bool, adapt: bool) -> Result<(), String> {
+fn change_heading_level(
+    b: &mut EBuf,
+    change: i64,
+    odd: bool,
+    top_ok: bool,
+    adapt: bool,
+) -> Result<(), String> {
     if !b.back_to_heading() {
         return Err("Before first headline".into());
     }
@@ -290,7 +310,9 @@ fn change_heading_level(b: &mut EBuf, change: i64, odd: bool, top_ok: bool, adap
 
 /// org-fixup-indentation (org-adapt-indentation decides what moves).
 fn fixup_indentation(b: &mut EBuf, diff: i64) {
-    let adapt = super::sexp::option("org-adapt-indentation").map_or("nil".to_owned(), |v| v.sym().map_or("t".into(), str::to_owned));
+    let adapt = super::sexp::option("org-adapt-indentation").map_or("nil".to_owned(), |v| {
+        v.sym().map_or("t".into(), str::to_owned)
+    });
     let save = b.pt;
     let heading = b.bol();
     let level = b.at_heading_at(heading).unwrap_or(0);
@@ -355,7 +377,9 @@ fn fixup_indentation(b: &mut EBuf, diff: i64) {
 /// org-fix-position-after-promote.
 fn fix_position_after_promote(b: &mut EBuf, st: &syntax::Settings) {
     let line = b.line().to_owned();
-    let Some(h) = syntax::headline(&line, st) else { return };
+    let Some(h) = syntax::headline(&line, st) else {
+        return;
+    };
     let off = b.pt - b.bol();
     let ends = [h.level, h.todo_range.as_ref().map_or(usize::MAX, |r| r.end)];
     if ends.contains(&off) {
@@ -440,7 +464,9 @@ fn adapt_override(ed: &Editor) -> bool {
 pub fn cycle_level(ed: &mut Editor) -> Result<bool, String> {
     let st = super::settings(ed);
     let line = ed.buf.line(ed.cur.line);
-    let Some(h) = syntax::headline(&line, &st) else { return Ok(false) };
+    let Some(h) = syntax::headline(&line, &st) else {
+        return Ok(false);
+    };
     // org-point-at-end-of-empty-headline: rest of line blank, title empty.
     let rest_blank = line[ed.cur.byte.min(line.len())..].trim().is_empty();
     if !rest_blank || !h.title.is_empty() || h.tags_range.is_some() || ed.cur.byte < h.level {
@@ -450,7 +476,8 @@ pub fn cycle_level(ed: &mut Editor) -> Result<bool, String> {
     let prev = if ed.cur.line == 0 {
         0
     } else {
-        syntax::heading_at_or_before(&ed.buf, ed.cur.line - 1).map_or(0, |p| syntax::level(&ed.buf.line(p)).unwrap())
+        syntax::heading_at_or_before(&ed.buf, ed.cur.line - 1)
+            .map_or(0, |p| syntax::level(&ed.buf.line(p)).unwrap())
     };
     let inc = if odd_levels(ed) { 2 } else { 1 };
     if let Some(o) = &mut ed.org {
@@ -495,13 +522,21 @@ pub fn move_subtree(ed: &mut Editor, n: i64) -> Result<(), String> {
     // Find the insertion line past |n| siblings.
     let mut target = h;
     for _ in 0..n.unsigned_abs() {
-        let s = if n > 0 { syntax::next_sibling(&ed.buf, target) } else { syntax::prev_sibling(&ed.buf, target) };
+        let s = if n > 0 {
+            syntax::next_sibling(&ed.buf, target)
+        } else {
+            syntax::prev_sibling(&ed.buf, target)
+        };
         match s {
             Some(x) => target = x,
             None => return Err("Cannot move past superior level or buffer limit".into()),
         }
     }
-    let ins = if n > 0 { syntax::subtree_end(&ed.buf, target) } else { target };
+    let ins = if n > 0 {
+        syntax::subtree_end(&ed.buf, target)
+    } else {
+        target
+    };
     let lines = super::lines(ed, h..end);
     let count = end - h;
     // Delete, then insert where the target now is.
@@ -534,7 +569,11 @@ thread_local! {
 /// Put text in the kill ring: Fred's unnamed register (and clipboard).
 pub fn kill_new(ed: &mut Editor, text: &str) {
     let linewise = text.ends_with('\n');
-    let t = if linewise { text.strip_suffix('\n').unwrap() } else { text };
+    let t = if linewise {
+        text.strip_suffix('\n').unwrap()
+    } else {
+        text
+    };
     crate::vim::ops::set_reg(
         ed,
         crate::editor::Register {
@@ -571,7 +610,10 @@ pub fn copy_subtree(ed: &mut Editor, n: usize, cut: bool) -> Result<(), String> 
         }
     }
     let end = syntax::subtree_end(&ed.buf, last);
-    let text: String = super::lines(ed, h..end).iter().map(|l| format!("{l}\n")).collect();
+    let text: String = super::lines(ed, h..end)
+        .iter()
+        .map(|l| format!("{l}\n"))
+        .collect();
     if cut {
         super::delete_lines(ed, h, end - h);
         let l = h.min(ed.line_count() - 1);
@@ -579,7 +621,11 @@ pub fn copy_subtree(ed: &mut Editor, n: usize, cut: bool) -> Result<(), String> 
     }
     CLIP.with(|c| *c.borrow_mut() = (text.clone(), folded));
     kill_new(ed, &text);
-    ed.set_msg(format!("{}: Subtree(s) with {} characters", if cut { "Cut" } else { "Copied" }, text.chars().count()));
+    ed.set_msg(format!(
+        "{}: Subtree(s) with {} characters",
+        if cut { "Cut" } else { "Copied" },
+        text.chars().count()
+    ));
     Ok(())
 }
 
@@ -594,11 +640,20 @@ pub fn kill_is_subtree(txt: &str) -> bool {
     let Some(start_level) = syntax::level(start.lines().next().unwrap_or("")) else {
         return false;
     };
-    start.lines().skip(1).filter_map(syntax::level).all(|l| l >= start_level)
+    start
+        .lines()
+        .skip(1)
+        .filter_map(syntax::level)
+        .all(|l| l >= start_level)
 }
 
 /// org-paste-subtree.
-pub fn paste_subtree(ed: &mut Editor, level: Prefix, tree: Option<String>, for_yank: bool) -> Result<(), String> {
+pub fn paste_subtree(
+    ed: &mut Editor,
+    level: Prefix,
+    tree: Option<String>,
+    for_yank: bool,
+) -> Result<(), String> {
     let tree = tree.unwrap_or_else(|| current_kill(ed));
     if !kill_is_subtree(&tree) {
         return Err("The kill is not a (set of) tree(s).  Use `p' to yank anyway".into());
@@ -608,46 +663,72 @@ pub fn paste_subtree(ed: &mut Editor, level: Prefix, tree: Option<String>, for_y
         if down {
             (from + 1..ed.line_count()).find(|&i| !fold::hidden(ed, i) && ctx::at_heading(ed, i))
         } else {
-            (0..from).rev().find(|&i| !fold::hidden(ed, i) && ctx::at_heading(ed, i))
+            (0..from)
+                .rev()
+                .find(|&i| !fold::hidden(ed, i) && ctx::at_heading(ed, i))
         }
     };
     let mut cur = ed.cur.line;
     let cur_line = ed.buf.line(cur);
-    let old_level = tree.lines().find_map(syntax::level).map_or(-1, |l| l as i64);
+    let old_level = tree
+        .lines()
+        .find_map(syntax::level)
+        .map_or(-1, |l| l as i64);
     let at_bol_heading = ed.cur.byte == 0 && syntax::level(&cur_line).is_some();
     let star_only = org_re!(r"^\*+[ \t]*$").is_match(&cur_line)
         && !cur_line[ed.cur.byte.min(cur_line.len())..].starts_with('*');
-    let force_level: Option<i64> = if (level.is_none() || matches!(level, Prefix::U(1) | Prefix::U(2))) && star_only {
-        Some(cur_line.trim_end().len() as i64)
-    } else if level == Prefix::U(1) {
-        syntax::heading_at_or_before(&ed.buf, cur).map(|h| syntax::level(&ed.buf.line(h)).unwrap() as i64)
-    } else if level == Prefix::U(2) {
-        None
-    } else if !level.is_none() {
-        Some(level.value())
-    } else if at_bol_heading {
-        syntax::level(&cur_line).map(|l| l as i64)
+    let force_level: Option<i64> =
+        if (level.is_none() || matches!(level, Prefix::U(1) | Prefix::U(2))) && star_only {
+            Some(cur_line.trim_end().len() as i64)
+        } else if level == Prefix::U(1) {
+            syntax::heading_at_or_before(&ed.buf, cur)
+                .map(|h| syntax::level(&ed.buf.line(h)).unwrap() as i64)
+        } else if level == Prefix::U(2) {
+            None
+        } else if !level.is_none() {
+            Some(level.value())
+        } else if at_bol_heading {
+            syntax::level(&cur_line).map(|l| l as i64)
+        } else {
+            None
+        };
+    let previous = if ctx::at_heading(ed, cur) {
+        Some(cur)
     } else {
-        None
-    };
-    let previous = if ctx::at_heading(ed, cur) { Some(cur) } else { visible_heading(ed, cur, false) }
+        visible_heading(ed, cur, false)
+    }
+    .map_or(1, |p| syntax::level(&ed.buf.line(p)).unwrap() as i64);
+    let next = visible_heading(ed, cur, true)
         .map_or(1, |p| syntax::level(&ed.buf.line(p)).unwrap() as i64);
-    let next = visible_heading(ed, cur, true).map_or(1, |p| syntax::level(&ed.buf.line(p)).unwrap() as i64);
     let new_level = force_level.unwrap_or_else(|| {
-        let child = if level == Prefix::U(2) { previous + 1 } else { 0 };
+        let child = if level == Prefix::U(2) {
+            previous + 1
+        } else {
+            0
+        };
         child.max(previous).max(next)
     });
-    let shift = if old_level == -1 || new_level == -1 || old_level == new_level { 0 } else { new_level - old_level };
+    let shift = if old_level == -1 || new_level == -1 || old_level == new_level {
+        0
+    } else {
+        new_level - old_level
+    };
     if star_only {
         super::delete_lines(ed, cur, 1);
         cur = cur.min(ed.line_count().saturating_sub(1));
     }
     let bol_heading = !star_only && at_bol_heading && !matches!(level, Prefix::U(1) | Prefix::U(2));
-    let at = if bol_heading || (star_only && cur < ed.line_count() && ctx::at_heading(ed, cur) && ed.buf.len_bytes() > 0) {
+    let at = if bol_heading
+        || (star_only
+            && cur < ed.line_count()
+            && ctx::at_heading(ed, cur)
+            && ed.buf.len_bytes() > 0)
+    {
         cur
     } else {
         let from = if level == Prefix::U(1) {
-            syntax::heading_at_or_before(&ed.buf, cur).map_or(cur, |h| syntax::subtree_end(&ed.buf, h).saturating_sub(1))
+            syntax::heading_at_or_before(&ed.buf, cur)
+                .map_or(cur, |h| syntax::subtree_end(&ed.buf, h).saturating_sub(1))
         } else {
             cur
         };
@@ -670,8 +751,17 @@ pub fn paste_subtree(ed: &mut Editor, level: Prefix, tree: Option<String>, for_y
         .collect();
     let n = lines.len();
     super::insert_lines(ed, at, &lines);
-    let first = (at..at + n).find(|&i| !ed.buf.line(i).trim().is_empty()).unwrap_or(at);
-    ed.set_cursor(if for_yank { (at + n).min(ed.line_count() - 1) } else { first }, 0);
+    let first = (at..at + n)
+        .find(|&i| !ed.buf.line(i).trim().is_empty())
+        .unwrap_or(at);
+    ed.set_cursor(
+        if for_yank {
+            (at + n).min(ed.line_count() - 1)
+        } else {
+            first
+        },
+        0,
+    );
     ed.set_msg(format!("Clipboard pasted as level {new_level} subtree"));
     let (clip, folded) = CLIP.with(|c| c.borrow().clone());
     fold::show_heading(ed, first);
@@ -695,12 +785,18 @@ pub fn forward_heading_same_level(ed: &mut Editor, n: i64, invisible_ok: bool) {
     let level = syntax::level(&ed.buf.line(h)).unwrap();
     let mut count = n.unsigned_abs();
     let mut result = h;
-    let lines: Box<dyn Iterator<Item = usize>> = if n < 0 { Box::new((0..h).rev()) } else { Box::new(h + 1..ed.line_count()) };
+    let lines: Box<dyn Iterator<Item = usize>> = if n < 0 {
+        Box::new((0..h).rev())
+    } else {
+        Box::new(h + 1..ed.line_count())
+    };
     for i in lines {
         if count == 0 {
             break;
         }
-        let Some(lv) = syntax::level(&ed.buf.line(i)) else { continue };
+        let Some(lv) = syntax::level(&ed.buf.line(i)) else {
+            continue;
+        };
         if lv < level {
             break;
         }
@@ -728,7 +824,10 @@ pub fn next_visible_heading(ed: &mut Editor, n: i64) {
         n -= 1;
     }
     while n < 0 {
-        match (0..l).rev().find(|&i| ctx::at_heading(ed, i) && !fold::hidden(ed, i)) {
+        match (0..l)
+            .rev()
+            .find(|&i| ctx::at_heading(ed, i) && !fold::hidden(ed, i))
+        {
             Some(x) => l = x,
             None => {
                 l = 0;
@@ -771,11 +870,19 @@ pub fn toggle_heading(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
             if !arg.is_none() && ctx::at_item(ed, l) {
                 // The whole list at point.
                 let mut a = l;
-                while a > 0 && (ctx::at_item(ed, a - 1) || ed.buf.line(a - 1).starts_with(char::is_whitespace) && !ed.buf.line(a - 1).trim().is_empty()) {
+                while a > 0
+                    && (ctx::at_item(ed, a - 1)
+                        || ed.buf.line(a - 1).starts_with(char::is_whitespace)
+                            && !ed.buf.line(a - 1).trim().is_empty())
+                {
                     a -= 1;
                 }
                 let mut z = l;
-                while z + 1 < ed.line_count() && (ctx::at_item(ed, z + 1) || ed.buf.line(z + 1).starts_with(char::is_whitespace) && !ed.buf.line(z + 1).trim().is_empty()) {
+                while z + 1 < ed.line_count()
+                    && (ctx::at_item(ed, z + 1)
+                        || ed.buf.line(z + 1).starts_with(char::is_whitespace)
+                            && !ed.buf.line(z + 1).trim().is_empty())
+                {
                     z += 1;
                 }
                 (a, z)
@@ -785,7 +892,9 @@ pub fn toggle_heading(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
         }
     };
     let mut lo = lo;
-    while lo < hi && (ed.buf.line(lo).trim().is_empty() || ed.buf.line(lo).trim_start().starts_with("# ")) {
+    while lo < hi
+        && (ed.buf.line(lo).trim().is_empty() || ed.buf.line(lo).trim_start().starts_with("# "))
+    {
         lo += 1;
     }
     let lines: Vec<String> = (lo..=hi).map(|i| ed.buf.line(i)).collect();
@@ -819,7 +928,11 @@ pub fn toggle_heading(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
     } else if let Some((_, _)) = ctx::item_bullet(first) {
         let not_done = st.not_done_names().first().map(|s| s.to_string());
         let done = st.done_names().first().map(|s| s.to_string());
-        let min_ind = lines.iter().filter_map(|t| ctx::item_bullet(t).map(|(i, _)| i)).min().unwrap_or(0);
+        let min_ind = lines
+            .iter()
+            .filter_map(|t| ctx::item_bullet(t).map(|(i, _)| i))
+            .min()
+            .unwrap_or(0);
         out = lines
             .iter()
             .map(|t| match ctx::item_bullet(t) {
@@ -849,7 +962,11 @@ pub fn toggle_heading(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
         out = lines
             .iter()
             .map(|t| {
-                if t.trim().is_empty() || ctx::item_bullet(t).is_some() || syntax::level(t).is_some() || (toggle_one && done_one) {
+                if t.trim().is_empty()
+                    || ctx::item_bullet(t).is_some()
+                    || syntax::level(t).is_some()
+                    || (toggle_one && done_one)
+                {
                     return t.clone();
                 }
                 done_one = true;
@@ -878,7 +995,9 @@ pub fn mark_subtree(ed: &mut Editor, up: i64) -> Result<(), String> {
 
 /// org-convert-to-odd-levels / org-convert-to-oddeven-levels.
 fn convert_levels(ed: &mut Editor, to_odd: bool) -> Result<(), String> {
-    if !to_odd && (0..ed.line_count()).any(|l| syntax::level(&ed.buf.line(l)).is_some_and(|n| n % 2 == 0)) {
+    if !to_odd
+        && (0..ed.line_count()).any(|l| syntax::level(&ed.buf.line(l)).is_some_and(|n| n % 2 == 0))
+    {
         return Err("Not all levels are odd in this file.  Conversion not possible".into());
     }
     let q = if to_odd {
@@ -1093,15 +1212,32 @@ fn insert_todo_heading(ed: &mut Editor, arg: Prefix, respect: bool) -> Result<()
         return Ok(());
     }
     let st = super::settings(ed);
-    let prev_kw = fold::back_to_heading(ed, l).and_then(|h| syntax::headline(&ed.buf.line(h), &st)).and_then(|h| h.todo);
-    insert_heading(ed, if arg == Prefix::U(2) { Prefix::U(2) } else if respect { Prefix::U(1) } else { Prefix::None }, None)?;
-    let first = st.todo_names().first().map(|s| s.to_string()).unwrap_or_else(|| "TODO".into());
+    let prev_kw = fold::back_to_heading(ed, l)
+        .and_then(|h| syntax::headline(&ed.buf.line(h), &st))
+        .and_then(|h| h.todo);
+    insert_heading(
+        ed,
+        if arg == Prefix::U(2) {
+            Prefix::U(2)
+        } else if respect {
+            Prefix::U(1)
+        } else {
+            Prefix::None
+        },
+        None,
+    )?;
+    let first = st
+        .todo_names()
+        .first()
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| "TODO".into());
     let mark = match (&prev_kw, arg) {
         (_, Prefix::U(1)) => first,
         (Some(k), _) if !st.is_done(k) => k.clone(),
         _ => first,
     };
-    let as_state_change = super::options::bool("org-treat-insert-todo-heading-as-state-change", false);
+    let as_state_change =
+        super::options::bool("org-treat-insert-todo-heading-as-state-change", false);
     if as_state_change {
         return call(ed, "org-todo", Prefix::None);
     }
@@ -1122,31 +1258,79 @@ fn insert_todo_heading(ed: &mut Editor, arg: Prefix, respect: bool) -> Result<()
 fn meta_vertical(ed: &mut Editor, arg: Prefix, dir: i64) -> Result<(), String> {
     let l = ed.cur.line;
     if ed.org_region.is_some() && !ctx::at_heading(ed, l) {
-        return call(ed, if dir < 0 { "org-drag-element-backward" } else { "org-drag-element-forward" }, arg);
+        return call(
+            ed,
+            if dir < 0 {
+                "org-drag-element-backward"
+            } else {
+                "org-drag-element-forward"
+            },
+            arg,
+        );
     }
     if ctx::at_table(ed, l) {
-        return call(ed, if dir < 0 { "org-table-move-row-up" } else { "org-table-move-row-down" }, arg);
+        return call(
+            ed,
+            if dir < 0 {
+                "org-table-move-row-up"
+            } else {
+                "org-table-move-row-down"
+            },
+            arg,
+        );
     }
     if ctx::at_heading(ed, l) {
         return move_subtree(ed, dir * arg.value());
     }
     if ctx::at_item(ed, l) {
-        return call(ed, if dir < 0 { "org-move-item-up" } else { "org-move-item-down" }, arg);
+        return call(
+            ed,
+            if dir < 0 {
+                "org-move-item-up"
+            } else {
+                "org-move-item-down"
+            },
+            arg,
+        );
     }
-    call(ed, if dir < 0 { "org-drag-element-backward" } else { "org-drag-element-forward" }, arg)
+    call(
+        ed,
+        if dir < 0 {
+            "org-drag-element-backward"
+        } else {
+            "org-drag-element-forward"
+        },
+        arg,
+    )
 }
 
 /// org-metaleft/right: promote/demote, outdent/indent items, table columns.
 fn meta_horizontal(ed: &mut Editor, arg: Prefix, dir: i64) -> Result<(), String> {
     let l = ed.cur.line;
     if ctx::at_table(ed, l) {
-        return call(ed, if dir < 0 { "org-table-move-column-left" } else { "org-table-move-column-right" }, arg);
+        return call(
+            ed,
+            if dir < 0 {
+                "org-table-move-column-left"
+            } else {
+                "org-table-move-column-right"
+            },
+            arg,
+        );
     }
     if ed.org_region.is_some_and(|(lo, _)| ctx::at_heading(ed, lo)) || ctx::at_heading(ed, l) {
         return do_promote(ed, dir);
     }
     if ed.org_region.is_some_and(|(lo, _)| ctx::at_item(ed, lo)) || ctx::at_item(ed, l) {
-        return call(ed, if dir < 0 { "org-outdent-item" } else { "org-indent-item" }, arg);
+        return call(
+            ed,
+            if dir < 0 {
+                "org-outdent-item"
+            } else {
+                "org-indent-item"
+            },
+            arg,
+        );
     }
     // Fred has no backward-word/forward-word fallback here: move by word.
     let key = if dir < 0 { 'b' } else { 'w' };
@@ -1158,13 +1342,29 @@ fn meta_horizontal(ed: &mut Editor, arg: Prefix, dir: i64) -> Result<(), String>
 fn shiftmeta_horizontal(ed: &mut Editor, arg: Prefix, dir: i64) -> Result<(), String> {
     let l = ed.cur.line;
     if ctx::at_table(ed, l) {
-        return call(ed, if dir < 0 { "org-table-delete-column" } else { "org-table-insert-column" }, arg);
+        return call(
+            ed,
+            if dir < 0 {
+                "org-table-delete-column"
+            } else {
+                "org-table-insert-column"
+            },
+            arg,
+        );
     }
     if ctx::at_heading(ed, l) {
         return promote_subtree(ed, dir);
     }
     if ctx::at_item(ed, l) {
-        return call(ed, if dir < 0 { "org-outdent-item-tree" } else { "org-indent-item-tree" }, arg);
+        return call(
+            ed,
+            if dir < 0 {
+                "org-outdent-item-tree"
+            } else {
+                "org-indent-item-tree"
+            },
+            arg,
+        );
     }
     Err("No command for this context".into())
 }
@@ -1173,12 +1373,36 @@ fn shiftmeta_horizontal(ed: &mut Editor, arg: Prefix, dir: i64) -> Result<(), St
 fn shiftmeta_vertical(ed: &mut Editor, arg: Prefix, dir: i64) -> Result<(), String> {
     let l = ed.cur.line;
     if ctx::at_table(ed, l) {
-        return call(ed, if dir < 0 { "org-table-kill-row" } else { "org-table-insert-row" }, arg);
+        return call(
+            ed,
+            if dir < 0 {
+                "org-table-kill-row"
+            } else {
+                "org-table-insert-row"
+            },
+            arg,
+        );
     }
     if ctx::at_clock_log(ed, l) {
-        return call(ed, if dir < 0 { "org-clock-timestamps-up" } else { "org-clock-timestamps-down" }, arg);
+        return call(
+            ed,
+            if dir < 0 {
+                "org-clock-timestamps-up"
+            } else {
+                "org-clock-timestamps-down"
+            },
+            arg,
+        );
     }
-    call(ed, if dir < 0 { "org-drag-line-backward" } else { "org-drag-line-forward" }, arg)
+    call(
+        ed,
+        if dir < 0 {
+            "org-drag-line-backward"
+        } else {
+            "org-drag-line-forward"
+        },
+        arg,
+    )
 }
 
 #[cfg(test)]
@@ -1224,7 +1448,13 @@ mod tests {
         let e = org("* A\n** B\ntext\n* C", "<M-S-Right>");
         assert_eq!(e.buf.text(), "** A\n*** B\ntext\n* C");
         let e = org("* A\n** B\n* C", "<M-S-Left>");
-        assert!(e.msg.as_ref().unwrap().0.ends_with("Cannot promote to level 0.  UNDO to recover if necessary"));
+        assert!(
+            e.msg
+                .as_ref()
+                .unwrap()
+                .0
+                .ends_with("Cannot promote to level 0.  UNDO to recover if necessary")
+        );
         let e = org("** A\n*** B\n** C", "<M-S-Left>");
         assert_eq!(e.buf.text(), "* A\n** B\n** C");
     }
@@ -1237,7 +1467,13 @@ mod tests {
         let e = org("* A\na\n* B\nb", "Gk<M-Up>");
         assert_eq!(e.buf.text(), "* B\nb\n* A\na");
         let e = org("* A\n* B", "<M-Up>");
-        assert!(e.msg.as_ref().unwrap().0.ends_with("Cannot move past superior level or buffer limit"));
+        assert!(
+            e.msg
+                .as_ref()
+                .unwrap()
+                .0
+                .ends_with("Cannot move past superior level or buffer limit")
+        );
         let mut e = org("* A\na\n* B", "<C-c><C-x><C-w>");
         assert_eq!(e.buf.text(), "* B");
         assert_eq!(e.reg.text, "* A\na");
@@ -1249,7 +1485,10 @@ mod tests {
         let e = org("* A\n** B\nb", "jj<C-c><C-x><M-w>");
         assert_eq!(e.reg.text, "** B\nb");
         let mut e = org("* X\n*** Y", "");
-        e.reg = crate::editor::Register { text: "* T\n** U".into(), linewise: true };
+        e.reg = crate::editor::Register {
+            text: "* T\n** U".into(),
+            linewise: true,
+        };
         for k in crate::key::parse_keys("A<Esc><C-c><C-x><C-y>") {
             e.handle_key(k);
         }

@@ -23,9 +23,7 @@ fn item_body_column(ed: &Editor, l: usize) -> Option<usize> {
             return None;
         }
         if let Some((ind, b)) = ctx::item_bullet(&t) {
-            let rest = &t[ind + b.len()..];
-            let extra = if rest.starts_with("[ ] ") || rest.starts_with("[X] ") || rest.starts_with("[-] ") { 0 } else { 0 };
-            return Some(ind + b.len() + extra);
+            return Some(ind + b.len());
         }
         if t.trim().is_empty() || i == 0 {
             return None;
@@ -50,7 +48,8 @@ pub fn org_return(ed: &mut Editor, indent: bool) -> Result<(), String> {
         return call(ed, "org-table-next-row", Prefix::None);
     }
     if super::options::bool("org-return-follows-link", false)
-        && (super::links::link_at(ed).is_some_and(|lk| b < lk.range.end) || ctx::timestamp_at(ed, l, b).is_some())
+        && (super::links::link_at(ed).is_some_and(|lk| b < lk.range.end)
+            || ctx::timestamp_at(ed, l, b).is_some())
     {
         return super::links::open_at_point(ed, Prefix::None);
     }
@@ -60,8 +59,16 @@ pub fn org_return(ed: &mut Editor, indent: bool) -> Result<(), String> {
     {
         // Split the title, keeping the tags on the heading.
         let in_title = b >= h.title.start && b <= h.title.end;
-        let moved = if in_title { line[b..h.title.end].to_owned() } else { String::new() };
-        let mut head = if in_title { format!("{}{}", &line[..b], &line[h.title.end..]) } else { line.clone() };
+        let moved = if in_title {
+            line[b..h.title.end].to_owned()
+        } else {
+            String::new()
+        };
+        let mut head = if in_title {
+            format!("{}{}", &line[..b], &line[h.title.end..])
+        } else {
+            line.clone()
+        };
         if in_title && !moved.is_empty() && h.tags_range.is_some() {
             let mut x = super::buf::EBuf::new(&head, 0);
             structure::align_tags_here(&mut x, structure::tags_column());
@@ -79,7 +86,11 @@ pub fn org_return(ed: &mut Editor, indent: bool) -> Result<(), String> {
     if b < line.len() && super::structure::in_item(ed, l) {
         let trailing = line[b..].to_owned();
         super::set_line(ed, l, &line[..b]);
-        let col = if indent || true { item_body_column(ed, l).unwrap_or(0) } else { 0 };
+        let col = if indent || true {
+            item_body_column(ed, l).unwrap_or(0)
+        } else {
+            0
+        };
         super::insert_lines(ed, l + 1, &[format!("{}{}", " ".repeat(col), trailing)]);
         ed.set_cursor(l + 1, col);
         return Ok(());
@@ -98,7 +109,11 @@ pub fn org_return(ed: &mut Editor, indent: bool) -> Result<(), String> {
             if indent {
                 let c = indentation_for(ed, l + 1, true);
                 super::set_line(ed, l, &before);
-                super::insert_lines(ed, l + 1, &[format!("{}{}", " ".repeat(c), after.trim_start())]);
+                super::insert_lines(
+                    ed,
+                    l + 1,
+                    &[format!("{}{}", " ".repeat(c), after.trim_start())],
+                );
                 ed.set_cursor(l + 1, c);
             } else {
                 super::set_line(ed, l, &before);
@@ -116,7 +131,9 @@ pub fn indentation_for(ed: &Editor, l: usize, new_line: bool) -> usize {
     if l < ed.line_count() && !new_line && ctx::at_heading(ed, l) {
         return 0;
     }
-    let adapt = super::sexp::option("org-adapt-indentation").map_or("nil".to_owned(), |v| v.sym().map_or("t".into(), str::to_owned));
+    let adapt = super::sexp::option("org-adapt-indentation").map_or("nil".to_owned(), |v| {
+        v.sym().map_or("t".into(), str::to_owned)
+    });
     // Inside a list item: its body column.
     if l > 0
         && let Some(c) = item_body_column(ed, l - 1)
@@ -130,7 +147,11 @@ pub fn indentation_for(ed: &Editor, l: usize, new_line: bool) -> usize {
         i -= 1;
         let t = ed.buf.line(i);
         if syntax::level(&t).is_some() {
-            return if adapt == "t" { syntax::level(&t).unwrap() + 1 } else { 0 };
+            return if adapt == "t" {
+                syntax::level(&t).unwrap() + 1
+            } else {
+                0
+            };
         }
         if !t.trim().is_empty() {
             return t.len() - t.trim_start().len();
@@ -156,15 +177,19 @@ pub fn indent_line(ed: &mut Editor, l: usize) -> Result<(), String> {
     {
         // Keep the code's own indentation, but at least the block's.
         let head = ed.buf.line(b);
-        let base = head.len() - head.trim_start().len() + if super::options::bool("org-src-preserve-indentation", false) { 0 } else { super::options::int("org-src-content-indentation", 2) as usize };
+        let base = head.len() - head.trim_start().len()
+            + if super::options::bool("org-src-preserve-indentation", false) {
+                0
+            } else {
+                super::options::int("org-src-content-indentation", 2) as usize
+            };
         let cur = line.len() - line.trim_start().len();
         if cur < base {
             super::set_line(ed, l, &format!("{}{}", " ".repeat(base), line.trim_start()));
         }
         return Ok(());
     }
-    let first_of_element = l == 0 || ed.buf.line(l - 1).trim().is_empty() || ctx::at_heading(ed, l - 1);
-    let col = if first_of_element || line.trim().is_empty() { indentation_for(ed, l, false) } else { indentation_for(ed, l, false) };
+    let col = indentation_for(ed, l, false);
     let t = line.trim_start();
     let new = format!("{}{t}", " ".repeat(col));
     if new != line {
@@ -180,35 +205,61 @@ pub fn indent_line(ed: &mut Editor, l: usize) -> Result<(), String> {
     {
         let fmt = super::options::string("org-property-format", "%-10s %s");
         let key = format!(":{k}:");
-        let w: usize = fmt.trim_start_matches("%-").split('s').next().and_then(|n| n.parse().ok()).unwrap_or(10);
-        let aligned = if v.is_empty() { format!("{}{key}", " ".repeat(col)) } else { format!("{}{key:<w$} {v}", " ".repeat(col)) };
+        let w: usize = fmt
+            .trim_start_matches("%-")
+            .split('s')
+            .next()
+            .and_then(|n| n.parse().ok())
+            .unwrap_or(10);
+        let aligned = if v.is_empty() {
+            format!("{}{key}", " ".repeat(col))
+        } else {
+            format!("{}{key:<w$} {v}", " ".repeat(col))
+        };
         super::set_line(ed, l, &aligned);
     }
     Ok(())
 }
 
 /// org-sort-entries.
-pub fn sort_entries(ed: &mut Editor, with_case: bool, kind: char, property: Option<String>) -> Result<(), String> {
+pub fn sort_entries(
+    ed: &mut Editor,
+    with_case: bool,
+    kind: char,
+    property: Option<String>,
+) -> Result<(), String> {
     let st = super::settings(ed);
     let l = ed.cur.line;
     let (start, end, what) = if let Some((lo, hi)) = ed.org_region {
-        let s = (lo..=hi).find(|&i| ctx::at_heading(ed, i)).or_else(|| syntax::next_heading(&ed.buf, lo, usize::MAX)).ok_or("Nothing to sort")?;
-        let e = fold::back_to_heading(ed, hi).map_or(ed.line_count(), |h| syntax::subtree_end(&ed.buf, h));
+        let s = (lo..=hi)
+            .find(|&i| ctx::at_heading(ed, i))
+            .or_else(|| syntax::next_heading(&ed.buf, lo, usize::MAX))
+            .ok_or("Nothing to sort")?;
+        let e = fold::back_to_heading(ed, hi)
+            .map_or(ed.line_count(), |h| syntax::subtree_end(&ed.buf, h));
         (s, e, "region")
     } else if let Some(h) = fold::back_to_heading(ed, l) {
         fold::show_subtree(ed, h);
-        let first = syntax::next_heading(&ed.buf, h, usize::MAX).filter(|&x| x < syntax::subtree_end(&ed.buf, h)).ok_or("Nothing to sort")?;
+        let first = syntax::next_heading(&ed.buf, h, usize::MAX)
+            .filter(|&x| x < syntax::subtree_end(&ed.buf, h))
+            .ok_or("Nothing to sort")?;
         (first, syntax::subtree_end(&ed.buf, h), "children")
     } else {
-        let s = (0..ed.line_count()).find(|&i| ctx::at_heading(ed, i)).ok_or("Nothing to sort")?;
-        fold::show_all(ed, &[fold::Spec::Outline, fold::Spec::Drawer, fold::Spec::Block]);
+        let s = (0..ed.line_count())
+            .find(|&i| ctx::at_heading(ed, i))
+            .ok_or("Nothing to sort")?;
+        fold::show_all(
+            ed,
+            &[fold::Spec::Outline, fold::Spec::Drawer, fold::Spec::Block],
+        );
         (s, ed.line_count(), "top-level")
     };
     if start >= end {
         return Err("Nothing to sort".into());
     }
     let stars = syntax::level(&ed.buf.line(start)).unwrap();
-    if stars > 1 && (start..end).any(|i| syntax::level(&ed.buf.line(i)).is_some_and(|n| n < stars)) {
+    if stars > 1 && (start..end).any(|i| syntax::level(&ed.buf.line(i)).is_some_and(|n| n < stars))
+    {
         return Err("Region to sort contains a level above the first entry".into());
     }
     let _ = what;
@@ -237,33 +288,74 @@ pub fn sort_entries(ed: &mut Editor, with_case: bool, kind: char, property: Opti
         let hl = syntax::headline(&line, &st);
         let title = super::links::display_format(hl.as_ref().map_or("", |h| h.title(&line)));
         let entry_end = syntax::entry_end(&ed.buf, b).min(e);
-        let find_ts = |re: &regex::Regex| (b..entry_end).find_map(|i| re.find(&ed.buf.line(i)).map(|m| m.as_str().to_owned()));
-        let secs = |s: Option<String>| s.and_then(|s| super::time::stamp::time_string_to_seconds(&s).ok()).map_or(now, |x| x as f64);
+        let find_ts = |re: &regex::Regex| {
+            (b..entry_end).find_map(|i| re.find(&ed.buf.line(i)).map(|m| m.as_str().to_owned()))
+        };
+        let secs = |s: Option<String>| {
+            s.and_then(|s| super::time::stamp::time_string_to_seconds(&s).ok())
+                .map_or(now, |x| x as f64)
+        };
         match dk {
-            'n' => K::N(title.trim().split(|c: char| !c.is_ascii_digit() && c != '.' && c != '-').next().and_then(|n| n.parse().ok()).unwrap_or(0.0)),
-            'a' => K::S(if with_case { title } else { title.to_lowercase() }),
+            'n' => K::N(
+                title
+                    .trim()
+                    .split(|c: char| !c.is_ascii_digit() && c != '.' && c != '-')
+                    .next()
+                    .and_then(|n| n.parse().ok())
+                    .unwrap_or(0.0),
+            ),
+            'a' => K::S(if with_case {
+                title
+            } else {
+                title.to_lowercase()
+            }),
             'k' => K::N(super::clock_minutes(ed, b) as f64),
-            't' => K::N(secs(find_ts(crate::org_re!(r"<\d{4}-\d\d-\d\d[^>\n]*>")).or_else(|| find_ts(crate::org_re!(r"[\[<]\d{4}-\d\d-\d\d[^>\]\n]*[>\]]"))))),
+            't' => K::N(secs(
+                find_ts(crate::org_re!(r"<\d{4}-\d\d-\d\d[^>\n]*>"))
+                    .or_else(|| find_ts(crate::org_re!(r"[\[<]\d{4}-\d\d-\d\d[^>\]\n]*[>\]]"))),
+            )),
             'c' => K::N(secs((b..entry_end).find_map(|i| {
                 let t = ed.buf.line(i);
                 let tt = t.trim_start();
-                (tt.starts_with('[') && super::face::timestamp_len(tt).is_some()).then(|| tt[..super::face::timestamp_len(tt).unwrap()].to_owned())
+                (tt.starts_with('[') && super::face::timestamp_len(tt).is_some())
+                    .then(|| tt[..super::face::timestamp_len(tt).unwrap()].to_owned())
             }))),
             's' => K::N(secs(props::get(ed, Some(b), "SCHEDULED", Inherit::No))),
             'd' => K::N(secs(props::get(ed, Some(b), "DEADLINE", Inherit::No))),
-            'p' => K::N(hl.as_ref().and_then(|h| h.priority).unwrap_or(st.priorities.2) as f64),
-            'r' => K::S(property.as_deref().and_then(|p| props::get(ed, Some(b), p, Inherit::No)).unwrap_or_default()),
+            'p' => K::N(
+                hl.as_ref()
+                    .and_then(|h| h.priority)
+                    .unwrap_or(st.priorities.2) as f64,
+            ),
+            'r' => K::S(
+                property
+                    .as_deref()
+                    .and_then(|p| props::get(ed, Some(b), p, Inherit::No))
+                    .unwrap_or_default(),
+            ),
             'o' => {
                 let kw = hl.as_ref().and_then(|h| h.todo.clone());
                 let all = st.todo_names();
-                let n = kw.as_deref().and_then(|k| all.iter().position(|x| *x == k)).map_or(0, |p| all.len() - p) as f64;
+                let n = kw
+                    .as_deref()
+                    .and_then(|k| all.iter().position(|x| *x == k))
+                    .map_or(0, |p| all.len() - p) as f64;
                 let done = kw.as_deref().is_some_and(|k| st.is_done(k));
-                K::N(if kw.is_none() { 99.0 } else if done { 99.0 + n } else { 99.0 - n })
+                K::N(if kw.is_none() {
+                    99.0
+                } else if done {
+                    99.0 + n
+                } else {
+                    99.0 - n
+                })
             }
             _ => K::S(String::new()),
         }
     };
-    let mut keyed: Vec<(K, Vec<String>)> = records.iter().map(|&r| (key(ed, r), super::lines(ed, r.0..r.1))).collect();
+    let mut keyed: Vec<(K, Vec<String>)> = records
+        .iter()
+        .map(|&r| (key(ed, r), super::lines(ed, r.0..r.1)))
+        .collect();
     // sort-subr is stable; reverse means reversed order of keys.
     keyed.sort_by(|a, b| {
         let o = a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal);
@@ -278,7 +370,10 @@ pub fn sort_entries(ed: &mut Editor, with_case: bool, kind: char, property: Opti
     let last = records.last().unwrap().1;
     super::splice(ed, first, last - first, &out);
     fold::hide_drawers(ed, 0, ed.line_count());
-    ed.set_cursor(start.saturating_sub(if what == "children" { 1 } else { 0 }), 0);
+    ed.set_cursor(
+        start.saturating_sub(if what == "children" { 1 } else { 0 }),
+        0,
+    );
     ed.set_msg("Sorting entries...done");
     Ok(())
 }
@@ -327,8 +422,19 @@ fn sort_command(ed: &mut Editor, with_case: bool) {
 /// org-emphasize with marker `c` (space removes).
 fn emphasize(ed: &mut Editor, c: char) -> Result<(), String> {
     let alist: Vec<String> = super::sexp::option("org-emphasis-alist")
-        .and_then(|v| v.list().map(|l| l.iter().filter_map(|e| e.car().and_then(Sexp::str).map(str::to_owned)).collect()))
-        .unwrap_or_else(|| ["*", "/", "_", "=", "~", "+"].iter().map(|s| s.to_string()).collect());
+        .and_then(|v| {
+            v.list().map(|l| {
+                l.iter()
+                    .filter_map(|e| e.car().and_then(Sexp::str).map(str::to_owned))
+                    .collect()
+            })
+        })
+        .unwrap_or_else(|| {
+            ["*", "/", "_", "=", "~", "+"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        });
     let s = if c == ' ' {
         String::new()
     } else if alist.iter().any(|m| *m == c.to_string()) {
@@ -340,9 +446,15 @@ fn emphasize(ed: &mut Editor, c: char) -> Result<(), String> {
     let line = ed.buf.line(l);
     let (b0, e0, mut string, mv) = match ed.org_region {
         Some((lo, hi)) if lo == hi => (0, line.len(), line.trim().to_owned(), false),
-        Some(_) => return Err("Emphasis over several lines is not supported in Line selections".into()),
+        Some(_) => {
+            return Err("Emphasis over several lines is not supported in Line selections".into());
+        }
         None => {
-            let b = if ed.mode == Mode::Insert { ed.cur.byte } else { crate::text::next_grapheme(&line, ed.cur.byte).min(line.len()) };
+            let b = if ed.mode == Mode::Insert {
+                ed.cur.byte
+            } else {
+                crate::text::next_grapheme(&line, ed.cur.byte).min(line.len())
+            };
             (b, b, String::new(), true)
         }
     };
@@ -352,20 +464,31 @@ fn emphasize(ed: &mut Editor, c: char) -> Result<(), String> {
     } else {
         (b0, e0)
     };
-    while string.chars().count() > 1 && string.chars().next() == string.chars().last() && alist.iter().any(|m| string.starts_with(m.as_str())) {
+    while string.chars().count() > 1
+        && string.chars().next() == string.chars().last()
+        && alist.iter().any(|m| string.starts_with(m.as_str()))
+    {
         string = string[1..string.len() - 1].to_owned();
     }
     let wrapped = format!("{s}{string}{s}");
     let mut before = line[..b0].to_owned();
     let mut after = line[e0..].to_owned();
-    if !before.is_empty() && !before.ends_with(|ch: char| ch.is_whitespace() || "-('\"{".contains(ch)) {
+    if !before.is_empty()
+        && !before.ends_with(|ch: char| ch.is_whitespace() || "-('\"{".contains(ch))
+    {
         before.push(' ');
     }
-    let pad_after = !after.is_empty() && !after.starts_with(|ch: char| ch.is_whitespace() || "-.,:!?;'\")}\\[".contains(ch));
+    let pad_after = !after.is_empty()
+        && !after.starts_with(|ch: char| ch.is_whitespace() || "-.,:!?;'\")}\\[".contains(ch));
     if pad_after {
         after.insert(0, ' ');
     }
-    let cursor = before.len() + if mv && !s.is_empty() { s.len() + string.len() } else { wrapped.len() };
+    let cursor = before.len()
+        + if mv && !s.is_empty() {
+            s.len() + string.len()
+        } else {
+            wrapped.len()
+        };
     super::set_line(ed, l, &format!("{before}{wrapped}{after}"));
     ed.set_cursor(l, cursor);
     if mv && ed.mode != Mode::Insert && !s.is_empty() {
@@ -384,7 +507,10 @@ fn toggle_fixed_width(ed: &mut Editor) -> Result<(), String> {
     let strip = |t: &str| -> String {
         let ind = t.len() - t.trim_start().len();
         let tt = t.trim_start();
-        let rest = tt.strip_prefix(": ").or_else(|| tt.strip_prefix(':')).unwrap_or(tt);
+        let rest = tt
+            .strip_prefix(": ")
+            .or_else(|| tt.strip_prefix(':'))
+            .unwrap_or(tt);
         format!("{}{rest}", &t[..ind])
     };
     match ed.org_region {
@@ -409,8 +535,15 @@ fn toggle_fixed_width(ed: &mut Editor) -> Result<(), String> {
             while hi > lo && ed.buf.line(hi).trim().is_empty() {
                 hi -= 1;
             }
-            let all = (lo..=hi).filter(|&i| !ed.buf.line(i).trim().is_empty()).all(|i| fixed(&ed.buf.line(i)));
-            let min_ind = (lo..=hi).map(|i| ed.buf.line(i)).filter(|t| !t.trim().is_empty()).map(|t| t.len() - t.trim_start().len()).min().unwrap_or(0);
+            let all = (lo..=hi)
+                .filter(|&i| !ed.buf.line(i).trim().is_empty())
+                .all(|i| fixed(&ed.buf.line(i)));
+            let min_ind = (lo..=hi)
+                .map(|i| ed.buf.line(i))
+                .filter(|t| !t.trim().is_empty())
+                .map(|t| t.len() - t.trim_start().len())
+                .min()
+                .unwrap_or(0);
             let out: Vec<String> = (lo..=hi)
                 .map(|i| {
                     let t = ed.buf.line(i);
@@ -437,26 +570,46 @@ fn fill_paragraph(ed: &mut Editor, justify: bool) -> Result<(), String> {
     let _ = justify;
     let width = super::options::int("fill-column", 70).max(10) as usize;
     let l = ed.cur.line;
-    if ctx::at_heading(ed, l) || ctx::at_table(ed, l) || ctx::in_block(ed, l) || ctx::at_keyword(ed, l) {
+    if ctx::at_heading(ed, l)
+        || ctx::at_table(ed, l)
+        || ctx::in_block(ed, l)
+        || ctx::at_keyword(ed, l)
+    {
         return Ok(());
     }
-    let para_line = |t: &str| !t.trim().is_empty() && syntax::level(t).is_none() && !t.trim_start().starts_with('|') && syntax::keyword_line(t).is_none();
+    let para_line = |t: &str| {
+        !t.trim().is_empty()
+            && syntax::level(t).is_none()
+            && !t.trim_start().starts_with('|')
+            && syntax::keyword_line(t).is_none()
+    };
     if !para_line(&ed.buf.line(l)) {
         return Ok(());
     }
     let comment = ed.buf.line(l).trim_start().starts_with("# ");
     let mut s = l;
-    while s > 0 && para_line(&ed.buf.line(s - 1)) && ed.buf.line(s - 1).trim_start().starts_with("# ") == comment && !(ctx::at_item(ed, s) && !comment) {
+    while s > 0
+        && para_line(&ed.buf.line(s - 1))
+        && ed.buf.line(s - 1).trim_start().starts_with("# ") == comment
+        && !(ctx::at_item(ed, s) && !comment)
+    {
         s -= 1;
     }
     let mut e = l;
-    while e + 1 < ed.line_count() && para_line(&ed.buf.line(e + 1)) && ed.buf.line(e + 1).trim_start().starts_with("# ") == comment && !ctx::at_item(ed, e + 1) {
+    while e + 1 < ed.line_count()
+        && para_line(&ed.buf.line(e + 1))
+        && ed.buf.line(e + 1).trim_start().starts_with("# ") == comment
+        && !ctx::at_item(ed, e + 1)
+    {
         e += 1;
     }
     let first = ed.buf.line(s);
     let (prefix_first, prefix_rest) = if comment {
         let ind = first.len() - first.trim_start().len();
-        (format!("{}# ", &first[..ind]), format!("{}# ", &first[..ind]))
+        (
+            format!("{}# ", &first[..ind]),
+            format!("{}# ", &first[..ind]),
+        )
     } else if let Some((ind, b)) = ctx::item_bullet(&first) {
         (first[..ind + b.len()].to_owned(), " ".repeat(ind + b.len()))
     } else {
@@ -466,8 +619,19 @@ fn fill_paragraph(ed: &mut Editor, justify: bool) -> Result<(), String> {
     let words: Vec<String> = (s..=e)
         .flat_map(|i| {
             let t = ed.buf.line(i);
-            let body = if i == s { t[prefix_first.len().min(t.len())..].to_owned() } else if comment { t.trim_start().trim_start_matches('#').trim_start().to_owned() } else { t.trim_start().to_owned() };
-            body.split_whitespace().map(str::to_owned).collect::<Vec<_>>()
+            let body = if i == s {
+                t[prefix_first.len().min(t.len())..].to_owned()
+            } else if comment {
+                t.trim_start()
+                    .trim_start_matches('#')
+                    .trim_start()
+                    .to_owned()
+            } else {
+                t.trim_start().to_owned()
+            };
+            body.split_whitespace()
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
         })
         .collect();
     let mut out: Vec<String> = vec![];
@@ -501,15 +665,29 @@ fn comment_dwim(ed: &mut Editor) -> Result<(), String> {
     }
     let (lo, hi) = ed.org_region.unwrap_or((l, l));
     let lines = super::lines(ed, lo..hi + 1);
-    let commented = lines.iter().filter(|t| !t.trim().is_empty()).all(|t| t.trim_start().starts_with("# ") || t.trim() == "#");
-    let min = lines.iter().filter(|t| !t.trim().is_empty()).map(|t| t.len() - t.trim_start().len()).min().unwrap_or(0);
+    let commented = lines
+        .iter()
+        .filter(|t| !t.trim().is_empty())
+        .all(|t| t.trim_start().starts_with("# ") || t.trim() == "#");
+    let min = lines
+        .iter()
+        .filter(|t| !t.trim().is_empty())
+        .map(|t| t.len() - t.trim_start().len())
+        .min()
+        .unwrap_or(0);
     let out: Vec<String> = lines
         .iter()
         .map(|t| {
             if commented {
                 let ind = t.len() - t.trim_start().len();
                 let tt = t.trim_start();
-                format!("{}{}", &t[..ind], tt.strip_prefix("# ").or_else(|| tt.strip_prefix('#')).unwrap_or(tt))
+                format!(
+                    "{}{}",
+                    &t[..ind],
+                    tt.strip_prefix("# ")
+                        .or_else(|| tt.strip_prefix('#'))
+                        .unwrap_or(tt)
+                )
             } else if t.trim().is_empty() && lines.len() > 1 {
                 t.clone()
             } else {
@@ -532,21 +710,42 @@ fn clone_subtree(ed: &mut Editor, n: usize, shift: &str) -> Result<(), String> {
         None
     } else {
         let re = regex::Regex::new(r"^([+-]?[0-9]+)([hdwmy])$").unwrap();
-        let c = re.captures(shift).ok_or_else(|| format!("Invalid shift specification {shift}"))?;
+        let c = re
+            .captures(shift)
+            .ok_or_else(|| format!("Invalid shift specification {shift}"))?;
         Some((c[1].parse::<i64>().unwrap(), c[2].chars().next().unwrap()))
     };
-    let repeat = template.iter().any(|l| super::time::stamp::repeat_re().is_match(l));
-    let n_no_remove = if repeat && doshift.is_some() { n.saturating_sub(1).max(0) } else { n };
+    let repeat = template
+        .iter()
+        .any(|l| super::time::stamp::repeat_re().is_match(l));
+    let n_no_remove = if repeat && doshift.is_some() {
+        n.saturating_sub(1)
+    } else {
+        n
+    };
     let _ = n_no_remove;
     let mut out: Vec<String> = vec![];
-    let total = if repeat && doshift.is_some() { n + 1 } else { n };
+    let total = if repeat && doshift.is_some() {
+        n + 1
+    } else {
+        n
+    };
     for i in 1..=total {
         let mut lines: Vec<String> = template.clone();
         // Remove ID properties and CLOCK lines in clones.
-        lines.retain(|l| !(l.trim_start().starts_with(":ID:") || l.trim_start().starts_with("CLOCK:")));
+        lines.retain(|l| {
+            !(l.trim_start().starts_with(":ID:") || l.trim_start().starts_with("CLOCK:"))
+        });
         if repeat && doshift.is_some() && i < total || repeat && doshift.is_none() {
             for l in lines.iter_mut() {
-                *l = super::time::stamp::repeat_re().replace_all(l, |c: &regex::Captures| c[0].replacen(&c[1], "", 1).replace("  ", " ").replace(" >", ">").replace(" ]", "]")).into_owned();
+                *l = super::time::stamp::repeat_re()
+                    .replace_all(l, |c: &regex::Captures| {
+                        c[0].replacen(&c[1], "", 1)
+                            .replace("  ", " ")
+                            .replace(" >", ">")
+                            .replace(" ]", "]")
+                    })
+                    .into_owned();
             }
         }
         if let Some((k, unit)) = doshift {
@@ -557,7 +756,10 @@ fn clone_subtree(ed: &mut Editor, n: usize, shift: &str) -> Result<(), String> {
             }
             lines = shifted;
         }
-        if lines.iter().any(|l| l.trim_start().starts_with(":PROPERTIES:")) {
+        if lines
+            .iter()
+            .any(|l| l.trim_start().starts_with(":PROPERTIES:"))
+        {
             // An emptied drawer goes away.
             let mut k = 0;
             while k + 1 < lines.len() {
@@ -570,7 +772,10 @@ fn clone_subtree(ed: &mut Editor, n: usize, shift: &str) -> Result<(), String> {
         }
         if i == total && repeat && doshift.is_some() {
             // The original, with repeater, after the clones and shifted past them.
-            lines = template.iter().map(|l| shift_timestamps(l, doshift.unwrap().0 * total as i64, doshift.unwrap().1)).collect();
+            lines = template
+                .iter()
+                .map(|l| shift_timestamps(l, doshift.unwrap().0 * total as i64, doshift.unwrap().1))
+                .collect();
         }
         out.extend(lines);
     }
@@ -599,7 +804,14 @@ fn shift_timestamps(line: &str, n: i64, unit: char) -> String {
             'y' => Unit::Year,
             _ => Unit::Day,
         };
-        let r = super::time::stamp::change(ts, 1, super::time::stamp::Part::Day, n, Some(super::time::stamp::What::Unit(u)), Default::default());
+        let r = super::time::stamp::change(
+            ts,
+            1,
+            super::time::stamp::Part::Day,
+            n,
+            Some(super::time::stamp::What::Unit(u)),
+            Default::default(),
+        );
         out.push_str(&r.map(|c| c.text).unwrap_or_else(|_| ts.to_owned()));
         last = m.end();
     }
@@ -609,7 +821,11 @@ fn shift_timestamps(line: &str, n: i64, unit: char) -> String {
 
 /// org-delete-indentation (join with the previous line; into a heading title).
 fn delete_indentation(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
-    let l = if arg.is_none() { ed.cur.line } else { ed.cur.line + 1 };
+    let l = if arg.is_none() {
+        ed.cur.line
+    } else {
+        ed.cur.line + 1
+    };
     if l == 0 || l >= ed.line_count() {
         return Ok(());
     }
@@ -657,7 +873,13 @@ fn occur_in_agenda_files(ed: &mut Editor, link: bool) {
                 let Ok(t) = s.org_text(&f) else { continue };
                 for (i, l) in t.lines().enumerate() {
                     if r.is_match(l) {
-                        rows.push(format!("{}:{}: {l}", f.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(), i + 1));
+                        rows.push(format!(
+                            "{}:{}: {l}",
+                            f.file_name()
+                                .map(|n| n.to_string_lossy().into_owned())
+                                .unwrap_or_default(),
+                            i + 1
+                        ));
                         locs.push((f.clone(), i));
                     }
                 }
@@ -665,18 +887,27 @@ fn occur_in_agenda_files(ed: &mut Editor, link: bool) {
             if rows.is_empty() {
                 return s.ed.set_msg(format!("No match for {re}"));
             }
-            super::complete(&mut s.ed, &format!("Occur {re}: "), rows.clone(), true, move |ed, choice| {
-                if let Some(i) = rows.iter().position(|x| *x == choice) {
-                    let (f, l) = locs[i].clone();
-                    super::effect(ed, move |s| {
-                        let _ = s.org_visit(&f, l);
-                    });
-                }
-            });
+            super::complete(
+                &mut s.ed,
+                &format!("Occur {re}: "),
+                rows.clone(),
+                true,
+                move |ed, choice| {
+                    if let Some(i) = rows.iter().position(|x| *x == choice) {
+                        let (f, l) = locs[i].clone();
+                        super::effect(ed, move |s| {
+                            let _ = s.org_visit(&f, l);
+                        });
+                    }
+                },
+            );
         });
     };
     if link {
-        let lk = super::links::stored_links().first().map(|(l, _)| l.clone()).unwrap_or_default();
+        let lk = super::links::stored_links()
+            .first()
+            .map(|(l, _)| l.clone())
+            .unwrap_or_default();
         then(ed, regex::escape(&lk));
     } else {
         super::read(ed, "Regexp: ", "", then);
@@ -685,17 +916,29 @@ fn occur_in_agenda_files(ed: &mut Editor, link: bool) {
 
 /// Open an external URL with the system opener.
 fn browse(url: &str) -> Result<(), String> {
-    let opener = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
-    std::process::Command::new(opener).arg(url).spawn().map(|_| ()).map_err(|e| e.to_string())
+    let opener = if cfg!(target_os = "macos") {
+        "open"
+    } else {
+        "xdg-open"
+    };
+    std::process::Command::new(opener)
+        .arg(url)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
 }
 
 pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), String>> {
     let l = ed.cur.line;
     Some(match name {
         "org-return" => org_return(ed, false),
-        "org-return-and-maybe-indent" | "org-return-indent" | "org-newline-and-indent" => org_return(ed, !super::options::bool("electric-indent-mode", true)),
+        "org-return-and-maybe-indent" | "org-return-indent" | "org-newline-and-indent" => {
+            org_return(ed, !super::options::bool("electric-indent-mode", true))
+        }
         "org-force-self-insert" | "org-self-insert-command" => {
-            let c = super::take_call_arg().and_then(|s| s.chars().next()).unwrap_or('|');
+            let c = super::take_call_arg()
+                .and_then(|s| s.chars().next())
+                .unwrap_or('|');
             if c != '|' || !super::table_self_insert(ed, c) {
                 vim_insert(ed, Key::ch(c));
             }
@@ -743,7 +986,9 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
         }
         "org-yank" => {
             let text = structure::current_kill(ed);
-            if structure::kill_is_subtree(&text) && super::options::bool("org-yank-adjusted-subtrees", false) {
+            if structure::kill_is_subtree(&text)
+                && super::options::bool("org-yank-adjusted-subtrees", false)
+            {
                 structure::paste_subtree(ed, Prefix::None, Some(text), true)
             } else {
                 crate::vim::ops::put(ed, 1, false);
@@ -769,14 +1014,33 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
             let st = super::settings(ed);
             let special = super::options::bool("org-special-ctrl-a/e", false);
             let b = match syntax::headline(&line, &st) {
-                Some(h) if special && h.tags_range.is_some() && ed.cur.byte < h.title.end => h.title.end,
+                Some(h) if special && h.tags_range.is_some() && ed.cur.byte < h.title.end => {
+                    h.title.end
+                }
                 _ => line.len(),
             };
             ed.set_cursor(l, b.saturating_sub(usize::from(ed.mode != Mode::Insert)));
             Ok(())
         }
         "org-emphasize" => {
-            let marks: Vec<(String, String)> = ["*", "/", "_", "=", "~", "+", " "].iter().map(|m| (m.to_string(), match *m { "*" => "bold", "/" => "italic", "_" => "underline", "=" => "verbatim", "~" => "code", "+" => "strike-through", _ => "remove" }.to_owned())).collect();
+            let marks: Vec<(String, String)> = ["*", "/", "_", "=", "~", "+", " "]
+                .iter()
+                .map(|m| {
+                    (
+                        m.to_string(),
+                        match *m {
+                            "*" => "bold",
+                            "/" => "italic",
+                            "_" => "underline",
+                            "=" => "verbatim",
+                            "~" => "code",
+                            "+" => "strike-through",
+                            _ => "remove",
+                        }
+                        .to_owned(),
+                    )
+                })
+                .collect();
             let region = ed.org_region;
             super::menu(ed, "Emphasis marker or tag:", marks, move |ed, k| {
                 ed.org_region = region;
@@ -799,13 +1063,24 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
             h.map(|h| {
                 let st = super::settings(ed);
                 let line = ed.buf.line(h);
-                let title = syntax::headline(&line, &st).map(|x| x.title(&line).to_owned()).unwrap_or_default();
+                let title = syntax::headline(&line, &st)
+                    .map(|x| x.title(&line).to_owned())
+                    .unwrap_or_default();
                 super::read(ed, "Edit: ", &title, move |ed, new| {
                     let st = super::settings(ed);
                     let line = ed.buf.line(h);
                     if let Some(x) = syntax::headline(&line, &st) {
                         ed.undo.begin(ed.cur.pos());
-                        super::set_line(ed, h, &format!("{}{}{}", &line[..x.title.start], new.trim(), &line[x.title.end..]));
+                        super::set_line(
+                            ed,
+                            h,
+                            &format!(
+                                "{}{}{}",
+                                &line[..x.title.start],
+                                new.trim(),
+                                &line[x.title.end..]
+                            ),
+                        );
                         tags_realign(ed, h);
                         ed.undo.end(ed.cur.pos());
                     }
@@ -816,11 +1091,13 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
         "org-display-outline-path" => {
             let st = super::settings(ed);
             let h = fold::back_to_heading(ed, l);
-            let mut path = h.map(|h| super::refile::outline_path(&ed.buf, &st, h, !arg.is_none())).unwrap_or_default();
-            if !arg.is_none() || super::options::bool("org-outline-path-include-file", false) {
-                if let Some(f) = ed.path.as_ref().and_then(|p| p.file_name()) {
-                    path.insert(0, f.to_string_lossy().into_owned());
-                }
+            let mut path = h
+                .map(|h| super::refile::outline_path(&ed.buf, &st, h, !arg.is_none()))
+                .unwrap_or_default();
+            if (!arg.is_none() || super::options::bool("org-outline-path-include-file", false))
+                && let Some(f) = ed.path.as_ref().and_then(|p| p.file_name())
+            {
+                path.insert(0, f.to_string_lossy().into_owned());
             }
             ed.set_msg(path.join("/"));
             Ok(())
@@ -844,7 +1121,9 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
             super::effect(ed, |s| {
                 let n = s.org_buffer_count();
                 for i in 0..n {
-                    let org = s.org_with_buffer(i, |e| e.org.is_some() && e.buf.modified && e.path.is_some());
+                    let org = s.org_with_buffer(i, |e| {
+                        e.org.is_some() && e.buf.modified && e.path.is_some()
+                    });
                     if org {
                         let _ = s.org_save(i);
                     }
@@ -857,8 +1136,13 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
             super::yes_or_no(ed, "Revert all Org buffers from their files? ", |ed| {
                 super::effect(ed, |s| {
                     let n = s.org_buffer_count();
-                    let idx: Vec<usize> = (0..n).filter(|&i| s.org_with_buffer(i, |e| e.org.is_some())).collect();
-                    let paths: Vec<std::path::PathBuf> = idx.into_iter().filter_map(|i| s.org_buffer_path(i)).collect();
+                    let idx: Vec<usize> = (0..n)
+                        .filter(|&i| s.org_with_buffer(i, |e| e.org.is_some()))
+                        .collect();
+                    let paths: Vec<std::path::PathBuf> = idx
+                        .into_iter()
+                        .filter_map(|i| s.org_buffer_path(i))
+                        .collect();
                     for p in paths {
                         if let Ok(text) = std::fs::read_to_string(&p) {
                             let _ = s.org_with_file(&p, |e| {
@@ -879,8 +1163,13 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
         "org-switchb" | "org-iswitchb" => {
             super::effect(ed, |s| {
                 let n = s.org_buffer_count();
-                let idx: Vec<usize> = (0..n).filter(|&i| s.org_with_buffer(i, |e| e.org.is_some())).collect();
-                let list: Vec<(String, std::path::PathBuf)> = idx.into_iter().filter_map(|i| s.org_buffer_path(i).map(|p| (p.display().to_string(), p))).collect();
+                let idx: Vec<usize> = (0..n)
+                    .filter(|&i| s.org_with_buffer(i, |e| e.org.is_some()))
+                    .collect();
+                let list: Vec<(String, std::path::PathBuf)> = idx
+                    .into_iter()
+                    .filter_map(|i| s.org_buffer_path(i).map(|p| (p.display().to_string(), p)))
+                    .collect();
                 let names: Vec<String> = list.iter().map(|x| x.0.clone()).collect();
                 super::complete(&mut s.ed, "Org buffer: ", names, true, move |ed, n| {
                     if let Some((_, p)) = list.into_iter().find(|x| x.0 == n) {
@@ -893,11 +1182,21 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
             Ok(())
         }
         "org-edit-agenda-file-list" => {
-            ed.pending_effect = Some(crate::ex::ExEffect::Open { path: crate::config::config_path(), line: 0, col: 0, pattern: Some("org-agenda-files".into()) });
+            ed.pending_effect = Some(crate::ex::ExEffect::Open {
+                path: crate::config::config_path(),
+                line: 0,
+                col: 0,
+                pattern: Some("org-agenda-files".into()),
+            });
             Ok(())
         }
         "org-customize" | "org-create-customize-menu" => {
-            ed.pending_effect = Some(crate::ex::ExEffect::Open { path: crate::config::config_path(), line: 0, col: 0, pattern: Some("\\[org\\]".into()) });
+            ed.pending_effect = Some(crate::ex::ExEffect::Open {
+                path: crate::config::config_path(),
+                line: 0,
+                col: 0,
+                pattern: Some("\\[org\\]".into()),
+            });
             Ok(())
         }
         "org-mode-restart" | "org-reload" => {
@@ -909,7 +1208,10 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
             Ok(())
         }
         "org-version" => {
-            ed.set_msg(format!("Org mode version 9.8-pre (fred port of 3b73b8a0), fred {}", env!("CARGO_PKG_VERSION")));
+            ed.set_msg(format!(
+                "Org mode version 9.8-pre (fred port of 3b73b8a0), fred {}",
+                env!("CARGO_PKG_VERSION")
+            ));
             Ok(())
         }
         "org-info" | "org-info-find-node" => {
@@ -917,7 +1219,9 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
             Ok(())
         }
         "org-browse-news" => browse("https://orgmode.org/Changes.html"),
-        "org-submit-bug-report" | "org-submit-feature-request" | "org-submit-patch" => browse("https://orgmode.org/manual/Feedback.html"),
+        "org-submit-bug-report" | "org-submit-feature-request" | "org-submit-patch" => {
+            browse("https://orgmode.org/manual/Feedback.html")
+        }
         "org-transpose-words" => {
             ed.set_msg("transpose-words: use Vim (e.g. dwwP)");
             Ok(())
@@ -928,12 +1232,23 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
             let line = ed.buf.line(l);
             let b = ed.cur.byte.min(line.len());
             let re = crate::org_re!(r"-?\d+(\.\d+)?");
-            match re.find_iter(&line).find(|m| m.start() <= b && b <= m.end() || m.start() > b) {
+            match re
+                .find_iter(&line)
+                .find(|m| m.start() <= b && b <= m.end() || m.start() > b)
+            {
                 Some(m) => {
                     let v: f64 = m.as_str().parse().unwrap_or(0.0);
                     let nv = v + if up { n as f64 } else { -(n as f64) };
-                    let s = if m.as_str().contains('.') { format!("{nv}") } else { format!("{}", nv as i64) };
-                    super::set_line(ed, l, &format!("{}{s}{}", &line[..m.start()], &line[m.end()..]));
+                    let s = if m.as_str().contains('.') {
+                        format!("{nv}")
+                    } else {
+                        format!("{}", nv as i64)
+                    };
+                    super::set_line(
+                        ed,
+                        l,
+                        &format!("{}{s}{}", &line[..m.start()], &line[m.end()..]),
+                    );
                     ed.set_cursor(l, m.start());
                     if ctx::at_table(ed, l) {
                         let _ = call(ed, "org-table-align", Prefix::None);
@@ -951,9 +1266,15 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
         }
         "org-indent-drawer" | "org-indent-block" => {
             let drawer = name == "org-indent-drawer";
-            match fold::wrapper_at(ed, l, drawer).or_else(|| ctx::block_at(ed, l).map(|(_, b, e)| (b, e))) {
+            match fold::wrapper_at(ed, l, drawer)
+                .or_else(|| ctx::block_at(ed, l).map(|(_, b, e)| (b, e)))
+            {
                 Some((b, e)) => (b..=e).try_for_each(|i| indent_line(ed, i)),
-                None => Err(if drawer { "Not at a drawer".into() } else { "Not at a block".into() }),
+                None => Err(if drawer {
+                    "Not at a drawer".into()
+                } else {
+                    "Not at a block".into()
+                }),
             }
         }
         "org-unindent-buffer" => {
@@ -962,7 +1283,16 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
             if lines.iter().any(|t| ctx::item_bullet(t).is_some()) {
                 return Some(Err("Cannot un-indent a buffer with lists".into()));
             }
-            let out: Vec<String> = lines.iter().map(|t| if syntax::level(t).is_some() { t.clone() } else { t.trim_start().to_owned() }).collect();
+            let out: Vec<String> = lines
+                .iter()
+                .map(|t| {
+                    if syntax::level(t).is_some() {
+                        t.clone()
+                    } else {
+                        t.trim_start().to_owned()
+                    }
+                })
+                .collect();
             super::splice(ed, 0, n, &out);
             Ok(())
         }
@@ -974,7 +1304,11 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
             let is_begin = |t: &str| t.trim_start().to_ascii_lowercase().starts_with("#+begin");
             let mut cur = l;
             for _ in 0..n {
-                let next = if back { (0..cur).rev().find(|&i| is_begin(&ed.buf.line(i))) } else { (cur + 1..ed.line_count()).find(|&i| is_begin(&ed.buf.line(i))) };
+                let next = if back {
+                    (0..cur).rev().find(|&i| is_begin(&ed.buf.line(i)))
+                } else {
+                    (cur + 1..ed.line_count()).find(|&i| is_begin(&ed.buf.line(i)))
+                };
                 match next {
                     Some(x) => cur = x,
                     None => return Some(Err("No block found".into())),
@@ -990,9 +1324,14 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
         "org-clone-subtree-with-time-shift" => {
             let no_prompt_shift = arg == Prefix::U(1);
             super::read(ed, "Number of clones to produce: ", "", move |ed, n| {
-                let Ok(n) = n.trim().parse::<usize>() else { return ed.set_err(format!("Invalid number of replications {n}")) };
+                let Ok(n) = n.trim().parse::<usize>() else {
+                    return ed.set_err(format!("Invalid number of replications {n}"));
+                };
                 let h = fold::back_to_heading(ed, ed.cur.line);
-                let has_ts = h.is_some_and(|h| (h..syntax::subtree_end(&ed.buf, h)).any(|i| super::time::stamp::ts_both().is_match(&ed.buf.line(i))));
+                let has_ts = h.is_some_and(|h| {
+                    (h..syntax::subtree_end(&ed.buf, h))
+                        .any(|i| super::time::stamp::ts_both().is_match(&ed.buf.line(i)))
+                });
                 let go = move |ed: &mut Editor, shift: String| {
                     ed.undo.begin(ed.cur.pos());
                     if let Err(e) = clone_subtree(ed, n, &shift) {
@@ -1001,7 +1340,12 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
                     ed.undo.end(ed.cur.pos());
                 };
                 if has_ts && !no_prompt_shift {
-                    super::read(ed, "Date shift per clone (e.g. +1w, empty to copy unchanged): ", "", go);
+                    super::read(
+                        ed,
+                        "Date shift per clone (e.g. +1w, empty to copy unchanged): ",
+                        "",
+                        go,
+                    );
                 } else {
                     go(ed, String::new());
                 }
@@ -1019,7 +1363,12 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
             if custom.is_empty() {
                 return Some(Err("No custom properties to hide".into()));
             }
-            let lines: Vec<usize> = (0..ed.line_count()).filter(|&i| props::parse_property(&ed.buf.line(i)).is_some_and(|(k, _)| custom.iter().any(|c| c.eq_ignore_ascii_case(&k)))).collect();
+            let lines: Vec<usize> = (0..ed.line_count())
+                .filter(|&i| {
+                    props::parse_property(&ed.buf.line(i))
+                        .is_some_and(|(k, _)| custom.iter().any(|c| c.eq_ignore_ascii_case(&k)))
+                })
+                .collect();
             let hide = lines.first().is_some_and(|&i| !fold::hidden(ed, i));
             for i in lines {
                 fold::region(ed, i, i, hide, fold::Spec::Drawer);
@@ -1034,12 +1383,23 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
             occur_in_agenda_files(ed, true);
             Ok(())
         }
-        "org-cdlatex-mode" | "org-cdlatex-underscore-caret" | "org-cdlatex-math-modify" | "org-cdlatex-environment-indent" | "org-reftex-citation" | "org-create-math-formula" => {
-            Err(format!("{name}: needs the Emacs packages cdlatex/reftex, which Fred does not have"))
-        }
-        "org-setup-comments-handling" | "org-require-autoloaded-modules" | "org-org-menu" | "org-tbl-menu" => Ok(()),
+        "org-cdlatex-mode"
+        | "org-cdlatex-underscore-caret"
+        | "org-cdlatex-math-modify"
+        | "org-cdlatex-environment-indent"
+        | "org-reftex-citation"
+        | "org-create-math-formula" => Err(format!(
+            "{name}: needs the Emacs packages cdlatex/reftex, which Fred does not have"
+        )),
+        "org-setup-comments-handling"
+        | "org-require-autoloaded-modules"
+        | "org-org-menu"
+        | "org-tbl-menu" => Ok(()),
         "org-backward-sentence" | "org-forward-sentence" => {
-            crate::vim::normal_key(ed, Key::ch(if name.contains("forward") { ')' } else { '(' }));
+            crate::vim::normal_key(
+                ed,
+                Key::ch(if name.contains("forward") { ')' } else { '(' }),
+            );
             Ok(())
         }
         _ => return None,
@@ -1059,7 +1419,10 @@ mod tests {
     #[test]
     fn return_splits_headings_and_items() {
         let e = org("* Hello world :tag:", "6la<Enter><Esc>");
-        assert_eq!(e.buf.line(0).split_whitespace().collect::<Vec<_>>(), vec!["*", "Hello", ":tag:"]);
+        assert_eq!(
+            e.buf.line(0).split_whitespace().collect::<Vec<_>>(),
+            vec!["*", "Hello", ":tag:"]
+        );
         assert_eq!(e.buf.line(1), "world");
         let e = org("- item", "A<Enter>x<Esc>");
         assert_eq!(e.buf.text(), "- item\n  x");
