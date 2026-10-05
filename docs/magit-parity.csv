@@ -630,7 +630,7 @@ magit-notes.el,,command,magit-notes.displayRef,partial,Space m T d (comma separa
 magit-notes.el,,command,magit-notes:--ref,partial,-r in the notes menu: git notes --ref=REF edit/remove,runtime
 magit-notes.el,,command,magit-notes:--strategy,partial,-s cycles upstream choices,runtime
 magit-notes.el,,command,transient:magit-notes:--dry-run,partial,-n,runtime
-magit-patch.el,35,option,magit-patch-save-arguments,missing,,explicit
+magit-patch.el,35,option,magit-patch-save-arguments,partial,"""buffer"", [""exclude"", ARGS...] (default [exclude --stat]) or an argument list",explicit
 magit-patch.el,56,command,magit-patch,partial,Space m W: c w a s r,explicit
 magit-patch.el,66,command,magit-patch-create,partial,W c menu K (C-m x keys are =x); range or commit (single commit = X^..X); in-process format-patch; visits cover letter; no -- files,explicit
 magit-patch.el,243,command,magit-patch-apply,partial,W a menu a: -i -c -3; file relative to the toplevel,explicit
@@ -675,7 +675,7 @@ magit-process.el,295,option,magit-process-timestamp-format,partial,strftime pref
 magit-process.el,367,command,magit-process-buffer,partial,"` in Magit buffers (evil-collection), Space m $: this repository's terminal Git commands and errors (output itself goes to the terminal)",explicit
 magit-process.el,404,command,magit-process-kill,partial,:Magit name; SIGTERM to the repository's running background Git processes (terminal ones stop with C-c),explicit
 magit-process.el,429,command,magit-toggle-subprocess-record,partial,:Magit name; every background Git call listed,explicit
-magit-pull.el,33,option,magit-pull-or-fetch,missing,,explicit
+magit-pull.el,33,option,magit-pull-or-fetch,partial,pull menu gains f F o s m fetch suffixes,explicit
 magit-pull.el,42,command,magit-pull,partial,"Space m P menu; -f/-r/-F arguments and p/u/e suffixes; -A, U, r/C configure, magit-pull-or-fetch missing",explicit
 magit-pull.el,95,command,magit-pull-from-pushremote,partial,Space m P p; sets pushRemote when unusable,explicit
 magit-pull.el,123,command,magit-pull-from-upstream,partial,Space m P u; sets upstream via branch --set-upstream-to when unset,explicit
@@ -735,7 +735,7 @@ magit-refs.el,,command,transient:magit-show-refs:--merged,partial,menu argument,
 magit-refs.el,,command,transient:magit-show-refs:--merged=,partial,menu argument,runtime
 magit-refs.el,,command,transient:magit-show-refs:--no-merged,partial,menu argument,runtime
 magit-refs.el,,command,transient:magit-show-refs:--no-merged=,partial,menu argument,runtime
-magit-remote.el,33,option,magit-remote-add-set-remote.pushDefault,missing,,explicit
+magit-remote.el,33,option,magit-remote-add-set-remote.pushDefault,partial,"ask, ask-if-unset (default), a remote name, false",explicit
 magit-remote.el,48,option,magit-remote-direct-configure,partial,remote menu shows the remote variables directly,explicit
 magit-remote.el,57,option,magit-prefer-push-default,partial,unset push remote prompts set remote.pushDefault,explicit
 magit-remote.el,66,command,magit-remote,partial,"Space m M (upstream dispatch key) with -f (default) and a/r/k/p/P; direct variables, C configure, d u, z unshallow missing",explicit
@@ -930,7 +930,7 @@ magit-submodule.el,60,option,magit-submodule-list-mode-hook,n/a,Emacs mode/setup
 magit-submodule.el,68,option,magit-submodule-list-columns,missing,,explicit
 magit-submodule.el,131,option,magit-submodule-list-sort-key,missing,,explicit
 magit-submodule.el,143,option,magit-submodule-list-predicate,n/a,value is an Emacs Lisp function; Fred's built-in equivalent behavior is fixed,explicit
-magit-submodule.el,154,option,magit-submodule-remove-trash-gitdirs,missing,,explicit
+magit-submodule.el,154,option,magit-submodule-remove-trash-gitdirs,partial,"after removal, offer to trash the modules' gitdirs (trash-module-gitdirs confirmation)",explicit
 magit-submodule.el,171,command,magit-submodule,partial,Space m o: upstream arguments and suffixes; modules read comma separated (no region/prefix-all),explicit
 magit-submodule.el,218,command,magit-submodule-add,partial,"o a: url, path (default from url), name (default path); --force; no gitdir reuse",explicit
 magit-submodule.el,275,command,magit-submodule-register,partial,o r: unpopulated modules,explicit
@@ -990,7 +990,7 @@ magit-wip.el,,command,magit-wip-mode,partial,:Magit name toggles; after-save (fi
 magit-wip.el,,option,magit-wip-mode,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),runtime
 magit-wip.el,,option,magit-wip-mode-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,runtime
 magit-worktree.el,33,option,magit-read-worktree-directory-function,n/a,value is an Emacs Lisp function; Fred's built-in equivalent behavior is fixed,explicit
-magit-worktree.el,46,option,magit-read-worktree-offsite-directory,missing,,explicit
+magit-worktree.el,46,option,magit-read-worktree-offsite-directory,n/a,"only read by magit-read-worktree-directory-offsite, a value of the Lisp-function option magit-read-worktree-directory-function",explicit
 magit-worktree.el,128,command,magit-worktree,partial,Space m Z (magit-dispatch key) with b/c/m/k/g,explicit
 magit-worktree.el,140,command,magit-worktree-checkout,partial,Space m Z b; sibling directory default (magit-read-worktree-directory-sibling); opens its status,explicit
 magit-worktree.el,155,command,magit-worktree-branch,partial,"Space m Z c; new branch, start point, directory",explicit

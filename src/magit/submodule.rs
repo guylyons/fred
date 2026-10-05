@@ -16,6 +16,8 @@ pub enum Op {
     Remove,
     /// --force removal of these modules, some dirty: confirm stashing them first.
     RemoveDirty(Vec<String>, Vec<String>),
+    /// magit-submodule-remove-trash-gitdirs: trash these modules' gitdirs?
+    TrashGitdirs(Vec<String>),
     List,
 }
 
@@ -297,6 +299,18 @@ impl Repo {
                     dirty.into_iter().filter(|m| modules.contains(m)).collect();
                 self.remove_modules(&modules, &args, &backup)
             }
+            Op::TrashGitdirs(names) => {
+                if !matches!(at(0), "y" | "yes") {
+                    return Ok(Next::Done(Ok("Removed; gitdirs kept".into())));
+                }
+                for name in &names {
+                    let dir = self.git_path(&format!("modules/{name}"))?;
+                    if dir.exists() {
+                        super::apply::move_to_trash(&dir)?;
+                    }
+                }
+                Ok(Next::Done(Ok(format!("Trashed {} gitdirs", names.len()))))
+            }
         }
     }
     /// absorbgitdirs, deinit and rm; dirty modules are stashed first.
@@ -331,9 +345,38 @@ impl Repo {
             argv.extend(modules.iter().map(Into::into));
             self.run(&argv, None)
         };
+        // magit-submodule-remove-trash-gitdirs: the module names, while known.
+        let names: Vec<String> =
+            if super::options::flag("magit-submodule-remove-trash-gitdirs", false) {
+                String::from_utf8_lossy(&self.read(&[
+                    "submodule",
+                    "foreach",
+                    "-q",
+                    "printf \"$sm_path\\0$name\\n\"",
+                ])?)
+                .lines()
+                .filter_map(|l| l.split_once('\0'))
+                .filter(|(p, _)| modules.iter().any(|m| m == p))
+                .map(|(_, n)| n.to_owned())
+                .collect()
+            } else {
+                vec![]
+            };
         run(&["submodule", "absorbgitdirs"], &[])?;
         run(&["submodule", "deinit"], args)?;
         run(&["rm"], args)?;
+        if !names.is_empty() {
+            let q = if names.len() == 1 {
+                format!("Trash gitdir of module {}? (y or n) ", names[0])
+            } else {
+                format!("Trash gitdirs of {} modules? (y or n) ", names.len())
+            };
+            return Ok(Next::Ask(
+                super::Question::Submodule(Op::TrashGitdirs(names)),
+                vec![q],
+                vec![String::new()],
+            ));
+        }
         Ok(Next::Done(Ok(format!("Removed {}", modules.join(", ")))))
     }
     /// magit-list-submodules rows: path, branch or (detached)/(unpopulated), describe.

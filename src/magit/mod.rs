@@ -1909,6 +1909,7 @@ fn confirm_action(p: &Prompt) -> Option<&'static str> {
                 }
                 Question::Bisect(bisect::Op::Reset) => "reset-bisect",
                 Question::Submodule(submodule::Op::RemoveDirty(..)) => "remove-dirty-modules",
+                Question::Submodule(submodule::Op::TrashGitdirs(_)) => "trash-module-gitdirs",
                 Question::Submodule(_) => "remove-modules",
                 Question::Wip(wip::Op::PurgeConfirmed(_)) => "purge-dangling-wiprefs",
                 Question::Remote(remote::Op::PruneStale(..)) => "prune-stale-refspecs",
@@ -2227,6 +2228,34 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             'e',
             &["Configure remote"],
         )),
+        // magit-pull-or-fetch: the pull menu also fetches.
+        'P' if options::flag("magit-pull-or-fetch", false) => v.extend([
+            (
+                "f",
+                "Fetch from",
+                "remotes",
+                Action::GitRun(&["remote", "update"]),
+            ),
+            (
+                "F",
+                "Fetch from",
+                "remotes and prune",
+                Action::GitRun(&["remote", "update", "--prune"]),
+            ),
+            (
+                "o",
+                "Fetch",
+                "another branch",
+                Action::Net(network::Op::FetchBranch),
+            ),
+            (
+                "s",
+                "Fetch",
+                "explicit refspec",
+                Action::Net(network::Op::FetchRefspec),
+            ),
+            ("m", "Fetch", "submodules", Action::Menu('Z')),
+        ]),
         _ => {}
     }
     // An entry already in the menu keeps its key.

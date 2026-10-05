@@ -128,15 +128,30 @@ impl Repo {
                         .map(|h| format!("{h}{}", &url[1..]))
                         .unwrap_or(url);
                 }
-                // magit-remote-add-set-remote.pushDefault is ask-if-unset.
-                if self.config("remote.pushDefault").is_none() {
-                    return Ok(Next::Ask(
-                        Question::Remote(Op::AddPushDefault(name.clone(), url)),
-                        vec![format!("Set `remote.pushDefault' to \"{name}\"? (y or n) ")],
-                        vec![String::new()],
-                    ));
+                // magit-remote-add-set-remote.pushDefault: ask, ask-if-unset
+                // (default), a remote name (set without asking) or nil.
+                let unset = self.config("remote.pushDefault").is_none();
+                match super::options::value("magit-remote-add-set-remote.pushDefault") {
+                    Some(toml::Value::String(s)) if s == "ask" => {}
+                    Some(toml::Value::String(s)) if s == "ask-if-unset" => {
+                        if !unset {
+                            return self.add_remote(&name, &url, args, false);
+                        }
+                    }
+                    Some(toml::Value::String(s)) => {
+                        return self.add_remote(&name, &url, args, unset && s == name);
+                    }
+                    Some(toml::Value::Boolean(false)) => {
+                        return self.add_remote(&name, &url, args, false);
+                    }
+                    _ if !unset => return self.add_remote(&name, &url, args, false),
+                    _ => {}
                 }
-                self.add_remote(&name, &url, args, false)
+                Ok(Next::Ask(
+                    Question::Remote(Op::AddPushDefault(name.clone(), url)),
+                    vec![format!("Set `remote.pushDefault' to \"{name}\"? (y or n) ")],
+                    vec![String::new()],
+                ))
             }
             Op::AddPushDefault(name, url) => {
                 let set = matches!(at(0), "y" | "yes");
