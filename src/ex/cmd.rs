@@ -157,178 +157,260 @@ fn run_one(st: &mut ExState, line: &str, in_global: bool) -> Result<ExEffect, St
     };
     let rest = rest.trim_start();
     let cur = st.cur;
-    let at_cur = Range {
-        start: cur,
-        end: cur,
-    };
-    let mut chars = rest.chars();
-    let Some(c) = chars.next() else {
+    let Some(c) = rest.chars().next() else {
         if let Some(r) = range {
             st.cur = r.end;
         }
         return Ok(ExEffect::None);
     };
-    let after = &rest[c.len_utf8()..];
-    let delim_follows = after
-        .chars()
-        .next()
-        .is_some_and(|d| !d.is_alphanumeric() && !d.is_whitespace() && d != '!');
-    match c {
+    if c == '!' {
         // `:!cmd` runs it; `:[range]!cmd` filters those lines through it.
-        '!' => {
-            let cmd = crate::shell::expand(after.trim(), st.file.as_deref())?;
-            if cmd.is_empty() {
-                return Err("command expected".into());
-            }
-            match range {
-                Some(r) => filter(st, r, &cmd),
-                None => Ok(ExEffect::Shell(cmd)),
-            }
+        let cmd = crate::shell::expand(rest[1..].trim(), st.file.as_deref())?;
+        if cmd.is_empty() {
+            return Err("command expected".into());
         }
-        's' if delim_follows => substitute(st, range.unwrap_or(at_cur), after),
-        'g' | 'v' if delim_follows => {
-            if in_global {
-                return Err("nested global".into());
-            }
-            let all = Range {
-                start: 0,
-                end: st.buf.len_lines() - 1,
-            };
-            global(st, range.unwrap_or(all), after, c == 'g')
-        }
-        'd' if after.trim().is_empty() => {
-            let r = range.unwrap_or(at_cur);
-            st.splice(r.start, r.end - r.start + 1, vec![]);
-            st.cur = r.start.min(st.buf.len_lines() - 1);
-            Ok(ExEffect::None)
-        }
-        'j' if after.trim().is_empty() => {
-            let r = match range {
-                Some(r) => r,
-                None if cur + 1 < st.buf.len_lines() => Range {
-                    start: cur,
-                    end: cur + 1,
-                },
-                None => return Err("invalid address".into()),
-            };
-            if r.start < r.end {
-                let joined = st.lines(r).concat();
-                st.splice(r.start, r.end - r.start + 1, vec![joined]);
-            }
-            st.cur = r.start;
-            Ok(ExEffect::None)
-        }
-        'm' | 't' => {
-            let r = range.unwrap_or(at_cur);
-            let (dest, tail) = {
-                let mut ctx = st.addr_ctx();
-                parse_addr(after, &mut ctx)?
-            };
-            if !tail.trim().is_empty() {
-                return Err(format!("unexpected: {}", tail.trim()));
-            }
-            let dest = dest.ok_or("destination expected")? as usize;
-            let lines = st.lines(r);
-            let count = lines.len();
-            if c == 't' {
-                st.splice(dest, 0, lines);
-                st.cur = dest + count - 1;
-            } else {
-                if dest > r.start && dest <= r.end {
-                    return Err("invalid destination".into());
-                }
-                if dest == r.start || dest == r.end + 1 {
-                    st.cur = r.end;
-                    return Ok(ExEffect::None);
-                }
-                st.splice(r.start, count, vec![]);
-                let d = if dest > r.end { dest - count } else { dest };
-                st.splice(d, 0, lines);
-                st.cur = d + count - 1;
-            }
-            Ok(ExEffect::None)
-        }
-        _ if c.is_ascii_alphabetic() => file_command(st, rest, range),
-        _ => Err(format!("unknown command: {c}")),
+        return match range {
+            Some(r) => filter(st, r, &cmd),
+            None => Ok(ExEffect::Shell(cmd)),
+        };
     }
-}
-
-fn file_command(st: &mut ExState, rest: &str, range: Option<Range>) -> Result<ExEffect, String> {
     let name_end = rest
         .find(|c: char| !c.is_ascii_alphabetic())
         .unwrap_or(rest.len());
     let name = &rest[..name_end];
+    let cmd = lookup(name).ok_or_else(|| format!("unknown command: {rest}"))?;
     let mut tail = &rest[name_end..];
     let force = tail.starts_with('!');
     if force {
+        if cmd.flags & BANG == 0 {
+            return Err(format!("no ! allowed: {name}"));
+        }
         tail = &tail[1..];
     }
-    let buf_cmd = match name {
-        "b" | "buffer" => Some(BufCmd::Go),
-        "bn" | "bnext" => Some(BufCmd::Next),
-        "bp" | "bprevious" | "bN" | "bNext" => Some(BufCmd::Prev),
-        "bd" | "bdelete" => Some(BufCmd::Delete),
-        "ls" | "buffers" | "files" => Some(BufCmd::List),
-        _ => None,
-    };
-    // `:b2` and `:b#` need no space.
-    if let Some(cmd) = buf_cmd {
-        return Ok(ExEffect::Buffer {
-            cmd,
-            arg: tail.trim().to_string(),
-            force,
-        });
-    }
-    if !tail.is_empty() && !tail.starts_with(char::is_whitespace) {
-        return Err(format!("unknown command: {rest}"));
+    if range.is_some() && cmd.flags & RANGE == 0 {
+        return Err(format!("no range allowed: {name}"));
     }
     let arg = tail.trim();
-    if matches!(name, "r" | "read") {
-        let at = range.map_or(st.cur, |r| r.end);
-        return read(st, at, arg);
+    if !arg.is_empty() && cmd.flags & EXTRA == 0 {
+        return Err(format!("unexpected argument: {arg}"));
     }
-    if name == "ai" || name == "explain" {
-        let r = range.unwrap_or(Range {
-            start: st.cur,
-            end: st.cur,
-        });
-        return ai(st, r, arg, name == "explain");
+    (cmd.run)(
+        st,
+        Args {
+            range,
+            at: range.unwrap_or(Range {
+                start: cur,
+                end: cur,
+            }),
+            force,
+            arg,
+            raw: tail,
+            in_global,
+        },
+    )
+}
+
+/// Takes a range (`:1,5d`).
+const RANGE: u8 = 1;
+/// Takes `!` (`:q!`).
+const BANG: u8 = 2;
+/// Takes an argument.
+const EXTRA: u8 = 4;
+/// The argument is a file name (Tab completes paths).
+pub const FILE: u8 = 8;
+
+/// A named command, as in vim's `ex_cmds.lua`: `min` is how short an
+/// abbreviation may be (`:w` for `:write`).
+pub struct Command {
+    pub name: &'static str,
+    pub min: usize,
+    pub flags: u8,
+    run: fn(&mut ExState, Args) -> Result<ExEffect, String>,
+}
+
+/// What a command was given.
+#[derive(Clone, Copy)]
+struct Args<'a> {
+    range: Option<Range>,
+    /// The range, or the current line.
+    at: Range,
+    force: bool,
+    /// The argument, trimmed.
+    arg: &'a str,
+    /// Everything after the name and `!`, untrimmed (`:s/x/y /`).
+    raw: &'a str,
+    in_global: bool,
+}
+
+/// Every named command. A prefix runs the first entry it abbreviates, so
+/// order decides ties, as in vim (`:s` is `:substitute`).
+pub const COMMANDS: &[Command] = &[
+    cmd("substitute", 1, RANGE | EXTRA, |st, a| {
+        substitute(st, a.at, a.raw)
+    }),
+    cmd("global", 1, RANGE | BANG | EXTRA, |st, a| {
+        global_cmd(st, a, !a.force)
+    }),
+    cmd("vglobal", 1, RANGE | EXTRA, |st, a| {
+        global_cmd(st, a, false)
+    }),
+    cmd("delete", 1, RANGE, |st, a| {
+        st.splice(a.at.start, a.at.end - a.at.start + 1, vec![]);
+        st.cur = a.at.start.min(st.buf.len_lines() - 1);
+        Ok(ExEffect::None)
+    }),
+    cmd("join", 1, RANGE, join),
+    cmd("move", 1, RANGE | EXTRA, |st, a| move_copy(st, a, false)),
+    cmd("t", 1, RANGE | EXTRA, |st, a| move_copy(st, a, true)),
+    cmd("copy", 2, RANGE | EXTRA, |st, a| move_copy(st, a, true)),
+    cmd("write", 1, RANGE | BANG | EXTRA | FILE, |_, a| {
+        write(a, false)
+    }),
+    cmd("wq", 2, RANGE | BANG | EXTRA | FILE, |_, a| write(a, true)),
+    cmd("xit", 1, 0, |_, _| Ok(ExEffect::WriteIfModifiedQuit)),
+    cmd("quit", 1, BANG, |_, a| {
+        Ok(ExEffect::Quit { force: a.force })
+    }),
+    cmd("edit", 1, BANG | EXTRA | FILE, |_, a| {
+        Ok(ExEffect::Edit {
+            path: path_arg(a.arg)?,
+            force: a.force,
+        })
+    }),
+    cmd("read", 1, RANGE | EXTRA | FILE, |st, a| {
+        let at = a.range.map_or(st.cur, |r| r.end);
+        read(st, at, a.arg)
+    }),
+    cmd("pwd", 2, 0, |_, _| Ok(ExEffect::Pwd)),
+    cmd("cd", 2, EXTRA | FILE, |_, a| {
+        Ok(ExEffect::Cd(path_arg(a.arg)?))
+    }),
+    cmd("buffer", 1, BANG | EXTRA, |_, a| buffer(a, BufCmd::Go)),
+    cmd("bnext", 2, BANG, |_, a| buffer(a, BufCmd::Next)),
+    cmd("bprevious", 2, BANG, |_, a| buffer(a, BufCmd::Prev)),
+    cmd("bNext", 2, BANG, |_, a| buffer(a, BufCmd::Prev)),
+    cmd("bdelete", 2, BANG | EXTRA, |_, a| buffer(a, BufCmd::Delete)),
+    cmd("ls", 2, BANG, |_, a| buffer(a, BufCmd::List)),
+    cmd("buffers", 7, BANG, |_, a| buffer(a, BufCmd::List)),
+    cmd("files", 5, BANG, |_, a| buffer(a, BufCmd::List)),
+    cmd("ai", 2, RANGE | EXTRA, |st, a| ai(st, a.at, a.arg, false)),
+    cmd("explain", 3, RANGE | EXTRA, |st, a| {
+        ai(st, a.at, a.arg, true)
+    }),
+    // :Magit NAME runs an upstream Magit command by name (like M-x).
+    cmd("Magit", 5, EXTRA, |_, a| {
+        crate::magit::commands::by_name(a.arg)
+            .map(ExEffect::Magit)
+            .ok_or_else(|| format!("unknown Magit command: {}", a.arg))
+    }),
+];
+
+const fn cmd(
+    name: &'static str,
+    min: usize,
+    flags: u8,
+    run: fn(&mut ExState, Args) -> Result<ExEffect, String>,
+) -> Command {
+    Command {
+        name,
+        min,
+        flags,
+        run,
     }
+}
+
+/// The command `name` names or abbreviates.
+pub fn lookup(name: &str) -> Option<&'static Command> {
+    COMMANDS
+        .iter()
+        .find(|c| name.len() >= c.min && c.name.starts_with(name))
+}
+
+/// A file name argument; `:r` alone reads a command's output.
+fn path_arg(arg: &str) -> Result<Option<String>, String> {
     if arg.starts_with('!') {
         return Err("shell commands are not supported here".into());
     }
-    let path = (!arg.is_empty()).then(|| arg.to_string());
-    let no_arg = |e: ExEffect| {
-        if path.is_some() {
-            Err(format!("unexpected argument: {arg}"))
-        } else {
-            Ok(e)
-        }
-    };
-    match name {
-        "w" | "write" => Ok(ExEffect::Write {
-            path,
-            force,
-            range,
-            then_quit: false,
-        }),
-        "wq" => Ok(ExEffect::Write {
-            path,
-            force,
-            range,
-            then_quit: true,
-        }),
-        "x" | "xit" => no_arg(ExEffect::WriteIfModifiedQuit),
-        "q" | "quit" => no_arg(ExEffect::Quit { force }),
-        "e" | "edit" => Ok(ExEffect::Edit { path, force }),
-        "pwd" => no_arg(ExEffect::Pwd),
-        "cd" => Ok(ExEffect::Cd(path)),
-        // :Magit NAME runs an upstream Magit command by name (like M-x).
-        "Magit" => crate::magit::commands::by_name(arg)
-            .map(ExEffect::Magit)
-            .ok_or_else(|| format!("unknown Magit command: {arg}")),
-        _ => Err(format!("unknown command: {name}")),
+    Ok((!arg.is_empty()).then(|| arg.to_string()))
+}
+
+fn write(a: Args, then_quit: bool) -> Result<ExEffect, String> {
+    Ok(ExEffect::Write {
+        path: path_arg(a.arg)?,
+        force: a.force,
+        range: a.range,
+        then_quit,
+    })
+}
+
+fn buffer(a: Args, cmd: BufCmd) -> Result<ExEffect, String> {
+    Ok(ExEffect::Buffer {
+        cmd,
+        arg: a.arg.to_string(),
+        force: a.force,
+    })
+}
+
+/// `:g/pat/cmd` (`keep` = true), `:g!` and `:v` (false).
+fn global_cmd(st: &mut ExState, a: Args, keep: bool) -> Result<ExEffect, String> {
+    if a.in_global {
+        return Err("nested global".into());
     }
+    let all = Range {
+        start: 0,
+        end: st.buf.len_lines() - 1,
+    };
+    global(st, a.range.unwrap_or(all), a.raw, keep)
+}
+
+fn join(st: &mut ExState, a: Args) -> Result<ExEffect, String> {
+    let cur = st.cur;
+    let r = match a.range {
+        Some(r) => r,
+        None if cur + 1 < st.buf.len_lines() => Range {
+            start: cur,
+            end: cur + 1,
+        },
+        None => return Err("invalid address".into()),
+    };
+    if r.start < r.end {
+        let joined = st.lines(r).concat();
+        st.splice(r.start, r.end - r.start + 1, vec![joined]);
+    }
+    st.cur = r.start;
+    Ok(ExEffect::None)
+}
+
+/// `:m {address}` and `:t {address}`.
+fn move_copy(st: &mut ExState, a: Args, copy: bool) -> Result<ExEffect, String> {
+    let r = a.at;
+    let (dest, tail) = {
+        let mut ctx = st.addr_ctx();
+        parse_addr(a.arg, &mut ctx)?
+    };
+    if !tail.trim().is_empty() {
+        return Err(format!("unexpected: {}", tail.trim()));
+    }
+    let dest = dest.ok_or("destination expected")? as usize;
+    let lines = st.lines(r);
+    let count = lines.len();
+    if copy {
+        st.splice(dest, 0, lines);
+        st.cur = dest + count - 1;
+    } else {
+        if dest > r.start && dest <= r.end {
+            return Err("invalid destination".into());
+        }
+        if dest == r.start || dest == r.end + 1 {
+            st.cur = r.end;
+            return Ok(ExEffect::None);
+        }
+        st.splice(r.start, count, vec![]);
+        let d = if dest > r.end { dest - count } else { dest };
+        st.splice(d, 0, lines);
+        st.cur = d + count - 1;
+    }
+    Ok(ExEffect::None)
 }
 
 /// `:[range]!cmd`: replace the lines with what `cmd` prints for them.
@@ -609,6 +691,26 @@ mod tests {
             ex(t, 0, "s/e/x\\ny/"),
             ("onx\ny\ntwo\nthree\nfour".into(), 1)
         );
+    }
+
+    #[test]
+    fn command_table_abbreviations_and_flags() {
+        // Any prefix down to the minimum runs the first command it names.
+        assert_eq!(ex("a\nb\nc", 0, "1,2de").0, "c");
+        assert_eq!(ex("a\nb\nc", 0, "1,2delete").0, "c");
+        assert_eq!(ex("a\nb", 0, "su/a/x/").0, "x\nb");
+        assert_eq!(ex("a\nb", 0, "co$").0, "a\nb\na");
+        assert_eq!(lookup("b").unwrap().name, "buffer");
+        assert_eq!(lookup("bn").unwrap().name, "bnext");
+        assert!(lookup("c").is_none() && lookup("exp").is_some() && lookup("ex").is_none());
+        // `:g!` is `:v`; a substitute keeps its trailing space.
+        assert_eq!(ex("a\nb\na", 0, "g!/a/d").0, "a\na");
+        assert_eq!(ex("a", 0, "s/a/x /").0, "x ");
+        // What a command doesn't take is an error.
+        assert_eq!(ex_err("a", 0, "1,1q"), Err("no range allowed: q".into()));
+        assert_eq!(ex_err("a", 0, "pwd!"), Err("no ! allowed: pwd".into()));
+        assert_eq!(ex_err("a", 0, "d x"), Err("unexpected argument: x".into()));
+        assert!(ex_err("a", 0, "w !ls").is_err());
     }
 
     #[test]
