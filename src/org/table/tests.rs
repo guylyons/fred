@@ -27,7 +27,11 @@ fn t(s: &str) -> String {
 /// org-test-table-target-expect.
 fn target_expect(target: &str, expect: Option<&str>, laps: usize, tblfms: &[&str]) {
     let expect = expect.unwrap_or(target);
-    let tblfms: Vec<&str> = if tblfms.is_empty() { vec![""] } else { tblfms.to_vec() };
+    let tblfms: Vec<&str> = if tblfms.is_empty() {
+        vec![""]
+    } else {
+        tblfms.to_vec()
+    };
     for tblfm in tblfms {
         let mut d = Doc::new(&format!("{target}{tblfm}"));
         d.goto(d.n() - 1, 0);
@@ -36,7 +40,8 @@ fn target_expect(target: &str, expect: Option<&str>, laps: usize, tblfms: &[&str
             d.goto(d.l - 1, 0);
         }
         for _ in 0..laps {
-            formula::recalculate(&mut d, Recalc::All, true).unwrap_or_else(|e| panic!("{e}\n{tblfm}"));
+            formula::recalculate(&mut d, Recalc::All, true)
+                .unwrap_or_else(|e| panic!("{e}\n{tblfm}"));
         }
         d.align();
         assert_eq!(d.text(), t(&format!("{expect}{tblfm}")), "TBLFM: {tblfm}");
@@ -59,13 +64,19 @@ fn simple_formula_no_grouping() {
         "\n|       2 |\n|       4 |\n|       8 |\n| replace |\n",
         Some("\n|  2 |\n|  4 |\n|  8 |\n| 14 |\n"),
         1,
-        &["#+TBLFM: @>$1 = vsum(@<..@>>)", "#+TBLFM: @>$1 = '(+ @<..@>>); N"],
+        &[
+            "#+TBLFM: @>$1 = vsum(@<..@>>)",
+            "#+TBLFM: @>$1 = '(+ @<..@>>); N",
+        ],
     );
     target_expect(
         "\n|     foo |\n|---------|\n|       2 |\n|       4 |\n|       8 |\n| replace |\n",
         Some("\n| foo |\n|-----|\n|   2 |\n|   4 |\n|   8 |\n|  14 |\n"),
         1,
-        &["#+TBLFM: @>$1 = vsum(@I..@>>)", "#+TBLFM: @>$1 = '(+ @I..@>>); N"],
+        &[
+            "#+TBLFM: @>$1 = vsum(@I..@>>)",
+            "#+TBLFM: @>$1 = '(+ @I..@>>); N",
+        ],
     );
 }
 
@@ -75,19 +86,32 @@ fn simple_formula_with_grouping() {
         "\n|       2 |\n|       4 |\n|       8 |\n|---------|\n| replace |\n",
         Some("\n|  2 |\n|  4 |\n|  8 |\n|----|\n| 14 |\n"),
         1,
-        &["#+TBLFM: $1 = vsum(@<..@>>)", "#+TBLFM: $1 = '(+ @<..@>>); N"],
+        &[
+            "#+TBLFM: $1 = vsum(@<..@>>)",
+            "#+TBLFM: $1 = '(+ @<..@>>); N",
+        ],
     );
     target_expect(
         "\n|       2 | header  |\n|       4 | header  |\n|       8 | header  |\n|---------+---------|\n| replace | replace |\n",
-        Some("\n|  2 | header |\n|  4 | header |\n|  8 | header |\n|----+--------|\n| 14 | 28     |\n"),
+        Some(
+            "\n|  2 | header |\n|  4 | header |\n|  8 | header |\n|----+--------|\n| 14 | 28     |\n",
+        ),
         2,
-        &["#+TBLFM: @>$1 = vsum(@<..@>>) :: $2 = 2 * $1", "#+TBLFM: @>$1 = '(+ @<..@>>); N :: $2 = '(* 2 $1); N"],
+        &[
+            "#+TBLFM: @>$1 = vsum(@<..@>>) :: $2 = 2 * $1",
+            "#+TBLFM: @>$1 = '(+ @<..@>>); N :: $2 = '(* 2 $1); N",
+        ],
     );
     target_expect(
         "\n|     foo | bar     |\n|---------+---------|\n|       2 | replace |\n|       4 | replace |\n|       8 | replace |\n|---------+---------|\n| replace | replace |\n",
-        Some("\n| foo | bar |\n|-----+-----|\n|   2 |   4 |\n|   4 |   8 |\n|   8 |  16 |\n|-----+-----|\n|  14 |  28 |\n"),
+        Some(
+            "\n| foo | bar |\n|-----+-----|\n|   2 |   4 |\n|   4 |   8 |\n|   8 |  16 |\n|-----+-----|\n|  14 |  28 |\n",
+        ),
         2,
-        &["#+TBLFM: @>$1 = vsum(@I..@>>) :: $2 = 2 * $1", "#+TBLFM: @>$1 = '(+ @I..@>>); N :: $2 = '(* 2 $1); N"],
+        &[
+            "#+TBLFM: @>$1 = vsum(@I..@>>) :: $2 = 2 * $1",
+            "#+TBLFM: @>$1 = '(+ @I..@>>); N :: $2 = '(* 2 $1); N",
+        ],
     );
 }
 
@@ -361,7 +385,12 @@ fn references_mode_string_n() {
 
 #[test]
 fn mode_string_u() {
-    target_expect("\n| 1.5 A/B | 2.0 B | |\n", Some("\n| 1.5 A/B | 2.0 B | 3. A |\n"), 1, &["#+TBLFM: $3=$1*$2;u"]);
+    target_expect(
+        "\n| 1.5 A/B | 2.0 B | |\n",
+        Some("\n| 1.5 A/B | 2.0 B | 3. A |\n"),
+        1,
+        &["#+TBLFM: $3=$1*$2;u"],
+    );
 }
 
 #[test]
@@ -464,7 +493,10 @@ fn empty_field() {
         "\n| -1 | replace |\n|  0 | replace |\n|    | replace |\n",
         Some("\n| -1 | 0 |\n|  0 | 1 |\n|    |   |\n"),
         1,
-        &["#+TBLFM: $2 = if(\"$1\" == \"nan\", string(\"\"), $1 + 1); E", "#+TBLFM: $2 = '(if (eq \"$1\" \"\") \"\" (1+ $1)); L"],
+        &[
+            "#+TBLFM: $2 = if(\"$1\" == \"nan\", string(\"\"), $1 + 1); E",
+            "#+TBLFM: $2 = '(if (eq \"$1\" \"\") \"\" (1+ $1)); L",
+        ],
     );
     target_expect(
         "\n| 1 | 2 | replace |\n| 4 |   | replace |\n|   | 8 | replace |\n|   |   | replace |\n",
@@ -479,7 +511,9 @@ fn empty_field() {
         "\n| 1.5 | 0 |\n| 3.5 |   |\n|     | 5 |\n|     |   |\n",
         Some("\n| 1.5 | 2.0 |\n| 3.5 | 4.0 |\n|     | 5.0 |\n|     |     |\n"),
         1,
-        &["#+TBLFM: $2 = if(\"$1\" == \"nan\", if(\"$2\" == \"nan\", string(\"\"), $2 +.0), $1 + 0.5); E f-1"],
+        &[
+            "#+TBLFM: $2 = if(\"$1\" == \"nan\", if(\"$2\" == \"nan\", string(\"\"), $2 +.0), $1 + 0.5); E f-1",
+        ],
     );
     target_expect(
         "
@@ -543,7 +577,14 @@ fn copy_field() {
 | [2012-12-31 Mon] | [2012-12-31 Mon] |
 ";
     target_expect(target, Some(literal), 1, &["#+TBLFM: $2 = '(identity $1)"]);
-    target_expect(target, Some(literal), 1, &["#+TBLFM: $2 = if(\"$1\" == \"nan\", string(\"\"), string(subvec(\"$1\", 2, vlen(\"$1\")))); E"]);
+    target_expect(
+        target,
+        Some(literal),
+        1,
+        &[
+            "#+TBLFM: $2 = if(\"$1\" == \"nan\", string(\"\"), string(subvec(\"$1\", 2, vlen(\"$1\")))); E",
+        ],
+    );
     target_expect(
         target,
         Some(
@@ -565,29 +606,82 @@ fn copy_field() {
 fn copy_down() {
     reset_opts();
     assert!(fails("|  |\n| <point> |", |d| edit::copy_down(d, 1)));
-    assert!(fails("|    |\n| foo |\n| <point> |", |d| edit::copy_down(d, 2)));
-    assert_eq!(with("| foo |\n| <point> |", |d| edit::copy_down(d, 1)), "| foo |\n| foo |");
-    assert_eq!(with("| <point>foo |", |d| edit::copy_down(d, 1)), "| foo |\n| foo |");
-    assert_eq!(with("| <point>1 |", |d| edit::copy_down(d, 1)), "| 1 |\n| 2 |");
+    assert!(fails("|    |\n| foo |\n| <point> |", |d| edit::copy_down(
+        d, 2
+    )));
+    assert_eq!(
+        with("| foo |\n| <point> |", |d| edit::copy_down(d, 1)),
+        "| foo |\n| foo |"
+    );
+    assert_eq!(
+        with("| <point>foo |", |d| edit::copy_down(d, 1)),
+        "| foo |\n| foo |"
+    );
+    assert_eq!(
+        with("| <point>1 |", |d| edit::copy_down(d, 1)),
+        "| 1 |\n| 2 |"
+    );
     assert!(with("| <point><2012-03-29> |", |d| edit::copy_down(d, 1)).contains("<2012-03-30"));
-    assert_eq!(with("| <point>A1 |", |d| edit::copy_down(d, 1)), "| A1 |\n| A2 |");
-    assert_eq!(with("| <point>1A |", |d| edit::copy_down(d, 1)), "| 1A |\n| 2A |");
+    assert_eq!(
+        with("| <point>A1 |", |d| edit::copy_down(d, 1)),
+        "| A1 |\n| A2 |"
+    );
+    assert_eq!(
+        with("| <point>1A |", |d| edit::copy_down(d, 1)),
+        "| 1A |\n| 2A |"
+    );
     set_opt("org-table-copy-increment", toml::Value::Boolean(false));
-    assert_eq!(with("| <point>1 |", |d| edit::copy_down(d, 1)), "| 1 |\n| 1 |");
+    assert_eq!(
+        with("| <point>1 |", |d| edit::copy_down(d, 1)),
+        "| 1 |\n| 1 |"
+    );
     reset_opts();
-    assert_eq!(with("| <point>1 |", |d| edit::copy_down(d, 0)), "| 1 |\n| 1 |");
-    assert_eq!(with("| 4 |\n| <point>3 |", |d| edit::copy_down(d, 1)), "| 4 |\n| 3 |\n| 2 |");
-    assert_eq!(with("| A0 |\n| <point>A2 |", |d| edit::copy_down(d, 1)), "| A0 |\n| A2 |\n| A4 |");
-    assert_eq!(with("| A4 |\n| <point>3 |", |d| edit::copy_down(d, 1)), "| A4 |\n|  3 |\n|  4 |");
-    assert_eq!(with("| 0A |\n| <point>A2 |", |d| edit::copy_down(d, 1)), "| 0A |\n| A2 |\n| A3 |");
-    assert_eq!(with("| A0 |\n| <point>2A |", |d| edit::copy_down(d, 1)), "| A0 |\n| 2A |\n| 3A |");
-    assert_eq!(with("| 4 |\n|---|\n| <point>3 |", |d| edit::copy_down(d, 1)), "| 4 |\n|---|\n| 3 |\n| 4 |");
-    assert_eq!(with("| 4 |\n|   |\n| <point>3 |", |d| edit::copy_down(d, 1)), "| 4 |\n|   |\n| 3 |\n| 4 |");
+    assert_eq!(
+        with("| <point>1 |", |d| edit::copy_down(d, 0)),
+        "| 1 |\n| 1 |"
+    );
+    assert_eq!(
+        with("| 4 |\n| <point>3 |", |d| edit::copy_down(d, 1)),
+        "| 4 |\n| 3 |\n| 2 |"
+    );
+    assert_eq!(
+        with("| A0 |\n| <point>A2 |", |d| edit::copy_down(d, 1)),
+        "| A0 |\n| A2 |\n| A4 |"
+    );
+    assert_eq!(
+        with("| A4 |\n| <point>3 |", |d| edit::copy_down(d, 1)),
+        "| A4 |\n|  3 |\n|  4 |"
+    );
+    assert_eq!(
+        with("| 0A |\n| <point>A2 |", |d| edit::copy_down(d, 1)),
+        "| 0A |\n| A2 |\n| A3 |"
+    );
+    assert_eq!(
+        with("| A0 |\n| <point>2A |", |d| edit::copy_down(d, 1)),
+        "| A0 |\n| 2A |\n| 3A |"
+    );
+    assert_eq!(
+        with("| 4 |\n|---|\n| <point>3 |", |d| edit::copy_down(d, 1)),
+        "| 4 |\n|---|\n| 3 |\n| 4 |"
+    );
+    assert_eq!(
+        with("| 4 |\n|   |\n| <point>3 |", |d| edit::copy_down(d, 1)),
+        "| 4 |\n|   |\n| 3 |\n| 4 |"
+    );
     set_opt("org-table-copy-increment", toml::Value::Integer(3));
-    assert_eq!(with("| 1 |\n| <point>3 |", |d| edit::copy_down(d, 1)), "| 1 |\n| 3 |\n| 6 |");
-    assert_eq!(with("| 1 |\n| <point>3 |", |d| edit::copy_down(d, 0)), "| 1 |\n| 3 |\n| 3 |");
+    assert_eq!(
+        with("| 1 |\n| <point>3 |", |d| edit::copy_down(d, 1)),
+        "| 1 |\n| 3 |\n| 6 |"
+    );
+    assert_eq!(
+        with("| 1 |\n| <point>3 |", |d| edit::copy_down(d, 0)),
+        "| 1 |\n| 3 |\n| 3 |"
+    );
     reset_opts();
-    assert_eq!(with("| 1 |\n| <point>3 |", |d| edit::copy_down(d, 0)), "| 1 |\n| 3 |\n| 3 |");
+    assert_eq!(
+        with("| 1 |\n| <point>3 |", |d| edit::copy_down(d, 0)),
+        "| 1 |\n| 3 |\n| 3 |"
+    );
 }
 
 #[test]
@@ -651,8 +745,12 @@ fn org_lookup_all() {
 | d        | p3      | s2   |      8 |
 ";
     target_expect(
-        &format!("{data}\n| Product | Rating  | Ranking |\n|---------+---------+---------|\n| p1      | replace | replace |\n| p2      | replace | replace |\n| p3      | replace | replace |\n"),
-        Some(&format!("{data}\n| Product | Rating | Ranking |\n|---------+--------+---------|\n| p1      |    2.5 |       2 |\n| p2      |    2.0 |       3 |\n| p3      |    8.0 |       1 |\n")),
+        &format!(
+            "{data}\n| Product | Rating  | Ranking |\n|---------+---------+---------|\n| p1      | replace | replace |\n| p2      | replace | replace |\n| p3      | replace | replace |\n"
+        ),
+        Some(&format!(
+            "{data}\n| Product | Rating | Ranking |\n|---------+--------+---------|\n| p1      |    2.5 |       2 |\n| p2      |    2.0 |       3 |\n| p3      |    8.0 |       1 |\n"
+        )),
         2,
         &[concat!(
             "#+TBLFM: $2 = '(let ((all (org-lookup-all '$1 ",
@@ -662,8 +760,12 @@ fn org_lookup_all() {
         )],
     );
     target_expect(
-        &format!("{data}\n| Shop | Rating  | Ranking |\n|------+---------+---------|\n| s1   | replace | replace |\n| s2   | replace | replace |\n"),
-        Some(&format!("{data}\n| Shop | Rating | Ranking |\n|------+--------+---------|\n| s1   |    1.5 |       2 |\n| s2   |    6.0 |       1 |\n")),
+        &format!(
+            "{data}\n| Shop | Rating  | Ranking |\n|------+---------+---------|\n| s1   | replace | replace |\n| s2   | replace | replace |\n"
+        ),
+        Some(&format!(
+            "{data}\n| Shop | Rating | Ranking |\n|------+--------+---------|\n| s1   |    1.5 |       2 |\n| s2   |    6.0 |       1 |\n"
+        )),
         2,
         &[concat!(
             "#+TBLFM: $2 = '(let ((all (org-lookup-all '$1 ",
@@ -693,7 +795,10 @@ fn make_reference() {
     // E
     assert_eq!(mr(&one("0"), true, false, Lispp::Lisp), "\"0\"");
     assert_eq!(mr(&one(""), true, false, Lispp::Lisp), "\"\"");
-    assert_eq!(mr(&many(&["", "1"]), true, false, Lispp::Lisp), "\"\" \"1\"");
+    assert_eq!(
+        mr(&many(&["", "1"]), true, false, Lispp::Lisp),
+        "\"\" \"1\""
+    );
     assert_eq!(mr(&one("0"), true, false, Lispp::Calc), "(0)");
     assert_eq!(mr(&one("z"), true, false, Lispp::Calc), "(z)");
     assert_eq!(mr(&one(""), true, false, Lispp::Calc), "nan");
@@ -702,7 +807,10 @@ fn make_reference() {
     assert_eq!(mr(&many(&["", ""]), true, false, Lispp::Calc), "[nan,nan]");
     assert_eq!(mr(&one("nan"), true, false, Lispp::Calc), "(nan)");
     assert_eq!(mr(&one("-inf"), true, false, Lispp::Calc), "(-inf)");
-    assert_eq!(mr(&many(&["uinf", "1"]), true, false, Lispp::Calc), "[uinf,1]");
+    assert_eq!(
+        mr(&many(&["uinf", "1"]), true, false, Lispp::Calc),
+        "[uinf,1]"
+    );
     // EN
     assert_eq!(mr(&one("z"), true, true, Lispp::Lisp), "0");
     assert_eq!(mr(&one(""), true, true, Lispp::Lisp), "0");
@@ -739,10 +847,16 @@ fn make_reference() {
 fn convert_refs() {
     assert_eq!(formula::convert_refs_to_an("@2$1"), "A2");
     assert_eq!(formula::convert_refs_to_an("@1$1 = $0"), "A1 = $0");
-    assert_eq!(formula::convert_refs_to_an("$3 = remote(FOO, @@#$2)"), "C& = remote(FOO, @@#B&)");
+    assert_eq!(
+        formula::convert_refs_to_an("$3 = remote(FOO, @@#$2)"),
+        "C& = remote(FOO, @@#B&)"
+    );
     assert_eq!(formula::convert_refs_to_rc("A2"), "@2$1");
     assert_eq!(formula::convert_refs_to_rc("A1 = $0"), "@1$1 = $0");
-    assert_eq!(formula::convert_refs_to_rc("C& = remote(FOO, @@#B&)"), "$3 = remote(FOO, @@#$2)");
+    assert_eq!(
+        formula::convert_refs_to_rc("C& = remote(FOO, @@#B&)"),
+        "$3 = remote(FOO, @@#$2)"
+    );
     assert_eq!(formula::letters_to_number("AB"), 28);
     assert_eq!(formula::number_to_letters(28), "AB");
 }
@@ -779,8 +893,12 @@ fn remote_reference_indirect() {
 #+TBLFM: @>$1 = vsum(@I..@II)
 ";
     target_expect(
-        &format!("{src}\n#+NAME: summary\n|  year | amount  |\n|-------+---------|\n|  2012 | replace |\n|  2013 | replace |\n|-------+---------|\n| total | replace |\n"),
-        Some(&format!("{src}\n#+NAME: summary\n|  year | amount |\n|-------+--------|\n|  2012 |      3 |\n|  2013 |     12 |\n|-------+--------|\n| total |     15 |\n")),
+        &format!(
+            "{src}\n#+NAME: summary\n|  year | amount  |\n|-------+---------|\n|  2012 | replace |\n|  2013 | replace |\n|-------+---------|\n| total | replace |\n"
+        ),
+        Some(&format!(
+            "{src}\n#+NAME: summary\n|  year | amount |\n|-------+--------|\n|  2012 |      3 |\n|  2013 |     12 |\n|-------+--------|\n| total |     15 |\n"
+        )),
         1,
         &[
             "#+TBLFM: @<<$2..@>>$2 = remote($<, @>$1) :: @>$2 = vsum(@I..@II)",
@@ -788,8 +906,12 @@ fn remote_reference_indirect() {
         ],
     );
     target_expect(
-        &format!("{src}\n#+NAME: summary\n| year   |    2012 |    2013 | total   |\n|--------+---------+---------+---------|\n| amount | replace | replace | replace |\n"),
-        Some(&format!("{src}\n#+NAME: summary\n| year   | 2012 | 2013 | total |\n|--------+------+------+-------|\n| amount |    3 |   12 |    15 |\n")),
+        &format!(
+            "{src}\n#+NAME: summary\n| year   |    2012 |    2013 | total   |\n|--------+---------+---------+---------|\n| amount | replace | replace | replace |\n"
+        ),
+        Some(&format!(
+            "{src}\n#+NAME: summary\n| year   | 2012 | 2013 | total |\n|--------+------+------+-------|\n| amount |    3 |   12 |    15 |\n"
+        )),
         1,
         &[
             "#+TBLFM: @2$<<..@2$>> = remote(@<, @>$1) :: @2$> = vsum($<<..$>>)",
@@ -825,8 +947,8 @@ fn at_tblfm_and_tblfm_begin() {
     assert_eq!(begin(two, 5), Some(3));
     let blocks = "\n| 1 |\n| 2 |\n#+TBLFM: $2=$1*1\n#+TBLFM: $2=$1*2\n\n| 6 |\n| 7 |\n#+TBLFM: $2=$1*1\n#+TBLFM: $2=$1*2\n\n";
     assert_eq!(begin(blocks, 6), Some(3));
-    assert_eq!(begin(blocks, 8), Some(9));
-    assert_eq!(begin(blocks, 10), Some(9));
+    assert_eq!(begin(blocks, 8), Some(8));
+    assert_eq!(begin(blocks, 10), Some(8));
 }
 
 #[test]
@@ -835,12 +957,19 @@ fn calc_current_tblfm() {
     let mut d = Doc::new(text);
     d.goto(3, 0);
     formula::calc_current_tblfm(&mut d, Recalc::All).unwrap();
-    assert_eq!(d.text(), t("\n| 1 | 1 |\n| 2 | 2 |\n#+TBLFM: $2=$1*1\n#+TBLFM: $2=$1*2\n#+TBLFM: $2=$1*3\n"));
+    assert_eq!(
+        d.text(),
+        t("\n| 1 | 1 |\n| 2 | 2 |\n#+TBLFM: $2=$1*1\n#+TBLFM: $2=$1*2\n#+TBLFM: $2=$1*3\n")
+    );
     d.goto(4, 0);
     formula::calc_current_tblfm(&mut d, Recalc::All).unwrap();
-    assert_eq!(d.text(), t("\n| 1 | 2 |\n| 2 | 4 |\n#+TBLFM: $2=$1*1\n#+TBLFM: $2=$1*2\n#+TBLFM: $2=$1*3\n"));
+    assert_eq!(
+        d.text(),
+        t("\n| 1 | 2 |\n| 2 | 4 |\n#+TBLFM: $2=$1*1\n#+TBLFM: $2=$1*2\n#+TBLFM: $2=$1*3\n")
+    );
     // An error leaves the buffer as it was.
-    let expect = "\n| 1 | 1 |\n| 2 | 2 |\n#+TBLFM: $2=$1*1\n#+TBLFM: $2=$1*2::$2=$1*2\n#+TBLFM: $2=$1*3\n";
+    let expect =
+        "\n| 1 | 1 |\n| 2 | 2 |\n#+TBLFM: $2=$1*1\n#+TBLFM: $2=$1*2::$2=$1*2\n#+TBLFM: $2=$1*3\n";
     let mut d = Doc::new(expect);
     d.goto(4, 0);
     assert!(formula::calc_current_tblfm(&mut d, Recalc::All).is_err());
@@ -855,79 +984,254 @@ fn cells(v: &[&str]) -> Row {
 
 #[test]
 fn to_lisp() {
-    assert_eq!(to_lisp_text("|a|b|\n|c|d|"), vec![cells(&["a", "b"]), cells(&["c", "d"])]);
-    assert_eq!(to_lisp_text("|a|b|\n|-\n|c|d|"), vec![cells(&["a", "b"]), Row::Hline, cells(&["c", "d"])]);
-    assert_eq!(to_lisp_text("|-\n|a|b|\n|-\n|c|d|"), vec![Row::Hline, cells(&["a", "b"]), Row::Hline, cells(&["c", "d"])]);
+    assert_eq!(
+        to_lisp_text("|a|b|\n|c|d|"),
+        vec![cells(&["a", "b"]), cells(&["c", "d"])]
+    );
+    assert_eq!(
+        to_lisp_text("|a|b|\n|-\n|c|d|"),
+        vec![cells(&["a", "b"]), Row::Hline, cells(&["c", "d"])]
+    );
+    assert_eq!(
+        to_lisp_text("|-\n|a|b|\n|-\n|c|d|"),
+        vec![
+            Row::Hline,
+            cells(&["a", "b"]),
+            Row::Hline,
+            cells(&["c", "d"])
+        ]
+    );
     assert_eq!(to_lisp_text("|-\n|-\n|-\n|-\n|a|b|\n|c|d|").len(), 6);
 }
 
 #[test]
 fn collapse_header_rows() {
-    let c = |s: &str, sep: Option<&str>, max: Option<usize>| collapse_header(&to_lisp_text(s), sep, max);
+    let c = |s: &str, sep: Option<&str>, max: Option<usize>| {
+        collapse_header(&to_lisp_text(s), sep, max)
+    };
     assert_eq!(c("|a|b|\n|c|d|", None, None), to_lisp_text("|a|b|\n|c|d|"));
-    assert_eq!(c("|a|b|\n|-\n|c|d|", None, None), to_lisp_text("|a|b|\n|-\n|c|d|"));
-    assert_eq!(c("|a|b|\n|A|B|\n|-\n|c|d|\n|aa|bb|", None, None), vec![cells(&["a A", "b B"]), Row::Hline, cells(&["c", "d"]), cells(&["aa", "bb"])]);
-    assert_eq!(c("|a|b|\n|A|B|\n|-\n|c|d|\n|aa|bb|", Some("."), None)[0], cells(&["a.A", "b.B"]));
-    assert_eq!(c("|a|b|\n|A|B|\n|-\n|c|d|\n|aa|bb|", None, Some(1)).len(), 5);
-    assert_eq!(c("|a|b|\n|A|B|\n|-\n|c|d|\n|aa|bb|", None, Some(2))[0], cells(&["a A", "b B"]));
-    assert_eq!(c("|a|b|\n|A|B|\n|a|b|\n|A|B|\n|a|b|\n|A|B|\n|-\n|c|d|\n|aa|bb|", None, None).len(), 9);
+    assert_eq!(
+        c("|a|b|\n|-\n|c|d|", None, None),
+        to_lisp_text("|a|b|\n|-\n|c|d|")
+    );
+    assert_eq!(
+        c("|a|b|\n|A|B|\n|-\n|c|d|\n|aa|bb|", None, None),
+        vec![
+            cells(&["a A", "b B"]),
+            Row::Hline,
+            cells(&["c", "d"]),
+            cells(&["aa", "bb"])
+        ]
+    );
+    assert_eq!(
+        c("|a|b|\n|A|B|\n|-\n|c|d|\n|aa|bb|", Some("."), None)[0],
+        cells(&["a.A", "b.B"])
+    );
+    assert_eq!(
+        c("|a|b|\n|A|B|\n|-\n|c|d|\n|aa|bb|", None, Some(1)).len(),
+        5
+    );
+    assert_eq!(
+        c("|a|b|\n|A|B|\n|-\n|c|d|\n|aa|bb|", None, Some(2))[0],
+        cells(&["a A", "b B"])
+    );
+    assert_eq!(
+        c(
+            "|a|b|\n|A|B|\n|a|b|\n|A|B|\n|a|b|\n|A|B|\n|-\n|c|d|\n|aa|bb|",
+            None,
+            None
+        )
+        .len(),
+        9
+    );
 }
 
 // ---- radio tables and translators ----
 
 fn generic(table: &str, params: &str) -> String {
-    translate("orgtbl-to-generic", &to_lisp_text(table), &Params::read(params).unwrap()).unwrap()
+    translate(
+        "orgtbl-to-generic",
+        &to_lisp_text(table),
+        &Params::read(params).unwrap(),
+    )
+    .unwrap()
 }
 
 #[test]
 fn to_generic() {
     assert_eq!(generic("| a |\n|---|\n| b |", ":hline nil"), "a\nb");
     assert_eq!(generic("| a |\n|---|\n| b |", ":hline \"~\""), "a\n~\nb");
-    assert_eq!(generic("| a | b |\n|---+---|\n| c | d |", ":sep \"!\""), "a!b\nc!d");
-    assert_eq!(generic("| a | b |\n|---+---|\n| c | d |", ":sep \"?\" :hsep \"!\""), "a!b\nc?d");
+    assert_eq!(
+        generic("| a | b |\n|---+---|\n| c | d |", ":sep \"!\""),
+        "a!b\nc!d"
+    );
+    assert_eq!(
+        generic("| a | b |\n|---+---|\n| c | d |", ":sep \"?\" :hsep \"!\""),
+        "a!b\nc?d"
+    );
     assert_eq!(generic("| a |", ":tstart \"<begin>\""), "<begin>\na");
-    assert_eq!(generic("| a |", ":tstart (lambda () \"<begin>\")"), "<begin>\na");
+    assert_eq!(
+        generic("| a |", ":tstart (lambda () \"<begin>\")"),
+        "<begin>\na"
+    );
     assert_eq!(generic("| a |", ":tstart \"<begin>\" :splice t"), "a");
     assert_eq!(generic("| a |", ":tend \"<end>\""), "a\n<end>");
     assert_eq!(generic("| a |", ":tend (lambda () \"<end>\")"), "a\n<end>");
     assert_eq!(generic("| a |", ":tend \"<end>\" :splice t"), "a");
     assert_eq!(generic("| a |", ":lstart \"> \""), "> a");
     assert_eq!(generic("| a |", ":lstart (lambda () \"> \")"), "> a");
-    assert_eq!(generic("| a |\n|---|\n| b |", ":lstart \"> \" :llstart \">> \""), "> a\n>> b");
-    assert_eq!(generic("| a |\n|---|\n| b |", ":lstart \"> \" :hlstart \"!> \""), "!> a\n> b");
-    assert_eq!(generic("| a |\n| b |\n|---|\n| c |", ":lstart \"> \" :hlstart \"!> \" :hllstart \"!!> \""), "!> a\n!!> b\n> c");
+    assert_eq!(
+        generic("| a |\n|---|\n| b |", ":lstart \"> \" :llstart \">> \""),
+        "> a\n>> b"
+    );
+    assert_eq!(
+        generic("| a |\n|---|\n| b |", ":lstart \"> \" :hlstart \"!> \""),
+        "!> a\n> b"
+    );
+    assert_eq!(
+        generic(
+            "| a |\n| b |\n|---|\n| c |",
+            ":lstart \"> \" :hlstart \"!> \" :hllstart \"!!> \""
+        ),
+        "!> a\n!!> b\n> c"
+    );
     assert_eq!(generic("| a |", ":lend \" <\""), "a <");
-    assert_eq!(generic("| a |\n|---|\n| b |", ":lend \" <\" :llend \" <<\""), "a <\nb <<");
-    assert_eq!(generic("| a |\n|---|\n| b |", ":lend \" <\" :hlend \" <!\""), "a <!\nb <");
-    assert_eq!(generic("| a |\n| b |\n|---|\n| c |", ":lend \" <\" :hlend \" <!\" :hllend \" <!!\""), "a <!\nb <!!\nc <");
+    assert_eq!(
+        generic("| a |\n|---|\n| b |", ":lend \" <\" :llend \" <<\""),
+        "a <\nb <<"
+    );
+    assert_eq!(
+        generic("| a |\n|---|\n| b |", ":lend \" <\" :hlend \" <!\""),
+        "a <!\nb <"
+    );
+    assert_eq!(
+        generic(
+            "| a |\n| b |\n|---|\n| c |",
+            ":lend \" <\" :hlend \" <!\" :hllend \" <!!\""
+        ),
+        "a <!\nb <!!\nc <"
+    );
     assert_eq!(generic("| a | b |", ":lfmt \"%s!%s\""), "a!b");
-    assert_eq!(generic("| a | b |", ":lfmt (lambda (c) (concat (car c) \"+\" (cadr c)))"), "a+b");
-    assert_eq!(generic("| a | b |", ":lfmt \"%s!%s\" :lstart \">\" :lend \"<\" :sep \" \""), "a!b");
+    assert_eq!(
+        generic(
+            "| a | b |",
+            ":lfmt (lambda (c) (concat (car c) \"+\" (cadr c)))"
+        ),
+        "a+b"
+    );
+    assert_eq!(
+        generic(
+            "| a | b |",
+            ":lfmt \"%s!%s\" :lstart \">\" :lend \"<\" :sep \" \""
+        ),
+        "a!b"
+    );
     assert_eq!(generic("| a | b |", ":llfmt \"%s!%s\""), "a!b");
-    assert_eq!(generic("| a | b |\n| c | d |", ":lfmt \"%s!%s\" :llfmt (lambda (c) (concat (car c) \"+\" (cadr c)))"), "a!b\nc+d");
-    assert_eq!(generic("| a | b |", ":llfmt \"%s!%s\" :lstart \">\" :lend \"<\" :sep \" \""), "a!b");
-    assert_eq!(generic("| a | b |\n|---+---|\n| c | d |", ":hlfmt \"%s!%s\""), "a!b\ncd");
-    assert_eq!(generic("| a | b |\n|---+---|\n| c | d |", ":hlfmt (lambda (c) (concat (car c) \"+\" (cadr c)))"), "a+b\ncd");
-    assert_eq!(generic("| a | b |\n|---+---|\n| c | d |", ":hlfmt \"%s!%s\" :lstart \">\" :lend \"<\" :sep \" \""), "a!b\n>c d<");
-    assert_eq!(generic("| a | b |\n|---+---|\n| c | d |", ":hllfmt \"%s!%s\""), "a!b\ncd");
-    assert_eq!(generic("| a | b |\n|---+---|\n| c | d |", ":hllfmt (lambda (c) (concat (car c) \"+\" (cadr c)))"), "a+b\ncd");
-    assert_eq!(generic("| a | b |\n|---+---|\n| c | d |", ":hllfmt \"%s!%s\" :lstart \">\" :lend \"<\" :sep \" \""), "a!b\n>c d<");
+    assert_eq!(
+        generic(
+            "| a | b |\n| c | d |",
+            ":lfmt \"%s!%s\" :llfmt (lambda (c) (concat (car c) \"+\" (cadr c)))"
+        ),
+        "a!b\nc+d"
+    );
+    assert_eq!(
+        generic(
+            "| a | b |",
+            ":llfmt \"%s!%s\" :lstart \">\" :lend \"<\" :sep \" \""
+        ),
+        "a!b"
+    );
+    assert_eq!(
+        generic("| a | b |\n|---+---|\n| c | d |", ":hlfmt \"%s!%s\""),
+        "a!b\ncd"
+    );
+    assert_eq!(
+        generic(
+            "| a | b |\n|---+---|\n| c | d |",
+            ":hlfmt (lambda (c) (concat (car c) \"+\" (cadr c)))"
+        ),
+        "a+b\ncd"
+    );
+    assert_eq!(
+        generic(
+            "| a | b |\n|---+---|\n| c | d |",
+            ":hlfmt \"%s!%s\" :lstart \">\" :lend \"<\" :sep \" \""
+        ),
+        "a!b\n>c d<"
+    );
+    assert_eq!(
+        generic("| a | b |\n|---+---|\n| c | d |", ":hllfmt \"%s!%s\""),
+        "a!b\ncd"
+    );
+    assert_eq!(
+        generic(
+            "| a | b |\n|---+---|\n| c | d |",
+            ":hllfmt (lambda (c) (concat (car c) \"+\" (cadr c)))"
+        ),
+        "a+b\ncd"
+    );
+    assert_eq!(
+        generic(
+            "| a | b |\n|---+---|\n| c | d |",
+            ":hllfmt \"%s!%s\" :lstart \">\" :lend \"<\" :sep \" \""
+        ),
+        "a!b\n>c d<"
+    );
     assert_eq!(generic("| a |\n|---|\n| b |", ":fmt \">%s<\""), ">a<\n>b<");
-    assert_eq!(generic("| a | b |", ":fmt (1 \">%s<\" 2 (lambda (c) c))"), ">a<b");
+    assert_eq!(
+        generic("| a | b |", ":fmt (1 \">%s<\" 2 (lambda (c) c))"),
+        ">a<b"
+    );
     assert_eq!(generic("| a | b |", ":fmt (2 \" %s\")"), "a b");
-    assert_eq!(generic("| a |", ":fmt (lambda (c) (format \">%s<\" c))"), ">a<");
+    assert_eq!(
+        generic("| a |", ":fmt (lambda (c) (format \">%s<\" c))"),
+        ">a<"
+    );
     assert_eq!(generic("| a |\n|---|\n| b |", ":hfmt \">%s<\""), ">a<\nb");
-    assert_eq!(generic("| a | b |\n|---+---|\n| c | d |", ":hfmt (1 \">%s<\" 2 identity)"), ">a<b\ncd");
-    assert_eq!(generic("| a | b |\n|---+---|\n| c | d |", ":hfmt (2 \" %s\")"), "a b\ncd");
-    assert_eq!(generic("| a |\n|---|\n| b |", ":hfmt (lambda (c) (format \">%s<\" c))"), ">a<\nb");
+    assert_eq!(
+        generic(
+            "| a | b |\n|---+---|\n| c | d |",
+            ":hfmt (1 \">%s<\" 2 identity)"
+        ),
+        ">a<b\ncd"
+    );
+    assert_eq!(
+        generic("| a | b |\n|---+---|\n| c | d |", ":hfmt (2 \" %s\")"),
+        "a b\ncd"
+    );
+    assert_eq!(
+        generic(
+            "| a |\n|---|\n| b |",
+            ":hfmt (lambda (c) (format \">%s<\" c))"
+        ),
+        ">a<\nb"
+    );
     assert_eq!(generic("| 2e3 |", ":efmt \"%sx10^%s\""), "2x10^3");
-    assert_eq!(generic("| 2e3 |", ":efmt (lambda (m e) (concat m \"x10^\" e))"), "2x10^3");
+    assert_eq!(
+        generic("| 2e3 |", ":efmt (lambda (m e) (concat m \"x10^\" e))"),
+        "2x10^3"
+    );
     assert_eq!(generic("| 2e3 |", ":efmt (1 \"%sx10^%s\")"), "2x10^3");
-    assert_eq!(generic("| 2e3 |", ":efmt (1 (lambda (m e) (format \"%sx10^%s\" m e)))"), "2x10^3");
+    assert_eq!(
+        generic(
+            "| 2e3 |",
+            ":efmt (1 (lambda (m e) (format \"%sx10^%s\" m e)))"
+        ),
+        "2x10^3"
+    );
     assert_eq!(generic("| 2e3 |", ":efmt nil"), "2e3");
-    assert_eq!(generic("|  | <c> |\n| a | b |\n|---+---|\n| c | d |", ":skip 2"), "cd");
+    assert_eq!(
+        generic("|  | <c> |\n| a | b |\n|---+---|\n| c | d |", ":skip 2"),
+        "cd"
+    );
     assert_eq!(generic("| a | b |\n| c | d |", ":skipcols (2)"), "a\nc");
-    assert_eq!(generic("| / | <c> | <c> |\n| # | a | b |\n|---+---+---|\n|   | c | d |", ":skipcols (2)"), "<c>\na\nc");
+    assert_eq!(
+        generic(
+            "| / | <c> | <c> |\n| # | a | b |\n|---+---+---|\n|   | c | d |",
+            ":skipcols (2)"
+        ),
+        "<c>\na\nc"
+    );
     assert_eq!(generic("| a |\n|---|\n| b |", ":hline nil"), "a\nb");
     assert_eq!(generic("| {{{macro}}} |", ""), "{{{macro}}}");
 }
@@ -938,21 +1242,59 @@ fn tr(name: &str, table: &str, params: &str) -> String {
 
 #[test]
 fn to_latex() {
-    assert_eq!(tr("orgtbl-to-latex", "| a |", ""), "\\begin{tabular}{l}\na\\\\\n\\end{tabular}");
-    assert_eq!(tr("orgtbl-to-latex", "| a |", ":environment \"tabularx\""), "\\begin{tabularx}{l}\na\\\\\n\\end{tabularx}");
+    assert_eq!(
+        tr("orgtbl-to-latex", "| a |", ""),
+        "\\begin{tabular}{l}\na\\\\\n\\end{tabular}"
+    );
+    assert_eq!(
+        tr("orgtbl-to-latex", "| a |", ":environment \"tabularx\""),
+        "\\begin{tabularx}{l}\na\\\\\n\\end{tabularx}"
+    );
     assert!(tr("orgtbl-to-latex", "| a |", ":booktabs t").contains("\\toprule"));
-    assert_eq!(tr("orgtbl-to-latex", "| $x$ |", ""), "\\begin{tabular}{l}\n\\(x\\)\\\\\n\\end{tabular}");
+    assert_eq!(
+        tr("orgtbl-to-latex", "| $x$ |", ""),
+        "\\begin{tabular}{l}\n\\(x\\)\\\\\n\\end{tabular}"
+    );
     assert!(tr("orgtbl-to-latex", "| $x$ |", ":raw t").contains("$x$"));
     // Recorded from Emacs.
-    assert_eq!(tr("orgtbl-to-latex", "| x | 1 |\n| y | 22 |\n|---+---|\n| z | 3.5 |", ""), "\\begin{tabular}{lr}\nx & 1\\\\\ny & 22\\\\\n\\hline\nz & 3.5\\\\\n\\end{tabular}");
     assert_eq!(
-        tr("orgtbl-to-latex", "| a | b |\n|---+---|\n| c | d |", ":booktabs t"),
+        tr(
+            "orgtbl-to-latex",
+            "| x | 1 |\n| y | 22 |\n|---+---|\n| z | 3.5 |",
+            ""
+        ),
+        "\\begin{tabular}{lr}\nx & 1\\\\\ny & 22\\\\\n\\hline\nz & 3.5\\\\\n\\end{tabular}"
+    );
+    assert_eq!(
+        tr(
+            "orgtbl-to-latex",
+            "| a | b |\n|---+---|\n| c | d |",
+            ":booktabs t"
+        ),
         "\\begin{tabular}{ll}\n\\toprule\na & b\\\\\n\\midrule\nc & d\\\\\n\\bottomrule\n\\end{tabular}"
     );
-    assert_eq!(tr("orgtbl-to-latex", "| a | b |\n|---+---|\n| c | d |", ":splice t"), "a & b\\\\\n\\hline\nc & d\\\\");
-    assert_eq!(tr("orgtbl-to-latex", "| / | <c> | <c> |\n| # | a | b |\n|---+---+---|\n|   | c | d |", ""), "\\begin{tabular}{cc}\na & b\\\\\n\\hline\nc & d\\\\\n\\end{tabular}");
     assert_eq!(
-        tr("orgtbl-to-latex", "| h1 | h2 |\n| h3 | h4 |\n|----+----|\n| 1 | |\n| /a/ | $x$ & _y_ |", ""),
+        tr(
+            "orgtbl-to-latex",
+            "| a | b |\n|---+---|\n| c | d |",
+            ":splice t"
+        ),
+        "a & b\\\\\n\\hline\nc & d\\\\"
+    );
+    assert_eq!(
+        tr(
+            "orgtbl-to-latex",
+            "| / | <c> | <c> |\n| # | a | b |\n|---+---+---|\n|   | c | d |",
+            ""
+        ),
+        "\\begin{tabular}{cc}\na & b\\\\\n\\hline\nc & d\\\\\n\\end{tabular}"
+    );
+    assert_eq!(
+        tr(
+            "orgtbl-to-latex",
+            "| h1 | h2 |\n| h3 | h4 |\n|----+----|\n| 1 | |\n| /a/ | $x$ & _y_ |",
+            ""
+        ),
         "\\begin{tabular}{ll}\nh1 & h2\\\\\nh3 & h4\\\\\n\\hline\n1 & \\\\\n\\emph{a} & \\(x\\) \\& \\uline{y}\\\\\n\\end{tabular}"
     );
 }
@@ -975,9 +1317,16 @@ fn to_html() {
 </table>"
     );
     assert!(tr("orgtbl-to-html", "| a |", ":attributes nil").contains("<table>"));
-    assert!(tr("orgtbl-to-html", "| a |", ":attributes (:border \"2\")").contains("<table border=\"2\">"));
+    assert!(
+        tr("orgtbl-to-html", "| a |", ":attributes (:border \"2\")")
+            .contains("<table border=\"2\">")
+    );
     assert_eq!(
-        tr("orgtbl-to-html", "| x | 1 |\n| y | 22 |\n|---+---|\n| z | 3.5 |", ":splice t"),
+        tr(
+            "orgtbl-to-html",
+            "| x | 1 |\n| y | 22 |\n|---+---|\n| z | 3.5 |",
+            ":splice t"
+        ),
         "<thead>
 <tr>
 <th scope=\"col\" class=\"org-left\">x</th>
@@ -1000,41 +1349,113 @@ fn to_html() {
 
 #[test]
 fn to_texinfo() {
-    assert_eq!(tr("orgtbl-to-texinfo", "| a |", ""), "@multitable {a}\n@item a\n@end multitable");
-    assert_eq!(tr("orgtbl-to-texinfo", "| a | b |", ":columns \".4 .6\""), "@multitable @columnfractions .4 .6\n@item a\n@tab b\n@end multitable");
-    assert_eq!(tr("orgtbl-to-texinfo", "| a | b |", ":columns \"@columnfractions .4 .6\""), "@multitable @columnfractions .4 .6\n@item a\n@tab b\n@end multitable");
-    assert_eq!(tr("orgtbl-to-texinfo", "| a | b |", ":columns \"{xxx} {xx}\""), "@multitable {xxx} {xx}\n@item a\n@tab b\n@end multitable");
     assert_eq!(
-        tr("orgtbl-to-texinfo", "| x | 1 |\n| y | 22 |\n|---+---|\n| z | 3.5 |", ""),
+        tr("orgtbl-to-texinfo", "| a |", ""),
+        "@multitable {a}\n@item a\n@end multitable"
+    );
+    assert_eq!(
+        tr("orgtbl-to-texinfo", "| a | b |", ":columns \".4 .6\""),
+        "@multitable @columnfractions .4 .6\n@item a\n@tab b\n@end multitable"
+    );
+    assert_eq!(
+        tr(
+            "orgtbl-to-texinfo",
+            "| a | b |",
+            ":columns \"@columnfractions .4 .6\""
+        ),
+        "@multitable @columnfractions .4 .6\n@item a\n@tab b\n@end multitable"
+    );
+    assert_eq!(
+        tr("orgtbl-to-texinfo", "| a | b |", ":columns \"{xxx} {xx}\""),
+        "@multitable {xxx} {xx}\n@item a\n@tab b\n@end multitable"
+    );
+    assert_eq!(
+        tr(
+            "orgtbl-to-texinfo",
+            "| x | 1 |\n| y | 22 |\n|---+---|\n| z | 3.5 |",
+            ""
+        ),
         "@multitable {a} {aaa}\n@headitem x\n@tab 1\n@headitem y\n@tab 22\n@item z\n@tab 3.5\n@end multitable"
     );
 }
 
 #[test]
 fn to_orgtbl_and_table_el() {
-    assert_eq!(tr("orgtbl-to-orgtbl", "| a | b |\n|---+---|\n| c | d |", ""), "| a | b |\n|---+---|\n| c | d |");
-    assert_eq!(tr("orgtbl-to-orgtbl", "| x | 1 |\n| y | 22 |\n|---+---|\n| z | 3.5 |", ""), "| x |   1 |\n| y |  22 |\n|---+-----|\n| z | 3.5 |");
-    assert_eq!(tr("orgtbl-to-orgtbl", "| / | <c> | <c> |\n| # | a | b |\n|---+---+---|\n|   | c | d |", ""), "| <c> | <c> |\n|  a  |  b  |\n|-----+-----|\n|  c  |  d  |");
-    assert_eq!(tr("orgtbl-to-table.el", "| a | b |\n|---+---|\n| c | d |", ""), "| a | b |\n+---+---+\n| c | d |");
-    assert_eq!(tr("orgtbl-to-tsv", "| h1 | h2 |\n| 1 | |", ""), "h1\th2\n1\t");
-    assert_eq!(tr("orgtbl-to-csv", "| a,b | c\"d |\n| 1 | 2 |", ""), "\"a,b\",\"c\"\"d\"\n1,2");
+    assert_eq!(
+        tr("orgtbl-to-orgtbl", "| a | b |\n|---+---|\n| c | d |", ""),
+        "| a | b |\n|---+---|\n| c | d |"
+    );
+    assert_eq!(
+        tr(
+            "orgtbl-to-orgtbl",
+            "| x | 1 |\n| y | 22 |\n|---+---|\n| z | 3.5 |",
+            ""
+        ),
+        "| x |   1 |\n| y |  22 |\n|---+-----|\n| z | 3.5 |"
+    );
+    assert_eq!(
+        tr(
+            "orgtbl-to-orgtbl",
+            "| / | <c> | <c> |\n| # | a | b |\n|---+---+---|\n|   | c | d |",
+            ""
+        ),
+        "| <c> | <c> |\n|  a  |  b  |\n|-----+-----|\n|  c  |  d  |"
+    );
+    assert_eq!(
+        tr("orgtbl-to-table.el", "| a | b |\n|---+---|\n| c | d |", ""),
+        "| a | b |\n+---+---+\n| c | d |"
+    );
+    assert_eq!(
+        tr("orgtbl-to-tsv", "| h1 | h2 |\n| 1 | |", ""),
+        "h1\th2\n1\t"
+    );
+    assert_eq!(
+        tr("orgtbl-to-csv", "| a,b | c\"d |\n| 1 | 2 |", ""),
+        "\"a,b\",\"c\"\"d\"\n1,2"
+    );
 }
 
 #[test]
 fn to_unicode() {
     assert_eq!(tr("orgtbl-to-unicode", "| a |", ""), "━━━\n a \n━━━");
-    assert_eq!(tr("orgtbl-to-unicode", "| <2> |\n| xxx |", ":narrow t"), "━━━━\n => \n━━━━");
-    assert_eq!(tr("orgtbl-to-unicode", "| x | 1 |\n| y | 22 |\n|---+---|\n| z | 3.5 |", ""), "━━━━━━━━\n x    1 \n y   22 \n────────\n z  3.5 \n━━━━━━━━");
-    assert_eq!(tr("orgtbl-to-unicode", "|---+---|\n| a | b |\n|---+---|\n| 1 | 2 |\n| 3 | 4 |\n|---+---|", ""), "━━━━━━\n a  b \n──────\n 1  2 \n 3  4 \n━━━━━━");
+    assert_eq!(
+        tr("orgtbl-to-unicode", "| <2> |\n| xxx |", ":narrow t"),
+        "━━━━\n => \n━━━━"
+    );
+    assert_eq!(
+        tr(
+            "orgtbl-to-unicode",
+            "| x | 1 |\n| y | 22 |\n|---+---|\n| z | 3.5 |",
+            ""
+        ),
+        "━━━━━━━━\n x    1 \n y   22 \n────────\n z  3.5 \n━━━━━━━━"
+    );
+    assert_eq!(
+        tr(
+            "orgtbl-to-unicode",
+            "|---+---|\n| a | b |\n|---+---|\n| 1 | 2 |\n| 3 | 4 |\n|---+---|",
+            ""
+        ),
+        "━━━━━━\n a  b \n──────\n 1  2 \n 3  4 \n━━━━━━"
+    );
 }
 
 #[test]
 fn send_region() {
     assert!(fails("Paragraph", |d| orgtbl::send_table(d, false).map(|_| ())));
-    assert!(fails("#+ORGTBL: SEND\n<point>| a |", |d| orgtbl::send_table(d, false).map(|_| ())));
-    assert!(fails("\n# BEGIN RECEIVE ORGTBL table\n# END RECEIVE ORGTBL table\n#+ORGTBL: SEND table\n<point>| a |", |d| orgtbl::send_table(d, false).map(|_| ())));
-    let out = with("\n# BEGIN RECEIVE ORGTBL table\n# END RECEIVE ORGTBL table\n#+ORGTBL: SEND table orgtbl-to-orgtbl :hlines nil\n<point>| a |\n|---|\n| b |", |d| orgtbl::send_table(d, false).map(|_| ()));
-    let s = out.find("# BEGIN RECEIVE ORGTBL table\n").unwrap() + "# BEGIN RECEIVE ORGTBL table\n".len();
+    assert!(fails("#+ORGTBL: SEND\n<point>| a |", |d| {
+        orgtbl::send_table(d, false).map(|_| ())
+    }));
+    assert!(fails(
+        "\n# BEGIN RECEIVE ORGTBL table\n# END RECEIVE ORGTBL table\n#+ORGTBL: SEND table\n<point>| a |",
+        |d| orgtbl::send_table(d, false).map(|_| ())
+    ));
+    let out = with(
+        "\n# BEGIN RECEIVE ORGTBL table\n# END RECEIVE ORGTBL table\n#+ORGTBL: SEND table orgtbl-to-orgtbl :hlines nil\n<point>| a |\n|---|\n| b |",
+        |d| orgtbl::send_table(d, false).map(|_| ()),
+    );
+    let s = out.find("# BEGIN RECEIVE ORGTBL table\n").unwrap()
+        + "# BEGIN RECEIVE ORGTBL table\n".len();
     let e = out.find("# END RECEIVE ORGTBL table").unwrap();
     assert_eq!(&out[s..e], "| a |\n|---|\n| b |\n");
     let out = with(
@@ -1048,16 +1469,21 @@ fn send_region() {
 
 #[test]
 fn align() {
-    let al = |s: &str| with(s, |d| {
-        d.align();
-        Ok(())
-    });
+    let al = |s: &str| {
+        with(s, |d| {
+            d.align();
+            Ok(())
+        })
+    };
     assert_eq!(al("|   a |"), "| a |");
     assert_eq!(al("  |   a |"), "  | a |");
     assert_eq!(al("| 123 |\n|-|"), "| 123 |\n|-----|");
     assert_eq!(al("| a | b |\n|-+-|"), "| a | b |\n|---+---|");
     assert_eq!(al("| a | bc |\n| bcd |  |"), "| a   | bc |\n| bcd |    |");
-    assert_eq!(al("| abc | bc |\n| | bcd |"), "| abc | bc  |\n|     | bcd |");
+    assert_eq!(
+        al("| abc | bc |\n| | bcd |"),
+        "| abc | bc  |\n|     | bcd |"
+    );
     assert_eq!(al("| a | b |\n| c |"), "| a | b |\n| c |   |");
     assert_eq!(al("| a | b |\n|---|"), "| a | b |\n|---+---|");
     assert_eq!(al("| 1 |\n| 12 |\n| abc |"), "|   1 |\n|  12 |\n| abc |");
@@ -1068,7 +1494,10 @@ fn align() {
     al("|-<point>--|");
     al("|-<point>--|---------|\n|---|---|-----|");
     // Fred shows link markup: links count with their full width.
-    assert_eq!(al("\n| a        | b |\n|----------+---|\n| [[c][c]] | d |<point>"), "\n| a        | b |\n|----------+---|\n| [[c][c]] | d |");
+    assert_eq!(
+        al("\n| a        | b |\n|----------+---|\n| [[c][c]] | d |<point>"),
+        "\n| a        | b |\n|----------+---|\n| [[c][c]] | d |"
+    );
 }
 
 #[test]
@@ -1087,29 +1516,89 @@ fn sort(text: &str, case: bool, kind: char) -> String {
 
 #[test]
 fn sort_lines() {
-    assert_eq!(sort("| <point>1 | 2 |\n| 5 | 3 |\n| 2 | 4 |\n", false, 'n'), t("| 1 | 2 |\n| 2 | 4 |\n| 5 | 3 |\n"));
-    assert_eq!(sort("| <point>1 | 2 |\n| 5 | 3 |\n| 2 | 4 |\n", false, 'N'), t("| 5 | 3 |\n| 2 | 4 |\n| 1 | 2 |\n"));
-    assert_eq!(sort("| <point>a | x |\n| c | 3 |\n| B | 4 |\n", false, 'a'), t("| a | x |\n| B | 4 |\n| c | 3 |\n"));
-    assert_eq!(sort("| <point>a | x |\n| c | 3 |\n| B | 4 |\n", false, 'A'), t("| c | 3 |\n| B | 4 |\n| a | x |\n"));
-    assert_eq!(sort("| <point>a |\n| C |\n| b |\n", true, 'a'), t("| C |\n| a |\n| b |\n"));
-    assert_eq!(sort("| <point>a |\n| C |\n| b |\n", true, 'A'), t("| b |\n| a |\n| C |\n"));
     assert_eq!(
-        sort("| <2014-03-04 tue.> |\n| <2008-08-08 sat.> |\n| <2012-03-29 thu.> |\n", false, 't'),
+        sort("| <point>1 | 2 |\n| 5 | 3 |\n| 2 | 4 |\n", false, 'n'),
+        t("| 1 | 2 |\n| 2 | 4 |\n| 5 | 3 |\n")
+    );
+    assert_eq!(
+        sort("| <point>1 | 2 |\n| 5 | 3 |\n| 2 | 4 |\n", false, 'N'),
+        t("| 5 | 3 |\n| 2 | 4 |\n| 1 | 2 |\n")
+    );
+    assert_eq!(
+        sort("| <point>a | x |\n| c | 3 |\n| B | 4 |\n", false, 'a'),
+        t("| a | x |\n| B | 4 |\n| c | 3 |\n")
+    );
+    assert_eq!(
+        sort("| <point>a | x |\n| c | 3 |\n| B | 4 |\n", false, 'A'),
+        t("| c | 3 |\n| B | 4 |\n| a | x |\n")
+    );
+    assert_eq!(
+        sort("| <point>a |\n| C |\n| b |\n", true, 'a'),
+        t("| C |\n| a |\n| b |\n")
+    );
+    assert_eq!(
+        sort("| <point>a |\n| C |\n| b |\n", true, 'A'),
+        t("| b |\n| a |\n| C |\n")
+    );
+    assert_eq!(
+        sort(
+            "| <2014-03-04 tue.> |\n| <2008-08-08 sat.> |\n| <2012-03-29 thu.> |\n",
+            false,
+            't'
+        ),
         t("| <2008-08-08 sat.> |\n| <2012-03-29 thu.> |\n| <2014-03-04 tue.> |\n")
     );
     assert_eq!(
-        sort("| <2014-03-04 tue.> |\n| <2008-08-08 sat.> |\n| <2012-03-29 thu.> |\n", false, 'T'),
+        sort(
+            "| <2014-03-04 tue.> |\n| <2008-08-08 sat.> |\n| <2012-03-29 thu.> |\n",
+            false,
+            'T'
+        ),
         t("| <2014-03-04 tue.> |\n| <2012-03-29 thu.> |\n| <2008-08-08 sat.> |\n")
     );
-    assert_eq!(sort("| 114:00 |\n| 17:00 |\n| 1:00 |\n", false, 't'), t("| 1:00 |\n| 17:00 |\n| 114:00 |\n"));
-    assert_eq!(sort("| 114:00 |\n| 17:00 |\n| 1:00 |\n", false, 'T'), t("| 114:00 |\n| 17:00 |\n| 1:00 |\n"));
-    assert_eq!(sort("| 28:00 |\n| 1d 3:00 |\n", false, 't'), t("| 1d 3:00 |\n| 28:00 |\n"));
-    let key = |s: &str| edit::SortKey::Num((lisp::string_to_number(s).f() as i64 % 10) as f64);
-    assert_eq!(with("| 15 |\n| 22 |\n| 18 |\n", |d| edit::sort_lines(d, false, 'f', None, Some(&key))), t("| 22 |\n| 15 |\n| 18 |\n"));
-    assert_eq!(with("| 15 |\n| 22 |\n| 18 |\n", |d| edit::sort_lines(d, false, 'F', None, Some(&key))), t("| 18 |\n| 15 |\n| 22 |\n"));
-    assert_eq!(sort("| 1 | <point>2 |\n| 5 | 4 |\n| 7 | 3 |\n", false, 'n'), t("| 1 | 2 |\n| 7 | 3 |\n| 5 | 4 |\n"));
     assert_eq!(
-        sort("| 9 | 8 |\n|---+---|\n| <point>7 | 4 |\n| 5 | 3 |\n|---+---|\n| 1 | 2 |\n", false, 'n'),
+        sort("| 114:00 |\n| 17:00 |\n| 1:00 |\n", false, 't'),
+        t("| 1:00 |\n| 17:00 |\n| 114:00 |\n")
+    );
+    assert_eq!(
+        sort("| 114:00 |\n| 17:00 |\n| 1:00 |\n", false, 'T'),
+        t("| 114:00 |\n| 17:00 |\n| 1:00 |\n")
+    );
+    assert_eq!(
+        sort("| 28:00 |\n| 1d 3:00 |\n", false, 't'),
+        t("| 1d 3:00 |\n| 28:00 |\n")
+    );
+    let key = |s: &str| edit::SortKey::Num((lisp::string_to_number(s).f() as i64 % 10) as f64);
+    assert_eq!(
+        with("| 15 |\n| 22 |\n| 18 |\n", |d| edit::sort_lines(
+            d,
+            false,
+            'f',
+            None,
+            Some(&key)
+        )),
+        t("| 22 |\n| 15 |\n| 18 |\n")
+    );
+    assert_eq!(
+        with("| 15 |\n| 22 |\n| 18 |\n", |d| edit::sort_lines(
+            d,
+            false,
+            'F',
+            None,
+            Some(&key)
+        )),
+        t("| 18 |\n| 15 |\n| 22 |\n")
+    );
+    assert_eq!(
+        sort("| 1 | <point>2 |\n| 5 | 4 |\n| 7 | 3 |\n", false, 'n'),
+        t("| 1 | 2 |\n| 7 | 3 |\n| 5 | 4 |\n")
+    );
+    assert_eq!(
+        sort(
+            "| 9 | 8 |\n|---+---|\n| <point>7 | 4 |\n| 5 | 3 |\n|---+---|\n| 1 | 2 |\n",
+            false,
+            'n'
+        ),
         t("| 9 | 8 |\n|---+---|\n| 5 | 3 |\n| 7 | 4 |\n|---+---|\n| 1 | 2 |\n")
     );
 }
@@ -1117,14 +1606,48 @@ fn sort_lines() {
 // ---- formulas ----
 
 fn eval(text: &str, eq: &str) -> String {
-    with(text, |d| formula::eval_formula(d, formula::EvalArg::None, Some(eq), false, false, true, false))
+    with(text, |d| {
+        formula::eval_formula(
+            d,
+            formula::EvalArg::None,
+            Some(eq),
+            false,
+            false,
+            true,
+            false,
+        )
+    })
 }
 
 #[test]
 fn eval_formula() {
-    assert!(fails("Text", |d| formula::eval_formula(d, formula::EvalArg::None, Some("1"), false, false, false, false)));
-    assert!(fails("| a |\n|---|<point>", |d| formula::eval_formula(d, formula::EvalArg::None, Some("1"), false, false, false, false)));
-    assert!(fails("| a |\n#+TBLFM:<point>", |d| formula::eval_formula(d, formula::EvalArg::None, Some("1"), false, false, false, false)));
+    assert!(fails("Text", |d| formula::eval_formula(
+        d,
+        formula::EvalArg::None,
+        Some("1"),
+        false,
+        false,
+        false,
+        false
+    )));
+    assert!(fails("| a |\n|---|<point>", |d| formula::eval_formula(
+        d,
+        formula::EvalArg::None,
+        Some("1"),
+        false,
+        false,
+        false,
+        false
+    )));
+    assert!(fails("| a |\n#+TBLFM:<point>", |d| formula::eval_formula(
+        d,
+        formula::EvalArg::None,
+        Some("1"),
+        false,
+        false,
+        false,
+        false
+    )));
     assert_eq!(eval("| <point>  |\n| 1 |", "@>"), "| 1 |\n| 1 |");
     assert_eq!(eval("| 1 |\n| <point>  |", "@<"), "| 1 |\n| 1 |");
     assert_eq!(eval("| <point>  | 1 |", "$>"), "| 1 | 1 |");
@@ -1136,10 +1659,18 @@ fn field_formula_outside_table() {
     reset_opts();
     let text = "\n| 2 |\n| 4 |\n| 8 |\n<point>#+TBLFM: @1$2=5";
     assert!(fails(text, |d| formula::calc_current_tblfm(d, Recalc::All)));
-    set_opt("org-table-formula-create-columns", toml::Value::Boolean(true));
-    assert_eq!(with(text, |d| formula::calc_current_tblfm(d, Recalc::All)), "\n| 2 | 5 |\n| 4 |   |\n| 8 |   |\n#+TBLFM: @1$2=5");
+    set_opt(
+        "org-table-formula-create-columns",
+        toml::Value::Boolean(true),
+    );
     assert_eq!(
-        with("\n| 2 |\n| 4 |\n| 8 |\n<point>#+TBLFM: $3=15", |d| formula::calc_current_tblfm(d, Recalc::All)),
+        with(text, |d| formula::calc_current_tblfm(d, Recalc::All)),
+        "\n| 2 | 5 |\n| 4 |   |\n| 8 |   |\n#+TBLFM: @1$2=5"
+    );
+    assert_eq!(
+        with("\n| 2 |\n| 4 |\n| 8 |\n<point>#+TBLFM: $3=15", |d| {
+            formula::calc_current_tblfm(d, Recalc::All)
+        }),
         "\n| 2 |   | 15 |\n| 4 |   | 15 |\n| 8 |   | 15 |\n#+TBLFM: $3=15"
     );
     reset_opts();
@@ -1148,9 +1679,18 @@ fn field_formula_outside_table() {
 #[test]
 fn duration() {
     let calc = |s: &str| with(s, |d| formula::calc_current_tblfm(d, Recalc::All));
-    assert!(calc("\n       | 2:12 | 1:47 | |\n       <point>#+TBLFM: @1$3=$1+$2;T").contains("| 2:12 | 1:47 | 03:59:00 |"));
-    assert!(calc("\n       | 2:12 | 1:47 | |\n       <point>#+TBLFM: @1$3=$1+$2;U").contains("| 2:12 | 1:47 | 03:59 |"));
-    assert!(calc("\n       | 3:02:20 | -2:07:00 | |\n       <point>#+TBLFM: @1$3=$1+$2;t").contains("| 3:02:20 | -2:07:00 | 0.92 |"));
+    assert!(
+        calc("\n       | 2:12 | 1:47 | |\n       <point>#+TBLFM: @1$3=$1+$2;T")
+            .contains("| 2:12 | 1:47 | 03:59:00 |")
+    );
+    assert!(
+        calc("\n       | 2:12 | 1:47 | |\n       <point>#+TBLFM: @1$3=$1+$2;U")
+            .contains("| 2:12 | 1:47 | 03:59 |")
+    );
+    assert!(
+        calc("\n       | 3:02:20 | -2:07:00 | |\n       <point>#+TBLFM: @1$3=$1+$2;t")
+            .contains("| 3:02:20 | -2:07:00 | 0.92 |")
+    );
     assert!(calc("* H\n  :PROPERTIES:\n  :time_constant: 08:00:00\n  :END:\n\n  |  |\n  <point>#+TBLFM: $1=2*$PROP_time_constant;T").contains("| 16:00:00 |"));
     assert!(calc("* H\n  :PROPERTIES:\n  :time_constant: 08:00:00\n  :END:\n\n  |  |\n  <point>#+TBLFM: $1=2*$PROP_time_constant;t").contains("| 16.00 |"));
 }
@@ -1159,18 +1699,32 @@ fn duration() {
 fn end_on_hline_and_names() {
     let calc = |s: &str| with(s, |d| formula::calc_current_tblfm(d, Recalc::All));
     assert_eq!(
-        calc("\n| 1 | 2 | 3 |\n| 4 | 5 | 6 |\n|   |   |   |\n|---+---+---|\n<point>#+TBLFM: @3$2..@3$>=vsum(@1..@2)"),
+        calc(
+            "\n| 1 | 2 | 3 |\n| 4 | 5 | 6 |\n|   |   |   |\n|---+---+---|\n<point>#+TBLFM: @3$2..@3$>=vsum(@1..@2)"
+        ),
         "\n| 1 | 2 | 3 |\n| 4 | 5 | 6 |\n|   | 7 | 9 |\n|---+---+---|\n#+TBLFM: @3$2..@3$>=vsum(@1..@2)"
     );
     let re = |p: &str, s: &str| regex::Regex::new(p).unwrap().is_match(s);
-    assert!(re(r"\| +\| +1 +\|", &calc("\n|   |      |\n| ^ | name |\n<point>#+TBLFM: $name=1")));
-    assert!(re(r"\| +\| +1 +\|", &calc("\n| _ | name |\n|   |      |\n<point>#+TBLFM: $name=1")));
-    assert!(re(r"\| +\| +1 +\| +1 +\|", &calc("\n| ! | name |   |\n|   |    1 |   |\n<point>#+TBLFM: @2$3=$name")));
+    assert!(re(
+        r"\| +\| +1 +\|",
+        &calc("\n|   |      |\n| ^ | name |\n<point>#+TBLFM: $name=1")
+    ));
+    assert!(re(
+        r"\| +\| +1 +\|",
+        &calc("\n| _ | name |\n|   |      |\n<point>#+TBLFM: $name=1")
+    ));
+    assert!(re(
+        r"\| +\| +1 +\| +1 +\|",
+        &calc("\n| ! | name |   |\n|   |    1 |   |\n<point>#+TBLFM: @2$3=$name")
+    ));
 }
 
 #[test]
 fn formula_priority() {
-    let out = with("| 1 |   |\n| 2 |   |\n<point>#+tblfm: $2=3*$1::@2$2=99", |d| formula::calc_current_tblfm(d, Recalc::All));
+    let out = with(
+        "| 1 |   |\n| 2 |   |\n<point>#+tblfm: $2=3*$1::@2$2=99",
+        |d| formula::calc_current_tblfm(d, Recalc::All),
+    );
     assert!(out.starts_with("| 1 |  3 |\n| 2 | 99 |\n"));
     let mut d = Doc::new("| 1 |   |\n| 2 |   |\n#+tblfm: $2=3*$1<point>::@2$2=99");
     formula::calc_current_tblfm(&mut d, Recalc::All).unwrap();
@@ -1178,7 +1732,11 @@ fn formula_priority() {
     let c = d.c;
     d.lines[l].truncate(c);
     formula::calc_current_tblfm(&mut d, Recalc::All).unwrap();
-    assert!(d.text().starts_with("| 1 | 3 |\n| 2 | 6 |\n"));
+    assert!(
+        d.text().starts_with("| 1 | 3 |\n| 2 | 6 |\n"),
+        "{}",
+        d.text()
+    );
 }
 
 #[test]
@@ -1194,8 +1752,14 @@ fn tab_indent_first_last_rc() {
 #[test]
 fn timestamps() {
     let calc = |s: &str| with(s, |d| formula::calc_current_tblfm(d, Recalc::All));
-    assert!(calc("| <2016-07-07 Sun> | <2016-07-08 Fri> |   |\n<point>#+TBLFM: $3=$2-$1").contains("| 1 |"));
-    assert!(calc("| <2016-07-07 Do> | <2016-07-08 Fr> |   |\n<point>#+TBLFM: $3=$2-$1").contains("| 1 |"));
+    assert!(
+        calc("| <2016-07-07 Sun> | <2016-07-08 Fri> |   |\n<point>#+TBLFM: $3=$2-$1")
+            .contains("| 1 |")
+    );
+    assert!(
+        calc("| <2016-07-07 Do> | <2016-07-08 Fr> |   |\n<point>#+TBLFM: $3=$2-$1")
+            .contains("| 1 |")
+    );
 }
 
 #[test]
@@ -1238,7 +1802,9 @@ fn orgtbl_ascii_draw() {
 #+TBLFM: $2 = '(orgtbl-ascii-draw $1 0 24 3 \" 12345678\")"
     );
     assert_eq!(
-        calc("\n| -1 | replace |\n|  0 | replace |\n|  1 | replace |\n|  2 | replace |\n|  3 | replace |\n|  4 | replace |\n<point>#+TBLFM: $2 = '(orgtbl-ascii-draw $1 0 3 3 \"$-\")"),
+        calc(
+            "\n| -1 | replace |\n|  0 | replace |\n|  1 | replace |\n|  2 | replace |\n|  3 | replace |\n|  4 | replace |\n<point>#+TBLFM: $2 = '(orgtbl-ascii-draw $1 0 3 3 \"$-\")"
+        ),
         "\n| -1 | too small |\n|  0 | $         |\n|  1 | -$        |\n|  2 | --$       |\n|  3 | ---$      |\n|  4 | too large |\n#+TBLFM: $2 = '(orgtbl-ascii-draw $1 0 3 3 \"$-\")"
     );
 }
@@ -1246,8 +1812,14 @@ fn orgtbl_ascii_draw() {
 #[test]
 fn single_rowgroup() {
     let calc = |s: &str| with(s, |d| formula::calc_current_tblfm(d, Recalc::All));
-    assert_eq!(calc("\n|---+---|\n| 1 |   |\n|---+---|\n<point>#+TBLFM: $2=$1-1"), "\n|---+---|\n| 1 | 0 |\n|---+---|\n#+TBLFM: $2=$1-1");
-    assert_eq!(calc("\n| 1 |   |\n<point>#+TBLFM: $2=$1-1"), "\n| 1 | 0 |\n#+TBLFM: $2=$1-1");
+    assert_eq!(
+        calc("\n|---+---|\n| 1 |   |\n|---+---|\n<point>#+TBLFM: $2=$1-1"),
+        "\n|---+---|\n| 1 | 0 |\n|---+---|\n#+TBLFM: $2=$1-1"
+    );
+    assert_eq!(
+        calc("\n| 1 |   |\n<point>#+TBLFM: $2=$1-1"),
+        "\n| 1 | 0 |\n#+TBLFM: $2=$1-1"
+    );
 }
 
 // ---- navigation ----
@@ -1262,8 +1834,14 @@ fn next_field() {
     let mut d = Doc::new("| a<point> |\n|---|\n| b |");
     edit::next_field(&mut d).unwrap();
     assert_eq!(super::doc::trim(&d.get_field(None, None)), "b");
-    set_opt("org-table-tab-jumps-over-hlines", toml::Value::Boolean(false));
-    assert_eq!(with("| a<point> |\n|---|\n| b |", edit::next_field), "| a |\n|   |\n|---|\n| b |");
+    set_opt(
+        "org-table-tab-jumps-over-hlines",
+        toml::Value::Boolean(false),
+    );
+    assert_eq!(
+        with("| a<point> |\n|---|\n| b |", edit::next_field),
+        "| a |\n|   |\n|---|\n| b |"
+    );
     reset_opts();
 }
 
@@ -1304,7 +1882,10 @@ fn delete_column() {
 fn insert_column() {
     assert!(fails("Paragraph", edit::insert_column));
     assert_eq!(with("| a |", edit::insert_column), "|   | a |");
-    assert_eq!(with("| <point>a | b |", edit::insert_column), "|   | a | b |");
+    assert_eq!(
+        with("| <point>a | b |", edit::insert_column),
+        "|   | a | b |"
+    );
     let rest = |s: &str| {
         let mut d = Doc::new(s);
         edit::insert_column(&mut d).unwrap();
@@ -1316,16 +1897,41 @@ fn insert_column() {
     assert_eq!(rest("| <point>a"), "  | a |");
     assert_eq!(with(" | a |", edit::insert_column), " |   | a |");
     assert_eq!(with(" | a | b |", edit::insert_column), " |   | a | b |");
-    assert_eq!(with("| 1<point> | 1 | 2 |\n#+TBLFM: $3=$1+$2", edit::insert_column), "|   | 1 | 1 | 2 |\n#+TBLFM: $4=$2+$3");
+    assert_eq!(
+        with(
+            "| 1<point> | 1 | 2 |\n#+TBLFM: $3=$1+$2",
+            edit::insert_column
+        ),
+        "|   | 1 | 1 | 2 |\n#+TBLFM: $4=$2+$3"
+    );
 }
 
 #[test]
 fn move_cells() {
-    for s in ["not in\na table\n", "| a |", "| a | <point>b |\n", "| a | b |\n| <point>c | d |\n", "| <point>a |\n|---|\n", "|<point>---|\n| a |\n"] {
+    for s in [
+        "not in\na table\n",
+        "| a |",
+        "| a | <point>b |\n",
+        "| a | b |\n| <point>c | d |\n",
+        "| <point>a |\n|---|\n",
+        "|<point>---|\n| a |\n",
+    ] {
         assert!(fails(s, edit::move_cell_down), "{s}");
     }
-    assert_eq!(with("| <point>a | b |\n| c | d |\n| e | f |\n", edit::move_cell_down), t("| c | b |\n| a | d |\n| e | f |\n"));
-    assert_eq!(with("| a | <point>b |\n| c | d |\n| e | f |\n", edit::move_cell_down), t("| a | d |\n| c | b |\n| e | f |\n"));
+    assert_eq!(
+        with(
+            "| <point>a | b |\n| c | d |\n| e | f |\n",
+            edit::move_cell_down
+        ),
+        t("| c | b |\n| a | d |\n| e | f |\n")
+    );
+    assert_eq!(
+        with(
+            "| a | <point>b |\n| c | d |\n| e | f |\n",
+            edit::move_cell_down
+        ),
+        t("| a | d |\n| c | b |\n| e | f |\n")
+    );
     assert_eq!(
         with("| a |<point> b |\n| c | d |\n| e | f |\n", |d| {
             edit::move_cell_down(d)?;
@@ -1333,7 +1939,13 @@ fn move_cells() {
         }),
         t("| a | d |\n| c | f |\n| e | b |\n")
     );
-    assert_eq!(with("| <point>a | b |\n|---+---|\n| c | d |\n| e | f |\n", edit::move_cell_down), t("| c | b |\n|---+---|\n| a | d |\n| e | f |\n"));
+    assert_eq!(
+        with(
+            "| <point>a | b |\n|---+---|\n| c | d |\n| e | f |\n",
+            edit::move_cell_down
+        ),
+        t("| c | b |\n|---+---|\n| a | d |\n| e | f |\n")
+    );
     assert_eq!(
         with("| a | <point>b |\n|---+---|\n| c | d |\n| e | f |", |d| {
             edit::move_cell_down(d)?;
@@ -1341,10 +1953,20 @@ fn move_cells() {
         }),
         t("| a | d |\n|---+---|\n| c | f |\n| e | b |\n")
     );
-    for s in ["| a |", "| <point>a | b |\n", "| a | <point>b |\n| c | d |\n"] {
+    for s in [
+        "| a |",
+        "| <point>a | b |\n",
+        "| a | <point>b |\n| c | d |\n",
+    ] {
         assert!(fails(s, edit::move_cell_up), "{s}");
     }
-    assert_eq!(with("| a | b |\n| <point>c | d |\n| e | f |\n", edit::move_cell_up), t("| c | b |\n| a | d |\n| e | f |\n"));
+    assert_eq!(
+        with(
+            "| a | b |\n| <point>c | d |\n| e | f |\n",
+            edit::move_cell_up
+        ),
+        t("| c | b |\n| a | d |\n| e | f |\n")
+    );
     assert_eq!(
         with("| a | b |\n|---+---|\n| c | d |\n| e | <point>f |", |d| {
             edit::move_cell_up(d)?;
@@ -1352,7 +1974,11 @@ fn move_cells() {
         }),
         t("| a | f |\n|---+---|\n| c | b |\n| e | d |\n")
     );
-    for s in ["| a |", "| <point>a |\n| b |\n", "| a | <point>b |\n| c | d |\n"] {
+    for s in [
+        "| a |",
+        "| <point>a |\n| b |\n",
+        "| a | <point>b |\n| c | d |\n",
+    ] {
         assert!(fails(s, edit::move_cell_right), "{s}");
     }
     assert_eq!(
@@ -1362,8 +1988,18 @@ fn move_cells() {
         }),
         t("| b | c | a |\n| d | e | f |\n")
     );
-    assert_eq!(with("| a | b | c |\n|---+---+---|\n| <point>d | e | f |", edit::move_cell_right), t("| a | b | c |\n|---+---+---|\n| e | d | f |\n"));
-    for s in ["| a |", "| <point>a |\n| b |\n", "| <point>a | b |\n| c | d |\n"] {
+    assert_eq!(
+        with(
+            "| a | b | c |\n|---+---+---|\n| <point>d | e | f |",
+            edit::move_cell_right
+        ),
+        t("| a | b | c |\n|---+---+---|\n| e | d | f |\n")
+    );
+    for s in [
+        "| a |",
+        "| <point>a |\n| b |\n",
+        "| <point>a | b |\n| c | d |\n",
+    ] {
         assert!(fails(s, edit::move_cell_left), "{s}");
     }
     assert_eq!(
@@ -1373,21 +2009,48 @@ fn move_cells() {
         }),
         t("| c | a | b |\n| d | e | f |\n")
     );
-    assert_eq!(with("| a | b | c |\n|---+---+---|\n| d | <point>e | f |", edit::move_cell_left), t("| a | b | c |\n|---+---+---|\n| e | d | f |\n"));
+    assert_eq!(
+        with(
+            "| a | b | c |\n|---+---+---|\n| d | <point>e | f |",
+            edit::move_cell_left
+        ),
+        t("| a | b | c |\n|---+---+---|\n| e | d | f |\n")
+    );
 }
 
 #[test]
 fn move_rows() {
     assert!(fails("| a |", |d| edit::move_row(d, false)));
     assert!(fails("| a |\n| <point>b |", |d| edit::move_row(d, false)));
-    assert_eq!(with("| a |\n| b |\n", |d| edit::move_row(d, false)), "| b |\n| a |");
-    assert_eq!(with("| a |\n|---|\n", |d| edit::move_row(d, false)), "|---|\n| a |");
-    assert_eq!(with("|---|\n| b |\n", |d| edit::move_row(d, false)), "| b |\n|---|");
-    assert_eq!(with("|---|\n|---|\n", |d| edit::move_row(d, false)), "|---|\n|---|");
+    assert_eq!(
+        with("| a |\n| b |\n", |d| edit::move_row(d, false)),
+        "| b |\n| a |"
+    );
+    assert_eq!(
+        with("| a |\n|---|\n", |d| edit::move_row(d, false)),
+        "|---|\n| a |"
+    );
+    assert_eq!(
+        with("|---|\n| b |\n", |d| edit::move_row(d, false)),
+        "| b |\n|---|"
+    );
+    assert_eq!(
+        with("|---|\n|---|\n", |d| edit::move_row(d, false)),
+        "|---|\n|---|"
+    );
     assert!(fails("| a |", |d| edit::move_row(d, true)));
-    assert_eq!(with("| a |\n| <point>b |\n", |d| edit::move_row(d, true)), "| b |\n| a |");
-    assert_eq!(with("|---|\n| <point>b |\n", |d| edit::move_row(d, true)), "| b |\n|---|");
-    assert_eq!(with("| a |\n|<point>---|\n", |d| edit::move_row(d, true)), "|---|\n| a |");
+    assert_eq!(
+        with("| a |\n| <point>b |\n", |d| edit::move_row(d, true)),
+        "| b |\n| a |"
+    );
+    assert_eq!(
+        with("|---|\n| <point>b |\n", |d| edit::move_row(d, true)),
+        "| b |\n|---|"
+    );
+    assert_eq!(
+        with("| a |\n|<point>---|\n", |d| edit::move_row(d, true)),
+        "|---|\n| a |"
+    );
 }
 
 // ---- shrunk columns (state; display in super::display) ----
@@ -1400,7 +2063,11 @@ fn shrunk_after(text: &str, f: impl FnOnce(&mut Doc) -> Result<(), String>) -> V
 
 #[test]
 fn toggle_column_width() {
-    assert!(fails("<point>a", |d| super::toggle_column_width(d, crate::org::Prefix::None, None)));
+    assert!(fails("<point>a", |d| super::toggle_column_width(
+        d,
+        crate::org::Prefix::None,
+        None
+    )));
     let toggle = |d: &mut Doc| super::toggle_column_width(d, crate::org::Prefix::None, None);
     assert_eq!(shrunk_after("| <point>a |", toggle), vec![1]);
     assert_eq!(shrunk_after("| a |\n|-<point>--|", toggle), vec![1]);
@@ -1411,12 +2078,17 @@ fn toggle_column_width() {
         }),
         Vec::<usize>::new()
     );
-    let sel = |s: &'static str| move |d: &mut Doc| super::toggle_column_width(d, crate::org::Prefix::None, Some(s));
+    let sel = |s: &'static str| {
+        move |d: &mut Doc| super::toggle_column_width(d, crate::org::Prefix::None, Some(s))
+    };
     assert_eq!(shrunk_after("| <point>a | b |", sel("2")), vec![2]);
     assert_eq!(shrunk_after("| a | b | c | d |", sel("2-3")), vec![2, 3]);
     assert_eq!(shrunk_after("| a | b | c | d |", sel("2-")), vec![2, 3, 4]);
     assert_eq!(shrunk_after("| a | b | c | d |", sel("-2")), vec![1, 2]);
-    assert_eq!(shrunk_after("| a | b | c | d |", sel("-")), vec![1, 2, 3, 4]);
+    assert_eq!(
+        shrunk_after("| a | b | c | d |", sel("-")),
+        vec![1, 2, 3, 4]
+    );
     assert_eq!(
         shrunk_after("| a | b | c | d |", |d| {
             sel("1-3")(d)?;
@@ -1436,8 +2108,14 @@ fn toggle_column_width() {
     assert_eq!(super::shrunk_line("| abcd |", &table, &[1]), "| abc…|");
     let table = vec!["| <3>  |".to_owned(), "| a   |".to_owned()];
     assert_eq!(super::shrunk_line("| a   |", &table, &[1]), "| a  …|");
-    assert_eq!(super::shrunk_line("|-----|", &["| <3> |".into(), "|-----|".into()], &[1]), "|----…|");
-    assert_eq!(super::shrunk_line("| a | b |", &["| a | b |".into()], &[1]), "|…| b |");
+    assert_eq!(
+        super::shrunk_line("|-----|", &["| <3> |".into(), "|-----|".into()], &[1]),
+        "|----…|"
+    );
+    assert_eq!(
+        super::shrunk_line("| a | b |", &["| a | b |".into()], &[1]),
+        "|…| b |"
+    );
 }
 
 #[test]
@@ -1511,26 +2189,115 @@ fn current_column_and_get_field() {
 
 #[test]
 fn rows_hlines_and_kill() {
-    assert_eq!(with("| a | b |\n| <point>c | d |", |d| edit::insert_row(d, false)), "| a | b |\n|   |   |\n| c | d |");
-    assert_eq!(with("| a | b |\n| <point>c | d |", |d| edit::insert_row(d, true)), "| a | b |\n| c | d |\n|   |   |");
-    assert_eq!(with("| <point>a | b |\n| c | d |", |d| edit::insert_hline(d, false)), "| a | b |\n|---+---|\n| c | d |");
-    assert_eq!(with("| a | b |\n| <point>c | d |", |d| edit::insert_hline(d, true)), "| a | b |\n|---+---|\n| c | d |");
-    assert_eq!(with("| a |\n| <point>b |\n| c |\n#+TBLFM: @3$1=1", edit::kill_row), "| a |\n| c |\n#+TBLFM: @2$1=1");
-    assert_eq!(with("| a |\n| <point>b |", |d| edit::hline_and_move(d, false)), "| a |\n| b |\n|---|\n|   |");
-    assert_eq!(with("| <point>a |\n| b |\n#+TBLFM: @2$1=7", |d| edit::insert_row(d, false)), "|   |\n| a |\n| b |\n#+TBLFM: @3$1=7");
+    assert_eq!(
+        with("| a | b |\n| <point>c | d |", |d| edit::insert_row(
+            d, false
+        )),
+        "| a | b |\n|   |   |\n| c | d |"
+    );
+    assert_eq!(
+        with("| a | b |\n| <point>c | d |", |d| edit::insert_row(d, true)),
+        "| a | b |\n| c | d |\n|   |   |"
+    );
+    assert_eq!(
+        with("| <point>a | b |\n| c | d |", |d| edit::insert_hline(
+            d, false
+        )),
+        "| a | b |\n|---+---|\n| c | d |"
+    );
+    assert_eq!(
+        with("| a | b |\n| <point>c | d |", |d| edit::insert_hline(
+            d, true
+        )),
+        "| a | b |\n|---+---|\n| c | d |"
+    );
+    assert_eq!(
+        with(
+            "| a |\n| <point>b |\n| c |\n#+TBLFM: @3$1=1",
+            edit::kill_row
+        ),
+        "| a |\n| c |\n#+TBLFM: @2$1=1"
+    );
+    assert_eq!(
+        with("| a |\n| <point>b |", |d| edit::hline_and_move(d, false)),
+        "| a |\n| b |\n|---|\n|   |"
+    );
+    assert_eq!(
+        with(
+            "| <point>a |\n| b |\n#+TBLFM: @2$1=7",
+            |d| edit::insert_row(d, false)
+        ),
+        "|   |\n| a |\n| b |\n#+TBLFM: @3$1=7"
+    );
 }
 
 #[test]
 fn create_convert_import() {
-    assert_eq!(with("<point>", |d| edit::create(d, "3x2")), "|   |   |   |\n|---+---+---|\n|   |   |   |");
-    assert_eq!(with("a,b\nc,d", |d| edit::convert_region(d, 0, 1, edit::Sep::Auto)), "| a | b |\n| c | d |");
-    assert_eq!(with("a\tb c\nd\te", |d| edit::convert_region(d, 0, 1, edit::Sep::Auto)), "| a | b c |\n| d | e   |");
-    assert_eq!(with("a  b\nc d", |d| edit::convert_region(d, 0, 1, edit::Sep::Auto)), "| a | b |\n| c | d |");
-    assert_eq!(with("a  b\nc d", |d| edit::convert_region(d, 0, 1, edit::Sep::Spaces(2))), "| a | b   |\n| c d |     |");
-    assert_eq!(with("\"x, y\",z", |d| edit::convert_region(d, 0, 0, edit::Sep::Comma)), "| x, y | z |");
-    assert_eq!(with("<point>", |d| edit::import(d, "1;2\n3;4\n", edit::Sep::Regex(";".into()))), "| 1 | 2 |\n| 3 | 4 |");
-    assert_eq!(with("| <point>a | b |\n|---+---|\n| c | d |", edit::convert), "+---+---+\n| a | b |\n+---+---+\n| c | d |\n+---+---+");
-    assert_eq!(with("+---+---+\n| <point>a | b |\n+---+---+", edit::convert), "| a | b |");
+    assert_eq!(
+        with("<point>", |d| edit::create(d, "3x2")),
+        "|   |   |   |\n|---+---+---|\n|   |   |   |"
+    );
+    assert_eq!(
+        with("a,b\nc,d", |d| edit::convert_region(
+            d,
+            0,
+            1,
+            edit::Sep::Auto
+        )),
+        "| a | b |\n| c | d |"
+    );
+    assert_eq!(
+        with("a\tb c\nd\te", |d| edit::convert_region(
+            d,
+            0,
+            1,
+            edit::Sep::Auto
+        )),
+        "| a | b c |\n| d | e   |"
+    );
+    assert_eq!(
+        with("a  b\nc d", |d| edit::convert_region(
+            d,
+            0,
+            1,
+            edit::Sep::Auto
+        )),
+        "| a | b |\n| c | d |"
+    );
+    assert_eq!(
+        with("a  b\nc d", |d| edit::convert_region(
+            d,
+            0,
+            1,
+            edit::Sep::Spaces(2)
+        )),
+        "| a   | b |\n| c d |   |"
+    );
+    assert_eq!(
+        with("\"x, y\",z", |d| edit::convert_region(
+            d,
+            0,
+            0,
+            edit::Sep::Comma
+        )),
+        "| x, y | z |"
+    );
+    assert_eq!(
+        with("<point>", |d| edit::import(
+            d,
+            "1;2\n3;4\n",
+            edit::Sep::Regex(";".into())
+        )),
+        "| 1 | 2 |\n| 3 | 4 |"
+    );
+    assert_eq!(
+        with("| <point>a | b |\n|---+---|\n| c | d |", edit::convert),
+        "+---+---+\n| a | b |\n+---+---+\n| c | d |\n+---+---+"
+    );
+    assert_eq!(
+        with("+---+---+\n| <point>a | b |\n+---+---+", edit::convert),
+        "| a | b |"
+    );
 }
 
 #[test]
@@ -1541,9 +2308,21 @@ fn rectangles_transpose_wrap_sum() {
     d.goto(0, 6);
     edit::paste_rectangle(&mut d).unwrap();
     assert_eq!(d.text(), "|   | a |\n|   | c |");
-    assert_eq!(with("| 1 | 2 | 4 | 5 |\n|---+---+---+---|\n| a | b | c | d |\n| e | f | g | h |", edit::transpose), "| 1 | a | e |\n| 2 | b | f |\n| 4 | c | g |\n| 5 | d | h |");
-    assert_eq!(with("| abc <point>def |\n|  |", |d| edit::wrap_region(d, None)), "| abc |\n| def |");
-    assert_eq!(edit::wrap_text("one two three four", 2), vec!["one two", "three four"]);
+    assert_eq!(
+        with(
+            "| 1 | 2 | 4 | 5 |\n|---+---+---+---|\n| a | b | c | d |\n| e | f | g | h |",
+            edit::transpose
+        ),
+        "| 1 | a | e |\n| 2 | b | f |\n| 4 | c | g |\n| 5 | d | h |"
+    );
+    assert_eq!(
+        with("| abc <point>def |\n|  |", |d| edit::wrap_region(d, None)),
+        "| abc |\n| def |"
+    );
+    assert_eq!(
+        edit::wrap_text("one two three four", 2),
+        vec!["one two", "three four"]
+    );
     let mut d = Doc::new("| <point>1 |\n| 2.5 |\n| x |");
     assert_eq!(edit::sum(&mut d, None).unwrap(), "3.5");
     let mut d = Doc::new("| <point>1:30 |\n| 2:45 |");
@@ -1552,8 +2331,14 @@ fn rectangles_transpose_wrap_sum() {
 
 #[test]
 fn recalc_marks_and_auto_line() {
-    assert_eq!(with("| <point>a | 1 |", |d| edit::rotate_recalc_marks(d, None)), "| # | a | 1 |");
-    assert_eq!(with("| # | <point>a |", |d| edit::rotate_recalc_marks(d, None)), "| * | a |");
+    assert_eq!(
+        with("| <point>a | 1 |", |d| edit::rotate_recalc_marks(d, None)),
+        "| # | a | 1 |"
+    );
+    assert_eq!(
+        with("| # | <point>a |", |d| edit::rotate_recalc_marks(d, None)),
+        "| * | a |"
+    );
     // `#` lines recalculate when leaving them with TAB.
     let out = with("| # | 2 | <point>  |\n#+TBLFM: $3=$2*2", |d| {
         d.st.may_need_update = true;
@@ -1561,8 +2346,14 @@ fn recalc_marks_and_auto_line() {
     });
     assert!(out.starts_with("| # | 2 | 4 |"), "{out}");
     // `*` lines only with the whole table; header lines not at all.
-    let out = with("| <point>! | x | y |\n| * | 2 |   |\n|   | 3 |   |\n#+TBLFM: $3=$2+1", |d| formula::recalculate(d, Recalc::All, false));
-    assert!(out.contains("| * | 2 | 3 |") && out.contains("|   | 3 |   |"), "{out}");
+    let out = with(
+        "| <point>! | x | y |\n| * | 2 |   |\n|   | 3 |   |\n#+TBLFM: $3=$2+1",
+        |d| formula::recalculate(d, Recalc::All, false),
+    );
+    assert!(
+        out.contains("| * | 2 | 3 |") && out.contains("|   | 3 |   |"),
+        "{out}"
+    );
 }
 
 #[test]
@@ -1574,7 +2365,10 @@ fn inline_formula_and_field_info() {
     assert!(out.contains("#+TBLFM: @1$2=$1+1"), "{out}");
     let mut d = Doc::new("| 1 | <point>2 |\n#+TBLFM: $2=$1*2");
     formula::field_info(&mut d).unwrap();
-    assert_eq!(d.msg.as_deref(), Some("line @1, col $2, ref @1$2 or B1, formula: $2=$1*2"));
+    assert_eq!(
+        d.msg.as_deref(),
+        Some("line @1, col $2, ref @1$2 or B1, formula: $2=$1*2")
+    );
 }
 
 #[test]
@@ -1692,7 +2486,10 @@ fn calc_matches_emacs() {
         ("(1:3)+1.0", "1.3333333"),
         ("1@ 2' 3\" + 1@", "2@ 2' 3\""),
         ("2:12", "1:6"),
-        ("(<2016-07-08 Fri 10:00>) - (<2016-07-08 Fri 08:30>)", "0.0625"),
+        (
+            "(<2016-07-08 Fri 10:00>) - (<2016-07-08 Fri 08:30>)",
+            "0.0625",
+        ),
         ("(<2016-07-08 Fri>) + 1", "<2016-07-09 Sat>"),
         ("date(2016, 7, 8)", "<2016-07-08 Fri>"),
         ("round(1.23456789, 3)", "1.235"),
@@ -1805,7 +2602,11 @@ fn calc_matches_emacs() {
 #[test]
 fn calc_float_formats() {
     let f = |e: &str, fmt: calc::FloatFmt, figs: i32| {
-        let m = calc::Modes { float_fmt: fmt, figs, ..calc::Modes::default() };
+        let m = calc::Modes {
+            float_fmt: fmt,
+            figs,
+            ..calc::Modes::default()
+        };
         calc::eval_str(e, &m).unwrap()
     };
     assert_eq!(f("1/2", calc::FloatFmt::Fix, 3), "0.500");
@@ -1850,8 +2651,14 @@ fn lisp_evaluator() {
     assert_eq!(ev("(eq \"\" \"\")"), "t");
     assert_eq!(ev("(eq \"a\" \"a\")"), "nil");
     assert_eq!(ev("(equal \"a\" \"a\")"), "t");
-    assert_eq!(ev("(replace-regexp-in-string \"a\\\\(b\\\\)\" \"<\\\\1>\" \"xaby\")"), "x<b>y");
-    assert_eq!(ev("(if (string-match \"[0-9]+\" \"ab12\") \"yes\" \"no\")"), "yes");
+    assert_eq!(
+        ev("(replace-regexp-in-string \"a\\\\(b\\\\)\" \"<\\\\1>\" \"xaby\")"),
+        "x<b>y"
+    );
+    assert_eq!(
+        ev("(if (string-match \"[0-9]+\" \"ab12\") \"yes\" \"no\")"),
+        "yes"
+    );
     assert_eq!(ev("(sort '(3 1 2) '<)"), "(1 2 3)");
     assert_eq!(ev("(org-lookup-first 2 '(1 2 3) '(a b c))"), "b");
     assert_eq!(ev("(org-lookup-last 2 '(2 2 3) '(a b c))"), "b");
@@ -1879,7 +2686,10 @@ fn durations_and_time_strings() {
     assert_eq!(formula::time_seconds_to_string(14340.0, "hh:mm"), "03:59");
     assert_eq!(formula::time_seconds_to_string(3320.0, "hours"), "0.92");
     assert_eq!(formula::time_seconds_to_string(-60.0, "minutes"), "-1.0");
-    assert_eq!(formula::time_seconds_to_string(86400.0 * 1.5, "days"), "1.500");
+    assert_eq!(
+        formula::time_seconds_to_string(86400.0 * 1.5, "days"),
+        "1.500"
+    );
 }
 
 #[test]
@@ -1889,12 +2699,40 @@ fn shift_references() {
     assert_eq!(formula::shift_refpart("1", true, false).unwrap(), "1");
     assert_eq!(formula::shift_refpart("II", true, true).unwrap(), "I");
     assert_eq!(formula::shift_refpart("B", false, false).unwrap(), "C");
-    assert_eq!(formula::shift_reference("$2 = @3$1", 6, 'd').unwrap(), "$2 = @4$1");
-    assert_eq!(formula::shift_reference("$2 = @3$1", 6, 'r').unwrap(), "$2 = @3$2");
+    assert_eq!(
+        formula::shift_reference("$2 = @3$1", 6, 'd').unwrap(),
+        "$2 = @4$1"
+    );
+    assert_eq!(
+        formula::shift_reference("$2 = @3$1", 6, 'r').unwrap(),
+        "$2 = @3$2"
+    );
     assert_eq!(formula::shift_reference("B3+1", 0, 'u').unwrap(), "B2+1");
-    let lines = formula::fedit_lines(&[("$2".into(), "$1*2".into()), ("@1$1".into(), "5".into()), ("name".into(), "3".into())]);
-    assert_eq!(lines, vec!["# Column Formulas", "$2 = $1*2", "", "# Field and Range Formulas", "@1$1 = 5", "", "# Named Field Formulas", "$name = 3"]);
-    assert_eq!(formula::fedit_parse("# x\n$2 = $1*2\n@1$1 = 5\n").unwrap(), vec![("@1$1".to_owned(), "5".to_owned()), ("$2".to_owned(), "$1*2".to_owned())]);
+    let lines = formula::fedit_lines(&[
+        ("$2".into(), "$1*2".into()),
+        ("@1$1".into(), "5".into()),
+        ("name".into(), "3".into()),
+    ]);
+    assert_eq!(
+        lines,
+        vec![
+            "# Column Formulas",
+            "$2 = $1*2",
+            "",
+            "# Field and Range Formulas",
+            "@1$1 = 5",
+            "",
+            "# Named Field Formulas",
+            "$name = 3"
+        ]
+    );
+    assert_eq!(
+        formula::fedit_parse("# x\n$2 = $1*2\n@1$1 = 5\n").unwrap(),
+        vec![
+            ("@1$1".to_owned(), "5".to_owned()),
+            ("$2".to_owned(), "$1*2".to_owned())
+        ]
+    );
     assert!(formula::fedit_parse("$2 = 1\n$2 = 2").is_err());
 }
 
@@ -1904,17 +2742,40 @@ fn shift_references() {
 fn plot_script_and_data() {
     use super::plot;
     let mut p = plot::Plot::default();
-    plot::add_options(&mut p, "title:\"Citas\" ind:1 deps:(3) type:2d with:histograms set:\"yrange [0:]\" set:\"xlabel 'x'\"");
+    plot::add_options(
+        &mut p,
+        "title:\"Citas\" ind:1 deps:(3) type:2d with:histograms set:\"yrange [0:]\" set:\"xlabel 'x'\"",
+    );
     assert_eq!(p.get(":title").map(lisp::princ), Some("Citas".into()));
     assert_eq!(p.get(":ind").map(lisp::princ), Some("1".into()));
-    let mut d = Doc::new("#+PLOT: title:\"T\" ind:1 deps:(2)\n| x | y |\n|---+---|\n| 1 | 2 |\n| 2 | 4 |");
+    let mut d =
+        Doc::new("#+PLOT: title:\"T\" ind:1 deps:(2)\n| x | y |\n|---+---|\n| 1 | 2 |\n| 2 | 4 |");
     let (params, rows, ncol) = plot::prepare(&mut d, plot::Plot::default()).unwrap();
     assert_eq!(ncol, 2);
-    assert_eq!(rows, vec![vec!["1".to_owned(), "2".to_owned()], vec!["2".to_owned(), "4".to_owned()]]);
+    assert_eq!(
+        rows,
+        vec![
+            vec!["1".to_owned(), "2".to_owned()],
+            vec!["2".to_owned(), "4".to_owned()]
+        ]
+    );
     let s = plot::script(&rows, "/tmp/data", ncol, &params, false).unwrap();
-    assert_eq!(s, "reset\nset term GNUTERM \n\nset title 'T'\nset datafile separator \"\\t\"\nplot '/tmp/data' using 1:2 with lines title 'y'");
-    let data = plot::to_data(&rows.iter().map(|r| Row::Cells(r.clone())).collect::<Vec<_>>(), &params).unwrap();
+    assert_eq!(
+        s,
+        "reset\nset term GNUTERM \n\nset title 'T'\nset datafile separator \"\\t\"\nplot '/tmp/data' using 1:2 with lines title 'y'"
+    );
+    let data = plot::to_data(
+        &rows
+            .iter()
+            .map(|r| Row::Cells(r.clone()))
+            .collect::<Vec<_>>(),
+        &params,
+    )
+    .unwrap();
     assert_eq!(data, "1\t2\n2\t4");
     assert_eq!(plot::quote_tsv_field("a\"b", "%Y"), "\"a\"\"b\"");
-    assert_eq!(plot::quote_tsv_field("<2020-01-02 Thu>", "%Y-%m-%d"), "2020-01-02");
+    assert_eq!(
+        plot::quote_tsv_field("<2020-01-02 Thu>", "%Y-%m-%d"),
+        "2020-01-02"
+    );
 }

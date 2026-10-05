@@ -1,7 +1,9 @@
 //! Navigation and structure editing (org-table.el, "Navigation and
 //! Structure Editing" and "Create, Import, and Convert Tables").
 
-use super::doc::{Doc, Row, clean_line, is_dataline, is_hline, is_table_line, lazy_re, nw, re, trim, width};
+use super::doc::{
+    Doc, Row, clean_line, is_dataline, is_hline, is_table_line, lazy_re, nw, re, trim, width,
+};
 use super::formula::{fix_formulas, maybe_eval_formula, maybe_recalculate_line};
 use super::{opt_bool, opt_int, opt_string};
 use regex::Regex;
@@ -186,6 +188,15 @@ pub fn next_row(d: &mut Doc) -> R {
         d.align();
     }
     let col = d.current_column();
+    if d.l + 1 >= d.n() {
+        insert_row(d, true)?;
+        d.goto_column(col, false, false);
+        d.skip_back(|c| c != '|');
+        if d.rest().starts_with(' ') {
+            d.forward_char(1);
+        }
+        return Ok(());
+    }
     forward_line_or_create(d);
     if !d.at_table() || d.at_hline() {
         d.forward_line(-1);
@@ -279,7 +290,12 @@ pub fn insert_column(d: &mut Doc) -> R {
     d.goto(l0, c0);
     d.goto_column(col, false, false);
     d.align();
-    d.set_shrunk(shrunk.into_iter().map(|c| if c < col { c } else { c + 1 }).collect());
+    d.set_shrunk(
+        shrunk
+            .into_iter()
+            .map(|c| if c < col { c } else { c + 1 })
+            .collect(),
+    );
     if fix_confirm() {
         fix_formulas(d, '$', &[], Some(col - 1), 1, None)?;
     }
@@ -339,7 +355,9 @@ fn move_cell(d: &mut Doc, dr: i64, dc: i64) -> R {
         return Err("No table at point".into());
     }
     let (beg, end) = (d.table_begin(), d.table_end());
-    let ncol = (beg..end).find(|&l| is_dataline(&d.lines[l])).map_or(0, |l| ncol_of(&d.lines[l]));
+    let ncol = (beg..end)
+        .find(|&l| is_dataline(&d.lines[l]))
+        .map_or(0, |l| ncol_of(&d.lines[l]));
     let nrow = (beg..end).filter(|&l| is_dataline(&d.lines[l])).count();
     let row = d.current_line_index() as i64;
     let col = d.current_column() as i64;
@@ -409,9 +427,21 @@ pub fn delete_column(d: &mut Doc) -> R {
     d.goto(line0, 0);
     d.goto_column(col, false, false);
     d.align();
-    d.set_shrunk(shrunk.into_iter().map(|c| if c < col { c } else { c - 1 }).collect());
+    d.set_shrunk(
+        shrunk
+            .into_iter()
+            .map(|c| if c < col { c } else { c - 1 })
+            .collect(),
+    );
     if fix_confirm() {
-        fix_formulas(d, '$', &[(col.to_string(), "INVALID".into())], Some(col), -1, Some(col))?;
+        fix_formulas(
+            d,
+            '$',
+            &[(col.to_string(), "INVALID".into())],
+            Some(col),
+            -1,
+            Some(col),
+        )?;
     }
     Ok(())
 }
@@ -605,17 +635,30 @@ pub fn kill_row(d: &mut Doc) -> R {
     if let Some(dl) = dline
         && fix_confirm()
     {
-        fix_formulas(d, '@', &[(dl.to_string(), "INVALID".into())], Some(dl), -1, Some(dl))?;
+        fix_formulas(
+            d,
+            '@',
+            &[(dl.to_string(), "INVALID".into())],
+            Some(dl),
+            -1,
+            Some(dl),
+        )?;
     }
     Ok(())
 }
 
 // ---- copy down ----
 
-lazy_re!(LISP_NUMBER, r"^[+-]?([0-9]+\.?|[0-9]*\.[0-9]+)([eE]([+-]?[0-9]+)?)?$");
+lazy_re!(
+    LISP_NUMBER,
+    r"^[+-]?([0-9]+\.?|[0-9]*\.[0-9]+)([eE]([+-]?[0-9]+)?)?$"
+);
 lazy_re!(NUM_PREFIX, r"^[0-9]+");
 lazy_re!(NUM_SUFFIX, r"[0-9]+$");
-lazy_re!(TS3, r"[\[<]([0-9]{4})-([0-9]{2})-([0-9]{2})( +[^]>\s0-9+-]+)?");
+lazy_re!(
+    TS3,
+    r"[\[<]([0-9]{4})-([0-9]{2})-([0-9]{2})( +[^]>\s0-9+-]+)?"
+);
 
 #[derive(Debug, PartialEq)]
 enum Inc {
@@ -681,7 +724,11 @@ pub fn increment_field(field: &str, previous: Option<&str>) -> String {
 
 fn ts_days(s: &str) -> Option<i64> {
     let m = TS3.captures(s)?;
-    Some(super::days_from_civil(m[1].parse().ok()?, m[2].parse().ok()?, m[3].parse().ok()?))
+    Some(super::days_from_civil(
+        m[1].parse().ok()?,
+        m[2].parse().ok()?,
+        m[3].parse().ok()?,
+    ))
 }
 
 /// org-timestamp-up-day on the first timestamp of `s`.
@@ -861,8 +908,14 @@ pub fn paste_rectangle(d: &mut Doc) -> R {
 pub fn create(d: &mut Doc, size: &str) -> R {
     static SEP: LazyLock<Regex> = LazyLock::new(|| re(r" *x *"));
     let split = split_string(size, &SEP);
-    let rows: usize = split.get(1).and_then(|s| s.trim().parse().ok()).unwrap_or(0);
-    let columns: usize = split.first().and_then(|s| s.trim().parse().ok()).unwrap_or(0);
+    let rows: usize = split
+        .get(1)
+        .and_then(|s| s.trim().parse().ok())
+        .unwrap_or(0);
+    let columns: usize = split
+        .first()
+        .and_then(|s| s.trim().parse().ok())
+        .unwrap_or(0);
     let indent = " ".repeat(d.current_col());
     let line = format!("{indent}|{}", "  |".repeat(columns));
     let (pos_l, pos_c) = (d.l, d.c);
@@ -879,7 +932,11 @@ pub fn create(d: &mut Doc, size: &str) -> R {
         new.insert(1, format!("{indent}|-"));
     }
     let _ = pos_c;
-    // Insert before the line at `start` (whose text stays after the table).
+    // Insert before the line at `start` (whose text stays after the table);
+    // an empty last line is the end of the buffer.
+    if start + 1 == d.n() && d.lines[start].is_empty() {
+        d.lines.pop();
+    }
     d.insert_lines(start, &new);
     d.goto(start, d.lines[start].find('|').map_or(0, |i| i + 1));
     if rows > 0 {
@@ -941,7 +998,10 @@ pub fn convert_region(d: &mut Doc, beg: usize, end: usize, sep: Sep) -> R {
             }
             _ => unreachable!(),
         };
-        region.iter().map(|l| r.replace_all(l, "| ").into_owned()).collect()
+        region
+            .iter()
+            .map(|l| r.replace_all(l, "| ").into_owned())
+            .collect()
     };
     d.lines.splice(beg..=end, new);
     d.goto(beg, 0);
@@ -991,7 +1051,12 @@ pub fn import(d: &mut Doc, text: &str, sep: Sep) -> R {
     if !d.bolp() {
         d.insert("\n");
     }
-    let lines: Vec<String> = text.strip_suffix('\n').unwrap_or(text).split('\n').map(String::from).collect();
+    let lines: Vec<String> = text
+        .strip_suffix('\n')
+        .unwrap_or(text)
+        .split('\n')
+        .map(String::from)
+        .collect();
     let n = lines.len();
     let at = d.l;
     if d.line().is_empty() {
@@ -1007,7 +1072,11 @@ pub fn import(d: &mut Doc, text: &str, sep: Sep) -> R {
 pub fn convert(d: &mut Doc) -> R {
     if d.at_table_el() {
         let (b, e) = d.table_el_bounds();
-        let kept: Vec<String> = d.lines[b..e].iter().filter(|l| !l.trim_start().starts_with("+-")).cloned().collect();
+        let kept: Vec<String> = d.lines[b..e]
+            .iter()
+            .filter(|l| !l.trim_start().starts_with("+-"))
+            .cloned()
+            .collect();
         // table.el cells span lines; each line becomes a row.
         d.lines.splice(b..e, kept);
         d.goto(b, 0);
@@ -1017,7 +1086,11 @@ pub fn convert(d: &mut Doc) -> R {
         return Ok(());
     }
     let (b, e) = (d.table_begin(), d.table_end());
-    let rows: Vec<String> = d.lines[b..e].iter().filter(|l| !is_hline(l)).cloned().collect();
+    let rows: Vec<String> = d.lines[b..e]
+        .iter()
+        .filter(|l| !is_hline(l))
+        .cloned()
+        .collect();
     let rule = {
         let mut x = clean_line(&rows[0]);
         static BLANK: LazyLock<Regex> = LazyLock::new(|| re(r"\|( +)\|"));
@@ -1027,7 +1100,11 @@ pub fn convert(d: &mut Doc) -> R {
             x.replace_range(r, &format!("+{}|", "-".repeat(n)));
         }
         let x = x.replacen('|', "+", 1);
-        if let Some(stripped) = x.strip_suffix('|') { format!("{stripped}+") } else { x }
+        if let Some(stripped) = x.strip_suffix('|') {
+            format!("{stripped}+")
+        } else {
+            x
+        }
     };
     let mut new = vec![rule.clone()];
     for r in rows {
@@ -1043,7 +1120,13 @@ pub fn convert(d: &mut Doc) -> R {
 
 /// org-table-sort-lines with SORTING-TYPE `kind` (a n t f, capital
 /// reverses). `key`/`cmp` are the ?f extractor and comparator.
-pub fn sort_lines(d: &mut Doc, with_case: bool, kind: char, column: Option<usize>, key: Option<&dyn Fn(&str) -> SortKey>) -> R {
+pub fn sort_lines(
+    d: &mut Doc,
+    with_case: bool,
+    kind: char,
+    column: Option<usize>,
+    key: Option<&dyn Fn(&str) -> SortKey>,
+) -> R {
     if let Some(((l, c), _)) = d.region {
         d.goto(l, c);
     }
@@ -1067,8 +1150,13 @@ pub fn sort_lines(d: &mut Doc, with_case: bool, kind: char, column: Option<usize
     let (lo, hi) = if let Some((a, b)) = d.region {
         (a.0.min(b.0), a.0.max(b.0) + 1)
     } else {
-        let lo = (start..d.l).rev().find(|&l| is_hline(&d.lines[l])).map_or(start, |l| l + 1);
-        let hi = (d.l + 1..end).find(|&l| is_hline(&d.lines[l])).unwrap_or(end);
+        let lo = (start..d.l)
+            .rev()
+            .find(|&l| is_hline(&d.lines[l]))
+            .map_or(start, |l| l + 1);
+        let hi = (d.l + 1..end)
+            .find(|&l| is_hline(&d.lines[l]))
+            .unwrap_or(end);
         // re-search-forward from point also matches the current line.
         let hi = if is_hline(&d.lines[d.l]) { d.l } else { hi };
         (lo, hi)
@@ -1086,7 +1174,11 @@ pub fn sort_lines(d: &mut Doc, with_case: bool, kind: char, column: Option<usize
             let f = trim(&f);
             let k = match kind.to_ascii_lowercase() {
                 'n' => SortKey::Num(super::lisp::string_to_number(f).f()),
-                'a' => SortKey::Str(if with_case { f.to_owned() } else { f.to_lowercase() }),
+                'a' => SortKey::Str(if with_case {
+                    f.to_owned()
+                } else {
+                    f.to_lowercase()
+                }),
                 't' => SortKey::Num(time_key(f)),
                 'f' => match key {
                     Some(k) => k(f),
@@ -1130,13 +1222,20 @@ pub enum SortKey {
     Str(String),
 }
 
-lazy_re!(TS_BOTH, r"[\[<]([0-9]{4})-([0-9]{2})-([0-9]{2})(?: [^]>\s0-9+-]+)?(?: ([0-9]{1,2}):([0-9]{2}))?");
+lazy_re!(
+    TS_BOTH,
+    r"[\[<]([0-9]{4})-([0-9]{2})-([0-9]{2})(?: [^]>\s0-9+-]+)?(?: ([0-9]{1,2}):([0-9]{2}))?"
+);
 lazy_re!(HHMM, r"\b([0-9]+):([0-9]{2})\b");
 
 /// The ?t key: a timestamp's time, else a duration in minutes.
 fn time_key(f: &str) -> f64 {
     if let Some(m) = TS_BOTH.captures(f) {
-        let days = super::days_from_civil(m[1].parse().unwrap_or(0), m[2].parse().unwrap_or(1), m[3].parse().unwrap_or(1));
+        let days = super::days_from_civil(
+            m[1].parse().unwrap_or(0),
+            m[2].parse().unwrap_or(1),
+            m[3].parse().unwrap_or(1),
+        );
         let h: f64 = m.get(4).map_or(0.0, |x| x.as_str().parse().unwrap_or(0.0));
         let mi: f64 = m.get(5).map_or(0.0, |x| x.as_str().parse().unwrap_or(0.0));
         return days as f64 * 86400.0 + h * 3600.0 + mi * 60.0;
@@ -1152,20 +1251,31 @@ fn time_key(f: &str) -> f64 {
 
 /// org-table-transpose-table-at-point.
 pub fn transpose(d: &mut Doc) -> R {
-    let table: Vec<Vec<String>> = d.to_lisp().into_iter().filter_map(|r| match r {
-        Row::Cells(c) => Some(c),
-        Row::Hline => None,
-    })
-    .collect();
+    let table: Vec<Vec<String>> = d
+        .to_lisp()
+        .into_iter()
+        .filter_map(|r| match r {
+            Row::Cells(c) => Some(c),
+            Row::Hline => None,
+        })
+        .collect();
     let dline_old = d.current_line_index();
     let col_old = d.current_column();
     let ncols = table.first().map_or(0, Vec::len);
     let contents: Vec<Vec<String>> = (0..ncols)
-        .map(|j| table.iter().map(|row| row.get(j).cloned().unwrap_or_default()).collect())
+        .map(|j| {
+            table
+                .iter()
+                .map(|row| row.get(j).cloned().unwrap_or_default())
+                .collect()
+        })
         .collect();
     let (b, e) = (d.table_begin(), d.table_end());
     let indent = d.lines[b][..d.lines[b].find('|').unwrap_or(0)].to_owned();
-    let new: Vec<String> = contents.iter().map(|x| format!("{indent}| {}  |", x.join(" | "))).collect();
+    let new: Vec<String> = contents
+        .iter()
+        .map(|x| format!("{indent}| {}  |", x.join(" | ")))
+        .collect();
     d.lines.splice(b..e, new);
     d.goto(b, 0);
     d.goto_line(col_old);
@@ -1226,8 +1336,15 @@ pub fn wrap_region(d: &mut Doc, arg: Option<i64>) -> R {
             Some(a) if a < 1 => n + a,
             Some(a) => a,
         };
-        let text = clip.iter().map(|r| trim(&r[0]).to_owned()).collect::<Vec<_>>().join(" ");
-        let wrapped: Vec<Vec<String>> = wrap_text(&text, nlines.max(1) as usize).into_iter().map(|l| vec![l]).collect();
+        let text = clip
+            .iter()
+            .map(|r| trim(&r[0]).to_owned())
+            .collect::<Vec<_>>()
+            .join(" ");
+        let wrapped: Vec<Vec<String>> = wrap_text(&text, nlines.max(1) as usize)
+            .into_iter()
+            .map(|l| vec![l])
+            .collect();
         d.st.put_clip(Some(wrapped));
         let start = if a <= b { a } else { b };
         d.goto(start.0, start.1);
@@ -1238,7 +1355,9 @@ pub fn wrap_region(d: &mut Doc, arg: Option<i64>) -> R {
     }
     if !super::super::options::get("org-M-RET-may-split-line").is_some_and(|v| match v {
         toml::Value::Boolean(b) => b,
-        toml::Value::Array(a) => a.iter().any(|e| e.as_str() == Some("table") || e.as_str() == Some("default")),
+        toml::Value::Array(a) => a
+            .iter()
+            .any(|e| e.as_str() == Some("table") || e.as_str() == Some("default")),
         _ => true,
     }) && super::super::options::get("org-M-RET-may-split-line").is_some()
     {
@@ -1275,8 +1394,14 @@ lazy_re!(ZEROISH, r"^[-+ \t0.edED]+$");
 
 /// org-table--number-for-summing: (value, is a time).
 fn number_for_summing(s: &str) -> Option<(f64, bool)> {
-    let s = s.trim_start_matches(' ').trim_start_matches('|').trim_start_matches(' ');
-    let s = s.trim_end_matches(' ').trim_end_matches('|').trim_end_matches(' ');
+    let s = s
+        .trim_start_matches(' ')
+        .trim_start_matches('|')
+        .trim_start_matches(' ');
+    let s = s
+        .trim_end_matches(' ')
+        .trim_end_matches('|')
+        .trim_end_matches(' ');
     let n = super::lisp::string_to_number(s).f();
     if s.contains('0') && ZEROISH.is_match(s) {
         return Some((0.0, false));
@@ -1319,7 +1444,12 @@ pub fn sum(d: &mut Doc, nlast: Option<usize>) -> Result<String, String> {
     d.interactive = false;
     let r = copy_region(d, beg, end, false);
     d.interactive = interactive;
-    let items: Vec<String> = d.st.take_clip().unwrap_or_default().into_iter().flatten().collect();
+    let items: Vec<String> =
+        d.st.take_clip()
+            .unwrap_or_default()
+            .into_iter()
+            .flatten()
+            .collect();
     d.st.put_clip(clip_save);
     d.goto(l0, c0);
     r?;
@@ -1351,7 +1481,11 @@ pub fn sum(d: &mut Doc, nlast: Option<usize>) -> Result<String, String> {
     };
     d.kill = Some((sres.clone(), false));
     if d.interactive {
-        d.message(format!("Sum of {} items: {:<20}     (p will insert result into buffer)", numbers.len(), sres));
+        d.message(format!(
+            "Sum of {} items: {:<20}     (p will insert result into buffer)",
+            numbers.len(),
+            sres
+        ));
     }
     Ok(sres)
 }
@@ -1422,10 +1556,22 @@ pub fn rotate_recalc_marks(d: &mut Doc, newchar: Option<char>) -> R {
     }
     const MARKS: &[(char, &str)] = &[
         (' ', "Unmarked: no special line, no automatic recalculation"),
-        ('#', "Automatically recalculate this line upon TAB, RET, and C-c C-c in the line"),
-        ('*', "Recalculate only when entire table is recalculated with `C-u C-c *'"),
-        ('!', "Column name definition line.  Reference in formula as $name."),
-        ('$', "Parameter definition line name=value.  Reference in formula as $name."),
+        (
+            '#',
+            "Automatically recalculate this line upon TAB, RET, and C-c C-c in the line",
+        ),
+        (
+            '*',
+            "Recalculate only when entire table is recalculated with `C-u C-c *'",
+        ),
+        (
+            '!',
+            "Column name definition line.  Reference in formula as $name.",
+        ),
+        (
+            '$',
+            "Parameter definition line name=value.  Reference in formula as $name.",
+        ),
         ('_', "Names for values in row below this one."),
         ('^', "Names for values in row above this one."),
     ];
@@ -1435,10 +1581,13 @@ pub fn rotate_recalc_marks(d: &mut Doc, newchar: Option<char>) -> R {
     if let Some(c) = newchar
         && !MARKS.iter().any(|(m, _)| *m == c)
     {
-        return Err(format!("Invalid character `{c}' in `org-table-rotate-recalc-marks'"));
+        return Err(format!(
+            "Invalid character `{c}' in `org-table-rotate-recalc-marks'"
+        ));
     }
     let (b, e) = (d.table_begin(), d.table_end());
-    static SPECIAL: LazyLock<Regex> = LazyLock::new(|| re(r"^[ \t]*\|[^-|][^|]*[^#!$*_^| \t][^|]*\|"));
+    static SPECIAL: LazyLock<Regex> =
+        LazyLock::new(|| re(r"^[ \t]*\|[^-|][^|]*[^#!$*_^| \t][^|]*\|"));
     let no_special = (b..e).any(|i| SPECIAL.is_match(&d.lines[i]));
     if let Some((l1, _)) = region {
         d.goto(l1, 0);

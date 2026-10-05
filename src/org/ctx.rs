@@ -31,9 +31,10 @@ pub fn item_bullet(text: &str) -> Option<(usize, &str)> {
     let t = text.trim_start();
     let ind = text.len() - t.len();
     // `*` bullets only when indented (else a heading).
-    let unordered = (t.starts_with("- ") || t.starts_with("+ ") || (ind > 0 && t.starts_with("* ")))
-        || matches!(t, "-" | "+")
-        || (ind > 0 && t == "*");
+    let unordered =
+        (t.starts_with("- ") || t.starts_with("+ ") || (ind > 0 && t.starts_with("* ")))
+            || matches!(t, "-" | "+")
+            || (ind > 0 && t == "*");
     if unordered {
         return Some((ind, &t[..t.len().min(2)]));
     }
@@ -67,7 +68,9 @@ pub fn at_checkbox(ed: &Editor, l: usize) -> bool {
     let text = line(ed, l);
     item_bullet(&text).is_some_and(|(ind, b)| {
         let rest = &text[ind + b.len()..];
-        let rest = rest.strip_prefix("[@").map_or(rest, |r| r.find("] ").map_or(rest, |i| &r[i + 2..]));
+        let rest = rest
+            .strip_prefix("[@")
+            .map_or(rest, |r| r.find("] ").map_or(rest, |i| &r[i + 2..]));
         rest.starts_with("[ ]") || rest.starts_with("[X]") || rest.starts_with("[-]")
     })
 }
@@ -85,7 +88,8 @@ pub fn block_at(ed: &Editor, l: usize) -> Option<(String, usize, usize)> {
         if let Some(rest) = t.strip_prefix("#+begin_") {
             let name: String = rest.chars().take_while(|c| !c.is_whitespace()).collect();
             let close = format!("#+end_{name}");
-            let end = (l..ed.line_count()).find(|&i| line(ed, i).trim().to_ascii_lowercase() == close)?;
+            let end =
+                (l..ed.line_count()).find(|&i| line(ed, i).trim().to_ascii_lowercase() == close)?;
             return Some((name, b, end));
         }
     }
@@ -100,14 +104,22 @@ pub fn in_block(ed: &Editor, l: usize) -> bool {
 pub fn src_block(ed: &Editor, l: usize) -> Option<(usize, usize)> {
     let t = line(ed, l).trim_start().to_ascii_lowercase();
     if t.starts_with("#+begin_src") {
-        let end = (l + 1..ed.line_count()).find(|&i| line(ed, i).trim().eq_ignore_ascii_case("#+end_src"))?;
+        let end = (l + 1..ed.line_count())
+            .find(|&i| line(ed, i).trim().eq_ignore_ascii_case("#+end_src"))?;
         return Some((l, end));
     }
     if t.trim_end() == "#+end_src" {
-        let b = (0..l).rev().find(|&i| line(ed, i).trim_start().to_ascii_lowercase().starts_with("#+begin_src"))?;
+        let b = (0..l).rev().find(|&i| {
+            line(ed, i)
+                .trim_start()
+                .to_ascii_lowercase()
+                .starts_with("#+begin_src")
+        })?;
         return Some((b, l));
     }
-    block_at(ed, l).filter(|(name, ..)| name == "src").map(|(_, b, e)| (b, e))
+    block_at(ed, l)
+        .filter(|(name, ..)| name == "src")
+        .map(|(_, b, e)| (b, e))
 }
 
 /// org-at-keyword-p: `#+KEY: value`.
@@ -257,5 +269,11 @@ pub fn cookie_at(ed: &Editor, l: usize, b: usize) -> Option<std::ops::Range<usiz
     let s = text[..=b.min(text.len().saturating_sub(1))].rfind('[')?;
     let e = text[s..].find(']').map(|i| s + i + 1)?;
     let inner = &text[s + 1..e - 1];
-    (b < e && !inner.is_empty() && inner.chars().all(|c| c.is_ascii_digit() || c == '/' || c == '%') && (inner.contains('/') || inner.ends_with('%'))).then_some(s..e)
+    (b < e
+        && !inner.is_empty()
+        && inner
+            .chars()
+            .all(|c| c.is_ascii_digit() || c == '/' || c == '%')
+        && (inner.contains('/') || inner.ends_with('%')))
+    .then_some(s..e)
 }

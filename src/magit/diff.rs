@@ -380,3 +380,72 @@ pub fn stat_or_diff(lines: &[&str], line: usize) -> Option<usize> {
         })
         .or_else(|| stats.first().copied())
 }
+
+/// magit-diff-refine-hunk's word-level difference between a removed and an
+/// added line: the changed byte ranges of each.
+pub fn refine(old: &str, new: &str) -> (Vec<std::ops::Range<usize>>, Vec<std::ops::Range<usize>>) {
+    use similar::{ChangeTag, TextDiff};
+    let diff = TextDiff::from_words(old, new);
+    let (mut a, mut b) = (vec![], vec![]);
+    let (mut i, mut j) = (0, 0);
+    let push = |v: &mut Vec<std::ops::Range<usize>>, r: std::ops::Range<usize>| match v.last_mut() {
+        Some(last) if last.end == r.start => last.end = r.end,
+        _ => v.push(r),
+    };
+    for change in diff.iter_all_changes() {
+        let n = change.value().len();
+        match change.tag() {
+            ChangeTag::Equal => {
+                i += n;
+                j += n;
+            }
+            ChangeTag::Delete => {
+                push(&mut a, i..i + n);
+                i += n;
+            }
+            ChangeTag::Insert => {
+                push(&mut b, j..j + n);
+                j += n;
+            }
+        }
+    }
+    // magit-diff-refine-ignore-whitespace (smerge's default, t).
+    if super::options::flag("magit-diff-refine-ignore-whitespace", true) {
+        a.retain(|r| !old[r.clone()].trim().is_empty());
+        b.retain(|r| !new[r.clone()].trim().is_empty());
+    }
+    (a, b)
+}
+
+/// The partner of a removed (added) line in its hunk for refinement: the
+/// added (removed) line at the same position of the adjacent run.
+pub fn refine_partner(lines: &[&str], l: usize) -> Option<usize> {
+    let sign = |i: usize| lines.get(i).and_then(|t| t.chars().next());
+    let is = |i: usize, c: char| {
+        sign(i) == Some(c) && !lines[i].starts_with("+++") && !lines[i].starts_with("---")
+    };
+    let me = sign(l)?;
+    if me != '-' && me != '+' || !is(l, me) {
+        return None;
+    }
+    let mut start = l;
+    while start > 0 && is(start - 1, me) {
+        start -= 1;
+    }
+    let mut end = l + 1;
+    while is(end, me) {
+        end += 1;
+    }
+    let other = if me == '-' { '+' } else { '-' };
+    let k = l - start;
+    if me == '-' {
+        (is(end, other) && is(end + k, other)).then_some(end + k)
+    } else {
+        // The removed run just before this added run.
+        let mut s = start;
+        while s > 0 && is(s - 1, other) {
+            s -= 1;
+        }
+        (s < start && s + k < start).then_some(s + k)
+    }
+}

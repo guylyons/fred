@@ -62,7 +62,15 @@ pub struct Modes {
 impl Default for Modes {
     /// org-calc-default-modes.
     fn default() -> Self {
-        Modes { prec: 12, float_fmt: FloatFmt::Float, figs: 8, deg: true, frac: false, symbolic: false, units: false }
+        Modes {
+            prec: 12,
+            float_fmt: FloatFmt::Float,
+            figs: 8,
+            deg: true,
+            frac: false,
+            symbolic: false,
+            units: false,
+        }
     }
 }
 
@@ -110,7 +118,11 @@ fn scale_rounding(a: i128, n: i32) -> i128 {
     if a < 0 {
         return -scale_rounding(-a, n);
     }
-    if n == -1 { (a + 5) / 10 } else { (scale_right(a, -1 - n) + 5) / 10 }
+    if n == -1 {
+        (a + 5) / 10
+    } else {
+        (scale_right(a, -1 - n) + 5) / 10
+    }
 }
 
 fn gcd(a: i128, b: i128) -> i128 {
@@ -159,13 +171,22 @@ impl Calc {
             return V::Float(0, 0);
         }
         if !x.is_finite() {
-            return if x.is_nan() { var("nan") } else if x > 0.0 { var("inf") } else { call("neg", vec![var("inf")]) };
+            return if x.is_nan() {
+                var("nan")
+            } else if x > 0.0 {
+                var("inf")
+            } else {
+                call("neg", vec![var("inf")])
+            };
         }
         let p = (self.prec() as usize).min(17);
         let s = format!("{:.*e}", p - 1, x);
         let (mant, exp) = s.split_once('e').unwrap();
         let exp: i32 = exp.parse().unwrap();
-        let digits: String = mant.chars().filter(|c| c.is_ascii_digit() || *c == '-').collect();
+        let digits: String = mant
+            .chars()
+            .filter(|c| c.is_ascii_digit() || *c == '-')
+            .collect();
         let m: i128 = digits.parse().unwrap_or(0);
         self.make_float(m, exp - (p as i32 - 1))
     }
@@ -233,7 +254,11 @@ impl Calc {
             V::Float(m, e) => V::Float(-m, *e),
             V::Vec(v) => V::Vec(v.iter().map(|x| self.neg(x)).collect()),
             V::Date(x) => V::Date(Box::new(self.neg(x))),
-            V::Hms(h, m, s) => V::Hms(Box::new(self.neg(h)), Box::new(self.neg(m)), Box::new(self.neg(s))),
+            V::Hms(h, m, s) => V::Hms(
+                Box::new(self.neg(h)),
+                Box::new(self.neg(m)),
+                Box::new(self.neg(s)),
+            ),
             V::Cplx(r, i) => V::Cplx(Box::new(self.neg(r)), Box::new(self.neg(i))),
             V::Call(f, args) if f == "neg" => args[0].clone(),
             V::Call(f, args) if f == "+" => {
@@ -252,7 +277,9 @@ impl Calc {
                 }
                 call("*", v)
             }
-            V::Call(f, args) if f == "/" && is_num(&args[0]) => call("/", vec![self.neg(&args[0]), args[1].clone()]),
+            V::Call(f, args) if f == "/" && is_num(&args[0]) => {
+                call("/", vec![self.neg(&args[0]), args[1].clone()])
+            }
             V::Var(n) if n == "nan" || n == "uinf" => a.clone(),
             other => call("neg", vec![other.clone()]),
         }
@@ -261,17 +288,31 @@ impl Calc {
     pub fn add(&self, a: &V, b: &V) -> V {
         use V::*;
         match (a, b) {
-            (Int(x), Int(y)) => return x.checked_add(*y).map_or_else(|| self.from_f64(*x as f64 + *y as f64), Int),
+            (Int(x), Int(y)) => {
+                return x
+                    .checked_add(*y)
+                    .map_or_else(|| self.from_f64(*x as f64 + *y as f64), Int);
+            }
             _ => {}
         }
         if is_zero(a) && is_num(b) {
-            return if is_float(a) && is_rat(b) { self.as_float(b) } else { b.clone() };
+            return if is_float(a) && is_rat(b) {
+                self.as_float(b)
+            } else {
+                b.clone()
+            };
         }
         if is_zero(b) && is_num(a) {
-            return if is_float(b) && is_rat(a) { self.as_float(a) } else { a.clone() };
+            return if is_float(b) && is_rat(a) {
+                self.as_float(a)
+            } else {
+                a.clone()
+            };
         }
         if let (Some(x), Some(y)) = (Self::ratio(a), Self::ratio(b)) {
-            let n = x.0.checked_mul(y.1).and_then(|p| y.0.checked_mul(x.1).and_then(|q| p.checked_add(q)));
+            let n =
+                x.0.checked_mul(y.1)
+                    .and_then(|p| y.0.checked_mul(x.1).and_then(|q| p.checked_add(q)));
             let d = x.1.checked_mul(y.1);
             if let (Some(n), Some(d)) = (n, d) {
                 return self.frac(n, d);
@@ -282,15 +323,23 @@ impl Calc {
             return self.add_float(x, y);
         }
         match (a, b) {
-            (Vec(x), Vec(y)) if x.len() == y.len() => return Vec(x.iter().zip(y).map(|(p, q)| self.add(p, q)).collect()),
+            (Vec(x), Vec(y)) if x.len() == y.len() => {
+                return Vec(x.iter().zip(y).map(|(p, q)| self.add(p, q)).collect());
+            }
             (Vec(x), y) if is_scalar(y) => return Vec(x.iter().map(|p| self.add(p, y)).collect()),
             (x, Vec(y)) if is_scalar(x) => return Vec(y.iter().map(|q| self.add(x, q)).collect()),
             (Date(x), Date(y)) => return self.add(x, y),
             (Date(x), y) if is_real(y) => return Date(Box::new(self.add(x, y))),
             (x, Date(y)) if is_real(x) => return Date(Box::new(self.add(x, y))),
-            (Hms(..), Hms(..)) => return self.from_hours(&self.add(&self.hours(a), &self.hours(b)), a, b),
-            (Hms(..), y) if is_real(y) => return self.from_hours(&self.add(&self.hours(a), y), a, b),
-            (x, Hms(..)) if is_real(x) => return self.from_hours(&self.add(x, &self.hours(b)), a, b),
+            (Hms(..), Hms(..)) => {
+                return self.from_hours(&self.add(&self.hours(a), &self.hours(b)), a, b);
+            }
+            (Hms(..), y) if is_real(y) => {
+                return self.from_hours(&self.add(&self.hours(a), y), a, b);
+            }
+            (x, Hms(..)) if is_real(x) => {
+                return self.from_hours(&self.add(x, &self.hours(b)), a, b);
+            }
             (Cplx(r1, i1), Cplx(r2, i2)) => return self.cplx(self.add(r1, r2), self.add(i1, i2)),
             (Cplx(r, i), y) if is_real(y) => return self.cplx(self.add(r, y), (**i).clone()),
             (x, Cplx(r, i)) if is_real(x) => return self.cplx(self.add(x, r), (**i).clone()),
@@ -304,7 +353,11 @@ impl Calc {
     }
 
     fn cplx(&self, r: V, i: V) -> V {
-        if is_zero(&i) && !is_float(&i) { r } else { V::Cplx(Box::new(r), Box::new(i)) }
+        if is_zero(&i) && !is_float(&i) {
+            r
+        } else {
+            V::Cplx(Box::new(r), Box::new(i))
+        }
     }
 
     fn as_float(&self, a: &V) -> V {
@@ -317,14 +370,24 @@ impl Calc {
     pub fn mul(&self, a: &V, b: &V) -> V {
         use V::*;
         if let (Int(x), Int(y)) = (a, b) {
-            return x.checked_mul(*y).map_or_else(|| self.from_f64(*x as f64 * *y as f64), Int);
+            return x
+                .checked_mul(*y)
+                .map_or_else(|| self.from_f64(*x as f64 * *y as f64), Int);
         }
         if is_num(a) && is_num(b) {
             if is_zero(a) {
-                return if is_float(b) && is_rat(a) { V::Float(0, 0) } else { a.clone() };
+                return if is_float(b) && is_rat(a) {
+                    V::Float(0, 0)
+                } else {
+                    a.clone()
+                };
             }
             if is_zero(b) {
-                return if is_float(a) && is_rat(b) { V::Float(0, 0) } else { b.clone() };
+                return if is_float(a) && is_rat(b) {
+                    V::Float(0, 0)
+                } else {
+                    b.clone()
+                };
             }
         }
         if let (Some(x), Some(y)) = (Self::ratio(a), Self::ratio(b)) {
@@ -340,7 +403,9 @@ impl Calc {
             };
         }
         match (a, b) {
-            (Vec(x), Vec(y)) if x.len() == y.len() && x.iter().all(is_scalar) && y.iter().all(is_scalar) => {
+            (Vec(x), Vec(y))
+                if x.len() == y.len() && x.iter().all(is_scalar) && y.iter().all(is_scalar) =>
+            {
                 // Dot product.
                 let mut acc = V::Int(0);
                 for (p, q) in x.iter().zip(y) {
@@ -350,14 +415,20 @@ impl Calc {
             }
             (Vec(x), y) if is_scalar(y) => return Vec(x.iter().map(|p| self.mul(p, y)).collect()),
             (x, Vec(y)) if is_scalar(x) => return Vec(y.iter().map(|q| self.mul(x, q)).collect()),
-            (Hms(..), y) if is_real(y) => return self.from_hours(&self.mul(&self.hours(a), y), a, b),
-            (x, Hms(..)) if is_real(x) => return self.from_hours(&self.mul(x, &self.hours(b)), a, b),
+            (Hms(..), y) if is_real(y) => {
+                return self.from_hours(&self.mul(&self.hours(a), y), a, b);
+            }
+            (x, Hms(..)) if is_real(x) => {
+                return self.from_hours(&self.mul(x, &self.hours(b)), a, b);
+            }
             (Cplx(r1, i1), Cplx(r2, i2)) => {
                 let re = self.sub(&self.mul(r1, r2), &self.mul(i1, i2));
                 let im = self.add(&self.mul(r1, i2), &self.mul(i1, r2));
                 return self.cplx(re, im);
             }
-            (Cplx(r, i), y) | (y, Cplx(r, i)) if is_real(y) => return self.cplx(self.mul(r, y), self.mul(i, y)),
+            (Cplx(r, i), y) | (y, Cplx(r, i)) if is_real(y) => {
+                return self.cplx(self.mul(r, y), self.mul(i, y));
+            }
             _ => {}
         }
         self.mul_symb(a, b)
@@ -372,7 +443,11 @@ impl Calc {
             return call("/", vec![a.clone(), b.clone()]);
         }
         if is_zero(a) && is_num(a) && is_num(b) {
-            return if is_float(b) && is_rat(a) { V::Float(0, 0) } else { a.clone() };
+            return if is_float(b) && is_rat(a) {
+                V::Float(0, 0)
+            } else {
+                a.clone()
+            };
         }
         if let (Int(x), Int(y)) = (a, b) {
             if x % y == 0 {
@@ -393,7 +468,9 @@ impl Calc {
         }
         match (a, b) {
             (Vec(x), y) if is_scalar(y) => return Vec(x.iter().map(|p| self.div(p, y)).collect()),
-            (Hms(..), y) if is_real(y) => return self.from_hours(&self.div(&self.hours(a), y), a, b),
+            (Hms(..), y) if is_real(y) => {
+                return self.from_hours(&self.div(&self.hours(a), y), a, b);
+            }
             (Hms(..), Hms(..)) => return self.div(&self.hours(a), &self.hours(b)),
             (Cplx(r, i), y) if is_real(y) => return self.cplx(self.div(r, y), self.div(i, y)),
             _ => {}
@@ -407,7 +484,14 @@ impl Calc {
             if *y == 0 {
                 return call("\\", vec![a.clone(), b.clone()]);
             }
-            return V::Int(x.div_euclid(*y) - if *y < 0 && x.rem_euclid(*y) != 0 { 1 } else { 0 });
+            return V::Int(
+                x.div_euclid(*y)
+                    - if *y < 0 && x.rem_euclid(*y) != 0 {
+                        1
+                    } else {
+                        0
+                    },
+            );
         }
         if is_real(a) && is_real(b) {
             let q = self.div(a, b);
@@ -423,7 +507,11 @@ impl Calc {
         }
         if let (V::Int(x), V::Int(y)) = (a, b) {
             let r = x % y;
-            return V::Int(if r != 0 && (r < 0) != (*y < 0) { r + y } else { r });
+            return V::Int(if r != 0 && (r < 0) != (*y < 0) {
+                r + y
+            } else {
+                r
+            });
         }
         if is_real(a) && is_real(b) {
             let q = self.floor(&self.div(a, b));
@@ -435,10 +523,18 @@ impl Calc {
     fn hours(&self, a: &V) -> V {
         match a {
             V::Hms(h, m, s) => {
-                let x = self.add(h, &self.div(m, &V::Int(60)));
-                self.add(&x, &self.div(s, &V::Int(3600)))
+                let x = self.add(h, &self.frac_div(m, 60));
+                self.add(&x, &self.frac_div(s, 3600))
             }
             other => other.clone(),
+        }
+    }
+
+    /// `a / n`, exact for rationals.
+    fn frac_div(&self, a: &V, n: i128) -> V {
+        match Self::ratio(a) {
+            Some((p, q)) => self.frac(p, q * n),
+            None => self.div(a, &V::Int(n)),
         }
     }
 
@@ -454,6 +550,7 @@ impl Calc {
         let ss = self.mul(&self.sub(&rest, &mm), &V::Int(60));
         let ss = match ss {
             V::Float(m, e) => self.make_float(m, e),
+            V::Frac(..) => self.as_float(&ss),
             x => x,
         };
         let r = V::Hms(Box::new(hh), Box::new(mm), Box::new(ss));
@@ -489,7 +586,11 @@ impl Calc {
 
     fn trunc(&self, a: &V) -> V {
         if is_real(a) {
-            if sign(a) < 0 { self.ceil(a) } else { self.floor(a) }
+            if sign(a) < 0 {
+                self.ceil(a)
+            } else {
+                self.floor(a)
+            }
         } else {
             call("trunc", vec![a.clone()])
         }
@@ -527,7 +628,13 @@ impl Calc {
         match b {
             Int(n) if *n >= 0 => {
                 if *n == 0 {
-                    return if is_float(a) { V::Float(1, 0) } else if is_num(a) { Int(1) } else { pow_symb(self, a, b) };
+                    return if is_float(a) {
+                        V::Float(1, 0)
+                    } else if is_num(a) {
+                        Int(1)
+                    } else {
+                        pow_symb(self, a, b)
+                    };
                 }
                 if is_num(a) || matches!(a, V::Vec(_) | V::Hms(..)) {
                     let mut acc = a.clone();
@@ -576,7 +683,11 @@ impl Calc {
             return var("nan");
         }
         if let (Some(x), Some(y)) = (inf_sign(a), inf_sign(b)) {
-            return if x == y && x != 0 { a.clone() } else { var("nan") };
+            return if x == y && x != 0 {
+                a.clone()
+            } else {
+                var("nan")
+            };
         }
         if inf_sign(a).is_some() && is_real(b) {
             return a.clone();
@@ -604,7 +715,8 @@ impl Calc {
                     break;
                 }
                 if !is_num(&t)
-                    && let (Some((c1, r1)), Some((c2, r2))) = (split_coef(&terms[i]), split_coef(&t))
+                    && let (Some((c1, r1)), Some((c2, r2))) =
+                        (split_coef(&terms[i]), split_coef(&t))
                     && r1 == r2
                 {
                     let c = self.add(&c1, &c2);
@@ -647,7 +759,13 @@ impl Calc {
         if let Some(s) = inf_sign(a).or_else(|| inf_sign(b)) {
             let other = if inf_sign(a).is_some() { b } else { a };
             if let Some(o) = inf_sign(other) {
-                return if s == 0 || o == 0 { var("uinf") } else if s * o > 0 { var("inf") } else { self.neg(&var("inf")) };
+                return if s == 0 || o == 0 {
+                    var("uinf")
+                } else if s * o > 0 {
+                    var("inf")
+                } else {
+                    self.neg(&var("inf"))
+                };
             }
             if is_real(other) {
                 let sg = sign(other);
@@ -657,7 +775,11 @@ impl Calc {
                 if s == 0 {
                     return var("uinf");
                 }
-                return if s * sg > 0 { var("inf") } else { self.neg(&var("inf")) };
+                return if s * sg > 0 {
+                    var("inf")
+                } else {
+                    self.neg(&var("inf"))
+                };
             }
         }
         if is_rat(a) && is_zero(a) {
@@ -733,7 +855,11 @@ impl Calc {
             if is_zero(&e) && is_rat(&e) {
                 continue;
             }
-            out.push(if is_one(&e) && !is_float(&e) { b } else { call("^", vec![b, e]) });
+            out.push(if is_one(&e) && !is_float(&e) {
+                b
+            } else {
+                call("^", vec![b, e])
+            });
         }
         if out.is_empty() {
             return coef;
@@ -742,13 +868,21 @@ impl Calc {
             return V::Int(0);
         }
         if matches!(coef, V::Int(-1)) {
-            let p = if out.len() == 1 { out.pop().unwrap() } else { call("*", out) };
+            let p = if out.len() == 1 {
+                out.pop().unwrap()
+            } else {
+                call("*", out)
+            };
             return call("neg", vec![p]);
         }
         if !(is_one(&coef) && !is_float(&coef)) {
             out.insert(0, coef);
         }
-        if out.len() == 1 { out.pop().unwrap() } else { call("*", out) }
+        if out.len() == 1 {
+            out.pop().unwrap()
+        } else {
+            call("*", out)
+        }
     }
 
     fn div_symb(&self, a: &V, b: &V) -> V {
@@ -815,8 +949,12 @@ impl Calc {
             }
         }
         let q = self.div(&ncoef, &dcoef);
-        let exact = matches!(q, V::Int(_)) || is_float(&ncoef) || is_float(&dcoef);
-        let (ncoef, dcoef) = if exact { (q, V::Int(1)) } else { (ncoef, dcoef) };
+        let exact = matches!(q, V::Int(_)) || is_one(&dcoef);
+        let (ncoef, dcoef) = if exact {
+            (q, V::Int(1))
+        } else {
+            (ncoef, dcoef)
+        };
         let num = self.build_product(ncoef, keep_n);
         if rest_d.is_empty() && is_one(&dcoef) {
             return num;
@@ -986,22 +1124,26 @@ impl Calc {
             ("|", 2) | ("vconcat", 2) => match (&a[0], &a[1]) {
                 (V::Vec(x), V::Vec(y)) => V::Vec(x.iter().chain(y).cloned().collect()),
                 (V::Vec(x), y) => V::Vec(x.iter().cloned().chain([y.clone()]).collect()),
-                (x, V::Vec(y)) => V::Vec([x.clone()].into_iter().chain(y.iter().cloned()).collect()),
+                (x, V::Vec(y)) => {
+                    V::Vec([x.clone()].into_iter().chain(y.iter().cloned()).collect())
+                }
                 _ => unevaluated(),
             },
             ("eq", 2) | ("neq", 2) => match self.equal(&a[0], &a[1]) {
                 Some(e) => bool_v(e == (f == "eq")),
                 None => unevaluated(),
             },
-            ("lt", 2) | ("gt", 2) | ("leq", 2) | ("geq", 2) => match self.compare_nums(&a[0], &a[1]) {
-                Some(o) => bool_v(match f {
-                    "lt" => o == Ordering::Less,
-                    "gt" => o == Ordering::Greater,
-                    "leq" => o != Ordering::Greater,
-                    _ => o != Ordering::Less,
-                }),
-                None => unevaluated(),
-            },
+            ("lt", 2) | ("gt", 2) | ("leq", 2) | ("geq", 2) => {
+                match self.compare_nums(&a[0], &a[1]) {
+                    Some(o) => bool_v(match f {
+                        "lt" => o == Ordering::Less,
+                        "gt" => o == Ordering::Greater,
+                        "leq" => o != Ordering::Greater,
+                        _ => o != Ordering::Less,
+                    }),
+                    None => unevaluated(),
+                }
+            }
             ("land", 2) => match (truth(&a[0]), truth(&a[1])) {
                 (Some(false), _) => a[0].clone(),
                 (Some(true), _) => a[1].clone(),
@@ -1026,7 +1168,9 @@ impl Calc {
                 }
                 V::Vec(v) => {
                     // Vector norm.
-                    let s = v.iter().fold(V::Int(0), |acc, x| self.add(&acc, &self.mul(x, x)));
+                    let s = v
+                        .iter()
+                        .fold(V::Int(0), |acc, x| self.add(&acc, &self.mul(x, x)));
                     self.apply("sqrt", vec![s])
                 }
                 V::Cplx(r, i) => {
@@ -1057,7 +1201,11 @@ impl Calc {
                 };
                 let r = self.apply(f, vec![x]);
                 let q = self.div(&r, &scale);
-                if is_float(&a[0]) { self.as_float(&q) } else { q }
+                if is_float(&a[0]) {
+                    self.as_float(&q)
+                } else {
+                    q
+                }
             }
             ("ffloor" | "fceil" | "ftrunc" | "fround", 1) => {
                 let r = self.apply(&f[1..], vec![arg(0)]);
@@ -1164,14 +1312,27 @@ impl Calc {
                 _ => unevaluated(),
             },
             ("max" | "min" | "vmax" | "vmin", _) => {
-                let Some(items) = (if f.starts_with('v') { Self::vec_arg(&a) } else if a.iter().any(|x| matches!(x, V::Vec(_))) { None } else { Some(a.clone()) })
-                else {
+                let Some(items) = (if f.starts_with('v') {
+                    Self::vec_arg(&a)
+                } else if a.iter().any(|x| matches!(x, V::Vec(_))) {
+                    None
+                } else {
+                    Some(a.clone())
+                }) else {
                     return unevaluated();
                 };
                 if items.is_empty() {
-                    return if f.ends_with("max") { self.neg(&var("inf")) } else { var("inf") };
+                    return if f.ends_with("max") {
+                        self.neg(&var("inf"))
+                    } else {
+                        var("inf")
+                    };
                 }
-                let want = if f.ends_with("max") { Ordering::Greater } else { Ordering::Less };
+                let want = if f.ends_with("max") {
+                    Ordering::Greater
+                } else {
+                    Ordering::Less
+                };
                 let mut best = items[0].clone();
                 for x in &items[1..] {
                     match self.compare_nums(x, &best) {
@@ -1180,7 +1341,7 @@ impl Calc {
                         None => return call(if f.ends_with("max") { "max" } else { "min" }, items),
                     }
                 }
-                if items.iter().any(is_float) { self.as_float(&best) } else { best }
+                best
             }
             ("vsum", _) => {
                 let items = Self::vec_arg(&a).unwrap_or_default();
@@ -1224,13 +1385,27 @@ impl Calc {
                     return unevaluated();
                 }
                 let k = V::Int(items.len() as i128);
-                let mean = self.div(&items.iter().fold(V::Int(0), |acc, x| self.add(&acc, x)), &k);
+                let mean = self.div(
+                    &items.iter().fold(V::Int(0), |acc, x| self.add(&acc, x)),
+                    &k,
+                );
                 let ss = items.iter().fold(V::Int(0), |acc, x| {
                     let d = self.sub(x, &mean);
                     self.add(&acc, &self.mul(&d, &d))
                 });
-                let var_ = self.div(&ss, &if pop { k } else { V::Int(items.len() as i128 - 1) });
-                if f.ends_with("var") { var_ } else { self.sqrt(&var_) }
+                let var_ = self.div(
+                    &ss,
+                    &if pop {
+                        k
+                    } else {
+                        V::Int(items.len() as i128 - 1)
+                    },
+                );
+                if f.ends_with("var") {
+                    var_
+                } else {
+                    self.sqrt(&var_)
+                }
             }
             ("vgmean", _) => {
                 let items = Self::vec_arg(&a).unwrap_or_default();
@@ -1245,7 +1420,9 @@ impl Calc {
                 if items.is_empty() {
                     return unevaluated();
                 }
-                let s = items.iter().fold(V::Int(0), |acc, x| self.add(&acc, &self.div(&V::Int(1), x)));
+                let s = items
+                    .iter()
+                    .fold(V::Int(0), |acc, x| self.add(&acc, &self.div(&V::Int(1), x)));
                 self.div(&V::Int(items.len() as i128), &s)
             }
             ("vflat", _) => {
@@ -1291,7 +1468,12 @@ impl Calc {
                 _ => unevaluated(),
             },
             ("cons", 2) => match &a[1] {
-                V::Vec(v) => V::Vec([a[0].clone()].into_iter().chain(v.iter().cloned()).collect()),
+                V::Vec(v) => V::Vec(
+                    [a[0].clone()]
+                        .into_iter()
+                        .chain(v.iter().cloned())
+                        .collect(),
+                ),
                 _ => unevaluated(),
             },
             ("rcons", 2) => match &a[0] {
@@ -1314,7 +1496,10 @@ impl Calc {
                         None => len + 1,
                         _ => return unevaluated(),
                     };
-                    let (s, e) = ((s - 1).clamp(0, len) as usize, (e - 1).clamp(0, len) as usize);
+                    let (s, e) = (
+                        (s - 1).clamp(0, len) as usize,
+                        (e - 1).clamp(0, len) as usize,
+                    );
                     V::Vec(if s < e { v[s..e].to_vec() } else { vec![] })
                 }
                 _ => unevaluated(),
@@ -1338,7 +1523,11 @@ impl Calc {
                 _ => unevaluated(),
             },
             ("find", 2) => match &a[0] {
-                V::Vec(v) => V::Int(v.iter().position(|x| self.equal(x, &a[1]) == Some(true)).map_or(0, |i| i as i128 + 1)),
+                V::Vec(v) => V::Int(
+                    v.iter()
+                        .position(|x| self.equal(x, &a[1]) == Some(true))
+                        .map_or(0, |i| i as i128 + 1),
+                ),
                 _ => unevaluated(),
             },
             ("vunique", 1) | ("rdup", 1) => match &a[0] {
@@ -1364,21 +1553,43 @@ impl Calc {
                 _ => unevaluated(),
             },
             ("date", 3..=6) => {
-                let ints: Option<Vec<i64>> = a.iter().map(|x| if let V::Int(i) = x { Some(*i as i64) } else { None }).collect();
+                let ints: Option<Vec<i64>> = a
+                    .iter()
+                    .map(|x| {
+                        if let V::Int(i) = x {
+                            Some(*i as i64)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
                 match ints {
                     Some(v) => {
-                        let days = super::days_from_civil(v[0], v[1] as u32, v[2] as u32) + CALC_EPOCH;
-                        let secs = v.get(3).copied().unwrap_or(0) * 3600 + v.get(4).copied().unwrap_or(0) * 60 + v.get(5).copied().unwrap_or(0);
-                        let d = if secs == 0 { V::Int(days as i128) } else { self.add(&V::Int(days as i128), &self.frac(secs as i128, 86400)) };
+                        let days =
+                            super::days_from_civil(v[0], v[1] as u32, v[2] as u32) + CALC_EPOCH;
+                        let secs = v.get(3).copied().unwrap_or(0) * 3600
+                            + v.get(4).copied().unwrap_or(0) * 60
+                            + v.get(5).copied().unwrap_or(0);
+                        let d = if secs == 0 {
+                            V::Int(days as i128)
+                        } else {
+                            self.add(&V::Int(days as i128), &self.frac(secs as i128, 86400))
+                        };
                         V::Date(Box::new(d))
                     }
                     None => unevaluated(),
                 }
             }
-            ("year" | "month" | "day" | "weekday" | "yearday" | "hour" | "minute" | "second" | "time", 1) => match &a[0] {
+            (
+                "year" | "month" | "day" | "weekday" | "yearday" | "hour" | "minute" | "second"
+                | "time",
+                1,
+            ) => match &a[0] {
                 V::Date(d) => {
                     let days = self.floor(d);
-                    let V::Int(dn) = days else { return unevaluated() };
+                    let V::Int(dn) = days else {
+                        return unevaluated();
+                    };
                     let (y, mo, dd) = super::civil_from_days(dn as i64 - CALC_EPOCH);
                     let frac = self.sub(d, &V::Int(dn));
                     let secs = self.mul(&frac, &V::Int(86400));
@@ -1391,19 +1602,31 @@ impl Calc {
                         "month" => V::Int(mo as i128),
                         "day" => V::Int(dd as i128),
                         "weekday" => V::Int((dn as i64).rem_euclid(7) as i128),
-                        "yearday" => V::Int((dn as i64 - CALC_EPOCH - super::days_from_civil(y, 1, 1) + 1) as i128),
+                        "yearday" => V::Int(
+                            (dn as i64 - CALC_EPOCH - super::days_from_civil(y, 1, 1) + 1) as i128,
+                        ),
                         "hour" => V::Int(secs_i / 3600),
                         "minute" => V::Int(secs_i % 3600 / 60),
                         "second" => V::Int(secs_i % 60),
-                        _ => V::Hms(Box::new(V::Int(secs_i / 3600)), Box::new(V::Int(secs_i % 3600 / 60)), Box::new(V::Int(secs_i % 60))),
+                        _ => V::Hms(
+                            Box::new(V::Int(secs_i / 3600)),
+                            Box::new(V::Int(secs_i % 3600 / 60)),
+                            Box::new(V::Int(secs_i % 60)),
+                        ),
                     }
                 }
                 _ => unevaluated(),
             },
             ("now", 0) => {
-                let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs()) as i64 + super::local_offset_secs();
+                let secs = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_or(0, |d| d.as_secs()) as i64
+                    + super::local_offset_secs();
                 let days = secs.div_euclid(86400) + CALC_EPOCH;
-                V::Date(Box::new(self.add(&V::Int(days as i128), &self.frac(secs.rem_euclid(86400) as i128, 86400))))
+                V::Date(Box::new(self.add(
+                    &V::Int(days as i128),
+                    &self.frac(secs.rem_euclid(86400) as i128, 86400),
+                )))
             }
             ("unixtime", 1) => match &a[0] {
                 V::Date(d) => {
@@ -1503,7 +1726,14 @@ impl Calc {
             x if is_real(x) => {
                 let pos = self.neg(x);
                 let r = self.sqrt(&pos);
-                V::Cplx(Box::new(if is_float(&r) { V::Float(0, 0) } else { V::Int(0) }), Box::new(r))
+                V::Cplx(
+                    Box::new(if is_float(&r) {
+                        V::Float(0, 0)
+                    } else {
+                        V::Int(0)
+                    }),
+                    Box::new(r),
+                )
             }
             V::Vec(v) => V::Vec(v.iter().map(|e| self.sqrt(e)).collect()),
             _ => call("sqrt", vec![a.clone()]),
@@ -1511,7 +1741,11 @@ impl Calc {
     }
 
     fn log(&self, x: &V, b: &V, name: &str) -> V {
-        let args = if name == "log10" { vec![x.clone()] } else { vec![x.clone(), b.clone()] };
+        let args = if name == "log10" {
+            vec![x.clone()]
+        } else {
+            vec![x.clone(), b.clone()]
+        };
         if !(is_real(x) && is_real(b)) || sign(x) <= 0 || sign(b) <= 0 {
             return call(name, args);
         }
@@ -1725,7 +1959,11 @@ fn split_coef(t: &V) -> Option<(V, V)> {
             (n, r)
         }),
         V::Call(f, args) if f == "*" && is_num(&args[0]) => {
-            let rest = if args.len() == 2 { args[1].clone() } else { call("*", args[1..].to_vec()) };
+            let rest = if args.len() == 2 {
+                args[1].clone()
+            } else {
+                call("*", args[1..].to_vec())
+            };
             Some((args[0].clone(), rest))
         }
         V::Var(n) if matches!(n.as_str(), "inf" | "uinf" | "nan") => None,
@@ -1785,7 +2023,11 @@ fn sign(x: &V) -> i32 {
 }
 
 fn truth(x: &V) -> Option<bool> {
-    if is_num(x) { Some(!is_zero(x) && !matches!(x, V::Frac(0, _))) } else { None }
+    if is_num(x) {
+        Some(!is_zero(x) && !matches!(x, V::Frac(0, _)))
+    } else {
+        None
+    }
 }
 
 pub fn to_f64(x: &V) -> f64 {
@@ -1822,7 +2064,8 @@ fn tokenize(s: &str) -> Result<Vec<(Tok, bool)>, String> {
     let mut i = 0;
     let mut space = false;
     const PUNCS: &[&str] = &[
-        "\\dots", "\\ldots", "&&&", "|||", "!!!", "~=", "<=", ">=", "<>", "/=", "+/-", "**", "<<", ">>", "==", "!=", "&&", "||", "!!", ":=", "::", "=>",
+        "\\dots", "\\ldots", "&&&", "|||", "!!!", "~=", "<=", ">=", "<>", "/=", "+/-", "**", "<<",
+        ">>", "==", "!=", "&&", "||", "!!", ":=", "::", "=>",
     ];
     while i < chars.len() {
         let c = chars[i];
@@ -1840,7 +2083,9 @@ fn tokenize(s: &str) -> Result<Vec<(Tok, bool)>, String> {
         }
         if c.is_alphabetic() {
             let mut j = i;
-            while j < chars.len() && (chars[j].is_alphanumeric() || chars[j] == '\'' || chars[j] == '#') {
+            while j < chars.len()
+                && (chars[j].is_alphanumeric() || chars[j] == '\'' || chars[j] == '#')
+            {
                 j += 1;
             }
             let name: String = chars[i..j].iter().collect::<String>().replace('#', "-");
@@ -1850,7 +2095,10 @@ fn tokenize(s: &str) -> Result<Vec<(Tok, bool)>, String> {
             continue;
         }
         if c.is_ascii_digit() || (c == '.' && chars.get(i + 1).is_some_and(char::is_ascii_digit)) {
-            let m = NUMBER_TOKEN.find(&rest).map_or(1, |m| m.as_str().chars().count()).max(1);
+            let m = NUMBER_TOKEN
+                .find(&rest)
+                .map_or(1, |m| m.as_str().chars().count())
+                .max(1);
             out.push((Tok::Num(chars[i..i + m].iter().collect()), space));
             space = false;
             i += m;
@@ -1879,7 +2127,11 @@ fn tokenize(s: &str) -> Result<Vec<(Tok, bool)>, String> {
             continue;
         }
         if c == '$' || c == '#' {
-            return Err(if c == '$' { "$'s not allowed in this context".into() } else { "#'s not allowed in this context".into() });
+            return Err(if c == '$' {
+                "$'s not allowed in this context".into()
+            } else {
+                "#'s not allowed in this context".into()
+            });
         }
         if let Some(p) = PUNCS.iter().find(|p| rest.starts_with(**p)) {
             out.push((Tok::Punc((*p).into()), space));
@@ -1967,7 +2219,11 @@ impl Parser {
                         1 => Some((cands[0].1, cands[0].2, cands[0].3)),
                         _ => {
                             // `%`: postfix percent unless a factor follows.
-                            let c = if self.factor_after() { cands[1] } else { cands[0] };
+                            let c = if self.factor_after() {
+                                cands[1]
+                            } else {
+                                cands[0]
+                            };
                             Some((c.1, c.2, c.3))
                         }
                     }
@@ -2075,7 +2331,11 @@ impl Parser {
                         if self.data() == "\\dots" {
                             self.next();
                             let hi = self.expr(0)?;
-                            return Ok(V::Intv(0, Box::new(call("neg", vec![var("inf")])), Box::new(hi)));
+                            return Ok(V::Intv(
+                                0,
+                                Box::new(call("neg", vec![var("inf")])),
+                                Box::new(hi),
+                            ));
                         }
                         let e = self.expr(0)?;
                         match self.data() {
@@ -2086,7 +2346,11 @@ impl Parser {
                             }
                             "\\dots" => {
                                 self.next();
-                                let hi = if matches!(self.data(), ")" | "]") { var("inf") } else { self.expr(0)? };
+                                let hi = if matches!(self.data(), ")" | "]") {
+                                    var("inf")
+                                } else {
+                                    self.expr(0)?
+                                };
                                 let mask = if self.data() == ")" { 0 } else { 1 };
                                 Ok(V::Intv(mask, Box::new(e), Box::new(hi)))
                             }
@@ -2178,14 +2442,26 @@ fn read_number(s: &str) -> Option<V> {
         return read_number(rest).map(|v| Calc::new(Modes::default()).neg(&v));
     }
     if s.chars().all(|c| c.is_ascii_digit()) && !s.is_empty() {
-        return s.parse::<i128>().ok().map(V::Int).or_else(|| Some(Calc::new(Modes::default()).from_f64(s.parse().ok()?)));
+        return s
+            .parse::<i128>()
+            .ok()
+            .map(V::Int)
+            .or_else(|| Some(Calc::new(Modes::default()).from_f64(s.parse().ok()?)));
     }
     // HMS: 1@ 2' 3"
     if s.contains('@') || s.contains('\'') {
-        let re = regex::Regex::new(r#"^(?:([0-9.]+)@ *)?(?:([0-9.]+)' *)?(?:([0-9.]+)"?)?$"#).ok()?;
+        let re =
+            regex::Regex::new(r#"^(?:([0-9.]+)@ *)?(?:([0-9.]+)' *)?(?:([0-9.]+)"?)?$"#).ok()?;
         let m = re.captures(s)?;
-        let part = |i: usize| m.get(i).map_or(Some(V::Int(0)), |x| read_number(x.as_str()));
-        return Some(V::Hms(Box::new(part(1)?), Box::new(part(2)?), Box::new(part(3)?)));
+        let part = |i: usize| {
+            m.get(i)
+                .map_or(Some(V::Int(0)), |x| read_number(x.as_str()))
+        };
+        return Some(V::Hms(
+            Box::new(part(1)?),
+            Box::new(part(2)?),
+            Box::new(part(3)?),
+        ));
     }
     // Radix: 16#FF.
     if let Some((r, digits)) = s.split_once('#') {
@@ -2195,7 +2471,10 @@ fn read_number(s: &str) -> Option<V> {
     }
     // Fractions a:b and a:b:c.
     if s.contains(':') {
-        let parts: Vec<i128> = s.split(':').map(|p| p.parse().ok()).collect::<Option<_>>()?;
+        let parts: Vec<i128> = s
+            .split(':')
+            .map(|p| p.parse().ok())
+            .collect::<Option<_>>()?;
         let c = Calc::new(Modes::default());
         return match parts.as_slice() {
             [n, d] if *d != 0 => Some(c.frac(*n, *d)),
@@ -2219,7 +2498,11 @@ fn read_number(s: &str) -> Option<V> {
     }
     let digits = format!("{ip}{fp}");
     let digits = digits.trim_start_matches('0');
-    let m: i128 = if digits.is_empty() { 0 } else { digits.parse().ok()? };
+    let m: i128 = if digits.is_empty() {
+        0
+    } else {
+        digits.parse().ok()?
+    };
     Some(V::Float(m, exp - fp.len() as i32))
 }
 
@@ -2233,17 +2516,32 @@ fn parse_date(text: &str) -> Option<V> {
     let mo: u32 = m[2].parse().ok()?;
     let d: u32 = m[3].parse().ok()?;
     let days = super::days_from_civil(y, mo, d) + CALC_EPOCH;
-    let secs: i64 = m.get(4).map_or(0, |h| h.as_str().parse::<i64>().unwrap_or(0) * 3600)
-        + m.get(5).map_or(0, |x| x.as_str().parse::<i64>().unwrap_or(0) * 60)
-        + m.get(6).map_or(0, |x| x.as_str().parse::<i64>().unwrap_or(0));
+    let secs: i64 = m
+        .get(4)
+        .map_or(0, |h| h.as_str().parse::<i64>().unwrap_or(0) * 3600)
+        + m.get(5)
+            .map_or(0, |x| x.as_str().parse::<i64>().unwrap_or(0) * 60)
+        + m.get(6)
+            .map_or(0, |x| x.as_str().parse::<i64>().unwrap_or(0));
     let c = Calc::new(Modes::default());
-    Some(V::Date(Box::new(if secs == 0 { V::Int(days as i128) } else { c.add(&V::Int(days as i128), &c.frac(secs as i128, 86400)) })))
+    Some(V::Date(Box::new(if secs == 0 {
+        V::Int(days as i128)
+    } else {
+        c.add(
+            &V::Int(days as i128),
+            &c.as_float(&c.frac(secs as i128, 86400)),
+        )
+    })))
 }
 
 /// Parse a Calc algebraic formula.
 pub fn parse(s: &str) -> Result<V, String> {
     let toks = tokenize(s)?;
-    let mut p = Parser { toks, i: 0, keep_spaces: 0 };
+    let mut p = Parser {
+        toks,
+        i: 0,
+        keep_spaces: 0,
+    };
     let v = p.expr(0)?;
     if *p.tok() != Tok::End {
         return Err("Syntax error".into());
@@ -2263,14 +2561,16 @@ impl Calc {
         let fmt = self.m.float_fmt;
         let mut figs = self.m.figs;
         let prec = self.prec();
-        if fmt == FloatFmt::Fix && ({
-            if figs < 0 {
-                figs = -figs;
-                true
-            } else {
-                exp + numdigs(mant) > -figs
-            }
-        }) {
+        if fmt == FloatFmt::Fix
+            && ({
+                if figs < 0 {
+                    figs = -figs;
+                    true
+                } else {
+                    exp + numdigs(mant) > -figs
+                }
+            })
+        {
             let m2 = scale_rounding(mant, exp + figs);
             let mut s = m2.to_string();
             if s.len() as i32 <= figs {
@@ -2308,7 +2608,11 @@ impl Calc {
             }
         } else {
             let eadj = exp + len;
-            let scale = if fmt == FloatFmt::Eng { 1 + (eadj + 300002).rem_euclid(3) } else { 1 };
+            let scale = if fmt == FloatFmt::Eng {
+                1 + (eadj + 300002).rem_euclid(3)
+            } else {
+                1
+            };
             if scale > s.len() as i32 {
                 s.push_str(&"0".repeat((scale - s.len() as i32) as usize));
             }
@@ -2326,7 +2630,11 @@ impl Calc {
         };
         let (y, mo, da) = super::civil_from_days(days - CALC_EPOCH);
         let wd = super::weekday_name(days - CALC_EPOCH);
-        let year = if y < 1000 { format!("{}{y}", if y >= 0 { "+" } else { "" }) } else { y.to_string() };
+        let year = if y < 1000 {
+            format!("{}{y}", if y >= 0 { "+" } else { "" })
+        } else {
+            y.to_string()
+        };
         let mut s = format!("<{year}-{mo:02}-{da:02} {wd}");
         let frac = self.sub(d, &V::Int(days as i128));
         if !is_zero(&frac) {
@@ -2358,12 +2666,28 @@ impl Calc {
             V::Frac(n, d) => format!("{n}:{d}"),
             V::Float(m, e) => {
                 let s = self.format_float(*m, *e);
-                if *m < 0 && ctx > 197 { format!("({s})") } else { s }
+                if *m < 0 && ctx > 197 {
+                    format!("({s})")
+                } else {
+                    s
+                }
             }
             V::Var(n) => n.clone(),
-            V::Vec(items) => format!("[{}]", items.iter().map(|x| self.fmt(x, 0)).collect::<Vec<_>>().join(", ")),
+            V::Vec(items) => format!(
+                "[{}]",
+                items
+                    .iter()
+                    .map(|x| self.fmt(x, 0))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
             V::Date(d) => self.format_date(d),
-            V::Hms(h, m, s) => format!("{}@ {}' {}\"", self.fmt(h, 0), self.fmt(m, 0), self.fmt(s, 0)),
+            V::Hms(h, m, s) => format!(
+                "{}@ {}' {}\"",
+                self.fmt(h, 0),
+                self.fmt(m, 0),
+                self.fmt(s, 0)
+            ),
             V::Cplx(r, i) => format!("({}, {})", self.fmt(r, 0), self.fmt(i, 0)),
             V::Intv(mask, lo, hi) => format!(
                 "{}{} .. {}{}",
@@ -2379,9 +2703,15 @@ impl Calc {
                         Some(n) => (true, n),
                         None => (false, a[1].clone()),
                     };
-                    paren(format!("{l} {} {}", if neg { '-' } else { '+' }, self.fmt(&r, 181)), 180)
+                    paren(
+                        format!("{l} {} {}", if neg { '-' } else { '+' }, self.fmt(&r, 181)),
+                        180,
+                    )
                 }
-                ("-", 2) => paren(format!("{} - {}", self.fmt(&a[0], 180), self.fmt(&a[1], 181)), 180),
+                ("-", 2) => paren(
+                    format!("{} - {}", self.fmt(&a[0], 180), self.fmt(&a[1], 181)),
+                    180,
+                ),
                 ("neg", 1) => paren(format!("-{}", self.fmt(&a[0], 197)), 197),
                 ("*", _) => {
                     let parts: Vec<String> = a.iter().map(|x| self.fmt(x, 196)).collect();
@@ -2389,13 +2719,21 @@ impl Calc {
                 }
                 ("/", 2) => {
                     let den = match &a[1] {
-                        V::Call(g, _) if g == "*" || g == "/" => format!("({})", self.fmt(&a[1], 0)),
+                        V::Call(g, _) if g == "*" || g == "/" => {
+                            format!("({})", self.fmt(&a[1], 0))
+                        }
                         d => self.fmt(d, 191),
                     };
                     paren(format!("{} / {den}", self.fmt(&a[0], 190)), 190)
                 }
-                ("%", 2) => paren(format!("{} % {}", self.fmt(&a[0], 190), self.fmt(&a[1], 191)), 190),
-                ("\\", 2) => paren(format!("{} \\ {}", self.fmt(&a[0], 190), self.fmt(&a[1], 191)), 190),
+                ("%", 2) => paren(
+                    format!("{} % {}", self.fmt(&a[0], 190), self.fmt(&a[1], 191)),
+                    190,
+                ),
+                ("\\", 2) => paren(
+                    format!("{} \\ {}", self.fmt(&a[0], 190), self.fmt(&a[1], 191)),
+                    190,
+                ),
                 ("^", 2) => {
                     let e = match &a[1] {
                         x @ (V::Int(_) | V::Float(..)) => self.fmt(x, 0),
@@ -2403,7 +2741,10 @@ impl Calc {
                     };
                     paren(format!("{}^{e}", self.fmt(&a[0], 201)), 200)
                 }
-                ("|", 2) => paren(format!("{} | {}", self.fmt(&a[0], 170), self.fmt(&a[1], 171)), 170),
+                ("|", 2) => paren(
+                    format!("{} | {}", self.fmt(&a[0], 170), self.fmt(&a[1], 171)),
+                    170,
+                ),
                 ("eq" | "neq" | "lt" | "gt" | "leq" | "geq", 2) => {
                     let op = match f.as_str() {
                         "eq" => "=",
@@ -2413,21 +2754,51 @@ impl Calc {
                         "leq" => "<=",
                         _ => ">=",
                     };
-                    paren(format!("{} {op} {}", self.fmt(&a[0], 160), self.fmt(&a[1], 161)), 160)
+                    paren(
+                        format!("{} {op} {}", self.fmt(&a[0], 160), self.fmt(&a[1], 161)),
+                        160,
+                    )
                 }
-                ("land", 2) => paren(format!("{} && {}", self.fmt(&a[0], 110), self.fmt(&a[1], 111)), 110),
-                ("lor", 2) => paren(format!("{} || {}", self.fmt(&a[0], 100), self.fmt(&a[1], 101)), 100),
+                ("land", 2) => paren(
+                    format!("{} && {}", self.fmt(&a[0], 110), self.fmt(&a[1], 111)),
+                    110,
+                ),
+                ("lor", 2) => paren(
+                    format!("{} || {}", self.fmt(&a[0], 100), self.fmt(&a[1], 101)),
+                    100,
+                ),
                 ("lnot", 1) => paren(format!("!{}", self.fmt(&a[0], 1000)), 1000),
-                ("if", 3) => paren(format!("{} ? {} : {}", self.fmt(&a[0], 91), self.fmt(&a[1], 0), self.fmt(&a[2], 90)), 91),
+                ("if", 3) => paren(
+                    format!(
+                        "{} ? {} : {}",
+                        self.fmt(&a[0], 91),
+                        self.fmt(&a[1], 0),
+                        self.fmt(&a[2], 90)
+                    ),
+                    91,
+                ),
                 ("percent", 1) => format!("{}%", self.fmt(&a[0], 1100)),
                 ("fact", 1) => format!("{}!", self.fmt(&a[0], 210)),
                 ("string" | "bstring", 1) => match &a[0] {
-                    V::Vec(items) if items.iter().all(|x| matches!(x, V::Int(_))) => {
-                        items.iter().map(|x| if let V::Int(c) = x { char::from_u32(*c as u32).unwrap_or('?') } else { '?' }).collect()
-                    }
+                    V::Vec(items) if items.iter().all(|x| matches!(x, V::Int(_))) => items
+                        .iter()
+                        .map(|x| {
+                            if let V::Int(c) = x {
+                                char::from_u32(*c as u32).unwrap_or('?')
+                            } else {
+                                '?'
+                            }
+                        })
+                        .collect(),
                     x => format!("{f}({})", self.fmt(x, 0)),
                 },
-                _ => format!("{f}({})", a.iter().map(|x| self.fmt(x, 0)).collect::<Vec<_>>().join(", ")),
+                _ => format!(
+                    "{f}({})",
+                    a.iter()
+                        .map(|x| self.fmt(x, 0))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
             },
         }
     }
@@ -2496,7 +2867,11 @@ fn modes_plist(m: &Modes) -> String {
         if m.deg { "deg" } else { "rad" },
         if m.frac { "t" } else { "nil" },
         if m.symbolic { "t" } else { "nil" },
-        if m.units { "calc-simplify-mode units" } else { "" }
+        if m.units {
+            "calc-simplify-mode units"
+        } else {
+            ""
+        }
     )
 }
 
@@ -2512,7 +2887,10 @@ fn emacs_calc(expr: &str, m: &Modes, num_only: bool) -> Option<Result<(String, b
         modes_plist(m),
         if num_only { "'num" } else { "nil" }
     );
-    let out = std::process::Command::new(emacs).args(["--batch", "-Q", "--eval", &e]).output().ok()?;
+    let out = std::process::Command::new(emacs)
+        .args(["--batch", "-Q", "--eval", &e])
+        .output()
+        .ok()?;
     let s = String::from_utf8_lossy(&out.stdout).into_owned();
     Some(match s.strip_prefix("OK") {
         Some(r) => {

@@ -61,7 +61,8 @@ pub fn re(s: &str) -> Regex {
 
 macro_rules! lazy_re {
     ($name:ident, $re:expr) => {
-        pub static $name: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| $crate::org::table::doc::re($re));
+        pub static $name: std::sync::LazyLock<regex::Regex> =
+            std::sync::LazyLock::new(|| $crate::org::table::doc::re($re));
     };
 }
 pub(crate) use lazy_re;
@@ -131,7 +132,9 @@ pub fn in_raw_block(lines: &[String], l: usize) -> bool {
                 return false;
             }
             let close = format!("#+end_{name}");
-            return lines[l..].iter().any(|x| x.trim().to_ascii_lowercase() == close);
+            return lines[l..]
+                .iter()
+                .any(|x| x.trim().to_ascii_lowercase() == close);
         }
     }
     false
@@ -168,7 +171,14 @@ impl Doc {
             l = text[..p].matches('\n').count();
             c = p - text[..p].rfind('\n').map_or(0, |i| i + 1);
         }
-        Doc { lines, l, c, org: true, interactive: true, ..Doc::default() }
+        Doc {
+            lines,
+            l,
+            c,
+            org: true,
+            interactive: true,
+            ..Doc::default()
+        }
     }
 
     /// The text, lines joined by newlines.
@@ -429,7 +439,9 @@ impl Doc {
     /// org-at-table.el-p.
     pub fn at_table_el(&self) -> bool {
         let t = self.line().trim_start_matches([' ', '\t']);
-        (t.starts_with('|') || t.starts_with('+')) && self.table_el_at(self.l) && !in_raw_block(&self.lines, self.l)
+        (t.starts_with('|') || t.starts_with('+'))
+            && self.table_el_at(self.l)
+            && !in_raw_block(&self.lines, self.l)
     }
 
     /// org-at-table-hline-p.
@@ -505,7 +517,10 @@ impl Doc {
             return 0;
         };
         let hline = self.at_hline();
-        1 + before[first + 1..].chars().filter(|&c| c == '|' || (hline && c == '+')).count()
+        1 + before[first + 1..]
+            .chars()
+            .filter(|&c| c == '|' || (hline && c == '+'))
+            .count()
     }
 
     /// org-table-goto-column.
@@ -567,7 +582,11 @@ impl Doc {
     }
 
     /// org-table-check-inside-data-field.
-    pub fn check_inside_data_field(&self, noerror: bool, assume_table: bool) -> Result<bool, String> {
+    pub fn check_inside_data_field(
+        &self,
+        noerror: bool,
+        assume_table: bool,
+    ) -> Result<bool, String> {
         let inside = (assume_table || self.at_table())
             && !self.before().chars().all(|c| c == ' ' || c == '\t')
             && !self.at_hline()
@@ -584,7 +603,9 @@ impl Doc {
     /// org-table-current-dline: data lines from the table start to point.
     pub fn current_dline(&self) -> usize {
         let b = self.table_begin();
-        (b..=self.l).filter(|&l| is_dataline(&self.lines[l])).count()
+        (b..=self.l)
+            .filter(|&l| is_dataline(&self.lines[l]))
+            .count()
     }
 
     /// org-table-current-line: data lines whose end is before point, plus one.
@@ -614,7 +635,10 @@ impl Doc {
                 cnt += 1;
                 // Point after the match `^[ \t]*|[^-]`.
                 let i = self.lines[l].find('|').unwrap_or(0) + 1;
-                let c = self.lines[l][i..].chars().next().map_or(i, |ch| i + ch.len_utf8());
+                let c = self.lines[l][i..]
+                    .chars()
+                    .next()
+                    .map_or(i, |ch| i + ch.len_utf8());
                 self.goto(l, c);
                 if cnt == n {
                     return true;
@@ -638,7 +662,13 @@ impl Doc {
     }
 
     /// org-table-put.
-    pub fn table_put(&mut self, line: Option<usize>, column: Option<usize>, value: &str, align: bool) -> bool {
+    pub fn table_put(
+        &mut self,
+        line: Option<usize>,
+        column: Option<usize>,
+        value: &str,
+        align: bool,
+    ) -> bool {
         let column = column.unwrap_or_else(|| self.current_column());
         let (l, c) = (self.l, self.c);
         let ok = if line.is_none_or(|n| self.goto_line(n)) {
@@ -662,7 +692,9 @@ impl Doc {
         while l < self.lines.len() {
             let line = &self.lines[l];
             let t = line.trim_start_matches([' ', '\t']);
-            let Some(rest) = t.strip_prefix('|') else { break };
+            let Some(rest) = t.strip_prefix('|') else {
+                break;
+            };
             out.push(row_of(rest));
             l += 1;
         }
@@ -697,7 +729,11 @@ impl Doc {
         } else {
             column_layout(&rows)
         };
-        let rule = widths.iter().map(|w| "-".repeat(w + 2)).collect::<Vec<_>>().join("+");
+        let rule = widths
+            .iter()
+            .map(|w| "-".repeat(w + 2))
+            .collect::<Vec<_>>()
+            .join("+");
         let first = &self.lines[beg];
         let indent = first[..first.find('|').unwrap_or(0) + 1].to_owned();
         for (i, row) in table.iter().enumerate() {
@@ -751,7 +787,9 @@ pub fn to_lisp_text(text: &str) -> Vec<Row> {
     let mut out = vec![];
     for line in text.lines() {
         let t = line.trim_start_matches([' ', '\t']);
-        let Some(rest) = t.strip_prefix('|') else { break };
+        let Some(rest) = t.strip_prefix('|') else {
+            break;
+        };
         out.push(row_of(rest));
     }
     out
@@ -805,7 +843,13 @@ pub fn column_layout(rows: &[&Vec<String>]) -> (Vec<usize>, Vec<char>) {
             }
         }
         widths.push(max_width);
-        aligns.push(fixed.unwrap_or(if numbers as f64 >= fraction * non_empty as f64 { 'r' } else { 'l' }));
+        aligns.push(
+            fixed.unwrap_or(if numbers as f64 >= fraction * non_empty as f64 {
+                'r'
+            } else {
+                'l'
+            }),
+        );
     }
     (widths, aligns)
 }
@@ -824,7 +868,10 @@ pub fn align_field(field: &str, w: usize, align: char) -> String {
 /// org-table-clean-line: fields blanked to spaces, `|` kept.
 pub fn clean_line(s: &str) -> String {
     if is_hline(s) {
-        return s.chars().map(|c| if c == '|' || c == '+' { '|' } else { ' ' }).collect();
+        return s
+            .chars()
+            .map(|c| if c == '|' || c == '+' { '|' } else { ' ' })
+            .collect();
     }
     // Replace each non-blank field by as many spaces as its width.
     let mut out = String::new();

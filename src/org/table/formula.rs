@@ -45,7 +45,10 @@ lazy_re!(AFTER_FIRST, r"^[ \t]*\|[^|]*(\|.*)");
 pub fn analyze(d: &mut Doc) {
     let beg = d.table_begin();
     let end = d.table_end();
-    let mut an = Analysis { begin: beg, ..Analysis::default() };
+    let mut an = Analysis {
+        begin: beg,
+        ..Analysis::default()
+    };
     if let Some(l) = (beg..end).find(|&l| COLNAMES.is_match(&d.lines[l])) {
         let m = COLNAMES.captures(&d.lines[l]).unwrap();
         let mut c = 1;
@@ -60,19 +63,28 @@ pub fn analyze(d: &mut Doc) {
         if let Some(m) = PARAMS.captures(&d.lines[l]) {
             for field in split_string(&m[1], &FIELDSEP) {
                 if let Some(p) = PARAM_DEF.captures(&field) {
-                    an.local_parameters.insert(0, (p[1].to_owned(), p[2].to_owned()));
+                    an.local_parameters
+                        .insert(0, (p[1].to_owned(), p[2].to_owned()));
                 }
             }
         }
     }
     for l in beg..end {
-        let Some(m) = NAMEDROW.captures(&d.lines[l]) else { continue };
+        let Some(m) = NAMEDROW.captures(&d.lines[l]) else {
+            continue;
+        };
         let fields = split_string(&m[2], &FIELDSEP);
-        let other = if &m[1] == "_" { l + 1 } else { l.wrapping_sub(1) };
+        let other = if &m[1] == "_" {
+            l + 1
+        } else {
+            l.wrapping_sub(1)
+        };
         if other >= d.n() {
             continue;
         }
-        let Some(m1) = AFTER_FIRST.captures(&d.lines[other]) else { continue };
+        let Some(m1) = AFTER_FIRST.captures(&d.lines[other]) else {
+            continue;
+        };
         let fields1 = split_string(&m1[1], &FIELDSEP);
         let mut col = 1;
         for (field, v) in fields.iter().zip(fields1.iter()) {
@@ -101,7 +113,10 @@ pub fn analyze(d: &mut Doc) {
 
 // ---- stored formulas ----
 
-lazy_re!(TBLFM_TERM, r"^(@[-+I<>0-9.$@]+|\$([_a-zA-Z0-9]+|[<>]+)) *= *(.*[^ \t])");
+lazy_re!(
+    TBLFM_TERM,
+    r"^(@[-+I<>0-9.$@]+|\$([_a-zA-Z0-9]+|[<>]+)) *= *(.*[^ \t])"
+);
 lazy_re!(COLREF_LHS, r"^\$([0-9]+|[<>]+)$");
 lazy_re!(TERM_SEP, r" *:: *");
 
@@ -115,7 +130,11 @@ fn tblfm_line(d: &Doc, location: Option<usize>) -> Option<usize> {
 }
 
 /// org-table-get-stored-formulas.
-pub fn get_stored_formulas(d: &mut Doc, noerror: bool, location: Option<usize>) -> Result<Vec<(String, String)>, String> {
+pub fn get_stored_formulas(
+    d: &mut Doc,
+    noerror: bool,
+    location: Option<usize>,
+) -> Result<Vec<(String, String)>, String> {
     let Some(l) = tblfm_line(d, location) else {
         return Ok(vec![]);
     };
@@ -125,9 +144,15 @@ pub fn get_stored_formulas(d: &mut Doc, noerror: bool, location: Option<usize>) 
     let mut out = vec![];
     let mut seen: Vec<String> = vec![];
     for s in split_string(body, &TERM_SEP) {
-        let Some(m) = TBLFM_TERM.captures(&s) else { continue };
+        let Some(m) = TBLFM_TERM.captures(&s) else {
+            continue;
+        };
         let whole = &m[1];
-        let lhs = if m.get(2).is_none() || COLREF_LHS.is_match(whole) { whole.to_owned() } else { m[2].to_owned() };
+        let lhs = if m.get(2).is_none() || COLREF_LHS.is_match(whole) {
+            whole.to_owned()
+        } else {
+            m[2].to_owned()
+        };
         let rhs = m[3].to_owned();
         if seen.contains(&lhs) {
             let msg = format!("Double definition `{lhs}=' in TBLFM line, please fix by hand");
@@ -187,7 +212,11 @@ pub fn store_formulas(d: &mut Doc, alist: &[(String, String)], location: Option<
     let mut alist = alist.to_vec();
     let an = d.an.clone();
     sort_formulas(&mut alist, &an);
-    let text = alist.iter().map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>().join("::");
+    let text = alist
+        .iter()
+        .map(|(k, v)| format!("{k}={v}"))
+        .collect::<Vec<_>>()
+        .join("::");
     match tblfm_line(d, location) {
         Some(l) => {
             let line = &d.lines[l];
@@ -197,7 +226,9 @@ pub fn store_formulas(d: &mut Doc, alist: &[(String, String)], location: Option<
         None => {
             let at = location.unwrap_or_else(|| d.table_end());
             let begin = d.begin_of(at.saturating_sub(1));
-            let indent: String = d.lines.get(begin).map_or(String::new(), |l| l.chars().take_while(|c| *c == ' ' || *c == '\t').collect());
+            let indent: String = d.lines.get(begin).map_or(String::new(), |l| {
+                l.chars().take_while(|c| *c == ' ' || *c == '\t').collect()
+            });
             let new = format!("{indent}#+TBLFM: {text}");
             let (pl, pc) = (d.l, d.c);
             d.lines.insert(at, new);
@@ -210,21 +241,37 @@ lazy_re!(IN_REMOTE, r"remote\([^)]+?\)");
 
 /// Inside `remote(...)` at byte `pos` of `s` (org-in-regexp).
 fn in_remote(s: &str, pos: usize) -> bool {
-    IN_REMOTE.find_iter(s).any(|m| m.start() <= pos && pos < m.end())
+    IN_REMOTE
+        .find_iter(s)
+        .any(|m| m.start() <= pos && pos < m.end())
 }
 
 /// org-table-fix-formulas: after structure edits, renumber `key` (`@`
 /// or `$`) references: `replace` maps numbers, those above `limit`
 /// shift by `delta`, terms assigning to `remove` are dropped.
-pub fn fix_formulas(d: &mut Doc, key: char, replace: &[(String, String)], limit: Option<usize>, delta: i64, remove: Option<usize>) -> R {
+pub fn fix_formulas(
+    d: &mut Doc,
+    key: char,
+    replace: &[(String, String)],
+    limit: Option<usize>,
+    delta: i64,
+    remove: Option<usize>,
+) -> R {
     let mut l = d.table_end();
     let mut changed = false;
     while l < d.n() && is_tblfm(&d.lines[l]) {
         let mut s = d.lines[l].clone();
         if let Some(r) = remove {
-            let re2 = if key == '$' { re(&format!(r"(@[0-9]+)?\${r}=.*?(::|$)")) } else { re(&format!(r"@{r}\$[0-9]+=.*?(::|$)")) };
+            let re2 = if key == '$' {
+                re(&format!(r"(@[0-9]+)?\${r}=.*?(::|$)"))
+            } else {
+                re(&format!(r"@{r}\$[0-9]+=.*?(::|$)"))
+            };
             let mut from = 0;
-            while let Some(m) = re2.find_at(&s, from).map(|m| (m.start(), m.end(), m.as_str().to_owned())) {
+            while let Some(m) = re2
+                .find_at(&s, from)
+                .map(|m| (m.start(), m.end(), m.as_str().to_owned()))
+            {
                 let m = (m.0..m.1, m.2);
                 if in_remote(&s, m.0.start) {
                     from = m.0.end.max(m.0.start + 1);
@@ -234,7 +281,10 @@ pub fn fix_formulas(d: &mut Doc, key: char, replace: &[(String, String)], limit:
                     continue;
                 }
                 if m.0.start > 0 && s.as_bytes()[m.0.start - 1] == b'.' {
-                    return Err(format!("Change makes TBLFM term {} invalid, use undo to recover", m.1));
+                    return Err(format!(
+                        "Change makes TBLFM term {} invalid, use undo to recover",
+                        m.1
+                    ));
                 }
                 s.replace_range(m.0.clone(), "");
                 from = m.0.start;
@@ -295,11 +345,23 @@ pub fn handle_first_last_rc(s: &str, an: &Analysis) -> Result<String, String> {
         let whole = m.get(0).unwrap();
         let kind = &m[1];
         let arrows = &m[2];
-        let nmax = if kind == "@" { an.dlines.len() as i64 - 1 } else { an.ncol as i64 };
+        let nmax = if kind == "@" {
+            an.dlines.len() as i64 - 1
+        } else {
+            an.ncol as i64
+        };
         let len = arrows.len() as i64;
-        let n = if arrows.starts_with('<') { len } else { nmax - len + 1 };
+        let n = if arrows.starts_with('<') {
+            len
+        } else {
+            nmax - len + 1
+        };
         if n < 1 || n > nmax {
-            return Err(format!("Reference \"{}\" in expression \"{}\" points outside table", whole.as_str(), s));
+            return Err(format!(
+                "Reference \"{}\" in expression \"{}\" points outside table",
+                whole.as_str(),
+                s
+            ));
         }
         let r = whole.range();
         start = r.start;
@@ -309,7 +371,15 @@ pub fn handle_first_last_rc(s: &str, an: &Analysis) -> Result<String, String> {
 }
 
 /// org-table--row-type.
-fn row_type(an: &Analysis, hline: bool, n: usize, mut i: i64, backwards: bool, relative: bool, desc: &str) -> Result<i64, String> {
+fn row_type(
+    an: &Analysis,
+    hline: bool,
+    n: usize,
+    mut i: i64,
+    backwards: bool,
+    relative: bool,
+    desc: &str,
+) -> Result<i64, String> {
     let l = an.hline.len() as i64;
     let cross = super::opt_string("org-table-relative-ref-may-cross-hline", "t");
     'outer: for _ in 0..n {
@@ -341,17 +411,30 @@ lazy_re!(ROW_DESC, r"^(([-+])?(I+))?(([-+])?([0-9]+))?");
 fn descriptor_line(an: &Analysis, desc: &str, cline: i64) -> Result<i64, String> {
     if !desc.is_empty() && desc.chars().all(|c| c.is_ascii_digit()) {
         let n: usize = desc.parse().unwrap_or(0);
-        return an.dlines.get(n).filter(|_| n > 0).map(|&x| x as i64).ok_or_else(|| format!("Args out of range: row {desc}"));
+        if n == 0 {
+            // (aref org-table-dlines 0) is nil: the current line.
+            return Ok(cline);
+        }
+        return an
+            .dlines
+            .get(n)
+            .map(|&x| x as i64)
+            .ok_or_else(|| format!("Args out of range: row {desc}"));
     }
-    let m = ROW_DESC.captures(desc).ok_or_else(|| format!("Invalid row descriptor `{desc}'"))?;
-    if (m.get(3).is_none() && m.get(6).is_none()) || (m.get(3).is_some() && m.get(6).is_some() && m.get(5).is_none()) {
+    let m = ROW_DESC
+        .captures(desc)
+        .ok_or_else(|| format!("Invalid row descriptor `{desc}'"))?;
+    if (m.get(3).is_none() && m.get(6).is_none())
+        || (m.get(3).is_some() && m.get(6).is_some() && m.get(5).is_none())
+    {
         return Err(format!("Invalid row descriptor `{desc}'"));
     }
     let mut hn = m.get(3).map(|x| x.as_str().len());
     let mut hdir = m.get(2).map(|x| x.as_str().to_owned());
     let odir = m.get(5).map(|x| x.as_str());
     let on = m.get(6).map(|x| x.as_str().parse::<usize>().unwrap_or(0));
-    let rel = m.get(6).is_some() && ((m.get(1).is_some() && m.get(3).is_none()) || m.get(5).is_some());
+    let rel =
+        m.get(6).is_some() && ((m.get(1).is_some() && m.get(3).is_none()) || m.get(5).is_some());
     let mut cline = cline;
     if hn.is_some() && hdir.is_none() {
         cline = 0;
@@ -364,7 +447,15 @@ fn descriptor_line(an: &Analysis, desc: &str, cline: i64) -> Result<i64, String>
         return Err("Should never happen".into());
     }
     if let Some(h) = hn {
-        cline = row_type(an, true, h, cline, hdir.as_deref() == Some("-"), false, desc)?;
+        cline = row_type(
+            an,
+            true,
+            h,
+            cline,
+            hdir.as_deref() == Some("-"),
+            false,
+            desc,
+        )?;
     }
     if let Some(o) = on {
         cline = row_type(an, false, o, cline, odir == Some("-"), rel, desc)?;
@@ -372,7 +463,10 @@ fn descriptor_line(an: &Analysis, desc: &str, cline: i64) -> Result<i64, String>
     Ok(cline)
 }
 
-lazy_re!(RANGE_RE, r"@([-+]?I*[-+]?[0-9]*)(\$[-+]?[0-9]+)?(\.\.@?([-+]?I*[-+]?[0-9]*)(\$[-+]?[0-9]+)?)?");
+lazy_re!(
+    RANGE_RE,
+    r"@([-+]?I*[-+]?[0-9]*)(\$[-+]?[0-9]+)?(\.\.@?([-+]?I*[-+]?[0-9]*)(\$[-+]?[0-9]+)?)?"
+);
 lazy_re!(SIMPLE_COLRANGE, r"^\$[0-9]+\.\.\$[0-9]+$");
 
 /// A reference's value: one field or a list of fields.
@@ -385,11 +479,17 @@ pub enum Refv {
 /// org-table-get-range: `desc` relative to the current line of the table
 /// starting at `tbeg`, current column `col`.
 pub fn get_range(d: &mut Doc, desc: &str, col: Option<usize>) -> Result<Refv, String> {
-    let desc = if SIMPLE_COLRANGE.is_match(desc) { desc.replace('$', "@0$") } else { desc.to_owned() };
+    let desc = if SIMPLE_COLRANGE.is_match(desc) {
+        desc.replace('$', "@0$")
+    } else {
+        desc.to_owned()
+    };
     let col = col.unwrap_or_else(|| d.current_column());
     let tbeg = d.an.begin;
     let thisline = d.l as i64 - tbeg as i64;
-    let m = RANGE_RE.captures(&desc).ok_or_else(|| format!("Invalid table range specifier `{desc}'"))?;
+    let m = RANGE_RE
+        .captures(&desc)
+        .ok_or_else(|| format!("Invalid table range specifier `{desc}'"))?;
     let an = d.an.clone();
     let rangep = m.get(3).is_some();
     let row = |g: Option<regex::Match>| -> Result<i64, String> {
@@ -406,7 +506,11 @@ pub fn get_range(d: &mut Doc, desc: &str, col: Option<usize>) -> Result<Refv, St
                 if n == 0 {
                     col as i64
                 } else {
-                    n + if c.starts_with(['-', '+']) { col as i64 } else { 0 }
+                    n + if c.starts_with(['-', '+']) {
+                        col as i64
+                    } else {
+                        0
+                    }
                 }
             }
         }
@@ -462,7 +566,9 @@ pub fn get_range(d: &mut Doc, desc: &str, col: Option<usize>) -> Result<Refv, St
 
 /// org-table-get-range with CORNERS-ONLY: (row1, col1, row2, col2).
 fn range_corners(d: &Doc, desc: &str, col: usize) -> Result<(i64, i64, i64, i64), String> {
-    let m = RANGE_RE.captures(desc).ok_or_else(|| format!("Invalid table range specifier `{desc}'"))?;
+    let m = RANGE_RE
+        .captures(desc)
+        .ok_or_else(|| format!("Invalid table range specifier `{desc}'"))?;
     let thisline = d.l as i64 - d.an.begin as i64;
     let row = |g: Option<regex::Match>| -> Result<i64, String> {
         match g.map(|x| x.as_str()).filter(|s| nw(s)) {
@@ -475,16 +581,32 @@ fn range_corners(d: &Doc, desc: &str, col: usize) -> Result<(i64, i64, i64, i64)
             None => col as i64,
             Some(c) => {
                 let n: i64 = c.trim_start_matches('+').parse().unwrap_or(0);
-                if n == 0 { col as i64 } else { n + if c.starts_with(['-', '+']) { col as i64 } else { 0 } }
+                if n == 0 {
+                    col as i64
+                } else {
+                    n + if c.starts_with(['-', '+']) {
+                        col as i64
+                    } else {
+                        0
+                    }
+                }
             }
         }
     };
-    let (r1, r2, c1, c2) = (row(m.get(1))?, row(m.get(4))?, colf(m.get(2)), colf(m.get(5)));
+    let (r1, r2, c1, c2) = (
+        row(m.get(1))?,
+        row(m.get(4))?,
+        colf(m.get(2)),
+        colf(m.get(5)),
+    );
     Ok((r1.min(r2), c1.min(c2), r1.max(r2), c1.max(c2)))
 }
 
 /// org-table-expand-lhs-ranges.
-pub fn expand_lhs_ranges(d: &mut Doc, eqs: Vec<(String, String)>) -> Result<Vec<(String, String, Option<String>)>, String> {
+pub fn expand_lhs_ranges(
+    d: &mut Doc,
+    eqs: Vec<(String, String)>,
+) -> Result<Vec<(String, String, Option<String>)>, String> {
     static FIXED: LazyLock<Regex> = LazyLock::new(|| re(r"^@[-+0-9]+\$-?[0-9]+$"));
     static NAMED: LazyLock<Regex> = LazyLock::new(|| re(r"^[a-zA-Z][_a-zA-Z0-9]*$"));
     static COL: LazyLock<Regex> = LazyLock::new(|| re(r"^\$[0-9]+$"));
@@ -495,7 +617,11 @@ pub fn expand_lhs_ranges(d: &mut Doc, eqs: Vec<(String, String)>) -> Result<Vec<
             res.push((lhs, rhs, None));
         } else if ROW.is_match(&lhs) {
             for ic in 1..=d.an.ncol {
-                res.push((format!("{lhs}${ic}"), rhs.clone(), Some(format!("{lhs}={rhs}"))));
+                res.push((
+                    format!("{lhs}${ic}"),
+                    rhs.clone(),
+                    Some(format!("{lhs}={rhs}")),
+                ));
             }
         } else {
             let (l0, c0) = (d.l, d.c);
@@ -507,7 +633,11 @@ pub fn expand_lhs_ranges(d: &mut Doc, eqs: Vec<(String, String)>) -> Result<Vec<
             let r2 = line_to_dline(&d.an.dlines, lr.max(0) as usize, true).unwrap_or(0);
             for ir in r1..=r2 {
                 for ic in c1..=c2 {
-                    res.push((format!("@{ir}${ic}"), rhs.clone(), Some(format!("{lhs}={rhs}"))));
+                    res.push((
+                        format!("@{ir}${ic}"),
+                        rhs.clone(),
+                        Some(format!("{lhs}={rhs}")),
+                    ));
                 }
             }
         }
@@ -587,7 +717,10 @@ pub fn get_constant(d: &Doc, name: &str) -> String {
     if let Some((_, v)) = d.an.local_parameters.iter().find(|(k, _)| k == name) {
         return v.clone();
     }
-    if let Some(v) = buffer_constants(&d.lines).into_iter().find(|(k, _)| k == name) {
+    if let Some(v) = buffer_constants(&d.lines)
+        .into_iter()
+        .find(|(k, _)| k == name)
+    {
         return v.1;
     }
     match super::super::options::get("org-table-formula-constants") {
@@ -634,7 +767,10 @@ fn buffer_constants(lines: &[String]) -> Vec<(String, String)> {
     out
 }
 
-lazy_re!(NAME_OR_REMOTE, r"\$([a-zA-Z][_a-zA-Z0-9]*)|(\bremote\([^)]*\))");
+lazy_re!(
+    NAME_OR_REMOTE,
+    r"\$([a-zA-Z][_a-zA-Z0-9]*)|(\bremote\([^)]*\))"
+);
 lazy_re!(DURATION_FMT, r";.*[Tt].*$");
 
 /// org-table-formula-substitute-names.
@@ -643,11 +779,22 @@ pub fn substitute_names(d: &Doc, f: &str) -> String {
     let duration = DURATION_FMT.is_match(f);
     let mut new = f.to_owned();
     if !d.an.column_names.is_empty() {
-        let alts = d.an.column_names.iter().map(|(n, _)| regex::escape(n)).collect::<Vec<_>>().join("|");
+        let alts =
+            d.an.column_names
+                .iter()
+                .map(|(n, _)| regex::escape(n))
+                .collect::<Vec<_>>()
+                .join("|");
         let r = re(&format!(r"\$({alts})\b"));
         new = r
             .replace_all(&new, |c: &Captures| {
-                let num = &d.an.column_names.iter().find(|(n, _)| n == &c[1]).unwrap().1;
+                let num = &d
+                    .an
+                    .column_names
+                    .iter()
+                    .find(|(n, _)| n == &c[1])
+                    .unwrap()
+                    .1;
                 format!("${num}")
             })
             .into_owned();
@@ -674,7 +821,9 @@ pub fn substitute_names(d: &Doc, f: &str) -> String {
 
 /// org-letters-to-number.
 pub fn letters_to_number(s: &str) -> usize {
-    s.to_ascii_uppercase().bytes().fold(0, |n, c| n * 26 + (c - b'A') as usize + 1)
+    s.to_ascii_uppercase()
+        .bytes()
+        .fold(0, |n, c| n * 26 + (c - b'A') as usize + 1)
 }
 
 /// org-number-to-letters.
@@ -687,7 +836,10 @@ pub fn number_to_letters(mut n: usize) -> String {
     s
 }
 
-lazy_re!(A1_OR_SKIP, r"\b([a-zA-Z]+)([0-9]+\b|&)|(;[^\r\n:]+|\bremote\([^,)]*\))");
+lazy_re!(
+    A1_OR_SKIP,
+    r"\b([a-zA-Z]+)([0-9]+\b|&)|(;[^\r\n:]+|\bremote\([^,)]*\))"
+);
 
 /// org-table-convert-refs-to-rc: `B3` to `@3$2`, `C&` to `$3`.
 pub fn convert_refs_to_rc(s: &str) -> String {
@@ -712,7 +864,11 @@ pub fn convert_refs_to_rc(s: &str) -> String {
         let rep = if &m[2] == "&" {
             format!("${}", letters_to_number(letters.as_str()))
         } else {
-            format!("@{}${}", m[2].parse::<u64>().unwrap_or(0), letters_to_number(letters.as_str()))
+            format!(
+                "@{}${}",
+                m[2].parse::<u64>().unwrap_or(0),
+                letters_to_number(letters.as_str())
+            )
         };
         let r = whole.range();
         start = r.start;
@@ -728,7 +884,11 @@ lazy_re!(COL_ABS, r"(^|[^0-9a-zA-Z])\$([1-9][0-9]*)");
 pub fn convert_refs_to_an(s: &str) -> String {
     let mut s = s.to_owned();
     while let Some(m) = RC_ABS.captures(&s) {
-        let rep = format!("{}{}", number_to_letters(m[2].parse().unwrap_or(0)), m[1].parse::<u64>().unwrap_or(0));
+        let rep = format!(
+            "{}{}",
+            number_to_letters(m[2].parse().unwrap_or(0)),
+            m[1].parse::<u64>().unwrap_or(0)
+        );
         let r = m.get(0).unwrap().range();
         s.replace_range(r, &rep);
     }
@@ -742,19 +902,30 @@ pub fn convert_refs_to_an(s: &str) -> String {
 
 /// org-table-formula-to-user.
 pub fn to_user(s: &str) -> String {
-    if super::opt_string("org-table-use-standard-references", "from") == "t" { convert_refs_to_an(s) } else { s.to_owned() }
+    if super::opt_string("org-table-use-standard-references", "from") == "t" {
+        convert_refs_to_an(s)
+    } else {
+        s.to_owned()
+    }
 }
 
 /// org-table-formula-from-user.
 pub fn from_user(s: &str) -> String {
-    if super::opt_string("org-table-use-standard-references", "from") != "nil" { convert_refs_to_rc(s) } else { s.to_owned() }
+    if super::opt_string("org-table-use-standard-references", "from") != "nil" {
+        convert_refs_to_rc(s)
+    } else {
+        s.to_owned()
+    }
 }
 
 // ---- durations ----
 
 lazy_re!(HMS3, r"(-?)([0-9]+):([0-9]+):([0-9]+)");
 lazy_re!(HM2, r"(-?)([0-9]+):([0-9]+)");
-lazy_re!(TS_BOTH, r"[\[<][0-9]{4}-[0-9]{2}-[0-9]{2} ?[^\]\r\n>]*?[\]>]");
+lazy_re!(
+    TS_BOTH,
+    r"[\[<][0-9]{4}-[0-9]{2}-[0-9]{2} ?[^\]\r\n>]*?[\]>]"
+);
 
 /// org-table-time-string-to-seconds.
 pub fn time_string_to_seconds(s: &str) -> String {
@@ -762,7 +933,13 @@ pub fn time_string_to_seconds(s: &str) -> String {
         return String::new();
     }
     let hms = |m: &Captures, sec: bool| -> i64 {
-        let v = m[2].parse::<i64>().unwrap_or(0) * 3600 + m[3].parse::<i64>().unwrap_or(0) * 60 + if sec { m[4].parse::<i64>().unwrap_or(0) } else { 0 };
+        let v = m[2].parse::<i64>().unwrap_or(0) * 3600
+            + m[3].parse::<i64>().unwrap_or(0) * 60
+            + if sec {
+                m[4].parse::<i64>().unwrap_or(0)
+            } else {
+                0
+            };
         if m[1].is_empty() { v } else { -v }
     };
     if let Some(m) = HMS3.captures(s) {
@@ -784,7 +961,11 @@ pub fn time_seconds_to_string(secs: f64, fmt: &str) -> String {
     let hms = |s: f64| {
         let s = s.floor() as i64;
         let (h, m, x) = (s / 3600, s % 3600 / 60, s % 60);
-        if pad { format!("{h:02}:{m:02}:{x:02}") } else { format!("{h}:{m:02}:{x:02}") }
+        if pad {
+            format!("{h:02}:{m:02}:{x:02}")
+        } else {
+            format!("{h}:{m:02}:{x:02}")
+        }
     };
     let res = match fmt {
         "days" => format!("{:.3}", secs0 / 86400.0),
@@ -802,9 +983,15 @@ pub fn time_seconds_to_string(secs: f64, fmt: &str) -> String {
 
 // ---- timestamps in Calc formulas ----
 
-lazy_re!(TS_INACTIVE, r"\[([0-9]{4}-[0-9]{2}-[0-9]{2} ?[^\]\r\n>]*?)\]");
+lazy_re!(
+    TS_INACTIVE,
+    r"\[([0-9]{4}-[0-9]{2}-[0-9]{2} ?[^\]\r\n>]*?)\]"
+);
 lazy_re!(TS_ACTIVE, r"<([0-9]{4}-[0-9]{2}-[0-9]{2} ?[^\]\r\n>]*?)>");
-lazy_re!(TS_PARTS, r"^([0-9]{4})-([0-9]{2})-([0-9]{2})(?:[^0-9]*?([0-9]{1,2}):([0-9]{2}))?");
+lazy_re!(
+    TS_PARTS,
+    r"^([0-9]{4})-([0-9]{2})-([0-9]{2})(?:[^0-9]*?([0-9]{1,2}):([0-9]{2}))?"
+);
 
 /// Active timestamps re-rendered in the C locale for Calc.
 fn localize_timestamps(form: &str) -> String {
@@ -814,11 +1001,19 @@ fn localize_timestamps(form: &str) -> String {
             let Some(p) = TS_PARTS.captures(&c[1]) else {
                 return c[0].to_owned();
             };
-            let (y, mo, da): (i64, u32, u32) = (p[1].parse().unwrap_or(0), p[2].parse().unwrap_or(1), p[3].parse().unwrap_or(1));
+            let (y, mo, da): (i64, u32, u32) = (
+                p[1].parse().unwrap_or(0),
+                p[2].parse().unwrap_or(1),
+                p[3].parse().unwrap_or(1),
+            );
             let days = super::days_from_civil(y, mo, da);
             let wd = super::weekday_name(days);
             match (p.get(4), p.get(5)) {
-                (Some(h), Some(m)) => format!("<{y:04}-{mo:02}-{da:02} {wd} {:02}:{}>", h.as_str().parse::<u32>().unwrap_or(0), m.as_str()),
+                (Some(h), Some(m)) => format!(
+                    "<{y:04}-{mo:02}-{da:02} {wd} {:02}:{}>",
+                    h.as_str().parse::<u32>().unwrap_or(0),
+                    m.as_str()
+                ),
                 _ => format!("<{y:04}-{mo:02}-{da:02} {wd}>"),
             }
         })
@@ -840,13 +1035,24 @@ pub enum EvalArg {
 }
 
 /// org-table-current-field-formula: (key, "=formula" or ":=formula").
-pub fn current_field_formula(d: &mut Doc, noerror: bool) -> Result<Option<(String, String)>, String> {
+pub fn current_field_formula(
+    d: &mut Doc,
+    noerror: bool,
+) -> Result<Option<(String, String)>, String> {
     let line = d.l - d.an.begin;
     if line_to_dline(&d.an.dlines, line, false).is_none() || !is_dataline(d.line()) {
-        return if noerror { Ok(None) } else { Err("No formula active for the current field".into()) };
+        return if noerror {
+            Ok(None)
+        } else {
+            Err("No formula active for the current field".into())
+        };
     }
     let col = d.current_column();
-    let name = d.an.named_fields.iter().find(|(_, l, c)| *l == line && *c == col).map(|x| x.0.clone());
+    let name =
+        d.an.named_fields
+            .iter()
+            .find(|(_, l, c)| *l == line && *c == col)
+            .map(|x| x.0.clone());
     let scol = format!("${col}");
     let rf = format!("@{}${col}", d.current_dline());
     let stored = get_stored_formulas(d, noerror, None)?;
@@ -856,7 +1062,11 @@ pub fn current_field_formula(d: &mut Doc, noerror: bool) -> Result<Option<(Strin
         .or_else(|| stored.iter().find(|(k, _)| *k == rf))
         .or_else(|| stored.iter().find(|(k, _)| *k == scol));
     Ok(ass.map(|(k, v)| {
-        let prefix = if k.chars().all(|c| c.is_ascii_digit()) { "=" } else { ":=" };
+        let prefix = if k.chars().all(|c| c.is_ascii_digit()) {
+            "="
+        } else {
+            ":="
+        };
         (k.clone(), format!("{prefix}{v}"))
     }))
 }
@@ -866,12 +1076,24 @@ pub fn formula_prompt(d: &mut Doc, named: bool) -> Result<(String, String), Stri
     let stored = get_stored_formulas(d, false, None)?;
     let line = d.l - d.an.begin;
     let col = d.current_column();
-    let name = d.an.named_fields.iter().find(|(_, l, c)| *l == line && *c == col).map(|x| x.0.clone());
+    let name =
+        d.an.named_fields
+            .iter()
+            .find(|(_, l, c)| *l == line && *c == col)
+            .map(|x| x.0.clone());
     let rf = format!("@{}${}", d.current_dline(), col);
-    let scol = if !named { format!("${col}") } else { name.unwrap_or(rf) };
+    let scol = if !named {
+        format!("${col}")
+    } else {
+        name.unwrap_or(rf)
+    };
     let stored = stored.iter().find(|(k, _)| *k == scol).map(|x| x.1.clone());
     Ok((
-        to_user(&format!("{} formula {}=", if named { "Field" } else { "Column" }, scol)),
+        to_user(&format!(
+            "{} formula {}=",
+            if named { "Field" } else { "Column" },
+            scol
+        )),
         stored.map(|s| to_user(&s)).unwrap_or_default(),
     ))
 }
@@ -881,13 +1103,24 @@ pub fn get_formula(d: &mut Doc, equation: &str, named: bool) -> Result<String, S
     let mut stored_list = get_stored_formulas(d, false, None)?;
     let line = d.l - d.an.begin;
     let col = d.current_column();
-    let name = d.an.named_fields.iter().find(|(_, l, c)| *l == line && *c == col).map(|x| x.0.clone());
+    let name =
+        d.an.named_fields
+            .iter()
+            .find(|(_, l, c)| *l == line && *c == col)
+            .map(|x| x.0.clone());
     let rf = format!("@{}${}", d.current_dline(), col);
-    let scol = if !named { format!("${col}") } else { name.clone().unwrap_or_else(|| rf.clone()) };
+    let scol = if !named {
+        format!("${col}")
+    } else {
+        name.clone().unwrap_or_else(|| rf.clone())
+    };
     let name = name.or(Some(rf));
     let saved = d.st.may_need_update;
     d.st.may_need_update = false;
-    let stored = stored_list.iter().find(|(k, _)| *k == scol).map(|x| x.1.clone());
+    let stored = stored_list
+        .iter()
+        .find(|(k, _)| *k == scol)
+        .map(|x| x.1.clone());
     static BLANK_EQ: LazyLock<Regex> = LazyLock::new(|| re(r"^ *=? *$"));
     let mut eq = match &stored {
         Some(s) if BLANK_EQ.is_match(equation) => s.clone(),
@@ -899,7 +1132,10 @@ pub fn get_formula(d: &mut Doc, equation: &str, named: bool) -> Result<String, S
         store_formulas(d, &stored_list, None);
         return Err("Formula removed".into());
     }
-    eq = eq.trim_start_matches(' ').trim_start_matches('=').to_owned();
+    eq = eq
+        .trim_start_matches(' ')
+        .trim_start_matches('=')
+        .to_owned();
     eq = eq.trim_end_matches(' ').to_owned();
     let mut mustsave = false;
     if let Some(n) = &name
@@ -931,7 +1167,15 @@ pub fn maybe_eval_formula(d: &mut Doc) -> R {
     if let Some(m) = INLINE_FORMULA.captures(&field) {
         let named = field.starts_with(':');
         let eq = from_user(&m[1]);
-        eval_formula(d, if named { EvalArg::Field } else { EvalArg::None }, Some(&eq), false, false, false, false)?;
+        eval_formula(
+            d,
+            if named { EvalArg::Field } else { EvalArg::None },
+            Some(&eq),
+            false,
+            false,
+            false,
+            false,
+        )?;
     }
     Ok(())
 }
@@ -943,7 +1187,11 @@ pub fn maybe_recalculate_line(d: &mut Doc) -> Result<bool, String> {
     if !opt_bool("org-table-allow-automatic-line-recalculation", true) {
         return Ok(false);
     }
-    let just_done = d.last_command.as_ref().is_some_and(|c| d.st.recalc_commands.contains(c)) && d.st.last_recalc_line == Some(d.l);
+    let just_done = d
+        .last_command
+        .as_ref()
+        .is_some_and(|c| d.st.recalc_commands.contains(c))
+        && d.st.last_recalc_line == Some(d.l);
     if just_done || !d.at_table() || !AUTO_RECALC.is_match(d.line()) {
         return Ok(false);
     }
@@ -960,7 +1208,10 @@ lazy_re!(REMOTE, r"\bremote\([ \t]*([^,)]+)[ \t]*,[ \t]*([^\n)]+)\)");
 lazy_re!(SIMPLE_RANGE, r"\$(([-+])?[0-9]+)\.\.\$(([-+])?[0-9]+)");
 lazy_re!(FIELD_REF, r"\$(([-+])?[0-9]+)");
 lazy_re!(TIME_ONLY, r"^[0-9]+:[0-9]+(?::[0-9]+)?$");
-lazy_re!(TS_ACTIVE_ANY, r"<([0-9]{4}-[0-9]{2}-[0-9]{2} ?[^\]\r\n>]*?)>");
+lazy_re!(
+    TS_ACTIVE_ANY,
+    r"<([0-9]{4}-[0-9]{2}-[0-9]{2} ?[^\]\r\n>]*?)>"
+);
 
 /// The parsed mode string of a formula.
 struct FormulaModes {
@@ -986,7 +1237,11 @@ fn parse_modes(d: &Doc, formula: &str) -> (String, FormulaModes) {
     let Some(m) = FMT_SPLIT.captures(formula) else {
         return (formula.to_owned(), fm);
     };
-    let pct = d.an.local_parameters.iter().find(|(k, _)| k == "%").map_or("", |x| x.1.as_str());
+    let pct =
+        d.an.local_parameters
+            .iter()
+            .find(|(k, _)| k == "%")
+            .map_or("", |x| x.1.as_str());
     let mut fmt = format!("{pct}{}", &m[2]);
     let f = m[1].to_owned();
     while let Some(c) = FMT_NUMFLAG.captures(&fmt) {
@@ -1043,7 +1298,9 @@ fn default_modes() -> Modes {
         && let Some(items) = v.list()
     {
         for p in items.chunks(2) {
-            let (Some(k), Some(val)) = (p[0].sym(), p.get(1)) else { continue };
+            let (Some(k), Some(val)) = (p[0].sym(), p.get(1)) else {
+                continue;
+            };
             match k {
                 "calc-internal-prec" => m.prec = val.int().unwrap_or(12) as i32,
                 "calc-angle-mode" => m.deg = val.sym() != Some("rad"),
@@ -1051,7 +1308,10 @@ fn default_modes() -> Modes {
                 "calc-symbolic-mode" => m.symbolic = val.truthy(),
                 "calc-float-format" => {
                     if let Some(l) = val.list()
-                        && let (Some(f), Some(n)) = (l.first().and_then(|x| x.sym()), l.get(1).and_then(|x| x.int()))
+                        && let (Some(f), Some(n)) = (
+                            l.first().and_then(|x| x.sym()),
+                            l.get(1).and_then(|x| x.int()),
+                        )
                     {
                         m.float_fmt = match f {
                             "fix" => FloatFmt::Fix,
@@ -1071,13 +1331,23 @@ fn default_modes() -> Modes {
 
 /// org-table-eval-formula.
 #[allow(clippy::too_many_arguments)]
-pub fn eval_formula(d: &mut Doc, arg: EvalArg, equation: Option<&str>, suppress_align: bool, suppress_const: bool, suppress_store: bool, suppress_analysis: bool) -> R {
+pub fn eval_formula(
+    d: &mut Doc,
+    arg: EvalArg,
+    equation: Option<&str>,
+    suppress_align: bool,
+    suppress_const: bool,
+    suppress_store: bool,
+    suppress_analysis: bool,
+) -> R {
     if !suppress_analysis {
         d.check_inside_data_field(false, true)?;
         analyze(d);
     }
     if arg == EvalArg::Insert {
-        let eq = current_field_formula(d, false)?.map(|x| x.1).ok_or("No formula active for the current field")?;
+        let eq = current_field_formula(d, false)?
+            .map(|x| x.1)
+            .ok_or("No formula active for the current field")?;
         d.get_field(None, Some(&eq));
         d.align();
         d.st.may_need_update = true;
@@ -1108,21 +1378,40 @@ pub fn eval_formula(d: &mut Doc, arg: EvalArg, equation: Option<&str>, suppress_
                 fields = fields.iter().map(|f| time_string_to_seconds(f)).collect();
             }
             if fm.numbers {
-                fields = fields.iter().map(|x| if nw(x) { lisp::num_to_string(&lisp::string_to_number(x)) } else { x.clone() }).collect();
+                fields = fields
+                    .iter()
+                    .map(|x| {
+                        if nw(x) {
+                            lisp::num_to_string(&lisp::string_to_number(x))
+                        } else {
+                            x.clone()
+                        }
+                    })
+                    .collect();
             }
             ndown -= 1;
             let mut form = formula.clone();
             let lispp = if form.len() > 2 && form.starts_with("'(") {
-                if fm.literal { Lispp::Literal } else { Lispp::Lisp }
+                if fm.literal {
+                    Lispp::Literal
+                } else {
+                    Lispp::Lisp
+                }
             } else {
                 Lispp::Calc
             };
             while let Some(m) = ROWCOL_HASH.find(&form) {
-                let v = if form[m.start()..].starts_with('@') { d.current_dline() } else { d.current_column() };
+                let v = if form[m.start()..].starts_with('@') {
+                    d.current_dline()
+                } else {
+                    d.current_column()
+                };
                 form.replace_range(m.range(), &v.to_string());
             }
             if OLD_ROWREF.is_match(&form) {
-                return Err("Formula contains old &row reference, please rewrite using @-syntax".into());
+                return Err(
+                    "Formula contains old &row reference, please rewrite using @-syntax".into(),
+                );
             }
             form = remote_reference_indirection(d, &form)?;
             let conv = |r: Refv| -> Refv {
@@ -1131,7 +1420,9 @@ pub fn eval_formula(d: &mut Doc, arg: EvalArg, equation: Option<&str>, suppress_
                 }
                 match r {
                     Refv::One(s) => Refv::One(time_string_to_seconds(&s)),
-                    Refv::Many(v) => Refv::Many(v.iter().map(|x| time_string_to_seconds(x)).collect()),
+                    Refv::Many(v) => {
+                        Refv::Many(v.iter().map(|x| time_string_to_seconds(x)).collect())
+                    }
                 }
             };
             while let Some(m) = REMOTE.captures(&form) {
@@ -1154,21 +1445,35 @@ pub fn eval_formula(d: &mut Doc, arg: EvalArg, equation: Option<&str>, suppress_
                 form.replace_range(m.range(), &rep);
             }
             while let Some(m) = SIMPLE_RANGE.captures(&form) {
-                let a: i64 = m[1].trim_start_matches('+').parse().unwrap_or(0) + if m.get(2).is_some() { n0 as i64 } else { 0 };
-                let b: i64 = m[3].trim_start_matches('+').parse().unwrap_or(0) + if m.get(4).is_some() { n0 as i64 } else { 0 };
+                let a: i64 = m[1].trim_start_matches('+').parse().unwrap_or(0)
+                    + if m.get(2).is_some() { n0 as i64 } else { 0 };
+                let b: i64 = m[3].trim_start_matches('+').parse().unwrap_or(0)
+                    + if m.get(4).is_some() { n0 as i64 } else { 0 };
                 let from = (a - 1).max(0) as usize;
                 let to = (b.max(0) as usize).min(fields.len());
-                let slice = if from < to { fields[from..to].to_vec() } else { vec![] };
+                let slice = if from < to {
+                    fields[from..to].to_vec()
+                } else {
+                    vec![]
+                };
                 let rep = make_reference(&Refv::Many(slice), fm.keep_empty, fm.numbers, lispp);
                 let r = m.get(0).unwrap().range();
                 form.replace_range(r, &rep);
             }
             let form0 = form.clone();
             while let Some(m) = FIELD_REF.captures(&form) {
-                let n: i64 = m[1].trim_start_matches('+').parse::<i64>().unwrap_or(0) + if m.get(2).is_some() { n0 as i64 } else { 0 };
+                let n: i64 = m[1].trim_start_matches('+').parse::<i64>().unwrap_or(0)
+                    + if m.get(2).is_some() { n0 as i64 } else { 0 };
                 let idx = if n == 0 { n0 as i64 } else { n.max(1) } - 1;
                 let x = fields.get(idx.max(0) as usize).cloned();
-                let rep = x.as_ref().map(|x| make_reference(&Refv::One(conv(Refv::One(x.clone())).one()), fm.keep_empty, fm.numbers, lispp));
+                let rep = x.as_ref().map(|x| {
+                    make_reference(
+                        &Refv::One(conv(Refv::One(x.clone())).one()),
+                        fm.keep_empty,
+                        fm.numbers,
+                        lispp,
+                    )
+                });
                 match rep {
                     Some(rep) if !rep.contains(&formula) || formula.is_empty() => {
                         let r = m.get(0).unwrap().range();
@@ -1194,7 +1499,11 @@ pub fn eval_formula(d: &mut Doc, arg: EvalArg, equation: Option<&str>, suppress_
                 };
                 r.map(|ev| {
                     if fm.duration && !ev.is_empty() {
-                        let secs = if TIME_ONLY.is_match(&ev) { lisp::string_to_number(&time_string_to_seconds(&ev)).f() } else { lisp::string_to_number(&ev).f() };
+                        let secs = if TIME_ONLY.is_match(&ev) {
+                            lisp::string_to_number(&time_string_to_seconds(&ev)).f()
+                        } else {
+                            lisp::string_to_number(&ev).f()
+                        };
                         time_seconds_to_string(secs, &fm.duration_fmt)
                     } else {
                         ev
@@ -1258,7 +1567,10 @@ impl Refv {
     }
 }
 
-lazy_re!(REMOTE_INDIRECT, r"\bremote\([ \t]*([@$][^ \t,]+)[ \t]*,[ \t]*([^\n)]+)\)");
+lazy_re!(
+    REMOTE_INDIRECT,
+    r"\bremote\([ \t]*([@$][^ \t,]+)[ \t]*,[ \t]*([^\n)]+)\)"
+);
 
 /// org-table-remote-reference-indirection.
 fn remote_reference_indirection(d: &mut Doc, form: &str) -> Result<String, String> {
@@ -1268,7 +1580,11 @@ fn remote_reference_indirection(d: &mut Doc, form: &str) -> Result<String, Strin
         let g = m.get(1).unwrap();
         let eq = handle_first_last_rc(g.as_str(), &d.an)?;
         static COL: LazyLock<Regex> = LazyLock::new(|| re(r"^\$[0-9]+$"));
-        let desc = if COL.is_match(&eq) { format!("@0{eq}") } else { eq };
+        let desc = if COL.is_match(&eq) {
+            format!("@0{eq}")
+        } else {
+            eq
+        };
         let v = match get_range(d, &desc, None)? {
             Refv::One(s) => s,
             Refv::Many(v) => v.join(" "),
@@ -1285,11 +1601,21 @@ fn remote_reference_indirection(d: &mut Doc, form: &str) -> Result<String, Strin
 /// NAME-OR-ID (`#+NAME:`) or under the entry with that ID.
 pub fn get_remote_range(d: &mut Doc, name_or_id: &str, form: &str) -> Result<Refv, String> {
     let form = convert_refs_to_rc(form);
-    let name_re = re(&format!(r"(?i)^[ \t]*#\+(tbl)?name:[ \t]*{}[ \t]*$", regex::escape(name_or_id)));
-    let loc = d.lines.iter().position(|l| name_re.is_match(l)).or_else(|| {
-        let id_re = re(&format!(r"(?i)^[ \t]*:ID:[ \t]+{}[ \t]*$", regex::escape(name_or_id)));
-        d.lines.iter().position(|l| id_re.is_match(l))
-    });
+    let name_re = re(&format!(
+        r"(?i)^[ \t]*#\+(tbl)?name:[ \t]*{}[ \t]*$",
+        regex::escape(name_or_id)
+    ));
+    let loc = d
+        .lines
+        .iter()
+        .position(|l| name_re.is_match(l))
+        .or_else(|| {
+            let id_re = re(&format!(
+                r"(?i)^[ \t]*:ID:[ \t]+{}[ \t]*$",
+                regex::escape(name_or_id)
+            ));
+            d.lines.iter().position(|l| id_re.is_match(l))
+        });
     let Some(loc) = loc else {
         return Err(format!("Can't find remote table \"{name_or_id}\""));
     };
@@ -1339,16 +1665,26 @@ lazy_re!(RECALC_MARK, r"^[ \t]*\| *[#*] *(\||$)");
 lazy_re!(SPECIAL_FIRST, r"^ *[_^!$/] *$");
 
 /// org-table-goto-field.
-fn goto_field(d: &mut Doc, reference: &str, create: Option<&dyn Fn(usize) -> Result<bool, String>>) -> R {
-    let (line, column) = if let Some((_, l, c)) = d.an.named_fields.iter().find(|(n, ..)| n == reference) {
-        (*l, *c)
-    } else if let Some(m) = super::edit::field_spec_re().captures(reference) {
-        let r: usize = m[1].parse().unwrap_or(0);
-        let l = *d.an.dlines.get(r).filter(|_| r > 0).ok_or_else(|| format!("Invalid row number in {reference}"))?;
-        (l, m[2].parse().unwrap_or(1))
-    } else {
-        return Err(format!("Unknown field: {reference}"));
-    };
+fn goto_field(
+    d: &mut Doc,
+    reference: &str,
+    create: Option<&dyn Fn(usize) -> Result<bool, String>>,
+) -> R {
+    let (line, column) =
+        if let Some((_, l, c)) = d.an.named_fields.iter().find(|(n, ..)| n == reference) {
+            (*l, *c)
+        } else if let Some(m) = super::edit::field_spec_re().captures(reference) {
+            let r: usize = m[1].parse().unwrap_or(0);
+            let l = *d
+                .an
+                .dlines
+                .get(r)
+                .filter(|_| r > 0)
+                .ok_or_else(|| format!("Invalid row number in {reference}"))?;
+            (l, m[2].parse().unwrap_or(1))
+        } else {
+            return Err(format!("Unknown field: {reference}"));
+        };
     let force = match create {
         Some(f) => f(column)?,
         None => false,
@@ -1391,7 +1727,9 @@ pub fn recalculate(d: &mut Doc, all: Recalc, noalign: bool) -> R {
             } else if COLFIRST.is_match(old_lhs) {
                 let new = handle_first_last_rc(old_lhs, &an)?;
                 if eqlist.iter().any(|(k, _)| *k == new) {
-                    return Err(format!("\"{old_lhs}=\" formula tries to overwrite existing formula for column {new}"));
+                    return Err(format!(
+                        "\"{old_lhs}=\" formula tries to overwrite existing formula for column {new}"
+                    ));
                 }
                 new
             } else {
@@ -1427,15 +1765,22 @@ pub fn recalculate(d: &mut Doc, all: Recalc, noalign: bool) -> R {
                 Some((_, l, _)) => Some(*l),
                 None => {
                     static RNUM: LazyLock<Regex> = LazyLock::new(|| re(r"^@([0-9]+)"));
-                    RNUM.captures(name).and_then(|m| d.an.dlines.get(m[1].parse::<usize>().unwrap_or(0)).copied())
+                    RNUM.captures(name)
+                        .and_then(|m| d.an.dlines.get(m[1].parse::<usize>().unwrap_or(0)).copied())
                 }
             };
             let reference = match &location {
-                Some((_, l, c)) => format!("@{}${}", line_to_dline(&d.an.dlines, *l, false).unwrap_or(0), c),
+                Some((_, l, c)) => format!(
+                    "@{}${}",
+                    line_to_dline(&d.an.dlines, *l, false).unwrap_or(0),
+                    c
+                ),
                 None => name.clone(),
             };
             if seen.contains(&reference) {
-                return Err(format!("Several field/range formulas try to set {reference}"));
+                return Err(format!(
+                    "Several field/range formulas try to set {reference}"
+                ));
             }
             seen.push(reference);
             if all != Recalc::Line || eq_line == Some(current_line) {
@@ -1491,7 +1836,9 @@ pub fn recalculate(d: &mut Doc, all: Recalc, noalign: bool) -> R {
         d.goto_column(save_col, false, false);
     }
     if !noalign {
-        if d.st.may_need_update {
+        // Emacs' before-change function marks the table on every field
+        // replaced, so a recalculation always realigns.
+        if d.st.may_need_update || !eqlist.is_empty() {
             d.align();
         }
         if all == Recalc::All {
@@ -1517,7 +1864,11 @@ pub fn iterate(d: &mut Doc, imax: Option<i64>) -> R {
         if this != last {
             last = this;
         } else {
-            d.message(if i > 1 { format!("Convergence after {i} iterations") } else { "Table was already stable".into() });
+            d.message(if i > 1 {
+                format!("Convergence after {i} iterations")
+            } else {
+                "Table was already stable".into()
+            });
             return Ok(());
         }
     }
@@ -1584,8 +1935,9 @@ pub fn iterate_buffer_tables(d: &mut Doc) -> R {
 pub fn tblfm_begin(d: &Doc) -> Option<usize> {
     // Search backward from the end of the next line for a table line
     // followed by a TBLFM line.
-    let start = (d.l + 1).min(d.n() - 1);
-    (1..=start).rev().find(|&l| is_tblfm(&d.lines[l]) && super::doc::is_table_line(&d.lines[l - 1]))
+    (1..=d.l)
+        .rev()
+        .find(|&l| is_tblfm(&d.lines[l]) && super::doc::is_table_line(&d.lines[l - 1]))
 }
 
 /// org-table-calc-current-TBLFM.
@@ -1611,17 +1963,31 @@ pub fn field_info(d: &mut Doc) -> R {
     }
     analyze(d);
     let col = d.current_column();
-    let cname = d.an.column_names.iter().find(|(_, c)| *c == col.to_string()).map(|x| x.0.clone());
+    let cname =
+        d.an.column_names
+            .iter()
+            .find(|(_, c)| *c == col.to_string())
+            .map(|x| x.0.clone());
     let line = d.l - d.an.begin;
-    let name = d.an.named_fields.iter().find(|(_, l, c)| *l == line && *c == col).map(|x| x.0.clone());
+    let name =
+        d.an.named_fields
+            .iter()
+            .find(|(_, l, c)| *l == line && *c == col)
+            .map(|x| x.0.clone());
     let stored = get_stored_formulas(d, true, None)?;
     let an = d.an.clone();
-    let eqs: Vec<(String, String)> = stored.into_iter().map(|(k, v)| (handle_first_last_rc(&k, &an).unwrap_or(k), v)).collect();
+    let eqs: Vec<(String, String)> = stored
+        .into_iter()
+        .map(|(k, v)| (handle_first_last_rc(&k, &an).unwrap_or(k), v))
+        .collect();
     let eql = expand_lhs_ranges(d, eqs)?;
     let dline = d.current_dline();
     let rf = format!("@{dline}${col}");
     let ref1 = convert_refs_to_an(&rf);
-    let fequation = name.as_ref().and_then(|n| eql.iter().find(|(k, ..)| k == n)).or_else(|| eql.iter().find(|(k, ..)| *k == rf));
+    let fequation = name
+        .as_ref()
+        .and_then(|n| eql.iter().find(|(k, ..)| k == n))
+        .or_else(|| eql.iter().find(|(k, ..)| *k == rf));
     let cequation = eql.iter().find(|(k, ..)| *k == format!("${col}"));
     let eqn = fequation.or(cequation).map(|(k, v, orig)| match orig {
         Some(o) => {
@@ -1631,7 +1997,11 @@ pub fn field_info(d: &mut Doc) -> R {
         None => (k.clone(), v.clone()),
     });
     let formula = eqn.map_or(String::new(), |(k, v)| {
-        let pre = if k.starts_with('$') || k.starts_with('@') { "" } else { "$" };
+        let pre = if k.starts_with('$') || k.starts_with('@') {
+            ""
+        } else {
+            "$"
+        };
         format!(", formula: {}", to_user(&format!("{pre}{k}={v}")))
     });
     d.message(format!(
@@ -1647,13 +2017,24 @@ pub fn field_info(d: &mut Doc) -> R {
 /// are named in the echo area).
 pub fn show_reference(d: &mut Doc, formula: &str, pos: usize) -> R {
     analyze(d);
-    static RANGE2: LazyLock<Regex> =
-        LazyLock::new(|| re(r"(@[-0-9I$&]+|[a-zA-Z]{1,2}([0-9]+|&)|\$[a-zA-Z0-9]+)\.\.(@?[-0-9I$&]+|[a-zA-Z]{1,2}([0-9]+|&)|\$[a-zA-Z0-9]+)"));
-    static TRANSLATE: LazyLock<Regex> = LazyLock::new(|| re(r"(@[-0-9I$]+|[a-zA-Z]{1,2}([0-9]+|&))"));
+    static RANGE2: LazyLock<Regex> = LazyLock::new(|| {
+        re(
+            r"(@[-0-9I$&]+|[a-zA-Z]{1,2}([0-9]+|&)|\$[a-zA-Z0-9]+)\.\.(@?[-0-9I$&]+|[a-zA-Z]{1,2}([0-9]+|&)|\$[a-zA-Z0-9]+)",
+        )
+    });
+    static TRANSLATE: LazyLock<Regex> =
+        LazyLock::new(|| re(r"(@[-0-9I$]+|[a-zA-Z]{1,2}([0-9]+|&))"));
     static NAMEREF: LazyLock<Regex> = LazyLock::new(|| re(r"\$[a-zA-Z][a-zA-Z0-9]*"));
     static COLREF: LazyLock<Regex> = LazyLock::new(|| re(r"\$[0-9]+"));
-    let at = |r: &Regex| r.find_iter(formula).find(|m| m.start() <= pos && pos <= m.end()).map(|m| m.as_str().to_owned());
-    if let Some(m) = at(&RANGE2).or_else(|| at(&TRANSLATE)).or_else(|| at(&RANGE_RE)) {
+    let at = |r: &Regex| {
+        r.find_iter(formula)
+            .find(|m| m.start() <= pos && pos <= m.end())
+            .map(|m| m.as_str().to_owned())
+    };
+    if let Some(m) = at(&RANGE2)
+        .or_else(|| at(&TRANSLATE))
+        .or_else(|| at(&RANGE_RE))
+    {
         let mut desc = convert_refs_to_rc(&m);
         if !desc.starts_with('@') {
             desc = format!("@{desc}");
@@ -1677,14 +2058,19 @@ pub fn show_reference(d: &mut Doc, formula: &str, pos: usize) -> R {
             d.message(format!("Named column (column {c})"));
         } else if d.an.local_parameters.iter().any(|(n, _)| n == var) {
             d.message("Local parameter.");
-        } else if let Some((_, v)) = buffer_constants(&d.lines).into_iter().find(|(k, _)| k == var) {
+        } else if let Some((_, v)) = buffer_constants(&d.lines)
+            .into_iter()
+            .find(|(k, _)| k == var)
+        {
             d.message(format!("Local Constant: ${var}={v} in #+CONSTANTS line."));
         } else {
             let v = get_constant(d, var);
             if v == "#UNDEFINED_NAME" {
                 return Err(format!("Undefined name ${var}"));
             }
-            d.message(format!("Constant: ${var}={v} in `org-table-formula-constants'."));
+            d.message(format!(
+                "Constant: ${var}={v} in `org-table-formula-constants'."
+            ));
         }
         return Ok(());
     }
@@ -1704,13 +2090,18 @@ pub fn shift_refpart(r: &str, decr: bool, hline: bool) -> Result<String, String>
         _ => (None, r),
     };
     if hline && rest.starts_with('I') {
-        let mut n: i64 = rest.chars().take_while(|c| *c == 'I').count() as i64 * if sign == Some('-') { -1 } else { 1 };
+        let mut n: i64 = rest.chars().take_while(|c| *c == 'I').count() as i64
+            * if sign == Some('-') { -1 } else { 1 };
         n += if decr { -1 } else { 1 };
         if n == 0 {
             n += if decr { -1 } else { 1 };
         }
         return Ok(match sign {
-            Some(_) => format!("{}{}", if n < 0 { '-' } else { '+' }, "I".repeat(n.unsigned_abs() as usize)),
+            Some(_) => format!(
+                "{}{}",
+                if n < 0 { '-' } else { '+' },
+                "I".repeat(n.unsigned_abs() as usize)
+            ),
             None => "I".repeat(n.max(1) as usize),
         });
     }
@@ -1735,11 +2126,14 @@ pub fn shift_refpart(r: &str, decr: bool, hline: bool) -> Result<String, String>
 pub fn shift_reference(s: &str, pos: usize, dir: char) -> Result<String, String> {
     static AMP: LazyLock<Regex> = LazyLock::new(|| re(r"\b([a-zA-Z])&"));
     static A1: LazyLock<Regex> = LazyLock::new(|| re(r"\b([a-zA-Z]{1,2})([0-9]+)"));
-    static INTERNAL: LazyLock<Regex> = LazyLock::new(|| re(r"(@|\.\.)([-+]?(I+\b|[0-9]+))(\$([-+]?[0-9]+))?"));
-    let find = |r: &Regex| r.captures_iter(s).find(|c| {
-        let m = c.get(0).unwrap();
-        m.start() <= pos && pos <= m.end()
-    });
+    static INTERNAL: LazyLock<Regex> =
+        LazyLock::new(|| re(r"(@|\.\.)([-+]?(I+\b|[0-9]+))(\$([-+]?[0-9]+))?"));
+    let find = |r: &Regex| {
+        r.captures_iter(s).find(|c| {
+            let m = c.get(0).unwrap();
+            m.start() <= pos && pos <= m.end()
+        })
+    };
     let vertical = matches!(dir, 'u' | 'd');
     let decr = matches!(dir, 'u' | 'l');
     let replace = |c: &Captures, g: usize, hline: bool| -> Result<String, String> {
@@ -1757,7 +2151,11 @@ pub fn shift_reference(s: &str, pos: usize, dir: char) -> Result<String, String>
         return replace(&c, if vertical { 2 } else { 1 }, false);
     }
     if let Some(c) = find(&INTERNAL) {
-        return if vertical { replace(&c, 2, c.get(3).is_some_and(|m| m.as_str().starts_with('I'))) } else { replace(&c, 5, false) };
+        return if vertical {
+            replace(&c, 2, c.get(3).is_some_and(|m| m.as_str().starts_with('I')))
+        } else {
+            replace(&c, 5, false)
+        };
     }
     Err("No reference at point".into())
 }
@@ -1767,7 +2165,11 @@ pub fn shift_reference(s: &str, pos: usize, dir: char) -> Result<String, String>
 pub fn fedit_lines(formulas: &[(String, String)]) -> Vec<String> {
     static COL: LazyLock<Regex> = LazyLock::new(|| re(r"^\$([0-9]+|[<>]+)$"));
     let mut out = vec![];
-    let mut titles = vec![("column", "# Column Formulas"), ("field", "# Field and Range Formulas"), ("named", "# Named Field Formulas")];
+    let mut titles = vec![
+        ("column", "# Column Formulas"),
+        ("field", "# Field and Range Formulas"),
+        ("named", "# Named Field Formulas"),
+    ];
     for (k, v) in formulas {
         let ty = if COL.is_match(k) {
             "column"
@@ -1783,7 +2185,11 @@ pub fn fedit_lines(formulas: &[(String, String)]) -> Vec<String> {
             out.push(titles[i].1.to_owned());
             titles.remove(i);
         }
-        let pre = if k.starts_with('@') || k.starts_with('$') { "" } else { "$" };
+        let pre = if k.starts_with('@') || k.starts_with('$') {
+            ""
+        } else {
+            "$"
+        };
         out.push(format!("{pre}{k} = {v}"));
     }
     out
@@ -1791,7 +2197,9 @@ pub fn fedit_lines(formulas: &[(String, String)]) -> Vec<String> {
 
 /// org-table-fedit-finish's parse of the editor text.
 pub fn fedit_parse(text: &str) -> Result<Vec<(String, String)>, String> {
-    static DEF: LazyLock<Regex> = LazyLock::new(|| re(r"(?m)^(@[-+I<>0-9.$@]+|@?[0-9]+|\$([a-zA-Z0-9]+|[<>]+)) *= *(.*(\n[ \t]+.*)*)"));
+    static DEF: LazyLock<Regex> = LazyLock::new(|| {
+        re(r"(?m)^(@[-+I<>0-9.$@]+|@?[0-9]+|\$([a-zA-Z0-9]+|[<>]+)) *= *(.*(\n[ \t]+.*)*)")
+    });
     let mut eql: Vec<(String, String)> = vec![];
     for c in DEF.captures_iter(text) {
         let var = c[1].to_owned();

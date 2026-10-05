@@ -16,6 +16,8 @@ pub enum Op {
     Remove,
     /// --force removal of these modules, some dirty: confirm stashing them first.
     RemoveDirty(Vec<String>, Vec<String>),
+    /// magit-submodule-remove-trash-gitdirs: trash these modules' gitdirs?
+    TrashGitdirs(Vec<String>),
     List,
 }
 
@@ -297,6 +299,18 @@ impl Repo {
                     dirty.into_iter().filter(|m| modules.contains(m)).collect();
                 self.remove_modules(&modules, &args, &backup)
             }
+            Op::TrashGitdirs(names) => {
+                if !matches!(at(0), "y" | "yes") {
+                    return Ok(Next::Done(Ok("Removed; gitdirs kept".into())));
+                }
+                for name in &names {
+                    let dir = self.git_path(&format!("modules/{name}"))?;
+                    if dir.exists() {
+                        super::apply::move_to_trash(&dir)?;
+                    }
+                }
+                Ok(Next::Done(Ok(format!("Trashed {} gitdirs", names.len()))))
+            }
         }
     }
     /// absorbgitdirs, deinit and rm; dirty modules are stashed first.
@@ -331,35 +345,86 @@ impl Repo {
             argv.extend(modules.iter().map(Into::into));
             self.run(&argv, None)
         };
+        // magit-submodule-remove-trash-gitdirs: the module names, while known.
+        let names: Vec<String> =
+            if super::options::flag("magit-submodule-remove-trash-gitdirs", false) {
+                String::from_utf8_lossy(&self.read(&[
+                    "submodule",
+                    "foreach",
+                    "-q",
+                    "printf \"$sm_path\\0$name\\n\"",
+                ])?)
+                .lines()
+                .filter_map(|l| l.split_once('\0'))
+                .filter(|(p, _)| modules.iter().any(|m| m == p))
+                .map(|(_, n)| n.to_owned())
+                .collect()
+            } else {
+                vec![]
+            };
         run(&["submodule", "absorbgitdirs"], &[])?;
         run(&["submodule", "deinit"], args)?;
         run(&["rm"], args)?;
+        if !names.is_empty() {
+            let q = if names.len() == 1 {
+                format!("Trash gitdir of module {}? (y or n) ", names[0])
+            } else {
+                format!("Trash gitdirs of {} modules? (y or n) ", names.len())
+            };
+            return Ok(Next::Ask(
+                super::Question::Submodule(Op::TrashGitdirs(names)),
+                vec![q],
+                vec![String::new()],
+            ));
+        }
         Ok(Next::Done(Ok(format!("Removed {}", modules.join(", ")))))
     }
     /// magit-list-submodules rows: path, branch or (detached)/(unpopulated), describe.
-    pub fn module_rows(&self) -> Result<Vec<(String, String)>, String> {
-        let modules = self.module_paths()?;
-        let width = modules.iter().map(String::len).max().unwrap_or(0).min(40);
-        Ok(modules
+    /// magit-list-submodules: the column header, then a row per module with
+    /// magit-submodule-list-columns, sorted by magit-submodule-list-sort-key.
+    pub fn module_rows(&self) -> Result<(String, Vec<(String, String)>), String> {
+        use super::repos::{module_columns, pad, sort_rows};
+        let cols = module_columns();
+        let mut rows: Vec<(String, PathBuf, Vec<String>)> = self
+            .module_paths()?
             .into_iter()
             .map(|m| {
-                let text = if !self.populated(&m) {
-                    "(unpopulated)".to_owned()
-                } else {
-                    let sub = Repo {
-                        root: self.root.join(&m),
-                    };
-                    let branch = sub.current_branch().unwrap_or_else(|_| "(detached)".into());
-                    let desc = sub
-                        .read(&["describe", "--tags"])
-                        .or_else(|_| sub.read(&["rev-parse", "--short", "HEAD"]))
-                        .map(|o| String::from_utf8_lossy(&o).trim().to_owned())
-                        .unwrap_or_default();
-                    format!("{branch:<25} {desc}")
+                let sub = Repo {
+                    root: self.root.join(&m),
                 };
-                (format!("{m:<width$} {text}"), m)
+                let populated = self.populated(&m);
+                let cells = cols
+                    .iter()
+                    .map(|c| match c.format.as_str() {
+                        "magit-modulelist-column-path" => m.clone(),
+                        "magit-repolist-column-branch" if !populated => "(unpopulated)".into(),
+                        _ if !populated => String::new(),
+                        _ => sub.repolist_cell(&m, c),
+                    })
+                    .collect();
+                (m.clone(), sub.root, cells)
             })
-            .collect())
+            .collect();
+        sort_rows(&cols, &mut rows, "magit-submodule-list-sort-key");
+        let header = cols
+            .iter()
+            .map(|c| pad(&c.header, c))
+            .collect::<Vec<_>>()
+            .join(" ");
+        Ok((
+            header.trim_end().to_owned(),
+            rows.into_iter()
+                .map(|(m, _, cells)| {
+                    let text = cols
+                        .iter()
+                        .zip(&cells)
+                        .map(|(c, v)| pad(v, c))
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    (text.trim_end().to_owned(), m)
+                })
+                .collect(),
+        ))
     }
     /// magit-submodule-visit: the module's status.
     pub fn module_dir(&self, module: &str) -> Result<PathBuf, String> {

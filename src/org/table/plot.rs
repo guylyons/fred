@@ -16,7 +16,11 @@ pub struct Plot(pub Vec<(String, L)>);
 
 impl Plot {
     pub fn get(&self, k: &str) -> Option<&L> {
-        self.0.iter().find(|(x, _)| x == k).map(|(_, v)| v).filter(|v| v.truthy())
+        self.0
+            .iter()
+            .find(|(x, _)| x == k)
+            .map(|(_, v)| v)
+            .filter(|v| v.truthy())
     }
 
     pub fn member(&self, k: &str) -> bool {
@@ -78,11 +82,17 @@ const OPTIONS: &[(&str, &str)] = &[
 /// org-plot/add-options-to-plist.
 pub fn add_options(p: &mut Plot, options: &str) {
     for (name, key) in OPTIONS {
-        let r = re(&format!(r#"{}:("[^"]+?"|\([^)]+?\)|[^ \t\n\r;,.]*)"#, regex::escape(name)));
+        let r = re(&format!(
+            r#"{}:("[^"]+?"|\([^)]+?\)|[^ \t\n\r;,.]*)"#,
+            regex::escape(name)
+        ));
         if matches!(*name, "set" | "line") {
             for m in r.captures_iter(options) {
                 let v = lisp::read(&m[1]).unwrap_or(L::Nil);
-                let mut list = p.get(key).cloned().map_or(vec![], |x| x.items().unwrap_or_default());
+                let mut list = p
+                    .get(key)
+                    .cloned()
+                    .map_or(vec![], |x| x.items().unwrap_or_default());
                 list.insert(0, v);
                 p.put(key, lisp::list(list));
             }
@@ -93,7 +103,10 @@ pub fn add_options(p: &mut Plot, options: &str) {
 }
 
 lazy_re!(PLOT_LINE, r"(?i)#\+PLOT: +(.*)$");
-lazy_re!(TS3, r"[\[<]([0-9]{4})-([0-9]{2})-([0-9]{2})(?: [^\]>\s0-9+-]+)?(?: ([0-9]{1,2}):([0-9]{2}))?[^\]>\n]*[\]>]");
+lazy_re!(
+    TS3,
+    r"[\[<]([0-9]{4})-([0-9]{2})-([0-9]{2})(?: [^\]>\s0-9+-]+)?(?: ([0-9]{1,2}):([0-9]{2}))?[^\]>\n]*[\]>]"
+);
 
 /// org-plot/goto-nearest-table: the first table line at or after point.
 pub fn goto_nearest_table(d: &mut Doc) -> Result<(), String> {
@@ -114,7 +127,9 @@ fn format_timestamp(s: &str, fmt: &str) -> String {
     let Some(m) = TS3.captures(s) else {
         return s.to_owned();
     };
-    let v: Vec<u32> = (1..=5).map(|i| m.get(i).map_or(0, |x| x.as_str().parse().unwrap_or(0))).collect();
+    let v: Vec<u32> = (1..=5)
+        .map(|i| m.get(i).map_or(0, |x| x.as_str().parse().unwrap_or(0)))
+        .collect();
     let mut out = String::new();
     let mut it = fmt.chars();
     while let Some(c) = it.next() {
@@ -156,15 +171,27 @@ pub fn quote_tsv_field(s: &str, timefmt: &str) -> String {
 
 /// org-plot/gnuplot-to-data: the TSV text.
 pub fn to_data(table: &[Row], params: &Plot) -> Result<String, String> {
-    let timefmt = params.str(":timefmt").unwrap_or_else(|| "%Y-%m-%d-%H:%M:%S".into());
+    let timefmt = params
+        .str(":timefmt")
+        .unwrap_or_else(|| "%Y-%m-%d-%H:%M:%S".into());
     let rows: Vec<Row> = table
         .iter()
         .map(|r| match r {
-            Row::Cells(c) => Row::Cells(c.iter().map(|x| if x.is_empty() { String::new() } else { quote_tsv_field(x, &timefmt) }).collect()),
+            Row::Cells(c) => Row::Cells(
+                c.iter()
+                    .map(|x| {
+                        if x.is_empty() {
+                            String::new()
+                        } else {
+                            quote_tsv_field(x, &timefmt)
+                        }
+                    })
+                    .collect(),
+            ),
             Row::Hline => Row::Hline,
         })
         .collect();
-    let p = Params::read("(:sep \"\\t\" :with-special-rows nil)")?;
+    let p = Params::read(":sep \"\\t\" :with-special-rows nil")?;
     to_generic(&rows, &p)
 }
 
@@ -173,18 +200,42 @@ pub fn to_grid_data(table: &[Vec<String>], params: &Plot) -> (String, Vec<(usize
     let last_col = table.first().map_or(0, |r| r.len()) as i64 - 1;
     let ind = params.int(":ind").unwrap_or(0) - 1;
     let deps: Vec<i64> = match params.get(":deps") {
-        Some(d) if params.member(":deps") => d.items().unwrap_or_default().iter().filter_map(|x| if let L::Int(i) = x { Some(i - 1) } else { None }).collect(),
+        Some(d) if params.member(":deps") => d
+            .items()
+            .unwrap_or_default()
+            .iter()
+            .filter_map(|x| if let L::Int(i) = x { Some(i - 1) } else { None })
+            .collect(),
         _ => (0..=last_col).collect(),
     };
     let deps: Vec<i64> = deps.into_iter().filter(|&c| c != ind).collect();
     let row_vals: Vec<(usize, String)> = if ind < 0 {
         vec![]
     } else {
-        table.iter().enumerate().map(|(i, r)| (i + 1, r.get(ind as usize).cloned().unwrap_or_default())).collect()
+        table
+            .iter()
+            .enumerate()
+            .map(|(i, r)| (i + 1, r.get(ind as usize).cloned().unwrap_or_default()))
+            .collect()
     };
-    let t: Vec<Vec<String>> = table.iter().map(|r| r.iter().enumerate().filter(|(i, _)| deps.contains(&(*i as i64))).map(|(_, x)| x.clone()).collect()).collect();
+    let t: Vec<Vec<String>> = table
+        .iter()
+        .map(|r| {
+            r.iter()
+                .enumerate()
+                .filter(|(i, _)| deps.contains(&(*i as i64)))
+                .map(|(_, x)| x.clone())
+                .collect()
+        })
+        .collect();
     let mut out = String::new();
-    let row = |c: f64, r: f64, v: f64| format!("{c:.6}  {:.6}  {v:.6}\n{c:.6}  {:.6}  {v:.6}\n", r + 0.5, r + 1.5);
+    let row = |c: f64, r: f64, v: f64| {
+        format!(
+            "{c:.6}  {:.6}  {v:.6}\n{c:.6}  {:.6}  {v:.6}\n",
+            r + 0.5,
+            r + 1.5
+        )
+    };
     let ncol = t.first().map_or(0, Vec::len);
     for c in 0..ncol {
         let mut back = String::new();
@@ -200,14 +251,31 @@ pub fn to_grid_data(table: &[Vec<String>], params: &Plot) -> (String, Vec<(usize
 }
 
 /// org--plot/values-stats.
-fn values_stats(nums: &[f64], hard_min: Option<f64>, hard_max: Option<f64>) -> BTreeMap<&'static str, f64> {
+fn values_stats(
+    nums: &[f64],
+    hard_min: Option<f64>,
+    hard_max: Option<f64>,
+) -> BTreeMap<&'static str, f64> {
     let minimum = hard_min.unwrap_or_else(|| nums.iter().copied().fold(f64::INFINITY, f64::min));
-    let maximum = hard_max.unwrap_or_else(|| nums.iter().copied().fold(f64::NEG_INFINITY, f64::max));
+    let maximum =
+        hard_max.unwrap_or_else(|| nums.iter().copied().fold(f64::NEG_INFINITY, f64::max));
     let range = maximum - minimum;
-    let order = if range == 0.0 { 0.0 } else { (1.0 - range.log10()).ceil() };
+    let order = if range == 0.0 {
+        0.0
+    } else {
+        (1.0 - range.log10()).ceil()
+    };
     let factor = 10f64.powf(order);
-    let nice_min = if range == 0.0 { nums.first().copied().unwrap_or(0.0) } else { (minimum * factor).floor() / factor };
-    let nice_max = if range == 0.0 { nums.first().copied().unwrap_or(0.0) } else { (maximum * factor).ceil() / factor };
+    let nice_min = if range == 0.0 {
+        nums.first().copied().unwrap_or(0.0)
+    } else {
+        (minimum * factor).floor() / factor
+    };
+    let nice_max = if range == 0.0 {
+        nums.first().copied().unwrap_or(0.0)
+    } else {
+        (maximum * factor).ceil() / factor
+    };
     BTreeMap::from([
         ("min", minimum),
         ("max", maximum),
@@ -238,7 +306,11 @@ fn prime_factors(mut value: i64) -> Vec<i64> {
 fn sensible_tick_num(table: &[Vec<String>], hard_min: Option<f64>, hard_max: Option<f64>) -> i64 {
     let mut weights: Vec<(i64, f64)> = vec![];
     for row in table {
-        let nums: Vec<f64> = row.iter().skip(1).map(|x| lisp::string_to_number(x).f()).collect();
+        let nums: Vec<f64> = row
+            .iter()
+            .skip(1)
+            .map(|x| lisp::string_to_number(x).f())
+            .collect();
         if nums.is_empty() {
             continue;
         }
@@ -405,8 +477,21 @@ fn num(x: f64) -> String {
 }
 
 /// org--plot/radar: the script, writing its setup to `setup_file`.
-pub fn radar(table: &[Vec<String>], params: &Plot, setup_file: &std::path::Path) -> Result<String, String> {
-    let labels: Vec<String> = params.get(":labels").map(|l| l.items().unwrap_or_default().iter().map(lisp::princ).collect()).unwrap_or_default();
+pub fn radar(
+    table: &[Vec<String>],
+    params: &Plot,
+    setup_file: &std::path::Path,
+) -> Result<String, String> {
+    let labels: Vec<String> = params
+        .get(":labels")
+        .map(|l| {
+            l.items()
+                .unwrap_or_default()
+                .iter()
+                .map(lisp::princ)
+                .collect()
+        })
+        .unwrap_or_default();
     let mut rows: Vec<Vec<String>> = table.to_vec();
     if let Some(first) = table.first() {
         rows.push(first.clone());
@@ -414,7 +499,14 @@ pub fn radar(table: &[Vec<String>], params: &Plot, setup_file: &std::path::Path)
     let data = format!(
         "\"{}\"\n{}",
         labels.join("\" \""),
-        rows.iter().map(|r| format!("\"{}\" {}", r.first().map_or("", String::as_str), r[1..].join(" "))).collect::<Vec<_>>().join("\n")
+        rows.iter()
+            .map(|r| format!(
+                "\"{}\" {}",
+                r.first().map_or("", String::as_str),
+                r[1..].join(" ")
+            ))
+            .collect::<Vec<_>>()
+            .join("\n")
     );
     let hmin = params.get(":ymin").map(|v| match v {
         L::Int(i) => *i as f64,
@@ -426,11 +518,16 @@ pub fn radar(table: &[Vec<String>], params: &Plot, setup_file: &std::path::Path)
         L::Float(f) => *f,
         _ => 0.0,
     });
-    let ticks = params.int(":ticks").unwrap_or_else(|| sensible_tick_num(table, hmin, hmax));
+    let ticks = params
+        .int(":ticks")
+        .unwrap_or_else(|| sensible_tick_num(table, hmin, hmax));
     let settings = rows
         .iter()
         .map(|r| {
-            let nums: Vec<f64> = r[1..].iter().map(|x| lisp::string_to_number(x).f()).collect();
+            let nums: Vec<f64> = r[1..]
+                .iter()
+                .map(|x| lisp::string_to_number(x).f())
+                .collect();
             let s = values_stats(&nums, None, None);
             format!(
                 "\"{}\" {} {} {}",
@@ -442,17 +539,33 @@ pub fn radar(table: &[Vec<String>], params: &Plot, setup_file: &std::path::Path)
         })
         .collect::<Vec<_>>()
         .join("\n");
-    let setup = format!("# Data\n$Data <<HEREHAVESOMEDATA\n{data}\nHEREHAVESOMEDATA\nHeaderLines = 1\n\n# Settings for scale and offset adjustments\n# axis min max tics axisLabelXoff axisLabelYoff\n$Settings <<EOD\n{settings}\nEOD\n");
+    let setup = format!(
+        "# Data\n$Data <<HEREHAVESOMEDATA\n{data}\nHEREHAVESOMEDATA\nHeaderLines = 1\n\n# Settings for scale and offset adjustments\n# axis min max tics axisLabelXoff axisLabelYoff\n$Settings <<EOD\n{settings}\nEOD\n"
+    );
     std::fs::write(setup_file, setup).map_err(|e| e.to_string())?;
-    let tick_arg = if hmin.is_some() && hmax.is_some() { "1" } else { "$1" };
-    let tickstr = if ticks == 0 { String::new() } else { fill(RADAR_TICKS, &[tick_arg, tick_arg, tick_arg]) };
+    let tick_arg = if hmin.is_some() && hmax.is_some() {
+        "1"
+    } else {
+        "$1"
+    };
+    let tickstr = if ticks == 0 {
+        String::new()
+    } else {
+        fill(RADAR_TICKS, &[tick_arg, tick_arg, tick_arg])
+    };
     let setup_s = setup_file.display().to_string();
     let tcount = if ticks == 0 { 2 } else { ticks }.to_string();
     Ok(fill(RADAR_TEMPLATE, &[&setup_s, &tcount, &tickstr]))
 }
 
 /// org-plot/gnuplot-script.
-pub fn script(table: &[Vec<String>], data_file: &str, num_cols: usize, params: &Plot, preface: bool) -> Result<String, String> {
+pub fn script(
+    table: &[Vec<String>],
+    data_file: &str,
+    num_cols: usize,
+    params: &Plot,
+    preface: bool,
+) -> Result<String, String> {
     let ty = params.sym(":plot-type").unwrap_or_else(|| "2d".into());
     if !matches!(ty.as_str(), "2d" | "3d" | "grid" | "radar") {
         return Err(format!("Org-plot type `{ty}' is undefined"));
@@ -463,26 +576,59 @@ pub fn script(table: &[Vec<String>], data_file: &str, num_cols: usize, params: &
         s.push_str(line);
     };
     let file = params.str(":file");
-    let ext = file.as_ref().and_then(|f| std::path::Path::new(f).extension().and_then(|e| e.to_str()).map(str::to_owned));
+    let ext = file.as_ref().and_then(|f| {
+        std::path::Path::new(f)
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(str::to_owned)
+    });
     let term = super::opt_string("org-plot/gnuplot-term-extra", "");
-    ats(&mut s, &format!("set term {} {term}", if file.is_some() { ext.unwrap_or_default() } else { "GNUTERM".into() }));
+    ats(
+        &mut s,
+        &format!(
+            "set term {} {term}",
+            if file.is_some() {
+                ext.unwrap_or_default()
+            } else {
+                "GNUTERM".into()
+            }
+        ),
+    );
     if let Some(f) = &file {
         let abs = std::path::absolute(f).map_or_else(|_| f.clone(), |p| p.display().to_string());
         ats(&mut s, &format!("set output '{abs}'"));
     }
     match ty.as_str() {
         "3d" if params.get(":map").is_some() => ats(&mut s, "set map"),
-        "grid" => ats(&mut s, if params.get(":map").is_some() { "set pm3d map" } else { "set map" }),
+        "grid" => ats(
+            &mut s,
+            if params.get(":map").is_some() {
+                "set pm3d map"
+            } else {
+                "set map"
+            },
+        ),
         _ => {}
     }
-    ats(&mut s, &super::opt_string("org-plot/gnuplot-script-preamble", ""));
+    ats(
+        &mut s,
+        &super::opt_string("org-plot/gnuplot-script-preamble", ""),
+    );
     if let Some(t) = params.str(":title") {
         ats(&mut s, &format!("set title '{t}'"));
     }
-    for l in params.get(":line").map(|x| x.items().unwrap_or_default()).unwrap_or_default() {
+    for l in params
+        .get(":line")
+        .map(|x| x.items().unwrap_or_default())
+        .unwrap_or_default()
+    {
         ats(&mut s, &lisp::princ(&l));
     }
-    for st in params.get(":set").map(|x| x.items().unwrap_or_default()).unwrap_or_default() {
+    for st in params
+        .get(":set")
+        .map(|x| x.items().unwrap_or_default())
+        .unwrap_or_default()
+    {
         ats(&mut s, &format!("set {}", lisp::princ(&st)));
     }
     if !s.lines().any(|l| l.starts_with("set datafile separator")) {
@@ -496,30 +642,79 @@ pub fn script(table: &[Vec<String>], data_file: &str, num_cols: usize, params: &
                 .iter()
                 .map(|p| match p {
                     L::Dotted(a, b) => (lisp::princ(&a[0]), lisp::princ(b)),
-                    L::List(a) => (lisp::princ(&a[0]), a.get(1).map(lisp::princ).unwrap_or_default()),
+                    L::List(a) => (
+                        lisp::princ(&a[0]),
+                        a.get(1).map(lisp::princ).unwrap_or_default(),
+                    ),
                     o => (String::new(), lisp::princ(o)),
                 })
                 .collect(),
         )
     };
     if let Some(x) = labels_of(":xlabels") {
-        ats(&mut s, &format!("set xtics ({})", x.iter().map(|(i, l)| format!("\"{l}\" {i}")).collect::<Vec<_>>().join(", ")));
+        ats(
+            &mut s,
+            &format!(
+                "set xtics ({})",
+                x.iter()
+                    .map(|(i, l)| format!("\"{l}\" {i}"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        );
     }
     if let Some(y) = labels_of(":ylabels") {
-        ats(&mut s, &format!("set ytics ({})", y.iter().map(|(i, l)| format!("\"{l}\" {i}")).collect::<Vec<_>>().join(", ")));
+        ats(
+            &mut s,
+            &format!(
+                "set ytics ({})",
+                y.iter()
+                    .map(|(i, l)| format!("\"{l}\" {i}"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        );
     }
     if params.get(":timeind").is_some() {
         ats(&mut s, "set xdata time");
-        ats(&mut s, &format!("set timefmt \"{}\"", params.str(":timefmt").unwrap_or_else(|| "%Y-%m-%d-%H:%M:%S".into())));
+        ats(
+            &mut s,
+            &format!(
+                "set timefmt \"{}\"",
+                params
+                    .str(":timefmt")
+                    .unwrap_or_else(|| "%Y-%m-%d-%H:%M:%S".into())
+            ),
+        );
     }
     if !preface {
-        let with = if ty == "grid" { "pm3d".to_owned() } else { params.sym(":with").unwrap_or_else(|| "lines".into()) };
+        let with = if ty == "grid" {
+            "pm3d".to_owned()
+        } else {
+            params.sym(":with").unwrap_or_else(|| "lines".into())
+        };
         let (cmd, lines): (Option<&str>, Vec<String>) = match ty.as_str() {
             "2d" => {
                 let ind = params.int(":ind");
-                let deps: Option<Vec<i64>> = params.get(":deps").map(|d| d.items().unwrap_or_default().iter().filter_map(|x| if let L::Int(i) = x { Some(*i) } else { None }).collect());
-                let text_ind = params.get(":textind").is_some() || params.sym(":with").as_deref() == Some("histograms");
-                let labels: Vec<String> = params.get(":labels").map(|l| l.items().unwrap_or_default().iter().map(lisp::princ).collect()).unwrap_or_default();
+                let deps: Option<Vec<i64>> = params.get(":deps").map(|d| {
+                    d.items()
+                        .unwrap_or_default()
+                        .iter()
+                        .filter_map(|x| if let L::Int(i) = x { Some(*i) } else { None })
+                        .collect()
+                });
+                let text_ind = params.get(":textind").is_some()
+                    || params.sym(":with").as_deref() == Some("histograms");
+                let labels: Vec<String> = params
+                    .get(":labels")
+                    .map(|l| {
+                        l.items()
+                            .unwrap_or_default()
+                            .iter()
+                            .map(lisp::princ)
+                            .collect()
+                    })
+                    .unwrap_or_default();
                 let mut out = vec![];
                 for col in 0..num_cols {
                     let c = col as i64 + 1;
@@ -530,24 +725,40 @@ pub fn script(table: &[Vec<String>], data_file: &str, num_cols: usize, params: &
                         Some(i) if i > 0 && !text_ind => format!("{i}:"),
                         _ => String::new(),
                     };
-                    let xtic = if text_ind { format!(":xticlabel({})", ind.unwrap_or(0)) } else { String::new() };
+                    let xtic = if text_ind {
+                        format!(":xticlabel({})", ind.unwrap_or(0))
+                    } else {
+                        String::new()
+                    };
                     let title = labels.get(col).cloned().unwrap_or_else(|| c.to_string());
-                    out.push(format!("'{data_file}' using {using}{c}{xtic} with {with} title '{title}'"));
+                    out.push(format!(
+                        "'{data_file}' using {using}{c}{xtic} with {with} title '{title}'"
+                    ));
                 }
                 (Some("plot"), out)
             }
-            "3d" => (Some("splot"), vec![format!("'{data_file}' matrix with {with} title ''")]),
-            "grid" => (Some("splot"), vec![format!("'{data_file}' with {with} title ''")]),
+            "3d" => (
+                Some("splot"),
+                vec![format!("'{data_file}' matrix with {with} title ''")],
+            ),
+            "grid" => (
+                Some("splot"),
+                vec![format!("'{data_file}' with {with} title ''")],
+            ),
             _ => {
-                let setup = std::env::temp_dir().join(format!("org-plot-setup-{}", std::process::id()));
+                let setup =
+                    std::env::temp_dir().join(format!("org-plot-setup-{}", std::process::id()));
                 (None, vec![radar(table, params, &setup)?])
             }
         };
         let body = lines.join(",\\\n    ");
-        ats(&mut s, &match cmd {
-            Some(c) => format!("{c} {body}"),
-            None => body,
-        });
+        ats(
+            &mut s,
+            &match cmd {
+                Some(c) => format!("{c} {body}"),
+                None => body,
+            },
+        );
     }
     Ok(s)
 }
@@ -580,7 +791,9 @@ pub fn prepare(d: &mut Doc, given: Plot) -> Result<(Plot, Vec<Vec<String>>, usiz
         let has_hline = table.contains(&Row::Hline);
         let rows: Vec<&Vec<String>> = table.iter().filter_map(Row::cells).collect();
         let n = rows.iter().map(|r| r.len()).min().unwrap_or(0);
-        let mut t: Vec<Row> = (0..n).map(|j| Row::Cells(rows.iter().map(|r| r[j].clone()).collect())).collect();
+        let mut t: Vec<Row> = (0..n)
+            .map(|j| Row::Cells(rows.iter().map(|r| r[j].clone()).collect()))
+            .collect();
         if has_hline && !t.is_empty() {
             t.insert(1, Row::Hline);
         }
@@ -595,9 +808,16 @@ pub fn prepare(d: &mut Doc, given: Plot) -> Result<(Plot, Vec<Vec<String>>, usiz
         if !params.member(":labels")
             && let Some(Row::Cells(h)) = table.first()
         {
-            params.put(":labels", lisp::list(h.iter().map(|x| lisp::str_(x)).collect()));
+            params.put(
+                ":labels",
+                lisp::list(h.iter().map(|x| lisp::str_(x)).collect()),
+            );
         }
-        table = table[1..].iter().filter(|r| **r != Row::Hline).cloned().collect();
+        table = table[1..]
+            .iter()
+            .filter(|r| **r != Row::Hline)
+            .cloned()
+            .collect();
     }
     let rows: Vec<Vec<String>> = table.iter().filter_map(Row::cells).cloned().collect();
     // Check the type of the ind column.
@@ -605,11 +825,16 @@ pub fn prepare(d: &mut Doc, given: Plot) -> Result<(Plot, Vec<Vec<String>>, usiz
     if ty == "2d" {
         let ind = params.int(":ind").unwrap_or(0) - 1;
         if ind >= 0 {
-            let col: Vec<&str> = rows.iter().map(|r| r.get(ind as usize).map_or("", String::as_str)).collect();
+            let col: Vec<&str> = rows
+                .iter()
+                .map(|r| r.get(ind as usize).map_or("", String::as_str))
+                .collect();
             let num = re(NUMBER_RE);
             if col.iter().all(|x| TS3.is_match(x)) {
                 params.put(":timeind", L::T);
-            } else if params.sym(":with").as_deref() == Some("hist") || !col.iter().all(|x| num.is_match(x)) {
+            } else if params.sym(":with").as_deref() == Some("hist")
+                || !col.iter().all(|x| num.is_match(x))
+            {
                 params.put(":textind", L::T);
             }
         }
@@ -623,26 +848,49 @@ pub fn gnuplot(d: &mut Doc, given: Plot) -> Result<(), String> {
     let ty = params.sym(":plot-type").unwrap_or_default();
     let mut h = std::collections::hash_map::DefaultHasher::new();
     std::hash::Hash::hash(&(format!("{rows:?}{num_cols}{:?}", params.0)), &mut h);
-    let data_file = std::env::temp_dir().join(format!("org-plot-{:x}", std::hash::Hasher::finish(&h)));
+    let data_file =
+        std::env::temp_dir().join(format!("org-plot-{:x}", std::hash::Hasher::finish(&h)));
     let mut params = params;
     let data = if ty == "grid" {
         let (text, ylabels) = to_grid_data(&rows, &params);
         if !ylabels.is_empty() {
-            params.put(":ylabels", lisp::list(ylabels.into_iter().map(|(i, l)| L::Dotted(std::rc::Rc::new(vec![L::Int(i as i64)]), std::rc::Rc::new(lisp::str_(&l)))).collect()));
+            params.put(
+                ":ylabels",
+                lisp::list(
+                    ylabels
+                        .into_iter()
+                        .map(|(i, l)| {
+                            L::Dotted(
+                                std::rc::Rc::new(vec![L::Int(i as i64)]),
+                                std::rc::Rc::new(lisp::str_(&l)),
+                            )
+                        })
+                        .collect(),
+                ),
+            );
         }
         text
     } else {
-        to_data(&rows.iter().map(|r| Row::Cells(r.clone())).collect::<Vec<_>>(), &params)?
+        to_data(
+            &rows
+                .iter()
+                .map(|r| Row::Cells(r.clone()))
+                .collect::<Vec<_>>(),
+            &params,
+        )?
     };
     let df = data_file.display().to_string();
     let user_script = params.str(":script");
     let mut script_text = script(&rows, &df, num_cols, &params, user_script.is_some())?;
     if let Some(us) = &user_script {
-        let content = std::fs::read_to_string(super::super::options::expand(us)).map_err(|e| format!("{us}: {e}"))?;
+        let content = std::fs::read_to_string(super::super::options::expand(us))
+            .map_err(|e| format!("{us}: {e}"))?;
         script_text = format!("{script_text}\n{}", content.replace("$datafile", &df));
     }
     let Some(gp) = super::lisp::which("gnuplot") else {
-        return Err("org-plot/gnuplot: the gnuplot program is not installed (it must be on PATH)".into());
+        return Err(
+            "org-plot/gnuplot: the gnuplot program is not installed (it must be on PATH)".into(),
+        );
     };
     std::fs::write(&data_file, data).map_err(|e| e.to_string())?;
     let script_file = data_file.with_extension("gp");

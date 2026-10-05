@@ -25,7 +25,10 @@ impl Params {
     }
 
     fn find(&self, key: &str) -> Option<&L> {
-        self.0.chunks(2).find(|p| p[0].sym_name() == Some(key)).map(|p| p.get(1).unwrap_or(&L::Nil))
+        self.0
+            .chunks(2)
+            .find(|p| p[0].sym_name() == Some(key))
+            .map(|p| p.get(1).unwrap_or(&L::Nil))
     }
 
     pub fn member(&self, key: &str) -> bool {
@@ -97,11 +100,21 @@ fn apply(i: &mut Interp, value: &L, name: &str, args: &[L]) -> Result<Option<Str
 }
 
 /// The plist form `(COL FMT COL FMT)` of :fmt, :hfmt and :efmt.
-fn apply_cons(i: &mut Interp, value: &L, name: &str, column: usize, contents: &str, args: &[L]) -> Result<String, String> {
+fn apply_cons(
+    i: &mut Interp,
+    value: &L,
+    name: &str,
+    column: usize,
+    contents: &str,
+    args: &[L],
+) -> Result<String, String> {
     if let L::List(items) = value
         && !is_function(value)
     {
-        let val = items.chunks(2).find(|p| matches!(p[0], L::Int(c) if c as usize == column)).and_then(|p| p.get(1).cloned());
+        let val = items
+            .chunks(2)
+            .find(|p| matches!(p[0], L::Int(c) if c as usize == column))
+            .and_then(|p| p.get(1).cloned());
         return match val {
             None => Ok(contents.to_owned()),
             Some(L::Str(s)) => lisp::format(&s, args),
@@ -188,11 +201,24 @@ fn prepare(table: &[Row], params: &Params, keep_special_rows: bool) -> Result<Pr
     let special = has_special_column(&rows);
     let all_rows = rows.clone();
     let skipcols: Vec<usize> = match params.get(":skipcols") {
-        Some(L::List(v)) => v.iter().filter_map(|x| if let L::Int(i) = x { Some(*i as usize) } else { None }).collect(),
+        Some(L::List(v)) => v
+            .iter()
+            .filter_map(|x| {
+                if let L::Int(i) = x {
+                    Some(*i as usize)
+                } else {
+                    None
+                }
+            })
+            .collect(),
         Some(_) => return Err("Wrong :skipcols value".into()),
         None => vec![],
     };
-    let with_special = if params.member(":with-special-rows") { params.get(":with-special-rows").is_some() } else { keep_special_rows };
+    let with_special = if params.member(":with-special-rows") {
+        params.get(":with-special-rows").is_some()
+    } else {
+        keep_special_rows
+    };
     let mut out = vec![];
     for r in rows {
         match r {
@@ -212,7 +238,11 @@ fn prepare(table: &[Row], params: &Params, keep_special_rows: bool) -> Result<Pr
             }
         }
     }
-    Ok(Prepared { rows: out, all_rows, special })
+    Ok(Prepared {
+        rows: out,
+        all_rows,
+        special,
+    })
 }
 
 /// Row-group facts: header rows and the row ending the header.
@@ -260,21 +290,34 @@ fn header_info(rows: &[Row]) -> (Vec<bool>, Vec<bool>) {
 
 /// Column alignments for the exported table (org-export-table-cell-alignment).
 fn alignments(p: &Prepared) -> Vec<char> {
-    let rows: Vec<&Vec<String>> = p
-        .all_rows
+    let rows: Vec<&Vec<String>> = p.all_rows.iter().filter_map(Row::cells).collect();
+    let stripped: Vec<Vec<String>> = rows
         .iter()
-        .filter_map(Row::cells)
+        .map(|r| r.iter().skip(p.special as usize).cloned().collect())
         .collect();
-    let stripped: Vec<Vec<String>> = rows.iter().map(|r| r.iter().skip(p.special as usize).cloned().collect()).collect();
     let refs: Vec<&Vec<String>> = stripped.iter().collect();
     let (_, aligns) = column_layout(&refs);
-    let ncol = p.rows.iter().filter_map(Row::cells).map(Vec::len).max().unwrap_or(0);
-    (0..ncol).map(|i| aligns.get(i).copied().unwrap_or('l')).collect()
+    let ncol = p
+        .rows
+        .iter()
+        .filter_map(Row::cells)
+        .map(Vec::len)
+        .max()
+        .unwrap_or(0);
+    (0..ncol)
+        .map(|i| aligns.get(i).copied().unwrap_or('l'))
+        .collect()
 }
 
 /// Column groups from a `/` row: (starts group, ends group) per column.
 fn column_groups(p: &Prepared) -> Vec<(bool, bool)> {
-    let ncol = p.rows.iter().filter_map(Row::cells).map(Vec::len).max().unwrap_or(0);
+    let ncol = p
+        .rows
+        .iter()
+        .filter_map(Row::cells)
+        .map(Vec::len)
+        .max()
+        .unwrap_or(0);
     let mut g = vec![(false, false); ncol];
     for r in &p.all_rows {
         let Row::Cells(c) = r else { continue };
@@ -295,7 +338,13 @@ fn column_groups(p: &Prepared) -> Vec<(bool, bool)> {
 
 /// Cookie widths (`<N>`) per column.
 fn cookie_widths(p: &Prepared) -> Vec<Option<usize>> {
-    let ncol = p.rows.iter().filter_map(Row::cells).map(Vec::len).max().unwrap_or(0);
+    let ncol = p
+        .rows
+        .iter()
+        .filter_map(Row::cells)
+        .map(Vec::len)
+        .max()
+        .unwrap_or(0);
     let mut w = vec![None; ncol];
     for r in &p.all_rows {
         let Row::Cells(c) = r else { continue };
@@ -313,7 +362,10 @@ fn cookie_widths(p: &Prepared) -> Vec<Option<usize>> {
 
 // ---- inline markup ----
 
-lazy_re!(EMPH, r"(^|[\s\-('{])([*/_=~+])([^\s].*?[^\s]|[^\s])([*/_=~+])($|[\s\-.,:!?;')}])");
+lazy_re!(
+    EMPH,
+    r"(^|[\s\-('{])([*/_=~+])([^\s].*?[^\s]|[^\s])([*/_=~+])($|[\s\-.,:!?;')}])"
+);
 lazy_re!(MATH, r"\$([^$\s][^$]*?)\$|\\\((.*?)\\\)");
 lazy_re!(LINK, r"\[\[([^\]]+)\](?:\[([^\]]+)\])?\]");
 
@@ -335,7 +387,9 @@ fn latex_escape(s: &str) -> String {
 }
 
 fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 fn texinfo_escape(s: &str) -> String {
@@ -351,20 +405,33 @@ fn markup(s: &str, b: Backend) -> String {
     let mut out = String::new();
     let mut rest = s;
     loop {
-        let m = [MATH.find(rest), LINK.find(rest), EMPH.find(rest).filter(|m| m.as_str().len() > 1)].into_iter().flatten().min_by_key(|m| m.start());
+        let m = [
+            MATH.find(rest),
+            LINK.find(rest),
+            EMPH.find(rest).filter(|m| m.as_str().len() > 1),
+        ]
+        .into_iter()
+        .flatten()
+        .min_by_key(|m| m.start());
         let Some(m) = m else {
             out.push_str(&escape(rest, b));
             break;
         };
         out.push_str(&escape(&rest[..m.start()], b));
         let piece = m.as_str();
-        if let Some(c) = MATH.captures(piece).filter(|c| c.get(0).unwrap().start() == 0) {
+        if let Some(c) = MATH
+            .captures(piece)
+            .filter(|c| c.get(0).unwrap().start() == 0)
+        {
             let body = c.get(1).or(c.get(2)).map_or("", |x| x.as_str());
             out.push_str(&match b {
                 Backend::Latex | Backend::Html => format!("\\({body}\\)"),
                 _ => String::new(),
             });
-        } else if let Some(c) = LINK.captures(piece).filter(|c| c.get(0).unwrap().start() == 0) {
+        } else if let Some(c) = LINK
+            .captures(piece)
+            .filter(|c| c.get(0).unwrap().start() == 0)
+        {
             let target = &c[1];
             let desc = c.get(2).map_or(target, |x| x.as_str());
             out.push_str(&match b {
@@ -376,7 +443,11 @@ fn markup(s: &str, b: Backend) -> String {
             out.push_str(&escape(&c[1], b));
             let marker = &c[2];
             let body = &c[3];
-            let inner = if marker == "=" || marker == "~" { escape(body, b) } else { markup(body, b) };
+            let inner = if marker == "=" || marker == "~" {
+                escape(body, b)
+            } else {
+                markup(body, b)
+            };
             out.push_str(&match (b, marker) {
                 (Backend::Latex, "*") => format!("\\textbf{{{inner}}}"),
                 (Backend::Latex, "/") => format!("\\emph{{{inner}}}"),
@@ -435,7 +506,11 @@ pub fn to_generic(table: &[Row], params: &Params) -> Result<String, String> {
     let n = p.rows.len();
     // The rows a transcoder sees after skipped ones.
     let mut out_rows: Vec<String> = vec![];
-    let ascii = if b == Backend::Ascii { Some(ascii_layout(&p, params)) } else { None };
+    let ascii = if b == Backend::Ascii {
+        Some(ascii_layout(&p, params))
+    } else {
+        None
+    };
     for (ri, row) in p.rows.iter().enumerate() {
         let first = ri == 0;
         let last = ri + 1 == n;
@@ -452,7 +527,9 @@ pub fn to_generic(table: &[Row], params: &Params) -> Result<String, String> {
                         Backend::Org => None,
                         Backend::Latex => Some(latex_rule(params, first, last)),
                         Backend::Html | Backend::Texinfo => None,
-                        Backend::Ascii => (!first && !last).then(|| ascii.as_ref().unwrap().rule('─')),
+                        Backend::Ascii => {
+                            (!first && !last).then(|| ascii.as_ref().unwrap().rule('─'))
+                        }
                     }
                 };
                 if let Some(r) = r {
@@ -518,7 +595,11 @@ pub fn to_generic(table: &[Row], params: &Params) -> Result<String, String> {
             };
             let piece = if sep.is_some() || hsep.is_some() {
                 if (sep.is_none() && !headerp) || last_cell {
-                    if backend.is_some() { with_backend(body) } else { body }
+                    if backend.is_some() {
+                        with_backend(body)
+                    } else {
+                        body
+                    }
                 } else {
                     let s = match (&sep, &hsep) {
                         (Some(s), Some(h)) => {
@@ -579,11 +660,17 @@ pub fn to_generic(table: &[Row], params: &Params) -> Result<String, String> {
                         format!(
                             "{}{joined}\\\\{}",
                             if booktabs && first { "\\toprule\n" } else { "" },
-                            if booktabs && last { "\n\\bottomrule" } else { "" }
+                            if booktabs && last {
+                                "\n\\bottomrule"
+                            } else {
+                                ""
+                            }
                         )
                     }
                     Backend::Html => format!("<tr>\n{joined}</tr>"),
-                    Backend::Texinfo => format!("{} {joined}", if headerp { "@headitem" } else { "@item" }),
+                    Backend::Texinfo => {
+                        format!("{} {joined}", if headerp { "@headitem" } else { "@item" })
+                    }
                     Backend::Ascii => joined.clone(),
                     Backend::Org => joined.clone(),
                 })
@@ -599,7 +686,10 @@ pub fn to_generic(table: &[Row], params: &Params) -> Result<String, String> {
     let contents = if b == Backend::Html {
         html_groups(&p.rows, &out_rows, &in_header)
     } else {
-        out_rows.iter().map(|r| format!("{r}\n")).collect::<String>()
+        out_rows
+            .iter()
+            .map(|r| format!("{r}\n"))
+            .collect::<String>()
     };
     let mut s = String::new();
     if let Some(t) = &tstart
@@ -662,7 +752,10 @@ fn latex_table(p: &Prepared, params: &Params, aligns: &[char], contents: &str) -
             spec.push('|');
         }
     }
-    let env = params.str(":environment").or_else(|| params.str(":latex-default-table-environment")).unwrap_or_else(|| "tabular".into());
+    let env = params
+        .str(":environment")
+        .or_else(|| params.str(":latex-default-table-environment"))
+        .unwrap_or_else(|| "tabular".into());
     format!("\\begin{{{env}}}{{{spec}}}\n{contents}\\end{{{env}}}")
 }
 
@@ -702,7 +795,14 @@ fn html_groups(rows: &[Row], out: &[String], in_header: &[bool]) -> String {
     let mut s = String::new();
     for (header, lines) in groups {
         let tag = if header { "thead" } else { "tbody" };
-        s.push_str(&format!("<{tag}>\n{}\n</{tag}>\n", lines.iter().map(|l| l.as_str()).collect::<Vec<_>>().join("\n\n")));
+        s.push_str(&format!(
+            "<{tag}>\n{}\n</{tag}>\n",
+            lines
+                .iter()
+                .map(|l| l.as_str())
+                .collect::<Vec<_>>()
+                .join("\n\n")
+        ));
     }
     s
 }
@@ -720,7 +820,11 @@ fn html_table(p: &Prepared, params: &Params, aligns: &[char], contents: &str) ->
             .chunks(2)
             .filter_map(|q| {
                 let k = q[0].sym_name()?.trim_start_matches(':').to_owned();
-                let v = q.get(1).map(|x| x.as_str().map(str::to_owned).unwrap_or_else(|| lisp::princ(x)))?;
+                let v = q.get(1).map(|x| {
+                    x.as_str()
+                        .map(str::to_owned)
+                        .unwrap_or_else(|| lisp::princ(x))
+                })?;
                 Some(format!(" {k}=\"{v}\""))
             })
             .collect(),
@@ -737,30 +841,51 @@ fn html_table(p: &Prepared, params: &Params, aligns: &[char], contents: &str) ->
             'c' => "org-center",
             _ => "org-left",
         };
-        colgroups.last_mut().unwrap().push(format!("<col  class=\"{class}\" />"));
+        colgroups
+            .last_mut()
+            .unwrap()
+            .push(format!("<col  class=\"{class}\" />"));
         if groups.get(i).is_some_and(|g| g.1) && i + 1 < aligns.len() {
             colgroups.push(vec![]);
         }
     }
-    let cg = colgroups.iter().filter(|g| !g.is_empty()).map(|g| format!("<colgroup>\n{}\n</colgroup>", g.join("\n\n"))).collect::<Vec<_>>().join("\n");
+    let cg = colgroups
+        .iter()
+        .filter(|g| !g.is_empty())
+        .map(|g| format!("<colgroup>\n{}\n</colgroup>", g.join("\n\n")))
+        .collect::<Vec<_>>()
+        .join("\n");
     format!("<table{attr_text}>\n\n\n{cg}\n{contents}</table>")
 }
 
 fn texinfo_table(p: &Prepared, contents: &str) -> String {
-    let ncol = p.rows.iter().filter_map(Row::cells).map(Vec::len).max().unwrap_or(0);
+    let ncol = p
+        .rows
+        .iter()
+        .filter_map(Row::cells)
+        .map(Vec::len)
+        .max()
+        .unwrap_or(0);
     let mut widths = vec![0; ncol];
     for r in p.rows.iter().filter_map(Row::cells) {
         for (i, c) in r.iter().enumerate() {
             widths[i] = widths[i].max(c.chars().count());
         }
     }
-    let spec = widths.iter().map(|w| format!("{{{}}}", "a".repeat(*w))).collect::<Vec<_>>().join(" ");
+    let spec = widths
+        .iter()
+        .map(|w| format!("{{{}}}", "a".repeat(*w)))
+        .collect::<Vec<_>>()
+        .join(" ");
     format!("@multitable {spec}\n{contents}@end multitable")
 }
 
 fn org_table(contents: &str) -> String {
     let lines: Vec<String> = contents.lines().map(String::from).collect();
-    let mut d = Doc { lines, ..Doc::default() };
+    let mut d = Doc {
+        lines,
+        ..Doc::default()
+    };
     if !d.lines.is_empty() {
         d.align();
     }
@@ -778,20 +903,34 @@ fn ascii_layout(p: &Prepared, params: &Params) -> AsciiLayout {
     let rows: Vec<&Vec<String>> = p.rows.iter().filter_map(Row::cells).collect();
     let ncol = rows.iter().map(|r| r.len()).max().unwrap_or(0);
     let cookies = cookie_widths(p);
-    let narrow = params.get(":narrow").is_some() || params.get(":ascii-table-widen-columns").is_none() && params.member(":ascii-table-widen-columns");
+    let narrow = params.get(":narrow").is_some()
+        || params.get(":ascii-table-widen-columns").is_none()
+            && params.member(":ascii-table-widen-columns");
     let mut widths = vec![0; ncol];
     for r in &rows {
         for (i, c) in r.iter().enumerate() {
             widths[i] = widths[i].max(width(c));
         }
     }
-    let narrow_w: Vec<Option<usize>> = (0..ncol).map(|i| if narrow { cookies.get(i).copied().flatten() } else { None }).collect();
+    let narrow_w: Vec<Option<usize>> = (0..ncol)
+        .map(|i| {
+            if narrow {
+                cookies.get(i).copied().flatten()
+            } else {
+                None
+            }
+        })
+        .collect();
     for (i, w) in narrow_w.iter().enumerate() {
         if let Some(w) = w {
             widths[i] = *w;
         }
     }
-    AsciiLayout { widths, aligns: alignments(p), narrow: narrow_w }
+    AsciiLayout {
+        widths,
+        aligns: alignments(p),
+        narrow: narrow_w,
+    }
 }
 
 impl AsciiLayout {
@@ -825,9 +964,14 @@ pub fn translate(name: &str, table: &[Row], params: &Params) -> Result<String, S
     let p = |s: &str| Params::read(s).unwrap_or_default();
     match name {
         "orgtbl-to-generic" => to_generic(table, params),
-        "orgtbl-to-tsv" => to_generic(table, &p("(:sep \"\\t\")").with(params)),
+        "orgtbl-to-tsv" => to_generic(table, &p(":sep \"\\t\"").with(params)),
         "orgtbl-to-csv" => {
-            let base = Params(vec![lisp::sym(":sep"), lisp::str_(","), lisp::sym(":fmt"), lisp::sym("org-quote-csv-field")]);
+            let base = Params(vec![
+                lisp::sym(":sep"),
+                lisp::str_(","),
+                lisp::sym(":fmt"),
+                lisp::sym("org-quote-csv-field"),
+            ]);
             let mut out = base.with(params);
             // org-quote-csv-field as a lambda.
             if out.get(":fmt").as_ref().and_then(L::sym_name) == Some("org-quote-csv-field") {
@@ -848,41 +992,78 @@ pub fn translate(name: &str, table: &[Row], params: &Params) -> Result<String, S
             }
             to_generic(table, &base.with(params))
         }
-        "orgtbl-to-html" => to_generic(table, &Params(vec![lisp::sym(":backend"), lisp::sym("html")]).with(params)),
+        "orgtbl-to-html" => to_generic(
+            table,
+            &Params(vec![lisp::sym(":backend"), lisp::sym("html")]).with(params),
+        ),
         "orgtbl-to-texinfo" => {
-            let out = to_generic(table, &Params(vec![lisp::sym(":backend"), lisp::sym("texinfo")]).with(params))?;
-            let columns = params.str(":columns").map(|w| if w.contains('{') || w.starts_with("@columnfractions ") { w } else { format!("@columnfractions {w}") });
+            let out = to_generic(
+                table,
+                &Params(vec![lisp::sym(":backend"), lisp::sym("texinfo")]).with(params),
+            )?;
+            let columns = params.str(":columns").map(|w| {
+                if w.contains('{') || w.starts_with("@columnfractions ") {
+                    w
+                } else {
+                    format!("@columnfractions {w}")
+                }
+            });
             Ok(match columns {
                 Some(c) => {
                     static MT: LazyLock<Regex> = LazyLock::new(|| re(r"(?m)^@multitable .*$"));
-                    MT.replace(&out, format!("@multitable {c}").as_str()).into_owned()
+                    MT.replace(&out, format!("@multitable {c}").as_str())
+                        .into_owned()
                 }
                 None => out,
             })
         }
-        "orgtbl-to-orgtbl" => to_generic(table, &params.with(&Params(vec![lisp::sym(":backend"), lisp::sym("org")]))),
+        "orgtbl-to-orgtbl" => to_generic(
+            table,
+            &params.with(&Params(vec![lisp::sym(":backend"), lisp::sym("org")])),
+        ),
         "orgtbl-to-table.el" => {
             let org = translate("orgtbl-to-orgtbl", table, params)?;
             Ok(org.replace("-|", "-+").replace("|-", "+-"))
         }
-        "orgtbl-to-unicode" => to_generic(table, &Params(vec![lisp::sym(":backend"), lisp::sym("ascii")]).with(params)),
+        "orgtbl-to-unicode" => to_generic(
+            table,
+            &Params(vec![lisp::sym(":backend"), lisp::sym("ascii")]).with(params),
+        ),
         _ => Err(format!("No such transformation function {name}")),
     }
 }
 
 /// org-table-collapse-header.
-pub fn collapse_header(table: &[Row], separator: Option<&str>, max_header_lines: Option<usize>) -> Vec<Row> {
+pub fn collapse_header(
+    table: &[Row],
+    separator: Option<&str>,
+    max_header_lines: Option<usize>,
+) -> Vec<Row> {
     let sep = separator.unwrap_or(" ");
     let max = max_header_lines.unwrap_or(4);
     let mut t: &[Row] = table;
     while let Some(Row::Hline) = t.first() {
         t = &t[1..];
     }
-    let header: Vec<&Vec<String>> = t.iter().take_while(|r| **r != Row::Hline).filter_map(Row::cells).collect();
+    let header: Vec<&Vec<String>> = t
+        .iter()
+        .take_while(|r| **r != Row::Hline)
+        .filter_map(Row::cells)
+        .collect();
     let trailer = &t[header.len()..];
     if !trailer.is_empty() && header.len() <= max {
         let n = header.iter().map(|r| r.len()).min().unwrap_or(0);
-        let merged: Vec<String> = (0..n).map(|i| header.iter().map(|r| r[i].as_str()).collect::<Vec<_>>().join(sep).trim().to_owned()).collect();
+        let merged: Vec<String> = (0..n)
+            .map(|i| {
+                header
+                    .iter()
+                    .map(|r| r[i].as_str())
+                    .collect::<Vec<_>>()
+                    .join(sep)
+                    .trim()
+                    .to_owned()
+            })
+            .collect();
         let mut out = vec![Row::Cells(merged)];
         out.extend_from_slice(trailer);
         out
@@ -893,7 +1074,10 @@ pub fn collapse_header(table: &[Row], separator: Option<&str>, max_header_lines:
 
 // ---- radio tables ----
 
-lazy_re!(SEND, r"(?i)^[ \t]*#\+ORGTBL[: \t][ \t]*SEND[ \t]+([^ \t\r\n]+)[ \t]+([^ \t\r\n]+)([ \t]+.*)?");
+lazy_re!(
+    SEND,
+    r"(?i)^[ \t]*#\+ORGTBL[: \t][ \t]*SEND[ \t]+([^ \t\r\n]+)[ \t]+([^ \t\r\n]+)([ \t]+.*)?"
+);
 
 /// orgtbl-gather-send-defs: (name, transform, params) above the table.
 pub fn gather_send_defs(d: &Doc) -> Vec<(String, String, String)> {
@@ -902,7 +1086,14 @@ pub fn gather_send_defs(d: &Doc) -> Vec<(String, String, String)> {
     while l > 0 {
         l -= 1;
         match SEND.captures(&d.lines[l]) {
-            Some(m) => out.insert(0, (m[1].to_owned(), m[2].to_owned(), m.get(3).map_or(String::new(), |x| x.as_str().to_owned()))),
+            Some(m) => out.insert(
+                0,
+                (
+                    m[1].to_owned(),
+                    m[2].to_owned(),
+                    m.get(3).map_or(String::new(), |x| x.as_str().to_owned()),
+                ),
+            ),
             None => break,
         }
     }
@@ -950,7 +1141,11 @@ pub fn send_table(d: &mut Doc, maybe: bool) -> Result<usize, String> {
     let dests = gather_send_defs(d);
     let table = d.to_lisp();
     if dests.is_empty() {
-        return if maybe { Ok(0) } else { Err("Don't know how to transform this table".into()) };
+        return if maybe {
+            Ok(0)
+        } else {
+            Err("Don't know how to transform this table".into())
+        };
     }
     let mut n = 0;
     for (name, transform, params) in dests {
@@ -959,19 +1154,38 @@ pub fn send_table(d: &mut Doc, maybe: bool) -> Result<usize, String> {
         send_replace(d, &name, &text)?;
         n += 1;
     }
-    d.message(format!("Table converted and installed at {n} receiver location{}", if n > 1 { "s" } else { "" }));
+    d.message(format!(
+        "Table converted and installed at {n} receiver location{}",
+        if n > 1 { "s" } else { "" }
+    ));
     Ok(n)
 }
 
 /// orgtbl-radio-table-templates: the template for this file type.
 pub fn radio_template(d: &Doc) -> Option<&'static str> {
-    let ext = d.path.as_ref().and_then(|p| p.extension()).and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+    let ext = d
+        .path
+        .as_ref()
+        .and_then(|p| p.extension())
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
     Some(match ext.as_str() {
-        "tex" | "latex" | "sty" | "ltx" => "% BEGIN RECEIVE ORGTBL %n\n% END RECEIVE ORGTBL %n\n\\begin{comment}\n#+ORGTBL: SEND %n orgtbl-to-latex :splice nil :skip 0\n| | |\n\\end{comment}\n",
-        "texi" | "texinfo" => "@c BEGIN RECEIVE ORGTBL %n\n@c END RECEIVE ORGTBL %n\n@ignore\n#+ORGTBL: SEND %n orgtbl-to-html :splice nil :skip 0\n| | |\n@end ignore\n",
-        "html" | "htm" | "xhtml" => "<!-- BEGIN RECEIVE ORGTBL %n -->\n<!-- END RECEIVE ORGTBL %n -->\n<!--\n#+ORGTBL: SEND %n orgtbl-to-html :splice nil :skip 0\n| | |\n-->\n",
-        "org" => "#+ BEGIN RECEIVE ORGTBL %n\n#+ END RECEIVE ORGTBL %n\n\n#+ORGTBL: SEND %n orgtbl-to-orgtbl :splice nil :skip 0\n| | |\n",
-        _ if d.org => "#+ BEGIN RECEIVE ORGTBL %n\n#+ END RECEIVE ORGTBL %n\n\n#+ORGTBL: SEND %n orgtbl-to-orgtbl :splice nil :skip 0\n| | |\n",
+        "tex" | "latex" | "sty" | "ltx" => {
+            "% BEGIN RECEIVE ORGTBL %n\n% END RECEIVE ORGTBL %n\n\\begin{comment}\n#+ORGTBL: SEND %n orgtbl-to-latex :splice nil :skip 0\n| | |\n\\end{comment}\n"
+        }
+        "texi" | "texinfo" => {
+            "@c BEGIN RECEIVE ORGTBL %n\n@c END RECEIVE ORGTBL %n\n@ignore\n#+ORGTBL: SEND %n orgtbl-to-html :splice nil :skip 0\n| | |\n@end ignore\n"
+        }
+        "html" | "htm" | "xhtml" => {
+            "<!-- BEGIN RECEIVE ORGTBL %n -->\n<!-- END RECEIVE ORGTBL %n -->\n<!--\n#+ORGTBL: SEND %n orgtbl-to-html :splice nil :skip 0\n| | |\n-->\n"
+        }
+        "org" => {
+            "#+ BEGIN RECEIVE ORGTBL %n\n#+ END RECEIVE ORGTBL %n\n\n#+ORGTBL: SEND %n orgtbl-to-orgtbl :splice nil :skip 0\n| | |\n"
+        }
+        _ if d.org => {
+            "#+ BEGIN RECEIVE ORGTBL %n\n#+ END RECEIVE ORGTBL %n\n\n#+ORGTBL: SEND %n orgtbl-to-orgtbl :splice nil :skip 0\n| | |\n"
+        }
         _ => return None,
     })
 }
@@ -986,7 +1200,12 @@ pub fn insert_radio_table(d: &mut Doc, name: &str) -> Result<(), String> {
         d.insert("\n");
     }
     let (l, c) = (d.l, d.c);
-    let lines: Vec<String> = txt.strip_suffix('\n').unwrap_or(&txt).split('\n').map(String::from).collect();
+    let lines: Vec<String> = txt
+        .strip_suffix('\n')
+        .unwrap_or(&txt)
+        .split('\n')
+        .map(String::from)
+        .collect();
     d.insert_lines(l, &lines);
     d.goto(l, c);
     Ok(())
@@ -994,10 +1213,17 @@ pub fn insert_radio_table(d: &mut Doc, name: &str) -> Result<(), String> {
 
 /// The comment prefix for this file's type (`comment-start`).
 pub fn comment_start(d: &Doc) -> &'static str {
-    let ext = d.path.as_ref().and_then(|p| p.extension()).and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+    let ext = d
+        .path
+        .as_ref()
+        .and_then(|p| p.extension())
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
     match ext.as_str() {
         "tex" | "latex" | "sty" | "ltx" | "m" => "% ",
-        "c" | "h" | "cc" | "cpp" | "hpp" | "rs" | "js" | "ts" | "java" | "go" | "swift" | "kt" | "scala" | "cs" => "// ",
+        "c" | "h" | "cc" | "cpp" | "hpp" | "rs" | "js" | "ts" | "java" | "go" | "swift" | "kt"
+        | "scala" | "cs" => "// ",
         "el" | "lisp" | "scm" | "clj" => ";; ",
         "texi" | "texinfo" => "@c ",
         "sql" | "lua" | "hs" => "-- ",
@@ -1011,7 +1237,11 @@ lazy_re!(ORGTBL_LINE, r"(?i)^[ \t]*(\||#\+(tblfm|orgtbl|tblname):)");
 /// orgtbl-toggle-comment.
 pub fn toggle_comment(d: &mut Doc) -> Result<(), String> {
     let cs = comment_start(d);
-    let is_commented = |s: &str| s.strip_prefix(cs).or_else(|| s.strip_prefix(cs.trim_end())).is_some_and(|r| ORGTBL_LINE.is_match(r));
+    let is_commented = |s: &str| {
+        s.strip_prefix(cs)
+            .or_else(|| s.strip_prefix(cs.trim_end()))
+            .is_some_and(|r| ORGTBL_LINE.is_match(r))
+    };
     let commented = if is_commented(d.line()) {
         true
     } else if ORGTBL_LINE.is_match(d.line()) {
@@ -1019,7 +1249,13 @@ pub fn toggle_comment(d: &mut Doc) -> Result<(), String> {
     } else {
         return Err("Not at an org table".into());
     };
-    let matches = |s: &str| if commented { is_commented(s) } else { ORGTBL_LINE.is_match(s) };
+    let matches = |s: &str| {
+        if commented {
+            is_commented(s)
+        } else {
+            ORGTBL_LINE.is_match(s)
+        }
+    };
     let mut b = d.l;
     while b > 0 && matches(&d.lines[b - 1]) {
         b -= 1;
@@ -1031,7 +1267,10 @@ pub fn toggle_comment(d: &mut Doc) -> Result<(), String> {
     for l in b..=e {
         let s = d.lines[l].clone();
         d.lines[l] = if commented {
-            s.strip_prefix(cs).or_else(|| s.strip_prefix(cs.trim_end())).unwrap_or(&s).to_owned()
+            s.strip_prefix(cs)
+                .or_else(|| s.strip_prefix(cs.trim_end()))
+                .unwrap_or(&s)
+                .to_owned()
         } else {
             format!("{cs}{s}")
         };
@@ -1052,11 +1291,14 @@ pub fn ascii_plot(d: &mut Doc, length: i64) -> Result<(), String> {
         None => table.clone(),
     };
     let body = if body.is_empty() { table } else { body };
-    static NUM: LazyLock<Regex> = LazyLock::new(|| re(r"^[-+]?([0-9]*[.])?[0-9]*([eE][+-]?[0-9]+)?$"));
+    static NUM: LazyLock<Regex> =
+        LazyLock::new(|| re(r"^[-+]?([0-9]*[.])?[0-9]*([eE][+-]?[0-9]+)?$"));
     let (mut min, mut max) = (f64::INFINITY, f64::NEG_INFINITY);
     for r in &body {
         let Some(c) = r.cells() else { continue };
-        let Some(x) = c.get(col.saturating_sub(1)) else { continue };
+        let Some(x) = c.get(col.saturating_sub(1)) else {
+            continue;
+        };
         if NUM.is_match(x) {
             let v = lisp::string_to_number(x).f();
             min = min.min(v);
@@ -1068,7 +1310,17 @@ pub fn ascii_plot(d: &mut Doc, length: i64) -> Result<(), String> {
     super::formula::analyze(d);
     let mut stored = super::formula::get_stored_formulas(d, false, None)?;
     let num = |v: f64| lisp::float_to_string(v).trim_end_matches(".0").to_owned();
-    stored.insert(0, (format!("${}", col + 1), format!("'(orgtbl-ascii-draw ${col} {} {} {length})", num(min), num(max))));
+    stored.insert(
+        0,
+        (
+            format!("${}", col + 1),
+            format!(
+                "'(orgtbl-ascii-draw ${col} {} {} {length})",
+                num(min),
+                num(max)
+            ),
+        ),
+    );
     super::formula::store_formulas(d, &stored, None);
     super::formula::recalculate(d, super::formula::Recalc::All, false)
 }
@@ -1096,7 +1348,10 @@ pub fn default_export_format(file: &str) -> String {
         "orgtbl-to-orgtbl",
         "orgtbl-to-unicode",
     ];
-    let ext = std::path::Path::new(file).extension().and_then(|e| e.to_str()).unwrap_or("");
+    let ext = std::path::Path::new(file)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
     FORMATS
         .iter()
         .find(|f| !ext.is_empty() && f.ends_with(ext))

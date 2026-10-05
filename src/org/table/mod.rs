@@ -86,13 +86,15 @@ thread_local! {
     static STATES: RefCell<HashMap<String, State>> = RefCell::new(HashMap::new());
     /// org-table-clip (global, as upstream).
     static CLIP: RefCell<Option<Vec<Vec<String>>>> = const { RefCell::new(None) };
-    /// The region given with `:'<,'>` (first and last line).
-    static REGION: RefCell<Option<(usize, usize)>> = const { RefCell::new(None) };
 }
 
 impl State {
     pub fn shrunk_in(&self, b: usize, e: usize) -> Vec<usize> {
-        self.shrunk.iter().find(|(a, _)| *a >= b && *a < e).map(|(_, c)| c.clone()).unwrap_or_default()
+        self.shrunk
+            .iter()
+            .find(|(a, _)| *a >= b && *a < e)
+            .map(|(_, c)| c.clone())
+            .unwrap_or_default()
     }
 
     pub fn set_shrunk(&mut self, b: usize, e: usize, mut cols: Vec<usize>) {
@@ -142,7 +144,9 @@ impl State {
 }
 
 fn key_of(ed: &Editor) -> String {
-    ed.path.as_ref().map_or_else(String::new, |p| p.display().to_string())
+    ed.path
+        .as_ref()
+        .map_or_else(String::new, |p| p.display().to_string())
 }
 
 /// This buffer's table state.
@@ -161,11 +165,6 @@ pub fn line_change(ed: &Editor, at: usize, removed: usize, inserted: usize) {
             st.line_change(at, removed, inserted);
         }
     });
-}
-
-/// The region of a `:'<,'>org-...` command.
-pub fn set_region(lines: Option<(usize, usize)>) {
-    REGION.with(|r| *r.borrow_mut() = lines);
 }
 
 // ---- options ----
@@ -216,7 +215,9 @@ pub fn weekday_name(days: i64) -> &'static str {
 
 /// The local time zone's offset from UTC, in seconds.
 pub fn local_offset_secs() -> i64 {
-    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs() as libc::time_t);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs() as libc::time_t);
     // SAFETY: localtime_r writes into the zeroed tm we own.
     unsafe {
         let mut tm: libc::tm = std::mem::zeroed();
@@ -230,7 +231,9 @@ pub fn local_offset_secs() -> i64 {
 
 /// org-duration-to-minutes for `1d 3:00`-like durations.
 pub fn duration_minutes(s: &str) -> Option<f64> {
-    let re = doc::re(r"^\s*(?:([0-9.]+)\s*(min|h|d|w|m|y)\s*)+(?:([0-9]+):([0-9]{2})(?::([0-9]{2}))?)?\s*$");
+    let re = doc::re(
+        r"^\s*(?:([0-9.]+)\s*(min|h|d|w|m|y)\s*)+(?:([0-9]+):([0-9]{2})(?::([0-9]{2}))?)?\s*$",
+    );
     if !re.is_match(s) || !s.chars().any(|c| c.is_ascii_alphabetic()) {
         return None;
     }
@@ -248,7 +251,10 @@ pub fn duration_minutes(s: &str) -> Option<f64> {
         };
     }
     if let Some(c) = doc::re(r"([0-9]+):([0-9]{2})(?::([0-9]{2}))?\s*$").captures(s) {
-        total += c[1].parse::<f64>().ok()? * 60.0 + c[2].parse::<f64>().ok()? + c.get(3).map_or(0.0, |x| x.as_str().parse::<f64>().unwrap_or(0.0) / 60.0);
+        total += c[1].parse::<f64>().ok()? * 60.0
+            + c[2].parse::<f64>().ok()?
+            + c.get(3)
+                .map_or(0.0, |x| x.as_str().parse::<f64>().unwrap_or(0.0) / 60.0);
     }
     Some(total)
 }
@@ -335,7 +341,8 @@ pub fn emacs_regex_src(s: &str) -> String {
 }
 
 pub fn emacs_regex(s: &str) -> Result<regex::Regex, String> {
-    regex::Regex::new(&format!("(?m){}", emacs_regex_src(s))).map_err(|e| format!("Invalid regexp: {e}"))
+    regex::Regex::new(&format!("(?m){}", emacs_regex_src(s)))
+        .map_err(|e| format!("Invalid regexp: {e}"))
 }
 
 // ---- properties (org-entry-get with inheritance) ----
@@ -345,7 +352,10 @@ pub fn entry_get(lines: &[String], l: usize, prop: &str, inherit: bool) -> Optio
     use super::syntax::{heading_at_or_before, level};
     let find_in = |start: usize| -> Option<String> {
         let mut i = start;
-        while i < lines.len() && lines[i].trim_start().starts_with(['S', 'D', 'C']) && super::ctx::is_planning(&lines[i]) {
+        while i < lines.len()
+            && lines[i].trim_start().starts_with(['S', 'D', 'C'])
+            && super::ctx::is_planning(&lines[i])
+        {
             i += 1;
         }
         if i >= lines.len() || !lines[i].trim().eq_ignore_ascii_case(":PROPERTIES:") {
@@ -376,10 +386,14 @@ pub fn entry_get(lines: &[String], l: usize, prop: &str, inherit: bool) -> Optio
                     return None;
                 }
                 let lv = level(&lines[hl]).unwrap_or(1);
-                h = (0..hl).rev().find(|&i| level(&lines[i]).is_some_and(|x| x < lv));
+                h = (0..hl)
+                    .rev()
+                    .find(|&i| level(&lines[i]).is_some_and(|x| x < lv));
             }
             None => {
-                let first = (0..lines.len()).find(|&i| !lines[i].trim().is_empty() && !lines[i].trim_start().starts_with('#'));
+                let first = (0..lines.len()).find(|&i| {
+                    !lines[i].trim().is_empty() && !lines[i].trim_start().starts_with('#')
+                });
                 if let Some(f) = first
                     && let Some(v) = find_in(f)
                 {
@@ -410,14 +424,19 @@ pub fn doc(ed: &Editor) -> Doc {
     if st.version != ed.buf.version {
         st.may_need_update = true;
     }
-    let region = REGION.with(|r| r.borrow_mut().take()).or(match ed.mode {
-        Mode::VisualLine { anchor } => Some((anchor.min(ed.cur.line), anchor.max(ed.cur.line))),
-        _ => None,
-    });
+    let region = super::region(ed)
+        .map(|(a, b)| (a.min(b), a.max(b)))
+        .or(match ed.mode {
+            Mode::VisualLine { anchor } => Some((anchor.min(ed.cur.line), anchor.max(ed.cur.line))),
+            _ => None,
+        });
     let col = doc::col_of(&lines[ed.cur.line], ed.cur.byte);
     let region = region.map(|(a, b)| {
         let b = b.min(n - 1);
-        ((a, doc::byte_of_col(&lines[a], col)), (b, doc::byte_of_col(&lines[b], col)))
+        (
+            (a, doc::byte_of_col(&lines[a], col)),
+            (b, doc::byte_of_col(&lines[b], col)),
+        )
     });
     Doc {
         lines,
@@ -443,7 +462,8 @@ pub fn finish(ed: &mut Editor, d: Doc) {
     }
     if !(a == old_n && a == new_n) {
         let mut b = 0;
-        while b < old_n - a && b < new_n - a && ed.buf.line(old_n - 1 - b) == d.lines[new_n - 1 - b] {
+        while b < old_n - a && b < new_n - a && ed.buf.line(old_n - 1 - b) == d.lines[new_n - 1 - b]
+        {
             b += 1;
         }
         super::splice(ed, a, old_n - a - b, &d.lines[a..new_n - b]);
@@ -466,7 +486,11 @@ pub fn finish(ed: &mut Editor, d: Doc) {
 }
 
 /// Run `f` on the buffer as a Doc.
-pub fn with_doc<T>(ed: &mut Editor, name: &str, f: impl FnOnce(&mut Doc) -> Result<T, String>) -> Result<T, String> {
+pub fn with_doc<T>(
+    ed: &mut Editor,
+    name: &str,
+    f: impl FnOnce(&mut Doc) -> Result<T, String>,
+) -> Result<T, String> {
     let mut d = doc(ed);
     d.this_command = name.to_owned();
     let r = f(&mut d);
@@ -481,7 +505,13 @@ pub fn with_doc<T>(ed: &mut Editor, name: &str, f: impl FnOnce(&mut Doc) -> Resu
 fn is_motion(name: &str) -> bool {
     matches!(
         name,
-        "org-table-next-field" | "org-table-previous-field" | "org-table-next-row" | "org-table-beginning-of-field" | "org-table-end-of-field" | "orgtbl-tab" | "orgtbl-ret"
+        "org-table-next-field"
+            | "org-table-previous-field"
+            | "org-table-next-row"
+            | "org-table-beginning-of-field"
+            | "org-table-end-of-field"
+            | "orgtbl-tab"
+            | "orgtbl-ret"
     )
 }
 
@@ -499,13 +529,22 @@ fn follow_field(ed: &mut Editor) {
     }
 }
 
-fn ok(ed: &mut Editor, name: &str, f: impl FnOnce(&mut Doc) -> Result<(), String>) -> Result<(), String> {
+fn ok(
+    ed: &mut Editor,
+    name: &str,
+    f: impl FnOnce(&mut Doc) -> Result<(), String>,
+) -> Result<(), String> {
     with_doc(ed, name, f)
 }
 
 // ---- prompts ----
 
-fn read(ed: &mut Editor, prompt: &str, initial: &str, then: impl FnOnce(&mut Editor, String) + Send + 'static) {
+fn read(
+    ed: &mut Editor,
+    prompt: &str,
+    initial: &str,
+    then: impl FnOnce(&mut Editor, String) + Send + 'static,
+) {
     super::read(ed, prompt, initial, then);
 }
 
@@ -538,7 +577,9 @@ fn convert_region_cmd(ed: &mut Editor, arg: Prefix, name: &str) -> Result<(), St
         Some(sep) => ok(ed, &name, |d| edit::convert_region(d, a, b, sep)),
         None => {
             read(ed, "Regexp for field separator: ", "", move |ed, re| {
-                let r = ok(ed, &name, |d| edit::convert_region(d, a, b, edit::Sep::Regex(re)));
+                let r = ok(ed, &name, |d| {
+                    edit::convert_region(d, a, b, edit::Sep::Regex(re))
+                });
                 report(ed, r);
             });
             Ok(())
@@ -549,11 +590,16 @@ fn convert_region_cmd(ed: &mut Editor, arg: Prefix, name: &str) -> Result<(), St
 fn create_cmd(ed: &mut Editor, name: &str) -> Result<(), String> {
     let dflt = edit::default_size();
     let name = name.to_owned();
-    read(ed, &format!("Table size Columns x Rows [e.g. {dflt}]: "), "", move |ed, ans| {
-        let size = if ans.trim().is_empty() { dflt } else { ans };
-        let r = ok(ed, &name, |d| edit::create(d, &size));
-        report(ed, r);
-    });
+    read(
+        ed,
+        &format!("Table size Columns x Rows [e.g. {dflt}]: "),
+        "",
+        move |ed, ans| {
+            let size = if ans.trim().is_empty() { dflt } else { ans };
+            let r = ok(ed, &name, |d| edit::create(d, &size));
+            report(ed, r);
+        },
+    );
     Ok(())
 }
 
@@ -569,23 +615,30 @@ fn edit_field_prompt(ed: &mut Editor) {
     };
     let field = d.get_field(None, None);
     let (line, c) = (ed.cur.line, ed.cur.byte);
-    read(ed, &format!("Edit field {coord}: "), doc::trim(&field), move |ed, text| {
-        ed.set_cursor(line, c);
-        let r = ok(ed, "org-table-finish-edit-field", |d| {
-            d.check_inside_data_field(false, false)?;
-            let t = doc::trim(&text.replace('\n', " ")).to_owned();
-            d.get_field(None, Some(&t));
-            d.align();
-            d.message("New field value inserted");
-            Ok(())
-        });
-        report(ed, r);
-    });
+    read(
+        ed,
+        &format!("Edit field {coord}: "),
+        doc::trim(&field),
+        move |ed, text| {
+            ed.set_cursor(line, c);
+            let r = ok(ed, "org-table-finish-edit-field", |d| {
+                d.check_inside_data_field(false, false)?;
+                let t = doc::trim(&text.replace('\n', " ")).to_owned();
+                d.get_field(None, Some(&t));
+                d.align();
+                d.message("New field value inserted");
+                Ok(())
+            });
+            report(ed, r);
+        },
+    );
 }
 
 fn eval_formula_cmd(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
     if arg == Prefix::U(2) {
-        return ok(ed, "org-table-eval-formula", |d| formula::eval_formula(d, EvalArg::Insert, None, false, false, false, false));
+        return ok(ed, "org-table-eval-formula", |d| {
+            formula::eval_formula(d, EvalArg::Insert, None, false, false, false, false)
+        });
     }
     let mut d = doc(ed);
     d.check_inside_data_field(false, true)?;
@@ -599,7 +652,9 @@ fn eval_formula_cmd(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
     };
     read(ed, &prompt, &initial, move |ed, ans| {
         let eq = formula::from_user(&ans);
-        let r = ok(ed, "org-table-eval-formula", |d| formula::eval_formula(d, ea, Some(&eq), false, false, false, false));
+        let r = ok(ed, "org-table-eval-formula", |d| {
+            formula::eval_formula(d, ea, Some(&eq), false, false, false, false)
+        });
         report(ed, r);
     });
     Ok(())
@@ -622,9 +677,21 @@ fn toggle_column_width(d: &mut Doc, arg: Prefix, selection: Option<&str>) -> Res
         Some(s) => read_column_selection(s, max),
         None => vec![d.current_column()],
     };
+    let ncol = {
+        let (b, e) = (d.table_begin(), d.table_end());
+        (b..e)
+            .map(|l| edit::ncol_of(&d.lines[l]))
+            .max()
+            .unwrap_or(0)
+    };
+    let columns: Vec<usize> = columns.into_iter().filter(|&c| c <= ncol).collect();
     let shrunk = d.shrunk();
     // cl-set-exclusive-or.
-    let mut new: Vec<usize> = columns.iter().filter(|c| !shrunk.contains(c)).copied().collect();
+    let mut new: Vec<usize> = columns
+        .iter()
+        .filter(|c| !shrunk.contains(c))
+        .copied()
+        .collect();
     new.extend(shrunk.iter().filter(|c| !columns.contains(c)));
     d.set_shrunk(new);
     Ok(())
@@ -651,8 +718,16 @@ pub fn read_column_selection(select: &str, max: usize) -> Vec<usize> {
             continue;
         }
         if let Some((a, b)) = s.split_once('-') {
-            let a = if a.is_empty() { Some(1) } else { a.parse::<usize>().ok().map(|x| x.max(1)) };
-            let b = if b.is_empty() { Some(max) } else { b.parse::<usize>().ok().map(|x| x.min(max)) };
+            let a = if a.is_empty() {
+                Some(1)
+            } else {
+                a.parse::<usize>().ok().map(|x| x.max(1))
+            };
+            let b = if b.is_empty() {
+                Some(max)
+            } else {
+                b.parse::<usize>().ok().map(|x| x.min(max))
+            };
             if let (Some(a), Some(b)) = (a, b) {
                 out.extend(a..=b);
             }
@@ -702,18 +777,34 @@ fn sort_cmd(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
         super::menu(
             ed,
             "Sort Table: [a]lphabetic, [n]umeric, [t]ime, [f]unc.  A/N/T/F means reversed",
-            entries.iter().map(|(k, l)| ((*k).to_owned(), (*l).to_owned())).collect(),
+            entries
+                .iter()
+                .map(|(k, l)| ((*k).to_owned(), (*l).to_owned()))
+                .collect(),
             move |ed, k| {
                 let kind = k.chars().next().unwrap_or('a');
                 if kind.eq_ignore_ascii_case(&'f') {
-                    read(ed, "Function for extracting keys: ", "", move |ed, getkey| {
-                        read(ed, "Function for comparing keys (empty for default `sort-subr' predicate): ", "", move |ed, cmp| {
-                            let r = sort_with_lisp(ed, with_case, kind, column, &getkey, &cmp);
-                            report(ed, r);
-                        });
-                    });
+                    read(
+                        ed,
+                        "Function for extracting keys: ",
+                        "",
+                        move |ed, getkey| {
+                            read(
+                                ed,
+                                "Function for comparing keys (empty for default `sort-subr' predicate): ",
+                                "",
+                                move |ed, cmp| {
+                                    let r =
+                                        sort_with_lisp(ed, with_case, kind, column, &getkey, &cmp);
+                                    report(ed, r);
+                                },
+                            );
+                        },
+                    );
                 } else {
-                    let r = ok(ed, "org-table-sort-lines", |d| edit::sort_lines(d, with_case, kind, column, None));
+                    let r = ok(ed, "org-table-sort-lines", |d| {
+                        edit::sort_lines(d, with_case, kind, column, None)
+                    });
                     report(ed, r);
                 }
             },
@@ -731,9 +822,20 @@ fn sort_cmd(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
 }
 
 /// Sort with Lisp key extractor and comparator functions.
-fn sort_with_lisp(ed: &mut Editor, with_case: bool, kind: char, column: Option<usize>, getkey: &str, cmp: &str) -> Result<(), String> {
+fn sort_with_lisp(
+    ed: &mut Editor,
+    with_case: bool,
+    kind: char,
+    column: Option<usize>,
+    getkey: &str,
+    cmp: &str,
+) -> Result<(), String> {
     let f = lisp::read(getkey)?;
-    let c = if cmp.trim().is_empty() { None } else { Some(lisp::read(cmp)?) };
+    let c = if cmp.trim().is_empty() {
+        None
+    } else {
+        Some(lisp::read(cmp)?)
+    };
     let key = move |s: &str| -> edit::SortKey {
         let mut i = lisp::Interp::new();
         match i.apply(&f, vec![lisp::str_(s)]) {
@@ -745,7 +847,9 @@ fn sort_with_lisp(ed: &mut Editor, with_case: bool, kind: char, column: Option<u
         }
     };
     let _ = c;
-    ok(ed, "org-table-sort-lines", |d| edit::sort_lines(d, with_case, kind, column, Some(&key)))
+    ok(ed, "org-table-sort-lines", |d| {
+        edit::sort_lines(d, with_case, kind, column, Some(&key))
+    })
 }
 
 fn export_cmd(ed: &mut Editor) -> Result<(), String> {
@@ -763,14 +867,18 @@ fn export_cmd(ed: &mut Editor) -> Result<(), String> {
             ed.set_err("This is a directory path, not a file");
             return;
         }
-        if ed.path.as_ref().is_some_and(|p| std::fs::canonicalize(p).ok() == std::fs::canonicalize(&path).ok() && path.exists()) {
+        if ed.path.as_ref().is_some_and(|p| {
+            std::fs::canonicalize(p).ok() == std::fs::canonicalize(&path).ok() && path.exists()
+        }) {
             ed.set_err("Please specify a file name that is different from current");
             return;
         }
         let write = move |ed: &mut Editor, fmt: String| {
             let d = doc(ed);
             let table = d.to_lisp();
-            match orgtbl::export_text(&table, &fmt).and_then(|t| std::fs::write(&path, t).map_err(|e| e.to_string())) {
+            match orgtbl::export_text(&table, &fmt)
+                .and_then(|t| std::fs::write(&path, t).map_err(|e| e.to_string()))
+            {
                 Ok(()) => ed.set_msg("Export done."),
                 Err(e) => ed.set_err(e),
             }
@@ -779,9 +887,16 @@ fn export_cmd(ed: &mut Editor) -> Result<(), String> {
             Some(f) => write(ed, f),
             None => {
                 let dflt = orgtbl::default_export_format(&file);
-                super::complete(ed, &format!("Format (default {dflt}): "), orgtbl::EXPORT_FORMATS.iter().map(|s| (*s).to_owned()).collect(), false, move |ed, f| {
-                    write(ed, if f.trim().is_empty() { dflt } else { f })
-                });
+                super::complete(
+                    ed,
+                    &format!("Format (default {dflt}): "),
+                    orgtbl::EXPORT_FORMATS
+                        .iter()
+                        .map(|s| (*s).to_owned())
+                        .collect(),
+                    false,
+                    move |ed, f| write(ed, if f.trim().is_empty() { dflt } else { f }),
+                );
             }
         }
     };
@@ -805,13 +920,19 @@ fn import_cmd(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
     read(ed, "Import file: ", "", move |ed, file| {
         let ext_ok = [".txt", ".tsv", ".csv"].iter().any(|e| file.ends_with(e));
         let go = move |ed: &mut Editor| {
-            let r = std::fs::read_to_string(options::expand(&file)).map_err(|e| format!("{file}: {e}")).and_then(|text| ok(ed, "org-table-import", |d| edit::import(d, &text, sep)));
+            let r = std::fs::read_to_string(options::expand(&file))
+                .map_err(|e| format!("{file}: {e}"))
+                .and_then(|text| ok(ed, "org-table-import", |d| edit::import(d, &text, sep)));
             report(ed, r);
         };
         if ext_ok {
             go(ed);
         } else {
-            super::yes_or_no(ed, "The file's extension is not .txt, .tsv or .csv.  Import? ", go);
+            super::yes_or_no(
+                ed,
+                "The file's extension is not .txt, .tsv or .csv.  Import? ",
+                go,
+            );
         }
     });
     Ok(())
@@ -828,7 +949,10 @@ fn edit_formulas(ed: &mut Editor) -> Result<(), String> {
     if d.st.fedit.is_none() {
         let (l0, c0) = (d.l, d.c);
         if at_tblfm {
-            let t = (0..d.l).rev().find(|&l| doc::is_table_line(&d.lines[l])).ok_or("Not at a table")?;
+            let t = (0..d.l)
+                .rev()
+                .find(|&l| doc::is_table_line(&d.lines[l]))
+                .ok_or("Not at a table")?;
             d.goto(t, 0);
         }
         formula::analyze(&mut d);
@@ -839,9 +963,16 @@ fn edit_formulas(ed: &mut Editor) -> Result<(), String> {
         let an_refs = opt_string("org-table-use-standard-references", "from") == "t";
         let mut lines = formula::fedit_lines(&eql);
         if an_refs {
-            lines = lines.iter().map(|l| formula::convert_refs_to_an(l)).collect();
+            lines = lines
+                .iter()
+                .map(|l| formula::convert_refs_to_an(l))
+                .collect();
         }
-        d.st.fedit = Some(Fedit { source: d.l, lines, an: an_refs });
+        d.st.fedit = Some(Fedit {
+            source: d.l,
+            lines,
+            an: an_refs,
+        });
     }
     finish(ed, d);
     fedit_menu(ed);
@@ -852,7 +983,12 @@ fn edit_formulas(ed: &mut Editor) -> Result<(), String> {
 fn fedit_menu(ed: &mut Editor) {
     let st = state(ed);
     let Some(f) = st.fedit else { return };
-    let mut items: Vec<String> = f.lines.iter().filter(|l| !l.is_empty() && !l.starts_with('#')).cloned().collect();
+    let mut items: Vec<String> = f
+        .lines
+        .iter()
+        .filter(|l| !l.is_empty() && !l.starts_with('#'))
+        .cloned()
+        .collect();
     items.push("[Add formula]".into());
     items.push("[Finish and install]".into());
     items.push("[Finish, install, and apply]".into());
@@ -880,10 +1016,15 @@ fn fedit_menu(ed: &mut Editor) {
             line => {
                 let line = line.to_owned();
                 let initial = line.clone();
-                read(ed, "Formula (empty removes): ", &initial, move |ed, text| {
-                    fedit_update(ed, Some(line), (!text.trim().is_empty()).then_some(text));
-                    fedit_menu(ed);
-                });
+                read(
+                    ed,
+                    "Formula (empty removes): ",
+                    &initial,
+                    move |ed, text| {
+                        fedit_update(ed, Some(line), (!text.trim().is_empty()).then_some(text));
+                        fedit_menu(ed);
+                    },
+                );
                 Ok(())
             }
         };
@@ -910,8 +1051,21 @@ fn fedit_toggle_ref_type(ed: &mut Editor) {
     let mut st = state(ed);
     if let Some(f) = &mut st.fedit {
         f.an = !f.an;
-        f.lines = f.lines.iter().map(|l| if f.an { formula::convert_refs_to_an(l) } else { formula::convert_refs_to_rc(l) }).collect();
-        ed.set_msg(format!("Reference type switched to {}", if f.an { "A1 etc" } else { "@row$column" }));
+        f.lines = f
+            .lines
+            .iter()
+            .map(|l| {
+                if f.an {
+                    formula::convert_refs_to_an(l)
+                } else {
+                    formula::convert_refs_to_rc(l)
+                }
+            })
+            .collect();
+        ed.set_msg(format!(
+            "Reference type switched to {}",
+            if f.an { "A1 etc" } else { "@row$column" }
+        ));
     }
     put_state(ed, st);
 }
@@ -923,12 +1077,26 @@ fn fedit_finish(ed: &mut Editor, apply: bool) -> Result<(), String> {
         return Err("No formula editing in progress".into());
     };
     put_state(ed, st);
-    let text = f.lines.iter().map(|l| if opt_string("org-table-use-standard-references", "from") != "nil" { formula::convert_refs_to_rc(l) } else { l.clone() }).collect::<Vec<_>>().join("\n");
+    let text = f
+        .lines
+        .iter()
+        .map(|l| {
+            if opt_string("org-table-use-standard-references", "from") != "nil" {
+                formula::convert_refs_to_rc(l)
+            } else {
+                l.clone()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
     let eql = formula::fedit_parse(&text)?;
     ok(ed, "org-table-fedit-finish", |d| {
         d.goto(f.source.min(d.n() - 1), 0);
         if d.at_tblfm() {
-            let t = (0..d.l).rev().find(|&l| doc::is_table_line(&d.lines[l])).ok_or("Not at a table")?;
+            let t = (0..d.l)
+                .rev()
+                .find(|&l| doc::is_table_line(&d.lines[l]))
+                .ok_or("Not at a table")?;
             d.goto(t, 0);
         }
         formula::analyze(d);
@@ -956,11 +1124,17 @@ fn fedit_shift(ed: &mut Editor, dir: char) -> Result<(), String> {
     let Some(f) = &mut st.fedit else {
         return Err("No formula editing in progress".into());
     };
-    let Some(i) = f.lines.iter().rposition(|l| !l.is_empty() && !l.starts_with('#')) else {
+    let Some(i) = f
+        .lines
+        .iter()
+        .rposition(|l| !l.is_empty() && !l.starts_with('#'))
+    else {
         return Err("No reference at point".into());
     };
     let line = f.lines[i].clone();
-    let pos = line.find('=').map_or(0, |e| line[e..].find(['@', '$']).map_or(e, |k| e + k + 1));
+    let pos = line
+        .find('=')
+        .map_or(0, |e| line[e..].find(['@', '$']).map_or(e, |k| e + k + 1));
     f.lines[i] = formula::shift_reference(&line, pos, dir)?;
     put_state(ed, st);
     Ok(())
@@ -1068,10 +1242,17 @@ pub fn orgtbl_key(ed: &mut Editor, k: Key) -> bool {
     seq.push(k);
     let mut prefix = false;
     for (desc, cmd) in ORGTBL_MAP {
-        let Some(keys) = super::parse_keys(desc) else { continue };
+        let Some(keys) = super::parse_keys(desc) else {
+            continue;
+        };
         if keys == seq {
             ed.org_keys.clear();
-            if !in_table && !matches!(*cmd, "orgtbl-ctrl-c-ctrl-c" | "orgtbl-create-or-convert-from-region") {
+            if !in_table
+                && !matches!(
+                    *cmd,
+                    "orgtbl-ctrl-c-ctrl-c" | "orgtbl-create-or-convert-from-region"
+                )
+            {
                 return false;
             }
             // Plain keys stay Vim's in Normal state.
@@ -1117,9 +1298,21 @@ pub fn self_insert(ed: &mut Editor, ch: char) -> bool {
     let last = ed.org.as_ref().and_then(|o| o.last_command.clone());
     let motion = matches!(
         last.as_deref(),
-        Some("org-cycle" | "org-return" | "org-shifttab" | "org-ctrl-c-ctrl-c" | "org-table-next-field" | "org-table-previous-field" | "org-table-next-row" | "orgtbl-tab" | "orgtbl-ret")
+        Some(
+            "org-cycle"
+                | "org-return"
+                | "org-shifttab"
+                | "org-ctrl-c-ctrl-c"
+                | "org-table-next-field"
+                | "org-table-previous-field"
+                | "org-table-next-row"
+                | "orgtbl-tab"
+                | "orgtbl-ret"
+        )
     );
-    let blank = opt_bool("org-table-auto-blank-field", true) && motion && d.check_inside_data_field(true, false).unwrap_or(false);
+    let blank = opt_bool("org-table-auto-blank-field", true)
+        && motion
+        && d.check_inside_data_field(true, false).unwrap_or(false);
     let r = with_doc(ed, "org-self-insert-command", |d| {
         if blank {
             edit::blank_field(d)?;
@@ -1179,7 +1372,9 @@ pub fn display(ed: &Editor, l: usize, top: bool, line: &str) -> Option<String> {
     let mut text = line.to_owned();
     // Header line: the first data row in place of the top line.
     if top && st.header_line && l > b {
-        let first = table.iter().position(|t| doc::is_dataline(t) && !doc::re(r"\|\s+<[rcl]?([0-9]+)?>").is_match(t));
+        let first = table
+            .iter()
+            .position(|t| doc::is_dataline(t) && !doc::re(r"\|\s+<[rcl]?([0-9]+)?>").is_match(t));
         if let Some(f) = first
             && b + f < l
         {
@@ -1216,7 +1411,11 @@ fn coordinate_rule(line: &str) -> String {
         out.push(c);
         if (c == '|' || c == '+') && chars.peek().is_some_and(|(_, n)| *n == '-') {
             ic += 1;
-            let label = if use_an { formula::number_to_letters(ic) } else { format!("${ic}") };
+            let label = if use_an {
+                formula::number_to_letters(ic)
+            } else {
+                format!("${ic}")
+            };
             let mut run = 0;
             let mut tmp = vec![];
             while let Some(&(_, n)) = chars.peek() {
@@ -1249,7 +1448,11 @@ pub fn shrunk_line(line: &str, table: &[String], cols: &[usize]) -> String {
     };
     let mut out = line[..=first].to_owned();
     let rest = &line[first + 1..];
-    let seps: Vec<usize> = rest.char_indices().filter(|(_, c)| *c == '|' || (hline && *c == '+')).map(|(i, _)| i).collect();
+    let seps: Vec<usize> = rest
+        .char_indices()
+        .filter(|(_, c)| *c == '|' || (hline && *c == '+'))
+        .map(|(i, _)| i)
+        .collect();
     let mut start = 0;
     for (k, &end) in seps.iter().chain(std::iter::once(&rest.len())).enumerate() {
         let field = &rest[start..end];
@@ -1262,13 +1465,20 @@ pub fn shrunk_line(line: &str, table: &[String], cols: &[usize]) -> String {
                     && let Some(m) = c.get(col - 1).and_then(|x| cookie.captures(x))
                 {
                     w = m[2].parse().ok();
-                    align = m.get(1).and_then(|a| a.as_str().chars().next()).unwrap_or('l');
+                    align = m
+                        .get(1)
+                        .and_then(|a| a.as_str().chars().next())
+                        .unwrap_or('l');
                     break;
                 }
             }
             let width = w.unwrap_or(0);
             let new = if hline {
-                if width == 0 { ind.clone() } else { format!("{}{ind}", "-".repeat(width + 1)) }
+                if width == 0 {
+                    ind.clone()
+                } else {
+                    format!("{}{ind}", "-".repeat(width + 1))
+                }
             } else if width == 0 {
                 ind.clone()
             } else {
@@ -1278,7 +1488,10 @@ pub fn shrunk_line(line: &str, table: &[String], cols: &[usize]) -> String {
                     let cut: String = {
                         let mut s = String::new();
                         for c in contents.chars() {
-                            if doc::width(&s) + unicode_width::UnicodeWidthChar::width(c).unwrap_or(0) > width {
+                            if doc::width(&s)
+                                + unicode_width::UnicodeWidthChar::width(c).unwrap_or(0)
+                                > width
+                            {
                                 break;
                             }
                             s.push(c);
@@ -1293,7 +1506,11 @@ pub fn shrunk_line(line: &str, table: &[String], cols: &[usize]) -> String {
                         'c' => pad / 2,
                         _ => 0,
                     };
-                    format!(" {}{contents}{}{ind}", " ".repeat(pre), " ".repeat(pad - pre))
+                    format!(
+                        " {}{contents}{}{ind}",
+                        " ".repeat(pre),
+                        " ".repeat(pad - pre)
+                    )
                 }
             };
             out.push_str(&new);
@@ -1318,15 +1535,23 @@ fn ctrl_c_ctrl_c(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
     let d = doc(ed);
     let line = d.line().to_owned();
     if doc::re(r"(?i)^[ \t]*#\+plot:").is_match(&line) {
-        return ok(ed, "org-plot/gnuplot", |d| plot::gnuplot(d, plot::Plot::default()));
+        return ok(ed, "org-plot/gnuplot", |d| {
+            plot::gnuplot(d, plot::Plot::default())
+        });
     }
     if d.at_table_el() && !d.at_table() {
         ed.set_msg("Use `C-c '' to edit table.el tables");
         return Ok(());
     }
     if d.at_tblfm() {
-        let all = if arg == Prefix::U(2) { Recalc::Iterate } else { Recalc::All };
-        return ok(ed, "org-table-calc-current-TBLFM", |d| formula::calc_current_tblfm(d, all));
+        let all = if arg == Prefix::U(2) {
+            Recalc::Iterate
+        } else {
+            Recalc::All
+        };
+        return ok(ed, "org-table-calc-current-TBLFM", |d| {
+            formula::calc_current_tblfm(d, all)
+        });
     }
     // An affiliated keyword of the table: recalculate it all and send it.
     if !d.at_table() && line.trim_start().starts_with("#+") {
@@ -1338,7 +1563,15 @@ fn ctrl_c_ctrl_c(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
             return ok(ed, "org-table-recalculate", |d| {
                 let (l0, c0) = (d.l, d.c);
                 d.goto(t, 0);
-                formula::recalculate(d, if arg == Prefix::U(2) { Recalc::Iterate } else { Recalc::All }, false)?;
+                formula::recalculate(
+                    d,
+                    if arg == Prefix::U(2) {
+                        Recalc::Iterate
+                    } else {
+                        Recalc::All
+                    },
+                    false,
+                )?;
                 orgtbl::send_table(d, true)?;
                 d.goto(l0, c0);
                 Ok(())
@@ -1365,12 +1598,20 @@ fn ctrl_c_ctrl_c(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
 }
 
 fn need_table(ed: &Editor) -> Result<(), String> {
-    if doc(ed).at_table() { Ok(()) } else { Err("Not at a table".into()) }
+    if doc(ed).at_table() {
+        Ok(())
+    } else {
+        Err("Not at a table".into())
+    }
 }
 
 /// This module's interactive commands, by upstream name.
 pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), String>> {
-    if !(name.starts_with("org-table") || name.starts_with("orgtbl") || name.starts_with("org-plot/") || name == "turn-on-orgtbl") {
+    if !(name.starts_with("org-table")
+        || name.starts_with("orgtbl")
+        || name.starts_with("org-plot/")
+        || name == "turn-on-orgtbl")
+    {
         return None;
     }
     let n = arg.value();
@@ -1415,7 +1656,9 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
         "org-table-insert-hline" => ok(ed, name, |d| edit::insert_hline(d, !arg.is_none())),
         "org-table-hline-and-move" => ok(ed, name, |d| edit::hline_and_move(d, !arg.is_none())),
         "org-table-kill-row" => ok(ed, name, edit::kill_row),
-        "org-table-copy-down" => ok(ed, name, |d| edit::copy_down(d, if let Prefix::U(_) = arg { 4 } else { n })),
+        "org-table-copy-down" => ok(ed, name, |d| {
+            edit::copy_down(d, if let Prefix::U(_) = arg { 4 } else { n })
+        }),
         "org-table-copy-region" | "org-table-cut-region" => ok(ed, name, |d| {
             let (a, b) = d.region.unwrap_or(((d.l, d.c), (d.l, d.c)));
             edit::copy_region(d, a, b, name == "org-table-cut-region" || !arg.is_none())
@@ -1428,17 +1671,39 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
             }
             edit::transpose(d)
         }),
-        "org-table-wrap-region" => ok(ed, name, |d| edit::wrap_region(d, (!arg.is_none()).then_some(n))),
+        "org-table-wrap-region" => ok(ed, name, |d| {
+            edit::wrap_region(d, (!arg.is_none()).then_some(n))
+        }),
         "org-table-sum" => ok(ed, name, |d| edit::sum(d, None).map(|_| ())),
         "org-table-rotate-recalc-marks" => {
             let d = doc(ed);
             if d.region.is_some() && d.at_table() {
-                let entries = [("#", "#"), ("*", "*"), ("!", "!"), ("$", "$"), ("SPC", "SPC")];
-                super::menu(ed, "Change region to what mark?  Type # * ! $ or SPC", entries.iter().map(|(k, l)| ((*k).to_owned(), (*l).to_owned())).collect(), move |ed, k| {
-                    let c = if k == "SPC" { ' ' } else { k.chars().next().unwrap_or(' ') };
-                    let r = ok(ed, "org-table-rotate-recalc-marks", |d| edit::rotate_recalc_marks(d, Some(c)));
-                    report(ed, r);
-                });
+                let entries = [
+                    ("#", "#"),
+                    ("*", "*"),
+                    ("!", "!"),
+                    ("$", "$"),
+                    ("SPC", "SPC"),
+                ];
+                super::menu(
+                    ed,
+                    "Change region to what mark?  Type # * ! $ or SPC",
+                    entries
+                        .iter()
+                        .map(|(k, l)| ((*k).to_owned(), (*l).to_owned()))
+                        .collect(),
+                    move |ed, k| {
+                        let c = if k == "SPC" {
+                            ' '
+                        } else {
+                            k.chars().next().unwrap_or(' ')
+                        };
+                        let r = ok(ed, "org-table-rotate-recalc-marks", |d| {
+                            edit::rotate_recalc_marks(d, Some(c))
+                        });
+                        report(ed, r);
+                    },
+                );
                 Ok(())
             } else {
                 ok(ed, name, |d| edit::rotate_recalc_marks(d, None))
@@ -1482,7 +1747,11 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
                     let r = ok(ed, "org-table-create-with-table.el", |d| {
                         edit::create(d, &size)?;
                         let (b, e) = (d.table_begin(), d.table_end());
-                        let rows: Vec<String> = d.lines[b..e].iter().filter(|l| !doc::is_hline(l)).cloned().collect();
+                        let rows: Vec<String> = d.lines[b..e]
+                            .iter()
+                            .filter(|l| !doc::is_hline(l))
+                            .cloned()
+                            .collect();
                         d.lines.splice(b..e, rows);
                         d.goto(b, 0);
                         d.align();
@@ -1497,7 +1766,14 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
             Prefix::U(2) => {
                 let mut st = state(ed);
                 st.follow_field = !st.follow_field;
-                ed.set_msg(format!("Org-Table-Follow-Field mode {}", if st.follow_field { "enabled" } else { "disabled" }));
+                ed.set_msg(format!(
+                    "Org-Table-Follow-Field mode {}",
+                    if st.follow_field {
+                        "enabled"
+                    } else {
+                        "disabled"
+                    }
+                ));
                 put_state(ed, st);
                 Ok(())
             }
@@ -1518,13 +1794,22 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
                 Prefix::None => !st.follow_field,
                 _ => n > 0,
             };
-            ed.set_msg(format!("Org-Table-Follow-Field mode {}", if st.follow_field { "enabled" } else { "disabled" }));
+            ed.set_msg(format!(
+                "Org-Table-Follow-Field mode {}",
+                if st.follow_field {
+                    "enabled"
+                } else {
+                    "disabled"
+                }
+            ));
             put_state(ed, st);
             Ok(())
         }
         "org-table-eval-formula" => eval_formula_cmd(ed, arg),
         "org-table-maybe-eval-formula" => ok(ed, name, formula::maybe_eval_formula),
-        "org-table-maybe-recalculate-line" => ok(ed, name, |d| formula::maybe_recalculate_line(d).map(|_| ())),
+        "org-table-maybe-recalculate-line" => {
+            ok(ed, name, |d| formula::maybe_recalculate_line(d).map(|_| ()))
+        }
         "org-table-recalculate" => ok(ed, name, |d| {
             let all = match arg {
                 Prefix::None => Recalc::Line,
@@ -1534,10 +1819,21 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
             };
             formula::recalculate(d, all, false)
         }),
-        "org-table-iterate" => ok(ed, name, |d| formula::iterate(d, (!arg.is_none()).then_some(n))),
+        "org-table-iterate" => ok(ed, name, |d| {
+            formula::iterate(d, (!arg.is_none()).then_some(n))
+        }),
         "org-table-recalculate-buffer-tables" => ok(ed, name, formula::recalculate_buffer_tables),
         "org-table-iterate-buffer-tables" => ok(ed, name, formula::iterate_buffer_tables),
-        "org-table-calc-current-TBLFM" => ok(ed, name, |d| formula::calc_current_tblfm(d, if arg == Prefix::U(2) { Recalc::Iterate } else { Recalc::All })),
+        "org-table-calc-current-TBLFM" => ok(ed, name, |d| {
+            formula::calc_current_tblfm(
+                d,
+                if arg == Prefix::U(2) {
+                    Recalc::Iterate
+                } else {
+                    Recalc::All
+                },
+            )
+        }),
         "org-table-edit-formulas" => edit_formulas(ed),
         "org-table-fedit-finish" => fedit_finish(ed, !arg.is_none()),
         "org-table-fedit-abort" => fedit_abort(ed),
@@ -1549,11 +1845,17 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
         "org-table-fedit-ref-down" => fedit_shift(ed, 'd'),
         "org-table-fedit-ref-left" => fedit_shift(ed, 'l'),
         "org-table-fedit-ref-right" => fedit_shift(ed, 'r'),
-        "org-table-fedit-toggle-coordinates" => command(ed, "org-table-toggle-coordinate-overlays", Prefix::None).unwrap(),
+        "org-table-fedit-toggle-coordinates" => {
+            command(ed, "org-table-toggle-coordinate-overlays", Prefix::None).unwrap()
+        }
         "org-table-fedit-line-up" | "org-table-fedit-line-down" => ok(ed, name, |d| {
             let up = name.ends_with("up");
             loop {
-                let next = if up { d.l.checked_sub(1) } else { (d.l + 1 < d.n()).then_some(d.l + 1) };
+                let next = if up {
+                    d.l.checked_sub(1)
+                } else {
+                    (d.l + 1 < d.n()).then_some(d.l + 1)
+                };
                 let Some(nl) = next else { break };
                 if !d.table_line_at(nl) {
                     break;
@@ -1573,7 +1875,11 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
             let mut st = state(ed);
             if let Some(f) = &mut st.fedit {
                 // A prompt holds one line: collapse multi-line Lisp.
-                f.lines = f.lines.iter().map(|l| doc::re(r"[ \t]*\n[ \t]*").replace_all(l, " ").into_owned()).collect();
+                f.lines = f
+                    .lines
+                    .iter()
+                    .map(|l| doc::re(r"[ \t]*\n[ \t]*").replace_all(l, " ").into_owned())
+                    .collect();
             }
             put_state(ed, st);
             Ok(())
@@ -1585,7 +1891,10 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
         "org-table-show-reference" => ok(ed, name, |d| {
             let line = d.line().to_owned();
             if doc::is_tblfm(&line) {
-                let t = (0..d.l).rev().find(|&l| doc::is_table_line(&d.lines[l])).ok_or("Not at a table")?;
+                let t = (0..d.l)
+                    .rev()
+                    .find(|&l| doc::is_table_line(&d.lines[l]))
+                    .ok_or("Not at a table")?;
                 let pos = d.c;
                 d.goto(t, 0);
                 formula::show_reference(d, &line, pos)
@@ -1599,10 +1908,17 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
                 return Some(Err("Not on a table".into()));
             }
             let mut st = state(ed);
-            st.overlay_coordinates = if name.ends_with("overlays") { !st.overlay_coordinates } else { true };
+            st.overlay_coordinates = if name.ends_with("overlays") {
+                !st.overlay_coordinates
+            } else {
+                true
+            };
             let on = st.overlay_coordinates;
             put_state(ed, st);
-            ed.set_msg(format!("Tables Row/Column numbers display turned {}", if on { "on" } else { "off" }));
+            ed.set_msg(format!(
+                "Tables Row/Column numbers display turned {}",
+                if on { "on" } else { "off" }
+            ));
             Ok(())
         }
         "org-table-toggle-formula-debugger" => {
@@ -1610,19 +1926,31 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
             st.formula_debug = !st.formula_debug;
             let on = st.formula_debug;
             put_state(ed, st);
-            ed.set_msg(format!("Formula debugging has been turned {}", if on { "on" } else { "off" }));
+            ed.set_msg(format!(
+                "Formula debugging has been turned {}",
+                if on { "on" } else { "off" }
+            ));
             Ok(())
         }
         "org-table-header-line-mode" => {
             if ed.org.is_none() {
-                return Some(Err("Cannot turn org table header mode outside org-mode buffers".into()));
+                return Some(Err(
+                    "Cannot turn org table header mode outside org-mode buffers".into(),
+                ));
             }
             let mut st = state(ed);
             st.header_line = match arg {
                 Prefix::None => !st.header_line,
                 _ => n > 0,
             };
-            ed.set_msg(format!("Org-Table-Header-Line mode {}", if st.header_line { "enabled" } else { "disabled" }));
+            ed.set_msg(format!(
+                "Org-Table-Header-Line mode {}",
+                if st.header_line {
+                    "enabled"
+                } else {
+                    "disabled"
+                }
+            ));
             put_state(ed, st);
             Ok(())
         }
@@ -1633,7 +1961,9 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
             }
             if arg.is_none() && outside_columns(&d) {
                 read(ed, "Column ranges (e.g. 2-4 6-): ", "", |ed, sel| {
-                    let r = ok(ed, "org-table-toggle-column-width", |d| toggle_column_width(d, Prefix::None, Some(&sel)));
+                    let r = ok(ed, "org-table-toggle-column-width", |d| {
+                        toggle_column_width(d, Prefix::None, Some(&sel))
+                    });
                     report(ed, r);
                 });
                 Ok(())
@@ -1667,7 +1997,10 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
                     _ => n > 0,
                 }
             };
-            ed.set_msg(format!("Orgtbl mode {}", if st.orgtbl { "enabled" } else { "disabled" }));
+            ed.set_msg(format!(
+                "Orgtbl mode {}",
+                if st.orgtbl { "enabled" } else { "disabled" }
+            ));
             st.may_need_update = true;
             put_state(ed, st);
             Ok(())
@@ -1675,7 +2008,9 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
         "orgtbl-ctrl-c-ctrl-c" => {
             let d = doc(ed);
             let line = d.line().to_owned();
-            let send_next = doc::re(r"(?i)^[ \t]*#\+ORGTBL:").is_match(&line) && d.l + 1 < d.n() && doc::is_table_line(&d.lines[d.l + 1]);
+            let send_next = doc::re(r"(?i)^[ \t]*#\+ORGTBL:").is_match(&line)
+                && d.l + 1 < d.n()
+                && doc::is_table_line(&d.lines[d.l + 1]);
             if send_next || doc::is_table_line(&line) {
                 ok(ed, name, |d| {
                     if send_next {
@@ -1685,7 +2020,15 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
                     if arg.is_none() {
                         formula::maybe_recalculate_line(d)?;
                     } else {
-                        formula::recalculate(d, if arg == Prefix::U(2) { Recalc::Iterate } else { Recalc::All }, false)?;
+                        formula::recalculate(
+                            d,
+                            if arg == Prefix::U(2) {
+                                Recalc::Iterate
+                            } else {
+                                Recalc::All
+                            },
+                            false,
+                        )?;
                     }
                     d.align();
                     d.interactive = false;
@@ -1693,7 +2036,10 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
                 })
             } else if doc::is_tblfm(&line) {
                 ok(ed, name, |d| {
-                    let t = (0..d.l).rev().find(|&l| !d.lines[l].trim().is_empty()).ok_or("Not at a table")?;
+                    let t = (0..d.l)
+                        .rev()
+                        .find(|&l| !d.lines[l].trim().is_empty())
+                        .ok_or("Not at a table")?;
                     if d.table_line_at(t) {
                         d.goto(t, 0);
                         formula::recalculate(d, Recalc::All, false)?;
@@ -1704,7 +2050,9 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
                 Err("C-c C-c is undefined outside tables in orgtbl-mode".into())
             }
         }
-        "orgtbl-create-or-convert-from-region" => command(ed, "org-table-create-or-convert-from-region", arg).unwrap(),
+        "orgtbl-create-or-convert-from-region" => {
+            command(ed, "org-table-create-or-convert-from-region", arg).unwrap()
+        }
         "orgtbl-tab" => {
             if arg.is_none() {
                 ok(ed, name, |d| {
@@ -1723,12 +2071,16 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
             edit::justify_field_maybe(d, None);
             edit::next_row(d)
         }),
-        "orgtbl-self-insert-command" => Err("orgtbl-self-insert-command runs from typed characters (Insert mode)".into()),
+        "orgtbl-self-insert-command" => {
+            Err("orgtbl-self-insert-command runs from typed characters (Insert mode)".into())
+        }
         "orgtbl-send-table" => ok(ed, name, |d| orgtbl::send_table(d, false).map(|_| ())),
         "orgtbl-toggle-comment" => ok(ed, name, orgtbl::toggle_comment),
         "orgtbl-insert-radio-table" => {
             read(ed, "Table name: ", "", |ed, n| {
-                let r = ok(ed, "orgtbl-insert-radio-table", |d| orgtbl::insert_radio_table(d, &n));
+                let r = ok(ed, "orgtbl-insert-radio-table", |d| {
+                    orgtbl::insert_radio_table(d, &n)
+                });
                 report(ed, r);
             });
             Ok(())

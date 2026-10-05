@@ -27,22 +27,32 @@ impl Num {
 
     pub fn add(&self, o: &Num) -> Num {
         match (self, o) {
-            (Num::I(a), Num::I(b)) => a.checked_add(*b).map_or(Num::F(*a as f64 + *b as f64), Num::I),
+            (Num::I(a), Num::I(b)) => a
+                .checked_add(*b)
+                .map_or(Num::F(*a as f64 + *b as f64), Num::I),
             _ => Num::F(self.f() + o.f()),
         }
     }
 
     pub fn sub(&self, o: &Num) -> Num {
         match (self, o) {
-            (Num::I(a), Num::I(b)) => a.checked_sub(*b).map_or(Num::F(*a as f64 - *b as f64), Num::I),
+            (Num::I(a), Num::I(b)) => a
+                .checked_sub(*b)
+                .map_or(Num::F(*a as f64 - *b as f64), Num::I),
             _ => Num::F(self.f() - o.f()),
         }
     }
 
     /// The sum of `items` parsed as numbers, as `apply '+` would type it.
     pub fn from_f64_sum(v: f64, items: &[String]) -> Num {
-        let all_int = items.iter().all(|s| matches!(string_to_number(s), Num::I(_)) || !s.contains(['.', 'e', 'E', ':']));
-        if all_int && v.fract() == 0.0 && v.abs() < 9e15 { Num::I(v as i64) } else { Num::F(v) }
+        let all_int = items
+            .iter()
+            .all(|s| matches!(string_to_number(s), Num::I(_)) || !s.contains(['.', 'e', 'E', ':']));
+        if all_int && v.fract() == 0.0 && v.abs() < 9e15 {
+            Num::I(v as i64)
+        } else {
+            Num::F(v)
+        }
     }
 }
 
@@ -87,8 +97,15 @@ pub fn string_to_number(s: &str) -> Num {
         if j > k {
             float = true;
             end = j;
-        } else if j == k && b.get(k - 1).is_some_and(|c| *c == b'e' || *c == b'E') && b[k..].starts_with(b"+INF") {
-            return Num::F(if b[0] == b'-' { f64::NEG_INFINITY } else { f64::INFINITY });
+        } else if j == k
+            && b.get(k - 1).is_some_and(|c| *c == b'e' || *c == b'E')
+            && b[k..].starts_with(b"+INF")
+        {
+            return Num::F(if b[0] == b'-' {
+                f64::NEG_INFINITY
+            } else {
+                f64::INFINITY
+            });
         }
     }
     if !digits_seen {
@@ -99,14 +116,20 @@ pub fn string_to_number(s: &str) -> Num {
         Num::F(text.trim_end_matches('.').parse().unwrap_or(0.0))
     } else {
         let t = text.trim_end_matches('.');
-        t.parse::<i64>().map(Num::I).unwrap_or_else(|_| Num::F(t.parse().unwrap_or(0.0)))
+        t.parse::<i64>()
+            .map(Num::I)
+            .unwrap_or_else(|_| Num::F(t.parse().unwrap_or(0.0)))
     }
 }
 
 /// `%.Ng` formatting.
 pub fn fmt_g(x: f64, prec: usize, alt: bool) -> String {
     if x == 0.0 {
-        return if x.is_sign_negative() { "-0".into() } else { "0".into() };
+        return if x.is_sign_negative() {
+            "-0".into()
+        } else {
+            "0".into()
+        };
     }
     if !x.is_finite() {
         return float_special(x);
@@ -133,7 +156,11 @@ pub fn fmt_g(x: f64, prec: usize, alt: bool) -> String {
 
 fn float_special(x: f64) -> String {
     if x.is_nan() {
-        if x.is_sign_negative() { "-0.0e+NaN".into() } else { "0.0e+NaN".into() }
+        if x.is_sign_negative() {
+            "-0.0e+NaN".into()
+        } else {
+            "0.0e+NaN".into()
+        }
     } else if x > 0.0 {
         "1.0e+INF".into()
     } else {
@@ -210,7 +237,11 @@ pub fn str_(s: &str) -> L {
 }
 
 pub fn list(v: Vec<L>) -> L {
-    if v.is_empty() { L::Nil } else { L::List(Rc::new(v)) }
+    if v.is_empty() {
+        L::Nil
+    } else {
+        L::List(Rc::new(v))
+    }
 }
 
 impl L {
@@ -252,7 +283,10 @@ impl L {
         match self {
             L::Int(i) => Ok(Num::I(*i)),
             L::Float(f) => Ok(Num::F(*f)),
-            o => Err(format!("Wrong type argument: number-or-marker-p, {}", prin1(o))),
+            o => Err(format!(
+                "Wrong type argument: number-or-marker-p, {}",
+                prin1(o)
+            )),
         }
     }
 
@@ -284,8 +318,12 @@ pub fn equal(a: &L, b: &L) -> bool {
         (L::Int(x), L::Int(y)) => x == y,
         (L::Float(x), L::Float(y)) => x == y || (x.is_nan() && y.is_nan()),
         (L::Str(x), L::Str(y)) | (L::Sym(x), L::Sym(y)) => x == y,
-        (L::List(x), L::List(y)) | (L::Vector(x), L::Vector(y)) => x.len() == y.len() && x.iter().zip(y.iter()).all(|(p, q)| equal(p, q)),
-        (L::Dotted(x, xt), L::Dotted(y, yt)) => x.len() == y.len() && x.iter().zip(y.iter()).all(|(p, q)| equal(p, q)) && equal(xt, yt),
+        (L::List(x), L::List(y)) | (L::Vector(x), L::Vector(y)) => {
+            x.len() == y.len() && x.iter().zip(y.iter()).all(|(p, q)| equal(p, q))
+        }
+        (L::Dotted(x, xt), L::Dotted(y, yt)) => {
+            x.len() == y.len() && x.iter().zip(y.iter()).all(|(p, q)| equal(p, q)) && equal(xt, yt)
+        }
         (L::Lambda(x), L::Lambda(y)) => Rc::ptr_eq(x, y),
         _ => false,
     }
@@ -347,14 +385,37 @@ fn print(x: &L, quote: bool) -> String {
             if v.len() == 2 && quote_sym(&v[0]) == Some("function") {
                 return format!("#'{}", print(&v[1], quote));
             }
-            format!("({})", v.iter().map(|e| print(e, quote)).collect::<Vec<_>>().join(" "))
+            format!(
+                "({})",
+                v.iter()
+                    .map(|e| print(e, quote))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            )
         }
-        L::Dotted(v, t) => format!("({} . {})", v.iter().map(|e| print(e, quote)).collect::<Vec<_>>().join(" "), print(t, quote)),
-        L::Vector(v) => format!("[{}]", v.iter().map(|e| print(e, quote)).collect::<Vec<_>>().join(" ")),
+        L::Dotted(v, t) => format!(
+            "({} . {})",
+            v.iter()
+                .map(|e| print(e, quote))
+                .collect::<Vec<_>>()
+                .join(" "),
+            print(t, quote)
+        ),
+        L::Vector(v) => format!(
+            "[{}]",
+            v.iter()
+                .map(|e| print(e, quote))
+                .collect::<Vec<_>>()
+                .join(" ")
+        ),
         L::Lambda(l) => format!(
             "#[({}) {} nil]",
             l.params.join(" "),
-            l.body.iter().map(|e| print(e, true)).collect::<Vec<_>>().join(" ")
+            l.body
+                .iter()
+                .map(|e| print(e, true))
+                .collect::<Vec<_>>()
+                .join(" ")
         ),
     }
 }
@@ -419,7 +480,11 @@ impl Reader<'_> {
                             self.i += 1;
                             return Ok(list(v));
                         }
-                        Some(b'.') if self.s.get(self.i + 1).is_none_or(|c| c.is_ascii_whitespace() || *c == b'(' || *c == b')') => {
+                        Some(b'.')
+                            if self.s.get(self.i + 1).is_none_or(|c| {
+                                c.is_ascii_whitespace() || *c == b'(' || *c == b')'
+                            }) =>
+                        {
                             self.i += 1;
                             let tail = self.read()?;
                             self.skip();
@@ -542,7 +607,10 @@ impl Reader<'_> {
                             continue;
                         }
                     }
-                    if ch.is_alphanumeric() || SYM_CHARS.contains(ch) || (!ch.is_ascii() && !ch.is_whitespace()) {
+                    if ch.is_alphanumeric()
+                        || SYM_CHARS.contains(ch)
+                        || (!ch.is_ascii() && !ch.is_whitespace())
+                    {
                         tok.push(ch);
                         self.i += ch.len_utf8();
                     } else {
@@ -571,7 +639,10 @@ fn atom(tok: &str) -> L {
     // Integer: digits with an optional trailing dot.
     if n1 > 0 && (j == b.len() || (j + 1 == b.len() && b[j] == b'.')) {
         let t = tok.trim_end_matches('.');
-        return t.parse::<i64>().map(L::Int).unwrap_or_else(|_| L::Float(t.parse().unwrap_or(0.0)));
+        return t
+            .parse::<i64>()
+            .map(L::Int)
+            .unwrap_or_else(|_| L::Float(t.parse().unwrap_or(0.0)));
     }
     // Float: digits? . digits (e[+-]digits)? or digits e exp.
     let mut frac = 0;
@@ -592,7 +663,11 @@ fn atom(tok: &str) -> L {
                 j = k + e;
                 exp = true;
             } else if tok[k..].eq_ignore_ascii_case("INF") {
-                return L::Float(if b[0] == b'-' { f64::NEG_INFINITY } else { f64::INFINITY });
+                return L::Float(if b[0] == b'-' {
+                    f64::NEG_INFINITY
+                } else {
+                    f64::INFINITY
+                });
             } else if tok[k..].eq_ignore_ascii_case("NaN") {
                 return L::Float(f64::NAN);
             } else {
@@ -608,13 +683,21 @@ fn atom(tok: &str) -> L {
 
 /// Read one object from `s`.
 pub fn read(s: &str) -> Result<L, String> {
-    let mut r = Reader { s: s.as_bytes(), src: s, i: 0 };
+    let mut r = Reader {
+        s: s.as_bytes(),
+        src: s,
+        i: 0,
+    };
     r.read()
 }
 
 /// Read every object in `s` (a parameter list without its parentheses).
 pub fn read_all(s: &str) -> Result<Vec<L>, String> {
-    let mut r = Reader { s: s.as_bytes(), src: s, i: 0 };
+    let mut r = Reader {
+        s: s.as_bytes(),
+        src: s,
+        i: 0,
+    };
     let mut out = vec![];
     loop {
         r.skip();
@@ -637,7 +720,11 @@ pub struct Interp {
 
 impl Default for Interp {
     fn default() -> Self {
-        Interp { env: vec![], steps: 0, unknown: None }
+        Interp {
+            env: vec![],
+            steps: 0,
+            unknown: None,
+        }
     }
 }
 
@@ -709,7 +796,10 @@ impl Interp {
             && lv.first().and_then(L::sym_name) == Some("lambda")
         {
             let f = self.make_lambda(&lv[1..])?;
-            let vals = args.iter().map(|a| self.eval(a)).collect::<Result<Vec<_>, _>>()?;
+            let vals = args
+                .iter()
+                .map(|a| self.eval(a))
+                .collect::<Result<Vec<_>, _>>()?;
             return self.apply(&f, vals);
         }
         let Some(name) = head.sym_name() else {
@@ -717,10 +807,17 @@ impl Interp {
         };
         let name = name.to_owned();
         match name.as_str() {
-            "quote" => return args.first().cloned().ok_or_else(|| "Wrong number of arguments: quote".to_string()),
+            "quote" => {
+                return args
+                    .first()
+                    .cloned()
+                    .ok_or_else(|| "Wrong number of arguments: quote".to_string());
+            }
             "function" => {
                 return match args.first() {
-                    Some(L::List(l)) if l.first().and_then(L::sym_name) == Some("lambda") => self.make_lambda(&l[1..]),
+                    Some(L::List(l)) if l.first().and_then(L::sym_name) == Some("lambda") => {
+                        self.make_lambda(&l[1..])
+                    }
                     Some(x) => Ok(x.clone()),
                     None => Ok(L::Nil),
                 };
@@ -737,11 +834,19 @@ impl Interp {
             }
             "when" => {
                 let c = self.eval(args.first().unwrap_or(&L::Nil))?;
-                return if c.truthy() { self.progn(&args[1..]) } else { Ok(L::Nil) };
+                return if c.truthy() {
+                    self.progn(&args[1..])
+                } else {
+                    Ok(L::Nil)
+                };
             }
             "unless" => {
                 let c = self.eval(args.first().unwrap_or(&L::Nil))?;
-                return if c.truthy() { Ok(L::Nil) } else { self.progn(&args[1..]) };
+                return if c.truthy() {
+                    Ok(L::Nil)
+                } else {
+                    self.progn(&args[1..])
+                };
             }
             "cond" => {
                 for clause in args {
@@ -749,7 +854,11 @@ impl Interp {
                     let Some(test) = c.first() else { continue };
                     let v = self.eval(test)?;
                     if v.truthy() {
-                        return if c.len() > 1 { self.progn(&c[1..]) } else { Ok(v) };
+                        return if c.len() > 1 {
+                            self.progn(&c[1..])
+                        } else {
+                            Ok(v)
+                        };
                     }
                 }
                 return Ok(L::Nil);
@@ -794,7 +903,10 @@ impl Interp {
                     let (k, v) = match &b {
                         L::Sym(s) => (s.clone(), L::Nil),
                         L::List(p) => {
-                            let k = p[0].sym_name().ok_or("Wrong type argument: symbolp")?.into();
+                            let k = p[0]
+                                .sym_name()
+                                .ok_or("Wrong type argument: symbolp")?
+                                .into();
                             let v = match p.get(1) {
                                 Some(e) => self.eval(e)?,
                                 None => L::Nil,
@@ -817,7 +929,10 @@ impl Interp {
             "setq" | "setf" => {
                 let mut r = L::Nil;
                 for pair in args.chunks(2) {
-                    let k = pair[0].sym_name().ok_or("Wrong type argument: symbolp")?.to_owned();
+                    let k = pair[0]
+                        .sym_name()
+                        .ok_or("Wrong type argument: symbolp")?
+                        .to_owned();
                     r = self.eval(pair.get(1).unwrap_or(&L::Nil))?;
                     self.set(&k, r.clone());
                 }
@@ -831,7 +946,11 @@ impl Interp {
             }
             "dolist" | "dotimes" => {
                 let spec = args.first().unwrap_or(&L::Nil).items()?;
-                let var: Rc<str> = spec.first().and_then(L::sym_name).ok_or("Wrong type argument: symbolp")?.into();
+                let var: Rc<str> = spec
+                    .first()
+                    .and_then(L::sym_name)
+                    .ok_or("Wrong type argument: symbolp")?
+                    .into();
                 let seq = self.eval(spec.get(1).unwrap_or(&L::Nil))?;
                 let items: Vec<L> = if name == "dolist" {
                     seq.items()?
@@ -852,15 +971,23 @@ impl Interp {
             }
             "ignore-errors" => return Ok(self.progn(args).unwrap_or(L::Nil)),
             "condition-case" => {
-                let var = args.first().and_then(L::sym_name).unwrap_or("nil").to_owned();
+                let var = args
+                    .first()
+                    .and_then(L::sym_name)
+                    .unwrap_or("nil")
+                    .to_owned();
                 return match self.eval(args.get(1).unwrap_or(&L::Nil)) {
                     Ok(v) => Ok(v),
                     Err(e) => {
-                        for h in args.get(2..).unwrap_or(&[]) {
+                        // The first handler catches every error here.
+                        if let Some(h) = args.get(2) {
                             let h = h.items()?;
                             let mark = self.env.len();
                             if var != "nil" {
-                                self.env.push((var.as_str().into(), list(vec![sym("error"), str_(&e)])));
+                                self.env.push((
+                                    var.as_str().into(),
+                                    list(vec![sym("error"), str_(&e)]),
+                                ));
                             }
                             let r = self.progn(&h[1..]);
                             self.env.truncate(mark);
@@ -876,7 +1003,10 @@ impl Interp {
             }
             _ => {}
         }
-        let vals = args.iter().map(|a| self.eval(a)).collect::<Result<Vec<_>, _>>()?;
+        let vals = args
+            .iter()
+            .map(|a| self.eval(a))
+            .collect::<Result<Vec<_>, _>>()?;
         self.call(&name, vals)
     }
 
@@ -908,9 +1038,17 @@ impl Interp {
             .unwrap_or(&L::Nil)
             .items()?
             .iter()
-            .map(|p| p.sym_name().map(str::to_owned).ok_or("Invalid lambda list".to_string()))
+            .map(|p| {
+                p.sym_name()
+                    .map(str::to_owned)
+                    .ok_or("Invalid lambda list".to_string())
+            })
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(L::Lambda(Rc::new(Lambda { params, body: rest[1..].to_vec(), env: self.env.clone() })))
+        Ok(L::Lambda(Rc::new(Lambda {
+            params,
+            body: rest[1..].to_vec(),
+            env: self.env.clone(),
+        })))
     }
 
     /// Call a function value (symbol or lambda).
@@ -927,7 +1065,8 @@ impl Interp {
                         "&optional" => optional = true,
                         "&rest" => {
                             if let Some(r) = l.params.get(i + 1) {
-                                self.env.push((r.as_str().into(), list(it.by_ref().collect())));
+                                self.env
+                                    .push((r.as_str().into(), list(it.by_ref().collect())));
                             }
                             break;
                         }
@@ -964,7 +1103,11 @@ impl Interp {
 
     fn compare(&self, args: &[L], f: impl Fn(f64, f64) -> bool) -> E {
         let n = self.num_args(args)?;
-        Ok(if n.windows(2).all(|w| f(w[0].f(), w[1].f())) { L::T } else { L::Nil })
+        Ok(if n.windows(2).all(|w| f(w[0].f(), w[1].f())) {
+            L::T
+        } else {
+            L::Nil
+        })
     }
 
     /// Call builtin `name`.
@@ -978,8 +1121,21 @@ impl Interp {
                 for n in self.num_args(&a)? {
                     acc = match (acc, n) {
                         (Num::I(x), Num::I(y)) => {
-                            let r = if plus { x.checked_add(y) } else { x.checked_mul(y) };
-                            r.map_or_else(|| Num::F(if plus { x as f64 + y as f64 } else { x as f64 * y as f64 }), Num::I)
+                            let r = if plus {
+                                x.checked_add(y)
+                            } else {
+                                x.checked_mul(y)
+                            };
+                            r.map_or_else(
+                                || {
+                                    Num::F(if plus {
+                                        x as f64 + y as f64
+                                    } else {
+                                        x as f64 * y as f64
+                                    })
+                                },
+                                Num::I,
+                            )
                         }
                         (x, y) => Num::F(if plus { x.f() + y.f() } else { x.f() * y.f() }),
                     };
@@ -1010,7 +1166,13 @@ impl Interp {
                 }
                 let float = n.iter().any(|x| matches!(x, Num::F(_)));
                 if n.len() == 1 {
-                    return Ok(if float { L::Float(1.0 / n[0].f()) } else if n[0] == Num::I(0) { return Err(arith_err()) } else { L::Int(1 / n[0].f() as i64) });
+                    return Ok(if float {
+                        L::Float(1.0 / n[0].f())
+                    } else if n[0] == Num::I(0) {
+                        return Err(arith_err());
+                    } else {
+                        L::Int(1 / n[0].f() as i64)
+                    });
                 }
                 if float {
                     let mut acc = n[0].f();
@@ -1046,11 +1208,19 @@ impl Interp {
                         return Err(arith_err());
                     }
                     let r = x % y;
-                    L::Int(if r != 0 && (r < 0) != (y < 0) { r + y } else { r })
+                    L::Int(if r != 0 && (r < 0) != (y < 0) {
+                        r + y
+                    } else {
+                        r
+                    })
                 }
                 (x, y) => {
                     let r = x.f() % y.f();
-                    L::Float(if r != 0.0 && (r < 0.0) != (y.f() < 0.0) { r + y.f() } else { r })
+                    L::Float(if r != 0.0 && (r < 0.0) != (y.f() < 0.0) {
+                        r + y.f()
+                    } else {
+                        r
+                    })
                 }
             },
             "1+" => from_num(arg(0).num()?.add(&Num::I(1))),
@@ -1068,7 +1238,11 @@ impl Interp {
                         best = *x;
                     }
                 }
-                if float { L::Float(best.f()) } else { from_num(best) }
+                if float {
+                    L::Float(best.f())
+                } else {
+                    from_num(best)
+                }
             }
             "float" => L::Float(arg(0).num()?.f()),
             "truncate" | "floor" | "ceiling" | "round" => {
@@ -1080,7 +1254,9 @@ impl Interp {
                             if q == 0 {
                                 return Err(arith_err());
                             }
-                            return Ok(L::Int(p.div_euclid(q) - if q < 0 && p.rem_euclid(q) != 0 { 1 } else { 0 }));
+                            return Ok(L::Int(
+                                p.div_euclid(q) - if q < 0 && p.rem_euclid(q) != 0 { 1 } else { 0 },
+                            ));
                         }
                         _ => Num::F(x.f() / d.f()),
                     };
@@ -1105,7 +1281,9 @@ impl Interp {
             "fround" => L::Float(round_half_even(arg(0).num()?.f())),
             "ftruncate" => L::Float(arg(0).num()?.f().trunc()),
             "expt" => match (arg(0).num()?, arg(1).num()?) {
-                (Num::I(x), Num::I(y)) if y >= 0 => x.checked_pow(y as u32).map_or(L::Float((x as f64).powf(y as f64)), L::Int),
+                (Num::I(x), Num::I(y)) if y >= 0 => x
+                    .checked_pow(y as u32)
+                    .map_or(L::Float((x as f64).powf(y as f64)), L::Int),
                 (x, y) => L::Float(x.f().powf(y.f())),
             },
             "sqrt" => L::Float(arg(0).num()?.f().sqrt()),
@@ -1142,16 +1320,30 @@ impl Interp {
             "eq" => b(eq(&arg(0), &arg(1))),
             "eql" => b(eql(&arg(0), &arg(1))),
             "equal" => b(equal(&arg(0), &arg(1))),
-            "string=" | "string-equal" => b(string_designator(&arg(0))? == string_designator(&arg(1))?),
-            "string<" | "string-lessp" => b(string_designator(&arg(0))? < string_designator(&arg(1))?),
-            "string>" | "string-greaterp" => b(string_designator(&arg(0))? > string_designator(&arg(1))?),
+            "string=" | "string-equal" => {
+                b(string_designator(&arg(0))? == string_designator(&arg(1))?)
+            }
+            "string<" | "string-lessp" => {
+                b(string_designator(&arg(0))? < string_designator(&arg(1))?)
+            }
+            "string>" | "string-greaterp" => {
+                b(string_designator(&arg(0))? > string_designator(&arg(1))?)
+            }
             "string-prefix-p" => {
                 let (p, s) = (arg(0).string()?, arg(1).string()?);
-                b(if arg(2).truthy() { s.to_lowercase().starts_with(&p.to_lowercase()) } else { s.starts_with(&*p) })
+                b(if arg(2).truthy() {
+                    s.to_lowercase().starts_with(&p.to_lowercase())
+                } else {
+                    s.starts_with(&*p)
+                })
             }
             "string-suffix-p" => {
                 let (p, s) = (arg(0).string()?, arg(1).string()?);
-                b(if arg(2).truthy() { s.to_lowercase().ends_with(&p.to_lowercase()) } else { s.ends_with(&*p) })
+                b(if arg(2).truthy() {
+                    s.to_lowercase().ends_with(&p.to_lowercase())
+                } else {
+                    s.ends_with(&*p)
+                })
             }
             "null" | "not" => b(arg(0).is_nil()),
             "numberp" | "number-or-marker-p" => b(matches!(arg(0), L::Int(_) | L::Float(_))),
@@ -1237,11 +1429,17 @@ impl Interp {
                 }
             }
             "upcase" => match arg(0) {
-                L::Int(c) => L::Int(char::from_u32(c as u32).map_or(c, |c| c.to_uppercase().next().unwrap_or(c) as i64)),
+                L::Int(c) => L::Int(
+                    char::from_u32(c as u32)
+                        .map_or(c, |c| c.to_uppercase().next().unwrap_or(c) as i64),
+                ),
                 x => str_(&x.string()?.to_uppercase()),
             },
             "downcase" => match arg(0) {
-                L::Int(c) => L::Int(char::from_u32(c as u32).map_or(c, |c| c.to_lowercase().next().unwrap_or(c) as i64)),
+                L::Int(c) => L::Int(
+                    char::from_u32(c as u32)
+                        .map_or(c, |c| c.to_lowercase().next().unwrap_or(c) as i64),
+                ),
                 x => str_(&x.string()?.to_lowercase()),
             },
             "capitalize" | "upcase-initials" => {
@@ -1272,21 +1470,43 @@ impl Interp {
             "string-blank-p" | "org-string-nw-p" => {
                 let s = arg(0).string()?;
                 let blank = s.chars().all(char::is_whitespace);
-                if name == "string-blank-p" { b(blank) } else if blank { L::Nil } else { L::Str(s) }
+                if name == "string-blank-p" {
+                    b(blank)
+                } else if blank {
+                    L::Nil
+                } else {
+                    L::Str(s)
+                }
             }
             "string-search" => {
                 let (n, h) = (arg(0).string()?, arg(1).string()?);
-                let start = if arg(2).is_nil() { 0 } else { arg(2).int()? as usize };
+                let start = if arg(2).is_nil() {
+                    0
+                } else {
+                    arg(2).int()? as usize
+                };
                 let hc: String = h.chars().skip(start).collect();
                 match hc.find(&*n) {
                     Some(i) => L::Int((start + hc[..i].chars().count()) as i64),
                     None => L::Nil,
                 }
             }
-            "string-replace" => str_(&arg(2).string()?.replace(&*arg(0).string()?, &arg(1).string()?)),
+            "string-replace" => str_(
+                &arg(2)
+                    .string()?
+                    .replace(&*arg(0).string()?, &arg(1).string()?),
+            ),
             "string-join" => {
-                let parts = arg(0).items()?.iter().map(|x| x.string().map(|s| s.to_string())).collect::<Result<Vec<_>, _>>()?;
-                let sep = if arg(1).is_nil() { Rc::from("") } else { arg(1).string()? };
+                let parts = arg(0)
+                    .items()?
+                    .iter()
+                    .map(|x| x.string().map(|s| s.to_string()))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let sep = if arg(1).is_nil() {
+                    Rc::from("")
+                } else {
+                    arg(1).string()?
+                };
                 str_(&parts.join(&sep))
             }
             "split-string" => {
@@ -1296,7 +1516,10 @@ impl Interp {
                 } else {
                     let r = super::emacs_regex(&arg(1).string()?)?;
                     let omit = arg(2).truthy();
-                    r.split(&s).filter(|p| !omit || !p.is_empty()).map(str_).collect()
+                    r.split(&s)
+                        .filter(|p| !omit || !p.is_empty())
+                        .map(str_)
+                        .collect()
                 };
                 list(parts)
             }
@@ -1315,7 +1538,11 @@ impl Interp {
                 match rep {
                     L::Str(t) => {
                         let lit = arg(4).truthy();
-                        let t = if lit { t.replace('$', "$$") } else { emacs_replacement(&t) };
+                        let t = if lit {
+                            t.replace('$', "$$")
+                        } else {
+                            emacs_replacement(&t)
+                        };
                         str_(&r.replace_all(&s, t.as_str()))
                     }
                     f => {
@@ -1334,7 +1561,11 @@ impl Interp {
             }
             "symbol-name" => str_(arg(0).sym_name().ok_or("Wrong type argument: symbolp")?),
             "intern" | "intern-soft" => sym(&arg(0).string()?),
-            "prin1-to-string" => str_(&if arg(1).truthy() { princ(&arg(0)) } else { prin1(&arg(0)) }),
+            "prin1-to-string" => str_(&if arg(1).truthy() {
+                princ(&arg(0))
+            } else {
+                prin1(&arg(0))
+            }),
             "list" => list(a),
             "vector" => L::Vector(Rc::new(a)),
             "cons" => match arg(1) {
@@ -1369,36 +1600,73 @@ impl Interp {
             }
             "cdar" => cdr(&self.call("car", vec![arg(0)])?, false)?,
             "nth" | "elt" | "seq-elt" | "aref" => {
-                let (i, seq) = if name == "nth" { (arg(0).int()?, arg(1)) } else { (arg(1).int()?, arg(0)) };
+                let (i, seq) = if name == "nth" {
+                    (arg(0).int()?, arg(1))
+                } else {
+                    (arg(1).int()?, arg(0))
+                };
                 match seq {
-                    L::Str(s) => s.chars().nth(i as usize).map_or(L::Nil, |c| L::Int(c as i64)),
-                    seq => seq.items()?.get(i.max(0) as usize).cloned().unwrap_or(L::Nil),
+                    L::Str(s) => s
+                        .chars()
+                        .nth(i as usize)
+                        .map_or(L::Nil, |c| L::Int(c as i64)),
+                    seq => seq
+                        .items()?
+                        .get(i.max(0) as usize)
+                        .cloned()
+                        .unwrap_or(L::Nil),
                 }
             }
             "nthcdr" => {
                 let v = arg(1).items()?;
-                list(v.get(arg(0).int()?.max(0) as usize..).unwrap_or(&[]).to_vec())
+                list(
+                    v.get(arg(0).int()?.max(0) as usize..)
+                        .unwrap_or(&[])
+                        .to_vec(),
+                )
             }
             "last" => {
                 let v = arg(0).items()?;
-                let n = if arg(1).is_nil() { 1 } else { arg(1).int()? as usize };
+                let n = if arg(1).is_nil() {
+                    1
+                } else {
+                    arg(1).int()? as usize
+                };
                 list(v[v.len().saturating_sub(n)..].to_vec())
             }
             "butlast" | "nbutlast" => {
                 let v = arg(0).items()?;
-                let n = if arg(1).is_nil() { 1 } else { arg(1).int()? as usize };
+                let n = if arg(1).is_nil() {
+                    1
+                } else {
+                    arg(1).int()? as usize
+                };
                 list(v[..v.len().saturating_sub(n)].to_vec())
             }
             "take" | "ntake" | "seq-take" => {
-                let (n, v) = if name == "seq-take" { (arg(1).int()?, arg(0).items()?) } else { (arg(0).int()?, arg(1).items()?) };
+                let (n, v) = if name == "seq-take" {
+                    (arg(1).int()?, arg(0).items()?)
+                } else {
+                    (arg(0).int()?, arg(1).items()?)
+                };
                 list(v.into_iter().take(n.max(0) as usize).collect())
             }
-            "seq-drop" => list(arg(0).items()?.into_iter().skip(arg(1).int()?.max(0) as usize).collect()),
+            "seq-drop" => list(
+                arg(0)
+                    .items()?
+                    .into_iter()
+                    .skip(arg(1).int()?.max(0) as usize)
+                    .collect(),
+            ),
             "append" => {
                 let mut out = vec![];
                 for (i, x) in a.iter().enumerate() {
                     if i + 1 == a.len() && !matches!(x, L::List(_) | L::Nil | L::Vector(_)) {
-                        return Ok(if out.is_empty() { x.clone() } else { L::Dotted(Rc::new(out), Rc::new(x.clone())) });
+                        return Ok(if out.is_empty() {
+                            x.clone()
+                        } else {
+                            L::Dotted(Rc::new(out), Rc::new(x.clone()))
+                        });
                     }
                     match x {
                         L::Str(s) => out.extend(s.chars().map(|c| L::Int(c as i64))),
@@ -1422,7 +1690,15 @@ impl Interp {
             "member" | "memq" | "memql" | "cl-member" => {
                 let x = arg(0);
                 let v = arg(1).items()?;
-                match v.iter().position(|e| if name == "memq" { eq(e, &x) } else if name == "memql" { eql(e, &x) } else { equal(e, &x) }) {
+                match v.iter().position(|e| {
+                    if name == "memq" {
+                        eq(e, &x)
+                    } else if name == "memql" {
+                        eql(e, &x)
+                    } else {
+                        equal(e, &x)
+                    }
+                }) {
                     Some(i) => list(v[i..].to_vec()),
                     None => L::Nil,
                 }
@@ -1440,7 +1716,9 @@ impl Interp {
                     let probe = if name.starts_with("rass") { v } else { k };
                     let hit = match name {
                         "assq" | "rassq" => eq(&probe, &key),
-                        "assoc-string" => string_designator(&probe).ok() == string_designator(&key).ok(),
+                        "assoc-string" => {
+                            string_designator(&probe).ok() == string_designator(&key).ok()
+                        }
                         _ => equal(&probe, &key),
                     };
                     if hit {
@@ -1485,7 +1763,13 @@ impl Interp {
                 } else {
                     let x = arg(0);
                     let q = name.ends_with('q');
-                    list(arg(1).items()?.into_iter().filter(|e| if q { !eq(e, &x) } else { !equal(e, &x) }).collect())
+                    list(
+                        arg(1)
+                            .items()?
+                            .into_iter()
+                            .filter(|e| if q { !eq(e, &x) } else { !equal(e, &x) })
+                            .collect(),
+                    )
                 }
             }
             "delete-dups" | "seq-uniq" | "cl-remove-duplicates" => {
@@ -1503,7 +1787,11 @@ impl Interp {
                     return Ok(list(vec![from_num(from)]));
                 }
                 let to = arg(1).num()?;
-                let step = if arg(2).is_nil() { Num::I(1) } else { arg(2).num()? };
+                let step = if arg(2).is_nil() {
+                    Num::I(1)
+                } else {
+                    arg(2).num()?
+                };
                 let mut out = vec![];
                 let mut x = from;
                 while (step.f() > 0.0 && x.f() <= to.f()) || (step.f() < 0.0 && x.f() >= to.f()) {
@@ -1543,7 +1831,11 @@ impl Interp {
                     L::Str(s) => s.chars().map(|c| L::Int(c as i64)).collect(),
                     x => x.items()?,
                 };
-                let sep = if arg(2).is_nil() { Rc::from("") } else { arg(2).string()? };
+                let sep = if arg(2).is_nil() {
+                    Rc::from("")
+                } else {
+                    arg(2).string()?
+                };
                 let mut parts = vec![];
                 for e in seq {
                     let v = self.apply(&f, vec![e])?;
@@ -1556,7 +1848,11 @@ impl Interp {
                 str_(&parts.join(&sep))
             }
             "seq-filter" | "cl-remove-if-not" | "cl-remove-if" => {
-                let (f, s) = if name == "seq-filter" { (arg(0), arg(1)) } else { (arg(0), arg(1)) };
+                let (f, s) = if name == "seq-filter" {
+                    (arg(0), arg(1))
+                } else {
+                    (arg(0), arg(1))
+                };
                 let keep_true = name != "cl-remove-if";
                 let mut out = vec![];
                 for e in s.items()? {
@@ -1572,7 +1868,10 @@ impl Interp {
                 let mut it = items.into_iter();
                 let mut acc = if name == "seq-reduce" {
                     arg(2)
-                } else if let Some(pos) = a.iter().position(|x| x.sym_name() == Some(":initial-value")) {
+                } else if let Some(pos) = a
+                    .iter()
+                    .position(|x| x.sym_name() == Some(":initial-value"))
+                {
                     a.get(pos + 1).cloned().unwrap_or(L::Nil)
                 } else {
                     match it.next() {
@@ -1586,7 +1885,11 @@ impl Interp {
                 acc
             }
             "sort" | "cl-sort" | "seq-sort" => {
-                let (seq, pred) = if name == "seq-sort" { (arg(1), arg(0)) } else { (arg(0), arg(1)) };
+                let (seq, pred) = if name == "seq-sort" {
+                    (arg(1), arg(0))
+                } else {
+                    (arg(0), arg(1))
+                };
                 let mut v = seq.items()?;
                 let mut err = None;
                 // Insertion sort keeps the comparisons in the interpreter.
@@ -1638,8 +1941,16 @@ impl Interp {
             "org-lookup-first" | "org-lookup-last" | "org-lookup-all" => {
                 let val = arg(0);
                 let sl = arg(1).items()?;
-                let rl = if arg(2).is_nil() { sl.clone() } else { arg(2).items()? };
-                let p = if arg(3).is_nil() { sym("equal") } else { arg(3) };
+                let rl = if arg(2).is_nil() {
+                    sl.clone()
+                } else {
+                    arg(2).items()?
+                };
+                let p = if arg(3).is_nil() {
+                    sym("equal")
+                } else {
+                    arg(3)
+                };
                 let mut ret = vec![];
                 for (s, r) in sl.iter().zip(rl.iter().chain(std::iter::repeat(&L::Nil))) {
                     if self.apply(&p, vec![val.clone(), s.clone()])?.truthy() {
@@ -1661,16 +1972,27 @@ impl Interp {
                 };
                 let min = arg(1).num()?.f();
                 let max = arg(2).num()?.f();
-                let width = if arg(3).is_nil() { 12.0 } else { arg(3).num()?.f() };
+                let width = if arg(3).is_nil() {
+                    12.0
+                } else {
+                    arg(3).num()?.f()
+                };
                 let chars = match name {
-                    "orgtbl-uc-draw-grid" => " \u{258F}\u{258E}\u{258D}\u{258C}\u{258B}\u{258A}\u{2589}".to_owned(),
-                    "orgtbl-uc-draw-cont" => " \u{258F}\u{258E}\u{258D}\u{258C}\u{258B}\u{258A}\u{2589}\u{2588}".to_owned(),
+                    "orgtbl-uc-draw-grid" => {
+                        " \u{258F}\u{258E}\u{258D}\u{258C}\u{258B}\u{258A}\u{2589}".to_owned()
+                    }
+                    "orgtbl-uc-draw-cont" => {
+                        " \u{258F}\u{258E}\u{258D}\u{258C}\u{258B}\u{258A}\u{2589}\u{2588}"
+                            .to_owned()
+                    }
                     _ if arg(4).truthy() => arg(4).string()?.to_string(),
                     _ => " .:;c!lhVHW".to_owned(),
                 };
                 str_(&ascii_draw(value, min, max, width, &chars))
             }
-            "org-table-time-string-to-seconds" => str_(&super::formula::time_string_to_seconds(&arg(0).string()?)),
+            "org-table-time-string-to-seconds" => {
+                str_(&super::formula::time_string_to_seconds(&arg(0).string()?))
+            }
             "calc-eval" => {
                 let e = match arg(0) {
                     L::Str(s) => s.to_string(),
@@ -1690,7 +2012,11 @@ impl Interp {
                 };
                 return Err(msg);
             }
-            "org-sbe" => return Err("org-sbe needs Org Babel (not available in table formulas here)".into()),
+            "org-sbe" => {
+                return Err(
+                    "org-sbe needs Org Babel (not available in table formulas here)".into(),
+                );
+            }
             _ => {
                 self.unknown = Some(name.to_owned());
                 return Err(format!("Symbol's function definition is void: {name}"));
@@ -1739,7 +2065,11 @@ fn slice_bounds(len: usize, from: &L, to: &L) -> Result<(usize, usize), String> 
 
 fn round_half_even(f: f64) -> f64 {
     let r = f.round();
-    if (f - f.trunc()).abs() == 0.5 { 2.0 * (f / 2.0).round() } else { r }
+    if (f - f.trunc()).abs() == 0.5 {
+        2.0 * (f / 2.0).round()
+    } else {
+        r
+    }
 }
 
 /// An Emacs replacement string (`\&`, `\1`) in regex-crate syntax.
@@ -1799,7 +2129,10 @@ pub fn from_sexp(s: &super::super::sexp::Sexp) -> L {
         Sexp::Sym(s) => sym(s),
         Sexp::List(v) => list(v.iter().map(from_sexp).collect()),
         Sexp::Vector(v) => L::Vector(Rc::new(v.iter().map(from_sexp).collect())),
-        Sexp::Dotted(v, t) => L::Dotted(Rc::new(v.iter().map(from_sexp).collect()), Rc::new(from_sexp(t))),
+        Sexp::Dotted(v, t) => L::Dotted(
+            Rc::new(v.iter().map(from_sexp).collect()),
+            Rc::new(from_sexp(t)),
+        ),
     }
 }
 
@@ -1861,7 +2194,10 @@ pub fn format(fmt: &str, args: &[L]) -> Result<String, String> {
             return Err("Format string ends in middle of format specifier".into());
         };
         i += 1;
-        let arg = args.get(ai).cloned().ok_or("Not enough arguments for format string")?;
+        let arg = args
+            .get(ai)
+            .cloned()
+            .ok_or("Not enough arguments for format string")?;
         ai += 1;
         let width: usize = w.parse().unwrap_or(0);
         let left = flags.contains('-');
@@ -1873,13 +2209,30 @@ pub fn format(fmt: &str, args: &[L]) -> Result<String, String> {
             match v {
                 L::Int(i) => Ok(Num::I(*i)),
                 L::Float(f) => Ok(Num::F(*f)),
-                o => Err(format!("Format specifier doesn’t match argument type: {}", prin1(o))),
+                o => Err(format!(
+                    "Format specifier doesn’t match argument type: {}",
+                    prin1(o)
+                )),
             }
         };
-        let sign = |neg: bool| if neg { "-" } else if plus { "+" } else if space { " " } else { "" };
+        let sign = |neg: bool| {
+            if neg {
+                "-"
+            } else if plus {
+                "+"
+            } else if space {
+                " "
+            } else {
+                ""
+            }
+        };
         let body = match conv {
             's' | 'S' => {
-                let mut s = if conv == 's' { princ(&arg) } else { prin1(&arg) };
+                let mut s = if conv == 's' {
+                    princ(&arg)
+                } else {
+                    prin1(&arg)
+                };
                 if let Some(p) = prec {
                     s = s.chars().take(p).collect();
                 }
@@ -1908,7 +2261,9 @@ pub fn format(fmt: &str, args: &[L]) -> Result<String, String> {
                 };
                 format!("{}{}", sign(v < 0), s)
             }
-            'c' => char::from_u32(numeric(&arg)?.f() as u32).unwrap_or('?').to_string(),
+            'c' => char::from_u32(numeric(&arg)?.f() as u32)
+                .unwrap_or('?')
+                .to_string(),
             'f' | 'e' | 'g' => {
                 let x = numeric(&arg)?.f();
                 let p = prec.unwrap_or(6);
@@ -1994,13 +2349,24 @@ pub fn emacs_eval(form: &str) -> Option<String> {
     if form.contains("org") {
         expr.push_str("(ignore-errors (require 'org-table)) ");
     }
-    let _ = write!(expr, "(princ (let ((v (eval (eval (car (read-from-string {})))))) (if (numberp v) (number-to-string v) (format \"%s\" v)))))", prin1(&str_(form)));
-    let out = std::process::Command::new(emacs).args(["--batch", "-Q", "--eval", &expr]).output().ok()?;
-    out.status.success().then(|| String::from_utf8_lossy(&out.stdout).into_owned())
+    let _ = write!(
+        expr,
+        "(princ (let ((v (eval (eval (car (read-from-string {})))))) (if (numberp v) (number-to-string v) (format \"%s\" v)))))",
+        prin1(&str_(form))
+    );
+    let out = std::process::Command::new(emacs)
+        .args(["--batch", "-Q", "--eval", &expr])
+        .output()
+        .ok()?;
+    out.status
+        .success()
+        .then(|| String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
 /// A program on PATH.
 pub fn which(prog: &str) -> Option<std::path::PathBuf> {
     let path = std::env::var_os("PATH")?;
-    std::env::split_paths(&path).map(|d| d.join(prog)).find(|p| p.is_file())
+    std::env::split_paths(&path)
+        .map(|d| d.join(prog))
+        .find(|p| p.is_file())
 }
