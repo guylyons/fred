@@ -854,6 +854,14 @@ pub fn draw(
         buf.set_stringn(ox, oy + y as u16, "~", 1, num_style);
         y += 1;
     }
+    // The terminal's block cursor inverts its cell: a selected one would go unreadable.
+    if ed.visual_lines().is_some()
+        && let Some((x, y)) = cursor
+    {
+        buf[(ox + x as u16, oy + y as u16)]
+            .modifier
+            .remove(Modifier::REVERSED);
+    }
     if let Some(zap) = &ed.zap {
         for (word, label) in zap.choices() {
             if !label.starts_with(&zap.label_prefix) {
