@@ -42,9 +42,16 @@ impl Template {
 /// org-capture-templates (with group entries as (keys, desc) only).
 pub fn templates() -> Vec<Result<Template, (String, String)>> {
     let v = super::sexp::option("org-capture-templates");
-    let list: Vec<Sexp> = v.and_then(|v| v.list().map(<[Sexp]>::to_vec)).unwrap_or_default();
+    let list: Vec<Sexp> = v
+        .and_then(|v| v.list().map(<[Sexp]>::to_vec))
+        .unwrap_or_default();
     let list = if list.is_empty() {
-        vec![super::sexp::read("(\"t\" \"Task\" entry (file+headline \"\" \"Tasks\") \"* TODO %?\n  %u\n  %a\")").unwrap()]
+        vec![
+            super::sexp::read(
+                "(\"t\" \"Task\" entry (file+headline \"\" \"Tasks\") \"* TODO %?\n  %u\n  %a\")",
+            )
+            .unwrap(),
+        ]
     } else {
         list
     };
@@ -56,7 +63,11 @@ pub fn templates() -> Vec<Result<Template, (String, String)>> {
             if items.len() <= 2 {
                 return Some(Err((keys, desc)));
             }
-            let kind = items.get(2).and_then(|x| x.str()).unwrap_or("entry").to_owned();
+            let kind = items
+                .get(2)
+                .and_then(|x| x.str())
+                .unwrap_or("entry")
+                .to_owned();
             Some(Ok(Template {
                 keys,
                 desc,
@@ -72,12 +83,20 @@ pub fn templates() -> Vec<Result<Template, (String, String)>> {
 /// org-capture-expand-file.
 fn expand_file(f: &Sexp) -> Result<PathBuf, String> {
     match f {
-        Sexp::Str(s) if s.is_empty() => Ok(super::options::file("org-default-notes-file", "~/.notes")),
+        Sexp::Str(s) if s.is_empty() => {
+            Ok(super::options::file("org-default-notes-file", "~/.notes"))
+        }
         Sexp::Str(s) => {
             let p = super::options::expand(s);
-            Ok(if p.is_relative() { super::options::directory().join(p) } else { p })
+            Ok(if p.is_relative() {
+                super::options::directory().join(p)
+            } else {
+                p
+            })
         }
-        Sexp::Sym(s) if s == "org-default-notes-file" => Ok(super::options::file("org-default-notes-file", "~/.notes")),
+        Sexp::Sym(s) if s == "org-default-notes-file" => {
+            Ok(super::options::file("org-default-notes-file", "~/.notes"))
+        }
         Sexp::Sym(s) => match super::options::get(s) {
             Some(toml::Value::String(v)) => Ok(super::options::expand(&v)),
             _ => Err(format!("Invalid file location: {s}")),
@@ -102,8 +121,29 @@ pub fn civil_from_days(z: i64) -> (i64, i64, i64) {
     (if m <= 2 { y + 1 } else { y }, m, d)
 }
 
-const DAYS: [&str; 7] = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const MONTHS: [&str; 12] = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const DAYS: [&str; 7] = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+];
+const MONTHS: [&str; 12] = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+];
 
 /// ISO week (year, week) of a civil date.
 fn iso_week(y: i64, m: i64, d: i64) -> (i64, i64) {
@@ -129,15 +169,25 @@ fn datetree_levels(y: i64, m: i64, d: i64, grouping: &[&str]) -> Vec<(String, &'
     } else {
         m
     };
-    let quarter = if has_week && !grouping.contains(&"month") { (1 + (w - 1) / 13).min(4) } else { 1 + (nm - 1) / 3 };
+    let quarter = if has_week && !grouping.contains(&"month") {
+        (1 + (w - 1) / 13).min(4)
+    } else {
+        1 + (nm - 1) / 3
+    };
     let mut out = vec![];
     for g in grouping {
         match *g {
             "year" => out.push((ny.to_string(), r"^([12]\d{3})")),
             "quarter" => out.push((format!("{ny}-Q{quarter}"), r"^([12]\d{3}-Q[1-4])")),
-            "month" => out.push((format!("{ny}-{nm:02} {}", MONTHS[(nm - 1) as usize]), r"^([12]\d{3}-[01]\d) \w+")),
+            "month" => out.push((
+                format!("{ny}-{nm:02} {}", MONTHS[(nm - 1) as usize]),
+                r"^([12]\d{3}-[01]\d) \w+",
+            )),
             "week" => out.push((format!("{iy}-W{w:02}"), r"^([12]\d{3}-W[0-5]\d)")),
-            "day" => out.push((format!("{y}-{m:02}-{d:02} {}", DAYS[wd]), r"^([12]\d{3}-[01]\d-[0-3]\d) \w+")),
+            "day" => out.push((
+                format!("{y}-{m:02}-{d:02} {}", DAYS[wd]),
+                r"^([12]\d{3}-[01]\d-[0-3]\d) \w+",
+            )),
             _ => {}
         }
     }
@@ -151,7 +201,14 @@ pub fn datetree_levels_pub(y: i64, m: i64, d: i64) -> Vec<(String, &'static str)
 
 /// org-datetree-find-create-hierarchy within lines `[lo, hi)` at
 /// `level`: the heading line of the innermost entry, and whether it existed.
-pub fn datetree_find_create(ed: &mut Editor, levels: &[(String, &str)], lo: usize, hi: usize, level: usize, add_ts: Option<String>) -> (usize, bool) {
+pub fn datetree_find_create(
+    ed: &mut Editor,
+    levels: &[(String, &str)],
+    lo: usize,
+    hi: usize,
+    level: usize,
+    add_ts: Option<String>,
+) -> (usize, bool) {
     let odd = super::settings(ed).opt_bool("org-odd-levels-only", false);
     let st = super::settings(ed);
     let (mut lo, mut hi, mut level) = (lo, hi, level);
@@ -191,7 +248,13 @@ pub fn datetree_find_create(ed: &mut Editor, levels: &[(String, &str)], lo: usiz
                 }
                 let mut lines = vec![];
                 let blank = super::sexp::option("org-blank-before-new-entry").is_some_and(|v| {
-                    v.list().is_some_and(|l| l.iter().any(|e| e.car().and_then(Sexp::sym) == Some("heading") && e.cdr().truthy() && e.cdr().sym() != Some("auto")))
+                    v.list().is_some_and(|l| {
+                        l.iter().any(|e| {
+                            e.car().and_then(Sexp::sym) == Some("heading")
+                                && e.cdr().truthy()
+                                && e.cdr().sym() != Some("auto")
+                        })
+                    })
                 });
                 if blank {
                     lines.push(String::new());
@@ -254,7 +317,9 @@ fn strftime(fmt: &str, t: i64) -> String {
             Some('B') => out.push_str(MONTHS[(m - 1) as usize]),
             Some('b') | Some('h') => out.push_str(&MONTHS[(m - 1) as usize][..3]),
             Some('j') => {
-                let doy = super::tags::days_from_civil(y, m, d) - super::tags::days_from_civil(y, 1, 1) + 1;
+                let doy = super::tags::days_from_civil(y, m, d)
+                    - super::tags::days_from_civil(y, 1, 1)
+                    + 1;
                 out.push_str(&format!("{doy:03}"));
             }
             Some('F') => out.push_str(&format!("{y:04}-{m:02}-{d:02}")),
@@ -284,8 +349,14 @@ fn escaped(s: &str, i: usize) -> bool {
 fn fill_static(t: &str, c: &Ctx) -> String {
     let re = crate::org_re!(r"%(:[-A-Za-z]+|<([^>\n]+)>|[aAcfFikKlLntTuUx])");
     let link_re = crate::org_re!(r"\[\[(.*?)\](\[.*?\])?\]");
-    let a = if c.annotation == "[[]]" { String::new() } else { c.annotation.clone() };
-    let v_cap_a = link_re.replace(&a, "[[$1][%^{Link description}]]").into_owned();
+    let a = if c.annotation == "[[]]" {
+        String::new()
+    } else {
+        c.annotation.clone()
+    };
+    let v_cap_a = link_re
+        .replace(&a, "[[$1][%^{Link description}]]")
+        .into_owned();
     let v_l = link_re.replace(&a, "[[$1]]").into_owned();
     let v_cap_l = link_re.replace(&a, "$1").into_owned();
     let user = std::env::var("USER").unwrap_or_default();
@@ -305,13 +376,19 @@ fn fill_static(t: &str, c: &Ctx) -> String {
             'i' => {
                 // Repeat the line's leading text on every line of %i.
                 let line_start = out.rfind('\n').map_or(0, |i| i + 1);
-                let lead: String = out[line_start..].chars().take_while(|c| c.is_whitespace()).collect();
+                let lead: String = out[line_start..]
+                    .chars()
+                    .take_while(|c| c.is_whitespace())
+                    .collect();
                 c.initial.replace('\n', &format!("\n{lead}"))
             }
             'a' => a.clone(),
             'A' => v_cap_a.clone(),
             'c' => c.clipboard.clone(),
-            'f' => Path::new(&c.file).file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default(),
+            'f' => Path::new(&c.file)
+                .file_name()
+                .map(|f| f.to_string_lossy().into_owned())
+                .unwrap_or_default(),
             'F' => c.file.clone(),
             'k' => c.clock_heading.clone(),
             'K' => c.clock_link.clone(),
@@ -337,7 +414,8 @@ fn fill_files_and_sexps(t: &str) -> String {
     let t = re
         .replace_all(t, |c: &regex::Captures| {
             let f = super::options::expand(&c[1]);
-            std::fs::read_to_string(&f).unwrap_or_else(|e| format!("%![could not insert {}: {e}]", f.display()))
+            std::fs::read_to_string(&f)
+                .unwrap_or_else(|e| format!("%![could not insert {}: {e}]", f.display()))
         })
         .into_owned();
     // %(sexp): evaluated by Emacs, when available.
@@ -355,7 +433,12 @@ fn fill_files_and_sexps(t: &str) -> String {
             Ok((_, after)) => {
                 let form = &body[..body.len() - after.len()];
                 let val = std::process::Command::new("emacs")
-                    .args(["--batch", "-Q", "--eval", &format!("(princ (format \"%s\" {form}))")])
+                    .args([
+                        "--batch",
+                        "-Q",
+                        "--eval",
+                        &format!("(princ (format \"%s\" {form}))"),
+                    ])
                     .output()
                     .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
                     .unwrap_or_default();
@@ -372,10 +455,22 @@ fn fill_files_and_sexps(t: &str) -> String {
     out
 }
 
+/// The continuation of template filling.
+type Done = Box<dyn FnOnce(&mut Editor, String) + Send>;
+
 /// Interactive escapes, one at a time (`%^{prompt|default|a|b}X`).
-fn fill_interactive(ed: &mut Editor, text: String, strings: Vec<String>, all: Vec<String>, done: Box<dyn FnOnce(&mut Editor, String) + Send>) {
+fn fill_interactive(
+    ed: &mut Editor,
+    text: String,
+    strings: Vec<String>,
+    all: Vec<String>,
+    done: Done,
+) {
     let re = crate::org_re!(r"%\^(?:\{([^}]*)\})?([CgGLptTuU])?");
-    let Some(m) = re.captures_iter(&text).find(|m| !escaped(&text, m.get(0).unwrap().start())) else {
+    let Some(m) = re
+        .captures_iter(&text)
+        .find(|m| !escaped(&text, m.get(0).unwrap().start()))
+    else {
         // %\N and %\*N back-references, then cleanup.
         let mut t = text;
         let r1 = crate::org_re!(r"%\\(\*?)([1-9][0-9]*)");
@@ -389,14 +484,18 @@ fn fill_interactive(ed: &mut Editor, text: String, strings: Vec<String>, all: Ve
         return done(ed, cleanup(&t));
     };
     let whole = m.get(0).unwrap().range();
-    let items: Vec<String> = m.get(1).map(|x| x.as_str().split('|').map(str::to_owned).collect()).unwrap_or_default();
+    let items: Vec<String> = m
+        .get(1)
+        .map(|x| x.as_str().split('|').map(str::to_owned).collect())
+        .unwrap_or_default();
     let key = m.get(2).map(|x| x.as_str().to_owned());
     let prompt = items.first().cloned();
     let default = items.get(1).cloned();
     let completions: Vec<String> = items.get(2..).map(<[String]>::to_vec).unwrap_or_default();
-    let (text_for_p, whole_p, strings_p, all_p) = (text.clone(), whole.clone(), strings.clone(), all.clone());
+    let (text_for_p, whole_p, strings_p, all_p) =
+        (text.clone(), whole.clone(), strings.clone(), all.clone());
     let done_slot = std::sync::Arc::new(std::sync::Mutex::new(Some(done)));
-    let done_p: Box<dyn FnOnce(&mut Editor, String) + Send> = {
+    let done_p: Done = {
         let slot = done_slot.clone();
         Box::new(move |ed, s| {
             if let Some(f) = slot.lock().unwrap().take() {
@@ -404,7 +503,7 @@ fn fill_interactive(ed: &mut Editor, text: String, strings: Vec<String>, all: Ve
             }
         })
     };
-    let done: Box<dyn FnOnce(&mut Editor, String) + Send> = Box::new(move |ed, s| {
+    let done: Done = Box::new(move |ed, s| {
         if let Some(f) = done_slot.lock().unwrap().take() {
             f(ed, s)
         }
@@ -429,7 +528,11 @@ fn fill_interactive(ed: &mut Editor, text: String, strings: Vec<String>, all: Ve
                 (None, None) => "Enter string: ".into(),
             };
             let cont = move |ed: &mut Editor, v: String| {
-                let v = if v.is_empty() { default.clone().unwrap_or_default() } else { v };
+                let v = if v.is_empty() {
+                    default.clone().unwrap_or_default()
+                } else {
+                    v
+                };
                 next(ed, v, true);
             };
             if completions.is_empty() {
@@ -442,7 +545,11 @@ fn fill_interactive(ed: &mut Editor, text: String, strings: Vec<String>, all: Ve
             let tags = super::tags::buffer_tags(ed);
             let p = prompt.map_or("Tags: ".into(), |p| format!("{p}: "));
             super::complete(ed, &p, tags, false, move |ed, v| {
-                let v = v.split([':', ' ']).filter(|s| !s.is_empty()).collect::<Vec<_>>().join(":");
+                let v = v
+                    .split([':', ' '])
+                    .filter(|s| !s.is_empty())
+                    .collect::<Vec<_>>()
+                    .join(":");
                 next(ed, if v.is_empty() { v } else { format!(":{v}:") }, false);
             });
         }
@@ -450,7 +557,11 @@ fn fill_interactive(ed: &mut Editor, text: String, strings: Vec<String>, all: Ve
             let link = key.as_deref() == Some("L");
             let clip = crate::clipboard::get().unwrap_or_else(|| ed.reg.text.clone());
             super::read(ed, "Clipboard/kill value: ", &clip, move |ed, v| {
-                let v = if link { super::links::make_string(&v, None).unwrap_or(v) } else { v };
+                let v = if link {
+                    super::links::make_string(&v, None).unwrap_or(v)
+                } else {
+                    v
+                };
                 next(ed, v, false);
             });
         }
@@ -480,10 +591,20 @@ fn fill_interactive(ed: &mut Editor, text: String, strings: Vec<String>, all: Ve
             // t T u U: a date (and time) prompt, via the timestamp module.
             let with_time = k == "T" || k == "U";
             let inactive = k == "u" || k == "U";
-            let o = super::time::ReadOpts { prompt: prompt.clone(), with_time, inactive, ..Default::default() };
+            let o = super::time::ReadOpts {
+                prompt: prompt.clone(),
+                with_time,
+                inactive,
+                ..Default::default()
+            };
             super::time::read_date(ed, o, move |ed, a| {
                 let extra = super::time::stamp::end_time_extra(a.end_time.as_deref());
-                let ts = super::time::stamp::stamp_text(a.tm, a.time_given || with_time, inactive, &extra);
+                let ts = super::time::stamp::stamp_text(
+                    a.tm,
+                    a.time_given || with_time,
+                    inactive,
+                    &extra,
+                );
                 next(ed, ts, false);
             });
         }
@@ -496,11 +617,20 @@ fn cleanup(t: &str) -> String {
     let start = t.len();
     let _ = start;
     let t = t.trim_end();
-    if t.is_empty() { String::new() } else { format!("{}\n", t.replace('\t', "        ")) }
+    if t.is_empty() {
+        String::new()
+    } else {
+        format!("{}\n", t.replace('\t', "        "))
+    }
 }
 
 /// org-capture-fill-template.
-pub fn fill_template(ed: &mut Editor, template: &str, c: Ctx, done: impl FnOnce(&mut Editor, String) + Send + 'static) {
+pub fn fill_template(
+    ed: &mut Editor,
+    template: &str,
+    c: Ctx,
+    done: impl FnOnce(&mut Editor, String) + Send + 'static,
+) {
     let t = fill_files_and_sexps(template);
     let t = fill_static(&t, &c);
     fill_interactive(ed, t, vec![], vec![], Box::new(done));
@@ -524,10 +654,17 @@ fn template_text(t: &Template) -> String {
         Sexp::List(v) if v.first().and_then(Sexp::sym) == Some("file") => {
             let f = v.get(1).and_then(Sexp::str).unwrap_or("");
             let p = super::options::expand(f);
-            let p = if p.is_relative() { super::options::directory().join(p) } else { p };
-            std::fs::read_to_string(&p).unwrap_or_else(|_| format!("* Template file {f:?} not found"))
+            let p = if p.is_relative() {
+                super::options::directory().join(p)
+            } else {
+                p
+            };
+            std::fs::read_to_string(&p)
+                .unwrap_or_else(|_| format!("* Template file {f:?} not found"))
         }
-        Sexp::List(v) if v.first().and_then(Sexp::sym) == Some("function") => "* Template function not supported in Fred".into(),
+        Sexp::List(v) if v.first().and_then(Sexp::sym) == Some("function") => {
+            "* Template function not supported in Fred".into()
+        }
         _ => String::new(),
     };
     if text.trim().is_empty() {
@@ -544,11 +681,19 @@ fn template_text(t: &Template) -> String {
 
 /// Find (or create) the target heading in the target buffer: its line,
 /// whether the target is an entry, an exact line, insert-here.
-fn locate(ed: &mut Editor, t: &Template, here: Option<usize>) -> Result<(Option<usize>, bool, Option<usize>), String> {
+fn locate(
+    ed: &mut Editor,
+    t: &Template,
+    here: Option<usize>,
+) -> Result<(Option<usize>, bool, Option<usize>), String> {
     if let Some(l) = here {
         return Ok((Some(l), false, Some(l)));
     }
-    let target = t.target.list().ok_or("Invalid capture target specification")?.to_vec();
+    let target = t
+        .target
+        .list()
+        .ok_or("Invalid capture target specification")?
+        .to_vec();
     let kind = target.first().and_then(Sexp::sym).unwrap_or("");
     let st = super::settings(ed);
     match kind {
@@ -558,7 +703,10 @@ fn locate(ed: &mut Editor, t: &Template, here: Option<usize>) -> Result<(Option<
             match headline {
                 None => Ok((None, false, None)),
                 Some(hd) => {
-                    let found = (0..ed.line_count()).find(|&l| syntax::headline(&ed.buf.line(l), &st).is_some_and(|h| h.title(&ed.buf.line(l)) == hd));
+                    let found = (0..ed.line_count()).find(|&l| {
+                        syntax::headline(&ed.buf.line(l), &st)
+                            .is_some_and(|h| h.title(&ed.buf.line(l)) == hd)
+                    });
                     match found {
                         Some(l) => Ok((Some(l), true, None)),
                         None => {
@@ -576,7 +724,10 @@ fn locate(ed: &mut Editor, t: &Template, here: Option<usize>) -> Result<(Option<
             }
         }
         "file+olp" | "file+olp+datetree" => {
-            let olp: Vec<String> = target[2..].iter().filter_map(|x| x.str().map(str::to_owned)).collect();
+            let olp: Vec<String> = target[2..]
+                .iter()
+                .filter_map(|x| x.str().map(str::to_owned))
+                .collect();
             let mut lo = 0;
             let mut hi = ed.line_count();
             let mut at = None;
@@ -585,7 +736,12 @@ fn locate(ed: &mut Editor, t: &Template, here: Option<usize>) -> Result<(Option<
                 let hits: Vec<usize> = (lo..hi)
                     .filter(|&l| {
                         let text = ed.buf.line(l);
-                        syntax::headline(&text, &st).is_some_and(|x| x.title(&text) == h && x.level >= lmin && x.level <= lmin + usize::from(st.opt_bool("org-odd-levels-only", false)))
+                        syntax::headline(&text, &st).is_some_and(|x| {
+                            x.title(&text) == h
+                                && x.level >= lmin
+                                && x.level
+                                    <= lmin + usize::from(st.opt_bool("org-odd-levels-only", false))
+                        })
                     })
                     .collect();
                 match hits.as_slice() {
@@ -623,17 +779,36 @@ fn locate(ed: &mut Editor, t: &Template, here: Option<usize>) -> Result<(Option<
                 None | Some(Sexp::Nil) => None,
                 Some(v) => {
                     let inactive = v.sym() == Some("inactive");
-                    Some(super::timestamp(super::tags::days_from_civil(y, m, d) * 86400 - local_offset(), false, inactive))
+                    Some(super::timestamp(
+                        super::tags::days_from_civil(y, m, d) * 86400 - local_offset(),
+                        false,
+                        inactive,
+                    ))
                 }
             };
             let (lo, hi, level) = match at {
-                Some(a) => (a + 1, syntax::subtree_end(&ed.buf, a), syntax::level(&ed.buf.line(a)).unwrap() + 1),
+                Some(a) => (
+                    a + 1,
+                    syntax::subtree_end(&ed.buf, a),
+                    syntax::level(&ed.buf.line(a)).unwrap() + 1,
+                ),
                 None => {
                     // The legacy DATE_TREE / WEEK_TREE property.
-                    let prop = if grouping.contains(&"week") { "WEEK_TREE" } else { "DATE_TREE" };
-                    let p = (0..ed.line_count()).find(|&l| super::props::parse_property(&ed.buf.line(l)).is_some_and(|(k, _)| k.eq_ignore_ascii_case(prop)));
+                    let prop = if grouping.contains(&"week") {
+                        "WEEK_TREE"
+                    } else {
+                        "DATE_TREE"
+                    };
+                    let p = (0..ed.line_count()).find(|&l| {
+                        super::props::parse_property(&ed.buf.line(l))
+                            .is_some_and(|(k, _)| k.eq_ignore_ascii_case(prop))
+                    });
                     match p.and_then(|p| fold::back_to_heading(ed, p)) {
-                        Some(h) => (h + 1, syntax::subtree_end(&ed.buf, h), syntax::level(&ed.buf.line(h)).unwrap() + 1),
+                        Some(h) => (
+                            h + 1,
+                            syntax::subtree_end(&ed.buf, h),
+                            syntax::level(&ed.buf.line(h)).unwrap() + 1,
+                        ),
                         None => (0, ed.line_count(), 1),
                     }
                 }
@@ -642,7 +817,10 @@ fn locate(ed: &mut Editor, t: &Template, here: Option<usize>) -> Result<(Option<
             Ok((Some(day), true, None))
         }
         "file+regexp" => {
-            let re = target.get(2).and_then(Sexp::str).ok_or("Invalid capture target specification")?;
+            let re = target
+                .get(2)
+                .and_then(Sexp::str)
+                .ok_or("Invalid capture target specification")?;
             let r = super::re::compile(re, false)?;
             let n = ed.line_count();
             match (0..n).find(|&l| r.is_match(&ed.buf.line(l))) {
@@ -658,17 +836,28 @@ fn locate(ed: &mut Editor, t: &Template, here: Option<usize>) -> Result<(Option<
 
 fn local_offset() -> i64 {
     let (y, m, d, hh, mm, _) = super::localtime(0);
-    let local = super::tags::days_from_civil(y, m, d) * 86400 + hh * 3600 + mm * 60;
-    local
+
+    super::tags::days_from_civil(y, m, d) * 86400 + hh * 3600 + mm * 60
 }
 
 /// Count the blank lines that should precede/follow (props or default).
 fn empty_lines(t: &Template, which: &str) -> usize {
-    t.num(which).or_else(|| t.num(":empty-lines")).unwrap_or(0).max(0) as usize
+    t.num(which)
+        .or_else(|| t.num(":empty-lines"))
+        .unwrap_or(0)
+        .max(0) as usize
 }
 
 /// Insert the filled text into the target buffer.
-fn place(ed: &mut Editor, t: &Template, text: &str, heading: Option<usize>, entry: bool, exact: Option<usize>, here: bool) -> Result<Placed, String> {
+fn place(
+    ed: &mut Editor,
+    t: &Template,
+    text: &str,
+    heading: Option<usize>,
+    entry: bool,
+    exact: Option<usize>,
+    here: bool,
+) -> Result<Placed, String> {
     let prepend = t.flag(":prepend");
     let mut text = text.to_owned();
     let cursor_marker = "\u{1}";
@@ -680,7 +869,11 @@ fn place(ed: &mut Editor, t: &Template, text: &str, heading: Option<usize>, entr
             let at = if here {
                 exact.unwrap_or(ed.cur.line)
             } else if entry && let Some(h) = heading {
-                if prepend { super::todo::end_of_meta_data(ed, h, true) } else { syntax::entry_end(&ed.buf, h) }
+                if prepend {
+                    super::todo::end_of_meta_data(ed, h, true)
+                } else {
+                    syntax::entry_end(&ed.buf, h)
+                }
             } else if let Some(x) = exact {
                 x
             } else if prepend {
@@ -702,45 +895,84 @@ fn place(ed: &mut Editor, t: &Template, text: &str, heading: Option<usize>, entr
             let odd = super::settings(ed).opt_bool("org-odd-levels-only", false);
             let (level, at) = if here {
                 let l = exact.unwrap_or(ed.cur.line);
-                let lv = fold::back_to_heading(ed, l).map_or(1, |h| syntax::level(&ed.buf.line(h)).unwrap());
+                let lv = fold::back_to_heading(ed, l)
+                    .map_or(1, |h| syntax::level(&ed.buf.line(h)).unwrap());
                 (structure::valid_level(odd, lv, 0), l + 1)
             } else if entry && let Some(h) = heading {
-                let lv = structure::valid_level(odd, syntax::level(&ed.buf.line(h)).unwrap_or(1), 1);
-                let at = if prepend { syntax::next_heading(&ed.buf, h, usize::MAX).unwrap_or(ed.line_count()) } else { syntax::subtree_end(&ed.buf, h) };
+                let lv =
+                    structure::valid_level(odd, syntax::level(&ed.buf.line(h)).unwrap_or(1), 1);
+                let at = if prepend {
+                    syntax::next_heading(&ed.buf, h, usize::MAX).unwrap_or(ed.line_count())
+                } else {
+                    syntax::subtree_end(&ed.buf, h)
+                };
                 (lv, at)
             } else if prepend {
-                (1, (0..ed.line_count()).find(|&l| ctx::at_heading(ed, l)).unwrap_or(ed.line_count()))
+                (
+                    1,
+                    (0..ed.line_count())
+                        .find(|&l| ctx::at_heading(ed, l))
+                        .unwrap_or(ed.line_count()),
+                )
             } else {
                 (1, ed.line_count())
             };
             // Re-level the template to `level`.
-            let first = tmpl.lines().find_map(|l| syntax::level(l.trim_start_matches('\u{1}'))).unwrap_or(1);
+            let first = tmpl
+                .lines()
+                .find_map(|l| syntax::level(l.trim_start_matches('\u{1}')))
+                .unwrap_or(1);
             let shift = level as i64 - first as i64;
             let releveled: String = tmpl
                 .split_inclusive('\n')
                 .map(|l| match syntax::level(l.trim_start_matches('\u{1}')) {
                     Some(n) if shift != 0 => {
                         let lead = &l[..l.len() - l.trim_start_matches('\u{1}').len()];
-                        format!("{lead}{}{}", "*".repeat((n as i64 + shift).max(1) as usize), &l[lead.len() + n..])
+                        format!(
+                            "{lead}{}{}",
+                            "*".repeat((n as i64 + shift).max(1) as usize),
+                            &l[lead.len() + n..]
+                        )
                     }
                     _ => l.to_owned(),
                 })
                 .collect();
             // Blank lines before: :empty-lines-before, else org-blank-before-new-entry.
-            let before = t.num(":empty-lines-before").or_else(|| t.num(":empty-lines")).map(|n| n.max(0) as usize).unwrap_or_else(|| {
-                let b = super::buf::EBuf::load(ed);
-                let mut c = super::buf::EBuf::new(&b.s, b.pos_of_line(at.min(ed.line_count().saturating_sub(1))));
-                let auto = c.previous_line_empty();
-                let _ = &mut c;
-                usize::from(auto && at > 0 && !ed.buf.line(at.saturating_sub(1)).trim().is_empty())
-            });
-            insert_with_blanks(ed, at, &releveled, before, empty_lines(t, ":empty-lines-after"))
+            let before = t
+                .num(":empty-lines-before")
+                .or_else(|| t.num(":empty-lines"))
+                .map(|n| n.max(0) as usize)
+                .unwrap_or_else(|| {
+                    let b = super::buf::EBuf::load(ed);
+                    let mut c = super::buf::EBuf::new(
+                        &b.s,
+                        b.pos_of_line(at.min(ed.line_count().saturating_sub(1))),
+                    );
+                    let auto = c.previous_line_empty();
+                    let _ = &mut c;
+                    usize::from(
+                        auto && at > 0 && !ed.buf.line(at.saturating_sub(1)).trim().is_empty(),
+                    )
+                });
+            insert_with_blanks(
+                ed,
+                at,
+                &releveled,
+                before,
+                empty_lines(t, ":empty-lines-after"),
+            )
         }
     }
 }
 
 /// Insert `text` (ending in \n) at line `at`, managing blank lines.
-fn insert_with_blanks(ed: &mut Editor, at: usize, text: &str, before: usize, after: usize) -> Result<Placed, String> {
+fn insert_with_blanks(
+    ed: &mut Editor,
+    at: usize,
+    text: &str,
+    before: usize,
+    after: usize,
+) -> Result<Placed, String> {
     let mut at = at.min(ed.line_count());
     let empty_buffer = ed.line_count() == 1 && ed.buf.len_bytes() == 0;
     // org-capture-empty-lines-before: remove blank lines before, add N.
@@ -750,19 +982,29 @@ fn insert_with_blanks(ed: &mut Editor, at: usize, text: &str, before: usize, aft
             at -= 1;
         }
     }
-    let mut lines: Vec<String> = vec![String::new(); if at == 0 || empty_buffer { 0 } else { before }];
+    let mut lines: Vec<String> =
+        vec![String::new(); if at == 0 || empty_buffer { 0 } else { before }];
     let blanks = lines.len();
-    let body: Vec<String> = text.strip_suffix('\n').unwrap_or(text).split('\n').map(str::to_owned).collect();
+    let body: Vec<String> = text
+        .strip_suffix('\n')
+        .unwrap_or(text)
+        .split('\n')
+        .map(str::to_owned)
+        .collect();
     let n = body.len();
     lines.extend(body);
     // org-capture-empty-lines-after: blank lines after the inserted text.
     if !empty_buffer {
-        while at < ed.line_count() && ed.buf.line(at).trim().is_empty() && at + 1 < ed.line_count() {
+        while at < ed.line_count() && ed.buf.line(at).trim().is_empty() && at + 1 < ed.line_count()
+        {
             super::delete_lines(ed, at, 1);
         }
     }
     let at_end = at >= ed.line_count();
-    lines.extend(std::iter::repeat_n(String::new(), if at_end { 0 } else { after }));
+    lines.extend(std::iter::repeat_n(
+        String::new(),
+        if at_end { 0 } else { after },
+    ));
     if empty_buffer {
         super::splice(ed, 0, 1, &lines);
     } else {
@@ -787,17 +1029,43 @@ fn find_cursor(ed: &mut Editor, beg: usize, end: usize) -> (usize, usize) {
 }
 
 fn insert_block(ed: &mut Editor, t: &Template, at: usize, text: &str) -> Result<Placed, String> {
-    insert_with_blanks(ed, at, text, empty_lines(t, ":empty-lines-before"), empty_lines(t, ":empty-lines-after"))
+    insert_with_blanks(
+        ed,
+        at,
+        text,
+        empty_lines(t, ":empty-lines-before"),
+        empty_lines(t, ":empty-lines-after"),
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
-fn place_item(ed: &mut Editor, t: &Template, text: &str, heading: Option<usize>, entry: bool, exact: Option<usize>, here: bool, prepend: bool) -> Result<Placed, String> {
-    let mut tmpl: String = text.lines().map(str::trim_start).collect::<Vec<_>>().join("\n");
+fn place_item(
+    ed: &mut Editor,
+    t: &Template,
+    text: &str,
+    heading: Option<usize>,
+    entry: bool,
+    exact: Option<usize>,
+    here: bool,
+    prepend: bool,
+) -> Result<Placed, String> {
+    let mut tmpl: String = text
+        .lines()
+        .map(str::trim_start)
+        .collect::<Vec<_>>()
+        .join("\n");
     if ctx::item_bullet(tmpl.trim_start_matches('\u{1}')).is_none() {
         tmpl = format!("- {}", tmpl.split('\n').collect::<Vec<_>>().join("\n  "));
     }
     let (beg, end) = if let Some(x) = exact {
-        (x, if here { x } else { heading.map_or(ed.line_count(), |h| syntax::entry_end(&ed.buf, h)) })
+        (
+            x,
+            if here {
+                x
+            } else {
+                heading.map_or(ed.line_count(), |h| syntax::entry_end(&ed.buf, h))
+            },
+        )
     } else if entry && let Some(h) = heading {
         (h + 1, syntax::entry_end(&ed.buf, h))
     } else {
@@ -833,42 +1101,95 @@ fn place_item(ed: &mut Editor, t: &Template, text: &str, heading: Option<usize>,
                 beg
             } else if !prepend {
                 end
-            } else if heading.is_none() {
-                beg
             } else {
-                super::todo::end_of_meta_data(ed, heading.unwrap(), false).max(beg)
+                match heading {
+                    None => beg,
+                    Some(h) => super::todo::end_of_meta_data(ed, h, false).max(beg),
+                }
             };
             (at, 0, false)
         }
     };
-    let text: String = tmpl.split('\n').map(|l| format!("{}{l}\n", " ".repeat(indent))).collect();
+    let text: String = tmpl
+        .split('\n')
+        .map(|l| format!("{}{l}\n", " ".repeat(indent)))
+        .collect();
     let (before, after) = if in_list {
         (
-            if prepend { 0 } else { t.num(":empty-lines-before").or(t.num(":empty-lines")).unwrap_or(0).clamp(0, 1) as usize },
-            if prepend { t.num(":empty-lines-after").or(t.num(":empty-lines")).unwrap_or(0).clamp(0, 1) as usize } else { 0 },
+            if prepend {
+                0
+            } else {
+                t.num(":empty-lines-before")
+                    .or(t.num(":empty-lines"))
+                    .unwrap_or(0)
+                    .clamp(0, 1) as usize
+            },
+            if prepend {
+                t.num(":empty-lines-after")
+                    .or(t.num(":empty-lines"))
+                    .unwrap_or(0)
+                    .clamp(0, 1) as usize
+            } else {
+                0
+            },
         )
     } else {
-        (empty_lines(t, ":empty-lines-before"), empty_lines(t, ":empty-lines-after"))
+        (
+            empty_lines(t, ":empty-lines-before"),
+            empty_lines(t, ":empty-lines-after"),
+        )
     };
     if in_list {
         // Inside a list: insert directly, keeping its blank lines.
-        let lines: Vec<String> = std::iter::repeat_n(String::new(), before).chain(text.strip_suffix('\n').unwrap().split('\n').map(str::to_owned)).chain(std::iter::repeat_n(String::new(), after)).collect();
+        let lines: Vec<String> = std::iter::repeat_n(String::new(), before)
+            .chain(
+                text.strip_suffix('\n')
+                    .unwrap()
+                    .split('\n')
+                    .map(str::to_owned),
+            )
+            .chain(std::iter::repeat_n(String::new(), after))
+            .collect();
         let n = text.lines().count();
         super::insert_lines(ed, at, &lines);
         let b = at + before;
         let cursor = find_cursor(ed, b, b + n - 1);
         let _ = super::call(ed, "org-list-repair", Prefix::None);
-        return Ok(Placed { beg: b, end: b + n - 1, cursor });
+        return Ok(Placed {
+            beg: b,
+            end: b + n - 1,
+            cursor,
+        });
     }
     insert_with_blanks(ed, at, &text, before, after)
 }
 
 #[allow(clippy::too_many_arguments)]
-fn place_table_line(ed: &mut Editor, t: &Template, text: &str, heading: Option<usize>, entry: bool, exact: Option<usize>, here: bool, prepend: bool) -> Result<Placed, String> {
+fn place_table_line(
+    ed: &mut Editor,
+    t: &Template,
+    text: &str,
+    heading: Option<usize>,
+    entry: bool,
+    exact: Option<usize>,
+    here: bool,
+    prepend: bool,
+) -> Result<Placed, String> {
     let tmpl = text.trim();
-    let line = if tmpl.starts_with('|') { tmpl.to_owned() } else { format!("| {tmpl}") };
+    let line = if tmpl.starts_with('|') {
+        tmpl.to_owned()
+    } else {
+        format!("| {tmpl}")
+    };
     let (beg, end) = if let Some(x) = exact {
-        (x, if here { x } else { heading.map_or(ed.line_count(), |h| syntax::entry_end(&ed.buf, h)) })
+        (
+            x,
+            if here {
+                x
+            } else {
+                heading.map_or(ed.line_count(), |h| syntax::entry_end(&ed.buf, h))
+            },
+        )
     } else if !entry {
         (0, ed.line_count())
     } else {
@@ -890,21 +1211,32 @@ fn place_table_line(ed: &mut Editor, t: &Template, text: &str, heading: Option<u
             (at, at + 1)
         }
     };
-    let pos = t.prop(":table-line-pos").and_then(Sexp::str).map(str::to_owned);
+    let pos = t
+        .prop(":table-line-pos")
+        .and_then(Sexp::str)
+        .map(str::to_owned);
     let at = if here {
         exact.unwrap_or(tend + 1)
     } else if let Some(p) = pos {
         let re = regex::Regex::new(r"^(I+)([-+][0-9]+)$").unwrap();
-        let c = re.captures(&p).ok_or_else(|| format!("Invalid table line specification {p:?}"))?;
+        let c = re
+            .captures(&p)
+            .ok_or_else(|| format!("Invalid table line specification {p:?}"))?;
         let nth = c[1].len();
         let delta: i64 = c[2].parse().unwrap();
-        let hlines: Vec<usize> = (tbeg..=tend).filter(|&l| ed.buf.line(l).trim_start().starts_with("|-")).collect();
-        let hl = *hlines.get(nth - 1).ok_or_else(|| format!("Invalid table line specification {p:?}"))?;
+        let hlines: Vec<usize> = (tbeg..=tend)
+            .filter(|&l| ed.buf.line(l).trim_start().starts_with("|-"))
+            .collect();
+        let hl = *hlines
+            .get(nth - 1)
+            .ok_or_else(|| format!("Invalid table line specification {p:?}"))?;
         ((hl as i64 + delta + if delta < 0 { 1 } else { 0 }) as usize).clamp(tbeg, tend + 1)
     } else if prepend {
         let hline = (tbeg..=tend).find(|&l| ed.buf.line(l).trim_start().starts_with("|-"));
         match hline {
-            Some(h) => (h + 1..=tend).find(|&l| !ed.buf.line(l).trim_start().starts_with("|-")).unwrap_or(tend + 1),
+            Some(h) => (h + 1..=tend)
+                .find(|&l| !ed.buf.line(l).trim_start().starts_with("|-"))
+                .unwrap_or(tend + 1),
             None => tend + 1,
         }
     } else {
@@ -913,7 +1245,11 @@ fn place_table_line(ed: &mut Editor, t: &Template, text: &str, heading: Option<u
     super::insert_lines(ed, at, &[line]);
     let cursor = find_cursor(ed, at, at);
     let _ = super::call(ed, "org-table-align", Prefix::None);
-    Ok(Placed { beg: at, end: at, cursor })
+    Ok(Placed {
+        beg: at,
+        end: at,
+        cursor,
+    })
 }
 
 /// What the capture buffer needs to finish.
@@ -928,13 +1264,28 @@ struct Pending {
 
 /// Start capturing with template `t`.
 fn start(ed: &mut Editor, t: Template, goto: Prefix) {
-    let annotation = super::links::store(ed, Prefix::None).ok().map(|(l, d)| super::links::make_string(&l, d.as_deref()).unwrap_or_default()).unwrap_or_default();
-    let initial = ed.org_region.map(|(lo, hi)| (lo..=hi).map(|l| ed.buf.line(l)).collect::<Vec<_>>().join("\n")).unwrap_or_default();
+    let annotation = super::links::store(ed, Prefix::None)
+        .ok()
+        .map(|(l, d)| super::links::make_string(&l, d.as_deref()).unwrap_or_default())
+        .unwrap_or_default();
+    let initial = ed
+        .org_region
+        .map(|(lo, hi)| {
+            (lo..=hi)
+                .map(|l| ed.buf.line(l))
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+        .unwrap_or_default();
     let here = (goto == Prefix::Num(0)).then(|| (ed.path.clone(), ed.cur.line));
     let file = match (&here, t.target.list().and_then(|l| l.get(1)).cloned()) {
         (Some((Some(p), _)), _) => Ok(p.clone()),
         (Some((None, _)), _) => Err("Capture here needs a file buffer".to_owned()),
-        (None, Some(f)) if t.target.list().and_then(|l| l.first()).and_then(Sexp::sym) != Some("id") => expand_file(&f),
+        (None, Some(f))
+            if t.target.list().and_then(|l| l.first()).and_then(Sexp::sym) != Some("id") =>
+        {
+            expand_file(&f)
+        }
         (None, _) => {
             // (id "ID") targets and (clock).
             Err("Capture target is not a file".into())
@@ -943,15 +1294,34 @@ fn start(ed: &mut Editor, t: Template, goto: Prefix) {
     let file = match file {
         Ok(f) => f,
         Err(e) if t.target.list().and_then(|l| l.first()).and_then(Sexp::sym) == Some("id") => {
-            let id = t.target.list().and_then(|l| l.get(1)).and_then(|x| x.str().map(str::to_owned)).unwrap_or_default();
+            let id = t
+                .target
+                .list()
+                .and_then(|l| l.get(1))
+                .and_then(|x| x.str().map(str::to_owned))
+                .unwrap_or_default();
             let tc = t.clone();
-            let orig_file = ed.path.as_ref().map(|p| p.display().to_string()).unwrap_or_default();
-            let ctx = Ctx { annotation, initial, file: orig_file, time: super::now(), clipboard: ed.reg.text.clone(), clock_heading: String::new(), clock_link: String::new() };
+            let orig_file = ed
+                .path
+                .as_ref()
+                .map(|p| p.display().to_string())
+                .unwrap_or_default();
+            let ctx = Ctx {
+                annotation,
+                initial,
+                file: orig_file,
+                time: super::now(),
+                clipboard: ed.reg.text.clone(),
+                clock_heading: String::new(),
+                clock_link: String::new(),
+            };
             let text = template_text(&t);
             fill_template(ed, &text, ctx, move |ed, filled| {
                 super::effect(ed, move |s| match super::find_id_file(s, &id) {
                     Some((f, line)) => finish_start(s, tc, f, filled, Some(line), None),
-                    None => s.ed.set_err(format!("Cannot find target ID \"{id}\" ({e})")),
+                    None => {
+                        s.ed.set_err(format!("Cannot find target ID \"{id}\" ({e})"))
+                    }
                 });
             });
             return;
@@ -961,17 +1331,38 @@ fn start(ed: &mut Editor, t: Template, goto: Prefix) {
             return;
         }
     };
-    let orig_file = ed.path.as_ref().map(|p| p.display().to_string()).unwrap_or_default();
-    let ctx = Ctx { annotation, initial, file: orig_file, time: super::now(), clipboard: ed.reg.text.clone(), clock_heading: String::new(), clock_link: String::new() };
+    let orig_file = ed
+        .path
+        .as_ref()
+        .map(|p| p.display().to_string())
+        .unwrap_or_default();
+    let ctx = Ctx {
+        annotation,
+        initial,
+        file: orig_file,
+        time: super::now(),
+        clipboard: ed.reg.text.clone(),
+        clock_heading: String::new(),
+        clock_link: String::new(),
+    };
     let text = template_text(&t);
     let here_line = here.map(|(_, l)| l);
     fill_template(ed, &text, ctx, move |ed, filled| {
-        super::effect(ed, move |s| finish_start(s, t, file, filled, None, here_line));
+        super::effect(ed, move |s| {
+            finish_start(s, t, file, filled, None, here_line)
+        });
     });
 }
 
 /// Insert the filled template in the target buffer and enter it.
-fn finish_start(s: &mut crate::session::Session, t: Template, file: PathBuf, filled: String, id_line: Option<usize>, here: Option<usize>) {
+fn finish_start(
+    s: &mut crate::session::Session,
+    t: Template,
+    file: PathBuf,
+    filled: String,
+    id_line: Option<usize>,
+    here: Option<usize>,
+) {
     let origin = s.org_current();
     let i = match s.org_buffer(&file) {
         Ok(i) => i,
@@ -1000,7 +1391,8 @@ fn finish_start(s: &mut crate::session::Session, t: Template, file: PathBuf, fil
         Some(l) => Ok((Some(l), true, None)),
         None => locate(ed, &t, here),
     };
-    let placed = loc.and_then(|(h, entry, exact)| place(ed, &t, &filled, h, entry, exact, here.is_some()));
+    let placed =
+        loc.and_then(|(h, entry, exact)| place(ed, &t, &filled, h, entry, exact, here.is_some()));
     ed.undo.end(ed.cur.pos());
     let p = match placed {
         Ok(p) => p,
@@ -1014,11 +1406,24 @@ fn finish_start(s: &mut crate::session::Session, t: Template, file: PathBuf, fil
     }
     fold::show_all(ed, &[fold::Spec::Outline, fold::Spec::Block]);
     ed.set_cursor(p.cursor.0, p.cursor.1);
-    let name = format!("CAPTURE-{}", file.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default());
+    let name = format!(
+        "CAPTURE-{}",
+        file.file_name()
+            .map(|f| f.to_string_lossy().into_owned())
+            .unwrap_or_default()
+    );
     ed.org_buffer_name = Some(name);
     ed.org_return = Some(origin);
-    let pending = Pending { template: t.clone(), file: file.clone(), beg: p.beg, origin, lines_before };
-    ed.org_finish = Some(super::FinishSlot::new(Box::new(move |s, _text, abort| finalize(s, pending, abort, false))));
+    let pending = Pending {
+        template: t.clone(),
+        file: file.clone(),
+        beg: p.beg,
+        origin,
+        lines_before,
+    };
+    ed.org_finish = Some(super::FinishSlot::new(Box::new(move |s, _text, abort| {
+        finalize(s, pending, abort, false)
+    })));
     ed.mode = crate::editor::Mode::Insert;
     ed.set_msg("Capture: C-c C-c to finish, C-c C-w to refile, C-c C-k to abort");
     if t.flag(":clock-in") {
@@ -1038,14 +1443,21 @@ fn finalize(s: &mut crate::session::Session, p: Pending, abort: bool, stay: bool
         ed.org_buffer_name = None;
         ed.org_return = None;
         ed.mode = crate::editor::Mode::Normal;
-        let region = fold::narrowed(ed).unwrap_or((p.beg, p.beg + ed.line_count().saturating_sub(p.lines_before)));
+        let region = fold::narrowed(ed).unwrap_or((
+            p.beg,
+            p.beg + ed.line_count().saturating_sub(p.lines_before),
+        ));
         fold::widen(ed);
         if abort {
             let n = ed.line_count();
             let added = n.saturating_sub(p.lines_before);
             ed.undo.begin(ed.cur.pos());
             if added > 0 {
-                super::delete_lines(ed, region.0, (region.1 - region.0 + 1).min(added + 1).min(n - region.0));
+                super::delete_lines(
+                    ed,
+                    region.0,
+                    (region.1 - region.0 + 1).min(added + 1).min(n - region.0),
+                );
             } else {
                 super::delete_lines(ed, region.0, region.1 - region.0 + 1);
             }
@@ -1082,7 +1494,9 @@ fn finalize(s: &mut crate::session::Session, p: Pending, abort: bool, stay: bool
 
 /// org-capture-goto-last-stored.
 fn goto_last(ed: &mut Editor) -> Result<(), String> {
-    let Some((f, l)) = LAST.with(|x| x.borrow().clone()) else { return Err("No last capture".into()) };
+    let Some((f, l)) = LAST.with(|x| x.borrow().clone()) else {
+        return Err("No last capture".into());
+    };
     super::effect(ed, move |s| {
         if let Err(e) = s.org_visit(&f, l) {
             s.ed.set_err(e);
@@ -1096,7 +1510,10 @@ fn goto_last(ed: &mut Editor) -> Result<(), String> {
 /// org-capture template selection (org-mks).
 fn select(ed: &mut Editor, then: impl FnOnce(&mut Editor, Template) + Send + 'static) {
     let all = templates();
-    let mut entries: Vec<(String, String)> = vec![(String::new(), "Select a capture template".into()), (String::new(), "=========================".into())];
+    let mut entries: Vec<(String, String)> = vec![
+        (String::new(), "Select a capture template".into()),
+        (String::new(), "=========================".into()),
+    ];
     for e in &all {
         match e {
             Ok(t) => entries.push((t.keys.clone(), t.desc.clone())),
@@ -1111,7 +1528,12 @@ fn select(ed: &mut Editor, then: impl FnOnce(&mut Editor, Template) + Send + 'st
             return;
         }
         if k == "C" {
-            ed.pending_effect = Some(crate::ex::ExEffect::Open { path: crate::config::config_path(), line: 0, col: 0, pattern: Some("org-capture-templates".into()) });
+            ed.pending_effect = Some(crate::ex::ExEffect::Open {
+                path: crate::config::config_path(),
+                line: 0,
+                col: 0,
+                pattern: Some("org-capture-templates".into()),
+            });
             return;
         }
         if let Some(Ok(t)) = all.into_iter().find(|e| matches!(e, Ok(t) if t.keys == k)) {
@@ -1150,7 +1572,10 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
             _ => {
                 let key = super::take_call_arg();
                 match key {
-                    Some(k) => match templates().into_iter().find(|e| matches!(e, Ok(t) if t.keys == k)) {
+                    Some(k) => match templates()
+                        .into_iter()
+                        .find(|e| matches!(e, Ok(t) if t.keys == k))
+                    {
                         Some(Ok(t)) => {
                             start(ed, t, arg);
                             Ok(())
@@ -1211,7 +1636,9 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
         }
         "org-capture-refile" => {
             if ed.org_finish.is_none() {
-                return Some(Err("This does not seem to be a capture buffer for Org mode".into()));
+                return Some(Err(
+                    "This does not seem to be a capture buffer for Org mode".into(),
+                ));
             }
             let h = fold::back_to_heading(ed, ed.cur.line);
             let path = ed.path.clone();
@@ -1227,7 +1654,9 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
         }
         "org-capture-goto-last-stored" => goto_last(ed),
         "org-capture-goto-target" => command(ed, "org-capture", Prefix::U(1)).unwrap(),
-        "org-datetree-find-date-create" | "org-datetree-find-month-create" | "org-datetree-find-iso-week-create" => {
+        "org-datetree-find-date-create"
+        | "org-datetree-find-month-create"
+        | "org-datetree-find-iso-week-create" => {
             let grouping: Vec<&str> = match name {
                 "org-datetree-find-month-create" => vec!["year", "month"],
                 "org-datetree-find-iso-week-create" => vec!["year", "week", "day"],
@@ -1250,16 +1679,25 @@ mod tests {
 
     #[test]
     fn dates_and_trees() {
-        assert_eq!(civil_from_days(super::super::tags::days_from_civil(2026, 10, 4)), (2026, 10, 4));
+        assert_eq!(
+            civil_from_days(super::super::tags::days_from_civil(2026, 10, 4)),
+            (2026, 10, 4)
+        );
         assert_eq!(iso_week(2026, 1, 1), (2026, 1));
         assert_eq!(iso_week(2027, 1, 1), (2026, 53));
         let l = datetree_levels(2026, 10, 4, &["year", "month", "day"]);
-        assert_eq!(l.iter().map(|x| x.0.as_str()).collect::<Vec<_>>(), vec!["2026", "2026-10 October", "2026-10-04 Sunday"]);
+        assert_eq!(
+            l.iter().map(|x| x.0.as_str()).collect::<Vec<_>>(),
+            vec!["2026", "2026-10 October", "2026-10-04 Sunday"]
+        );
         let mut e = super::super::tests::org("* 2025\n* 2027", "");
         let n = e.line_count();
         let (at, found) = datetree_find_create(&mut e, &l, 0, n, 1, None);
         assert!(!found);
-        assert_eq!(e.buf.text(), "* 2025\n* 2026\n** 2026-10 October\n*** 2026-10-04 Sunday\n* 2027");
+        assert_eq!(
+            e.buf.text(),
+            "* 2025\n* 2026\n** 2026-10 October\n*** 2026-10-04 Sunday\n* 2027"
+        );
         assert_eq!(at, 3);
         let n = e.line_count();
         let (at2, found) = datetree_find_create(&mut e, &l, 0, n, 1, None);
@@ -1269,13 +1707,27 @@ mod tests {
 
     #[test]
     fn fills_templates() {
-        let c = Ctx { annotation: "[[file:x.org::*H][H]]".into(), initial: "a\nb".into(), file: "/d/x.org".into(), time: 0, clipboard: "clip".into(), clock_heading: String::new(), clock_link: String::new() };
-        let out = fill_static("* TICKET %?\nEntered on %u %a %l %L %f\n  - %i\n100\\%a", &c);
+        let c = Ctx {
+            annotation: "[[file:x.org::*H][H]]".into(),
+            initial: "a\nb".into(),
+            file: "/d/x.org".into(),
+            time: 0,
+            clipboard: "clip".into(),
+            clock_heading: String::new(),
+            clock_link: String::new(),
+        };
+        let out = fill_static(
+            "* TICKET %?\nEntered on %u %a %l %L %f\n  - %i\n100\\%a",
+            &c,
+        );
         assert!(out.starts_with("* TICKET %?\nEntered on ["));
         assert!(out.contains("[[file:x.org::*H][H]] [[file:x.org::*H]] file:x.org::*H x.org"));
         assert!(out.contains("  - a\n  b"));
         assert!(out.ends_with("100\\%a"));
-        assert_eq!(strftime("%Y-%m-%d %A", 86400 * 10 - local_offset_test()), "1970-01-11 Sunday");
+        assert_eq!(
+            strftime("%Y-%m-%d %A", 86400 * 10 - local_offset_test()),
+            "1970-01-11 Sunday"
+        );
     }
 
     fn local_offset_test() -> i64 {

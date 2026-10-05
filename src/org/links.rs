@@ -9,11 +9,14 @@ use crate::editor::Editor;
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 
+/// The mark ring's positions and the last goto index.
+type Ring = (Vec<(Option<PathBuf>, usize)>, Option<usize>);
+
 thread_local! {
     /// org-stored-links: (link, description), newest first.
     static STORED: RefCell<Vec<(String, Option<String>)>> = const { RefCell::new(vec![]) };
     /// org-mark-ring: (file, line), newest first, and the last goto index.
-    static RING: RefCell<(Vec<(Option<PathBuf>, usize)>, Option<usize>)> = const { RefCell::new((vec![], None)) };
+    static RING: RefCell<Ring> = const { RefCell::new((vec![], None)) };
     /// org-link--insert-history.
     static HISTORY: RefCell<Vec<String>> = const { RefCell::new(vec![]) };
 }
@@ -25,14 +28,40 @@ pub fn stored_links() -> Vec<(String, Option<String>)> {
 /// Built-in link types (org-link-parameters), plus configured ones.
 pub fn link_types() -> Vec<String> {
     let mut v: Vec<String> = [
-        "attachment", "bbdb", "bibtex", "docview", "doi", "elisp", "eshell", "eww", "file", "file+emacs", "file+sys",
-        "ftp", "gnus", "help", "http", "https", "id", "info", "irc", "mailto", "man", "mhe", "news", "rmail", "shell",
-        "shortdoc", "w3m",
+        "attachment",
+        "bbdb",
+        "bibtex",
+        "docview",
+        "doi",
+        "elisp",
+        "eshell",
+        "eww",
+        "file",
+        "file+emacs",
+        "file+sys",
+        "ftp",
+        "gnus",
+        "help",
+        "http",
+        "https",
+        "id",
+        "info",
+        "irc",
+        "mailto",
+        "man",
+        "mhe",
+        "news",
+        "rmail",
+        "shell",
+        "shortdoc",
+        "w3m",
     ]
     .iter()
     .map(|s| s.to_string())
     .collect();
-    if let Some(p) = super::sexp::option("org-link-parameters").and_then(|v| v.list().map(<[Sexp]>::to_vec)) {
+    if let Some(p) =
+        super::sexp::option("org-link-parameters").and_then(|v| v.list().map(<[Sexp]>::to_vec))
+    {
         for e in p {
             if let Some(t) = e.car().and_then(Sexp::str)
                 && !v.iter().any(|x| x == t)
@@ -99,7 +128,10 @@ pub fn escape(s: &str) -> String {
         let at_end = j == chars.len();
         let bracket = !at_end && (chars[j] == '[' || chars[j] == ']');
         if at_end || bracket {
-            out.extend(std::iter::repeat_n('\\', if n > 0 || bracket { 2 * n } else { 0 }));
+            out.extend(std::iter::repeat_n(
+                '\\',
+                if n > 0 || bracket { 2 * n } else { 0 },
+            ));
             if bracket {
                 out.push('\\');
                 out.push(chars[j]);
@@ -120,7 +152,11 @@ pub fn escape(s: &str) -> String {
 pub fn make_string(link: &str, desc: Option<&str>) -> Result<String, String> {
     let desc = desc.map(str::trim).filter(|d| !d.is_empty()).map(|d| {
         let zw = '\u{200B}';
-        let d = if d.ends_with(']') { format!("{d}{zw}") } else { d.to_owned() };
+        let d = if d.ends_with(']') {
+            format!("{d}{zw}")
+        } else {
+            d.to_owned()
+        };
         d.replace("]]", &format!("]{zw}]"))
     });
     if link.trim().is_empty() {
@@ -139,9 +175,20 @@ pub fn expand_abbrev(link: &str, st: &Settings) -> String {
         None => (link, None),
     };
     let global: Vec<(String, String)> = super::sexp::option("org-link-abbrev-alist")
-        .and_then(|v| v.list().map(|l| l.iter().filter_map(|e| Some((e.car()?.str()?.to_owned(), e.cdr().str()?.to_owned()))).collect()))
+        .and_then(|v| {
+            v.list().map(|l| {
+                l.iter()
+                    .filter_map(|e| Some((e.car()?.str()?.to_owned(), e.cdr().str()?.to_owned())))
+                    .collect()
+            })
+        })
         .unwrap_or_default();
-    let Some((_, rpl)) = st.links.iter().find(|(k, _)| k == key).or_else(|| global.iter().find(|(k, _)| k == key)) else {
+    let Some((_, rpl)) = st
+        .links
+        .iter()
+        .find(|(k, _)| k == key)
+        .or_else(|| global.iter().find(|(k, _)| k == key))
+    else {
         return link.to_owned();
     };
     let tag = tag.unwrap_or("");
@@ -157,7 +204,13 @@ pub fn expand_abbrev(link: &str, st: &Settings) -> String {
 /// url-hexify-string.
 fn hexify(s: &str) -> String {
     s.bytes()
-        .map(|b| if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") })
+        .map(|b| {
+            if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) {
+                (b as char).to_string()
+            } else {
+                format!("%{b:02X}")
+            }
+        })
         .collect()
 }
 
@@ -169,23 +222,38 @@ pub fn classify(raw: &str, st: &Settings) -> (String, String, Option<String>, Op
         return ("custom-id".into(), rest.to_owned(), None, None);
     }
     if raw.starts_with('(') && raw.ends_with(')') {
-        return ("coderef".into(), raw[1..raw.len() - 1].to_owned(), None, None);
+        return (
+            "coderef".into(),
+            raw[1..raw.len() - 1].to_owned(),
+            None,
+            None,
+        );
     }
-    if raw.starts_with('/') || raw.starts_with("./") || raw.starts_with("../") || raw.starts_with("~/") || raw == "~" {
+    if raw.starts_with('/')
+        || raw.starts_with("./")
+        || raw.starts_with("../")
+        || raw.starts_with("~/")
+        || raw == "~"
+    {
         let (p, s) = split_search(&raw);
         return ("file".into(), p, s, None);
     }
-    if let Some((t, rest)) = raw.split_once(':') {
-        if link_types().iter().any(|x| x == t) {
-            if t == "file" || t == "file+sys" || t == "file+emacs" || t == "docview" || t == "attachment" {
-                let app = t.strip_prefix("file+").map(str::to_owned);
-                let (p, s) = split_search(rest);
-                let kind = if t.starts_with("file") { "file" } else { t };
-                return (kind.into(), p, s, app);
-            }
-            let path = if matches!(t, "http" | "https" | "ftp" | "mailto" | "news") { rest.to_owned() } else { rest.to_owned() };
-            return (t.into(), path, None, None);
+    if let Some((t, rest)) = raw.split_once(':')
+        && link_types().iter().any(|x| x == t)
+    {
+        if t == "file"
+            || t == "file+sys"
+            || t == "file+emacs"
+            || t == "docview"
+            || t == "attachment"
+        {
+            let app = t.strip_prefix("file+").map(str::to_owned);
+            let (p, s) = split_search(rest);
+            let kind = if t.starts_with("file") { "file" } else { t };
+            return (kind.into(), p, s, app);
         }
+        let path = rest.to_owned();
+        return (t.into(), path, None, None);
     }
     ("fuzzy".into(), raw, None, None)
 }
@@ -208,7 +276,9 @@ pub fn links_in(line: &str, st: &Settings) -> Vec<Link> {
             // A bracket link: [[path]] or [[path][desc]], backslash escapes.
             let b = rest.as_bytes();
             let mut j = 2;
-            while j < b.len() && !(b[j] == b']' && (j == 0 || b[j - 1] != b'\\' || (j >= 2 && b[j - 2] == b'\\'))) {
+            while j < b.len()
+                && !(b[j] == b']' && (j == 0 || b[j - 1] != b'\\' || (j >= 2 && b[j - 2] == b'\\')))
+            {
                 if b[j] == b'[' && b[j - 1] != b'\\' {
                     break;
                 }
@@ -231,7 +301,15 @@ pub fn links_in(line: &str, st: &Settings) -> Vec<Link> {
                     continue;
                 };
                 let (kind, path, search, application) = classify(&raw, st);
-                out.push(Link { kind, path, search, application, desc, raw, range: i..i + end });
+                out.push(Link {
+                    kind,
+                    path,
+                    search,
+                    application,
+                    desc,
+                    raw,
+                    range: i..i + end,
+                });
                 i += end;
                 continue;
             }
@@ -243,7 +321,15 @@ pub fn links_in(line: &str, st: &Settings) -> Vec<Link> {
         {
             let raw = rest[1..e].to_owned();
             let (kind, path, search, application) = classify(&raw, st);
-            out.push(Link { kind, path, search, application, desc: None, raw, range: i..i + e + 1 });
+            out.push(Link {
+                kind,
+                path,
+                search,
+                application,
+                desc: None,
+                raw,
+                range: i..i + e + 1,
+            });
             i += e + 1;
             continue;
         }
@@ -256,14 +342,26 @@ pub fn links_in(line: &str, st: &Settings) -> Vec<Link> {
             && rest.len() > colon + 1
             && !rest[colon + 1..].starts_with(char::is_whitespace)
         {
-            let mut end = colon + 1 + rest[colon + 1..].find(|c: char| c.is_whitespace() || "()<>[]\"".contains(c)).unwrap_or(rest.len() - colon - 1);
+            let mut end = colon
+                + 1
+                + rest[colon + 1..]
+                    .find(|c: char| c.is_whitespace() || "()<>[]\"".contains(c))
+                    .unwrap_or(rest.len() - colon - 1);
             // Trailing punctuation is not part of a plain link.
             while end > colon + 1 && rest[..end].ends_with(['.', ',', ';', ':', '!', '?', '\'']) {
                 end -= 1;
             }
             let raw = rest[..end].to_owned();
             let (kind, path, search, application) = classify(&raw, st);
-            out.push(Link { kind, path, search, application, desc: None, raw, range: i..i + end });
+            out.push(Link {
+                kind,
+                path,
+                search,
+                application,
+                desc: None,
+                raw,
+                range: i..i + end,
+            });
             i += end;
             continue;
         }
@@ -276,7 +374,9 @@ pub fn links_in(line: &str, st: &Settings) -> Vec<Link> {
 pub fn link_at(ed: &Editor) -> Option<Link> {
     let st = super::settings(ed);
     let line = ed.buf.line(ed.cur.line);
-    links_in(&line, &st).into_iter().find(|l| l.range.contains(&ed.cur.byte))
+    links_in(&line, &st)
+        .into_iter()
+        .find(|l| l.range.contains(&ed.cur.byte))
 }
 
 // ---- storing ----
@@ -290,7 +390,10 @@ fn add_stored(ed: &mut Editor, link: String, desc: Option<String>) {
         } else if let Some(i) = s.iter().position(|e| *e == entry) {
             s.remove(i);
             s.insert(0, entry);
-            format!("Link moved to front: {}", desc.clone().unwrap_or(link.clone()))
+            format!(
+                "Link moved to front: {}",
+                desc.clone().unwrap_or(link.clone())
+            )
         } else {
             s.insert(0, entry);
             format!("Stored: {}", desc.clone().unwrap_or(link.clone()))
@@ -323,7 +426,9 @@ pub fn normalize(s: &str, search_syntax: bool, pipes: bool) -> String {
 
 /// The heading text without keyword, priority, COMMENT, tags.
 pub fn heading_text(line: &str, st: &Settings) -> String {
-    syntax::headline(line, st).map(|h| h.title(line).to_owned()).unwrap_or_default()
+    syntax::headline(line, st)
+        .map(|h| h.title(line).to_owned())
+        .unwrap_or_default()
 }
 
 /// org-link-precise-link-target: (search, description).
@@ -332,7 +437,10 @@ fn precise_target(ed: &Editor) -> Option<(String, Option<String>)> {
     let l = ed.cur.line;
     if let Some((lo, hi)) = ed.org_region {
         let max = super::options::int("org-link-context-for-files", 1).max(1) as usize;
-        let text = (lo..=hi.min(lo + max - 1)).map(|i| ed.buf.line(i)).collect::<Vec<_>>().join("\n");
+        let text = (lo..=hi.min(lo + max - 1))
+            .map(|i| ed.buf.line(i))
+            .collect::<Vec<_>>()
+            .join("\n");
         return Some((normalize(&text, true, false), None)).filter(|(s, _)| !s.is_empty());
     }
     let line = ed.buf.line(l);
@@ -340,7 +448,9 @@ fn precise_target(ed: &Editor) -> Option<(String, Option<String>)> {
         // A <<target>> at point.
         let mut from = 0;
         while let Some(s) = line[from..].find("<<").map(|i| i + from) {
-            let Some(e) = line[s..].find(">>").map(|i| s + i) else { break };
+            let Some(e) = line[s..].find(">>").map(|i| s + i) else {
+                break;
+            };
             if (s..e + 2).contains(&ed.cur.byte) && !line[s..].starts_with("<<<") {
                 let v = line[s + 2..e].to_owned();
                 return Some((v.clone(), Some(v)));
@@ -384,13 +494,19 @@ fn abbreviate(p: &Path) -> String {
     let abs = std::path::absolute(p).unwrap_or_else(|_| p.to_path_buf());
     let home = std::env::var("HOME").unwrap_or_default();
     let s = abs.display().to_string();
-    if !home.is_empty() && s.starts_with(&home) { format!("~{}", &s[home.len()..]) } else { s }
+    if !home.is_empty() && s.starts_with(&home) {
+        format!("~{}", &s[home.len()..])
+    } else {
+        s
+    }
 }
 
 /// org-link--file-link-description.
 fn file_desc(path: &str) -> Option<String> {
     match super::sexp::option("org-link-default-file-link-description") {
-        Some(Sexp::Sym(s)) if s == "filename" => Path::new(path).file_name().map(|f| f.to_string_lossy().into_owned()),
+        Some(Sexp::Sym(s)) if s == "filename" => Path::new(path)
+            .file_name()
+            .map(|f| f.to_string_lossy().into_owned()),
         Some(Sexp::Sym(s)) if s == "file-path" => Some(path.to_owned()),
         _ => None,
     }
@@ -400,11 +516,15 @@ fn file_desc(path: &str) -> Option<String> {
 pub fn store(ed: &mut Editor, arg: Prefix) -> Result<(String, Option<String>), String> {
     let context = super::options::bool("org-link-context-for-files", true) != (arg == Prefix::U(1));
     let (link, desc) = if let Some(d) = &ed.dired {
-        let file = crate::dired::selection(ed).into_iter().next().unwrap_or_else(|| d.dir.clone());
+        let file = crate::dired::selection(ed)
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| d.dir.clone());
         let f = abbreviate(&file);
         (format!("file:{f}"), file_desc(&f))
     } else if ed.org_view.is_some() {
-        return super::call(ed, "org-agenda-store-link", arg).map(|()| stored_links().first().cloned().unwrap_or_default());
+        return super::call(ed, "org-agenda-store-link", arg)
+            .map(|()| stored_links().first().cloned().unwrap_or_default());
     } else if let Some(p) = ed.path.clone() {
         let f = abbreviate(&p);
         let base = format!("file:{f}");
@@ -418,7 +538,9 @@ pub fn store(ed: &mut Editor, arg: Prefix) -> Result<(String, Option<String>), S
     };
     // ID links when org-id-link-to-org-use-id says so.
     let (link, desc) = match super::options::string("org-id-link-to-org-use-id", "nil").as_str() {
-        "t" | "create-if-interactive" | "create-if-interactive-and-no-custom-id" if ed.org.is_some() && !ctx::before_first_heading(ed, ed.cur.line) => {
+        "t" | "create-if-interactive" | "create-if-interactive-and-no-custom-id"
+            if ed.org.is_some() && !ctx::before_first_heading(ed, ed.cur.line) =>
+        {
             let h = fold::back_to_heading(ed, ed.cur.line).unwrap();
             let has_custom = props::get(ed, Some(h), "CUSTOM_ID", props::Inherit::No).is_some();
             let mode = super::options::string("org-id-link-to-org-use-id", "nil");
@@ -466,13 +588,23 @@ pub fn new_id() -> String {
     bytes[6] = (bytes[6] & 0x0f) | 0x40;
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
     let h: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
-    format!("{}-{}-{}-{}-{}", &h[..8], &h[8..12], &h[12..16], &h[16..20], &h[20..])
+    format!(
+        "{}-{}-{}-{}-{}",
+        &h[..8],
+        &h[8..12],
+        &h[12..16],
+        &h[16..20],
+        &h[20..]
+    )
 }
 
 /// org-link-display-format: links replaced by their descriptions.
 pub fn display_format(s: &str) -> String {
     let re = crate::org_re!(r"\[\[((?:[^\]\[\\]|\\.)+)\](?:\[([^\]]+)\])?\]");
-    re.replace_all(s, |c: &regex::Captures| c.get(2).or(c.get(1)).unwrap().as_str().to_owned()).into_owned()
+    re.replace_all(s, |c: &regex::Captures| {
+        c.get(2).or(c.get(1)).unwrap().as_str().to_owned()
+    })
+    .into_owned()
 }
 
 // ---- inserting ----
@@ -480,7 +612,11 @@ pub fn display_format(s: &str) -> String {
 /// org-link--normalize-filename for org-link-file-path-type.
 fn normalize_filename(path: &str, method: &str, cur_dir: &Path) -> String {
     let expanded = super::options::expand(path);
-    let abs = if expanded.is_absolute() { expanded } else { cur_dir.join(expanded) };
+    let abs = if expanded.is_absolute() {
+        expanded
+    } else {
+        cur_dir.join(expanded)
+    };
     match method {
         "absolute" => abbreviate(&abs),
         "noabbrev" => abs.display().to_string(),
@@ -507,9 +643,17 @@ fn pathdiff(path: &Path, base: &Path) -> String {
 }
 
 /// org-link-make-string-for-buffer.
-fn make_for_buffer(ed: &Editor, link: &str, desc: Option<String>, abs: bool) -> Result<String, String> {
+fn make_for_buffer(
+    ed: &Editor,
+    link: &str,
+    desc: Option<String>,
+    abs: bool,
+) -> Result<String, String> {
     let mut link = link.to_owned();
-    if link.starts_with('<') && link.ends_with('>') && !link[1..].starts_with(|c: char| c.is_ascii_digit()) {
+    if link.starts_with('<')
+        && link.ends_with('>')
+        && !link[1..].starts_with(|c: char| c.is_ascii_digit())
+    {
         link = link[1..link.len() - 1].to_owned();
     }
     let me = ed.path.as_deref().and_then(|p| std::path::absolute(p).ok());
@@ -525,14 +669,31 @@ fn make_for_buffer(ed: &Editor, link: &str, desc: Option<String>, abs: bool) -> 
     for t in ["file:", "docview:"] {
         if let Some(rest) = link.strip_prefix(t) {
             let (path, search) = split_search(rest);
-            let path = if path.is_empty() { ed.path.as_ref().map(|p| p.display().to_string()).unwrap_or_default() } else { path };
-            let dir = me.as_ref().and_then(|p| p.parent().map(Path::to_path_buf)).unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
-            let method = if abs { "absolute".to_owned() } else { super::options::string("org-link-file-path-type", "adaptive") };
+            let path = if path.is_empty() {
+                ed.path
+                    .as_ref()
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_default()
+            } else {
+                path
+            };
+            let dir = me
+                .as_ref()
+                .and_then(|p| p.parent().map(Path::to_path_buf))
+                .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+            let method = if abs {
+                "absolute".to_owned()
+            } else {
+                super::options::string("org-link-file-path-type", "adaptive")
+            };
             let np = normalize_filename(&path, &method, &dir);
             if desc.as_deref() == Some(&path) {
                 desc = Some(np.clone());
             }
-            link = format!("{t}{np}{}", search.map(|s| format!("::{s}")).unwrap_or_default());
+            link = format!(
+                "{t}{np}{}",
+                search.map(|s| format!("::{s}")).unwrap_or_default()
+            );
             break;
         }
     }
@@ -540,17 +701,31 @@ fn make_for_buffer(ed: &Editor, link: &str, desc: Option<String>, abs: bool) -> 
 }
 
 /// org-insert-link.
-pub fn insert_link(ed: &mut Editor, arg: Prefix, location: Option<String>, description: Option<String>) -> Result<(), String> {
+pub fn insert_link(
+    ed: &mut Editor,
+    arg: Prefix,
+    location: Option<String>,
+    description: Option<String>,
+) -> Result<(), String> {
     let st = super::settings(ed);
     let l = ed.cur.line;
     let line = ed.buf.line(l);
     // Editing the link at point.
     if location.is_none()
-        && let Some(lk) = links_in(&line, &st).into_iter().find(|x| x.range.contains(&ed.cur.byte))
+        && let Some(lk) = links_in(&line, &st)
+            .into_iter()
+            .find(|x| x.range.contains(&ed.cur.byte))
     {
         let range = lk.range.clone();
         let bracket = line[range.clone()].starts_with("[[");
-        let initial = if bracket { lk.raw.clone() } else { lk.raw.trim_start_matches('<').trim_end_matches('>').to_owned() };
+        let initial = if bracket {
+            lk.raw.clone()
+        } else {
+            lk.raw
+                .trim_start_matches('<')
+                .trim_end_matches('>')
+                .to_owned()
+        };
         let desc = lk.desc.clone();
         super::read(ed, "Link: ", &initial, move |ed, link| {
             finish_insert(ed, link, desc, Some((l, range)), false, true);
@@ -558,15 +733,25 @@ pub fn insert_link(ed: &mut Editor, arg: Prefix, location: Option<String>, descr
         return Ok(());
     }
     let region = ed.org_region;
-    let region_text = region.map(|(lo, hi)| (lo..=hi).map(|i| ed.buf.line(i)).collect::<Vec<_>>().join("\n"));
-    let remove = region.map(|(lo, hi)| (lo, hi));
+    let region_text = region.map(|(lo, hi)| {
+        (lo..=hi)
+            .map(|i| ed.buf.line(i))
+            .collect::<Vec<_>>()
+            .join("\n")
+    });
+    let remove = region;
     if let Some(loc) = location {
         finish_insert(ed, loc, description.or(region_text), None, false, false);
         return Ok(());
     }
     if matches!(arg, Prefix::U(1) | Prefix::U(2)) {
         let abs = arg == Prefix::U(2);
-        let dir = ed.path.as_deref().and_then(|p| std::path::absolute(p).ok()).and_then(|p| p.parent().map(Path::to_path_buf)).unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+        let dir = ed
+            .path
+            .as_deref()
+            .and_then(|p| std::path::absolute(p).ok())
+            .and_then(|p| p.parent().map(Path::to_path_buf))
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
         let files = list_files(&dir);
         super::complete(ed, "File: ", files, false, move |ed, f| {
             finish_insert(ed, format!("file:{f}"), None, None, abs, true);
@@ -600,15 +785,23 @@ pub fn insert_link(ed: &mut Editor, arg: Prefix, location: Option<String>, descr
         }
         // A description chosen: its link.
         let stored = stored_links();
-        if let Some((l, _)) = stored.iter().find(|(_, d)| d.as_deref() == Some(link.as_str())) {
+        if let Some((l, _)) = stored
+            .iter()
+            .find(|(_, d)| d.as_deref() == Some(link.as_str()))
+        {
             link = l.clone();
         }
-        let link = link.strip_suffix(':').filter(|t| link_types().iter().any(|x| x == t)).map_or(link.clone(), |t| format!("{t}:"));
+        let link = link
+            .strip_suffix(':')
+            .filter(|t| link_types().iter().any(|x| x == t))
+            .map_or(link.clone(), |t| format!("{t}:"));
         let entry = stored.iter().find(|(l, _)| *l == link).cloned();
         if entry.is_none() {
             HISTORY.with(|h| h.borrow_mut().insert(0, link.clone()));
         }
-        let desc = region_text.clone().or(entry.as_ref().and_then(|e| e.1.clone()));
+        let desc = region_text
+            .clone()
+            .or(entry.as_ref().and_then(|e| e.1.clone()));
         if let Some((lo, hi)) = remove {
             ed.undo.begin(ed.cur.pos());
             super::splice(ed, lo, hi - lo + 1, &[String::new()]);
@@ -625,24 +818,46 @@ pub fn insert_link(ed: &mut Editor, arg: Prefix, location: Option<String>, descr
 }
 
 /// Prompt for the description, then insert (replacing `replace`).
-fn finish_insert(ed: &mut Editor, link: String, desc: Option<String>, replace: Option<(usize, std::ops::Range<usize>)>, abs: bool, ask: bool) {
+fn finish_insert(
+    ed: &mut Editor,
+    link: String,
+    desc: Option<String>,
+    replace: Option<(usize, std::ops::Range<usize>)>,
+    abs: bool,
+    ask: bool,
+) {
     let go = move |ed: &mut Editor, desc: String| {
-        let desc = if desc.trim().is_empty() { None } else { Some(desc) };
+        let desc = if desc.trim().is_empty() {
+            None
+        } else {
+            Some(desc)
+        };
         match make_for_buffer(ed, &link, desc, abs) {
             Ok(s) => {
                 ed.undo.begin(ed.cur.pos());
                 let (l, b) = (ed.cur.line, ed.cur.byte);
                 let line = ed.buf.line(l);
                 let (new, at) = match &replace {
-                    Some((rl, r)) if *rl == l => (format!("{}{s}{}", &line[..r.start], &line[r.end..]), r.start + s.len()),
+                    Some((rl, r)) if *rl == l => (
+                        format!("{}{s}{}", &line[..r.start], &line[r.end..]),
+                        r.start + s.len(),
+                    ),
                     _ => {
                         // Insert after the cursor character in Normal mode (like `a`).
-                        let at = if ed.mode == crate::editor::Mode::Insert || line.is_empty() { b.min(line.len()) } else { crate::text::next_grapheme(&line, b) };
+                        let at = if ed.mode == crate::editor::Mode::Insert || line.is_empty() {
+                            b.min(line.len())
+                        } else {
+                            crate::text::next_grapheme(&line, b)
+                        };
                         (format!("{}{s}{}", &line[..at], &line[at..]), at + s.len())
                     }
                 };
                 super::set_line(ed, l, &new);
-                ed.cur.byte = at.saturating_sub(if ed.mode == crate::editor::Mode::Insert { 0 } else { 1 });
+                ed.cur.byte = at.saturating_sub(if ed.mode == crate::editor::Mode::Insert {
+                    0
+                } else {
+                    1
+                });
                 ed.undo.end(ed.cur.pos());
             }
             Err(e) => ed.set_err(e),
@@ -658,7 +873,12 @@ fn finish_insert(ed: &mut Editor, link: String, desc: Option<String>, replace: O
 
 fn list_files(dir: &Path) -> Vec<String> {
     let mut out = vec![];
-    for entry in ignore::WalkBuilder::new(dir).max_depth(Some(4)).build().flatten().take(5000) {
+    for entry in ignore::WalkBuilder::new(dir)
+        .max_depth(Some(4))
+        .build()
+        .flatten()
+        .take(5000)
+    {
         if let Ok(rel) = entry.path().strip_prefix(dir)
             && !rel.as_os_str().is_empty()
         {
@@ -685,23 +905,31 @@ pub fn mark_ring_push(ed: &mut Editor) {
 
 /// org-mark-ring-goto.
 fn mark_ring_goto(ed: &mut Editor, n: usize) -> Result<(), String> {
-    let repeat = ed.org.as_ref().and_then(|o| o.last_command.as_deref()) == Some("org-mark-ring-goto");
+    let repeat =
+        ed.org.as_ref().and_then(|o| o.last_command.as_deref()) == Some("org-mark-ring-goto");
     let target = RING.with(|r| {
         let mut r = r.borrow_mut();
         if r.0.is_empty() {
             return None;
         }
-        let i = if repeat { (r.1.unwrap_or(0) + n) % r.0.len() } else { 0 };
+        let i = if repeat {
+            (r.1.unwrap_or(0) + n) % r.0.len()
+        } else {
+            0
+        };
         r.1 = Some(i);
         Some(r.0[i].clone())
     });
-    let Some((path, line)) = target else { return Err("No previous position in the mark ring".into()) };
+    let Some((path, line)) = target else {
+        return Err("No previous position in the mark ring".into());
+    };
     goto_position(ed, path, line);
     Ok(())
 }
 
 fn goto_position(ed: &mut Editor, path: Option<PathBuf>, line: usize) {
-    let mine = path.as_deref().and_then(|p| std::path::absolute(p).ok()) == ed.path.as_deref().and_then(|p| std::path::absolute(p).ok());
+    let mine = path.as_deref().and_then(|p| std::path::absolute(p).ok())
+        == ed.path.as_deref().and_then(|p| std::path::absolute(p).ok());
     if mine || path.is_none() {
         ed.set_cursor(line.min(ed.line_count() - 1), 0);
         if fold::hidden(ed, ed.cur.line) {
@@ -725,7 +953,10 @@ pub fn search(ed: &mut Editor, s: &str, avoid: Option<usize>) -> Result<&'static
     let st = super::settings(ed);
     let normalized = s.replace('\n', " ");
     let starred = normalized.starts_with('*');
-    let words: Vec<String> = (if starred { &s[1..] } else { s }).split_whitespace().map(str::to_owned).collect();
+    let words: Vec<String> = (if starred { &s[1..] } else { s })
+        .split_whitespace()
+        .map(str::to_owned)
+        .collect();
     let n = ed.line_count();
     let found = |ed: &mut Editor, l: usize, b: usize, kind: &'static str| {
         ed.set_cursor(l, b);
@@ -764,8 +995,17 @@ pub fn search(ed: &mut Editor, s: &str, avoid: Option<usize>) -> Result<&'static
         super::todo::occur(ed, &normalized[1..normalized.len() - 1], false)?;
         return Ok("dedicated");
     }
-    let words_re = words.iter().map(|w| regex::escape(w)).collect::<Vec<_>>().join(r"\s+");
-    let ci = |p: &str| regex::RegexBuilder::new(p).case_insensitive(true).build().unwrap();
+    let words_re = words
+        .iter()
+        .map(|w| regex::escape(w))
+        .collect::<Vec<_>>()
+        .join(r"\s+");
+    let ci = |p: &str| {
+        regex::RegexBuilder::new(p)
+            .case_insensitive(true)
+            .build()
+            .unwrap()
+    };
     if !starred {
         let t = ci(&format!("<<{words_re}>>"));
         for l in 0..n {
@@ -778,7 +1018,9 @@ pub fn search(ed: &mut Editor, s: &str, avoid: Option<usize>) -> Result<&'static
         for l in 0..n {
             if let Some((k, v)) = syntax::keyword_line(&ed.buf.line(l))
                 && k == "NAME"
-                && v.split_whitespace().map(str::to_uppercase).eq(words.iter().map(|w| w.to_uppercase()))
+                && v.split_whitespace()
+                    .map(str::to_uppercase)
+                    .eq(words.iter().map(|w| w.to_uppercase()))
             {
                 return found(ed, l, 0, "dedicated");
             }
@@ -797,9 +1039,16 @@ pub fn search(ed: &mut Editor, s: &str, avoid: Option<usize>) -> Result<&'static
                 }
             }
         }
-        let must = super::sexp::option("org-link-search-must-match-exact-headline").map_or("query-to-create".to_owned(), |v| v.sym().map_or("t".into(), str::to_owned));
+        let must = super::sexp::option("org-link-search-must-match-exact-headline")
+            .map_or("query-to-create".to_owned(), |v| {
+                v.sym().map_or("t".into(), str::to_owned)
+            });
         if must == "query-to-create" {
-            let title = if starred { s[1..].to_owned() } else { s.to_owned() };
+            let title = if starred {
+                s[1..].to_owned()
+            } else {
+                s.to_owned()
+            };
             super::yes_or_no(ed, "No match - create this as a new heading? ", move |ed| {
                 ed.undo.begin(ed.cur.pos());
                 let n = ed.line_count();
@@ -832,23 +1081,39 @@ fn file_app(path: &str, arg: Prefix, app: Option<&str>) -> Option<String> {
         return None;
     }
     let system = arg == Prefix::U(2) || app == Some("sys");
-    let opener = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
+    let opener = if cfg!(target_os = "macos") {
+        "open"
+    } else {
+        "xdg-open"
+    };
     let quoted = shell_quote(path);
     if system {
         return Some(format!("{opener} {quoted}"));
     }
     let apps: Vec<(Sexp, Sexp)> = super::sexp::option("org-file-apps")
-        .and_then(|v| v.list().map(|l| l.iter().filter_map(|e| Some((e.car()?.clone(), e.cdr()))).collect()))
+        .and_then(|v| {
+            v.list().map(|l| {
+                l.iter()
+                    .filter_map(|e| Some((e.car()?.clone(), e.cdr())))
+                    .collect()
+            })
+        })
         .unwrap_or_else(|| {
             vec![
                 (Sexp::Sym("auto-mode".into()), Sexp::Sym("emacs".into())),
                 (Sexp::Sym("directory".into()), Sexp::Sym("emacs".into())),
                 (Sexp::Str(r"\.mm\'".into()), Sexp::Sym("default".into())),
-                (Sexp::Str(r"\.x?html?\'".into()), Sexp::Sym("default".into())),
+                (
+                    Sexp::Str(r"\.x?html?\'".into()),
+                    Sexp::Sym("default".into()),
+                ),
                 (Sexp::Str(r"\.pdf\'".into()), Sexp::Sym("default".into())),
             ]
         });
-    let ext = Path::new(path).extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+    let ext = Path::new(path)
+        .extension()
+        .map(|e| e.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
     let is_dir = Path::new(&*super::options::expand(path)).is_dir();
     for (k, v) in &apps {
         let hit = match k {
@@ -869,16 +1134,58 @@ fn file_app(path: &str, arg: Prefix, app: Option<&str>) -> Option<String> {
             _ => None,
         };
     }
-    if text_like(&ext) || is_dir { None } else { Some(format!("{opener} {quoted}")) }
+    if text_like(&ext) || is_dir {
+        None
+    } else {
+        Some(format!("{opener} {quoted}"))
+    }
 }
 
 /// Files Fred edits (Emacs would have a major mode for them).
 fn text_like(ext: &str) -> bool {
     !matches!(
         ext,
-        "pdf" | "png" | "jpg" | "jpeg" | "gif" | "svg" | "webp" | "bmp" | "tiff" | "mp3" | "mp4" | "mov" | "avi" | "mkv" | "wav"
-            | "flac" | "ogg" | "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx" | "odt" | "ods" | "odp" | "zip" | "gz" | "tgz"
-            | "bz2" | "xz" | "7z" | "rar" | "dmg" | "app" | "exe" | "html" | "htm" | "mm" | "epub" | "djvu"
+        "pdf"
+            | "png"
+            | "jpg"
+            | "jpeg"
+            | "gif"
+            | "svg"
+            | "webp"
+            | "bmp"
+            | "tiff"
+            | "mp3"
+            | "mp4"
+            | "mov"
+            | "avi"
+            | "mkv"
+            | "wav"
+            | "flac"
+            | "ogg"
+            | "doc"
+            | "docx"
+            | "xls"
+            | "xlsx"
+            | "ppt"
+            | "pptx"
+            | "odt"
+            | "ods"
+            | "odp"
+            | "zip"
+            | "gz"
+            | "tgz"
+            | "bz2"
+            | "xz"
+            | "7z"
+            | "rar"
+            | "dmg"
+            | "app"
+            | "exe"
+            | "html"
+            | "htm"
+            | "mm"
+            | "epub"
+            | "djvu"
     )
 }
 
@@ -900,8 +1207,18 @@ fn spawn(cmd: &str) -> Result<(), String> {
 }
 
 /// org-open-file.
-pub fn open_file(ed: &mut Editor, path: &str, search: Option<String>, arg: Prefix, app: Option<&str>) -> Result<(), String> {
-    let base = ed.path.as_deref().and_then(|p| std::path::absolute(p).ok()).and_then(|p| p.parent().map(Path::to_path_buf));
+pub fn open_file(
+    ed: &mut Editor,
+    path: &str,
+    search: Option<String>,
+    arg: Prefix,
+    app: Option<&str>,
+) -> Result<(), String> {
+    let base = ed
+        .path
+        .as_deref()
+        .and_then(|p| std::path::absolute(p).ok())
+        .and_then(|p| p.parent().map(Path::to_path_buf));
     let p = super::options::expand(path);
     let full = match base {
         Some(b) if p.is_relative() => b.join(&p),
@@ -943,7 +1260,13 @@ pub fn open_file(ed: &mut Editor, path: &str, search: Option<String>, arg: Prefi
 /// org-link-open.
 pub fn open(ed: &mut Editor, lk: &Link, arg: Prefix) -> Result<(), String> {
     match lk.kind.as_str() {
-        "file" => open_file(ed, &lk.path, lk.search.clone(), arg, lk.application.as_deref()),
+        "file" => open_file(
+            ed,
+            &lk.path,
+            lk.search.clone(),
+            arg,
+            lk.application.as_deref(),
+        ),
         "custom-id" | "fuzzy" | "coderef" | "radio" => {
             mark_ring_push(ed);
             let s = match lk.kind.as_str() {
@@ -956,11 +1279,19 @@ pub fn open(ed: &mut Editor, lk: &Link, arg: Prefix) -> Result<(), String> {
         }
         "http" | "https" | "ftp" | "mailto" | "news" | "doi" => {
             let url = if lk.kind == "doi" {
-                format!("{}{}", super::options::string("org-link-doi-server-url", "https://doi.org/"), lk.path)
+                format!(
+                    "{}{}",
+                    super::options::string("org-link-doi-server-url", "https://doi.org/"),
+                    lk.path
+                )
             } else {
                 format!("{}:{}", lk.kind, lk.path)
             };
-            let opener = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
+            let opener = if cfg!(target_os = "macos") {
+                "open"
+            } else {
+                "xdg-open"
+            };
             spawn(&format!("{opener} {}", shell_quote(&url)))
         }
         "shell" => {
@@ -969,7 +1300,9 @@ pub fn open(ed: &mut Editor, lk: &Link, arg: Prefix) -> Result<(), String> {
             let run = move |ed: &mut Editor| {
                 ed.pending_effect = Some(crate::ex::ExEffect::Shell(cmd));
             };
-            if !skip.is_empty() && super::re::compile(&skip, false).is_ok_and(|r| r.is_match(&lk.path)) {
+            if !skip.is_empty()
+                && super::re::compile(&skip, false).is_ok_and(|r| r.is_match(&lk.path))
+            {
                 run(ed);
             } else {
                 super::yes_or_no(ed, &format!("Execute \"{}\" in shell? ", lk.path), run);
@@ -979,9 +1312,19 @@ pub fn open(ed: &mut Editor, lk: &Link, arg: Prefix) -> Result<(), String> {
         "elisp" => {
             let form = lk.path.clone();
             super::yes_or_no(ed, &format!("Execute \"{form}\" as elisp? "), move |ed| {
-                let expr = if form.starts_with('(') { format!("(prin1 {form})") } else { format!("(call-interactively '{form})") };
-                match std::process::Command::new("emacs").args(["--batch", "-Q", "--eval", &expr]).output() {
-                    Ok(o) => ed.set_msg(format!("{form} => {}", String::from_utf8_lossy(&o.stdout).trim())),
+                let expr = if form.starts_with('(') {
+                    format!("(prin1 {form})")
+                } else {
+                    format!("(call-interactively '{form})")
+                };
+                match std::process::Command::new("emacs")
+                    .args(["--batch", "-Q", "--eval", &expr])
+                    .output()
+                {
+                    Ok(o) => ed.set_msg(format!(
+                        "{form} => {}",
+                        String::from_utf8_lossy(&o.stdout).trim()
+                    )),
                     Err(e) => ed.set_err(format!("emacs: {e}")),
                 }
             });
@@ -989,33 +1332,54 @@ pub fn open(ed: &mut Editor, lk: &Link, arg: Prefix) -> Result<(), String> {
         }
         "id" => open_id(ed, &lk.path),
         "man" => {
-            ed.pending_effect = Some(crate::ex::ExEffect::Shell(format!("man {}", shell_quote(&lk.path))));
+            ed.pending_effect = Some(crate::ex::ExEffect::Shell(format!(
+                "man {}",
+                shell_quote(&lk.path)
+            )));
             Ok(())
         }
         "info" => {
             let (file, node) = lk.path.split_once('#').unwrap_or((&lk.path, "Top"));
-            ed.pending_effect = Some(crate::ex::ExEffect::Shell(format!("info {} -n {}", shell_quote(file), shell_quote(node))));
+            ed.pending_effect = Some(crate::ex::ExEffect::Shell(format!(
+                "info {} -n {}",
+                shell_quote(file),
+                shell_quote(node)
+            )));
             Ok(())
         }
         "help" | "shortdoc" => {
             let expr = format!("(princ (documentation '{} t))", lk.path);
-            let out = std::process::Command::new("emacs").args(["--batch", "-Q", "--eval", &expr]).output();
+            let out = std::process::Command::new("emacs")
+                .args(["--batch", "-Q", "--eval", &expr])
+                .output();
             match out {
                 Ok(o) => {
-                    ed.set_msg(String::from_utf8_lossy(&o.stdout).lines().next().unwrap_or("").to_owned());
+                    ed.set_msg(
+                        String::from_utf8_lossy(&o.stdout)
+                            .lines()
+                            .next()
+                            .unwrap_or("")
+                            .to_owned(),
+                    );
                     Ok(())
                 }
                 Err(e) => Err(format!("emacs: {e}")),
             }
         }
-        "attachment" => super::call(ed, "org-attach-open-link", arg).or_else(|_| open_file(ed, &lk.path, lk.search.clone(), arg, None)),
+        "attachment" => super::call(ed, "org-attach-open-link", arg)
+            .or_else(|_| open_file(ed, &lk.path, lk.search.clone(), arg, None)),
         other => {
             // A configured :follow command (org-link-parameters), as a shell template.
             let follow = super::sexp::option("org-link-parameters").and_then(|v| {
                 v.list()?
                     .iter()
                     .find(|e| e.car().and_then(Sexp::str) == Some(other))
-                    .and_then(|e| e.cdr().plist_get(":follow").and_then(Sexp::str).map(str::to_owned))
+                    .and_then(|e| {
+                        e.cdr()
+                            .plist_get(":follow")
+                            .and_then(Sexp::str)
+                            .map(str::to_owned)
+                    })
             });
             match follow {
                 Some(cmd) => spawn(&cmd.replace("%s", &shell_quote(&lk.path))),
@@ -1062,7 +1426,9 @@ pub fn open_at_point(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
     if let Some(lk) = link_at(ed) {
         return open(ed, &lk, arg);
     }
-    if ctx::footnote_at(ed, l, ed.cur.byte).is_some() || line.trim_start().starts_with("[fn:") && ed.cur.byte < line.find(']').unwrap_or(0) + 1 {
+    if ctx::footnote_at(ed, l, ed.cur.byte).is_some()
+        || line.trim_start().starts_with("[fn:") && ed.cur.byte < line.find(']').unwrap_or(0) + 1
+    {
         return super::call(ed, "org-footnote-action", arg);
     }
     if let Some(r) = ctx::timestamp_at(ed, l, ed.cur.byte) {
@@ -1106,7 +1472,10 @@ pub fn open_at_point(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
                 let keys = "0123456789abcdefghijklmnopqrstuvwxyz";
                 for (i, (_, lk)) in found.iter().enumerate() {
                     if let Some(k) = keys.chars().nth(i) {
-                        entries.push((k.to_string(), lk.desc.clone().unwrap_or_else(|| lk.raw.clone())));
+                        entries.push((
+                            k.to_string(),
+                            lk.desc.clone().unwrap_or_else(|| lk.raw.clone()),
+                        ));
                     }
                 }
                 entries.push(("A".into(), "open all".into()));
@@ -1135,18 +1504,38 @@ pub fn open_at_point(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
 /// org-next-link.
 fn next_link(ed: &mut Editor, backward: bool) {
     let st = super::settings(ed);
-    let failed = ed.org.as_ref().is_some_and(|o| o.link_search_failed) && ed.org.as_ref().and_then(|o| o.last_command.as_deref()) == Some(if backward { "org-previous-link" } else { "org-next-link" });
-    let all: Vec<(usize, usize)> = (0..ed.line_count()).flat_map(|l| links_in(&ed.buf.line(l), &st).into_iter().map(move |lk| (l, lk.range.start))).collect();
+    let failed = ed.org.as_ref().is_some_and(|o| o.link_search_failed)
+        && ed.org.as_ref().and_then(|o| o.last_command.as_deref())
+            == Some(if backward {
+                "org-previous-link"
+            } else {
+                "org-next-link"
+            });
+    let all: Vec<(usize, usize)> = (0..ed.line_count())
+        .flat_map(|l| {
+            links_in(&ed.buf.line(l), &st)
+                .into_iter()
+                .map(move |lk| (l, lk.range.start))
+        })
+        .collect();
     let here = (ed.cur.line, ed.cur.byte);
     let target = if failed {
-        if backward { all.last().copied() } else { all.first().copied() }
+        if backward {
+            all.last().copied()
+        } else {
+            all.first().copied()
+        }
     } else if backward {
         all.iter().rev().find(|&&p| p < here).copied()
     } else {
         all.iter().find(|&&p| p > here).copied()
     };
     if failed {
-        ed.set_msg(if backward { "Link search wrapped back to end of buffer" } else { "Link search wrapped back to beginning of buffer" });
+        ed.set_msg(if backward {
+            "Link search wrapped back to end of buffer"
+        } else {
+            "Link search wrapped back to beginning of buffer"
+        });
     }
     match target {
         Some((l, b)) => {
@@ -1185,12 +1574,21 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
                 ed.set_msg("No link to insert");
                 return Some(Ok(()));
             }
-            let count = if all && matches!(arg, Prefix::None | Prefix::U(_)) { links.len() } else { arg.value().max(1) as usize };
+            let count = if all && matches!(arg, Prefix::None | Prefix::U(_)) {
+                links.len()
+            } else {
+                arg.value().max(1) as usize
+            };
             let keep = all && arg == Prefix::U(1);
             let (pre, post) = if all { ("- ", "") } else { ("", "") };
             let mut lines = vec![];
             for (link, desc) in links.iter().take(count) {
-                match make_for_buffer(ed, link, Some(desc.clone().unwrap_or_else(|| "<no description>".into())), false) {
+                match make_for_buffer(
+                    ed,
+                    link,
+                    Some(desc.clone().unwrap_or_else(|| "<no description>".into())),
+                    false,
+                ) {
                     Ok(s) => lines.push(format!("{pre}{s}{post}")),
                     Err(e) => return Some(Err(e)),
                 }
@@ -1221,11 +1619,22 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
                             ed.set_err(e);
                         }
                     }
-                    Some(lk) => ed.set_err(format!("Garbage after link in {s:?} ({:?})", &s[lk.range.end..])),
+                    Some(lk) => ed.set_err(format!(
+                        "Garbage after link in {s:?} ({:?})",
+                        &s[lk.range.end..]
+                    )),
                     None => {
                         // A bare string: a fuzzy link.
                         let (kind, path, search, app) = classify(&s, &st);
-                        let lk = Link { kind, path, search, application: app, desc: None, raw: s.clone(), range: 0..s.len() };
+                        let lk = Link {
+                            kind,
+                            path,
+                            search,
+                            application: app,
+                            desc: None,
+                            raw: s.clone(),
+                            range: 0..s.len(),
+                        };
                         if let Err(e) = open(ed, &lk, arg) {
                             ed.set_err(e);
                         }
@@ -1250,7 +1659,11 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
         "org-toggle-link-display" => {
             let on = !super::settings(ed).opt_bool("org-link-descriptive", true);
             super::options::put("org-link-descriptive", toml::Value::Boolean(on));
-            ed.set_msg(if on { "Descriptive links display" } else { "Literal links display" });
+            ed.set_msg(if on {
+                "Descriptive links display"
+            } else {
+                "Literal links display"
+            });
             Ok(())
         }
         "org-update-radio-target-regexp" => {
@@ -1278,16 +1691,28 @@ mod tests {
     fn escaping_and_making() {
         assert_eq!(escape("a[b]"), "a\\[b\\]");
         assert_eq!(unescape("a\\[b\\]"), "a[b]");
-        assert_eq!(make_string("https://x.org", Some("X")).unwrap(), "[[https://x.org][X]]");
+        assert_eq!(
+            make_string("https://x.org", Some("X")).unwrap(),
+            "[[https://x.org][X]]"
+        );
         assert_eq!(make_string("file:a::*H", None).unwrap(), "[[file:a::*H]]");
-        assert_eq!(display_format("see [[x][the X]] and [[y]]"), "see the X and y");
+        assert_eq!(
+            display_format("see [[x][the X]] and [[y]]"),
+            "see the X and y"
+        );
     }
 
     #[test]
     fn parses_links() {
         let st = syntax::settings("#+LINK: gh https://github.com/%s".lines(), None);
-        let l = links_in("a [[gh:bzg/org][repo]] b https://x.org/p. <mailto:me@x> [[*Head]] [[#cid]] [[./f.org::12]]", &st);
-        let kinds: Vec<_> = l.iter().map(|x| (x.kind.as_str(), x.path.as_str())).collect();
+        let l = links_in(
+            "a [[gh:bzg/org][repo]] b https://x.org/p. <mailto:me@x> [[*Head]] [[#cid]] [[./f.org::12]]",
+            &st,
+        );
+        let kinds: Vec<_> = l
+            .iter()
+            .map(|x| (x.kind.as_str(), x.path.as_str()))
+            .collect();
         assert_eq!(
             kinds,
             vec![
@@ -1305,13 +1730,19 @@ mod tests {
 
     #[test]
     fn internal_links_open_and_mark_ring_returns() {
-        let mut e = org("* A\n[[Target B]] [[#c]]\n* Target B\n* C\n:PROPERTIES:\n:CUSTOM_ID: c\n:END:", "j<C-c><C-o>");
+        let mut e = org(
+            "* A\n[[Target B]] [[#c]]\n* Target B\n* C\n:PROPERTIES:\n:CUSTOM_ID: c\n:END:",
+            "j<C-c><C-o>",
+        );
         assert_eq!(e.cur.line, 2);
         for k in crate::key::parse_keys("<C-c>&") {
             e.handle_key(k);
         }
         assert_eq!(e.cur.line, 1);
-        let e = org("* A\n[[Target B]] [[#c]]\n* Target B\n* C\n:PROPERTIES:\n:CUSTOM_ID: c\n:END:", "j$<C-c><C-o>");
+        let e = org(
+            "* A\n[[Target B]] [[#c]]\n* Target B\n* C\n:PROPERTIES:\n:CUSTOM_ID: c\n:END:",
+            "j$<C-c><C-o>",
+        );
         assert_eq!(e.cur.line, 3);
         let e = org("<<t1>>\n[[t1]]", "j<C-c><C-o>");
         assert_eq!(e.cur.line, 0);

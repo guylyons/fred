@@ -106,8 +106,15 @@ pub fn end_of_meta_data(ed: &Editor, h: usize, full: bool) -> usize {
             let tt = t.trim();
             if tt.starts_with("CLOCK:") || tt.is_empty() && false {
                 l += 1;
-            } else if tt.len() > 2 && tt.starts_with(':') && tt.ends_with(':') && !tt.eq_ignore_ascii_case(":END:") {
-                match (l + 1..n).take_while(|&i| !ctx::at_heading(ed, i)).find(|&i| ed.buf.line(i).trim().eq_ignore_ascii_case(":END:")) {
+            } else if tt.len() > 2
+                && tt.starts_with(':')
+                && tt.ends_with(':')
+                && !tt.eq_ignore_ascii_case(":END:")
+            {
+                match (l + 1..n)
+                    .take_while(|&i| !ctx::at_heading(ed, i))
+                    .find(|&i| ed.buf.line(i).trim().eq_ignore_ascii_case(":END:"))
+                {
                     Some(e) => l = e + 1,
                     None => break,
                 }
@@ -129,7 +136,8 @@ pub fn log_beginning(ed: &mut Editor, h: usize, create: bool) -> usize {
         for i in start..end {
             if ed.buf.line(i).trim().eq_ignore_ascii_case(&open) {
                 if !reversed
-                    && let Some(e) = (i + 1..end).find(|&j| ed.buf.line(j).trim().eq_ignore_ascii_case(":END:"))
+                    && let Some(e) =
+                        (i + 1..end).find(|&j| ed.buf.line(j).trim().eq_ignore_ascii_case(":END:"))
                 {
                     return e;
                 }
@@ -137,12 +145,17 @@ pub fn log_beginning(ed: &mut Editor, h: usize, create: bool) -> usize {
             }
         }
         if create {
-            let indent = if super::sexp::option("org-adapt-indentation").is_some_and(|v| v.truthy()) {
+            let indent = if super::sexp::option("org-adapt-indentation").is_some_and(|v| v.truthy())
+            {
                 " ".repeat(syntax::level(&ed.buf.line(h)).unwrap_or(0) + 1)
             } else {
                 String::new()
             };
-            super::insert_lines(ed, start, &[format!("{indent}:{drawer}:"), format!("{indent}:END:")]);
+            super::insert_lines(
+                ed,
+                start,
+                &[format!("{indent}:{drawer}:"), format!("{indent}:END:")],
+            );
             fold::region(ed, start + 1, start + 1, true, fold::Spec::Drawer);
             return start + 1;
         }
@@ -155,7 +168,10 @@ pub fn log_beginning(ed: &mut Editor, h: usize, create: bool) -> usize {
         // Skip existing state notes.
         while l < end && ed.buf.line(l).trim_start().starts_with("- State ") {
             l += 1;
-            while l < end && ed.buf.line(l).starts_with("  ") && !ed.buf.line(l).trim_start().starts_with("- ") {
+            while l < end
+                && ed.buf.line(l).starts_with("  ")
+                && !ed.buf.line(l).trim_start().starts_with("- ")
+            {
                 l += 1;
             }
         }
@@ -167,7 +183,9 @@ pub fn log_beginning(ed: &mut Editor, h: usize, create: bool) -> usize {
 fn note_heading(purpose: &str) -> String {
     if let Some(v) = super::sexp::option("org-log-note-headings")
         && let Some(l) = v.list()
-        && let Some(e) = l.iter().find(|e| e.car().and_then(Sexp::str) == Some(purpose))
+        && let Some(e) = l
+            .iter()
+            .find(|e| e.car().and_then(Sexp::str) == Some(purpose))
     {
         return e.cdr().str().unwrap_or("").to_owned();
     }
@@ -240,7 +258,9 @@ pub struct Note {
 fn quote_state(s: &Option<String>) -> String {
     match s {
         None => String::new(),
-        Some(s) if s.starts_with('<') && s.ends_with('>') => format!("\"[{}]\"", &s[1..s.len() - 1]),
+        Some(s) if s.starts_with('<') && s.ends_with('>') => {
+            format!("\"[{}]\"", &s[1..s.len() - 1])
+        }
         Some(s) => format!("\"{s}\""),
     }
 }
@@ -275,7 +295,11 @@ pub fn store_note(ed: &mut Editor, h: usize, n: &Note, text: &str) {
         .join("\n");
     let body = body.trim_end().to_owned();
     let mut note = note_line(n);
-    let extra: Vec<String> = if body.is_empty() { vec![] } else { body.lines().map(str::to_owned).collect() };
+    let extra: Vec<String> = if body.is_empty() {
+        vec![]
+    } else {
+        body.lines().map(str::to_owned).collect()
+    };
     if !note.trim().is_empty() {
         if !extra.is_empty() {
             note.push_str(" \\\\");
@@ -286,7 +310,11 @@ pub fn store_note(ed: &mut Editor, h: usize, n: &Note, text: &str) {
     if lines.is_empty() {
         return;
     }
-    let at = if n.purpose == "clock-out" { h } else { log_beginning(ed, h, true) };
+    let at = if n.purpose == "clock-out" {
+        h
+    } else {
+        log_beginning(ed, h, true)
+    };
     // Indent like the list there, or like regular text.
     let ind = if at < ed.line_count() {
         let t = ed.buf.line(at);
@@ -303,7 +331,11 @@ pub fn store_note(ed: &mut Editor, h: usize, n: &Note, text: &str) {
     let pad = " ".repeat(ind);
     let mut out = vec![format!("{pad}- {}", lines[0])];
     for l in &lines[1..] {
-        out.push(if l.is_empty() { String::new() } else { format!("{pad}  {l}") });
+        out.push(if l.is_empty() {
+            String::new()
+        } else {
+            format!("{pad}  {l}")
+        });
     }
     super::insert_lines(ed, at, &out);
 }
@@ -329,7 +361,10 @@ pub fn add_log(ed: &mut Editor, h: usize, n: Note) {
             n.state.clone().unwrap_or_default()
         ),
     };
-    let text = format!("# Insert note for {what}.\n# Finish with C-c C-c, or cancel with C-c C-k.\n\n{}", n.extra.clone().unwrap_or_default());
+    let text = format!(
+        "# Insert note for {what}.\n# Finish with C-c C-c, or cancel with C-c C-k.\n\n{}",
+        n.extra.clone().unwrap_or_default()
+    );
     let path = ed.path.clone();
     let heading = ed.buf.line(h);
     super::effect(ed, move |s| {
@@ -409,7 +444,11 @@ pub fn set_planning(ed: &mut Editor, h: usize, key: &str, ts: Option<String>) {
     } else {
         String::new()
     };
-    let text = items.iter().map(|(k, v)| format!("{k}: {v}")).collect::<Vec<_>>().join(" ");
+    let text = items
+        .iter()
+        .map(|(k, v)| format!("{k}: {v}"))
+        .collect::<Vec<_>>()
+        .join(" ");
     match (has, items.is_empty()) {
         (true, true) => super::delete_lines(ed, h + 1, 1),
         (true, false) => super::set_line(ed, h + 1, &format!("{indent}{text}")),
@@ -420,7 +459,12 @@ pub fn set_planning(ed: &mut Editor, h: usize, key: &str, ts: Option<String>) {
 
 /// The blocker hooks (org-blocker-hook with the two upstream blockers).
 /// Returns the blocking reason when blocked.
-fn blocker<L: Lines + ?Sized>(doc: &Doc<L>, h: usize, from: Option<&str>, to: Option<&str>) -> Option<String> {
+fn blocker<L: Lines + ?Sized>(
+    doc: &Doc<L>,
+    h: usize,
+    from: Option<&str>,
+    to: Option<&str>,
+) -> Option<String> {
     let st = doc.st;
     let relevant = |from: Option<&str>, to: Option<&str>| {
         !(from.is_some_and(|f| st.is_done(f)) || to.is_none_or(|t| !st.is_done(t)))
@@ -445,7 +489,10 @@ fn blocker<L: Lines + ?Sized>(doc: &Doc<L>, h: usize, from: Option<&str>, to: Op
         let mut parent = syntax::parent(doc.b, pos);
         let mut first = true;
         while let Some(p) = parent {
-            if !first && !syntax::headline(&doc.b.line_text(pos), st).is_some_and(|x| x.todo.as_deref().is_some_and(|k| !st.is_done(k))) {
+            if !first
+                && !syntax::headline(&doc.b.line_text(pos), st)
+                    .is_some_and(|x| x.todo.as_deref().is_some_and(|k| !st.is_done(k)))
+            {
                 break;
             }
             first = false;
@@ -469,7 +516,9 @@ fn blocker<L: Lines + ?Sized>(doc: &Doc<L>, h: usize, from: Option<&str>, to: Op
             let t = doc.b.line_text(l);
             if let Some((ind, b)) = ctx::item_bullet(&t) {
                 let rest = &t[ind + b.len()..];
-                let rest = rest.strip_prefix("[@").map_or(rest, |r| r.find("] ").map_or(rest, |i| r[i + 2..].trim_start()));
+                let rest = rest.strip_prefix("[@").map_or(rest, |r| {
+                    r.find("] ").map_or(rest, |i| r[i + 2..].trim_start())
+                });
                 if rest.starts_with("[ ]") || rest.starts_with("[-]") {
                     return Some("contained checkboxes".into());
                 }
@@ -502,7 +551,9 @@ pub fn blocked<L: Lines + ?Sized>(doc: &Doc<L>, h: usize) -> bool {
         return false;
     }
     let st = doc.st;
-    let Some(hl) = syntax::headline(&doc.b.line_text(h), st) else { return false };
+    let Some(hl) = syntax::headline(&doc.b.line_text(h), st) else {
+        return false;
+    };
     let Some(k) = hl.todo else { return false };
     if st.is_done(&k) {
         return false;
@@ -512,10 +563,19 @@ pub fn blocked<L: Lines + ?Sized>(doc: &Doc<L>, h: usize) -> bool {
 }
 
 /// The fast TODO selection menu (org-fast-todo-selection).
-fn fast_todo_selection(ed: &mut Editor, st: &Settings, then: impl FnOnce(&mut Editor, Option<String>) + Send + 'static) {
+fn fast_todo_selection(
+    ed: &mut Editor,
+    st: &Settings,
+    then: impl FnOnce(&mut Editor, Option<String>) + Send + 'static,
+) {
     let mut entries: Vec<(String, String)> = vec![];
     for seq in &st.seqs {
-        let names: Vec<String> = seq.todo.iter().chain(&seq.done).map(|k| k.name.clone()).collect();
+        let names: Vec<String> = seq
+            .todo
+            .iter()
+            .chain(&seq.done)
+            .map(|k| k.name.clone())
+            .collect();
         entries.push((String::new(), names.join(" ")));
         for k in seq.todo.iter().chain(&seq.done) {
             if let Some(c) = k.key {
@@ -524,7 +584,12 @@ fn fast_todo_selection(ed: &mut Editor, st: &Settings, then: impl FnOnce(&mut Ed
         }
     }
     entries.push((" ".into(), "clear (no keyword)".into()));
-    let keys: Vec<(char, String)> = st.seqs.iter().flat_map(|s| s.todo.iter().chain(&s.done)).filter_map(|k| k.key.map(|c| (c, k.name.clone()))).collect();
+    let keys: Vec<(char, String)> = st
+        .seqs
+        .iter()
+        .flat_map(|s| s.todo.iter().chain(&s.done))
+        .filter_map(|k| k.key.map(|c| (c, k.name.clone())))
+        .collect();
     super::menu(ed, "TODO state:", entries, move |ed, k| {
         if k == " " {
             then(ed, None);
@@ -554,7 +619,13 @@ enum Target {
 }
 
 /// The core of org-todo.
-fn change_state(ed: &mut Editor, target: Target, force_log: bool, no_block: bool, inhibit: Option<How>) -> Result<(), String> {
+fn change_state(
+    ed: &mut Editor,
+    target: Target,
+    force_log: bool,
+    no_block: bool,
+    inhibit: Option<How>,
+) -> Result<(), String> {
     let l = ed.cur.line;
     let h = fold::back_to_heading(ed, l).ok_or("Before first headline")?;
     let st = super::settings(ed);
@@ -567,7 +638,11 @@ fn change_state(ed: &mut Editor, target: Target, force_log: bool, no_block: bool
     let pos = this.as_ref().and_then(|t| all.iter().position(|k| k == t));
     let tail: Vec<String> = pos.map_or(vec![], |p| all[p + 1..].to_vec());
     let repeat = ed.org.as_ref().and_then(|o| o.last_command.as_deref()) == Some("org-todo");
-    let heads: Vec<String> = st.seqs.iter().filter_map(|s| s.names().next().map(str::to_owned)).collect();
+    let heads: Vec<String> = st
+        .seqs
+        .iter()
+        .filter_map(|s| s.names().next().map(str::to_owned))
+        .collect();
     let new: Option<String> = match &target {
         Target::Right => match &this {
             Some(_) => tail.first().cloned(),
@@ -578,7 +653,10 @@ fn change_state(ed: &mut Editor, target: Target, force_log: bool, no_block: bool
             Some(p) => Some(all[p - 1].clone()),
             None => all.last().cloned(),
         },
-        Target::Done => seq.and_then(|s| s.done.first()).map(|k| k.name.clone()).or_else(|| st.done_names().first().map(|s| s.to_string())),
+        Target::Done => seq
+            .and_then(|s| s.done.first())
+            .map(|k| k.name.clone())
+            .or_else(|| st.done_names().first().map(|s| s.to_string())),
         Target::NextSet | Target::PrevSet => {
             let mut hs = heads.clone();
             if matches!(target, Target::PrevSet) {
@@ -665,27 +743,42 @@ fn change_state(ed: &mut Editor, target: Target, force_log: bool, no_block: bool
         && let Some(n) = &new
         && let Some(i) = st.seqs.iter().position(|s| s.names().any(|x| x == n))
     {
-        ed.set_msg(format!("Keyword-Set {}/{}: {}", i + 1, st.seqs.len(), st.seqs[i].names().collect::<Vec<_>>().join(" ")));
+        ed.set_msg(format!(
+            "Keyword-Set {}/{}: {}",
+            i + 1,
+            st.seqs.len(),
+            st.seqs[i].names().collect::<Vec<_>>().join(" ")
+        ));
     }
-    let now_done = new.as_deref().is_some_and(|n| st.is_done(n)) && !this.as_deref().is_some_and(|t| st.is_done(t));
+    let now_done = new.as_deref().is_some_and(|n| st.is_done(n))
+        && !this.as_deref().is_some_and(|t| st.is_done(t));
     // Logging.
     let lg = logging(ed, &st, h);
     let mut logged: Option<How> = None;
     let set_change = matches!(target, Target::NextSet | Target::PrevSet);
-    if (!lg.states.is_empty() || lg.done.is_some()) && inhibit != Some(How::Time) && !set_change || force_log {
+    if (!lg.states.is_empty() || lg.done.is_some()) && inhibit != Some(How::Time) && !set_change
+        || force_log
+    {
         let mut dolog = if force_log {
             Some(How::Note)
         } else {
             new.as_ref()
                 .and_then(|n| lg.states.iter().find(|(k, _, _)| k == n))
                 .and_then(|(_, e, _)| log_to_how(*e))
-                .or_else(|| this.as_ref().and_then(|t| lg.states.iter().find(|(k, _, _)| k == t)).and_then(|(_, _, l)| log_to_how(*l)))
+                .or_else(|| {
+                    this.as_ref()
+                        .and_then(|t| lg.states.iter().find(|(k, _, _)| k == t))
+                        .and_then(|(_, _, l)| log_to_how(*l))
+                })
         };
         if dolog == Some(How::Note) && inhibit == Some(How::Note) {
             dolog = Some(How::Time);
         }
         let keep = super::options::bool("org-closed-keep-when-no-todo", false);
-        let becomes_todo = new.as_deref().is_some_and(|n| !st.is_done(n)) && !this.as_deref().is_some_and(|t| !st.is_done(t) && st.is_todo(t));
+        let becomes_todo = new.as_deref().is_some_and(|n| !st.is_done(n))
+            && !this
+                .as_deref()
+                .is_some_and(|t| !st.is_done(t) && st.is_todo(t));
         if (new.is_none() && !keep) || becomes_todo {
             set_planning(ed, h, "CLOSED", None);
         }
@@ -694,14 +787,36 @@ fn change_state(ed: &mut Editor, target: Target, force_log: bool, no_block: bool
             set_planning(ed, h, "CLOSED", Some(super::timestamp(time, true, true)));
             if dolog.is_none() && how == How::Note {
                 logged = Some(How::Note);
-                pending_log(ed, h, Note { purpose: "done".into(), state: new.clone(), prev: this.clone(), how: How::Note, extra: None, time });
+                pending_log(
+                    ed,
+                    h,
+                    Note {
+                        purpose: "done".into(),
+                        state: new.clone(),
+                        prev: this.clone(),
+                        how: How::Note,
+                        extra: None,
+                        time,
+                    },
+                );
             }
         }
         if new.is_some()
             && let Some(how) = dolog
         {
             logged = Some(how);
-            pending_log(ed, h, Note { purpose: "state".into(), state: new.clone(), prev: this.clone(), how, extra: None, time });
+            pending_log(
+                ed,
+                h,
+                Note {
+                    purpose: "state".into(),
+                    state: new.clone(),
+                    prev: this.clone(),
+                    how,
+                    extra: None,
+                    time,
+                },
+            );
         }
     }
     // Tag triggers.
@@ -723,9 +838,23 @@ fn change_state(ed: &mut Editor, target: Target, force_log: bool, no_block: bool
     if cursor_in {
         let line = ed.buf.line(h);
         let hl = syntax::headline(&line, &st);
-        let kw_end = hl.as_ref().and_then(|x| x.todo_range.as_ref().map(|r| r.end)).unwrap_or(hl.as_ref().map_or(0, |x| x.level));
-        if old_byte < kw_end + 2 || old_byte <= this.as_ref().map_or(0, |t| hl.as_ref().map_or(0, |x| x.level) + 1 + t.len() + 1) {
-            let b = if line[kw_end..].starts_with(' ') && !line[kw_end..].trim_start().starts_with(':') { kw_end + 1 } else { kw_end };
+        let kw_end = hl
+            .as_ref()
+            .and_then(|x| x.todo_range.as_ref().map(|r| r.end))
+            .unwrap_or(hl.as_ref().map_or(0, |x| x.level));
+        if old_byte < kw_end + 2
+            || old_byte
+                <= this
+                    .as_ref()
+                    .map_or(0, |t| hl.as_ref().map_or(0, |x| x.level) + 1 + t.len() + 1)
+        {
+            let b = if line[kw_end..].starts_with(' ')
+                && !line[kw_end..].trim_start().starts_with(':')
+            {
+                kw_end + 1
+            } else {
+                kw_end
+            };
             ed.set_cursor(h, b.min(line.len()));
         } else {
             let delta = line.len() as i64 - rebuilt.len() as i64;
@@ -750,7 +879,11 @@ fn pending_log(_ed: &mut Editor, _h: usize, n: Note) {
 fn flush_log(ed: &mut Editor, h: usize) {
     if let Some(n) = PENDING.with(|p| p.borrow_mut().take()) {
         // The heading may have moved by the planning-line edits.
-        let h = if ctx::at_heading(ed, h) { h } else { fold::back_to_heading(ed, h).unwrap_or(h) };
+        let h = if ctx::at_heading(ed, h) {
+            h
+        } else {
+            fold::back_to_heading(ed, h).unwrap_or(h)
+        };
         add_log(ed, h, n);
     }
 }
@@ -763,9 +896,26 @@ pub fn get_repeat(ed: &Editor, h: usize) -> Option<String> {
 }
 
 /// org-auto-repeat-maybe.
-fn repeat_hook(ed: &mut Editor, h: usize, done_word: Option<&str>, last: Option<String>, lg: &Logging, logged: &mut Option<How>) -> Result<(), String> {
-    let Some(rep) = get_repeat(ed, h) else { return Ok(()) };
-    let n: i64 = rep.trim_start_matches(['.', '+']).trim_end_matches(|c: char| !c.is_ascii_digit()).split('/').next().unwrap_or("0").trim_end_matches(|c: char| c.is_alphabetic()).parse().unwrap_or(0);
+fn repeat_hook(
+    ed: &mut Editor,
+    h: usize,
+    done_word: Option<&str>,
+    last: Option<String>,
+    lg: &Logging,
+    logged: &mut Option<How>,
+) -> Result<(), String> {
+    let Some(rep) = get_repeat(ed, h) else {
+        return Ok(());
+    };
+    let n: i64 = rep
+        .trim_start_matches(['.', '+'])
+        .trim_end_matches(|c: char| !c.is_ascii_digit())
+        .split('/')
+        .next()
+        .unwrap_or("0")
+        .trim_end_matches(|c: char| c.is_alphabetic())
+        .parse()
+        .unwrap_or(0);
     if n == 0 {
         return Ok(());
     }
@@ -773,10 +923,12 @@ fn repeat_hook(ed: &mut Editor, h: usize, done_word: Option<&str>, last: Option<
     let seq = last.as_deref().and_then(|l| st.seq_of(l));
     let head = seq.and_then(|s| s.names().next()).map(str::to_owned);
     let is_type = seq.is_some_and(|s| s.is_type);
-    let to_state = props::get(ed, Some(h), "REPEAT_TO_STATE", Inherit::Selective).or_else(|| match super::sexp::option("org-todo-repeat-to-state") {
-        Some(Sexp::Str(s)) => Some(s),
-        Some(v) if v.truthy() => last.clone(),
-        _ => None,
+    let to_state = props::get(ed, Some(h), "REPEAT_TO_STATE", Inherit::Selective).or_else(|| {
+        match super::sexp::option("org-todo-repeat-to-state") {
+            Some(Sexp::Str(s)) => Some(s),
+            Some(v) if v.truthy() => last.clone(),
+            _ => None,
+        }
     });
     let target = match to_state {
         Some(t) if st.is_todo(&t) => Some(t),
@@ -793,7 +945,12 @@ fn repeat_hook(ed: &mut Editor, h: usize, done_word: Option<&str>, last: Option<
     let end = syntax::entry_end(&ed.buf, h);
     let has_clock = (h..end).any(|l| ed.buf.line(l).trim_start().starts_with("CLOCK:"));
     if log_repeat.is_some() || has_clock {
-        props::put(ed, Some(h), "LAST_REPEAT", &super::timestamp(super::now(), true, true))?;
+        props::put(
+            ed,
+            Some(h),
+            "LAST_REPEAT",
+            &super::timestamp(super::now(), true, true),
+        )?;
     }
     if let Some(how) = log_repeat {
         if logged.is_some() {
@@ -806,8 +963,21 @@ fn repeat_hook(ed: &mut Editor, h: usize, done_word: Option<&str>, last: Option<
             }
         } else {
             *logged = Some(how);
-            let state = done_word.map(str::to_owned).or_else(|| st.done_names().first().map(|s| s.to_string()));
-            pending_log(ed, h, Note { purpose: "state".into(), state, prev: last, how, extra: None, time: super::now() });
+            let state = done_word
+                .map(str::to_owned)
+                .or_else(|| st.done_names().first().map(|s| s.to_string()));
+            pending_log(
+                ed,
+                h,
+                Note {
+                    purpose: "state".into(),
+                    state,
+                    prev: last,
+                    how,
+                    extra: None,
+                    time: super::now(),
+                },
+            );
         }
     }
     if let Some(msg) = super::time::auto_repeat(ed, h)? {
@@ -818,7 +988,9 @@ fn repeat_hook(ed: &mut Editor, h: usize, done_word: Option<&str>, last: Option<
 
 /// org-todo-trigger-tag-changes.
 fn trigger_tags(ed: &mut Editor, h: usize, st: &Settings, state: Option<&str>) {
-    let Some(v) = super::sexp::option("org-todo-state-tags-triggers") else { return };
+    let Some(v) = super::sexp::option("org-todo-state-tags-triggers") else {
+        return;
+    };
     let Some(list) = v.list() else { return };
     let find = |key: &dyn Fn(&Sexp) -> bool| -> Vec<(String, bool)> {
         list.iter()
@@ -860,7 +1032,9 @@ pub fn percent_cookie(done: usize, total: usize) -> String {
 /// The statistics cookies on line `l`: byte ranges and percent-ness.
 fn cookies(line: &str) -> Vec<(std::ops::Range<usize>, bool)> {
     let re = crate::org_re!(r"\[(\d*%|\d*/\d*)\]");
-    re.find_iter(line).map(|m| (m.range(), m.as_str().ends_with("%]"))).collect()
+    re.find_iter(line)
+        .map(|m| (m.range(), m.as_str().ends_with("%]")))
+        .collect()
 }
 
 /// org-update-parent-todo-statistics from heading `h`.
@@ -872,7 +1046,10 @@ pub fn update_parent_statistics(ed: &mut Editor, h: usize) {
     let parent0 = syntax::parent(&ed.buf, h);
     let cookie_data = |ed: &Editor, p: usize| props::get(ed, Some(p), "COOKIE_DATA", Inherit::Yes);
     let prop = parent0.and_then(|p| cookie_data(ed, p));
-    let recursive = !children_only || prop.as_deref().is_some_and(|p| p.split_whitespace().any(|w| w == "recursive"));
+    let recursive = !children_only
+        || prop
+            .as_deref()
+            .is_some_and(|p| p.split_whitespace().any(|w| w == "recursive"));
     let mut first = true;
     let mut cur = h;
     while let Some(p) = syntax::parent(&ed.buf, cur) {
@@ -881,7 +1058,9 @@ pub fn update_parent_statistics(ed: &mut Editor, h: usize) {
         }
         first = false;
         cur = p;
-        let cd = props::get(ed, Some(p), "COOKIE_DATA", Inherit::No).unwrap_or_default().to_lowercase();
+        let cd = props::get(ed, Some(p), "COOKIE_DATA", Inherit::No)
+            .unwrap_or_default()
+            .to_lowercase();
         if cd.split_whitespace().any(|w| w == "checkbox") {
             break;
         }
@@ -894,22 +1073,31 @@ pub fn update_parent_statistics(ed: &mut Editor, h: usize) {
         let end = syntax::subtree_end(&ed.buf, p);
         let (mut all, mut done) = (0usize, 0usize);
         for l in p + 1..end {
-            let Some(c) = syntax::headline(&ed.buf.line(l), &st) else { continue };
+            let Some(c) = syntax::headline(&ed.buf.line(l), &st) else {
+                continue;
+            };
             if c.level <= level {
                 break;
             }
-            let kwd = if recursive || c.level == ltoggle { c.todo.clone() } else { None };
+            let kwd = if recursive || c.level == ltoggle {
+                c.todo.clone()
+            } else {
+                None
+            };
             let is_done = kwd.as_deref().is_some_and(|k| st.is_done(k));
             let counts = match &provide {
                 Sexp::Sym(s) if s == "all-headlines" => true,
                 Sexp::T => kwd.is_some(),
-                Sexp::List(v) if v.first().is_some_and(|x| matches!(x, Sexp::Str(_))) => {
-                    kwd.as_deref().is_some_and(|k| v.iter().any(|x| x.str() == Some(k)) || st.is_done(k))
-                }
+                Sexp::List(v) if v.first().is_some_and(|x| matches!(x, Sexp::Str(_))) => kwd
+                    .as_deref()
+                    .is_some_and(|k| v.iter().any(|x| x.str() == Some(k)) || st.is_done(k)),
                 Sexp::List(v) => {
                     let todo = v.first().and_then(Sexp::list).unwrap_or(&[]);
                     let dn = v.get(1).and_then(Sexp::list).unwrap_or(&[]);
-                    kwd.as_deref().is_some_and(|k| todo.iter().any(|x| x.str() == Some(k)) || (st.is_done(k) && dn.iter().any(|x| x.str() == Some(k))))
+                    kwd.as_deref().is_some_and(|k| {
+                        todo.iter().any(|x| x.str() == Some(k))
+                            || (st.is_done(k) && dn.iter().any(|x| x.str() == Some(k)))
+                    })
                 }
                 _ => false,
             };
@@ -920,7 +1108,14 @@ pub fn update_parent_statistics(ed: &mut Editor, h: usize) {
                 Sexp::T => is_done,
                 Sexp::Sym(s) if s == "all-headlines" => is_done,
                 Sexp::List(v) if v.first().is_some_and(|x| matches!(x, Sexp::Str(_))) => is_done,
-                Sexp::List(v) => is_done && v.get(1).and_then(Sexp::list).unwrap_or(&[]).iter().any(|x| Some(x.str().unwrap_or("")) == kwd.as_deref()),
+                Sexp::List(v) => {
+                    is_done
+                        && v.get(1)
+                            .and_then(Sexp::list)
+                            .unwrap_or(&[])
+                            .iter()
+                            .any(|x| Some(x.str().unwrap_or("")) == kwd.as_deref())
+                }
                 _ => false,
             };
             if done_counts {
@@ -929,7 +1124,11 @@ pub fn update_parent_statistics(ed: &mut Editor, h: usize) {
         }
         let mut newline = line.clone();
         for (r, pct) in cs.into_iter().rev() {
-            let new = if pct { percent_cookie(done, all) } else { format!("[{done}/{all}]") };
+            let new = if pct {
+                percent_cookie(done, all)
+            } else {
+                format!("[{done}/{all}]")
+            };
             newline.replace_range(r, &new);
         }
         if newline != line {
@@ -945,7 +1144,9 @@ pub fn update_parent_statistics(ed: &mut Editor, h: usize) {
 pub fn update_statistics_cookies(ed: &mut Editor, all: bool) -> Result<(), String> {
     if all {
         let _ = call(ed, "org-update-checkbox-count", Prefix::U(1));
-        let heads: Vec<usize> = (0..ed.line_count()).filter(|&l| ctx::at_heading(ed, l)).collect();
+        let heads: Vec<usize> = (0..ed.line_count())
+            .filter(|&l| ctx::at_heading(ed, l))
+            .collect();
         for h in heads {
             update_parent_statistics(ed, h);
         }
@@ -964,7 +1165,9 @@ pub fn update_statistics_cookies(ed: &mut Editor, all: bool) -> Result<(), Strin
     if has_boxes && !todo_cookie {
         return call(ed, "org-update-checkbox-count", Prefix::None);
     }
-    let child = end < ed.line_count() && syntax::level(&ed.buf.line(end)).is_some_and(|c| c > syntax::level(&ed.buf.line(l)).unwrap());
+    let child = end < ed.line_count()
+        && syntax::level(&ed.buf.line(end))
+            .is_some_and(|c| c > syntax::level(&ed.buf.line(l)).unwrap());
     if child {
         update_parent_statistics(ed, end);
     } else {
@@ -1004,7 +1207,10 @@ pub fn todo(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
         Prefix::Num(n) if n < -1 => Err(format!("Prefix argument {n} not supported")),
         Prefix::Num(n) => change_state(ed, Target::Nth(n as usize), false, false, None),
         Prefix::None => {
-            let has_keys = st.seqs.iter().any(|s| s.todo.iter().chain(&s.done).any(|k| k.key.is_some()));
+            let has_keys = st
+                .seqs
+                .iter()
+                .any(|s| s.todo.iter().chain(&s.done).any(|k| k.key.is_some()));
             let fast = match super::sexp::option("org-use-fast-todo-selection") {
                 Some(Sexp::Nil) => false,
                 Some(Sexp::Sym(s)) if s == "expert" || s == "auto" => has_keys,
@@ -1036,12 +1242,32 @@ pub fn mark_done(ed: &mut Editor) -> Result<(), String> {
 /// S-left/right on a heading: org-todo 'left / 'right.
 pub fn shift_todo(ed: &mut Editor, right: bool, inhibit_logging: bool) -> Result<(), String> {
     let t = if right { Target::Right } else { Target::Left };
-    change_state(ed, t, false, inhibit_logging, if inhibit_logging { Some(How::Time) } else { None })
+    change_state(
+        ed,
+        t,
+        false,
+        inhibit_logging,
+        if inhibit_logging {
+            Some(How::Time)
+        } else {
+            None
+        },
+    )
 }
 
 /// C-S-left/right on a heading: previous/next keyword set.
 pub fn shift_set(ed: &mut Editor, right: bool) -> Result<(), String> {
-    change_state(ed, if right { Target::NextSet } else { Target::PrevSet }, false, false, None)
+    change_state(
+        ed,
+        if right {
+            Target::NextSet
+        } else {
+            Target::PrevSet
+        },
+        false,
+        false,
+        None,
+    )
 }
 
 /// org-priority with an action.
@@ -1066,7 +1292,13 @@ fn priority(ed: &mut Editor, action: PriorityAction) -> Result<(), String> {
     let line = ed.buf.line(h);
     let hl = syntax::headline(&line, &st).ok_or("Not at a heading")?;
     let current = hl.priority;
-    let repeat = ed.org.as_ref().and_then(|o| o.last_command.as_deref()).is_some_and(|c| c.starts_with("org-priority") || c == "org-shiftup" || c == "org-shiftdown");
+    let repeat = ed
+        .org
+        .as_ref()
+        .and_then(|o| o.last_command.as_deref())
+        .is_some_and(|c| {
+            c.starts_with("org-priority") || c == "org-shiftup" || c == "org-shiftdown"
+        });
     let start_default = super::options::bool("org-priority-start-cycle-with-default", true);
     let valid = |v: u32| v >= high && v <= low;
     let mut remove = false;
@@ -1109,17 +1341,29 @@ fn priority(ed: &mut Editor, action: PriorityAction) -> Result<(), String> {
         },
     };
     if !remove && !valid(new) {
-        if matches!(action, PriorityAction::Up | PriorityAction::Down) && current.is_none() && !repeat {
+        if matches!(action, PriorityAction::Up | PriorityAction::Down)
+            && current.is_none()
+            && !repeat
+        {
             return Err("The default can not be set, see `org-priority-default' why".into());
         }
         remove = true;
     }
     let newline = match (&hl.priority_range, remove) {
         (Some(r), true) => {
-            let end = if line[r.end..].starts_with(' ') { r.end + 1 } else { r.end };
+            let end = if line[r.end..].starts_with(' ') {
+                r.end + 1
+            } else {
+                r.end
+            };
             format!("{}{}", &line[..r.start], &line[end..])
         }
-        (Some(r), false) => format!("{}[#{}]{}", &line[..r.start], props::priority_string(new), &line[r.end..]),
+        (Some(r), false) => format!(
+            "{}[#{}]{}",
+            &line[..r.start],
+            props::priority_string(new),
+            &line[r.end..]
+        ),
         (None, true) => return Err("No priority cookie found in line".into()),
         (None, false) => {
             let at = hl.todo_range.as_ref().map_or(hl.level, |r| r.end);
@@ -1128,7 +1372,12 @@ fn priority(ed: &mut Editor, action: PriorityAction) -> Result<(), String> {
             if rest.is_empty() {
                 format!("{} [#{}]", &line[..at], props::priority_string(new))
             } else {
-                format!("{} [#{}] {}", &line[..at], props::priority_string(new), rest)
+                format!(
+                    "{} [#{}] {}",
+                    &line[..at],
+                    props::priority_string(new),
+                    rest
+                )
             }
         }
     };
@@ -1136,7 +1385,14 @@ fn priority(ed: &mut Editor, action: PriorityAction) -> Result<(), String> {
     if super::options::bool("org-auto-align-tags", true) {
         tags::align(ed, h);
     }
-    ed.set_msg(format!("Priority of current item set to {}", if remove { "removed".into() } else { props::priority_string(new) }));
+    ed.set_msg(format!(
+        "Priority of current item set to {}",
+        if remove {
+            "removed".into()
+        } else {
+            props::priority_string(new)
+        }
+    ));
     Ok(())
 }
 
@@ -1146,14 +1402,16 @@ fn priority_show(ed: &mut Editor) -> Result<(), String> {
     let st = super::settings(ed);
     let hl = syntax::headline(&ed.buf.line(h), &st).ok_or("Not at a heading")?;
     let p = hl.priority.unwrap_or(st.priorities.2);
-    ed.set_msg(format!("Priority is {}", p as i64 * 1000 - (if hl.todo.is_some() { 0 } else { 0 })));
+    ed.set_msg(format!("Priority is {}", p as i64 * 1000));
     Ok(())
 }
 
 /// org-occur: show lines matching `re`, return the number of matches.
 pub fn occur(ed: &mut Editor, re: &str, keep: bool) -> Result<usize, String> {
     let r = super::re::compile(re, super::re::smart_fold(re))?;
-    let hits: Vec<usize> = (0..ed.line_count()).filter(|&l| r.is_match(&ed.buf.line(l))).collect();
+    let hits: Vec<usize> = (0..ed.line_count())
+        .filter(|&l| r.is_match(&ed.buf.line(l)))
+        .collect();
     if !keep {
         tags::sparse_show(ed, &[], "occur-tree");
     }
@@ -1179,10 +1437,16 @@ fn show_todo_tree(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
     let st = super::settings(ed);
     let not_done: Vec<String> = st.not_done_names().iter().map(|s| s.to_string()).collect();
     let go = move |ed: &mut Editor, kwds: Vec<String>| {
-        let alt = kwds.iter().map(|k| regex::escape(k)).collect::<Vec<_>>().join("|");
+        let alt = kwds
+            .iter()
+            .map(|k| regex::escape(k))
+            .collect::<Vec<_>>()
+            .join("|");
         let re = format!(r"^\*+ +({alt})(\s|$)");
         let r = regex::Regex::new(&re).unwrap();
-        let hits: Vec<usize> = (0..ed.line_count()).filter(|&l| r.is_match(&ed.buf.line(l))).collect();
+        let hits: Vec<usize> = (0..ed.line_count())
+            .filter(|&l| r.is_match(&ed.buf.line(l)))
+            .collect();
         tags::sparse_show(ed, &hits, "occur-tree");
         ed.set_msg(format!("{} TODO entries found", hits.len()));
         if let Some(o) = &mut ed.org {
@@ -1193,9 +1457,15 @@ fn show_todo_tree(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
         Prefix::None => go(ed, not_done),
         Prefix::U(1) => {
             let all: Vec<String> = st.todo_names().iter().map(|s| s.to_string()).collect();
-            super::complete(ed, "Keyword (or KWD1|KWD2|...): ", all, false, move |ed, k| {
-                go(ed, k.split('|').map(str::to_owned).collect());
-            });
+            super::complete(
+                ed,
+                "Keyword (or KWD1|KWD2|...): ",
+                all,
+                false,
+                move |ed, k| {
+                    go(ed, k.split('|').map(str::to_owned).collect());
+                },
+            );
         }
         p => {
             let n = p.value().max(1) as usize;
@@ -1245,10 +1515,20 @@ fn sparse_tree(ed: &mut Editor, arg: Prefix) {
                     let keys = props::buffer_keys(ed, false, false, false);
                     super::complete(ed, "Property: ", keys, false, |ed, p| {
                         let vals = props::values(ed, &p);
-                        super::complete(ed, &format!("Value for {p}: "), vals, false, move |ed, v| {
-                            let v = if v.contains(char::is_whitespace) { format!("\"{v}\"") } else { format!("{{^{}$}}", regex::escape(&v)) };
-                            tags::match_sparse_tree(ed, false, &format!("{p}={v}"));
-                        });
+                        super::complete(
+                            ed,
+                            &format!("Value for {p}: "),
+                            vals,
+                            false,
+                            move |ed, v| {
+                                let v = if v.contains(char::is_whitespace) {
+                                    format!("\"{v}\"")
+                                } else {
+                                    format!("{{^{}$}}", regex::escape(&v))
+                                };
+                                tags::match_sparse_tree(ed, false, &format!("{p}={v}"));
+                            },
+                        );
                     });
                     Ok(())
                 }
@@ -1297,7 +1577,12 @@ fn toggle_comment(ed: &mut Editor) -> Result<(), String> {
     let hl = syntax::headline(&line, &st).unwrap();
     let comment = super::options::string("org-comment-string", "COMMENT");
     let new = if hl.commented {
-        let start = hl.priority_range.as_ref().map(|r| r.end).or(hl.todo_range.as_ref().map(|r| r.end)).unwrap_or(hl.level);
+        let start = hl
+            .priority_range
+            .as_ref()
+            .map(|r| r.end)
+            .or(hl.todo_range.as_ref().map(|r| r.end))
+            .unwrap_or(hl.level);
         let i = line[start..].find(&comment).map(|i| i + start).unwrap();
         let mut end = i + comment.len();
         while line[end..].starts_with(' ') && end < hl.title.start {
@@ -1305,9 +1590,18 @@ fn toggle_comment(ed: &mut Editor) -> Result<(), String> {
         }
         format!("{}{}", &line[..i], &line[end..])
     } else {
-        let at = hl.priority_range.as_ref().map(|r| r.end).or(hl.todo_range.as_ref().map(|r| r.end)).unwrap_or(hl.level);
+        let at = hl
+            .priority_range
+            .as_ref()
+            .map(|r| r.end)
+            .or(hl.todo_range.as_ref().map(|r| r.end))
+            .unwrap_or(hl.level);
         let rest = line[at..].trim_start_matches(' ');
-        if rest.is_empty() { format!("{} {comment}", &line[..at]) } else { format!("{} {comment} {rest}", &line[..at]) }
+        if rest.is_empty() {
+            format!("{} {comment}", &line[..at])
+        } else {
+            format!("{} {comment} {rest}", &line[..at])
+        }
     };
     super::set_line(ed, h, &new);
     if super::options::bool("org-auto-align-tags", true) {
@@ -1329,26 +1623,59 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
         "org-add-log-setup" => {
             // A reschedule/redeadline note requested by the time module.
             if let Some(r) = super::time::take_log_request() {
-                let how = if r.how == "note" { How::Note } else { How::Time };
-                let note = Note { purpose: r.purpose.into(), state: r.state, prev: Some(r.previous), how, extra: None, time: super::now() };
+                let how = if r.how == "note" {
+                    How::Note
+                } else {
+                    How::Time
+                };
+                let note = Note {
+                    purpose: r.purpose.into(),
+                    state: r.state,
+                    prev: Some(r.previous),
+                    how,
+                    extra: None,
+                    time: super::now(),
+                };
                 let h = r.heading;
                 add_log(ed, h, note);
             }
             Ok(())
         }
         "org-add-note" => {
-            let h = fold::back_to_heading(ed, ed.cur.line).ok_or_else(|| "Before first headline".to_owned());
-            h.map(|h| add_log(ed, h, Note { purpose: "note".into(), state: None, prev: None, how: How::Note, extra: None, time: super::now() }))
+            let h = fold::back_to_heading(ed, ed.cur.line)
+                .ok_or_else(|| "Before first headline".to_owned());
+            h.map(|h| {
+                add_log(
+                    ed,
+                    h,
+                    Note {
+                        purpose: "note".into(),
+                        state: None,
+                        prev: None,
+                        how: How::Note,
+                        extra: None,
+                        time: super::now(),
+                    },
+                )
+            })
         }
         "org-priority" => match arg {
             Prefix::U(1) => priority_show(ed),
             _ => {
                 let st = super::settings(ed);
                 let (high, low, _) = st.priorities;
-                let msg = format!("Priority {}-{}, SPC to remove: ", props::priority_string(high), props::priority_string(low));
+                let msg = format!(
+                    "Priority {}-{}, SPC to remove: ",
+                    props::priority_string(high),
+                    props::priority_string(low)
+                );
                 if high < 65 && low >= 10 {
                     super::read(ed, &msg, "", |ed, s| {
-                        let v = if s == " " { None } else { s.trim().parse().ok() };
+                        let v = if s == " " {
+                            None
+                        } else {
+                            s.trim().parse().ok()
+                        };
                         if v.is_none() && s != " " {
                             ed.set_err("Priority must be a number");
                             return;
@@ -1360,10 +1687,21 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
                         ed.undo.end(ed.cur.pos());
                     });
                 } else {
-                    let mut entries: Vec<(String, String)> = (high..=low).map(|p| (props::priority_string(p).to_lowercase(), props::priority_string(p))).collect();
+                    let mut entries: Vec<(String, String)> = (high..=low)
+                        .map(|p| {
+                            (
+                                props::priority_string(p).to_lowercase(),
+                                props::priority_string(p),
+                            )
+                        })
+                        .collect();
                     entries.push((" ".into(), "remove".into()));
                     super::menu(ed, &msg, entries, |ed, k| {
-                        let v = if k == " " { None } else { syntax::priority_value(&k.to_uppercase()) };
+                        let v = if k == " " {
+                            None
+                        } else {
+                            syntax::priority_value(&k.to_uppercase())
+                        };
                         ed.undo.begin(ed.cur.pos());
                         if let Err(e) = set_priority(ed, v) {
                             ed.set_err(e);
@@ -1424,7 +1762,12 @@ mod tests {
         super::super::options::put("org-log-done", toml::Value::Boolean(false));
         // Logging a state change with `!`.
         let e = org("#+TODO: TODO WAIT(w!) | DONE\n* TODO A", "j<C-c><C-t>w");
-        assert_eq!(e.buf.text(), format!("#+TODO: TODO WAIT(w!) | DONE\n* WAIT A\n- State \"WAIT\"       from \"TODO\"       {ts}"));
+        assert_eq!(
+            e.buf.text(),
+            format!(
+                "#+TODO: TODO WAIT(w!) | DONE\n* WAIT A\n- State \"WAIT\"       from \"TODO\"       {ts}"
+            )
+        );
         // Into a drawer.
         super::super::options::put("org-log-into-drawer", toml::Value::Boolean(true));
         let e = org("#+TODO: TODO WAIT(w!) | DONE\n* TODO A", "j<C-c><C-t>w");
@@ -1437,7 +1780,12 @@ mod tests {
 
     #[test]
     fn sets_and_shift_states() {
-        let e = org("#+TODO: A B | C\n#+TODO: X | Y\n* A t", "jj<Space>u<Space>u<C-c><C-t>".replace("<Space>", " ").as_str());
+        let e = org(
+            "#+TODO: A B | C\n#+TODO: X | Y\n* A t",
+            "jj<Space>u<Space>u<C-c><C-t>"
+                .replace("<Space>", " ")
+                .as_str(),
+        );
         assert_eq!(e.buf.line(2), "* X t");
         let e = org("* TODO a", "3<C-c><C-t>");
         assert!(e.msg.is_some());
@@ -1465,7 +1813,13 @@ mod tests {
 
     #[test]
     fn escapes() {
-        assert_eq!(replace_escapes("State %-12s from %-12S", &[('s', "\"A\"".into()), ('S', "\"B\"".into())]), "State \"A\"          from \"B\"         ");
+        assert_eq!(
+            replace_escapes(
+                "State %-12s from %-12S",
+                &[('s', "\"A\"".into()), ('S', "\"B\"".into())]
+            ),
+            "State \"A\"          from \"B\"         "
+        );
         assert_eq!(percent_cookie(1, 300), "[1%]");
     }
 }
@@ -1483,7 +1837,10 @@ mod repeat_tests {
         assert_eq!(e.buf.line(1), "SCHEDULED: <2026-10-11 Sun +1w>");
         assert_eq!(e.buf.line(2), ":PROPERTIES:");
         assert_eq!(e.buf.line(3), format!(":LAST_REPEAT: {ts}"));
-        assert_eq!(e.buf.line(5), format!("- State \"DONE\"       from \"TODO\"       {ts}"));
+        assert_eq!(
+            e.buf.line(5),
+            format!("- State \"DONE\"       from \"TODO\"       {ts}")
+        );
         super::super::set_now(None);
     }
 }

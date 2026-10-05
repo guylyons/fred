@@ -104,7 +104,10 @@ fn named(name: &str) -> Option<Key> {
         } else if let Some(r) = rest.strip_prefix("M-").filter(|r| !r.is_empty()) {
             alt = true;
             rest = r;
-        } else if let Some(r) = rest.strip_prefix("S-").filter(|r| *r != "Tab" && !r.is_empty()) {
+        } else if let Some(r) = rest
+            .strip_prefix("S-")
+            .filter(|r| *r != "Tab" && !r.is_empty())
+        {
             shift = true;
             rest = r;
         } else {

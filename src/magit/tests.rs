@@ -1144,7 +1144,7 @@ fn blame_attributes_chunks_and_commit_info() {
     );
 }
 #[test]
-fn blame_time_uses_commit_zone() {
+fn blame_time_uses_the_local_zone() {
     let info = |t, tz: &str| super::blame::Info {
         committer_time: t,
         committer_tz: tz.into(),
@@ -1170,9 +1170,15 @@ fn blame_time_uses_commit_zone() {
         version: 0,
         was_readonly: false,
     };
-    assert!(blame.heading(&blame.chunks[0]).contains("2023-11-14 23:13"));
+    // magit-blame-time-format in local time, as format-time-string.
+    let local = |t| super::margin::strftime("%F %H:%M", t);
+    assert!(
+        blame
+            .heading(&blame.chunks[0])
+            .contains(&local(1_700_000_000))
+    );
     blame.info.insert("a".repeat(40), info(0, "-0230"));
-    assert!(blame.heading(&blame.chunks[0]).contains("1969-12-31 21:30"));
+    assert!(blame.heading(&blame.chunks[0]).contains(&local(0)));
     assert_eq!(blame.margin(1).unwrap().1, "");
     blame.style = 2;
     assert_eq!(blame.margin(0).unwrap(), (1, "┌".into()));
@@ -2257,10 +2263,13 @@ fn rebase_captures_and_replays_todo_lists() {
         d.path(),
         &["remote", "add", "origin", bare.path().to_str().unwrap()],
     );
+    // magit-published-branches defaults to origin/master only.
     git(d.path(), &["push", "-qu", "origin", "main"]);
+    git(d.path(), &["push", "-q", "origin", "main:master"]);
+    git(d.path(), &["fetch", "-q", "origin"]);
     match r.rebase_step(Op::RewordCommit, &s(&["HEAD"]), &[]).unwrap() {
         Next::Ask(Q::Rebase(op @ Op::Published(..)), p, _) => {
-            assert!(p[0].contains("origin/main"));
+            assert!(p[0].contains("origin/master"));
             assert!(r.rebase_step(op, &s(&["n"]), &[]).is_err());
         }
         other => panic!("{other:?}"),
@@ -2823,13 +2832,20 @@ fn submodule_add_populate_list_and_remove() {
         .unwrap());
     git(d.path(), &["commit", "-qm", "add lib"]);
     assert_eq!(r.module_paths().unwrap(), s(&["lib"]));
-    let rows = r.module_rows().unwrap();
-    assert!(rows[0].0.contains("v9"), "{rows:?}");
+    let (header, rows) = r.module_rows().unwrap();
+    assert!(
+        header.starts_with("Path") && header.contains("Version"),
+        "{header}"
+    );
+    assert!(
+        rows[0].0.starts_with("lib") && rows[0].0.contains("v9"),
+        "{rows:?}"
+    );
     // Populate only applies to unpopulated modules; unpopulate, then populate.
     assert!(r.submodule_step(Op::Populate, &s(&["lib"]), &[]).is_err());
     assert!(r.submodule_step(Op::Update, &s(&["nope"]), &[]).is_err());
     run(r.submodule_step(Op::Unpopulate, &s(&["lib"]), &[]).unwrap());
-    assert!(r.module_rows().unwrap()[0].0.contains("(unpopulated)"));
+    assert!(r.module_rows().unwrap().1[0].0.contains("(unpopulated)"));
     run(r.submodule_step(Op::Populate, &s(&["lib"]), &[]).unwrap());
     assert!(d.path().join("lib/x").exists());
     // A dirty module is omitted without --force, and confirmed with it.
@@ -3136,7 +3152,10 @@ fn clone_regular_sparse_and_into_non_empty_directory() {
     let run = |n: Next| match n {
         Next::Invoke(inv) => {
             inv.repo.run(&inv.args, None).unwrap();
-            inv.after.unwrap().finish().unwrap()
+            let Some(After::Clone(after)) = inv.after else {
+                panic!()
+            };
+            after.finish().unwrap()
         }
         other => panic!("{other:?}"),
     };
@@ -3834,4 +3853,833 @@ fn hunk_patch_keeps_raw_bytes_and_drops_renames_for_hunks() {
         .split(|b| *b == b'\n')
         .collect();
     assert!(hunk_patch(&cc, 2).is_err());
+}
+#[test]
+fn branch_or_checkout_remote_ref_and_default_branch() {
+    use super::Question as Q;
+    use super::branch::{Next, Op};
+    let (d, r, bare) = with_remote();
+    git(d.path(), &["push", "-qu", "origin", "main"]);
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    // An existing revision is checked out; a new name asks for a start point.
+    git(d.path(), &["branch", "side"]);
+    let n = r.branch_step(Op::OrCheckout, &s(&["side"]), &[]);
+    assert!(matches!(n, Next::Done(Ok(_))), "{n:?}");
+    assert_eq!(r.current_branch().unwrap(), "side");
+    let Next::Ask(Q::Branch(Op::OrCheckoutNew(new)), _, _) =
+        r.branch_step(Op::OrCheckout, &s(&["fresh"]), &[])
+    else {
+        panic!()
+    };
+    // Uncommitted changes block it, unless --merge carries them over.
+    fs::write(d.path().join("f"), "dirty\n").unwrap();
+    assert!(matches!(
+        r.branch_step(Op::OrCheckoutNew(new.clone()), &s(&["main"]), &[]),
+        Next::Done(Err(_))
+    ));
+    let n = r.branch_step_args(Op::OrCheckoutNew(new), &s(&["main"]), &[], &s(&["--merge"]));
+    assert!(matches!(n, Next::Done(Ok(_))), "{n:?}");
+    assert_eq!(r.current_branch().unwrap(), "fresh");
+    git(d.path(), &["checkout", "-q", "--", "f"]);
+    // checkout-remote-ref: fetch the ref, then check out FETCH_HEAD.
+    let Next::Ask(Q::Branch(op), _, _) = r.branch_step(Op::RemoteRef, &s(&["origin"]), &[]) else {
+        panic!()
+    };
+    let Next::Invoke(inv) = r.branch_step(op, &s(&["main"]), &[]) else {
+        panic!()
+    };
+    assert_eq!(inv.args, ["fetch", "origin", "main"]);
+    assert!(matches!(&inv.after, Some(After::Git(a)) if a == &s(&["checkout", "FETCH_HEAD"])));
+    assert!(matches!(
+        r.branch_step(Op::RemoteRef, &s(&["nope"]), &[]),
+        Next::Done(Err(_))
+    ));
+    // The remote renames main to trunk: rename locally and fix upstreams.
+    git(d.path(), &["checkout", "-q", "main"]);
+    git(d.path(), &["remote", "set-head", "origin", "main"]);
+    git(bare.path(), &["branch", "-m", "main", "trunk"]);
+    git(bare.path(), &["symbolic-ref", "HEAD", "refs/heads/trunk"]);
+    git(
+        d.path(),
+        &["branch", "-q", "--set-upstream-to=origin/main", "side"],
+    );
+    let Next::Ask(Q::Branch(op), p, _) = r.branch_step(Op::UpdateDefault, &[], &[]) else {
+        panic!()
+    };
+    assert!(p[0].contains("from `main' to `trunk'"), "{p:?}");
+    assert!(matches!(
+        r.branch_step(op.clone(), &s(&["n"]), &[]),
+        Next::Done(Err(_))
+    ));
+    assert!(matches!(
+        r.branch_step(op, &s(&["y"]), &[]),
+        Next::Done(Ok(_))
+    ));
+    assert_eq!(r.current_branch().unwrap(), "trunk");
+    assert_eq!(r.upstream_of("trunk").as_deref(), Some("origin/trunk"));
+    assert_eq!(r.upstream_of("side").as_deref(), Some("origin/trunk"));
+}
+#[test]
+fn pull_into_upstream_and_push_to_remote() {
+    use super::network::Op::*;
+    let (d, r, bare) = with_remote();
+    git(d.path(), &["push", "-qu", "origin", "main"]);
+    // main tracks origin/main; work tracks main.
+    git(d.path(), &["checkout", "-qb", "work", "--track", "main"]);
+    let other = tempfile::tempdir().unwrap();
+    git(
+        other.path(),
+        &["clone", "-q", bare.path().to_str().unwrap(), "."],
+    );
+    fs::write(other.path().join("g"), "remote\n").unwrap();
+    git(other.path(), &["add", "g"]);
+    git(other.path(), &["commit", "-qm", "remote"]);
+    git(other.path(), &["push", "-q", "origin", "main"]);
+    let argv = run_net(&r, PullIntoUpstream, &[], &[]);
+    assert_eq!(argv[..2], ["fetch", "origin"]);
+    assert_eq!(
+        git(d.path(), &["rev-parse", "main"]),
+        git(other.path(), &["rev-parse", "HEAD"])
+    );
+    assert_eq!(r.current_branch().unwrap(), "work");
+    // Not possible when the upstream is remote.
+    git(d.path(), &["checkout", "-q", "main"]);
+    assert!(r.network(PullIntoUpstream, &[], &[]).is_err());
+    // push-to-remote: no refspec, the menu's arguments.
+    let inv = r
+        .network(PushToRemote, &["origin".into()], &["--dry-run".into()])
+        .unwrap();
+    assert_eq!(inv.args, ["push", "-v", "--dry-run", "origin"]);
+    assert!(r.network(PushToRemote, &["nope".into()], &[]).is_err());
+}
+#[test]
+fn changelog_entries_and_message_ring() {
+    use super::message::*;
+    let diff = b"diff --git a/src/x.rs b/src/x.rs\n--- a/src/x.rs\n+++ b/src/x.rs\n@@ -3 +3 @@ pub fn alpha(x: u8) -> u8 {\n-a\n+b\n@@ -9 +9 @@ (defun magit-foo (x)\n-c\n+d\n@@ -12 +12 @@ pub fn alpha(x: u8) -> u8 {\n-e\n+f\ndiff --git a/gone b/gone\ndeleted file mode 100644\n--- a/gone\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n";
+    let defs = modified_defuns(diff);
+    assert_eq!(
+        defs,
+        vec![
+            ("src/x.rs".into(), vec!["alpha".into(), "magit-foo".into()]),
+            ("gone".into(), vec![]),
+        ]
+    );
+    assert_eq!(
+        changelog(&defs, true),
+        ["* src/x.rs (alpha):", "(magit-foo):", "* gone:"]
+    );
+    assert_eq!(
+        changelog(&defs, false),
+        ["src/x.rs:", "  `alpha'", "  `magit-foo'", "gone:"]
+    );
+    assert_eq!(defun_name("class Foo:").as_deref(), Some("class Foo"));
+    // magit-commit-add-log-insert: a new entry after the summary, a defun
+    // added to an existing entry, and trailers and comments kept below.
+    let (t, line) = add_log_insert(
+        "Summary\n\nSigned-off-by: A <a@b>\n# comment\n",
+        "f",
+        Some("g"),
+    );
+    assert_eq!(
+        t,
+        "Summary\n\n* f (g): \n\nSigned-off-by: A <a@b>\n# comment\n"
+    );
+    assert_eq!(line, 2);
+    let (t, line) = add_log_insert(&t, "f", Some("h"));
+    assert_eq!(
+        t,
+        "Summary\n\n* f (g): \n(h): \n\nSigned-off-by: A <a@b>\n# comment\n"
+    );
+    assert_eq!(line, 3);
+    let (t2, _) = add_log_insert(&t, "f", Some("h"));
+    assert_eq!(t2, t);
+    let (t, _) = add_log_insert(&t, "other", None);
+    assert!(t.contains("(h): \n* other: \n"), "{t:?}");
+    let (t, line) = add_log_insert("", "f", None);
+    assert_eq!((t.as_str(), line), ("* f: \n", 0));
+    // ChangeLog files: today's heading per author, items under it.
+    let h = "2026-10-04  Fred  <f@x>";
+    let log = change_log_add("", h, "a.c", Some("main"));
+    assert_eq!(log, format!("{h}\n\n\t* a.c (main): \n"));
+    let log = change_log_add(&log, h, "a.c", Some("util"));
+    assert_eq!(log, format!("{h}\n\n\t* a.c (main): \n\t(util): \n"));
+    let log = change_log_add(&log, "2026-10-05  Fred  <f@x>", "b.c", None);
+    assert!(
+        log.starts_with("2026-10-05  Fred  <f@x>\n\n\t* b.c: \n\n2026-10-04"),
+        "{log:?}"
+    );
+    // git-commit-buffer-message drops comments and the scissors section.
+    assert_eq!(
+        buffer_message(
+            "\n\nmsg\n# c\n\n# ------------------------ >8 ------------------------\ndiff"
+        )
+        .as_deref(),
+        Some("msg\n")
+    );
+    assert_eq!(buffer_message("# only\n \n"), None);
+}
+#[test]
+fn stage_and_unstage_files_and_absorb_needs_its_tool() {
+    use super::branch::Next;
+    use super::misc::Op;
+    let (d, r) = setup();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    fs::write(d.path().join("a"), "a").unwrap();
+    fs::write(d.path().join("*"), "star").unwrap();
+    // Before the first commit, unstaging is git rm --cached.
+    r.misc_step(Op::StageFiles(false), &s(&["a, *"])).unwrap();
+    let staged = || {
+        String::from_utf8_lossy(&git(d.path(), &["diff", "--cached", "--name-only"])).into_owned()
+    };
+    assert_eq!(staged(), "*\na\n");
+    r.misc_step(Op::UnstageFiles, &s(&["*"])).unwrap();
+    assert_eq!(staged(), "a\n");
+    git(d.path(), &["commit", "-qm", "base"]);
+    fs::write(d.path().join("a"), "b").unwrap();
+    r.misc_step(Op::StageFiles(false), &s(&["a"])).unwrap();
+    assert_eq!(staged(), "a\n");
+    r.misc_step(Op::UnstageFiles, &s(&["a"])).unwrap();
+    assert_eq!(staged(), "");
+    assert!(r.misc_step(Op::StageFiles(false), &s(&["../x"])).is_err());
+    assert!(r.misc_step(Op::StageFiles(false), &s(&[" , "])).is_err());
+    // Ignored files need the force variant.
+    fs::write(d.path().join(".gitignore"), "ign\n").unwrap();
+    fs::write(d.path().join("ign"), "i").unwrap();
+    assert!(r.misc_step(Op::StageFiles(false), &s(&["ign"])).is_err());
+    r.misc_step(Op::StageFiles(true), &s(&["ign"])).unwrap();
+    assert!(staged().contains("ign"));
+    let has = |t: &str| {
+        Command::new("sh")
+            .args(["-c", &format!("command -v {t}")])
+            .status()
+            .is_ok_and(|s| s.success())
+    };
+    if !has("git-absorb") {
+        let e = r
+            .commit_step(super::commit::Op::Absorb, &s(&["HEAD"]), &[])
+            .unwrap_err();
+        assert!(e.contains("git-absorb"), "{e}");
+    }
+    let _ = Next::Done(Ok(String::new()));
+}
+#[test]
+fn margin_ages_widths_stamps_and_refinement() {
+    use super::margin::*;
+    assert_eq!(age(1, false), (1, "second".into()));
+    assert_eq!(age(90, false), (2, "minutes".into()));
+    assert_eq!(age(3 * 86_400, true), (3, "d".into()));
+    assert_eq!(age(400 * 86_400, false), (1, "year".into()));
+    let mut m = Margin::for_kind(&super::Kind::Log(vec![], vec![])).unwrap();
+    assert!(m.shown && m.details);
+    assert!(!Margin::for_kind(&super::Kind::Status).unwrap().shown);
+    assert!(Margin::for_kind(&super::Kind::Modules).is_none());
+    // magit-log-margin-width: 18 + 1 author, 2 + 1 + 1 + 7 ("minutes").
+    assert_eq!(m.width(), 30);
+    let st = Stamp {
+        author: "A very long author name indeed".into(),
+        time: 1000,
+        stat: Some("   3+    1-   2".into()),
+    };
+    let t = m.text(&st, 1000 + 2 * 3600);
+    assert_eq!(t.chars().count(), m.width());
+    assert!(t.starts_with("A very long autho… "), "{t:?}");
+    assert!(t.ends_with(" 2 hours   "), "{t:?}");
+    m.cycle_style();
+    assert!(
+        m.text(&st, 1000 + 7200).ends_with(" 2h "),
+        "{:?}",
+        m.text(&st, 8200)
+    );
+    m.cycle_style();
+    assert_eq!(m.style, Style::Format("%Y-%m-%d %H:%M ".into()));
+    m.cycle_style();
+    assert_eq!(m.style, Style::Age);
+    m.shortstat = true;
+    assert_eq!(m.width(), 16);
+    assert_eq!(m.text(&st, 0), "   3+    1-   2");
+    assert_eq!(
+        shortstat("2 files changed, 3 insertions(+), 1 deletion(-)"),
+        "   3+    1-   2"
+    );
+    assert_eq!(
+        shortstat("1 file changed, 4 deletions(-)"),
+        "         4-   1"
+    );
+    // Author and date of commits in one call, with shortstats on request.
+    let (d, r) = setup();
+    committed(d.path(), b"one\n");
+    let id = String::from_utf8_lossy(&git(d.path(), &["rev-parse", "HEAD"]))
+        .trim()
+        .to_owned();
+    let stamps = r.stamps(std::slice::from_ref(&id), false, true).unwrap();
+    assert_eq!(stamps.len(), 1);
+    assert_eq!(stamps[0].0, id);
+    assert_eq!(stamps[0].1.author, "Fred Test");
+    assert!(stamps[0].1.time > 0);
+    assert!(
+        stamps[0]
+            .1
+            .stat
+            .as_deref()
+            .is_some_and(|s| s.contains("1+"))
+    );
+    // Hunk refinement: changed words, and each line's partner in its run.
+    let (a, b) = super::diff::refine("let x = 1;", "let y = 1;");
+    assert_eq!(
+        (a.len(), b.len(), a[0].clone(), b[0].clone()),
+        (1, 1, 4..5, 4..5)
+    );
+    let lines = [" ctx", "-a", "-b", "+A", "+B", "+C", " ctx"];
+    let p = |l| super::diff::refine_partner(&lines, l);
+    assert_eq!(
+        (p(1), p(2), p(3), p(4), p(5), p(0)),
+        (Some(3), Some(4), Some(1), Some(2), None, None)
+    );
+}
+#[test]
+fn removing_file_and_fixup_target() {
+    use super::branch::Next;
+    use super::misc::Op;
+    let (d, r) = setup();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    committed(d.path(), b"one\n");
+    fs::write(d.path().join("gone"), "x").unwrap();
+    git(d.path(), &["add", "gone"]);
+    git(d.path(), &["commit", "-qm", "add gone"]);
+    git(d.path(), &["rm", "-q", "gone"]);
+    git(d.path(), &["commit", "-qm", "remove gone"]);
+    let removed = String::from_utf8_lossy(&git(d.path(), &["rev-parse", "HEAD"]))
+        .trim()
+        .to_owned();
+    let Next::Show(super::diff::Target::Commit(id)) =
+        r.misc_step(Op::RemovingFile, &s(&["gone"])).unwrap()
+    else {
+        panic!()
+    };
+    assert_eq!(id, removed);
+    assert!(
+        r.misc_step(Op::RemovingFile, &s(&["f"]))
+            .unwrap_err()
+            .contains("not been removed")
+    );
+    git(
+        d.path(),
+        &["commit", "-q", "--allow-empty", "-m", "fixup! add gone"],
+    );
+    let target = r.fixup_target("HEAD").unwrap();
+    assert!(
+        removed.starts_with(&target) || {
+            let add = String::from_utf8_lossy(&git(d.path(), &["rev-parse", "--short", "HEAD~2"]))
+                .trim()
+                .to_owned();
+            target == add
+        },
+        "{target}"
+    );
+    assert_eq!(r.fixup_target("HEAD~1").as_deref(), Some("HEAD~1"));
+}
+#[test]
+fn shell_commands_wip_file_and_recorded_calls() {
+    use super::branch::Next;
+    use super::misc::Op;
+    let (d, r) = setup();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    committed(d.path(), b"one\n");
+    // magit-shell-command runs in the root (quoted); & substitutes the file.
+    let Next::Shell(cmd) = r
+        .misc_step(Op::ShellCommand { topdir: true }, &s(&["ls"]))
+        .unwrap()
+    else {
+        panic!()
+    };
+    assert!(cmd.starts_with("cd '") && cmd.ends_with("' && ls"), "{cmd}");
+    let Next::Shell(cmd) = r
+        .misc_step(Op::AsyncShell("it's.txt".into()), &s(&["wc -l * | sort"]))
+        .unwrap()
+    else {
+        panic!()
+    };
+    assert!(cmd.ends_with("wc -l 'it'\\''s.txt' | sort"), "{cmd}");
+    assert_eq!(super::misc::shell_quote("a'b"), "'a'\\''b'");
+    assert!(
+        r.misc_step(Op::ShellCommand { topdir: false }, &s(&[""]))
+            .is_err()
+    );
+    let Next::Done(Ok(m)) = r.misc_step(Op::DebugGit, &[]).unwrap() else {
+        panic!()
+    };
+    assert!(m.contains("git version"), "{m}");
+    // magit-wip-commit-buffer-file: only that file's state.
+    fs::write(d.path().join("f"), "two\n").unwrap();
+    fs::write(d.path().join("g"), "untracked\n").unwrap();
+    let m = r.wip_commit_file(Path::new("f")).unwrap();
+    assert!(m.contains("refs/wip/wtree/refs/heads/main"), "{m}");
+    let blob = git(d.path(), &["show", "refs/wip/wtree/refs/heads/main:f"]);
+    assert_eq!(blob, b"two\n");
+    assert!(
+        r.wip_commit_file(Path::new("f"))
+            .unwrap()
+            .contains("No changes")
+    );
+    // magit-toggle-subprocess-record logs background calls.
+    use std::sync::atomic::Ordering;
+    super::repo::RECORD.store(true, Ordering::Relaxed);
+    r.read(&["rev-parse", "HEAD"]).unwrap();
+    super::repo::RECORD.store(false, Ordering::Relaxed);
+    let calls = super::repo::take_calls();
+    assert!(
+        calls
+            .iter()
+            .any(|(root, line, res)| *root == r.root && line == "rev-parse HEAD" && res.is_ok())
+    );
+}
+#[test]
+fn branch_name_prompts_turn_spaces_into_dashes() {
+    use super::{Prompt, Question, reads_branch_name};
+    let r = Repo { root: "/r".into() };
+    let ask = |q, answers: Vec<String>| {
+        Prompt::Ask(
+            r.clone(),
+            q,
+            vec![],
+            vec!["a: ".into(), "b: ".into()],
+            answers,
+        )
+    };
+    use super::branch::Op as B;
+    assert!(reads_branch_name(&ask(Question::Branch(B::Create), vec![])));
+    assert!(!reads_branch_name(&ask(
+        Question::Branch(B::Create),
+        vec!["x".into()]
+    )));
+    assert!(reads_branch_name(&ask(
+        Question::Branch(B::Rename),
+        vec!["old".into()]
+    )));
+    assert!(!reads_branch_name(&ask(
+        Question::Branch(B::Delete),
+        vec![]
+    )));
+}
+#[test]
+fn pop_revision_stack_inserts_references() {
+    let (d, r) = setup();
+    committed(d.path(), b"one\n");
+    let id = String::from_utf8_lossy(&git(d.path(), &["rev-parse", "HEAD"]))
+        .trim()
+        .to_owned();
+    let mut ed =
+        crate::editor::Editor::new(crate::buffer::Buffer::from_text("Fix it \n\n# comment"));
+    ed.set_cursor(0, 7);
+    ed.revision_stack.push((id.clone(), r.root.clone()));
+    ed.revision_stack.push((id.clone(), r.root.clone()));
+    super::message::pop_revision_stack(&mut ed);
+    let short = &id[..7];
+    let text = ed.buf.text();
+    assert!(text.starts_with(&format!("Fix it [1: {short}")), "{text:?}");
+    assert!(text.contains("\n\n1: ") && text.contains(&id), "{text:?}");
+    assert!(text.ends_with("# comment"), "{text:?}");
+    // The next one is numbered after the last index before point.
+    super::message::pop_revision_stack(&mut ed);
+    let text = ed.buf.text();
+    assert!(text.contains("[2: ") && text.contains("\n2: "), "{text:?}");
+    assert!(!text.contains("\n\n2: "), "entries stay together: {text:?}");
+    super::message::pop_revision_stack(&mut ed);
+    assert!(ed.msg.as_ref().is_some_and(|m| m.0.contains("empty")));
+}
+#[test]
+fn reshelve_since_rewrites_dates_a_minute_apart() {
+    use super::branch::Next;
+    use super::commit::Op;
+    let (d, r) = setup();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    committed(d.path(), b"one\n");
+    for m in ["two", "three"] {
+        fs::write(d.path().join(m), m).unwrap();
+        git(d.path(), &["add", m]);
+        git(d.path(), &["commit", "-qm", m]);
+    }
+    let tree = git(d.path(), &["rev-parse", "HEAD^{tree}"]);
+    let Next::Ask(super::Question::Commit(op), p, defaults) = r
+        .commit_step(Op::ReshelveSince, &s(&["HEAD~1"]), &[])
+        .unwrap()
+    else {
+        panic!()
+    };
+    assert!(p[0].starts_with("Date for first commit"), "{p:?}");
+    assert!(!defaults[0].is_empty());
+    r.commit_step(op, &s(&["2001-02-03 04:05:06 +0000"]), &[])
+        .unwrap();
+    let dates =
+        String::from_utf8_lossy(&git(d.path(), &["log", "-3", "--format=%at %ct %s"])).into_owned();
+    let lines: Vec<&str> = dates.lines().collect();
+    assert_eq!(lines[0], "981173166 981173166 three", "{dates}");
+    assert_eq!(lines[1], "981173106 981173106 two", "{dates}");
+    assert!(
+        !lines[2].starts_with("981"),
+        "the base is untouched: {dates}"
+    );
+    assert_eq!(git(d.path(), &["rev-parse", "HEAD^{tree}"]), tree);
+    assert_eq!(r.current_branch().unwrap(), "main");
+    assert!(
+        r.commit_step(Op::ReshelveSinceDate("HEAD".into()), &s(&["-x"]), &[])
+            .is_err()
+    );
+}
+#[test]
+fn process_kill_interrupts_background_git() {
+    let (_d, r) = setup();
+    let worker = {
+        let r = r.clone();
+        std::thread::spawn(move || r.read(&["-c", "alias.zz=!sleep 30", "zz"]))
+    };
+    let start = std::time::Instant::now();
+    let mut killed = 0;
+    while killed == 0 && start.elapsed() < std::time::Duration::from_secs(5) {
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        killed = super::repo::kill_running(&r.root);
+    }
+    assert!(killed >= 1);
+    assert!(worker.join().unwrap().is_err());
+    assert!(start.elapsed() < std::time::Duration::from_secs(20));
+}
+
+#[test]
+fn confirmation_actions_keep_delete_and_remote_configuration_separate() {
+    let repo = Repo {
+        root: std::path::PathBuf::from("/unused"),
+    };
+    let ask =
+        |q, text: &str| super::Prompt::Ask(repo.clone(), q, vec![], vec![text.into()], vec![]);
+    assert_eq!(
+        super::confirm_action(&ask(
+            super::Question::Apply(super::apply::Op {
+                kind: super::apply::Kind::Discard,
+                thing: Some(super::apply::Thing::Section(
+                    super::Section::Untracked,
+                    vec![]
+                )),
+            }),
+            "Delete files? (y or n) "
+        )),
+        Some("delete")
+    );
+    assert_eq!(
+        super::confirm_action(&ask(
+            super::Question::Remote(super::remote::Op::AddPushDefault(
+                "origin".into(),
+                "url".into()
+            )),
+            "Set default? (y or n) "
+        )),
+        None
+    );
+    assert_eq!(
+        super::confirm_action(&ask(
+            super::Question::Sequence(super::sequence::Op::Abort),
+            "Abort revert? (y or n) "
+        )),
+        Some("abort-revert")
+    );
+}
+#[test]
+fn repository_list_finds_names_and_columns() {
+    use super::repos::*;
+    let top = tempfile::tempdir().unwrap();
+    for p in ["a/proj", "b/proj", "c", "deep/x/y/z"] {
+        let d = top.path().join(p);
+        fs::create_dir_all(&d).unwrap();
+        git(&d, &["init", "-q", "-b", "main"]);
+    }
+    fs::create_dir_all(top.path().join("plain")).unwrap();
+    let mut found = vec![];
+    list(top.path(), 2, &mut found);
+    let names: Vec<String> = uniquify(&found).into_iter().map(|(n, _)| n).collect();
+    assert_eq!(names, ["proj\\a", "proj\\b", "c"], "{found:?}");
+    let mut deep = vec![];
+    list(top.path(), 4, &mut deep);
+    assert_eq!(deep.len(), 4);
+    let mut none = vec![];
+    list(&top.path().join("plain"), 0, &mut none);
+    assert!(none.is_empty());
+    // Columns: version from the date when untagged, counts against upstream.
+    let c = top.path().join("c");
+    committed(&c, b"x\n");
+    let r = Repo { root: c.clone() };
+    let cols = columns();
+    assert_eq!(
+        cols.iter().map(|c| c.header.as_str()).collect::<Vec<_>>(),
+        ["Name", "Version", "B<U", "B>U", "Path"]
+    );
+    assert_eq!(r.repolist_cell("c", &cols[0]), "c");
+    assert!(
+        r.repolist_cell("c", &cols[1]).starts_with(" 20"),
+        "{}",
+        r.repolist_cell("c", &cols[1])
+    );
+    assert_eq!(r.repolist_cell("c", &cols[2]), "");
+    git(&c, &["tag", "v1.0"]);
+    assert_eq!(r.repolist_cell("c", &cols[1]), "v1.0");
+    let flag = Column {
+        header: "F".into(),
+        width: 1,
+        format: "magit-repolist-column-flag".into(),
+        right_align: false,
+    };
+    fs::write(c.join("new"), "n").unwrap();
+    assert_eq!(r.repolist_cell("c", &flag), "N");
+    assert_eq!(pad("123", &cols[2]), "123");
+    assert_eq!(pad("7", &cols[2]), "  7");
+    // Sorted by Path; without magit-repository-directories, upstream's error.
+    let (_, rows) = table_in(&[(top.path().to_path_buf(), 2)]).unwrap();
+    let paths: Vec<&std::path::PathBuf> = rows.iter().map(|r| &r.1).collect();
+    assert_eq!(paths.len(), 3);
+    assert!(paths.windows(2).all(|w| w[0] <= w[1]), "{paths:?}");
+    assert!(
+        table_in(&[])
+            .unwrap_err()
+            .contains("magit-repository-directories")
+    );
+}
+#[test]
+fn trash_keeps_earlier_trashed_files() {
+    let d = tempfile::tempdir().unwrap();
+    let (files, info) = (d.path().join("files"), d.path().join("info"));
+    for content in ["one", "two"] {
+        fs::write(d.path().join("f"), content).unwrap();
+        super::apply::trash_into(&d.path().join("f"), &files, Some(&info)).unwrap();
+        assert!(!d.path().join("f").exists());
+    }
+    assert_eq!(fs::read_to_string(files.join("f")).unwrap(), "one");
+    assert_eq!(fs::read_to_string(files.join("f.~1~")).unwrap(), "two");
+    assert!(
+        fs::read_to_string(info.join("f.~1~.trashinfo"))
+            .unwrap()
+            .contains("Path=")
+    );
+}
+#[test]
+fn rename_offers_to_rename_the_push_target() {
+    use super::Question as Q;
+    use super::branch::{Next, Op};
+    let (d, r, _bare) = with_remote();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    git(d.path(), &["branch", "old"]);
+    git(d.path(), &["push", "-q", "origin", "old"]);
+    git(d.path(), &["config", "branch.old.pushRemote", "origin"]);
+    let Next::Ask(Q::Branch(op), p, _) = r.branch_step(Op::Rename, &s(&["old", "new"]), &[]) else {
+        panic!()
+    };
+    assert!(p[0].contains("on \"origin\""), "{p:?}");
+    assert_eq!(r.config("branch.new.pushRemote").as_deref(), Some("origin"));
+    let Next::Git(argv) = r.branch_step(op.clone(), &s(&["y"]), &[]) else {
+        panic!()
+    };
+    assert_eq!(
+        argv,
+        s(&[
+            "push",
+            "-v",
+            "origin",
+            "refs/remotes/origin/old:refs/heads/new",
+            ":refs/heads/old"
+        ])
+    );
+    r.run(&argv.iter().map(Into::into).collect::<Vec<_>>(), None)
+        .unwrap();
+    assert!(matches!(
+        r.branch_step(op, &s(&["n"]), &[]),
+        Next::Done(Ok(_))
+    ));
+}
+#[test]
+fn clone_names_become_urls() {
+    use super::clone::name_to_url;
+    let cfg = |k: &str| (k == "github.user").then(|| "me".to_owned());
+    assert_eq!(
+        name_to_url("magit/magit", cfg).unwrap(),
+        "git@github.com:magit/magit.git"
+    );
+    assert_eq!(
+        name_to_url("gh:fred", cfg).unwrap(),
+        "git@github.com:me/fred.git"
+    );
+    assert_eq!(
+        name_to_url("gl:a/b", cfg).unwrap(),
+        "git@gitlab.com:a/b.git"
+    );
+    assert_eq!(name_to_url("sh:~x/y", cfg).unwrap(), "git@git.sr.ht:~x/y");
+    assert!(
+        name_to_url("gl:solo", cfg)
+            .unwrap_err()
+            .contains("gitlab.user")
+    );
+    let re = super::options::emacs_regex(r"\`\(?:a\|b\)\([^:]+\)\'");
+    assert_eq!(re, r"\A(?:a|b)([^:]+)\z");
+}
+#[test]
+fn revision_buffer_layout_follows_magit_revision_mode() {
+    let (d, r) = setup();
+    committed(d.path(), b"one\n");
+    git(d.path(), &["tag", "v1"]);
+    fs::write(d.path().join("g"), "g\n").unwrap();
+    git(d.path(), &["add", "g"]);
+    git(d.path(), &["commit", "-qm", "second\n\nbody line"]);
+    git(d.path(), &["tag", "v2"]);
+    git(d.path(), &["notes", "add", "-m", "a note", "HEAD"]);
+    let id = String::from_utf8_lossy(&git(d.path(), &["rev-parse", "HEAD~0"]))
+        .trim()
+        .to_owned();
+    let text = String::from_utf8_lossy(&r.commit_patch(&id).unwrap()).into_owned();
+    let lines: Vec<&str> = text.lines().collect();
+    assert!(
+        lines[0].ends_with(&id) && lines[0].contains("tag: v2"),
+        "{text}"
+    );
+    assert!(lines[1].starts_with("Author:     Fred Test <"), "{text}");
+    assert!(lines[2].starts_with("AuthorDate: "));
+    assert!(
+        lines.iter().any(|l| l.starts_with("Parent:     ")),
+        "{text}"
+    );
+    assert!(lines.contains(&"Contained:  main"), "{text}");
+    assert!(lines.contains(&"Follows:    v2 (0)"), "{text}");
+    let blank = lines.iter().position(|l| l.is_empty()).unwrap();
+    assert_eq!(&lines[blank + 1..blank + 4], &["second", "", "body line"]);
+    assert!(text.contains("Notes:\n    a note"), "{text}");
+    assert!(lines.iter().any(|l| l.starts_with(" g | 1 +")), "{text}");
+    assert!(text.contains("diff --git a/g b/g"));
+    // An untagged commit before v2 precedes it.
+    git(d.path(), &["tag", "-d", "v1"]);
+    let first = String::from_utf8_lossy(&git(d.path(), &["rev-parse", "HEAD~1"]))
+        .trim()
+        .to_owned();
+    let text = String::from_utf8_lossy(&r.commit_patch(&first).unwrap()).into_owned();
+    assert!(text.contains("Precedes:   v2 (1)"), "{text}");
+}
+#[test]
+fn branch_start_point_first_and_upstream_adjustment() {
+    use super::branch::{Next, Op};
+    let (d, r, _bare) = with_remote();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    git(d.path(), &["push", "-qu", "origin", "main"]);
+    // StartFirst reads the start point, then the name.
+    let (p, defaults) = r
+        .branch_prompts(&Op::StartFirst(Box::new(Op::Create)))
+        .unwrap();
+    assert!(
+        p[0].contains("starting at") && p[1].starts_with("Name for new branch"),
+        "{p:?}"
+    );
+    assert_eq!(defaults[0], "main");
+    let n = r.branch_step(
+        Op::StartFirst(Box::new(Op::Create)),
+        &s(&["origin/main", "topic"]),
+        &defaults,
+    );
+    assert!(matches!(n, Next::Done(Ok(_))), "{n:?}");
+    assert!(git(d.path(), &["branch", "--list", "topic"]).starts_with(b"  topic"));
+    assert!(super::branch::upstream_first());
+}
+#[test]
+fn status_shows_in_progress_sequences() {
+    use super::Section;
+    let (d, r) = setup();
+    committed(d.path(), b"base\n");
+    let main = r.current_branch().unwrap();
+    git(d.path(), &["checkout", "-qb", "topic"]);
+    fs::write(d.path().join("f"), "topic\n").unwrap();
+    git(d.path(), &["commit", "-qam", "topic change"]);
+    git(d.path(), &["checkout", "-q", &main]);
+    fs::write(d.path().join("f"), "main\n").unwrap();
+    git(d.path(), &["commit", "-qam", "main change"]);
+    // A conflicted merge: Merging topic: with the incoming commit.
+    let _ = Command::new("git")
+        .arg("-C")
+        .arg(d.path())
+        .args(["merge", "-q", "topic"])
+        .output();
+    let seq = r.status_extra().sequences;
+    let (s, heading, rows) = &seq[0];
+    assert_eq!(*s, Section::Merging);
+    assert_eq!(heading, "Merging topic:");
+    assert!(
+        rows[0].0.ends_with("topic change") && rows[0].1.is_some(),
+        "{rows:?}"
+    );
+    git(d.path(), &["merge", "--abort"]);
+    // A stopped cherry-pick: Cherry Picking with join and onto rows.
+    let _ = Command::new("git")
+        .arg("-C")
+        .arg(d.path())
+        .args(["cherry-pick", "topic"])
+        .output();
+    let seq = r.status_extra().sequences;
+    let (_, heading, rows) = &seq[0];
+    assert_eq!(heading, "Cherry Picking");
+    assert!(rows.iter().any(|(t, _)| t.starts_with("join ")), "{rows:?}");
+    assert!(rows.last().unwrap().0.starts_with("onto "), "{rows:?}");
+    git(d.path(), &["cherry-pick", "--abort"]);
+    // Bisecting: output, rest and log sections.
+    git(d.path(), &["bisect", "start"]);
+    git(d.path(), &["bisect", "bad"]);
+    let seq = r.status_extra().sequences;
+    let kinds: Vec<Section> = seq.iter().map(|s| s.0).collect();
+    assert_eq!(
+        kinds,
+        [
+            Section::BisectOutput,
+            Section::BisectRest,
+            Section::BisectLog
+        ]
+    );
+    assert!(
+        seq[2].2.iter().any(|(t, _)| t.contains("git bisect bad")),
+        "{:?}",
+        seq[2]
+    );
+    git(d.path(), &["bisect", "reset"]);
+    assert!(r.status_extra().sequences.is_empty());
+}
+#[test]
+fn log_header_lines_follow_each_commit() {
+    let (d, r) = setup();
+    committed(d.path(), b"one\n");
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    let lines = r.log_lines(&s(&["HEAD"]), &s(&["++header"]), &[]).unwrap();
+    assert!(lines[0].commit.is_some());
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.commit.is_none() && l.text.trim_start().starts_with("Author:    Fred Test")),
+        "{:?}",
+        lines.iter().map(|l| &l.text).collect::<Vec<_>>()
+    );
+}
+#[test]
+fn branches_at_point_and_hash_words() {
+    use super::{Kind, Row, RowAction, View, looks_like_hash};
+    let (d, r, _bare) = with_remote();
+    git(d.path(), &["push", "-qu", "origin", "main"]);
+    let mut v = View::status(r.clone(), Default::default());
+    v.kind = Kind::Log(vec!["HEAD".into()], vec![]);
+    v.rows = vec![Row {
+        text: "* abcdef12 (HEAD -> main, origin/main, tag: v1) subject".into(),
+        action: Some(RowAction::Commit("abcdef12".into())),
+    }];
+    assert_eq!(
+        v.branches_at(0),
+        (Some("main".into()), Some("origin/main".into()))
+    );
+    // magit-prefer-remote-upstream nil: the local branch.
+    assert_eq!(v.start_point_at(0).as_deref(), Some("main"));
+    let mut refs = View::status(r, Default::default());
+    refs.kind = Kind::Refs("HEAD".into(), vec![], Default::default());
+    refs.refnames.insert(3, "refs/remotes/origin/main".into());
+    assert_eq!(refs.branches_at(3), (None, Some("origin/main".into())));
+    // quicker: seven hex characters with a digit.
+    assert!(looks_like_hash("abc1234"));
+    assert!(!looks_like_hash("abcdefa"));
+    assert!(!looks_like_hash("abc12"));
+    assert!(!looks_like_hash("zzz1234"));
 }
