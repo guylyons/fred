@@ -387,6 +387,11 @@ pub fn draw(
             continue;
         }
         let mut line = ed.buf.line(l);
+        // Org tables: shrunk columns, coordinates, the header line.
+        let table_display = crate::org::table::display(ed, l, l == view.top, &line);
+        if let Some(t) = &table_display {
+            line = t.clone();
+        }
         // org-ellipsis after a line whose following lines are folded.
         if ed.folds.folded_after(l) {
             line.push_str("...");
@@ -409,7 +414,22 @@ pub fn draw(
         } else if ed.dired.is_some() {
             Some(crate::dired::styles(ed, l))
         } else if ed.org.is_some() {
-            Some(crate::org::face::styles(ed, l, &org_settings))
+            let mut s = crate::org::face::styles(ed, l, &org_settings);
+            if table_display.is_some() {
+                // The shown text differs from the buffer's: keep the styles
+                // inside it.
+                for (_, r) in &mut s {
+                    r.end = r.end.min(line.len());
+                    r.start = r.start.min(r.end);
+                    while !line.is_char_boundary(r.end) {
+                        r.end -= 1;
+                    }
+                    while !line.is_char_boundary(r.start) {
+                        r.start -= 1;
+                    }
+                }
+            }
+            Some(s)
         } else {
             styles.get(l - view.top).cloned().flatten()
         };

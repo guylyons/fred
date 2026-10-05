@@ -546,6 +546,9 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         run(ed, cmd, arg);
         return true;
     }
+    if table::orgtbl_key(ed, k) {
+        return true;
+    }
     let Some(map) = active_map(ed) else {
         return false;
     };
@@ -678,7 +681,16 @@ pub fn command_names() -> Vec<&'static str> {
 
 /// `:org-NAME [args]` or `:org NAME`: true if this was an Org command.
 pub fn ex(ed: &mut Editor, text: &str) -> bool {
-    let t = text.trim();
+    let mut t = text.trim();
+    // `:'<,'>org-table-...`: the Visual region for table commands.
+    if let Some(rest) = t.strip_prefix("'<,'>") {
+        let region = ed.marks.get(&'<').zip(ed.marks.get(&'>')).map(|(a, b)| (*a.min(b), *a.max(b)));
+        if !rest.trim_start().starts_with("org") {
+            return false;
+        }
+        table::set_region(region);
+        t = rest.trim_start();
+    }
     let (name, _rest) = match t.split_once(char::is_whitespace) {
         Some((a, b)) => (a, b.trim()),
         None => (t, ""),
@@ -691,7 +703,7 @@ pub fn ex(ed: &mut Editor, text: &str) -> bool {
     } else {
         name
     };
-    if !(name.starts_with("org-") || name.starts_with("orgtbl-") || name.starts_with("gl/org") || name == "org-mode") {
+    if !(name.starts_with("org-") || name.starts_with("orgtbl-") || name.starts_with("gl/org") || name == "org-mode" || name == "turn-on-orgtbl") {
         return false;
     }
     let arg = std::mem::take(&mut ed.org_arg);
