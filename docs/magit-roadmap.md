@@ -399,4 +399,4 @@ Y" (remaining todo, stop/join/work/gone, done, onto), "Applying patches",
 "Cherry Picking"/"Reverting", and the bisect output, Bisect Rest (with
 magit-bisect-show-graph) and Bisect Log sections. More options: remote-add
 pushDefault, module gitdir trashing, patch save arguments, pull-or-fetch.
-Options: 126 partial / 21 missing / 90 n/a. Score remains 3%.
+Options: 125 partial / 22 missing / 90 n/a. Score remains 3%.
