@@ -1907,6 +1907,12 @@ mod tests {
         magit_settle(&mut t);
         assert!(t.s.ed.magit.is_some());
         assert_eq!(fs::read(&path).unwrap(), b"");
+        fs::write(t.dir.path().join("f.txt"), "next\n").unwrap();
+        // magit-commit-assert: a draft needs something to commit.
+        crate::magit::repo::Repo::discover(t.dir.path())
+            .unwrap()
+            .stage_file(Path::new("f.txt"))
+            .unwrap();
         t.keys(" mcc");
         magit_settle(&mut t);
         t.keys("inext message<Esc>:w<Enter>");
@@ -2543,6 +2549,7 @@ mod tests {
                 draft: None,
                 draft_stamp: None,
                 editor: false,
+                env: vec![],
                 after: None,
             },
             Err("fatal: no remote".into()),
@@ -2939,6 +2946,7 @@ mod tests {
                 draft: None,
                 draft_stamp: None,
                 editor: false,
+                env: vec![],
                 after: None,
             },
             {
@@ -3896,6 +3904,11 @@ mod tests {
     fn magit_commit_rejects_externally_changed_draft() {
         let mut t = T::open(Some("f.txt"), Some("original\n"));
         magit_repo(&t);
+        // magit-commit-assert: a draft needs something to commit.
+        crate::magit::repo::Repo::discover(t.dir.path())
+            .unwrap()
+            .stage_file(Path::new("f.txt"))
+            .unwrap();
         t.keys(" mcc");
         magit_settle(&mut t);
         t.keys("imy draft<Esc>:w<Enter>");
@@ -3911,6 +3924,11 @@ mod tests {
     fn magit_recovered_commit_draft_keeps_submission_routing() {
         let mut t = T::open(Some("f.txt"), Some("original\n"));
         magit_repo(&t);
+        // magit-commit-assert: a draft needs something to commit.
+        crate::magit::repo::Repo::discover(t.dir.path())
+            .unwrap()
+            .stage_file(Path::new("f.txt"))
+            .unwrap();
         t.keys(" mcc");
         magit_settle(&mut t);
         t.keys("irecovered message<Esc>");
@@ -4038,6 +4056,7 @@ mod tests {
             draft: None,
             draft_stamp: None,
             editor: false,
+            env: vec![],
             after: None,
         };
         t.s.finish_git(inv, Err("test operation failure".into()));
@@ -4162,6 +4181,12 @@ mod tests {
     fn magit_amend_edits_message_and_staged_tree_without_clobbering_normal_draft() {
         let mut t = T::open(Some("f.txt"), Some("base\n"));
         let repo = magit_committed_fixture(&mut t);
+        fs::write(t.dir.path().join("f.txt"), "staged\n").unwrap();
+        // magit-commit-assert: a draft needs something to commit.
+        crate::magit::repo::Repo::discover(t.dir.path())
+            .unwrap()
+            .stage_file(Path::new("f.txt"))
+            .unwrap();
         t.keys(" mcc");
         magit_settle(&mut t);
         t.keys("inormal draft<Esc>:w<Enter>");

@@ -490,6 +490,7 @@ fn run_git(ui: &mut Ui, s: &mut Session, inv: crate::magit::repo::GitInvocation)
                 .join(" ")
         );
         let mut cmd = inv.repo.command();
+        cmd.envs(inv.env.iter().map(|(k, v)| (k, v)));
         if inv.editor
             && let Ok(exe) = std::env::current_exe()
         {

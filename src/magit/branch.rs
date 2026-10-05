@@ -387,6 +387,7 @@ impl Repo {
                     draft: None,
                     draft_stamp: None,
                     editor: false,
+                    env: vec![],
                     after: Some(super::repo::After::Git(
                         ["checkout", "FETCH_HEAD"].map(Into::into).to_vec(),
                     )),

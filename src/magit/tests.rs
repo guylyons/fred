@@ -2263,10 +2263,13 @@ fn rebase_captures_and_replays_todo_lists() {
         d.path(),
         &["remote", "add", "origin", bare.path().to_str().unwrap()],
     );
+    // magit-published-branches defaults to origin/master only.
     git(d.path(), &["push", "-qu", "origin", "main"]);
+    git(d.path(), &["push", "-q", "origin", "main:master"]);
+    git(d.path(), &["fetch", "-q", "origin"]);
     match r.rebase_step(Op::RewordCommit, &s(&["HEAD"]), &[]).unwrap() {
         Next::Ask(Q::Rebase(op @ Op::Published(..)), p, _) => {
-            assert!(p[0].contains("origin/main"));
+            assert!(p[0].contains("origin/master"));
             assert!(r.rebase_step(op, &s(&["n"]), &[]).is_err());
         }
         other => panic!("{other:?}"),

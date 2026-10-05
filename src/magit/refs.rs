@@ -20,8 +20,47 @@ impl Count {
     }
 }
 
-/// magit-refs-primary-column-width's minimum and maximum.
-const PRIMARY: (usize, usize) = (16, 32);
+/// magit-refs-primary-column-width: a width, or [MIN, MAX] ((16 . 32)).
+fn primary() -> (usize, usize) {
+    match super::options::value("magit-refs-primary-column-width") {
+        Some(toml::Value::Integer(n)) => (n.max(1) as usize, n.max(1) as usize),
+        Some(toml::Value::Array(a)) => {
+            let n = |i: usize, d: i64| {
+                a.get(i).and_then(|v| v.as_integer()).unwrap_or(d).max(1) as usize
+            };
+            (n(0, 16), n(1, 32))
+        }
+        _ => (16, 32),
+    }
+}
+
+/// magit-refs-show-commit-count: the initial commit-count display.
+pub fn initial_count() -> Count {
+    match super::options::string("magit-refs-show-commit-count", None).as_deref() {
+        Some("all") => Count::All,
+        Some("branch") => Count::Branches,
+        _ => Count::Nothing,
+    }
+}
+
+/// magit-refs-filter-alist: [[REGEXP, SHOW], ...]; the first match decides.
+fn shown(name: &str) -> bool {
+    let Some(toml::Value::Array(a)) = super::options::value("magit-refs-filter-alist") else {
+        return true;
+    };
+    for e in a.iter().filter_map(|e| e.as_array()) {
+        let (Some(re), show) = (
+            e.first().and_then(|r| r.as_str()),
+            e.get(1).and_then(|v| v.as_bool()),
+        ) else {
+            continue;
+        };
+        if regex::Regex::new(re).is_ok_and(|re| re.is_match(name)) {
+            return show.unwrap_or(true);
+        }
+    }
+    true
+}
 
 /// The arguments for-each-ref accepts from the menu (git tag takes the same).
 fn ref_args(args: &[String]) -> Vec<String> {
@@ -59,7 +98,12 @@ impl Repo {
     }
     /// magit-refs--format-focus-column.
     fn focus_column(&self, focus: &str, r: &str, head: bool, count: bool) -> String {
-        let width = if count { 5 } else { 1 };
+        // magit-refs-focus-column-width.
+        let width = if count {
+            super::options::int("magit-refs-focus-column-width", 5).max(1) as usize
+        } else {
+            1
+        };
         let text = if r == focus || (head && focus == "HEAD") {
             if focus == "HEAD" { "@" } else { "*" }.to_owned()
         } else if count {
@@ -115,7 +159,9 @@ impl Repo {
             .map(|f| f.get(1).map_or(0, |b| b.chars().count() + 1))
             .max()
             .unwrap_or(0)
-            .clamp(PRIMARY.0, PRIMARY.1);
+            .clamp(primary().0, primary().1.max(primary().0));
+        let pad_counts = super::options::flag("magit-refs-pad-commit-counts", false);
+        let descriptions = super::options::flag("magit-refs-show-branch-descriptions", false);
         rows.push(("Branches".into(), None));
         if current.is_none()
             && let Ok(head) = self.read(&["rev-parse", "HEAD"])
@@ -134,7 +180,7 @@ impl Repo {
                 Some(id),
             ));
         }
-        for f in &local {
+        for f in local.iter().filter(|f| f.get(1).is_some_and(|b| shown(b))) {
             let get = |i: usize| f.get(i).map(String::as_str).unwrap_or("");
             let (head, branch, id, upstream, track) =
                 (get(0) == "*", get(1), get(2), get(3), get(4));
@@ -143,8 +189,20 @@ impl Repo {
                     .split(['[', ']', ','])
                     .find_map(|p| p.trim().strip_prefix(key).map(|n| n.trim().to_owned()))
             };
-            let ahead = num("ahead").map(|n| format!(" {n}>")).unwrap_or_default();
-            let behind = num("behind").map(|n| format!("<{n} ")).unwrap_or_default();
+            // magit-refs-pad-commit-counts adds a space on the other side.
+            let (lp, rp) = if pad_counts { (" ", " ") } else { ("", "") };
+            let ahead = num("ahead")
+                .map(|n| format!(" {lp}{n}>"))
+                .unwrap_or_default();
+            let behind = num("behind")
+                .map(|n| format!("<{n}{rp} "))
+                .unwrap_or_default();
+            // magit-refs-show-branch-descriptions.
+            let subject = descriptions
+                .then(|| self.config(&format!("branch.{branch}.description")))
+                .flatten()
+                .and_then(|d| d.lines().next().map(str::to_owned))
+                .unwrap_or_else(|| get(5).to_owned());
             let name = format!("{branch}{ahead}");
             let upstream = match upstream {
                 "" => String::new(),
@@ -156,7 +214,7 @@ impl Repo {
                     "{}{}{behind}{upstream}{}",
                     self.focus_column(focus, branch, head, count != Count::Nothing),
                     pad(&name, width),
-                    get(5)
+                    subject
                 ),
                 Some(id.to_owned()),
             ));
@@ -181,9 +239,17 @@ impl Repo {
                 .iter()
                 .find(|f| f.get(2) == Some(&head_ref) && !f[0].is_empty())
                 .map(|f| f[0].clone());
-            for f in refs.iter().filter(|f| f.get(2) != Some(&head_ref)) {
+            for f in refs
+                .iter()
+                .filter(|f| f.get(2) != Some(&head_ref) && f.get(1).is_some_and(|n| shown(n)))
+            {
                 let get = |i: usize| f.get(i).map(String::as_str).unwrap_or("");
-                let short = get(1).strip_prefix(&format!("{remote}/")).unwrap_or(get(1));
+                // magit-refs-show-remote-prefix.
+                let short = if super::options::flag("magit-refs-show-remote-prefix", false) {
+                    get(1)
+                } else {
+                    get(1).strip_prefix(&format!("{remote}/")).unwrap_or(get(1))
+                };
                 let marker = if head.as_deref() == Some(get(1)) {
                     " (HEAD)"
                 } else {
@@ -208,6 +274,7 @@ impl Repo {
         let tags: Vec<&str> = tags
             .lines()
             .filter(|l| !l.starts_with([' ', '\t']))
+            .filter(|l| shown(l.split([' ', '\t']).next().unwrap_or("")))
             .collect();
         if !tags.is_empty() {
             rows.push((format!("Tags ({})", tags.len()), None));

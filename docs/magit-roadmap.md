@@ -376,3 +376,10 @@ executables, wip namespace/merge, trash, rename push target, save-repository
 buffers, hooks as shell commands, rebase todo options and more; see
 magit-options-acceptance.md). Ledger 771 partial / 2 missing commands;
 64 partial / 173 missing options. Score remains 3%.
+
+October 5 options checkpoint 2: refs display options, status initial
+position/file limits/refresh, commit ask-to-stage (drafts now refuse or ask
+when nothing is staged, as upstream), extend/reword committer dates (via a
+new GitInvocation env), and magit-published-branches (upstream default
+origin/master). Ledger: 80 partial / 70 missing / 87 n/a options.
+Score remains 3%.

@@ -26,6 +26,8 @@ pub enum Op {
     Autofixup,
     /// magit-commit-absorb (needs git-absorb).
     Absorb,
+    /// magit-commit-create with nothing staged: commit everything (--all)?
+    DraftAll,
     /// magit-reshelve-since: the first commit (picked in a log), then the
     /// date for it.
     ReshelveSince,
@@ -52,7 +54,8 @@ impl Op {
             | Op::Absorb
             | Op::AbsorbAll(_)
             | Op::ReshelveSince
-            | Op::ReshelveSinceDate(_) => ("", false, true, false),
+            | Op::ReshelveSinceDate(_)
+            | Op::DraftAll => ("", false, true, false),
         }
     }
     fn verb(&self) -> &'static str {
@@ -64,6 +67,7 @@ impl Op {
             Op::Revise => "Revise",
             Op::StageAll(op, _) | Op::Published(op, ..) | Op::Merges(op, ..) => op.verb(),
             Op::Reshelve | Op::ReshelveSince | Op::ReshelveSinceDate(_) => "Reshelve",
+            Op::DraftAll => "Commit",
             Op::AbsorbModules | Op::Autofixup | Op::Absorb | Op::AbsorbAll(_) => "Absorb into",
         }
     }
@@ -79,6 +83,15 @@ impl Op {
     }
 }
 
+/// magit-commit-ask-to-stage: None (nil) refuses, Some(false) (stage)
+/// commits everything without asking, Some(true) (t, verbose) asks.
+pub fn ask_to_stage() -> Option<bool> {
+    match super::options::value("magit-commit-ask-to-stage") {
+        Some(toml::Value::Boolean(false)) => None,
+        Some(toml::Value::String(s)) if s == "stage" => Some(false),
+        _ => Some(true),
+    }
+}
 /// magit-git-executable-find: NAME on PATH or in git's exec path
 /// ("git NAME --help" would open a man page instead).
 fn git_exec_exists(repo: &Repo, name: &str) -> bool {
@@ -259,7 +272,15 @@ impl Repo {
         .trim()
         .to_owned();
         let (_, edit, nopatch, rebase) = op.shape();
-        // magit-commit-assert.
+        // magit-commit-assert, with magit-commit-ask-to-stage.
+        let mut args = args;
+        if !nopatch && !self.commit_ready(&args, !edit)? {
+            match ask_to_stage() {
+                None => return Err("Nothing staged".into()),
+                Some(false) => args.push("--all".into()),
+                Some(true) => {}
+            }
+        }
         if !nopatch && !self.commit_ready(&args, !edit)? {
             return Ok(Next::Ask(
                 Question::Commit(Op::StageAll(Box::new(op), id)),
@@ -298,6 +319,12 @@ impl Repo {
                         .lines()
                         .filter_map(|l| l.split_once(' '))
                         .filter(|(name, oid)| !name.ends_with("/HEAD") && *oid != id)
+                        // magit-list-publishing-branches: magit-published-branches only.
+                        .filter(|(name, _)| {
+                            super::options::strings("magit-published-branches", &["origin/master"])
+                                .iter()
+                                .any(|l| l == name)
+                        })
                         .map(|(name, _)| name.to_owned())
                         .collect::<Vec<_>>()
                 })
@@ -372,7 +399,7 @@ impl Repo {
     }
     /// Something to commit: staged changes, or unstaged ones with --all, or
     /// (for non-strict variants) an argument that makes an empty commit useful.
-    fn commit_ready(&self, args: &[String], strict: bool) -> Result<bool, String> {
+    pub(crate) fn commit_ready(&self, args: &[String], strict: bool) -> Result<bool, String> {
         let staged = self.read(&["diff", "--cached", "--quiet"]).is_err();
         let unstaged = self.read(&["diff", "--quiet"]).is_err();
         if staged || (unstaged && args.iter().any(|a| a == "--all")) {

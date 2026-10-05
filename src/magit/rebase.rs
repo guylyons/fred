@@ -280,8 +280,12 @@ impl Repo {
                     &id,
                 ])
                 .map(|o| {
+                    // magit-list-publishing-branches: magit-published-branches only.
+                    let listed =
+                        super::options::strings("magit-published-branches", &["origin/master"]);
                     String::from_utf8_lossy(&o)
                         .lines()
+                        .filter(|b| listed.iter().any(|l| l == b))
                         .map(str::to_owned)
                         .collect::<Vec<_>>()
                 })
@@ -466,6 +470,7 @@ impl Plan {
             draft: None,
             draft_stamp: None,
             editor: true,
+            env: vec![],
             after: None,
         })
     }

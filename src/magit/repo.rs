@@ -467,6 +467,8 @@ pub struct GitInvocation {
     pub draft_stamp: Option<crate::fileio::FileStamp>,
     /// Let Git open an editor (Fred itself, like with-editor) in the terminal.
     pub editor: bool,
+    /// Extra environment for the command (GIT_COMMITTER_DATE ...).
+    pub env: Vec<(String, String)>,
     /// Work to finish after the terminal command succeeds.
     pub after: Option<After>,
 }
@@ -573,6 +575,7 @@ impl Repo {
             input: Some(message),
             draft: Some(draft),
             editor: false,
+            env: vec![],
             after: None,
         })
     }

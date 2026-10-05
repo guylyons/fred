@@ -403,6 +403,7 @@ impl Repo {
             draft: None,
             draft_stamp: None,
             editor: false,
+            env: vec![],
             after: None,
         })
     }

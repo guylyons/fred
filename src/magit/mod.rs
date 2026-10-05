@@ -470,6 +470,54 @@ impl View {
         v.rebuild();
         v
     }
+    /// magit-status-goto-file-position (FILE's row), else
+    /// magit-status-initial-section: [N] for the Nth section, or section
+    /// names (untracked unstaged staged stashes unpushed unpulled recent).
+    pub fn initial_line(&self, file: Option<&std::path::Path>) -> usize {
+        if let Some(f) = file
+            && options::flag("magit-status-goto-file-position", false)
+            && let Some(i) = self
+                .rows
+                .iter()
+                .position(|r| matches!(&r.action, Some(RowAction::File(p, _)) if p == f))
+        {
+            return i;
+        }
+        let headings: Vec<usize> = (0..self.rows.len())
+            .filter(|&i| i == 0 || matches!(self.rows[i].action, Some(RowAction::Section(_))))
+            .collect();
+        let wanted = match options::value("magit-status-initial-section") {
+            Some(toml::Value::Array(a)) => a,
+            Some(toml::Value::Boolean(false)) => return 0,
+            _ => vec![toml::Value::Integer(1)],
+        };
+        for w in wanted {
+            let found = match &w {
+                toml::Value::Integer(n) => headings.get((*n).max(1) as usize - 1).copied(),
+                toml::Value::String(name) => {
+                    let sections: &[Section] = match name.as_str() {
+                        "untracked" => &[Section::Untracked],
+                        "unstaged" => &[Section::Unstaged],
+                        "staged" => &[Section::Staged],
+                        "stashes" => &[Section::Stashes],
+                        "unpushed" | "recent" => {
+                            &[Section::UnpushedPush, Section::UnpushedUpstream]
+                        }
+                        "unpulled" => &[Section::UnpulledPush, Section::UnpulledUpstream],
+                        _ => &[],
+                    };
+                    self.rows.iter().position(
+                        |r| matches!(r.action, Some(RowAction::Section(s)) if sections.contains(&s)),
+                    )
+                }
+                _ => None,
+            };
+            if let Some(i) = found {
+                return i;
+            }
+        }
+        0
+    }
     pub fn status(repo: Repo, snapshot: Snapshot) -> Self {
         let mut v = Self {
             dirty: false,
@@ -640,6 +688,14 @@ impl View {
             if shut {
                 continue;
             }
+            // magit-status-file-list-limit for the untracked file list.
+            let limit = if section == Section::Untracked {
+                options::int("magit-status-file-list-limit", 100).max(0) as usize
+            } else {
+                usize::MAX
+            };
+            let unlisted = entries.len().saturating_sub(limit);
+            let entries: Vec<_> = entries.into_iter().take(limit).collect();
             for e in entries {
                 let staged = section == Section::Staged;
                 let key = (e.path.clone(), staged);
@@ -693,6 +749,12 @@ impl View {
                         });
                     }
                 }
+            }
+            if unlisted > 0 {
+                self.rows.push(Row {
+                    text: format!("  {unlisted} files not listed"),
+                    action: None,
+                });
             }
         }
         // magit-insert-stashes and the log sections of magit-status-sections-hook.

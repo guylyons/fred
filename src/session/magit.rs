@@ -2061,7 +2061,7 @@ impl Session {
             }
             let count = match self.ed.magit.as_ref().map(|v| &v.kind) {
                 Some(Kind::Refs(_, _, count)) => *count,
-                _ => Default::default(),
+                _ => crate::magit::refs::initial_count(),
             };
             self.start_magit(move || {
                 let repo = Repo::discover(&from)?;
@@ -2443,6 +2443,29 @@ impl Session {
                 let (prompts, defaults) = repo.stash_prompts(&op, at_point);
                 Ok(Outcome::Ask(repo, Question::Stash(op), defaults, prompts))
             });
+            return;
+        }
+        if let Action::Answered(
+            _,
+            Question::Commit(crate::magit::commit::Op::DraftAll),
+            answers,
+            _,
+        ) = action
+        {
+            if !matches!(answers.first().map(|a| a.trim()), Some("y" | "yes")) {
+                return self.ed.set_err("Nothing staged");
+            }
+            // This commit only: --all, as upstream's (cons "--all" args).
+            let added = self
+                .ed
+                .magit_options
+                .insert(crate::magit::MenuOption::CommitAll);
+            self.magit_action(Action::Commit);
+            if added {
+                self.ed
+                    .magit_options
+                    .remove(&crate::magit::MenuOption::CommitAll);
+            }
             return;
         }
         if let Action::Answered(repo, Question::Commit(op), answers, defaults) = action {
@@ -3198,6 +3221,7 @@ impl Session {
                     draft: None,
                     draft_stamp: None,
                     editor: false,
+                    env: vec![],
                     after: None,
                 });
             }
@@ -3355,6 +3379,12 @@ impl Session {
         });
         let file = if matches!(action, Action::Log | Action::LogHead) {
             inherited
+        } else if action == Action::Status {
+            // magit-status-goto-file-position: the visited file.
+            self.ed
+                .path
+                .clone()
+                .filter(|_| self.ed.magit.is_none() && !self.ed.generated())
         } else if action == Action::FileLog {
             let candidate = self
                 .ed
@@ -3428,9 +3458,11 @@ impl Session {
                         Ok(Outcome::View(Box::new(view), selected, line))
                     } else {
                         let snapshot = repo.status()?;
+                        let rel = file.as_deref().and_then(|p| repo_relative(&repo, p).ok());
                         let mut view = View::new_status(repo, snapshot);
                         view.return_to = origin;
-                        Ok(Outcome::View(Box::new(view), None, 0))
+                        let line = view.initial_line(rel.as_deref());
+                        Ok(Outcome::View(Box::new(view), None, line))
                     }
                 }
                 Action::Stashes | Action::Tags => {
@@ -3490,6 +3522,10 @@ impl Session {
                         let mut inv = repo.operation(operation, "")?;
                         if operation == crate::magit::workflows::Operation::Amend {
                             inv.args.extend(commit_args.into_iter().map(OsString::from));
+                            // magit-commit-extend-override-date nil: keep the date.
+                            if !crate::magit::options::flag("magit-commit-extend-override-date", true) {
+                                inv.env.extend(keep_committer_date(&repo));
+                            }
                         }
                         Ok(Outcome::Git(inv))
                     }
@@ -3510,6 +3546,7 @@ impl Session {
                             draft: None,
                             draft_stamp: None,
                             editor: false,
+                            env: vec![],
                             after: None,
                         }));
                     }
@@ -3519,6 +3556,22 @@ impl Session {
                             .map_err(|_| format!("unknown commit {r:?}"))?,
                         None => vec![],
                     };
+                    // magit-commit-assert with magit-commit-ask-to-stage.
+                    let mut rest = rest;
+                    if !repo.commit_ready(&rest, false)? {
+                        match crate::magit::commit::ask_to_stage() {
+                            None => return Err("Nothing staged".into()),
+                            Some(false) => rest.push("--all".into()),
+                            Some(true) => {
+                                return Ok(Outcome::Ask(
+                                    repo,
+                                    Question::Commit(crate::magit::commit::Op::DraftAll),
+                                    vec![String::new()],
+                                    vec!["Nothing staged.  Commit all uncommitted changes? (y or n) ".into()],
+                                ));
+                            }
+                        }
+                    }
                     Ok(Outcome::Draft(
                         repo,
                         crate::magit::CommitMode::New,
@@ -3639,6 +3692,7 @@ impl Session {
                         draft: None,
                         draft_stamp: None,
                         editor: false,
+                        env: vec![],
                         after: None,
                     },
                     result,
@@ -3687,6 +3741,7 @@ impl Session {
                         draft: None,
                         draft_stamp: None,
                         editor: false,
+                        env: vec![],
                         after: None,
                     },
                     Ok(()),
@@ -3823,6 +3878,7 @@ impl Session {
                     draft: None,
                     draft_stamp: None,
                     editor: false,
+                    env: vec![],
                     after: None,
                 },
                 result,
@@ -4169,6 +4225,10 @@ impl Session {
                     if matches!(self.ed.commit_mode, crate::magit::CommitMode::Reword(_)) {
                         inv.args.push("--only".into());
                         inv.args.push("--allow-empty".into());
+                        // magit-commit-reword-override-date nil: keep the date.
+                        if !crate::magit::options::flag("magit-commit-reword-override-date", true) {
+                            inv.env.extend(keep_committer_date(&repo));
+                        }
                     }
                     self.pending_git = Some(inv);
                 }
@@ -4906,9 +4966,12 @@ impl Session {
             let excess = self.git_log.len() - max;
             self.git_log.drain(..excess);
         }
+        // magit-refresh-status-buffer nil: only the current buffer refreshes.
+        let refresh_status = crate::magit::options::flag("magit-refresh-status-buffer", true);
         for ed in self.editors_mut() {
             if let Some(view) = &mut ed.magit
                 && view.repo == inv.repo
+                && (refresh_status || view.kind != Kind::Status)
             {
                 view.dirty = true;
             }
@@ -4954,6 +5017,7 @@ impl Session {
                 draft: None,
                 draft_stamp: None,
                 editor: false,
+                env: vec![],
                 after: None,
             });
             return;
@@ -5043,6 +5107,7 @@ fn branch_outcome(repo: Repo, next: crate::magit::branch::Next, origin: usize) -
             draft: None,
             draft_stamp: None,
             editor: false,
+            env: vec![],
             after: None,
         }),
         Next::GitEditor(args) => Outcome::Git(GitInvocation {
@@ -5053,6 +5118,7 @@ fn branch_outcome(repo: Repo, next: crate::magit::branch::Next, origin: usize) -
             draft: None,
             draft_stamp: None,
             editor: true,
+            env: vec![],
             after: None,
         }),
         Next::Todo(plan) => Outcome::Todo(plan),
@@ -5064,7 +5130,8 @@ fn branch_outcome(repo: Repo, next: crate::magit::branch::Next, origin: usize) -
             match view {
                 Ok(mut view) => {
                     view.return_to = origin;
-                    Outcome::View(Box::new(view), None, 0)
+                    let line = view.initial_line(None);
+                    Outcome::View(Box::new(view), None, line)
                 }
                 Err(e) => Outcome::Saved(repo, Err(e)),
             }
@@ -5686,6 +5753,17 @@ fn refresh_refs(view: &mut View) -> Result<(), String> {
     Ok(())
 }
 
+/// GIT_COMMITTER_DATE set to HEAD's (magit-rev-format "%cD").
+fn keep_committer_date(repo: &Repo) -> Option<(String, String)> {
+    repo.read(&["log", "-1", "--format=%cD", "HEAD"])
+        .ok()
+        .map(|o| {
+            (
+                "GIT_COMMITTER_DATE".into(),
+                String::from_utf8_lossy(&o).trim().to_owned(),
+            )
+        })
+}
 /// The verb magit-commit-squash-internal's log-select message uses.
 fn op_verb(op: &crate::magit::commit::Op) -> &'static str {
     use crate::magit::commit::Op as C;

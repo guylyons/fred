@@ -150,7 +150,7 @@ magit-branch.el,60,option,magit-branch-prefer-remote-upstream,missing,,explicit
 magit-branch.el,107,option,magit-branch-adjust-remote-upstream-alist,missing,,explicit
 magit-branch.el,169,option,magit-branch-rename-push-target,partial,t offers to rename the push branch remotely; local-only/forge-only/nil keep only pushRemote,explicit
 magit-branch.el,197,option,magit-branch-direct-configure,missing,,explicit
-magit-branch.el,206,option,magit-published-branches,missing,,explicit
+magit-branch.el,206,option,magit-published-branches,partial,"only these remote branches count as published (default origin/master, as upstream)",explicit
 magit-branch.el,215,command,magit-branch,partial,"Space m b menu with upstream keys b/l/c/s/n/S/m/x/k; direct configure group, C configure, hidden o/r/w/W/h/H and -m/-r missing",explicit
 magit-branch.el,265,command,magit-checkout,partial,"Space m b b picker of local and remote branches; Enter checks out, a typed revision detaches; -m/-r arguments missing",explicit
 magit-branch.el,285,command,magit-branch-create,partial,"Space m b n; name validated (check-ref-format, not taken) then start point; upstream adjustment alist missing",explicit
@@ -215,12 +215,12 @@ magit-clone.el,,command,transient:magit-clone:--separate-git-dir=,partial,menu a
 magit-clone.el,,command,transient:magit-clone:--shared,partial,menu argument,runtime
 magit-clone.el,,command,transient:magit-clone:--single-branch,partial,menu argument,runtime
 magit-clone.el,,command,transient:magit-clone:--template=,partial,menu argument,runtime
-magit-commit.el,36,option,magit-commit-ask-to-stage,missing,,explicit
-magit-commit.el,45,option,magit-commit-show-diff,missing,,explicit
-magit-commit.el,51,option,magit-commit-extend-override-date,missing,,explicit
-magit-commit.el,57,option,magit-commit-reword-override-date,missing,,explicit
+magit-commit.el,36,option,magit-commit-ask-to-stage,partial,"t/verbose ask, stage commits all, nil refuses (verbose does not show the unstaged diff); drafts and fixups",explicit
+magit-commit.el,45,option,magit-commit-show-diff,partial,Fred shows one buffer: the staged diff is C-c C-d in the draft,explicit
+magit-commit.el,51,option,magit-commit-extend-override-date,partial,nil keeps HEAD's committer date on extend,explicit
+magit-commit.el,57,option,magit-commit-reword-override-date,partial,nil keeps HEAD's committer date on reword,explicit
 magit-commit.el,63,option,magit-commit-squash-confirm,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
-magit-commit.el,74,option,magit-commit-diff-inhibit-same-window,missing,,explicit
+magit-commit.el,74,option,magit-commit-diff-inhibit-same-window,n/a,window placement; Fred shows one buffer at a time,explicit
 magit-commit.el,117,command,magit-commit,partial,Space m C; source create/edit groups and common switches; remaining commands/options missing,explicit
 magit-commit.el,208,command,magit-commit-create,partial,Space m c c; draft creation/submission; complete source options/editor behavior missing,explicit
 magit-commit.el,222,command,magit-commit-extend,partial,Space m C e; no-message-edit amendment; prefix date customization missing,explicit
@@ -594,7 +594,7 @@ magit-mode.el,278,option,magit-region-highlight-hook,n/a,Emacs mode/setup hook o
 magit-mode.el,290,option,magit-create-buffer-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
 magit-mode.el,298,option,magit-post-create-buffer-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
 magit-mode.el,307,option,magit-refresh-buffer-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
-magit-mode.el,313,option,magit-refresh-status-buffer,missing,,explicit
+magit-mode.el,313,option,magit-refresh-status-buffer,partial,nil leaves other status buffers alone after Git commands,explicit
 magit-mode.el,327,option,magit-refresh-verbose,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
 magit-mode.el,333,option,magit-save-repository-buffers,partial,"t asks per modified repository buffer, dontask saves, false never (before refreshes and Git commands)",explicit
 magit-mode.el,438,command,magit-delete-thing,partial,x in status = discard (evil-collection),explicit
@@ -713,15 +713,15 @@ magit-reflog.el,120,command,magit-reflog-other,partial,Space m l O; prompted ref
 magit-reflog.el,126,command,magit-reflog-head,partial,Space m l H,explicit
 magit-refs.el,38,option,magit-refs-mode-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
 magit-refs.el,44,option,magit-refs-sections-hook,n/a,list of Lisp section inserters; Fred renders upstream's default sections,explicit
-magit-refs.el,55,option,magit-refs-show-commit-count,missing,,explicit
-magit-refs.el,73,option,magit-refs-pad-commit-counts,missing,,explicit
-magit-refs.el,94,option,magit-refs-show-remote-prefix,missing,,explicit
-magit-refs.el,103,option,magit-refs-show-branch-descriptions,missing,,explicit
+magit-refs.el,55,option,magit-refs-show-commit-count,partial,"initial count display (""all"", ""branch"", false); v cycles",explicit
+magit-refs.el,73,option,magit-refs-pad-commit-counts,partial,extra space beside upstream ahead/behind counts (push counts are not shown),explicit
+magit-refs.el,94,option,magit-refs-show-remote-prefix,partial,remote branches keep their remote/ prefix,explicit
+magit-refs.el,103,option,magit-refs-show-branch-descriptions,partial,first description line instead of the subject,explicit
 magit-refs.el,112,option,magit-refs-margin,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
 magit-refs.el,143,option,magit-refs-margin-for-tags,missing,,explicit
-magit-refs.el,153,option,magit-refs-primary-column-width,missing,,explicit
-magit-refs.el,172,option,magit-refs-focus-column-width,missing,,explicit
-magit-refs.el,189,option,magit-refs-filter-alist,missing,,explicit
+magit-refs.el,153,option,magit-refs-primary-column-width,partial,"width or [MIN, MAX]",explicit
+magit-refs.el,172,option,magit-refs-focus-column-width,partial,focus column width when counts are shown,explicit
+magit-refs.el,189,option,magit-refs-filter-alist,partial,"[[REGEXP, SHOW]]; first match decides (Rust regex syntax, no functions)",explicit
 magit-refs.el,214,option,magit-visit-ref-behavior,missing,,explicit
 magit-refs.el,336,command,magit-show-refs,partial,Space m y: -c -M -m -N -n -s; y c o v; buffer arguments seed the menu in a refs buffer,explicit
 magit-refs.el,394,command,magit-show-refs-head,partial,y y,explicit
@@ -905,11 +905,11 @@ magit-stash.el,,command,transient:magit-stash:--include-untracked,partial,-u,run
 magit-status.el,40,option,magit-status-mode-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
 magit-status.el,45,option,magit-status-headers-hook,partial,default hook order except error/diff-filter headers; not configurable,explicit
 magit-status.el,69,option,magit-status-sections-hook,partial,"default hook partly: headers, files, stashes, log sections; merge-log, sequences and bisect missing; not configurable",explicit
-magit-status.el,91,option,magit-status-initial-section,missing,,explicit
-magit-status.el,118,option,magit-status-goto-file-position,missing,,explicit
+magit-status.el,91,option,magit-status-initial-section,partial,[N] or section names,explicit
+magit-status.el,118,option,magit-status-goto-file-position,partial,status from a file buffer starts on that file's row (not its hunk line),explicit
 magit-status.el,137,option,magit-status-show-hashes-in-headers,partial,default nil behavior; not configurable,explicit
 magit-status.el,147,option,magit-status-show-untracked-files,partial,"true / ""all"" / false",explicit
-magit-status.el,184,option,magit-status-file-list-limit,missing,,explicit
+magit-status.el,184,option,magit-status-file-list-limit,partial,"untracked files listed, then ""N files not listed""",explicit
 magit-status.el,192,option,magit-status-margin,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
 magit-status.el,222,option,magit-status-use-buffer-arguments,missing,,explicit
 magit-status.el,252,command,magit-init,partial,"Space m i; directory prompt (default current, ~ expansion), nested/reinitialize y-or-n confirmation, status after init; directory completion missing",explicit
