@@ -4550,3 +4550,27 @@ fn revision_buffer_layout_follows_magit_revision_mode() {
     let text = String::from_utf8_lossy(&r.commit_patch(&first).unwrap()).into_owned();
     assert!(text.contains("Precedes:   v2 (1)"), "{text}");
 }
+#[test]
+fn branch_start_point_first_and_upstream_adjustment() {
+    use super::branch::{Next, Op};
+    let (d, r, _bare) = with_remote();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    git(d.path(), &["push", "-qu", "origin", "main"]);
+    // StartFirst reads the start point, then the name.
+    let (p, defaults) = r
+        .branch_prompts(&Op::StartFirst(Box::new(Op::Create)))
+        .unwrap();
+    assert!(
+        p[0].contains("starting at") && p[1].starts_with("Name for new branch"),
+        "{p:?}"
+    );
+    assert_eq!(defaults[0], "main");
+    let n = r.branch_step(
+        Op::StartFirst(Box::new(Op::Create)),
+        &s(&["origin/main", "topic"]),
+        &defaults,
+    );
+    assert!(matches!(n, Next::Done(Ok(_))), "{n:?}");
+    assert!(git(d.path(), &["branch", "--list", "topic"]).starts_with(b"  topic"));
+    assert!(super::branch::upstream_first());
+}

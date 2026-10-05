@@ -2864,6 +2864,16 @@ impl Session {
             let args = crate::magit::menu_arguments(&self.ed, 'b');
             self.start_magit(move || {
                 let repo = Repo::discover(&from)?;
+                // magit-branch-read-upstream-first: the start point first.
+                let op = match op {
+                    op @ (crate::magit::branch::Op::Create
+                    | crate::magit::branch::Op::CreateCheckout)
+                        if crate::magit::branch::upstream_first() =>
+                    {
+                        crate::magit::branch::Op::StartFirst(Box::new(op))
+                    }
+                    op => op,
+                };
                 let (prompts, defaults) = repo.branch_prompts(&op)?;
                 if prompts.is_empty() {
                     let next = repo.branch_step_args(op, &[], &[], &args);

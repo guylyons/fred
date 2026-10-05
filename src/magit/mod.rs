@@ -1861,7 +1861,7 @@ pub fn reads_branch_name(p: &Prompt) -> bool {
     let i = answers.len();
     match question {
         Question::Branch(B::Create | B::CreateCheckout | B::Spinoff | B::Spinout) => i == 0,
-        Question::Branch(B::Rename) => i == 1,
+        Question::Branch(B::Rename | B::StartFirst(_)) => i == 1,
         Question::Configure(configure::Op::Orphan) => i == 0,
         _ => prompts.get(i).is_some_and(|p| p.contains("branch named")),
     }

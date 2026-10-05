@@ -1206,8 +1206,9 @@ fn magit_workflow_menu_prompt_and_terminal_return() {
     p.keys(&[" mb"]);
     p.wait_for("branch menu", |s| s.contains("new spin-off"));
     p.keys(&["c"]);
+    // magit-branch-read-upstream-first: the start point comes first.
     p.wait_for("branch prompt", |s| {
-        s.contains("Create and checkout branch named:")
+        s.contains("Create and checkout branch starting at")
     });
     p.keys(&["cancelled\x1b"]);
     p.wait_for("cancel prompt", |s| s.contains("NORMAL"));

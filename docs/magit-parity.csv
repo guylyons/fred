@@ -144,10 +144,10 @@ magit-blame.el,,command,transient:magit-blame:--root,partial,-r,runtime
 magit-blame.el,,command,transient:magit-blame:-w,partial,"-w, on by default",runtime
 magit-blame.el,,option,magit-blame-mode-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,runtime
 magit-blame.el,,option,magit-blame-read-only-mode-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,runtime
-magit-branch.el,38,option,magit-branch-read-upstream-first,missing,,explicit
-magit-branch.el,53,option,magit-branch-name-suggestions,missing,,explicit
-magit-branch.el,60,option,magit-branch-prefer-remote-upstream,missing,,explicit
-magit-branch.el,107,option,magit-branch-adjust-remote-upstream-alist,missing,,explicit
+magit-branch.el,38,option,magit-branch-read-upstream-first,partial,"t (default) asks the start point, then the name; fallback; false name first",explicit
+magit-branch.el,53,option,magit-branch-name-suggestions,partial,listed in the name prompt (no completion),explicit
+magit-branch.el,60,option,magit-branch-prefer-remote-upstream,partial,names or regexps: a new branch from such a local branch tracks its remote upstream,explicit
+magit-branch.el,107,option,magit-branch-adjust-remote-upstream-alist,partial,"[[UPSTREAM, REGEXP or [NAMES]]] after creating from a remote branch",explicit
 magit-branch.el,169,option,magit-branch-rename-push-target,partial,t offers to rename the push branch remotely; local-only/forge-only/nil keep only pushRemote,explicit
 magit-branch.el,197,option,magit-branch-direct-configure,partial,branch menu shows d u r p R P directly (C still opens the full set),explicit
 magit-branch.el,206,option,magit-published-branches,partial,"only these remote branches count as published (default origin/master, as upstream)",explicit
@@ -446,9 +446,9 @@ magit-git.el,150,option,magit-remote-git-executable,n/a,"Windows/Cygwin, coding-
 magit-git.el,159,option,magit-run-hooks-from-githooks,n/a,"Emacs-specific (default-directory, windows, Info, minor modes, tab-width, buffer names, global keymaps or Lisp githook bridge); Fred's equivalent is fixed or uses Space m",explicit
 magit-git.el,172,option,magit-user-githook-file,n/a,"Emacs-specific (default-directory, windows, Info, minor modes, tab-width, buffer names, global keymaps or Lisp githook bridge); Fred's equivalent is fixed or uses Space m",explicit
 magit-git.el,211,option,magit-git-global-arguments,partial,"prepended to every Git command; Fred's own safety arguments are built in, so the upstream default list is not repeated",explicit
-magit-git.el,237,option,magit-prefer-remote-upstream,missing,,explicit
-magit-git.el,251,option,magit-list-refs-namespaces,missing,,explicit
-magit-git.el,265,option,magit-list-refs-sortby,missing,,explicit
+magit-git.el,237,option,magit-prefer-remote-upstream,missing,"needs branch-at-point defaults (Fred rows carry commits, not ref names)",explicit
+magit-git.el,251,option,magit-list-refs-namespaces,partial,namespaces of the checkout picker (Fred default heads and remotes),explicit
+magit-git.el,265,option,magit-list-refs-sortby,partial,for-each-ref --sort keys of the checkout picker,explicit
 magit-git.el,293,option,magit-cygwin-mount-points,n/a,"Windows/Cygwin, coding-system, pty/pipe or TRAMP setting; Fred runs Git directly (UTF-8 bytes, terminal for interaction)",explicit
 magit-git.el,328,command,magit-toggle-git-debug,partial,:Magit name; failing background Git calls listed in the process buffer,explicit
 magit-git.el,824,command,magit-debug-git-executable,partial,":Magit name; path, version and exec-path",explicit
@@ -737,7 +737,7 @@ magit-refs.el,,command,transient:magit-show-refs:--no-merged,partial,menu argume
 magit-refs.el,,command,transient:magit-show-refs:--no-merged=,partial,menu argument,runtime
 magit-remote.el,33,option,magit-remote-add-set-remote.pushDefault,missing,,explicit
 magit-remote.el,48,option,magit-remote-direct-configure,partial,remote menu shows the remote variables directly,explicit
-magit-remote.el,57,option,magit-prefer-push-default,missing,,explicit
+magit-remote.el,57,option,magit-prefer-push-default,partial,unset push remote prompts set remote.pushDefault,explicit
 magit-remote.el,66,command,magit-remote,partial,"Space m M (upstream dispatch key) with -f (default) and a/r/k/p/P; direct variables, C configure, d u, z unshallow missing",explicit
 magit-remote.el,100,command,magit-remote-add,partial,"Space m M a; owner-replaced url default, ask-if-unset remote.pushDefault, -f fetch via terminal",explicit
 magit-remote.el,123,command,magit-remote-rename,partial,Space m M r; push variables follow,explicit

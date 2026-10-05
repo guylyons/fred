@@ -169,7 +169,13 @@ impl Repo {
                     FetchRemote => "fetch from there",
                     _ => "pull from there",
                 };
-                one(&format!("Set branch.{branch}.pushRemote and {verb}: "))
+                // magit-prefer-push-default: offer remote.pushDefault instead.
+                let var = if super::options::flag("magit-prefer-push-default", false) {
+                    "remote.pushDefault".to_owned()
+                } else {
+                    format!("branch.{branch}.pushRemote")
+                };
+                one(&format!("Set {var} and {verb}: "))
             }
             PushUpstream | PullUpstream => {
                 let branch = self.current_branch()?;
@@ -232,7 +238,12 @@ impl Repo {
                     Some(remote) if answers.is_empty() => remote,
                     _ => {
                         let remote = self.known_remote(answer(0)?)?;
-                        self.read(&["config", &format!("branch.{branch}.pushRemote"), &remote])?;
+                        let var = if super::options::flag("magit-prefer-push-default", false) {
+                            "remote.pushDefault".to_owned()
+                        } else {
+                            format!("branch.{branch}.pushRemote")
+                        };
+                        self.read(&["config", &var, &remote])?;
                         remote
                     }
                 };

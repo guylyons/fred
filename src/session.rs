@@ -2928,7 +2928,8 @@ mod tests {
         // Space in a new branch name is a dash.
         t.keys(" mbn");
         magit_settle(&mut t);
-        t.keys("my topic<Enter><Enter>");
+        // magit-branch-read-upstream-first: start point, then the name.
+        t.keys("<Enter>my topic<Enter>");
         magit_settle(&mut t);
         assert!(
             repo.read(&["rev-parse", "--verify", "my-topic"]).is_ok(),
