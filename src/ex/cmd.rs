@@ -191,6 +191,9 @@ fn run_one(st: &mut ExState, line: &str, in_global: bool) -> Result<ExEffect, St
         return Err(format!("no range allowed: {name}"));
     }
     let arg = tail.trim();
+    if arg.is_empty() && cmd.flags & NEEDARG != 0 {
+        return Err(format!(":{} needs {}", cmd.name, cmd.usage));
+    }
     if !arg.is_empty() && cmd.flags & EXTRA == 0 {
         return Err(format!("unexpected argument: {arg}"));
     }
@@ -218,6 +221,8 @@ const BANG: u8 = 2;
 const EXTRA: u8 = 4;
 /// The argument is a file name (Tab completes paths).
 pub const FILE: u8 = 8;
+/// The argument is required (Tab adds the space before it).
+pub const NEEDARG: u8 = 16;
 
 /// A named command, as in vim's `ex_cmds.lua`: `min` is how short an
 /// abbreviation may be (`:w` for `:write`).
@@ -225,6 +230,8 @@ pub struct Command {
     pub name: &'static str,
     pub min: usize,
     pub flags: u8,
+    /// What its argument looks like, for the error when it's missing.
+    usage: &'static str,
     run: fn(&mut ExState, Args) -> Result<ExEffect, String>,
 }
 
@@ -245,13 +252,17 @@ struct Args<'a> {
 /// Every named command. A prefix runs the first entry it abbreviates, so
 /// order decides ties, as in vim (`:s` is `:substitute`).
 pub const COMMANDS: &[Command] = &[
-    cmd("substitute", 1, RANGE | EXTRA, |st, a| {
-        substitute(st, a.at, a.raw)
-    }),
-    cmd("global", 1, RANGE | BANG | EXTRA, |st, a| {
+    needs(
+        "substitute",
+        1,
+        RANGE,
+        "/pattern/replacement/[g]",
+        |st, a| substitute(st, a.at, a.raw),
+    ),
+    needs("global", 1, RANGE | BANG, "/pattern/command", |st, a| {
         global_cmd(st, a, !a.force)
     }),
-    cmd("vglobal", 1, RANGE | EXTRA, |st, a| {
+    needs("vglobal", 1, RANGE, "/pattern/command", |st, a| {
         global_cmd(st, a, false)
     }),
     cmd("delete", 1, RANGE, |st, a| {
@@ -260,9 +271,13 @@ pub const COMMANDS: &[Command] = &[
         Ok(ExEffect::None)
     }),
     cmd("join", 1, RANGE, join),
-    cmd("move", 1, RANGE | EXTRA, |st, a| move_copy(st, a, false)),
-    cmd("t", 1, RANGE | EXTRA, |st, a| move_copy(st, a, true)),
-    cmd("copy", 2, RANGE | EXTRA, |st, a| move_copy(st, a, true)),
+    needs("move", 1, RANGE, "{address}", |st, a| {
+        move_copy(st, a, false)
+    }),
+    needs("t", 1, RANGE, "{address}", |st, a| move_copy(st, a, true)),
+    needs("copy", 2, RANGE, "{address}", |st, a| {
+        move_copy(st, a, true)
+    }),
     cmd("write", 1, RANGE | BANG | EXTRA | FILE, |_, a| {
         write(a, false)
     }),
@@ -277,7 +292,7 @@ pub const COMMANDS: &[Command] = &[
             force: a.force,
         })
     }),
-    cmd("read", 1, RANGE | EXTRA | FILE, |st, a| {
+    needs("read", 1, RANGE | FILE, "{file} or !{command}", |st, a| {
         let at = a.range.map_or(st.cur, |r| r.end);
         read(st, at, a.arg)
     }),
@@ -293,13 +308,25 @@ pub const COMMANDS: &[Command] = &[
     cmd("ls", 2, BANG, |_, a| buffer(a, BufCmd::List)),
     cmd("buffers", 7, BANG, |_, a| buffer(a, BufCmd::List)),
     cmd("files", 5, BANG, |_, a| buffer(a, BufCmd::List)),
-    cmd("ai", 2, RANGE | EXTRA, |st, a| ai(st, a.at, a.arg, false)),
+    needs(
+        "ai",
+        2,
+        RANGE,
+        "what to change: :ai make this async",
+        |st, a| ai(st, a.at, a.arg, false),
+    ),
     cmd("explain", 3, RANGE | EXTRA, |st, a| {
         ai(st, a.at, a.arg, true)
     }),
-    // :Magit NAME runs an upstream Magit command by name (like M-x).
+    // :Magit NAME runs an upstream Magit command by name (like M-x);
+    // alone, magit-status.
     cmd("Magit", 5, EXTRA, |_, a| {
-        crate::magit::commands::by_name(a.arg)
+        let name = if a.arg.is_empty() {
+            "magit-status"
+        } else {
+            a.arg
+        };
+        crate::magit::commands::by_name(name)
             .map(ExEffect::Magit)
             .ok_or_else(|| format!("unknown Magit command: {}", a.arg))
     }),
@@ -315,6 +342,24 @@ const fn cmd(
         name,
         min,
         flags,
+        usage: "",
+        run,
+    }
+}
+
+/// A command that must be given an argument shaped like `usage`.
+const fn needs(
+    name: &'static str,
+    min: usize,
+    flags: u8,
+    usage: &'static str,
+    run: fn(&mut ExState, Args) -> Result<ExEffect, String>,
+) -> Command {
+    Command {
+        name,
+        min,
+        flags: flags | EXTRA | NEEDARG,
+        usage,
         run,
     }
 }
@@ -711,6 +756,14 @@ mod tests {
         assert_eq!(ex_err("a", 0, "pwd!"), Err("no ! allowed: pwd".into()));
         assert_eq!(ex_err("a", 0, "d x"), Err("unexpected argument: x".into()));
         assert!(ex_err("a", 0, "w !ls").is_err());
+        assert_eq!(ex_err("a", 0, "m"), Err(":move needs {address}".into()));
+        // Every command runs bare or says what it needs.
+        for c in COMMANDS {
+            let (_, _, r) = run_on("a\nb", 0, c.name);
+            if let Err(e) = r {
+                assert!(e.starts_with(&format!(":{} needs", c.name)), "{e}");
+            }
+        }
     }
 
     #[test]

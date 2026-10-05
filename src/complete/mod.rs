@@ -97,7 +97,11 @@ pub fn cmdline_candidates(text: &str, cwd: &Path) -> Vec<String> {
         let mut names: Vec<String> = crate::ex::cmd::COMMANDS
             .iter()
             .filter(|c| c.name.starts_with(text) && c.name != text)
-            .map(|c| c.name.to_string())
+            // One that needs an argument comes with the space before it.
+            .map(|c| match c.flags & crate::ex::cmd::NEEDARG {
+                0 => c.name.to_string(),
+                _ => format!("{} ", c.name),
+            })
             .collect();
         names.sort_by_key(|n| n.to_lowercase());
         return names;

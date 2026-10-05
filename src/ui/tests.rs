@@ -202,11 +202,12 @@ fn ex_completion_popup_cycles_and_esc_dismisses_it() {
         s.term.backend().buffer()[(0, ai_y)].bg,
         ratatui::style::Color::Cyan
     );
-    assert_eq!(s.cursor(), (3, 11));
+    // `:ai` needs an argument, so it comes with the space before it.
+    assert_eq!(s.cursor(), (4, 11));
     e.handle_key(crate::key::Key::new(crate::key::KeyCode::Tab));
     assert!(matches!(&e.mode, Mode::Command(cl) if cl.text == "bdelete"));
     e.handle_key(crate::key::Key::new(crate::key::KeyCode::BackTab));
-    assert!(matches!(&e.mode, Mode::Command(cl) if cl.text == "ai"));
+    assert!(matches!(&e.mode, Mode::Command(cl) if cl.text == "ai "));
     e.handle_key(crate::key::Key::new(crate::key::KeyCode::Esc));
     assert!(
         matches!(&e.mode, Mode::Command(_)),
