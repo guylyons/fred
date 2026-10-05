@@ -431,45 +431,6 @@ pub fn command(ed: &mut Editor, name: &str, _arg: Prefix) -> Option<Result<(), S
     })
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn table_and_lookup() {
-        assert_eq!(ORG_ENTITIES.iter().filter(|e| matches!(e, E::Ent(_))).count(), 414);
-        let a = get("alpha").unwrap();
-        assert_eq!((a.latex.as_str(), a.math, a.html.as_str(), a.utf8.as_str()), ("\\alpha", true, "&alpha;", "α"));
-        assert_eq!(get("Auml").unwrap().ascii, "Ae");
-        assert!(get("nosuch").is_none());
-        assert!(names().iter().any(|n| n == "rightarrow"));
-        assert!(help_text().contains("   α        \\alpha            \\alpha                 &alpha;      \n"));
-    }
-
-    #[test]
-    fn entity_display() {
-        let l = r"a \alpha b \beta{} \pi2 \there4 \notanentity \_ x";
-        let o = entity_overlays(l);
-        let shown: Vec<(&str, &str)> = o.iter().map(|(r, s)| (&l[r.clone()], s.as_str())).collect();
-        assert_eq!(shown, vec![(r"\alpha", "α"), (r"\beta{}", "β"), (r"\pi", "π"), (r"\there4", "∴")]);
-        assert!(entity_overlays(r"# \alpha").is_empty());
-        // \alphabet is not an entity name.
-        assert!(entity_overlays(r"\alphabet").is_empty());
-    }
-
-    #[test]
-    fn script_display() {
-        let l = "x^2 and a_{ij} and e^{i pi} and H_2O x^(n+1)";
-        let o = script_overlays(l, false);
-        let shown: Vec<(&str, &str)> = o.iter().map(|(r, s)| (&l[r.clone()], s.as_str())).collect();
-        assert_eq!(shown, vec![("^2", "²"), ("_{ij}", "ᵢⱼ"), ("^(n+1)", "⁽ⁿ⁺¹⁾")]);
-        // `{}`: braces are required.
-        let o = script_overlays("x^2 y^{2}", true);
-        assert_eq!(o, vec![(5..9, "²".into())]);
-        assert!(script_overlays("[[file:a_b]]", false).is_empty());
-    }
-}
-
 pub static ORG_ENTITIES: &[E] = &[
     E::Head("* Letters"),
     E::Head("** Latin"),
@@ -908,3 +869,42 @@ pub static ORG_ENTITIES: &[E] = &[
     E::Ent(Raw { name: "_                   ", latex: "\\hspace*{9.5em}", math: false, html: "&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;", ascii: "                   ", latin1: "                   ", utf8: "                   " }),
     E::Ent(Raw { name: "_                    ", latex: "\\hspace*{10.0em}", math: false, html: "&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;", ascii: "                    ", latin1: "                    ", utf8: "                    " }),
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn table_and_lookup() {
+        assert_eq!(ORG_ENTITIES.iter().filter(|e| matches!(e, E::Ent(_))).count(), 414);
+        let a = get("alpha").unwrap();
+        assert_eq!((a.latex.as_str(), a.math, a.html.as_str(), a.utf8.as_str()), ("\\alpha", true, "&alpha;", "α"));
+        assert_eq!(get("Auml").unwrap().ascii, "Ae");
+        assert!(get("nosuch").is_none());
+        assert!(names().iter().any(|n| n == "rightarrow"));
+        assert!(help_text().contains("   α        \\alpha            \\alpha                 &alpha;      \n"));
+    }
+
+    #[test]
+    fn entity_display() {
+        let l = r"a \alpha b \beta{} \pi2 \there4 \notanentity \_ x";
+        let o = entity_overlays(l);
+        let shown: Vec<(&str, &str)> = o.iter().map(|(r, s)| (&l[r.clone()], s.as_str())).collect();
+        assert_eq!(shown, vec![(r"\alpha", "α"), (r"\beta{}", "β"), (r"\pi", "π"), (r"\there4", "∴")]);
+        assert!(entity_overlays(r"# \alpha").is_empty());
+        // \alphabet is not an entity name.
+        assert!(entity_overlays(r"\alphabet").is_empty());
+    }
+
+    #[test]
+    fn script_display() {
+        let l = "x^2 and a_{ij} and e^{i pi} and H_2O x^(n+1)";
+        let o = script_overlays(l, false);
+        let shown: Vec<(&str, &str)> = o.iter().map(|(r, s)| (&l[r.clone()], s.as_str())).collect();
+        assert_eq!(shown, vec![("^2", "²"), ("_{ij}", "ᵢⱼ"), ("^(n+1)", "⁽ⁿ⁺¹⁾")]);
+        // `{}`: braces are required.
+        let o = script_overlays("x^2 y^{2}", true);
+        assert_eq!(o, vec![(5..9, "²".into())]);
+        assert!(script_overlays("[[file:a_b]]", false).is_empty());
+    }
+}
