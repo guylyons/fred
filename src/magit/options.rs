@@ -371,6 +371,69 @@ pub fn run_hook(name: &str, root: &std::path::Path) {
     });
 }
 
+/// An Emacs regexp as a Rust one: \\( \\) \\| \\{ \\} \\` \\' and literal ( ) | { }.
+pub fn emacs_regex(re: &str) -> String {
+    let mut out = String::new();
+    let mut chars = re.chars().peekable();
+    let mut class = false;
+    while let Some(c) = chars.next() {
+        if class {
+            if c == ']' {
+                class = false;
+            }
+            if c == '\\' || c == '[' {
+                out.push('\\');
+            }
+            out.push(c);
+            continue;
+        }
+        match c {
+            '\\' => match chars.next() {
+                Some('(') => {
+                    if chars.peek() == Some(&'?') {
+                        chars.next();
+                        if chars.peek() == Some(&':') {
+                            chars.next();
+                        }
+                        out.push_str("(?:");
+                    } else {
+                        out.push('(');
+                    }
+                }
+                Some(')') => out.push(')'),
+                Some('|') => out.push('|'),
+                Some('{') => out.push('{'),
+                Some('}') => out.push('}'),
+                Some('`') => out.push_str("\\A"),
+                Some('\'') => out.push_str("\\z"),
+                Some(other) => {
+                    out.push('\\');
+                    out.push(other);
+                }
+                None => out.push_str("\\\\"),
+            },
+            '(' | ')' | '|' | '{' | '}' => {
+                out.push('\\');
+                out.push(c);
+            }
+            '[' => {
+                class = true;
+                out.push('[');
+                if chars.peek() == Some(&'^') {
+                    out.push('^');
+                    chars.next();
+                }
+                if chars.peek() == Some(&']') {
+                    out.push_str("\\]");
+                    chars.next();
+                }
+            }
+            c => out.push(c),
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

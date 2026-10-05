@@ -4485,3 +4485,68 @@ fn rename_offers_to_rename_the_push_target() {
         Next::Done(Ok(_))
     ));
 }
+#[test]
+fn clone_names_become_urls() {
+    use super::clone::name_to_url;
+    let cfg = |k: &str| (k == "github.user").then(|| "me".to_owned());
+    assert_eq!(
+        name_to_url("magit/magit", cfg).unwrap(),
+        "git@github.com:magit/magit.git"
+    );
+    assert_eq!(
+        name_to_url("gh:fred", cfg).unwrap(),
+        "git@github.com:me/fred.git"
+    );
+    assert_eq!(
+        name_to_url("gl:a/b", cfg).unwrap(),
+        "git@gitlab.com:a/b.git"
+    );
+    assert_eq!(name_to_url("sh:~x/y", cfg).unwrap(), "git@git.sr.ht:~x/y");
+    assert!(
+        name_to_url("gl:solo", cfg)
+            .unwrap_err()
+            .contains("gitlab.user")
+    );
+    let re = super::options::emacs_regex(r"\`\(?:a\|b\)\([^:]+\)\'");
+    assert_eq!(re, r"\A(?:a|b)([^:]+)\z");
+}
+#[test]
+fn revision_buffer_layout_follows_magit_revision_mode() {
+    let (d, r) = setup();
+    committed(d.path(), b"one\n");
+    git(d.path(), &["tag", "v1"]);
+    fs::write(d.path().join("g"), "g\n").unwrap();
+    git(d.path(), &["add", "g"]);
+    git(d.path(), &["commit", "-qm", "second\n\nbody line"]);
+    git(d.path(), &["tag", "v2"]);
+    git(d.path(), &["notes", "add", "-m", "a note", "HEAD"]);
+    let id = String::from_utf8_lossy(&git(d.path(), &["rev-parse", "HEAD~0"]))
+        .trim()
+        .to_owned();
+    let text = String::from_utf8_lossy(&r.commit_patch(&id).unwrap()).into_owned();
+    let lines: Vec<&str> = text.lines().collect();
+    assert!(
+        lines[0].ends_with(&id) && lines[0].contains("tag: v2"),
+        "{text}"
+    );
+    assert!(lines[1].starts_with("Author:     Fred Test <"), "{text}");
+    assert!(lines[2].starts_with("AuthorDate: "));
+    assert!(
+        lines.iter().any(|l| l.starts_with("Parent:     ")),
+        "{text}"
+    );
+    assert!(lines.contains(&"Contained:  main"), "{text}");
+    assert!(lines.contains(&"Follows:    v2 (0)"), "{text}");
+    let blank = lines.iter().position(|l| l.is_empty()).unwrap();
+    assert_eq!(&lines[blank + 1..blank + 4], &["second", "", "body line"]);
+    assert!(text.contains("Notes:\n    a note"), "{text}");
+    assert!(lines.iter().any(|l| l.starts_with(" g | 1 +")), "{text}");
+    assert!(text.contains("diff --git a/g b/g"));
+    // An untagged commit before v2 precedes it.
+    git(d.path(), &["tag", "-d", "v1"]);
+    let first = String::from_utf8_lossy(&git(d.path(), &["rev-parse", "HEAD~1"]))
+        .trim()
+        .to_owned();
+    let text = String::from_utf8_lossy(&r.commit_patch(&first).unwrap()).into_owned();
+    assert!(text.contains("Precedes:   v2 (1)"), "{text}");
+}

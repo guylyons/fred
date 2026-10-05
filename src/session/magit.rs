@@ -4950,13 +4950,13 @@ impl Session {
     }
     pub fn finish_git(&mut self, inv: GitInvocation, result: Result<(), String>) {
         self.git_busy = false;
-        // ponytail: last 100 commands; upstream keeps magit-process-log-max.
         let line = inv
             .args
             .iter()
             .map(|a| a.to_string_lossy())
             .collect::<Vec<_>>()
             .join(" ");
+        let line = crate::magit::repo::stamp_line(line);
         self.git_log
             .push((inv.repo.root.clone(), line, result.clone()));
         // magit-process-log-max sections (nil keeps them all).
@@ -4978,6 +4978,12 @@ impl Session {
         }
         self.refresh_gutters();
         if let Err(e) = result {
+            // magit-show-process-buffer-hint.
+            let e = if crate::magit::options::flag("magit-show-process-buffer-hint", true) {
+                format!("{e} [Space m $ for details]")
+            } else {
+                e
+            };
             if let Some(mut view) = self.ed.magit.as_deref().cloned() {
                 let selected = view.action_at(self.ed.cur.line);
                 let fallback = self.ed.cur.line;
@@ -5173,9 +5179,24 @@ fn diff_visit(view: &View, line: usize, worktree: bool) -> Option<(String, PathB
     if worktree {
         return Some((WORKTREE.to_owned(), loc.file, loc.line - 1));
     }
+    // magit-diff-visit-prefer-worktree: staged and unstaged changes visit
+    // the worktree file.
+    if matches!(view.kind, Kind::Diff(Target::Staged | Target::Unstaged, _))
+        && crate::magit::options::flag("magit-diff-visit-prefer-worktree", false)
+    {
+        return Some((WORKTREE.to_owned(), loc.file, loc.line - 1));
+    }
     let old = |rev: String| Some((rev, loc.old_file.clone(), loc.old_line - 1));
     let new = |rev: String| Some((rev, loc.file.clone(), loc.line - 1));
-    let pick = |a: String, b: String| if loc.removed { old(a) } else { new(b) };
+    // magit-diff-visit-previous-blob nil: always the new side.
+    let previous = crate::magit::options::flag("magit-diff-visit-previous-blob", true);
+    let pick = |a: String, b: String| {
+        if loc.removed && previous {
+            old(a)
+        } else {
+            new(b)
+        }
+    };
     match &view.kind {
         Kind::Diff(Target::Staged, _) => pick("HEAD".into(), INDEX.into()),
         Kind::Diff(Target::Unstaged, _) => pick(INDEX.into(), WORKTREE.into()),

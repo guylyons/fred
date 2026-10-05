@@ -411,6 +411,30 @@ fn magit_styles(ed: &Editor, hl: &Highlighter, l: usize, line: &str) -> LineStyl
             start.min(line.len())..line.len(),
         )),
     }
+    // magit-diff-paint-whitespace (t, or "uncommitted"), on the lines
+    // magit-diff-paint-whitespace-lines picks (t added, "both", "all"),
+    // with magit-diff-highlight-trailing.
+    let opts = crate::magit::options::value;
+    let paint = match opts("magit-diff-paint-whitespace") {
+        Some(toml::Value::Boolean(false)) => false,
+        Some(toml::Value::String(s)) if s == "uncommitted" => {
+            !crate::magit::committed_diff(&view.kind)
+        }
+        _ => true,
+    };
+    let lines_ok = match opts("magit-diff-paint-whitespace-lines") {
+        Some(toml::Value::String(s)) if s == "both" => sign != Some(' '),
+        Some(toml::Value::String(s)) if s == "all" => true,
+        _ => sign == Some('+'),
+    };
+    if paint && lines_ok && crate::magit::options::flag("magit-diff-highlight-trailing", true) {
+        let content = &line[start.min(line.len())..];
+        let trimmed = content.trim_end_matches([' ', '\t']).len();
+        if trimmed < content.len() {
+            let r = start + trimmed..line.len();
+            spans = paint_range(spans, r, Style::default().bg(Color::Red));
+        }
+    }
     if view.refine && tint.is_some() {
         let rows: Vec<String> = ((l.saturating_sub(200))..(l + 200).min(ed.line_count()))
             .map(|k| ed.buf.line(k).get(indent..).unwrap_or("").to_owned())
@@ -431,6 +455,24 @@ fn magit_styles(ed: &Editor, hl: &Highlighter, l: usize, line: &str) -> LineStyl
     spans
 }
 
+/// Give RANGE of the spans STYLE's background (spans stay sorted).
+fn paint_range(spans: LineStyles, range: std::ops::Range<usize>, style: Style) -> LineStyles {
+    let mut out = vec![];
+    for (st, r) in spans {
+        let a = r.start.max(range.start).min(r.end);
+        let b = r.end.min(range.end).max(a);
+        if r.start < a {
+            out.push((st, r.start..a));
+        }
+        if a < b {
+            out.push((st.patch(style), a..b));
+        }
+        if b < r.end {
+            out.push((st, b..r.end));
+        }
+    }
+    out
+}
 /// Split styled spans so the byte ranges in CHANGED (offset by SHIFT) gain
 /// reverse video, keeping the spans sorted and non-overlapping.
 fn emphasize(spans: LineStyles, changed: &[std::ops::Range<usize>], shift: usize) -> LineStyles {

@@ -23,6 +23,78 @@ pub fn url_to_name(url: &str) -> Option<String> {
     (!name.is_empty() && name != "." && name != "..").then(|| name.to_owned())
 }
 
+/// magit-clone--name-to-url: a name per magit-clone-name-alist and
+/// magit-clone-url-format; `user` is a Git variable when it has a dot.
+pub fn name_to_url(name: &str, config: impl Fn(&str) -> Option<String>) -> Result<String, String> {
+    use super::options;
+    let alist: Vec<(String, String, String)> = match options::value("magit-clone-name-alist") {
+        Some(toml::Value::Array(a)) => a
+            .iter()
+            .filter_map(|e| {
+                let e = e.as_array()?;
+                Some((
+                    e.first()?.as_str()?.to_owned(),
+                    e.get(1)?.as_str()?.to_owned(),
+                    e.get(2)?.as_str()?.to_owned(),
+                ))
+            })
+            .collect(),
+        _ => [
+            (
+                r"\`\(?:github:\|gh:\)?\([^:]+\)\'",
+                "github.com",
+                "github.user",
+            ),
+            (
+                r"\`\(?:gitlab:\|gl:\)\([^:]+\)\'",
+                "gitlab.com",
+                "gitlab.user",
+            ),
+            (
+                r"\`\(?:sourcehut:\|sh:\)\([^:]+\)\'",
+                "git.sr.ht",
+                "sourcehut.user",
+            ),
+        ]
+        .iter()
+        .map(|(r, h, u)| (r.to_string(), h.to_string(), u.to_string()))
+        .collect(),
+    };
+    for (re, host, user) in alist {
+        let Ok(re) = regex::Regex::new(&options::emacs_regex(&re)) else {
+            continue;
+        };
+        let Some(repo) = re
+            .captures(name)
+            .and_then(|c| c.get(1))
+            .map(|m| m.as_str().to_owned())
+        else {
+            continue;
+        };
+        let format = match options::value("magit-clone-url-format") {
+            Some(toml::Value::String(f)) => f,
+            Some(toml::Value::Table(t)) => t
+                .get(&host)
+                .or_else(|| t.get("t"))
+                .and_then(|v| v.as_str())
+                .ok_or("Bogus `magit-clone-url-format' (bad type or missing default)")?
+                .to_owned(),
+            _ if host == "git.sr.ht" => "git@%h:%n".into(),
+            _ => "git@%h:%n.git".into(),
+        };
+        let full = if repo.contains('/') {
+            repo
+        } else if user.contains('.') {
+            let u = config(&user).ok_or(format!("Set {user:?} or specify owner explicitly"))?;
+            format!("{u}/{repo}")
+        } else {
+            format!("{user}/{repo}")
+        };
+        return Ok(format.replace("%h", &host).replace("%n", &full));
+    }
+    Err("Not an url and no matching entry in `magit-clone-name-alist'".into())
+}
+
 fn value(v: &str) -> Result<&str, String> {
     if v.is_empty() || v.starts_with('-') || v.chars().any(char::is_control) {
         return Err(format!("invalid value {v:?}"));
@@ -34,7 +106,7 @@ fn value(v: &str) -> Result<&str, String> {
 impl Repo {
     pub fn clone_prompts(op: &Op) -> (Vec<String>, Vec<String>) {
         let mut prompts = vec![
-            "Clone repository: ".to_owned(),
+            "Clone from url or name: ".to_owned(),
             "Clone to (default name from url): ".into(),
         ];
         match op {
@@ -42,23 +114,51 @@ impl Repo {
             Op::ShallowExclude => prompts.push("Exclude commits reachable from: ".into()),
             _ => {}
         }
+        // magit-clone-set-remote.pushDefault ask.
+        if !matches!(op, Op::Bare | Op::Mirror) && push_default() == Some(true) {
+            prompts.push("Set `remote.pushDefault' to the remote? (y or n) ".into());
+        }
         let defaults = vec![String::new(); prompts.len()];
         (prompts, defaults)
     }
     /// `self.root` is the directory relative answers resolve against.
     pub fn clone_step(&self, op: Op, a: &[String], args: &[String]) -> Result<Next, String> {
         let at = |i: usize| a.get(i).map(String::as_str).unwrap_or("").trim();
-        let url = value(at(0))?;
+        // magit-clone-read-repository: urls and paths as given, names through
+        // magit-clone-name-alist.
+        let given = value(at(0))?;
+        let home = PathBuf::from(std::env::var("HOME").unwrap_or_default());
+        let base = super::options::string("magit-clone-default-directory", None)
+            .map(|d| match d.strip_prefix("~/") {
+                Some(rest) => home.join(rest),
+                None => PathBuf::from(d),
+            })
+            .unwrap_or_else(|| self.root.clone());
+        let url_owned = if given.contains("://")
+            || given.contains('@')
+            || self.root.join(given).exists()
+            || given.starts_with(['/', '.', '~'])
+        {
+            given.to_owned()
+        } else {
+            name_to_url(given, |k| self.config(k))?
+        };
+        let url = url_owned.as_str();
         let name = url_to_name(url);
         let mut dir = match at(1) {
-            "" => self
-                .root
-                .join(name.clone().ok_or("Cannot derive a directory name")?),
+            "" => base.join(name.clone().ok_or("Cannot derive a directory name")?),
             d => match d.strip_prefix("~/") {
-                Some(rest) => PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(rest),
-                None => self.root.join(d),
+                Some(rest) => home.join(rest),
+                None => base.join(d),
             },
         };
+        let extra = usize::from(matches!(op, Op::ShallowSince | Op::ShallowExclude));
+        let set_push = !matches!(op, Op::Bare | Op::Mirror)
+            && match push_default() {
+                Some(true) => matches!(at(2 + extra), "y" | "yes"),
+                Some(false) => true,
+                None => false,
+            };
         // magit-clone-internal: an existing non-empty directory gets the
         // repository's name inside it.
         if dir.exists() {
@@ -104,6 +204,7 @@ impl Repo {
                 dir,
                 op,
                 args: args.to_vec(),
+                set_push,
             })),
         }))
     }
@@ -115,6 +216,17 @@ pub struct After {
     pub dir: PathBuf,
     pub op: Op,
     pub args: Vec<String>,
+    /// magit-clone-set-remote.pushDefault: set it to the clone's remote.
+    pub set_push: bool,
+}
+
+/// magit-clone-set-remote.pushDefault: Some(true) ask, Some(false) set, None don't.
+fn push_default() -> Option<bool> {
+    match super::options::value("magit-clone-set-remote.pushDefault") {
+        Some(toml::Value::Boolean(true)) => Some(false),
+        Some(toml::Value::Boolean(false)) => None,
+        _ => Some(true),
+    }
 }
 
 impl After {
@@ -129,7 +241,7 @@ impl After {
                 self.dir.display()
             ))));
         }
-        // magit-clone-set-remote-head is nil: drop the remote's HEAD.
+        // magit-clone-set-remote-head (nil): drop the remote's HEAD.
         let remote = self
             .args
             .iter()
@@ -141,7 +253,12 @@ impl After {
                     .map(|o| String::from_utf8_lossy(&o).trim().to_owned())
             })
             .unwrap_or_else(|| "origin".into());
-        let _ = new.read(&["remote", "set-head", &remote, "-d"]);
+        if !super::options::flag("magit-clone-set-remote-head", false) {
+            let _ = new.read(&["remote", "set-head", &remote, "-d"]);
+        }
+        if self.set_push {
+            new.read(&["config", "remote.pushDefault", &remote])?;
+        }
         if self.op == Op::Sparse {
             new.read(&["sparse-checkout", "init", "--cone"])?;
             // An empty remote has nothing to check out yet.

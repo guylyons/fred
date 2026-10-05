@@ -1946,7 +1946,11 @@ mod tests {
         assert!(!t.s.ed.buf.text().contains("unrelated"));
         t.keys("j<Enter>");
         magit_settle(&mut t);
-        assert!(t.s.ed.buf.line(0).starts_with("commit "));
+        assert!(
+            t.s.ed.buf.line(1).starts_with("Author:     "),
+            "{}",
+            t.s.ed.buf.text()
+        );
         t.keys("qq");
         assert!(t.s.ed.magit.is_none());
         assert_eq!(t.s.ed.buf.line(0), "unsaved original");
@@ -3614,9 +3618,9 @@ mod tests {
         t.keys("j<Enter>");
         magit_settle(&mut t);
         assert!(
-            t.s.ed.buf.line(0).starts_with("commit "),
+            t.s.ed.buf.line(1).starts_with("Author:     "),
             "{}",
-            t.s.ed.buf.line(0)
+            t.s.ed.buf.text()
         );
         t.keys("q");
         t.keys("gzj<Enter>");
@@ -3829,7 +3833,11 @@ mod tests {
         );
         t.keys("j<Enter>");
         magit_settle(&mut t);
-        assert!(t.s.ed.buf.line(0).starts_with("commit "));
+        assert!(
+            t.s.ed.buf.line(1).starts_with("Author:     "),
+            "{}",
+            t.s.ed.buf.text()
+        );
         t.keys("q q mlO");
         magit_settle(&mut t);
         t.keys("--bogus<Enter>");
@@ -3866,7 +3874,11 @@ mod tests {
         assert!(t.s.ed.magit.is_some());
         t.keys("j<Enter>");
         magit_settle(&mut t);
-        assert!(t.s.ed.buf.line(0).starts_with("commit "));
+        assert!(
+            t.s.ed.buf.line(1).starts_with("Author:     "),
+            "{}",
+            t.s.ed.buf.text()
+        );
         t.keys("q");
         assert!(matches!(
             t.s.ed.magit.as_ref().unwrap().kind,

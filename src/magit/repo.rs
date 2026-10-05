@@ -38,6 +38,16 @@ pub fn kill_running(root: &Path) -> usize {
     }
     pids.len()
 }
+/// magit-process-timestamp-format: a process buffer entry's time prefix.
+pub fn stamp_line(line: String) -> String {
+    match super::options::string("magit-process-timestamp-format", None) {
+        Some(f) => format!(
+            "{} {line}",
+            super::margin::strftime(&f, super::margin::now())
+        ),
+        None => line,
+    }
+}
 /// magit-git-executable.
 pub fn git_executable() -> String {
     super::options::string("magit-git-executable", None).unwrap_or_else(|| "git".into())
@@ -159,7 +169,7 @@ impl Repo {
             }
             let outcome = result.as_ref().map(|_| ()).map_err(Clone::clone);
             if let Ok(mut calls) = CALLS.lock() {
-                calls.push((self.root.clone(), line, outcome));
+                calls.push((self.root.clone(), stamp_line(line), outcome));
                 let excess = calls.len().saturating_sub(1000);
                 calls.drain(..excess);
             }
@@ -541,14 +551,173 @@ impl Repo {
             .map(str::to_owned)
             .collect())
     }
+    /// magit-revision-mode's buffer: the heading, magit-revision-headers-format,
+    /// related refs, the message, notes, then the diffstat and diff.
     pub fn commit_patch(&self, id: &str) -> Result<Vec<u8>, String> {
+        use super::options;
         if id.is_empty() || !id.bytes().all(|b| b.is_ascii_hexdigit()) {
             return Err("invalid commit hash".into());
         }
-        self.read(&[
+        let fmt = |f: &str| -> Result<String, String> {
+            Ok(String::from_utf8_lossy(&self.read(&[
+                "log",
+                "-1",
+                "--no-walk",
+                &format!("--format={f}"),
+                id,
+                "--",
+            ])?)
+            .into_owned())
+        };
+        let mut out = String::new();
+        // magit-insert-revision-headers: ref labels, then the full hash.
+        let refs = fmt("%D")?.trim().to_owned();
+        let full = fmt("%H")?.trim().to_owned();
+        if refs.is_empty() {
+            out.push_str(&format!("{full}\n"));
+        } else {
+            out.push_str(&format!("{refs} {full}\n"));
+        }
+        let headers = options::string(
+            "magit-revision-headers-format",
+            Some(
+                "Author:     %aN <%aE>\nAuthorDate: %ad\nCommit:     %cN <%cE>\nCommitDate: %cd\n",
+            ),
+        )
+        .unwrap_or_default();
+        if !headers.is_empty() {
+            let h = fmt(&headers)?;
+            out.push_str(h.trim_end_matches('\n'));
+            out.push('\n');
+        }
+        // magit-revision-insert-related-refs: t, mixed, all or nil.
+        let related = match options::value("magit-revision-insert-related-refs") {
+            Some(toml::Value::Boolean(false)) => None,
+            Some(toml::Value::String(s)) => Some(s),
+            _ => Some("t".to_owned()),
+        };
+        if let Some(related) = related {
+            let shown = |sym: &str| match options::value(
+                "magit-revision-insert-related-refs-display-alist",
+            ) {
+                Some(toml::Value::Table(t)) => t.get(sym).and_then(|v| v.as_bool()).unwrap_or(true),
+                _ => true,
+            };
+            if shown("parents") {
+                let parents = fmt("%P")?;
+                for p in parents.split_whitespace() {
+                    let line = String::from_utf8_lossy(&self.read(&[
+                        "log",
+                        "-1",
+                        "--format=%h %s",
+                        p,
+                        "--",
+                    ])?)
+                    .trim()
+                    .to_owned();
+                    out.push_str(&format!("Parent:     {line}\n"));
+                }
+            }
+            let branches = |arg: &str, remote: bool| -> Vec<String> {
+                let mut argv = vec!["branch", "--format=%(refname:short)", arg, id];
+                if remote {
+                    argv.insert(1, "-a");
+                }
+                self.read(&argv)
+                    .map(|o| {
+                        String::from_utf8_lossy(&o)
+                            .lines()
+                            .map(str::to_owned)
+                            .collect()
+                    })
+                    .unwrap_or_default()
+            };
+            for (sym, arg, title, remote) in [
+                ("merged", "--merged", "Merged", related == "all"),
+                (
+                    "contained",
+                    "--contains",
+                    "Contained",
+                    related == "all" || related == "mixed",
+                ),
+            ] {
+                let refs = if shown(sym) {
+                    branches(arg, remote)
+                } else {
+                    vec![]
+                };
+                if !refs.is_empty() {
+                    out.push_str(&format!(
+                        "{title}:{}{}\n",
+                        " ".repeat(11 - title.len()),
+                        refs.join(" ")
+                    ));
+                }
+            }
+            if shown("follows")
+                && let Ok(d) = self.read(&["describe", "--long", "--tags", id])
+            {
+                let d = String::from_utf8_lossy(&d).trim().to_owned();
+                let mut parts = d.rsplitn(3, '-');
+                let (_, n, tag) = (parts.next(), parts.next(), parts.next());
+                if let (Some(tag), Some(n)) = (tag, n) {
+                    out.push_str(&format!("Follows:    {tag} ({n})\n"));
+                }
+            }
+            if shown("precedes")
+                && let Ok(d) = self.read(&["describe", "--contains", id])
+            {
+                let d = String::from_utf8_lossy(&d).trim().to_owned();
+                let tag = d.split(['~', '^']).next().unwrap_or("").to_owned();
+                let current = self
+                    .read(&["describe", "--tags", "--exact-match", id])
+                    .map(|o| String::from_utf8_lossy(&o).trim().to_owned())
+                    .unwrap_or_default();
+                if !tag.is_empty() && tag != current {
+                    let n = self
+                        .read(&["rev-list", "--count", &format!("{id}..{tag}")])
+                        .map(|o| String::from_utf8_lossy(&o).trim().to_owned())
+                        .unwrap_or_default();
+                    out.push_str(&format!("Precedes:   {tag} ({n})\n"));
+                }
+            }
+        }
+        out.push('\n');
+        // magit-insert-revision-message, with magit-revision-fill-summary-line.
+        let message = fmt("%B")?;
+        let mut lines = message.trim_end().lines();
+        if let Some(summary) = lines.next() {
+            let width = match options::value("magit-revision-fill-summary-line") {
+                Some(toml::Value::Integer(n)) => Some(n.max(1) as usize),
+                Some(toml::Value::Boolean(true)) => Some(70),
+                _ => None,
+            };
+            out.push_str(&fill(summary, width));
+        }
+        for l in lines {
+            out.push_str(l);
+            out.push('\n');
+        }
+        // magit-insert-revision-notes.
+        if let Ok(notes) = self.read(&["notes", "show", id]) {
+            let notes = String::from_utf8_lossy(&notes);
+            if !notes.trim().is_empty() {
+                out.push_str("\nNotes:\n");
+                for l in notes.trim_end().lines() {
+                    out.push_str(&format!("    {l}\n"));
+                }
+            }
+        }
+        out.push('\n');
+        let mut bytes = out.into_bytes();
+        // magit-insert-revision-diff (magit-show-commit's --stat by default).
+        bytes.extend(self.read(&[
             "-c",
             "core.quotePath=false",
             "show",
+            "--format=",
+            "--stat",
+            "-p",
             "--no-ext-diff",
             "--no-textconv",
             "--no-color",
@@ -556,7 +725,8 @@ impl Repo {
             "--dst-prefix=b/",
             id,
             "--",
-        ])
+        ])?);
+        Ok(bytes)
     }
     pub fn commit_invocation(
         &self,
@@ -597,4 +767,27 @@ pub fn literal_pathspec(path: &Path) -> OsString {
     let mut bytes = b":(literal)".to_vec();
     bytes.extend_from_slice(path.as_os_str().as_bytes());
     OsString::from_vec(bytes)
+}
+
+/// fill-region for a summary line: wrapped at WIDTH (None leaves it).
+fn fill(line: &str, width: Option<usize>) -> String {
+    let Some(width) = width else {
+        return format!("{line}\n");
+    };
+    let mut out = String::new();
+    let mut cur = String::new();
+    for word in line.split_whitespace() {
+        if !cur.is_empty() && cur.chars().count() + 1 + word.chars().count() > width {
+            out.push_str(&cur);
+            out.push('\n');
+            cur.clear();
+        }
+        if !cur.is_empty() {
+            cur.push(' ');
+        }
+        cur.push_str(word);
+    }
+    out.push_str(&cur);
+    out.push('\n');
+    out
 }

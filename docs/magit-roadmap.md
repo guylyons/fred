@@ -383,3 +383,12 @@ when nothing is staged, as upstream), extend/reword committer dates (via a
 new GitInvocation env), and magit-published-branches (upstream default
 origin/master). Ledger: 80 partial / 71 missing / 86 n/a options.
 Score remains 3%.
+
+October 5 revision/clone checkpoint: revision buffers follow
+magit-revision-mode (ref labels and hash, headers format, Parent/Merged/
+Contained/Follows/Precedes, unindented message, notes, diffstat, diff);
+clone options (name-to-url, url formats, pushDefault, remote HEAD,
+default directory; magit-clone runs the regular clone at once unless
+magit-clone-always-transient); whitespace painting, visit options,
+process hint and timestamps. Options: 98 partial / 51 missing / 88 n/a.
+Score remains 3%.

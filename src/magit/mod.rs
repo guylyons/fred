@@ -1467,7 +1467,7 @@ fn direct_key(c: char) -> Option<Action> {
         'b' => Menu('b'),
         'B' => Menu('G'),
         'c' => Menu('C'),
-        'C' => Menu('k'),
+        'C' => clone_entry(),
         'd' => Menu('d'),
         'D' => Menu('D'),
         'f' => Menu('f'),
@@ -2160,6 +2160,15 @@ pub(crate) fn open_menu(ed: &mut Editor, menu: char) {
         ed.set_msg(HELP);
     }
 }
+/// magit-clone: its transient only with magit-clone-always-transient
+/// (Fred has no prefix argument; :Magit magit-clone-regular etc. remain).
+fn clone_entry() -> Action {
+    if options::flag("magit-clone-always-transient", false) {
+        Action::Menu('k')
+    } else {
+        Action::Clone(clone::Op::Regular)
+    }
+}
 fn margin_entries() -> Vec<(&'static str, &'static str, &'static str, Action)> {
     vec![
         ("L", "Margin", "Toggle visibility", Action::Margin('L')),
@@ -2255,7 +2264,7 @@ pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str
             ("b", "Branch", "Branch operations", Menu('b')),
             ("B", "Inspect", "Blame", Menu('B')),
             ("c", "Commit", "Commit menu", Menu('C')),
-            ("C", "Repository", "Clone", Menu('k')),
+            ("C", "Repository", "Clone", clone_entry()),
             ("&", "Repository", "Bundle (M-x upstream)", Menu('J')),
             ("w", "Repository", "Apply patches", Menu('w')),
             ("p", "Network", "Push", Menu('p')),

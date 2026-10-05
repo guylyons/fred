@@ -189,12 +189,12 @@ magit-bundle.el,,command,transient:magit-bundle-create:--exclude=,partial,menu a
 magit-bundle.el,,command,transient:magit-bundle-create:--glob=,partial,menu argument,runtime
 magit-bundle.el,,command,transient:magit-bundle-create:--remotes=,partial,menu argument,runtime
 magit-bundle.el,,command,transient:magit-bundle-create:--tags=,partial,menu argument,runtime
-magit-clone.el,33,option,magit-clone-set-remote-head,missing,,explicit
-magit-clone.el,39,option,magit-clone-set-remote.pushDefault,missing,,explicit
-magit-clone.el,50,option,magit-clone-default-directory,missing,,explicit
-magit-clone.el,61,option,magit-clone-always-transient,missing,,explicit
-magit-clone.el,70,option,magit-clone-name-alist,missing,,explicit
-magit-clone.el,96,option,magit-clone-url-format,missing,,explicit
+magit-clone.el,33,option,magit-clone-set-remote-head,partial,t keeps refs/remotes/<remote>/HEAD,explicit
+magit-clone.el,39,option,magit-clone-set-remote.pushDefault,partial,"ask (default) adds a y/n prompt, t sets, false never",explicit
+magit-clone.el,50,option,magit-clone-default-directory,partial,directory relative destinations resolve against (no function values),explicit
+magit-clone.el,61,option,magit-clone-always-transient,partial,false (default): Space m C / C clone at once; :Magit magit-clone-transient and -regular/-shallow/... names,explicit
+magit-clone.el,70,option,magit-clone-name-alist,partial,"[[REGEXP, HOST, USER]] (Emacs regexps translated); names without :// or @ become urls",explicit
+magit-clone.el,96,option,magit-clone-url-format,partial,"string or {host = format, t = default} with %h and %n",explicit
 magit-clone.el,115,option,magit-post-clone-hook,partial,hook adapted: a list of shell commands run in the repository toplevel; in the new repository,explicit
 magit-clone.el,127,command,magit-clone,partial,Space m C (dispatch C; commit stays on c): fetch/setup/sharing arguments,explicit
 magit-clone.el,172,command,magit-clone-regular,partial,"C C: background clone (no credential prompts), then status; remote HEAD unset; pushDefault question skipped",explicit
@@ -262,27 +262,27 @@ magit-diff.el,202,option,magit-diff-refine-hunk,partial,[magit] TOML configurati
 magit-diff.el,219,option,magit-diff-fontify-hunk,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
 magit-diff.el,246,option,magit-diff-refine-ignore-whitespace,missing,,explicit
 magit-diff.el,254,option,magit-diff-adjust-tab-width,n/a,"Emacs-specific (default-directory, windows, Info, minor modes, tab-width, buffer names, global keymaps or Lisp githook bridge); Fred's equivalent is fixed or uses Space m",explicit
-magit-diff.el,282,option,magit-diff-paint-whitespace,missing,,explicit
-magit-diff.el,305,option,magit-diff-paint-whitespace-lines,missing,,explicit
-magit-diff.el,318,option,magit-diff-highlight-trailing,missing,,explicit
+magit-diff.el,282,option,magit-diff-paint-whitespace,partial,"t or ""uncommitted"" (diffs that are not committed)",explicit
+magit-diff.el,305,option,magit-diff-paint-whitespace-lines,partial,"t added, ""both"", ""all""",explicit
+magit-diff.el,318,option,magit-diff-highlight-trailing,partial,trailing spaces/tabs get a red background,explicit
 magit-diff.el,325,option,magit-diff-highlight-indentation,missing,,explicit
-magit-diff.el,343,option,magit-diff-hide-trailing-cr-characters,missing,,explicit
+magit-diff.el,343,option,magit-diff-hide-trailing-cr-characters,partial,Fred always hides a CRLF's CR in diff buffers,explicit
 magit-diff.el,350,option,magit-diff-extra-stat-arguments,missing,,explicit
 magit-diff.el,364,option,magit-format-file-function,n/a,value is an Emacs Lisp function; Fred's built-in equivalent behavior is fixed,explicit
 magit-diff.el,381,option,magit-diff-buffer-file-locked,missing,,explicit
 magit-diff.el,395,option,magit-revision-mode-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
 magit-diff.el,404,option,magit-revision-sections-hook,n/a,list of Lisp section inserters; Fred renders upstream's default sections,explicit
 magit-diff.el,416,option,magit-revision-wash-message-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
-magit-diff.el,434,option,magit-revision-headers-format,missing,,explicit
-magit-diff.el,451,option,magit-revision-insert-related-refs,missing,,explicit
-magit-diff.el,468,option,magit-revision-insert-related-refs-display-alist,missing,,explicit
+magit-diff.el,434,option,magit-revision-headers-format,partial,git log format after the ref labels and hash,explicit
+magit-diff.el,451,option,magit-revision-insert-related-refs,partial,"t, mixed, all, false: Parent, Merged, Contained, Follows, Precedes",explicit
+magit-diff.el,468,option,magit-revision-insert-related-refs-display-alist,partial,"{parents = false, ...}",explicit
 magit-diff.el,493,option,magit-revision-use-hash-sections,missing,,explicit
 magit-diff.el,517,option,magit-revision-show-gravatars,n/a,"Emacs faces, overlays, fringes, images, tooltips or mode-line lighters; Fred's terminal UI has fixed equivalents",explicit
-magit-diff.el,545,option,magit-revision-fill-summary-line,missing,,explicit
+magit-diff.el,545,option,magit-revision-fill-summary-line,partial,width (or true for 70),explicit
 magit-diff.el,563,option,magit-revision-filter-files-on-follow,missing,,explicit
 magit-diff.el,580,option,magit-revision-use-dedicated-buffers,missing,,explicit
-magit-diff.el,602,option,magit-diff-visit-prefer-worktree,missing,,explicit
-magit-diff.el,622,option,magit-diff-visit-previous-blob,missing,,explicit
+magit-diff.el,602,option,magit-diff-visit-prefer-worktree,partial,staged/unstaged diffs visit the worktree file,explicit
+magit-diff.el,622,option,magit-diff-visit-previous-blob,partial,nil always visits the new side,explicit
 magit-diff.el,771,option,magit-diff-specify-hunk-foreground,n/a,"Emacs faces, overlays, fringes, images, tooltips or mode-line lighters; Fred's terminal UI has fixed equivalents",explicit
 magit-diff.el,896,option,magit-diff-use-indicator-faces,n/a,"Emacs faces, overlays, fringes, images, tooltips or mode-line lighters; Fred's terminal UI has fixed equivalents",explicit
 magit-diff.el,1104,command,magit-diff,partial,"Space m d menu; -b -w -i -W -A -X -M -x -s =g and d/r/p/u/s/w/c/t; -- files, -U, level-5 args, persistence (set/save) missing",explicit
@@ -658,7 +658,7 @@ magit-patch.el,,command,transient:magit-patch-create:--ignore-space-change,parti
 magit-patch.el,,command,transient:magit-patch-create:--rfc,partial,menu argument,runtime
 magit-process.el,52,option,magit-process-connection-type,n/a,"Windows/Cygwin, coding-system, pty/pipe or TRAMP setting; Fred runs Git directly (UTF-8 bytes, terminal for interaction)",explicit
 magit-process.el,61,option,magit-need-cygwin-noglob,n/a,"Windows/Cygwin, coding-system, pty/pipe or TRAMP setting; Fred runs Git directly (UTF-8 bytes, terminal for interaction)",explicit
-magit-process.el,85,option,magit-process-popup-time,missing,,explicit
+magit-process.el,85,option,magit-process-popup-time,n/a,"terminal Git commands own the screen while they run, so their output is always visible",explicit
 magit-process.el,92,option,magit-process-log-max,partial,process buffer entries kept (false keeps all),explicit
 magit-process.el,102,option,magit-process-error-tooltip-max-lines,n/a,"Emacs faces, overlays, fringes, images, tooltips or mode-line lighters; Fred's terminal UI has fixed equivalents",explicit
 magit-process.el,114,option,magit-credential-cache-daemon-socket,n/a,"Emacs answers Git's prompts in the minibuffer; Fred hands interactive Git commands the terminal, so Git prompts directly",explicit
@@ -669,9 +669,9 @@ magit-process.el,204,option,magit-process-username-prompt-regexps,n/a,"Emacs ans
 magit-process.el,211,option,magit-process-prompt-functions,n/a,value is an Emacs Lisp function; Fred's built-in equivalent behavior is fixed,explicit
 magit-process.el,240,option,magit-process-ensure-unix-line-ending,n/a,"Windows/Cygwin, coding-system, pty/pipe or TRAMP setting; Fred runs Git directly (UTF-8 bytes, terminal for interaction)",explicit
 magit-process.el,246,option,magit-process-display-mode-line-error,n/a,"Emacs faces, overlays, fringes, images, tooltips or mode-line lighters; Fred's terminal UI has fixed equivalents",explicit
-magit-process.el,255,option,magit-show-process-buffer-hint,missing,,explicit
-magit-process.el,277,option,magit-process-apply-ansi-colors,missing,,explicit
-magit-process.el,295,option,magit-process-timestamp-format,missing,,explicit
+magit-process.el,255,option,magit-show-process-buffer-hint,partial,Git errors end with [Space m $ for details],explicit
+magit-process.el,277,option,magit-process-apply-ansi-colors,n/a,the terminal shows Git's own colors while a command runs,explicit
+magit-process.el,295,option,magit-process-timestamp-format,partial,strftime prefix of process buffer entries,explicit
 magit-process.el,367,command,magit-process-buffer,partial,"` in Magit buffers (evil-collection), Space m $: this repository's terminal Git commands and errors (output itself goes to the terminal)",explicit
 magit-process.el,404,command,magit-process-kill,partial,:Magit name; SIGTERM to the repository's running background Git processes (terminal ones stop with C-c),explicit
 magit-process.el,429,command,magit-toggle-subprocess-record,partial,:Magit name; every background Git call listed,explicit

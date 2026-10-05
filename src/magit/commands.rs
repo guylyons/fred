@@ -42,7 +42,25 @@ pub fn by_name(name: &str) -> Option<Action> {
         "magit-am" => menu('w'),
         "magit-bundle" => menu('J'),
         "magit-bundle-create" => menu('j'),
-        "magit-clone" => menu('k'),
+        "magit-clone-regular" => Some(super::Action::Clone(super::clone::Op::Regular)),
+        "magit-clone-shallow" => Some(super::Action::Clone(super::clone::Op::Shallow)),
+        "magit-clone-shallow-since" => Some(super::Action::Clone(super::clone::Op::ShallowSince)),
+        "magit-clone-shallow-exclude" => {
+            Some(super::Action::Clone(super::clone::Op::ShallowExclude))
+        }
+        "magit-clone-bare" => Some(super::Action::Clone(super::clone::Op::Bare)),
+        "magit-clone-mirror" => Some(super::Action::Clone(super::clone::Op::Mirror)),
+        "magit-clone-sparse" => Some(super::Action::Clone(super::clone::Op::Sparse)),
+        // Fred has no prefix argument: this name always opens the transient.
+        "magit-clone-transient" => menu('k'),
+        // magit-clone-always-transient nil: the regular clone at once.
+        "magit-clone" => {
+            if super::options::flag("magit-clone-always-transient", false) {
+                menu('k')
+            } else {
+                Some(super::Action::Clone(super::clone::Op::Regular))
+            }
+        }
         "magit-show-refs" => menu('y'),
         "magit-gitignore" => menu('g'),
         "magit-sparse-checkout" => menu('>'),

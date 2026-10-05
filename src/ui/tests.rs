@@ -1498,3 +1498,36 @@ fn magit_log_margin_and_hunk_styles() {
     assert!(buf[(5, 6)].modifier.contains(Modifier::REVERSED));
     assert_eq!(buf[(1, 6)].bg, Color::Indexed(22));
 }
+#[test]
+fn magit_diff_paints_trailing_whitespace_on_added_lines() {
+    use crate::magit::repo::{Repo, Snapshot};
+    use crate::magit::{Kind, Row, View};
+    use ratatui::style::Color;
+    let text = "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-old  \n+new  ";
+    let mut e = editor(text, "");
+    let mut v = View::status(
+        Repo {
+            root: "/repo".into(),
+        },
+        Snapshot::default(),
+    );
+    v.kind = Kind::Patch("abc".into());
+    v.rows = text
+        .lines()
+        .map(|t| Row {
+            text: t.into(),
+            action: None,
+        })
+        .collect();
+    e.path = Some("/state/magit-views/opaque".into());
+    e.magit = Some(Box::new(v));
+    e.readonly = true;
+    let mut screen = Screen::new(40, 8);
+    screen.cfg.numbers = false;
+    screen.draw(&e);
+    let buf = screen.term.backend().buffer();
+    // Added line: trailing spaces painted; removed line: not (t = added only).
+    assert_eq!(buf[(4, 5)].bg, Color::Red);
+    assert_ne!(buf[(4, 4)].bg, Color::Red);
+    assert_ne!(buf[(2, 5)].bg, Color::Red);
+}
