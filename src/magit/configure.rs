@@ -32,6 +32,11 @@ pub enum Op {
     Unshallow,
     /// Unshallow: also replace the single refspec? (remote)
     UnshallowRefspec(String),
+    /// magit--git-variable:boolean with :global t (mergetool.*): cycles
+    /// true, false, unset; the default is what Git assumes when unset.
+    GlobalBool(&'static str, &'static str),
+    /// A global variable naming a mergetool (merge.tool, merge.guitool).
+    GlobalTool(&'static str),
 }
 
 /// A variable whose key press cycles through fixed choices, then unsets.
@@ -119,7 +124,36 @@ impl Repo {
                     "Also replace refspec {refspec} with +refs/heads/*:refs/remotes/{r}/*? (yes or no) "
                 ))
             }
+            Op::GlobalTool(key) => {
+                // magit--read-mergetool's choices: git mergetool --tool-help.
+                let tools = self
+                    .read(&["mergetool", "--tool-help"])
+                    .map(|o| {
+                        String::from_utf8_lossy(&o)
+                            .lines()
+                            .filter_map(|l| l.strip_prefix("\t\t"))
+                            .filter_map(|l| l.split_whitespace().next())
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                    })
+                    .unwrap_or_default();
+                let now = self.global_config(key).unwrap_or_default();
+                one(format!("{key} (empty unsets; now {now}; tools: {tools}): "))
+            }
             _ => Ok((vec![], vec![])),
+        }
+    }
+    fn global_config(&self, key: &str) -> Option<String> {
+        let out = self.read(&["config", "--global", "--get", key]).ok()?;
+        Some(String::from_utf8_lossy(&out).trim().to_owned()).filter(|s| !s.is_empty())
+    }
+    fn set_global(&self, key: &str, v: Option<&str>) -> Result<(), String> {
+        match v {
+            Some(v) => self.read(&["config", "--global", key, v]).map(|_| ()),
+            None => {
+                let _ = self.read(&["config", "--global", "--unset-all", key]);
+                Ok(())
+            }
         }
     }
     fn set_config(&self, key: &str, v: Option<&str>) -> Result<(), String> {
@@ -158,6 +192,26 @@ impl Repo {
             return done(format!("{key} = {}", next.unwrap_or("(unset)")));
         }
         match op {
+            Op::GlobalBool(key, default) => {
+                let next = match self.global_config(key).as_deref() {
+                    None => Some("true"),
+                    Some("true") => Some("false"),
+                    _ => None,
+                };
+                self.set_global(key, next)?;
+                done(format!(
+                    "{key} = {}",
+                    next.unwrap_or(&format!("(unset, {default})"))
+                ))
+            }
+            Op::GlobalTool(key) => {
+                let v = match at(0) {
+                    "" => None,
+                    v => Some(value(v)?),
+                };
+                self.set_global(key, v)?;
+                done(format!("{key} = {}", v.unwrap_or("(unset)")))
+            }
             Op::BranchPushRemote | Op::PushDefault => {
                 // Choices are the remotes.
                 let key = self.var_key(&op)?;

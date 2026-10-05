@@ -168,9 +168,30 @@ impl Repo {
             }
             Op::SaveDiff(target, diff_args) => {
                 let file = self.answer_path(at(0))?;
-                // magit-patch-save-arguments: (exclude "--stat").
+                // magit-patch-save-arguments: "buffer", ["exclude", ARGS...]
+                // (default ["exclude", "--stat"]), or a list of arguments.
                 let diff_args: Vec<String> =
-                    diff_args.into_iter().filter(|x| x != "--stat").collect();
+                    match super::options::value("magit-patch-save-arguments") {
+                        Some(toml::Value::String(s)) if s == "buffer" => diff_args,
+                        Some(toml::Value::Array(a)) => {
+                            let words: Vec<String> = a
+                                .iter()
+                                .filter_map(|v| v.as_str().map(str::to_owned))
+                                .collect();
+                            match words.split_first() {
+                                Some((first, rest)) if first == "exclude" => diff_args
+                                    .into_iter()
+                                    .filter(|x| {
+                                        !rest
+                                            .iter()
+                                            .any(|r| x == r || x.starts_with(&format!("{r}=")))
+                                    })
+                                    .collect(),
+                                _ => words,
+                            }
+                        }
+                        _ => diff_args.into_iter().filter(|x| x != "--stat").collect(),
+                    };
                 let patch = self.diff_output(&target, &diff_args)?;
                 // create_new: never follow a symlink or replace an existing file.
                 use std::io::Write;

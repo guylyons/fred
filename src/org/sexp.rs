@@ -119,7 +119,9 @@ impl Sexp {
             }
             toml::Value::Table(t) => Sexp::List(
                 t.iter()
-                    .map(|(k, v)| Sexp::Dotted(vec![Sexp::Str(k.clone())], Box::new(Sexp::from_toml(v))))
+                    .map(|(k, v)| {
+                        Sexp::Dotted(vec![Sexp::Str(k.clone())], Box::new(Sexp::from_toml(v)))
+                    })
                     .collect(),
             ),
             toml::Value::Datetime(d) => Sexp::Str(d.to_string()),
@@ -233,7 +235,11 @@ impl Reader<'_> {
                         None => return Err("unbalanced (".into()),
                         Some(')') => {
                             self.i += 1;
-                            return Ok(if items.is_empty() { Sexp::Nil } else { Sexp::List(items) });
+                            return Ok(if items.is_empty() {
+                                Sexp::Nil
+                            } else {
+                                Sexp::List(items)
+                            });
                         }
                         Some('.')
                             if self.s[self.i + 1..]
@@ -362,7 +368,11 @@ fn atom(tok: &str) -> Sexp {
     if let Ok(i) = tok.parse::<i64>() {
         return Sexp::Int(i);
     }
-    if tok.contains(['.', 'e']) && tok.chars().next().is_some_and(|c| c.is_ascii_digit() || c == '-' || c == '.')
+    if tok.contains(['.', 'e'])
+        && tok
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_digit() || c == '-' || c == '.')
         && let Ok(f) = tok.parse::<f64>()
     {
         return Sexp::Float(f);
@@ -395,7 +405,10 @@ mod tests {
             "((sequence \"TODO\" \"|\" \"DONE\") (type . 3) [1 2.5] 97 (quote x))"
         );
         assert_eq!(read("(a . b)").unwrap().cdr(), Sexp::Sym("b".into()));
-        assert_eq!(read("(:a 1 :b 2)").unwrap().plist_get(":b"), Some(&Sexp::Int(2)));
+        assert_eq!(
+            read("(:a 1 :b 2)").unwrap().plist_get(":b"),
+            Some(&Sexp::Int(2))
+        );
         assert!(read("(a").is_err());
     }
 
@@ -405,7 +418,10 @@ mod tests {
             "a = [[\"sequence\", \"TODO\"]]\nb = \"'((x . 1))\"\nc = [\"k\", \".\", 2]",
         )
         .unwrap();
-        assert_eq!(Sexp::from_toml(&t["a"]).to_string(), "((\"sequence\" \"TODO\"))");
+        assert_eq!(
+            Sexp::from_toml(&t["a"]).to_string(),
+            "((\"sequence\" \"TODO\"))"
+        );
         assert_eq!(unquote(Sexp::from_toml(&t["b"])).to_string(), "((x . 1))");
         assert_eq!(Sexp::from_toml(&t["c"]).to_string(), "(\"k\" . 2)");
     }

@@ -502,6 +502,7 @@ fn run_git(ui: &mut Ui, s: &mut Session, inv: crate::magit::repo::GitInvocation)
                 .join(" ")
         );
         let mut cmd = inv.repo.command();
+        cmd.envs(inv.env.iter().map(|(k, v)| (k, v)));
         if inv.editor
             && let Ok(exe) = std::env::current_exe()
         {
@@ -558,6 +559,9 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
     if let Some(h) = args.height {
         cfg.height = h;
     }
+    // Magit's options are process-wide (Git work runs on worker threads).
+    let unknown = crate::magit::options::set(cfg.magit.0.clone());
+    let cfg_err = cfg_err.or_else(|| unknown.into_iter().next());
     let (mut s, leftover) = match Session::open(args.file.clone(), &cfg, &swap::swap_dir()) {
         Ok(x) => x,
         Err(e) => {
@@ -585,7 +589,10 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
             Highlighter::new("ansi", truecolor).map_err(|e| anyhow!(e))?
         }
     };
-    hl.set_file(s.ed.path.as_deref(), &s.ed.buf);
+    hl.set_file(
+        s.ed.path.as_deref().or(s.ed.syntax_path.as_deref()),
+        &s.ed.buf,
+    );
     if let Some(r) = &hl.disabled {
         s.ed.set_msg(r.clone());
     }
@@ -678,7 +685,10 @@ fn event_loop(
             }
             SwapChoice::Recover => {
                 s.recover(info);
-                hl.set_file(s.ed.path.as_deref(), &s.ed.buf);
+                hl.set_file(
+                    s.ed.path.as_deref().or(s.ed.syntax_path.as_deref()),
+                    &s.ed.buf,
+                );
             }
             SwapChoice::Delete => {
                 s.discard_swap();
@@ -773,7 +783,10 @@ fn event_loop(
         }
         if s.reloaded {
             s.reloaded = false;
-            hl.set_file(s.ed.path.as_deref(), &s.ed.buf);
+            hl.set_file(
+                s.ed.path.as_deref().or(s.ed.syntax_path.as_deref()),
+                &s.ed.buf,
+            );
             s.ed.nearby = nearby::spawn(s.ed.path.clone());
             ui.view = View::default();
             dirty = true;

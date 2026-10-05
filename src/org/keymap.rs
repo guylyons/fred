@@ -218,6 +218,12 @@ pub const ORG_MODE_MAP: &[(&str, &str)] = &[
     ("C-c C-x M", "org-insert-todo-heading"),
     ("C-c C-x m", "org-meta-return"),
     ("C-c C-x c", "org-clone-subtree-with-time-shift"),
+    ("C-c M-o", "outline-find-headings"),
+    ("C-c C->", "org-demote-subtree"),
+    ("C-c C-<", "org-promote-subtree"),
+    ("C-c C-u", "org-up-heading"),
+    ("C-c C-p", "org-previous-visible-heading"),
+    ("C-c C-n", "org-next-visible-heading"),
 ];
 
 pub const AGENDA_MAP: &[(&str, &str)] = &[
