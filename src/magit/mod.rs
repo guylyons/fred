@@ -430,6 +430,8 @@ pub struct View {
     pub forward: Vec<Kind>,
     /// magit-repolist-mark: the marked repositories.
     pub marked: HashSet<PathBuf>,
+    /// A refs buffer's full ref name per row.
+    pub refnames: HashMap<usize, String>,
 }
 /// magit-log-select's pick function: answer QUESTION with the commit, after
 /// the answers already given.
@@ -552,6 +554,7 @@ impl View {
             back: vec![],
             forward: vec![],
             marked: HashSet::new(),
+            refnames: HashMap::new(),
         };
         v.rebuild();
         v
@@ -609,6 +612,58 @@ impl View {
             _ => return None,
         };
         Some(m.text(self.stamps.get(id)?, now))
+    }
+    /// magit-local-branch-at-point and magit-remote-branch-at-point: from
+    /// a refs buffer row, or a log row's ref labels.
+    pub fn branches_at(&self, line: usize) -> (Option<String>, Option<String>) {
+        if let Some(r) = self.refnames.get(&line) {
+            return match (
+                r.strip_prefix("refs/heads/"),
+                r.strip_prefix("refs/remotes/"),
+            ) {
+                (Some(l), _) => (Some(l.to_owned()), None),
+                (_, Some(rm)) => (None, Some(rm.to_owned())),
+                _ => (None, None),
+            };
+        }
+        if !matches!(self.kind, Kind::Log(..)) {
+            return (None, None);
+        }
+        let text = self.rows.get(line).map_or("", |r| r.text.as_str());
+        let Some(labels) = text
+            .split_once(" (")
+            .and_then(|(_, r)| r.split_once(')'))
+            .map(|(l, _)| l)
+        else {
+            return (None, None);
+        };
+        let remotes = self.repo.remotes().unwrap_or_default();
+        let (mut local, mut remote) = (None, None);
+        for l in labels.split(", ") {
+            let l = l.strip_prefix("HEAD -> ").unwrap_or(l);
+            if l == "HEAD" || l.starts_with("tag: ") {
+                continue;
+            }
+            if remotes.iter().any(|r| l.starts_with(&format!("{r}/"))) {
+                remote.get_or_insert_with(|| l.to_owned());
+            } else {
+                local.get_or_insert_with(|| l.to_owned());
+            }
+        }
+        (local, remote)
+    }
+    /// magit--default-starting-point's branch part, with
+    /// magit-prefer-remote-upstream.
+    pub fn start_point_at(&self, line: usize) -> Option<String> {
+        let (l, r) = self.branches_at(line);
+        if options::flag("magit-prefer-remote-upstream", false) {
+            r.or(l)
+        } else {
+            l.or(r)
+        }
+    }
+    pub fn kind_is_refs(&self) -> bool {
+        matches!(self.kind, Kind::Refs(..))
     }
     /// The margin's width when it is shown.
     pub fn margin_width(&self) -> usize {
@@ -1606,6 +1661,22 @@ fn section_value(ed: &Editor) -> Option<String> {
     }
 }
 /// magit-copy-buffer-revision: the revision the buffer shows.
+/// magit-revision-use-hash-sections: whether WORD may be a commit hash
+/// (quicker by default; quick, quickest, slow; false never).
+pub fn looks_like_hash(word: &str) -> bool {
+    let hex = !word.is_empty() && word.bytes().all(|b| b.is_ascii_hexdigit());
+    let digit = word.bytes().any(|b| b.is_ascii_digit());
+    let letter = word.bytes().any(|b| b.is_ascii_alphabetic());
+    match options::value("magit-revision-use-hash-sections") {
+        Some(toml::Value::Boolean(false)) => false,
+        Some(toml::Value::String(s)) if s == "slow" => hex && word.len() >= 4,
+        Some(toml::Value::String(s)) if s == "quick" => hex && word.len() >= 7,
+        Some(toml::Value::String(s)) if s == "quickest" => {
+            hex && word.len() >= 7 && digit && letter
+        }
+        _ => hex && word.len() >= 7 && digit,
+    }
+}
 /// magit-diff-type is `committed': revision and stash buffers, and diffs of
 /// a range other than HEAD against the worktree or index.
 /// magit-diff-section-map applies: a diff, commit or stash buffer, or a

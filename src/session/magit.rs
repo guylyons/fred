@@ -2868,6 +2868,12 @@ impl Session {
         if let Action::Branch(op) = action {
             let (origin, from) = (self.cur, self.magit_from());
             let args = crate::magit::menu_arguments(&self.ed, 'b');
+            // magit--default-starting-point: the branch at point.
+            let at_point = self
+                .ed
+                .magit
+                .as_ref()
+                .and_then(|v| v.start_point_at(self.ed.cur.line));
             self.start_magit(move || {
                 let repo = Repo::discover(&from)?;
                 // magit-branch-read-upstream-first: the start point first.
@@ -2880,10 +2886,26 @@ impl Session {
                     }
                     op => op,
                 };
-                let (prompts, defaults) = repo.branch_prompts(&op)?;
+                let (mut prompts, mut defaults) = repo.branch_prompts(&op)?;
                 if prompts.is_empty() {
                     let next = repo.branch_step_args(op, &[], &[], &args);
                     return Ok(branch_outcome(repo, next, origin));
+                }
+                let start = match op {
+                    crate::magit::branch::Op::StartFirst(_) => Some(0),
+                    crate::magit::branch::Op::Create | crate::magit::branch::Op::CreateCheckout => {
+                        Some(1)
+                    }
+                    _ => None,
+                };
+                if let (Some(i), Some(p)) = (start, at_point)
+                    && i < prompts.len()
+                {
+                    prompts[i] = prompts[i].replace(
+                        &format!("(default {})", defaults[i]),
+                        &format!("(default {p})"),
+                    );
+                    defaults[i] = p;
                 }
                 Ok(Outcome::Ask(repo, Question::Branch(op), defaults, prompts))
             });
@@ -3258,6 +3280,41 @@ impl Session {
             };
             let selected = view.action_at(self.ed.cur.line);
             let fallback = self.ed.cur.line;
+            // magit-revision-use-hash-sections: a hash in a commit message.
+            if action == Action::Visit
+                && selected.is_none()
+                && matches!(view.kind, Kind::Patch(_))
+                && !view.rows[..=self.ed.cur.line.min(view.rows.len().saturating_sub(1))]
+                    .iter()
+                    .any(|r| r.text.starts_with("diff --git"))
+            {
+                let text = self.ed.buf.line(self.ed.cur.line);
+                let col = self.ed.cur.byte.min(text.len());
+                let word_char = |c: char| c.is_ascii_alphanumeric();
+                let start = text[..col]
+                    .rfind(|c: char| !word_char(c))
+                    .map_or(0, |i| i + 1);
+                let end = text[col..]
+                    .find(|c: char| !word_char(c))
+                    .map_or(text.len(), |i| col + i);
+                let word = text[start..end].to_owned();
+                if crate::magit::looks_like_hash(&word) {
+                    let repo = view.repo.clone();
+                    let origin = self.cur;
+                    self.start_magit(move || {
+                        let id = repo
+                            .read(&["rev-parse", "--verify", "-q", &format!("{word}^{{commit}}")])
+                            .map_err(|_| format!("{word} is not a commit"))?;
+                        let id = String::from_utf8_lossy(&id).trim().to_owned();
+                        let mut v = View::status(repo.clone(), Default::default());
+                        v.kind = Kind::Patch(id.clone());
+                        v.rows = display_patch(&repo.commit_patch(&id)?);
+                        v.return_to = origin;
+                        Ok(Outcome::View(Box::new(v), None, 0))
+                    });
+                    return;
+                }
+            }
             if matches!(action, Action::Visit | Action::VisitWorktree) && selected.is_none() {
                 // magit-diff-visit-file / -worktree-file on a diff line.
                 match diff_visit(&view, self.ed.cur.line, action == Action::VisitWorktree) {
@@ -3312,6 +3369,29 @@ impl Session {
                                 crate::magit::branch::Next::Status(dir),
                                 origin,
                             ))
+                        });
+                    }
+                    // magit-visit-ref-behavior in refs buffers.
+                    Some(RowAction::Commit(_))
+                        if view.kind_is_refs()
+                            && let Some(name) = view.refnames.get(&self.ed.cur.line).cloned()
+                            && let Some(how) = visit_ref(&name) =>
+                    {
+                        let origin = self.cur;
+                        self.start_magit(move || {
+                            let next = match how {
+                                VisitRef::Create(remote) => view.repo.branch_step(
+                                    crate::magit::branch::Op::CheckoutLocal,
+                                    &[remote],
+                                    &[],
+                                ),
+                                VisitRef::Checkout(r) => crate::magit::branch::Next::Git(vec![
+                                    "checkout".into(),
+                                    r,
+                                    "--".into(),
+                                ]),
+                            };
+                            Ok(branch_outcome(view.repo, next, origin))
                         });
                     }
                     Some(RowAction::Commit(id)) => {
@@ -5507,7 +5587,11 @@ fn refresh_rows(view: &mut View) -> Result<(), String> {
             ),
             action: None,
         }];
-        for (text, id) in view.repo.refs_rows(focus, args, *count)? {
+        view.refnames.clear();
+        for (text, id, name) in view.repo.refs_rows_named(focus, args, *count)? {
+            if let Some(n) = name {
+                view.refnames.insert(rows.len(), n);
+            }
             rows.push(Row {
                 text: label(Path::new(&text)),
                 action: id.map(RowAction::Commit),
@@ -5829,6 +5913,33 @@ fn keep_committer_date(repo: &Repo) -> Option<(String, String)> {
                 String::from_utf8_lossy(&o).trim().to_owned(),
             )
         })
+}
+/// What magit-visit-ref does instead of showing the commit.
+enum VisitRef {
+    /// create-branch: a local branch for this remote branch.
+    Create(String),
+    /// checkout-any / checkout-branch.
+    Checkout(String),
+}
+/// magit-visit-ref-behavior: ["create-branch", "checkout-any",
+/// "checkout-branch"] (focus-on-ref needs a prefix argument Fred lacks).
+fn visit_ref(name: &str) -> Option<VisitRef> {
+    let how = crate::magit::options::strings("magit-visit-ref-behavior", &[]);
+    let has = |s: &str| how.iter().any(|h| h == s);
+    if let Some(remote) = name.strip_prefix("refs/remotes/")
+        && has("create-branch")
+    {
+        return Some(VisitRef::Create(remote.to_owned()));
+    }
+    let short = name
+        .strip_prefix("refs/heads/")
+        .or_else(|| name.strip_prefix("refs/remotes/"))
+        .or_else(|| name.strip_prefix("refs/tags/"))
+        .unwrap_or(name);
+    if has("checkout-any") || (has("checkout-branch") && name.starts_with("refs/heads/")) {
+        return Some(VisitRef::Checkout(short.to_owned()));
+    }
+    None
 }
 /// The verb magit-commit-squash-internal's log-select message uses.
 fn op_verb(op: &crate::magit::commit::Op) -> &'static str {

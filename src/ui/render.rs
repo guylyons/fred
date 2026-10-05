@@ -427,6 +427,44 @@ fn magit_styles(ed: &Editor, hl: &Highlighter, l: usize, line: &str) -> LineStyl
         Some(toml::Value::String(s)) if s == "all" => true,
         _ => sign == Some('+'),
     };
+    // magit-diff-highlight-indentation: [[DIR-REGEXP, "tabs" or N]], the
+    // last matching the repository path wins.
+    if paint
+        && lines_ok
+        && let Some(toml::Value::Array(rules)) = opts("magit-diff-highlight-indentation")
+    {
+        let root = view.repo.root.to_string_lossy().into_owned();
+        let indent = rules
+            .iter()
+            .rev()
+            .filter_map(|r| r.as_array())
+            .find_map(|r| {
+                let re = r.first()?.as_str()?;
+                regex::Regex::new(&crate::magit::options::emacs_regex(re))
+                    .ok()?
+                    .is_match(&root)
+                    .then(|| r.get(1).cloned())
+                    .flatten()
+            });
+        let content = &line[start.min(line.len())..];
+        let lead = content.len() - content.trim_start_matches([' ', '\t']).len();
+        let bad = match indent {
+            Some(toml::Value::String(t)) if t == "tabs" => content[..lead]
+                .find('\t')
+                .map(|i| i..content[..lead].rfind('\t').map_or(i, |j| j + 1)),
+            Some(toml::Value::Integer(n)) if n > 0 => content[..lead]
+                .find(&" ".repeat(n as usize))
+                .map(|i| i..lead),
+            _ => None,
+        };
+        if let Some(r) = bad {
+            spans = paint_range(
+                spans,
+                start + r.start..start + r.end,
+                Style::default().bg(Color::Red),
+            );
+        }
+    }
     if paint && lines_ok && crate::magit::options::flag("magit-diff-highlight-trailing", true) {
         let content = &line[start.min(line.len())..];
         let trimmed = content.trim_end_matches([' ', '\t']).len();

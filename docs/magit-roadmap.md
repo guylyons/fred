@@ -400,3 +400,15 @@ Y" (remaining todo, stop/join/work/gone, done, onto), "Applying patches",
 magit-bisect-show-graph) and Bisect Log sections. More options: remote-add
 pushDefault, module gitdir trashing, patch save arguments, pull-or-fetch.
 Options: 125 partial / 22 missing / 90 n/a. Score remains 3%.
+
+October 5 stopping checkpoint (user request): every upstream command and
+option now has a Fred mapping or an explicit n/a reason. Ledger: commands
+771 partial / 0 missing / 2 n/a; options 144 partial / 0 missing / 93 n/a.
+Last batch: ref-at-point (RET behaviors in refs buffers, start-point
+defaults with magit-prefer-remote-upstream), hash words in revision
+messages, indentation highlighting. Partial means implemented with the
+limits recorded per row, not accepted. Score remains 3%: no roadmap row has
+passed its five acceptance gates (source/option mapping, menus, behavior,
+real-Git/UI/error scenarios, independent review). Next: the baseline UI map
+and scenario matrix, then per-track acceptance reviews starting with
+status/diff/commit.

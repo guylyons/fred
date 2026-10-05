@@ -4656,3 +4656,30 @@ fn log_header_lines_follow_each_commit() {
         lines.iter().map(|l| &l.text).collect::<Vec<_>>()
     );
 }
+#[test]
+fn branches_at_point_and_hash_words() {
+    use super::{Kind, Row, RowAction, View, looks_like_hash};
+    let (d, r, _bare) = with_remote();
+    git(d.path(), &["push", "-qu", "origin", "main"]);
+    let mut v = View::status(r.clone(), Default::default());
+    v.kind = Kind::Log(vec!["HEAD".into()], vec![]);
+    v.rows = vec![Row {
+        text: "* abcdef12 (HEAD -> main, origin/main, tag: v1) subject".into(),
+        action: Some(RowAction::Commit("abcdef12".into())),
+    }];
+    assert_eq!(
+        v.branches_at(0),
+        (Some("main".into()), Some("origin/main".into()))
+    );
+    // magit-prefer-remote-upstream nil: the local branch.
+    assert_eq!(v.start_point_at(0).as_deref(), Some("main"));
+    let mut refs = View::status(r, Default::default());
+    refs.kind = Kind::Refs("HEAD".into(), vec![], Default::default());
+    refs.refnames.insert(3, "refs/remotes/origin/main".into());
+    assert_eq!(refs.branches_at(3), (None, Some("origin/main".into())));
+    // quicker: seven hex characters with a digit.
+    assert!(looks_like_hash("abc1234"));
+    assert!(!looks_like_hash("abcdefa"));
+    assert!(!looks_like_hash("abc12"));
+    assert!(!looks_like_hash("zzz1234"));
+}

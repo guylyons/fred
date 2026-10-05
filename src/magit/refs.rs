@@ -81,7 +81,23 @@ fn pad(s: &str, width: usize) -> String {
     )
 }
 
+/// A refs buffer row: text, commit to visit, full ref name.
+pub type RefRow = (String, Option<String>, Option<String>);
+
 impl Repo {
+    /// magit-show-refs rows without their ref names.
+    pub fn refs_rows(
+        &self,
+        focus: &str,
+        args: &[String],
+        count: Count,
+    ) -> Result<Vec<(String, Option<String>)>, String> {
+        Ok(self
+            .refs_rows_named(focus, args, count)?
+            .into_iter()
+            .map(|(t, id, _)| (t, id))
+            .collect())
+    }
     /// magit-rev-diff-count FOCUS REF: (behind, ahead) of REF relative to FOCUS.
     fn diff_count(&self, focus: &str, r: &str) -> Option<(usize, usize)> {
         let out = self
@@ -120,14 +136,14 @@ impl Repo {
     }
     /// magit-refs-sections-hook: (row text, commit to visit). `focus` is the
     /// ref others are compared with.
-    pub fn refs_rows(
+    pub fn refs_rows_named(
         &self,
         focus: &str,
         args: &[String],
         count: Count,
-    ) -> Result<Vec<(String, Option<String>)>, String> {
+    ) -> Result<Vec<RefRow>, String> {
         let args = ref_args(args);
-        let mut rows: Vec<(String, Option<String>)> = vec![];
+        let mut rows: Vec<RefRow> = vec![];
         let lines = |extra: &[&str]| -> Result<Vec<Vec<String>>, String> {
             let mut argv: Vec<&str> = vec!["for-each-ref"];
             argv.extend(extra.iter().copied());
@@ -143,11 +159,11 @@ impl Repo {
             && let Some(desc) = self.config(&format!("branch.{b}.description"))
         {
             let mut d = desc.lines();
-            rows.push((format!("{b}: {}", d.next().unwrap_or("")), None));
+            rows.push((format!("{b}: {}", d.next().unwrap_or("")), None, None));
             for l in d {
-                rows.push((l.to_owned(), None));
+                rows.push((l.to_owned(), None, None));
             }
-            rows.push((String::new(), None));
+            rows.push((String::new(), None, None));
         }
         // magit-insert-local-branches.
         let local = lines(&[
@@ -162,7 +178,7 @@ impl Repo {
             .clamp(primary().0, primary().1.max(primary().0));
         let pad_counts = super::options::flag("magit-refs-pad-commit-counts", false);
         let descriptions = super::options::flag("magit-refs-show-branch-descriptions", false);
-        rows.push(("Branches".into(), None));
+        rows.push(("Branches".into(), None, None));
         if current.is_none()
             && let Ok(head) = self.read(&["rev-parse", "HEAD"])
         {
@@ -178,6 +194,7 @@ impl Repo {
                     pad("(detached)", width)
                 ),
                 Some(id),
+                Some("HEAD".into()),
             ));
         }
         for f in local.iter().filter(|f| f.get(1).is_some_and(|b| shown(b))) {
@@ -217,9 +234,10 @@ impl Repo {
                     subject
                 ),
                 Some(id.to_owned()),
+                Some(format!("refs/heads/{branch}")),
             ));
         }
-        rows.push((String::new(), None));
+        rows.push((String::new(), None, None));
         // magit-insert-remote-branches.
         for remote in self.remotes()? {
             let url = self.config(&format!("remote.{remote}.url"));
@@ -229,7 +247,7 @@ impl Repo {
                 .flatten()
                 .collect::<Vec<_>>()
                 .join(", ");
-            rows.push((format!("Remote {remote} ({urls}):"), None));
+            rows.push((format!("Remote {remote} ({urls}):"), None, None));
             let refs = lines(&[
                 "--format=%(symref:short)%00%(refname:short)%00%(refname)%00%(objectname)%00%(subject)",
                 &format!("refs/remotes/{remote}"),
@@ -263,9 +281,10 @@ impl Repo {
                         get(4)
                     ),
                     Some(get(3).to_owned()),
+                    Some(get(2).to_owned()),
                 ));
             }
-            rows.push((String::new(), None));
+            rows.push((String::new(), None, None));
         }
         // magit-insert-tags: git tag --list -n.
         let mut argv: Vec<&str> = vec!["tag", "--list", "-n"];
@@ -277,7 +296,7 @@ impl Repo {
             .filter(|l| shown(l.split([' ', '\t']).next().unwrap_or("")))
             .collect();
         if !tags.is_empty() {
-            rows.push((format!("Tags ({})", tags.len()), None));
+            rows.push((format!("Tags ({})", tags.len()), None, None));
             // One for-each-ref for every tag's commit (peeled when annotated).
             let ids: std::collections::HashMap<String, String> =
                 String::from_utf8_lossy(&self.read(&[
@@ -307,6 +326,7 @@ impl Repo {
                         pad(tag, width)
                     ),
                     id,
+                    Some(format!("refs/tags/{tag}")),
                 ));
             }
         }

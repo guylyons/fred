@@ -265,7 +265,7 @@ magit-diff.el,254,option,magit-diff-adjust-tab-width,n/a,"Emacs-specific (defaul
 magit-diff.el,282,option,magit-diff-paint-whitespace,partial,"t or ""uncommitted"" (diffs that are not committed)",explicit
 magit-diff.el,305,option,magit-diff-paint-whitespace-lines,partial,"t added, ""both"", ""all""",explicit
 magit-diff.el,318,option,magit-diff-highlight-trailing,partial,trailing spaces/tabs get a red background,explicit
-magit-diff.el,325,option,magit-diff-highlight-indentation,missing,,explicit
+magit-diff.el,325,option,magit-diff-highlight-indentation,partial,"[[DIR-REGEXP, ""tabs"" or N]] on painted lines",explicit
 magit-diff.el,343,option,magit-diff-hide-trailing-cr-characters,partial,Fred always hides a CRLF's CR in diff buffers,explicit
 magit-diff.el,350,option,magit-diff-extra-stat-arguments,partial,list of extra --stat arguments in revision buffers (no function values),explicit
 magit-diff.el,364,option,magit-format-file-function,n/a,value is an Emacs Lisp function; Fred's built-in equivalent behavior is fixed,explicit
@@ -276,7 +276,7 @@ magit-diff.el,416,option,magit-revision-wash-message-hook,n/a,Emacs mode/setup h
 magit-diff.el,434,option,magit-revision-headers-format,partial,git log format after the ref labels and hash,explicit
 magit-diff.el,451,option,magit-revision-insert-related-refs,partial,"t, mixed, all, false: Parent, Merged, Contained, Follows, Precedes",explicit
 magit-diff.el,468,option,magit-revision-insert-related-refs-display-alist,partial,"{parents = false, ...}",explicit
-magit-diff.el,493,option,magit-revision-use-hash-sections,missing,,explicit
+magit-diff.el,493,option,magit-revision-use-hash-sections,partial,"RET on a hash in a revision buffer's message visits it (quicker default; quick, quickest, slow, false)",explicit
 magit-diff.el,517,option,magit-revision-show-gravatars,n/a,"Emacs faces, overlays, fringes, images, tooltips or mode-line lighters; Fred's terminal UI has fixed equivalents",explicit
 magit-diff.el,545,option,magit-revision-fill-summary-line,partial,width (or true for 70),explicit
 magit-diff.el,563,option,magit-revision-filter-files-on-follow,partial,nil behavior: revisions from a --follow log show every file,explicit
@@ -446,7 +446,7 @@ magit-git.el,150,option,magit-remote-git-executable,n/a,"Windows/Cygwin, coding-
 magit-git.el,159,option,magit-run-hooks-from-githooks,n/a,"Emacs-specific (default-directory, windows, Info, minor modes, tab-width, buffer names, global keymaps or Lisp githook bridge); Fred's equivalent is fixed or uses Space m",explicit
 magit-git.el,172,option,magit-user-githook-file,n/a,"Emacs-specific (default-directory, windows, Info, minor modes, tab-width, buffer names, global keymaps or Lisp githook bridge); Fred's equivalent is fixed or uses Space m",explicit
 magit-git.el,211,option,magit-git-global-arguments,partial,"prepended to every Git command; Fred's own safety arguments are built in, so the upstream default list is not repeated",explicit
-magit-git.el,237,option,magit-prefer-remote-upstream,missing,"needs branch-at-point defaults (Fred rows carry commits, not ref names)",explicit
+magit-git.el,237,option,magit-prefer-remote-upstream,partial,"start-point default from the branch at point (refs rows, log labels): remote first when t",explicit
 magit-git.el,251,option,magit-list-refs-namespaces,partial,namespaces of the checkout picker (Fred default heads and remotes),explicit
 magit-git.el,265,option,magit-list-refs-sortby,partial,for-each-ref --sort keys of the checkout picker,explicit
 magit-git.el,293,option,magit-cygwin-mount-points,n/a,"Windows/Cygwin, coding-system, pty/pipe or TRAMP setting; Fred runs Git directly (UTF-8 bytes, terminal for interaction)",explicit
@@ -469,7 +469,7 @@ magit-log.el,111,option,magit-log-margin,partial,[magit] TOML configuration; sou
 magit-log.el,136,option,magit-log-margin-show-committer-date,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
 magit-log.el,148,option,magit-log-show-refname-after-summary,partial,ref labels after the subject,explicit
 magit-log.el,155,option,magit-log-wash-summary-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
-magit-log.el,173,option,magit-log-trailer-labels,missing,,explicit
+magit-log.el,173,option,magit-log-trailer-labels,n/a,its value is a Lisp formatting function (plus %(trailers) options),explicit
 magit-log.el,190,option,magit-log-header-line-function,n/a,value is an Emacs Lisp function; Fred's built-in equivalent behavior is fixed,explicit
 magit-log.el,198,option,magit-log-trace-definition-function,n/a,value is an Emacs Lisp function; Fred's built-in equivalent behavior is fixed,explicit
 magit-log.el,210,option,magit-log-color-graph-limit,n/a,Fred draws logs without Git's colors (--color is never passed),explicit
@@ -722,7 +722,7 @@ magit-refs.el,143,option,magit-refs-margin-for-tags,partial,tag rows get no marg
 magit-refs.el,153,option,magit-refs-primary-column-width,partial,"width or [MIN, MAX]",explicit
 magit-refs.el,172,option,magit-refs-focus-column-width,partial,focus column width when counts are shown,explicit
 magit-refs.el,189,option,magit-refs-filter-alist,partial,"[[REGEXP, SHOW]]; first match decides (Rust regex syntax, no functions)",explicit
-magit-refs.el,214,option,magit-visit-ref-behavior,missing,,explicit
+magit-refs.el,214,option,magit-visit-ref-behavior,partial,"create-branch, checkout-any, checkout-branch on RET in refs buffers (focus-on-ref needs a prefix argument)",explicit
 magit-refs.el,336,command,magit-show-refs,partial,Space m y: -c -M -m -N -n -s; y c o v; buffer arguments seed the menu in a refs buffer,explicit
 magit-refs.el,394,command,magit-show-refs-head,partial,y y,explicit
 magit-refs.el,401,command,magit-show-refs-current,partial,y c,explicit
