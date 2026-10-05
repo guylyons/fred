@@ -9,6 +9,7 @@ pub mod babel;
 pub mod buf;
 pub mod capture;
 pub mod ctx;
+pub mod dblock;
 pub mod dispatch;
 pub mod editing;
 pub mod element;
@@ -807,6 +808,7 @@ const MODULES: &[Module] = &[
     fold::command,
     agenda::command,
     dispatch::command,
+    dblock::command,
     structure::command,
     todo::command,
     tags::command,
