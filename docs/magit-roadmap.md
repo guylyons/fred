@@ -363,3 +363,10 @@ corrected action misclassification and margin overflow. Ledger: 765 partial / 8
 missing commands; 25 partial / 212 missing options. No acceptance gate closes;
 score remains 3%. Next: repository list, remaining customization behavior and
 baseline mapping/scenario gates.
+
+October 5 repository-list checkpoint: magit-list-repositories lists the
+repositories under magit-repository-directories with upstream's default
+columns (name, version, B<U, B>U, path), configurable columns, flags and
+sort key; RET status, m/u marks, f fetch (marked or, confirmed, all) and
+5 find-file. Ledger 771 partial / 2 missing commands (Emacs-only
+git-commit-elisp-text-mode and magit-emacs-Q-command). Score remains 3%.

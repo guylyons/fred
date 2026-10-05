@@ -25,6 +25,7 @@ pub mod rebase;
 pub mod refs;
 pub mod remote;
 pub mod repo;
+pub mod repos;
 pub mod reset;
 pub mod sequence;
 pub mod smerge;
@@ -245,6 +246,14 @@ pub enum Action {
     ProcessKill,
     /// git-rebase-mode-menu: the todo buffer's commands.
     TodoHelp,
+    /// magit-list-repositories.
+    ListRepositories,
+    /// magit-repolist-mark (true) / -unmark.
+    RepolistMark(bool),
+    /// magit-repolist-fetch.
+    RepolistFetch,
+    /// magit-repolist-find-file-other-frame.
+    RepolistFindFile,
     /// magit-diff-trace-definition (C-c C-t) and magit-diff-edit-hunk-commit
     /// (C-c C-e) from a hunk.
     DiffTrace,
@@ -333,6 +342,8 @@ pub enum RowAction {
     Commit(String),
     /// A module path (magit-list-submodules).
     Module(String),
+    /// A repository's toplevel (magit-list-repositories).
+    Repo(PathBuf),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Row {
@@ -364,6 +375,8 @@ pub enum Kind {
     Cherry(String, String),
     /// *magit-shortlog*: revision or range and arguments.
     Shortlog(String, Vec<String>),
+    /// magit-repolist-mode.
+    Repos,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct View {
@@ -394,6 +407,8 @@ pub struct View {
     /// after, once gone back).
     pub back: Vec<Kind>,
     pub forward: Vec<Kind>,
+    /// magit-repolist-mark: the marked repositories.
+    pub marked: HashSet<PathBuf>,
 }
 /// magit-log-select's pick function: answer QUESTION with the commit, after
 /// the answers already given.
@@ -440,6 +455,7 @@ impl View {
             select: None,
             back: vec![],
             forward: vec![],
+            marked: HashSet::new(),
         };
         v.rebuild();
         v
@@ -466,6 +482,7 @@ impl View {
                 label(std::path::Path::new(&format!("{u}..{h}")))
             ),
             Kind::Shortlog(r, _) => format!("Magit shortlog {}", label(std::path::Path::new(r))),
+            Kind::Repos => "Magit Repositories".into(),
         }
     }
     pub fn text(&self) -> String {
@@ -1190,6 +1207,17 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         {
             Some(Action::VisitWorktree)
         }
+        // magit-repolist-mode-map: m u f 5 (RET visits, as in every list).
+        KeyCode::Char(c @ ('m' | 'u' | 'f' | '5'))
+            if !k.ctrl && !k.alt && ed.magit.as_ref().is_some_and(|v| v.kind == Kind::Repos) =>
+        {
+            Some(match c {
+                'm' => Action::RepolistMark(true),
+                'u' => Action::RepolistMark(false),
+                'f' => Action::RepolistFetch,
+                _ => Action::RepolistFindFile,
+            })
+        }
         // magit-reflog-, refs- and cherry-mode-map: L is magit-margin-settings.
         KeyCode::Char('L')
             if !k.ctrl
@@ -1405,6 +1433,7 @@ fn section_value(ed: &Editor) -> Option<String> {
         RowAction::File(p, _) | RowAction::Hunk(p, ..) => Some(p.to_string_lossy().into_owned()),
         RowAction::Stash(s) => Some(s.selector),
         RowAction::Module(m) => Some(m),
+        RowAction::Repo(p) => Some(p.to_string_lossy().into_owned()),
         RowAction::Section(_) => None,
     }
 }

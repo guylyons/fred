@@ -756,17 +756,17 @@ magit-remote.el,,command,magit-remote.<remote>.pushurl,partial,e s,runtime
 magit-remote.el,,command,magit-remote.<remote>.tagopt,partial,e O cycles,runtime
 magit-remote.el,,command,magit-remote.<remote>.url,partial,e u (empty unsets; one value),runtime
 magit-remote.el,,command,transient:magit-remote:-f,partial,"-f in Space m M, on by default",runtime
-magit-repos.el,40,option,magit-repository-directories,missing,,explicit
+magit-repos.el,40,option,magit-repository-directories,partial,"[[DIR, DEPTH], ...] (or a DIR = DEPTH table); ~ expanded",explicit
 magit-repos.el,60,option,magit-repolist-mode-hook,missing,,explicit
-magit-repos.el,68,option,magit-repolist-columns,missing,,explicit
-magit-repos.el,121,option,magit-repolist-column-flag-alist,missing,,explicit
-magit-repos.el,137,option,magit-repolist-sort-key,missing,,explicit
-magit-repos.el,152,command,magit-list-repositories,missing,,explicit
-magit-repos.el,162,command,magit-repolist-status,missing,,explicit
-magit-repos.el,169,command,magit-repolist-mark,missing,,explicit
-magit-repos.el,175,command,magit-repolist-unmark,missing,,explicit
-magit-repos.el,180,command,magit-repolist-fetch,missing,,explicit
-magit-repos.el,187,command,magit-repolist-find-file-other-frame,missing,,explicit
+magit-repos.el,68,option,magit-repolist-columns,partial,"[[HEADER, WIDTH, FUNCTION, PROPS]]; upstream's column functions by name; :right-align",explicit
+magit-repos.el,121,option,magit-repolist-column-flag-alist,partial,"[[PREDICATE, FLAG]] for the three builtin predicates",explicit
+magit-repos.el,137,option,magit-repolist-sort-key,partial,"[COLUMN, FLIP]; numbers for right-aligned columns",explicit
+magit-repos.el,152,command,magit-list-repositories,partial,":Magit name; Magit Repositories view (header, marker column, columns, sort key)",explicit
+magit-repos.el,162,command,magit-repolist-status,partial,RET on a repository: its status,explicit
+magit-repos.el,169,command,magit-repolist-mark,partial,m marks (*) and moves down,explicit
+magit-repos.el,175,command,magit-repolist-unmark,partial,u unmarks and moves down,explicit
+magit-repos.el,180,command,magit-repolist-fetch,partial,"f: git remote update in each marked (else all, confirmed via repolist-all) repository, sequentially in the terminal",explicit
+magit-repos.el,187,command,magit-repolist-find-file-other-frame,partial,5: the file opened in each marked (else all) repository (no frames in Fred),explicit
 magit-reset.el,34,command,magit-reset,partial,"Space m X (upstream X) with b branch, f file, m/s/h/k/i/w",explicit
 magit-reset.el,49,command,magit-reset-mixed,partial,Space m X m,explicit
 magit-reset.el,56,command,magit-reset-soft,partial,Space m X s,explicit

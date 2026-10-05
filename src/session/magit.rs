@@ -154,6 +154,93 @@ impl Session {
             return;
         }
         // magit-process-kill works while a Git process runs.
+        if action == Action::ListRepositories {
+            let origin = self.cur;
+            let home = std::env::var_os("HOME")
+                .map(PathBuf::from)
+                .unwrap_or_default();
+            self.start_magit(move || {
+                let mut view = View::status(Repo { root: home }, Default::default());
+                view.kind = Kind::Repos;
+                view.rows.clear();
+                view.return_to = origin;
+                refresh_view(&mut view)?;
+                Ok(Outcome::View(Box::new(view), None, 1))
+            });
+            return;
+        }
+        if let Action::RepolistMark(mark) = action {
+            let line = self.ed.cur.line;
+            let Some(view) = self.ed.magit.as_mut().filter(|v| v.kind == Kind::Repos) else {
+                return self.ed.set_err("Not in a repository list");
+            };
+            let Some(RowAction::Repo(p)) = view.action_at(line) else {
+                return;
+            };
+            if mark {
+                view.marked.insert(p);
+            } else {
+                view.marked.remove(&p);
+            }
+            if let Some(row) = view.rows.get_mut(line) {
+                row.text.replace_range(..1, if mark { "*" } else { " " });
+            }
+            let view = view.as_ref().clone();
+            // tabulated-list-put-tag ... t: and move to the next line.
+            self.install_magit(
+                view,
+                None,
+                (line + 1).min(self.ed.line_count().saturating_sub(1)),
+            );
+            return;
+        }
+        if matches!(action, Action::RepolistFetch | Action::RepolistFindFile) {
+            let Some(view) = self.ed.magit.as_deref().filter(|v| v.kind == Kind::Repos) else {
+                return self.ed.set_err("Not in a repository list");
+            };
+            // magit-repolist--get-repos: the marked ones, else all (confirmed).
+            let mut repos: Vec<PathBuf> = view
+                .rows
+                .iter()
+                .filter_map(|r| match &r.action {
+                    Some(RowAction::Repo(p)) if view.marked.contains(p) => Some(p.clone()),
+                    _ => None,
+                })
+                .collect();
+            if repos.is_empty() {
+                if crate::magit::options::confirm("repolist-all") {
+                    let repo = view.repo.clone();
+                    let q = if action == Action::RepolistFetch {
+                        crate::magit::misc::Op::RepolistAll(true)
+                    } else {
+                        crate::magit::misc::Op::RepolistAll(false)
+                    };
+                    crate::magit::prompt(
+                        &mut self.ed,
+                        crate::magit::Prompt::Ask(
+                            repo,
+                            Question::Misc(q),
+                            vec![],
+                            vec![
+                                "Nothing selected.  Act on ALL displayed repositories? (y or n) "
+                                    .into(),
+                            ],
+                            vec![],
+                        ),
+                    );
+                    return;
+                }
+                repos = view
+                    .rows
+                    .iter()
+                    .filter_map(|r| match &r.action {
+                        Some(RowAction::Repo(p)) => Some(p.clone()),
+                        _ => None,
+                    })
+                    .collect();
+            }
+            return self.repolist_act(action == Action::RepolistFetch, repos);
+        }
         if action == Action::TodoHelp {
             return self.ed.set_msg(
                 "Rebase todo: p r e s f d set action  x exec  b break  l label  t reset  M merge  \
@@ -430,6 +517,59 @@ impl Session {
         ) = action
         {
             return self.log_jump(repo, merge_answers(&answers, &defaults));
+        }
+        if let Action::Answered(
+            _,
+            Question::Misc(op @ crate::magit::misc::Op::RepolistAll(_)),
+            answers,
+            _,
+        ) = action
+        {
+            if !matches!(answers.first().map(|a| a.trim()), Some("y" | "yes")) {
+                return self.ed.set_msg("Abort");
+            }
+            let repos = self
+                .ed
+                .magit
+                .as_deref()
+                .map(|v| {
+                    v.rows
+                        .iter()
+                        .filter_map(|r| match &r.action {
+                            Some(RowAction::Repo(p)) => Some(p.clone()),
+                            _ => None,
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            return self.repolist_act(op == crate::magit::misc::Op::RepolistAll(true), repos);
+        }
+        if let Action::Answered(
+            _,
+            Question::Misc(crate::magit::misc::Op::RepolistFile),
+            answers,
+            _,
+        ) = action
+        {
+            let file = answers
+                .first()
+                .map(|a| a.trim().to_owned())
+                .unwrap_or_default();
+            let repos = self.repolist_files.take().unwrap_or_default();
+            if file.is_empty() {
+                return self.ed.set_err("No file");
+            }
+            let mut opened = 0;
+            for r in repos {
+                let p = r.join(&file);
+                if p.is_file() {
+                    self.open_pick(p, None);
+                    opened += 1;
+                }
+            }
+            return self
+                .ed
+                .set_msg(format!("Opened {file} in {opened} repositories"));
         }
         if let Action::Answered(repo, Question::Misc(op), answers, defaults) = action {
             let origin = self.cur;
@@ -3065,6 +3205,17 @@ impl Session {
                         let origin = view.return_to;
                         self.start_magit(move || stash_view(view.repo, stash, origin));
                     }
+                    // magit-repolist-status.
+                    Some(RowAction::Repo(dir)) => {
+                        let origin = self.cur;
+                        self.start_magit(move || {
+                            Ok(branch_outcome(
+                                Repo { root: dir.clone() },
+                                crate::magit::branch::Next::Status(dir),
+                                origin,
+                            ))
+                        });
+                    }
                     Some(RowAction::Module(module)) => {
                         let origin = self.cur;
                         self.start_magit(move || {
@@ -3889,6 +4040,42 @@ impl Session {
         {
             self.ed.set_err(format!("magit-wip: {e}"));
         }
+    }
+    /// magit-repolist-fetch (git remote update in each, in the terminal) or
+    /// -find-file-other-frame (open the file in each repository).
+    fn repolist_act(&mut self, fetch: bool, repos: Vec<PathBuf>) {
+        if fetch {
+            let q = crate::magit::misc::shell_quote;
+            let n = repos.len();
+            let cmd = repos
+                .iter()
+                .enumerate()
+                .map(|(i, r)| {
+                    let dir = r.to_string_lossy();
+                    format!(
+                        "echo {}; (cd {} && git remote update)",
+                        q(&format!("({}/{n}) Fetching in {dir}...", i + 1)),
+                        q(&dir)
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("; ");
+            self.pending_shell = Some(cmd);
+            return;
+        }
+        self.repolist_files = Some(repos);
+        crate::magit::prompt(
+            &mut self.ed,
+            crate::magit::Prompt::Ask(
+                Repo {
+                    root: PathBuf::new(),
+                },
+                Question::Misc(crate::magit::misc::Op::RepolistFile),
+                vec![],
+                vec!["Find file in repositories: ".into()],
+                vec![],
+            ),
+        );
     }
     /// magit-log-move-to-revision: in this log buffer, else the log of all
     /// branches.
@@ -4966,6 +5153,37 @@ fn refresh_view(view: &mut View) -> Result<(), String> {
 }
 fn refresh_rows(view: &mut View) -> Result<(), String> {
     view.dirty = false;
+    if view.kind == Kind::Repos {
+        // tabulated-list: a header line, then a marker column and the cells.
+        let (cols, table) = crate::magit::repos::table()?;
+        let header: Vec<String> = cols
+            .iter()
+            .map(|c| crate::magit::repos::pad(&c.header, c))
+            .collect();
+        let mut rows = vec![Row {
+            text: format!("  {}", header.join(" ").trim_end()),
+            action: None,
+        }];
+        view.marked.retain(|p| table.iter().any(|(_, q, _)| q == p));
+        for (_, path, cells) in table {
+            let text: Vec<String> = cols
+                .iter()
+                .zip(&cells)
+                .map(|(c, v)| crate::magit::repos::pad(&label(Path::new(v)), c))
+                .collect();
+            let mark = if view.marked.contains(&path) {
+                "*"
+            } else {
+                " "
+            };
+            rows.push(Row {
+                text: format!("{mark} {}", text.join(" ").trim_end()),
+                action: Some(RowAction::Repo(path)),
+            });
+        }
+        view.rows = rows;
+        return Ok(());
+    }
     if let Kind::Diff(target, args) = &view.kind {
         let mut rows = vec![Row {
             text: format!("{} (gr refresh, q return)", target.title()),

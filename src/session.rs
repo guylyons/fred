@@ -90,6 +90,8 @@ pub struct Session {
     profile_once: Option<(std::time::Instant, usize)>,
     /// magit-wip-mode.
     pub wip_mode: bool,
+    /// magit-repolist-find-file-other-frame: the repositories to open in.
+    repolist_files: Option<Vec<PathBuf>>,
     /// magit-auto-revert-mode: reload unmodified repository files that a Git
     /// command changed.
     pub auto_revert: bool,
@@ -262,6 +264,7 @@ impl Session {
             refresh_verbose: crate::magit::options::flag("magit-refresh-verbose", false),
             profile_once: None,
             wip_mode: crate::magit::options::flag("magit-wip-mode", false),
+            repolist_files: None,
             auto_revert: crate::magit::options::flag("magit-auto-revert-mode", true),
             magit_job: None,
             magit_picker_repo: None,

@@ -39,6 +39,10 @@ pub enum Op {
     DebugGit,
     /// magit-do-async-shell-command on this repository-relative file.
     AsyncShell(std::path::PathBuf),
+    /// magit-repolist: act on all listed repositories (fetch when true)?
+    RepolistAll(bool),
+    /// magit-repolist-find-file-other-frame's file name.
+    RepolistFile,
 }
 
 /// Quote a word for sh.
@@ -135,9 +139,13 @@ impl Repo {
                     vec![String::new()],
                 )
             }
-            Op::GitConfigFile | Op::Gitk(_) | Op::GitGui | Op::GitGuiBlame(..) | Op::DebugGit => {
-                (vec![], vec![])
-            }
+            Op::GitConfigFile
+            | Op::Gitk(_)
+            | Op::GitGui
+            | Op::GitGuiBlame(..)
+            | Op::DebugGit
+            | Op::RepolistAll(_)
+            | Op::RepolistFile => (vec![], vec![]),
             Op::ShellCommand { .. } | Op::ShellCommandIn(_) => {
                 (vec!["Async shell command: ".into()], vec![String::new()])
             }
@@ -270,7 +278,9 @@ impl Repo {
                 }
                 Ok(Next::Show(super::diff::Target::Commit(id)))
             }
-            Op::LogJump => Err("answered by the log buffer".into()),
+            Op::LogJump | Op::RepolistAll(_) | Op::RepolistFile => {
+                Err("answered by the repository list".into())
+            }
             Op::AsyncShell(file) => {
                 let cmd = at(0);
                 if cmd.is_empty() {

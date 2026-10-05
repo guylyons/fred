@@ -4366,3 +4366,62 @@ fn confirmation_actions_keep_delete_and_remote_configuration_separate() {
         Some("abort-revert")
     );
 }
+#[test]
+fn repository_list_finds_names_and_columns() {
+    use super::repos::*;
+    let top = tempfile::tempdir().unwrap();
+    for p in ["a/proj", "b/proj", "c", "deep/x/y/z"] {
+        let d = top.path().join(p);
+        fs::create_dir_all(&d).unwrap();
+        git(&d, &["init", "-q", "-b", "main"]);
+    }
+    fs::create_dir_all(top.path().join("plain")).unwrap();
+    let mut found = vec![];
+    list(top.path(), 2, &mut found);
+    let names: Vec<String> = uniquify(&found).into_iter().map(|(n, _)| n).collect();
+    assert_eq!(names, ["proj\\a", "proj\\b", "c"], "{found:?}");
+    let mut deep = vec![];
+    list(top.path(), 4, &mut deep);
+    assert_eq!(deep.len(), 4);
+    let mut none = vec![];
+    list(&top.path().join("plain"), 0, &mut none);
+    assert!(none.is_empty());
+    // Columns: version from the date when untagged, counts against upstream.
+    let c = top.path().join("c");
+    committed(&c, b"x\n");
+    let r = Repo { root: c.clone() };
+    let cols = columns();
+    assert_eq!(
+        cols.iter().map(|c| c.header.as_str()).collect::<Vec<_>>(),
+        ["Name", "Version", "B<U", "B>U", "Path"]
+    );
+    assert_eq!(r.repolist_cell("c", &cols[0]), "c");
+    assert!(
+        r.repolist_cell("c", &cols[1]).starts_with(" 20"),
+        "{}",
+        r.repolist_cell("c", &cols[1])
+    );
+    assert_eq!(r.repolist_cell("c", &cols[2]), "");
+    git(&c, &["tag", "v1.0"]);
+    assert_eq!(r.repolist_cell("c", &cols[1]), "v1.0");
+    let flag = Column {
+        header: "F".into(),
+        width: 1,
+        format: "magit-repolist-column-flag".into(),
+        right_align: false,
+    };
+    fs::write(c.join("new"), "n").unwrap();
+    assert_eq!(r.repolist_cell("c", &flag), "N");
+    assert_eq!(pad("123", &cols[2]), "123");
+    assert_eq!(pad("7", &cols[2]), "  7");
+    // Sorted by Path; without magit-repository-directories, upstream's error.
+    let (_, rows) = table_in(&[(top.path().to_path_buf(), 2)]).unwrap();
+    let paths: Vec<&std::path::PathBuf> = rows.iter().map(|r| &r.1).collect();
+    assert_eq!(paths.len(), 3);
+    assert!(paths.windows(2).all(|w| w[0] <= w[1]), "{paths:?}");
+    assert!(
+        table_in(&[])
+            .unwrap_err()
+            .contains("magit-repository-directories")
+    );
+}

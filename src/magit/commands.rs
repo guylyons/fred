@@ -103,6 +103,12 @@ pub fn by_name(name: &str) -> Option<Action> {
         "magit-run-git-gui-blame" => Some(GitGuiBlame),
         "magit-debug-git-executable" => Some(Misc(misc::Op::DebugGit)),
         "magit-abort-dwim" => Some(AbortDwim),
+        "magit-list-repositories" => Some(ListRepositories),
+        "magit-repolist-status" => Some(Visit),
+        "magit-repolist-mark" => Some(RepolistMark(true)),
+        "magit-repolist-unmark" => Some(RepolistMark(false)),
+        "magit-repolist-fetch" => Some(RepolistFetch),
+        "magit-repolist-find-file-other-frame" => Some(RepolistFindFile),
         // The Emacs menu-bar menus: Fred's transients list the same commands.
         "magit-mode-menu" => menu('*'),
         "git-commit-mode-menu" => menu('C'),
