@@ -248,6 +248,15 @@ pub enum Action {
     TodoHelp,
     /// magit-list-repositories.
     ListRepositories,
+    /// Finish a draft despite git-commit-style-convention-checks.
+    CommitAnyway,
+    /// RebaseCancel after git-rebase-confirm-cancel's question.
+    RebaseCancelConfirmed,
+    /// A magit-save-repository-buffers answer: the buffer, whether to save
+    /// it, the buffers still to ask about and the action to run then.
+    SaveAnswered(PathBuf, bool, Vec<PathBuf>, Box<Action>),
+    /// Run the action without magit-save-repository-buffers asking again.
+    Saved(Box<Action>),
     /// magit-repolist-mark (true) / -unmark.
     RepolistMark(bool),
     /// magit-repolist-fetch.
@@ -429,6 +438,33 @@ impl View {
         for (section, heading, _) in &v.snapshot.extra.logs {
             if *section != Section::UnpushedUpstream || heading == "Recent commits" {
                 v.closed.insert(*section);
+            }
+        }
+        // magit-section-initial-visibility-alist: { stashes = "hide", ... }.
+        if let Some(toml::Value::Table(t)) =
+            options::value("magit-section-initial-visibility-alist")
+        {
+            for (name, how) in t {
+                let sections: &[Section] = match name.as_str() {
+                    "untracked" => &[Section::Untracked],
+                    "unstaged" => &[Section::Unstaged],
+                    "staged" => &[Section::Staged],
+                    "stashes" => &[Section::Stashes],
+                    "unpushed" | "recent" => &[Section::UnpushedPush, Section::UnpushedUpstream],
+                    "unpulled" => &[Section::UnpulledPush, Section::UnpulledUpstream],
+                    _ => &[],
+                };
+                for s in sections {
+                    match how.as_str() {
+                        Some("show") => {
+                            v.closed.remove(s);
+                        }
+                        Some("hide") => {
+                            v.closed.insert(*s);
+                        }
+                        _ => {}
+                    }
+                }
             }
         }
         v.rebuild();
@@ -1013,6 +1049,26 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
                 (v, commit)
             }),
             _ => buffer_revision(ed).map(|v| (v, true)),
+        };
+        // magit-copy-revision-abbreviated: the short hash.
+        let value = match value {
+            Some((v, true)) if options::flag("magit-copy-revision-abbreviated", false) => {
+                let short = ed.magit.as_ref().and_then(|view| {
+                    view.repo
+                        .read(&[
+                            "rev-parse",
+                            "--short",
+                            "--verify",
+                            "-q",
+                            "--end-of-options",
+                            &v,
+                        ])
+                        .ok()
+                        .map(|o| String::from_utf8_lossy(&o).trim().to_owned())
+                });
+                Some((short.unwrap_or(v), true))
+            }
+            other => other,
         };
         if let Some((v, true)) = &value
             && let Some(view) = ed.magit.as_ref()
@@ -1662,6 +1718,14 @@ pub enum Prompt {
     Trailer(Option<&'static str>),
     /// A transient-option value for (menu, argument prefix); returns to the menu.
     OptionValue(char, &'static str),
+    /// git-commit-check-style-conventions: the remaining "Commit anyway?"
+    /// questions.
+    CommitStyle(Vec<String>),
+    /// git-rebase-cancel-confirm: abandon an edited todo list?
+    TodoCancel,
+    /// magit-save-repository-buffers t: save this buffer (path), then the
+    /// rest, then run the action.
+    SaveBuffer(PathBuf, Vec<PathBuf>, Box<Action>),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Question {
@@ -1787,7 +1851,21 @@ pub fn prompt(ed: &mut Editor, question: Prompt) {
         Prompt::Trailer(key) => {
             key.map_or("Insert trailer (Key: value): ".into(), |k| format!("{k}: "))
         }
+        // The reader's choices: magit-push-options, the default signing key.
+        Prompt::OptionValue(_, "--push-option=") => format!(
+            "--push-option= ({}) ",
+            options::strings("magit-push-options", &["skip-ci", "ci.skip"]).join(", ")
+        ),
+        Prompt::OptionValue(_, "--gpg-sign=") => {
+            match options::string("magit-openpgp-default-signing-key", None) {
+                Some(k) => format!("--gpg-sign= (default {k}) "),
+                None => "--gpg-sign=".into(),
+            }
+        }
         Prompt::OptionValue(_, prefix) => (*prefix).into(),
+        Prompt::CommitStyle(qs) => qs.first().cloned().unwrap_or_default(),
+        Prompt::TodoCancel => "Abort this rebase? (y or n) ".into(),
+        Prompt::SaveBuffer(p, ..) => format!("Save file {}? (y or n) ", p.display()),
         Prompt::InitConfirm(_, question) => question.clone(),
         Prompt::DropStash(_, stash) => format!(
             "Drop {} ({})? Type yes: ",
@@ -1846,6 +1924,30 @@ pub fn answer(ed: &mut Editor, text: &str) {
             ed.pending_effect = Some(ExEffect::Magit(Action::InitDir(dir, true)))
         }
         Some(Prompt::InitConfirm(..)) => ed.set_msg("Abort"),
+        Some(Prompt::SaveBuffer(path, rest, action)) => {
+            let save = matches!(text.trim(), "y" | "yes");
+            ed.pending_effect = Some(ExEffect::Magit(Action::SaveAnswered(
+                path, save, rest, action,
+            )));
+        }
+        Some(Prompt::TodoCancel) => {
+            if matches!(text.trim(), "y" | "yes") {
+                ed.pending_effect = Some(ExEffect::Magit(Action::RebaseCancelConfirmed));
+            } else {
+                ed.set_msg("Rebase continues");
+            }
+        }
+        Some(Prompt::CommitStyle(mut qs)) => {
+            if !matches!(text.trim(), "y" | "yes") {
+                return ed.set_msg("Commit canceled");
+            }
+            qs.remove(0);
+            if qs.is_empty() {
+                ed.pending_effect = Some(ExEffect::Magit(Action::CommitAnyway));
+            } else {
+                prompt(ed, Prompt::CommitStyle(qs));
+            }
+        }
         Some(Prompt::RebaseLine(verb, _)) => rebase::insert_line(ed, verb, text),
         Some(Prompt::Trailer(Some(key))) => message::insert_trailer(ed, key, text),
         Some(Prompt::Trailer(None)) => match text.split_once(':') {
@@ -1855,6 +1957,14 @@ pub fn answer(ed: &mut Editor, text: &str) {
             _ => ed.set_err("Type a trailer as Key: value"),
         },
         Some(Prompt::OptionValue(menu, prefix)) => {
+            // magit-openpgp-default-signing-key answers an empty key prompt.
+            let default_key = (prefix == "--gpg-sign=")
+                .then(|| options::string("magit-openpgp-default-signing-key", None))
+                .flatten();
+            let text = match (text.is_empty(), &default_key) {
+                (true, Some(k)) => k.as_str(),
+                _ => text,
+            };
             if !text.is_empty() {
                 ed.magit_values
                     .insert((arg_menu(menu), prefix), text.to_owned());

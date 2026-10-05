@@ -1144,7 +1144,7 @@ fn blame_attributes_chunks_and_commit_info() {
     );
 }
 #[test]
-fn blame_time_uses_commit_zone() {
+fn blame_time_uses_the_local_zone() {
     let info = |t, tz: &str| super::blame::Info {
         committer_time: t,
         committer_tz: tz.into(),
@@ -1170,9 +1170,15 @@ fn blame_time_uses_commit_zone() {
         version: 0,
         was_readonly: false,
     };
-    assert!(blame.heading(&blame.chunks[0]).contains("2023-11-14 23:13"));
+    // magit-blame-time-format in local time, as format-time-string.
+    let local = |t| super::margin::strftime("%F %H:%M", t);
+    assert!(
+        blame
+            .heading(&blame.chunks[0])
+            .contains(&local(1_700_000_000))
+    );
     blame.info.insert("a".repeat(40), info(0, "-0230"));
-    assert!(blame.heading(&blame.chunks[0]).contains("1969-12-31 21:30"));
+    assert!(blame.heading(&blame.chunks[0]).contains(&local(0)));
     assert_eq!(blame.margin(1).unwrap().1, "");
     blame.style = 2;
     assert_eq!(blame.margin(0).unwrap(), (1, "┌".into()));
@@ -4424,4 +4430,55 @@ fn repository_list_finds_names_and_columns() {
             .unwrap_err()
             .contains("magit-repository-directories")
     );
+}
+#[test]
+fn trash_keeps_earlier_trashed_files() {
+    let d = tempfile::tempdir().unwrap();
+    let (files, info) = (d.path().join("files"), d.path().join("info"));
+    for content in ["one", "two"] {
+        fs::write(d.path().join("f"), content).unwrap();
+        super::apply::trash_into(&d.path().join("f"), &files, Some(&info)).unwrap();
+        assert!(!d.path().join("f").exists());
+    }
+    assert_eq!(fs::read_to_string(files.join("f")).unwrap(), "one");
+    assert_eq!(fs::read_to_string(files.join("f.~1~")).unwrap(), "two");
+    assert!(
+        fs::read_to_string(info.join("f.~1~.trashinfo"))
+            .unwrap()
+            .contains("Path=")
+    );
+}
+#[test]
+fn rename_offers_to_rename_the_push_target() {
+    use super::Question as Q;
+    use super::branch::{Next, Op};
+    let (d, r, _bare) = with_remote();
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    git(d.path(), &["branch", "old"]);
+    git(d.path(), &["push", "-q", "origin", "old"]);
+    git(d.path(), &["config", "branch.old.pushRemote", "origin"]);
+    let Next::Ask(Q::Branch(op), p, _) = r.branch_step(Op::Rename, &s(&["old", "new"]), &[]) else {
+        panic!()
+    };
+    assert!(p[0].contains("on \"origin\""), "{p:?}");
+    assert_eq!(r.config("branch.new.pushRemote").as_deref(), Some("origin"));
+    let Next::Git(argv) = r.branch_step(op.clone(), &s(&["y"]), &[]) else {
+        panic!()
+    };
+    assert_eq!(
+        argv,
+        s(&[
+            "push",
+            "-v",
+            "origin",
+            "refs/remotes/origin/old:refs/heads/new",
+            ":refs/heads/old"
+        ])
+    );
+    r.run(&argv.iter().map(Into::into).collect::<Vec<_>>(), None)
+        .unwrap();
+    assert!(matches!(
+        r.branch_step(op, &s(&["n"]), &[]),
+        Next::Done(Ok(_))
+    ));
 }

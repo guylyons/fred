@@ -90,6 +90,11 @@ pub struct Session {
     profile_once: Option<(std::time::Instant, usize)>,
     /// magit-wip-mode.
     pub wip_mode: bool,
+    /// magit--disable-save-buffers: the buffers were just offered for saving.
+    saving_done: bool,
+    /// magit-save-repository-buffers: None never, Some(true) ask, Some(false)
+    /// save without asking (tests never save unless they ask to).
+    pub save_buffers: Option<bool>,
     /// magit-repolist-find-file-other-frame: the repositories to open in.
     repolist_files: Option<Vec<PathBuf>>,
     /// magit-auto-revert-mode: reload unmodified repository files that a Git
@@ -265,6 +270,13 @@ impl Session {
             profile_once: None,
             wip_mode: crate::magit::options::flag("magit-wip-mode", false),
             repolist_files: None,
+            saving_done: false,
+            save_buffers: match crate::magit::options::value("magit-save-repository-buffers") {
+                Some(toml::Value::Boolean(false)) => None,
+                Some(toml::Value::String(s)) if s == "dontask" => Some(false),
+                None if cfg!(test) => None,
+                _ => Some(true),
+            },
             auto_revert: crate::magit::options::flag("magit-auto-revert-mode", true),
             magit_job: None,
             magit_picker_repo: None,
@@ -3013,6 +3025,30 @@ mod tests {
             panic!("{kind:?} {}", t.msg())
         };
         assert!(args.iter().any(|a| a == "-L:alpha:f.rs"), "{args:?}");
+    }
+
+    #[test]
+    fn magit_save_repository_buffers_asks_before_refreshing() {
+        let mut t = T::open(Some("f.txt"), Some("one\n"));
+        magit_repo(&t);
+        t.s.save_buffers = Some(true);
+        t.keys("ccedited<Esc>");
+        t.keys(" ms");
+        assert!(t.msg().is_empty() || t.s.ed.mode != crate::editor::Mode::Normal);
+        let crate::editor::Mode::Command(cl) = &t.s.ed.mode else {
+            panic!("no save question: {}", t.msg())
+        };
+        assert!(cl.prompt.starts_with("Save file "), "{}", cl.prompt);
+        t.keys("y<Enter>");
+        magit_settle(&mut t);
+        assert_eq!(t.file("f.txt"), "edited\n");
+        assert!(t.s.ed.magit.is_some(), "status follows: {}", t.msg());
+        // Answering n keeps the buffer unsaved and still runs the command.
+        t.keys(":b1<Enter>ccagain<Esc> ms");
+        t.keys("n<Enter>");
+        magit_settle(&mut t);
+        assert_eq!(t.file("f.txt"), "edited\n");
+        assert!(t.s.ed.magit.is_some());
     }
 
     #[test]

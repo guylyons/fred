@@ -114,7 +114,10 @@ fn digits(n: usize) -> usize {
 }
 
 pub fn gutter_width(ed: &Editor, cfg: &Config) -> usize {
-    let numbers = if cfg.numbers || cfg.relative_numbers {
+    // magit-section-disable-line-numbers.
+    let magit_off = ed.magit.is_some()
+        && crate::magit::options::flag("magit-section-disable-line-numbers", true);
+    let numbers = if (cfg.numbers || cfg.relative_numbers) && !magit_off {
         digits(ed.line_count()).max(3) + 1
     } else {
         0

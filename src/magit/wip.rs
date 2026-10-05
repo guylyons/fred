@@ -17,7 +17,10 @@ pub enum Op {
     CommitFile(std::path::PathBuf),
 }
 
-const NAMESPACE: &str = "refs/wip/";
+/// magit-wip-namespace.
+fn namespace() -> String {
+    super::options::string("magit-wip-namespace", None).unwrap_or_else(|| "refs/wip/".into())
+}
 
 impl Repo {
     /// magit-wip-get-ref: the full name of HEAD's branch, or HEAD.
@@ -31,7 +34,7 @@ impl Repo {
             .map(|_| r)
     }
     fn wip_name(kind: &str, r: &str) -> String {
-        format!("{NAMESPACE}{kind}/{r}")
+        format!("{}{kind}/{r}", namespace())
     }
     fn rev(&self, r: &str) -> Option<String> {
         self.read(&["rev-parse", "--verify", "-q", r])
@@ -66,7 +69,37 @@ impl Repo {
             let out = self.read(&["commit-tree", "--no-gpg-sign", "-p", parent, "-m", m, tree])?;
             Ok(String::from_utf8_lossy(&out).trim().to_owned())
         };
-        if parent == head {
+        // magit-wip-merge-branch: keep the wip ref and merge the branch into
+        // it whenever the branch moved on.
+        let ancestor = |a: &str, b: &str| self.ok(&["merge-base", "--is-ancestor", a, b]);
+        if super::options::flag("magit-wip-merge-branch", false)
+            && let Some(w) = self.rev(wipref)
+        {
+            let last_merge = self
+                .read(&["log", "--format=%H", "-1", "--merges", &w])
+                .map(|o| String::from_utf8_lossy(&o).trim().to_owned())
+                .unwrap_or_default();
+            let merged = !last_merge.is_empty() && ancestor(&format!("{last_merge}^2"), &head);
+            if !ancestor(&head, &w) || !merged {
+                let m = format!("merge {r} into {start}");
+                let out = self.read(&[
+                    "commit-tree",
+                    "--no-gpg-sign",
+                    "-p",
+                    &w,
+                    "-p",
+                    &head,
+                    "-m",
+                    &m,
+                    &format!("{head}^{{tree}}"),
+                ])?;
+                let c = String::from_utf8_lossy(&out).trim().to_owned();
+                self.read(&["update-ref", "--create-reflog", "-m", &m, wipref, &c])?;
+                parent = c;
+            } else {
+                parent = w;
+            }
+        } else if parent == head {
             let m = format!("start autosaving {start}");
             let c = commit(&format!("{head}^{{tree}}"), &head, &m)?;
             self.read(&["update-ref", "--create-reflog", "-m", &m, wipref, &c])?;
@@ -111,7 +144,10 @@ impl Repo {
             self.wip_update(&r, &Self::wip_name("wtree", &r), &wtree, msg, "worktree")?;
         Ok(match (index, worktree) {
             (false, false) => "No changes since the last wip commit".into(),
-            _ => format!("Saved work in progress to {NAMESPACE}{{index,wtree}}/{r}"),
+            _ => format!(
+                "Saved work in progress to {}{{index,wtree}}/{r}",
+                namespace()
+            ),
         })
     }
     /// magit-wip-commit-worktree for FILE: the worktree wip ref's tree (or
@@ -170,13 +206,13 @@ impl Repo {
             }
             Op::Purge => {
                 // Wip refs whose ref no longer exists (HEAD's are kept).
-                let out = self.read(&["for-each-ref", "--format=%(refname)", NAMESPACE])?;
+                let out = self.read(&["for-each-ref", "--format=%(refname)", &namespace()])?;
                 let dangling: Vec<String> = String::from_utf8_lossy(&out)
                     .lines()
                     .filter(|w| {
                         // refs/wip/<kind>/<ref>
                         let target = w
-                            .strip_prefix(NAMESPACE)
+                            .strip_prefix(namespace().as_str())
                             .and_then(|r| r.split_once('/'))
                             .map_or("", |(_, t)| t);
                         target != "HEAD"

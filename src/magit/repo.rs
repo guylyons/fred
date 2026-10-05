@@ -38,6 +38,10 @@ pub fn kill_running(root: &Path) -> usize {
     }
     pids.len()
 }
+/// magit-git-executable.
+pub fn git_executable() -> String {
+    super::options::string("magit-git-executable", None).unwrap_or_else(|| "git".into())
+}
 /// The logged background calls, oldest first, since the last take.
 pub fn take_calls() -> Vec<Call> {
     CALLS
@@ -99,7 +103,7 @@ impl Repo {
             .ancestors()
             .find(|p| p.is_dir())
             .unwrap_or(Path::new("."));
-        let out = Command::new("git")
+        let out = Command::new(git_executable())
             .arg("-C")
             .arg(dir)
             .args(["rev-parse", "--show-toplevel"])
@@ -115,7 +119,7 @@ impl Repo {
         Ok(Self { root })
     }
     pub fn command(&self) -> Command {
-        let mut c = Command::new("git");
+        let mut c = Command::new(git_executable());
         c.arg("-C").arg(&self.root);
         // Fred owns commit-message editing; continuations accept the existing message.
         c.env("GIT_EDITOR", "true");
@@ -247,7 +251,13 @@ impl Repo {
         self.run(&args.iter().map(OsString::from).collect::<Vec<_>>(), None)
     }
     pub fn status(&self) -> Result<Snapshot, String> {
-        let data = self.read(&["status", "--porcelain=v2", "--branch", "-z"])?;
+        // magit-status-show-untracked-files: t (normal), all, or nil.
+        let untracked = match super::options::value("magit-status-show-untracked-files") {
+            Some(toml::Value::Boolean(false)) => "--untracked-files=no",
+            Some(toml::Value::String(s)) if s == "all" => "--untracked-files=all",
+            _ => "--untracked-files=normal",
+        };
+        let data = self.read(&["status", "--porcelain=v2", "--branch", "-z", untracked])?;
         let mut snapshot = Self::parse_status(&data)?;
         snapshot.operation = self.active_workflow()?.map(str::to_owned);
         Ok(snapshot)

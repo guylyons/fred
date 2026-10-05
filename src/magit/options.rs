@@ -348,6 +348,29 @@ fn selected(action: &str, value: Option<Value>, default: &[&str]) -> bool {
     }
 }
 
+/// A hook option, adapted: its value is a list of shell commands, each run
+/// with sh -c in the repository's toplevel (in the background; a failing
+/// command does not stop the others).
+pub fn run_hook(name: &str, root: &std::path::Path) {
+    let commands = strings(name, &[]);
+    if commands.is_empty() {
+        return;
+    }
+    let root = root.to_path_buf();
+    std::thread::spawn(move || {
+        for cmd in commands {
+            let _ = std::process::Command::new("sh")
+                .arg("-c")
+                .arg(&cmd)
+                .current_dir(&root)
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status();
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -27,6 +27,58 @@ pub struct Op {
     pub thing: Option<Thing>,
 }
 
+/// magit-delete-by-moving-to-trash (t; tests never touch the user's trash).
+fn trash_enabled() -> bool {
+    super::options::flag("magit-delete-by-moving-to-trash", !cfg!(test))
+}
+/// move-file-to-trash: the macOS Trash, else the XDG trash (with its
+/// .trashinfo), never overwriting what is there.
+pub fn move_to_trash(path: &Path) -> Result<(), String> {
+    let home = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .ok_or("No home directory")?;
+    let (files, info) = if cfg!(target_os = "macos") {
+        (home.join(".Trash"), None)
+    } else {
+        let base = std::env::var_os("XDG_DATA_HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| home.join(".local/share"))
+            .join("Trash");
+        (base.join("files"), Some(base.join("info")))
+    };
+    trash_into(path, &files, info.as_deref())
+}
+/// Move PATH into the trash directory FILES (recording it in INFO).
+pub fn trash_into(path: &Path, files: &Path, info: Option<&Path>) -> Result<(), String> {
+    std::fs::create_dir_all(files).map_err(|e| e.to_string())?;
+    let name = path.file_name().ok_or("Nothing to trash")?.to_os_string();
+    let mut dest = files.join(&name);
+    let mut n = 1;
+    while dest.symlink_metadata().is_ok() {
+        let mut alt = name.clone();
+        alt.push(format!(".~{n}~"));
+        dest = files.join(alt);
+        n += 1;
+    }
+    if let Some(info) = info {
+        std::fs::create_dir_all(info).map_err(|e| e.to_string())?;
+        let file = format!(
+            "{}.trashinfo",
+            dest.file_name().unwrap_or_default().to_string_lossy()
+        );
+        let date = super::margin::strftime("%Y-%m-%dT%H:%M:%S", super::margin::now());
+        std::fs::write(
+            info.join(file),
+            format!(
+                "[Trash Info]\nPath={}\nDeletionDate={date}\n",
+                path.display()
+            ),
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    std::fs::rename(path, &dest)
+        .map_err(|e| format!("Cannot move {} to the trash: {e}", path.display()))
+}
 /// Discarding this staged/untracked file deletes it from disk.
 fn deletes(section: Section, xy: &str) -> bool {
     let b = xy.as_bytes();
@@ -133,6 +185,7 @@ impl Repo {
         let p = &e.path;
         let run = |args: &[&str]| self.run(&self.path_args(args, p), None).map(|_| ());
         match section {
+            Section::Untracked if trash_enabled() => move_to_trash(&self.root.join(p)),
             Section::Untracked => run(&["clean", "-f", "-d", "-q"]),
             Section::Unstaged => match y {
                 b'M' | b'T' | b'D' => run(&["checkout"]),
@@ -159,6 +212,10 @@ impl Repo {
                 b'A' | b'C' if y == b'M' => {
                     run(&["add"])?;
                     run(&["reset", "-q"])
+                }
+                b'A' | b'C' if trash_enabled() => {
+                    run(&["rm", "--cached", "-q"])?;
+                    move_to_trash(&self.root.join(p))
                 }
                 b'A' | b'C' => run(&["rm", "-f", "-q"]),
                 // magit-discard-files--resurrect (staged): back into the index.
@@ -240,6 +297,7 @@ impl Repo {
         match (op.kind, op.thing) {
             (Kind::StageModified, _) => {
                 self.read(&["add", "-u", "--", "."])?;
+                super::options::run_hook("magit-post-stage-hook", &self.root);
                 done("Staged all modified files".into())
             }
             (Kind::UnstageAll, _) => {
@@ -248,6 +306,7 @@ impl Repo {
                 } else {
                     self.read(&["rm", "--cached", "-r", "-q", "--", "."])?;
                 }
+                super::options::run_hook("magit-post-unstage-hook", &self.root);
                 done("Unstaged all changes".into())
             }
             (_, None) => Err("Nothing at point".into()),

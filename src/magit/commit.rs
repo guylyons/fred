@@ -522,7 +522,7 @@ impl Repo {
         ])?)
         .into_owned();
         let sign = args.iter().find(|a| a.starts_with("--gpg-sign"));
-        let committer_only = false;
+        let committer_only = super::options::flag("magit-reshelve-since-committer-only", false);
         let mut map: std::collections::HashMap<String, String> = Default::default();
         let mut tip = old_tip.clone();
         for rev in revs.lines() {

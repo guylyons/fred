@@ -594,7 +594,8 @@ fn set_action(ed: &mut Editor, action: &str) {
         return;
     }
     splice(ed, line, 1, &[format!("{action} {rest}")]);
-    if line + 1 < ed.buf.len_lines() {
+    // git-rebase-auto-advance.
+    if super::options::flag("git-rebase-auto-advance", true) && line + 1 < ed.buf.len_lines() {
         ed.set_cursor(line + 1, 0);
     }
 }

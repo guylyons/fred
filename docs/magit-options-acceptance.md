@@ -45,3 +45,21 @@ refinement t currently refines all hunks. Count nil semantics, live reload,
 configuration type validation, full upstream option bounds and every
 real-Git/UI scenario for customized values remain open. These are explicit
 parity gaps, not accepted exclusions. Roadmap score stays 3%.
+
+## October 5 batch
+
+Wired (all partial): commit style checks and summary length, unstage-committed,
+git/gitk executables, wip namespace and merge-branch, process log size,
+verbose shell prompt, reshelve committer-only, untracked-file display, line
+numbers, initial section visibility, graph-removing log arguments, push
+options and default signing key in prompts, moving deleted files to the
+trash, push-target renaming, blame time format (local time as upstream),
+revision-stack formats, non-atomic reverse, log-select usage, abbreviated
+copies, rebase auto-advance and cancel confirmation, save-repository-buffers
+(t asks before refreshes and Git commands) and seven hooks.
+
+Hooks are adapted: a hook's value is a list of shell commands run in the
+repository toplevel. Tests default magit-save-repository-buffers and
+magit-delete-by-moving-to-trash off so they never save the developer's
+buffers or touch the real trash; their behaviors have dedicated tests
+(magit_save_repository_buffers_asks_before_refreshing, trash_keeps_earlier_trashed_files).

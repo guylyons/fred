@@ -370,3 +370,9 @@ columns (name, version, B<U, B>U, path), configurable columns, flags and
 sort key; RET status, m/u marks, f fetch (marked or, confirmed, all) and
 5 find-file. Ledger 771 partial / 2 missing commands (Emacs-only
 git-commit-elisp-text-mode and magit-emacs-Q-command). Score remains 3%.
+
+October 5 options checkpoint: 35 more options wired (commit style checks,
+executables, wip namespace/merge, trash, rename push target, save-repository
+buffers, hooks as shell commands, rebase todo options and more; see
+magit-options-acceptance.md). Ledger 771 partial / 2 missing commands;
+64 partial / 173 missing options. Score remains 3%.

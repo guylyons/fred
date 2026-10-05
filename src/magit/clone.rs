@@ -150,6 +150,8 @@ impl After {
                 new.read(&["checkout", &branch, "--"])?;
             }
         }
+        // magit-post-clone-hook, in the new repository.
+        super::options::run_hook("magit-post-clone-hook", &self.dir);
         Ok(Next::Status(self.dir))
     }
 }

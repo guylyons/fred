@@ -29,6 +29,8 @@ pub enum Op {
     /// Current branch, checkout target (None detaches): confirm unmerged deletion.
     DeleteCurrentUnmerged(String, Option<String>),
     DeleteUnmerged(String),
+    /// Rename: also rename the push target (remote, old, new)?
+    RenameRemote(String, String, String),
     /// magit-branch-or-checkout: a revision, or a new branch's name.
     OrCheckout,
     OrCheckoutNew(String),
@@ -540,12 +542,57 @@ impl Repo {
                     return Err(format!("Branch `{new}' already exists"));
                 }
                 let push = self.config(&format!("branch.{old}.pushRemote"));
+                let remote = push.clone().or_else(|| self.config("remote.pushDefault"));
                 self.git(&["branch", "-m", &old, new])?;
                 if let Some(remote) = push {
                     // Git moves branch.<old>.* to branch.<new>.*; keep the push target.
                     self.git(&["config", &format!("branch.{new}.pushRemote"), &remote])?;
                 }
+                // magit-branch-rename-push-target t: offer to rename it remotely.
+                let rename_remote = matches!(
+                    super::options::value("magit-branch-rename-push-target"),
+                    None | Some(toml::Value::Boolean(true))
+                );
+                if rename_remote
+                    && let Some(remote) = remote
+                    && self.ok(&[
+                        "show-ref",
+                        "--verify",
+                        "-q",
+                        &format!("refs/remotes/{remote}/{old}"),
+                    ])
+                    && !self.ok(&[
+                        "show-ref",
+                        "--verify",
+                        "-q",
+                        &format!("refs/remotes/{remote}/{new}"),
+                    ])
+                {
+                    return Ok(Next::Ask(
+                        super::Question::Branch(Op::RenameRemote(
+                            remote.clone(),
+                            old.clone(),
+                            new.to_owned(),
+                        )),
+                        vec![format!(
+                            "Also rename \"{old}\" to \"{new}\" on \"{remote}\"? (y or n) "
+                        )],
+                        vec![String::new()],
+                    ));
+                }
                 done(format!("Renamed {old} to {new}"))
+            }
+            Op::RenameRemote(remote, old, new) => {
+                if !matches!(at(0), "y" | "yes") {
+                    return done(format!("Renamed {old} to {new}"));
+                }
+                Ok(Next::Git(vec![
+                    "push".into(),
+                    "-v".into(),
+                    remote.clone(),
+                    format!("refs/remotes/{remote}/{old}:refs/heads/{new}"),
+                    format!(":refs/heads/{old}"),
+                ]))
             }
             Op::Reset => {
                 let branch = name(at(0))?.to_owned();

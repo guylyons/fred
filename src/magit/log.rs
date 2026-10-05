@@ -41,7 +41,18 @@ fn rev(v: &str) -> Result<&str, String> {
 pub fn git_args(args: &[String]) -> Result<Vec<String>, String> {
     let mut out = vec![];
     // magit-log-refresh-buffer drops --graph when --reverse is used.
-    let reverse = args.iter().any(|a| a == "--reverse");
+    // magit-log-remove-graph-args: these drop --graph too.
+    let drop_graph = args.iter().any(|a| a == "--reverse")
+        || super::options::strings(
+            "magit-log-remove-graph-args",
+            &["--follow", "-G", "-S", "-L"],
+        )
+        .iter()
+        .any(|g| {
+            args.iter()
+                .any(|a| a == g || (g.len() == 2 && a.starts_with(g.as_str())))
+        });
+    let reverse = drop_graph;
     for a in args {
         if let Some(n) = a.strip_prefix("-n") {
             n.parse::<usize>()

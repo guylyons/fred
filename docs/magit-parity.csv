@@ -1,9 +1,9 @@
 source_file,source_line,kind,symbol,state,fred_behavior,origin
 git-commit.el,142,option,git-commit-major-mode,missing,,explicit
 git-commit.el,169,option,git-commit-setup-hook,missing,,explicit
-git-commit.el,194,option,git-commit-finish-query-functions,missing,,explicit
-git-commit.el,211,option,git-commit-style-convention-checks,missing,,explicit
-git-commit.el,220,option,git-commit-summary-max-length,missing,,explicit
+git-commit.el,194,option,git-commit-finish-query-functions,partial,only git-commit-check-style-conventions (Lisp functions cannot run),explicit
+git-commit.el,211,option,git-commit-style-convention-checks,partial,non-empty-second-line and overlong-summary-line ask before a draft is finished,explicit
+git-commit.el,220,option,git-commit-summary-max-length,partial,limit for overlong-summary-line (no highlighting),explicit
 git-commit.el,233,option,git-commit-trailers,missing,,explicit
 git-commit.el,253,option,git-commit-use-local-message-ring,missing,,explicit
 git-commit.el,262,option,git-commit-cd-to-toplevel,missing,,explicit
@@ -25,7 +25,7 @@ git-commit.el,967,command,git-commit-reported,partial,C-c C-p,explicit
 git-commit.el,972,command,git-commit-suggested,partial,C-c M-i,explicit
 git-commit.el,977,command,git-commit-co-authored,partial,:Magit git-commit-co-authored in a draft (or C-c C-i),explicit
 git-commit.el,982,command,git-commit-co-developed,partial,:Magit git-commit-co-developed in a draft (or C-c C-i),explicit
-git-commit.el,1294,option,git-commit-post-finish-hook,missing,,explicit
+git-commit.el,1294,option,git-commit-post-finish-hook,partial,hook adapted: a list of shell commands run in the repository toplevel; after a draft's commit,explicit
 git-commit.el,1313,option,git-commit-post-finish-hook-timeout,missing,,explicit
 git-commit.el,,command,git-commit-elisp-text-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 git-commit.el,,command,git-commit-insert-pseudo-header,partial,"C-c C-i reads any ""Key: value"" trailer",runtime
@@ -35,9 +35,9 @@ git-commit.el,,command,global-git-commit-mode,partial,message files Git opens in
 git-commit.el,,option,git-commit-mode-hook,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 git-commit.el,,option,global-git-commit-mode,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),runtime
 git-commit.el,,option,global-git-commit-mode-hook,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-git-rebase.el,91,option,git-rebase-auto-advance,missing,,explicit
-git-rebase.el,96,option,git-rebase-show-instructions,missing,,explicit
-git-rebase.el,101,option,git-rebase-confirm-cancel,missing,,explicit
+git-rebase.el,91,option,git-rebase-auto-advance,partial,action keys move to the next line,explicit
+git-rebase.el,96,option,git-rebase-show-instructions,partial,"Git's instructions are shown; under evil-collection its keys equal Magit's, so no rewrite is needed; nil does not hide them",explicit
+git-rebase.el,101,option,git-rebase-confirm-cancel,partial,ZQ on an edited todo asks (abort-rebase confirmation),explicit
 git-rebase.el,236,command,git-rebase-pick,partial,p in todo buffers,explicit
 git-rebase.el,242,command,git-rebase-drop,partial,d (evil-collection),explicit
 git-rebase.el,248,command,git-rebase-reword,partial,r,explicit
@@ -64,11 +64,11 @@ git-rebase.el,731,command,git-rebase-show-or-scroll-up,partial,SPC shows the com
 git-rebase.el,741,command,git-rebase-show-or-scroll-down,partial,Backspace in the todo buffer shows the commit (no scrolling),explicit
 git-rebase.el,751,command,git-rebase-backward-line,partial,k under evil-collection,explicit
 git-rebase.el,,command,git-rebase-mode-menu,partial,:Magit name; the todo buffer's keys,runtime
-magit-apply.el,55,option,magit-delete-by-moving-to-trash,missing,,explicit
-magit-apply.el,66,option,magit-unstage-committed,missing,,explicit
-magit-apply.el,82,option,magit-reverse-atomically,missing,,explicit
-magit-apply.el,94,option,magit-post-stage-hook,missing,,explicit
-magit-apply.el,102,option,magit-post-unstage-hook,missing,,explicit
+magit-apply.el,55,option,magit-delete-by-moving-to-trash,partial,discarded untracked/new files go to the macOS or XDG trash,explicit
+magit-apply.el,66,option,magit-unstage-committed,partial,nil: u on committed changes errors,explicit
+magit-apply.el,82,option,magit-reverse-atomically,partial,nil reverses with --reject from diff buffers,explicit
+magit-apply.el,94,option,magit-post-stage-hook,partial,hook adapted: a list of shell commands run in the repository toplevel,explicit
+magit-apply.el,102,option,magit-post-unstage-hook,partial,hook adapted: a list of shell commands run in the repository toplevel,explicit
 magit-apply.el,113,command,magit-apply,partial,a on a hunk or file in diff/commit/stash buffers: git apply to the worktree (a on a commit: cherry-apply),explicit
 magit-apply.el,285,command,magit-stage,partial,s; file/hunk only; region and section staging missing,explicit
 magit-apply.el,312,command,magit-stage-files,partial,"Space m F s without a visited file; :Magit; comma-separated files, default the file at point",explicit
@@ -117,7 +117,7 @@ magit-bisect.el,,command,transient:magit-bisect:--first-parent,partial,-p,runtim
 magit-bisect.el,,command,transient:magit-bisect:--no-checkout,partial,-n,runtime
 magit-blame.el,39,option,magit-blame-styles,missing,,explicit
 magit-blame.el,134,option,magit-blame-echo-style,missing,,explicit
-magit-blame.el,142,option,magit-blame-time-format,missing,,explicit
+magit-blame.el,142,option,magit-blame-time-format,partial,"blame heading dates (local time, as upstream)",explicit
 magit-blame.el,147,option,magit-blame-read-only,missing,,explicit
 magit-blame.el,153,option,magit-blame-disable-modes,missing,,explicit
 magit-blame.el,160,option,magit-blame-mode-lighter,missing,,explicit
@@ -148,7 +148,7 @@ magit-branch.el,38,option,magit-branch-read-upstream-first,missing,,explicit
 magit-branch.el,53,option,magit-branch-name-suggestions,missing,,explicit
 magit-branch.el,60,option,magit-branch-prefer-remote-upstream,missing,,explicit
 magit-branch.el,107,option,magit-branch-adjust-remote-upstream-alist,missing,,explicit
-magit-branch.el,169,option,magit-branch-rename-push-target,missing,,explicit
+magit-branch.el,169,option,magit-branch-rename-push-target,partial,t offers to rename the push branch remotely; local-only/forge-only/nil keep only pushRemote,explicit
 magit-branch.el,197,option,magit-branch-direct-configure,missing,,explicit
 magit-branch.el,206,option,magit-published-branches,missing,,explicit
 magit-branch.el,215,command,magit-branch,partial,"Space m b menu with upstream keys b/l/c/s/n/S/m/x/k; direct configure group, C configure, hidden o/r/w/W/h/H and -m/-r missing",explicit
@@ -195,7 +195,7 @@ magit-clone.el,50,option,magit-clone-default-directory,missing,,explicit
 magit-clone.el,61,option,magit-clone-always-transient,missing,,explicit
 magit-clone.el,70,option,magit-clone-name-alist,missing,,explicit
 magit-clone.el,96,option,magit-clone-url-format,missing,,explicit
-magit-clone.el,115,option,magit-post-clone-hook,missing,,explicit
+magit-clone.el,115,option,magit-post-clone-hook,partial,hook adapted: a list of shell commands run in the repository toplevel; in the new repository,explicit
 magit-clone.el,127,command,magit-clone,partial,Space m C (dispatch C; commit stays on c): fetch/setup/sharing arguments,explicit
 magit-clone.el,172,command,magit-clone-regular,partial,"C C: background clone (no credential prompts), then status; remote HEAD unset; pushDefault question skipped",explicit
 magit-clone.el,179,command,magit-clone-shallow,partial,C s: --depth=1 (no prefix depth),explicit
@@ -238,7 +238,7 @@ magit-commit.el,535,command,magit-commit-absorb-modules,partial,c X: fixup per m
 magit-commit.el,558,command,magit-commit-absorb,partial,"Space m c ... :Magit magit-commit-absorb opens its transient (-f -v seeded); x runs git absorb -b, offering to stage all unstaged changes; commit read by prompt not log-select",explicit
 magit-commit.el,601,command,magit-commit-autofixup,partial,c x: git autofixup -vv against the merge base; requires git-autofixup; no own menu,explicit
 magit-commit.el,773,command,magit-commit-add-log,partial,C on a file/hunk in status or diff buffers; opens the draft and adds * file (defun):,explicit
-magit-commit.el,833,option,magit-post-commit-hook,missing,,explicit
+magit-commit.el,833,option,magit-post-commit-hook,partial,hook adapted: a list of shell commands run in the repository toplevel; after commits made without a draft,explicit
 magit-commit.el,,command,magit-autofixup:--context,partial,-c in the autofixup transient (Space m c x),runtime
 magit-commit.el,,command,magit-autofixup:--strict,partial,-s in the autofixup transient,runtime
 magit-commit.el,,command,magit-commit:--date,partial,-D reads a value,runtime
@@ -365,7 +365,7 @@ magit-ediff.el,454,command,magit-ediff-show-commit,partial,E c: difftool C^ C,ex
 magit-ediff.el,464,command,magit-ediff-show-stash,partial,E z: difftool S^ S,explicit
 magit-extras.el,46,command,magit-git-mergetool,partial,"E t menu: -t tool, m invoke (terminal, no --gui)",explicit
 magit-extras.el,127,command,magit-run-git-gui-blame,partial,":Magit name; visited file at the current line, HEAD (no revision prompt)",explicit
-magit-extras.el,154,option,magit-gitk-executable,missing,,explicit
+magit-extras.el,154,option,magit-gitk-executable,partial,program the gitk launchers start,explicit
 magit-extras.el,167,command,magit-run-git-gui,partial,! g,explicit
 magit-extras.el,173,command,magit-run-gitk,partial,Space m ! k; started detached in the repository,explicit
 magit-extras.el,179,command,magit-run-gitk-branches,partial,! b,explicit
@@ -380,10 +380,10 @@ magit-extras.el,338,command,magit-add-change-log-entry,partial,":Magit name; nea
 magit-extras.el,351,command,magit-add-change-log-entry-other-window,partial,:Magit name; as magit-add-change-log-entry,explicit
 magit-extras.el,364,command,magit-edit-line-commit,partial,"F e: blame the line, rebase edit its commit (or check it out when not on HEAD)",explicit
 magit-extras.el,405,command,magit-diff-edit-hunk-commit,partial,"C-c C-e on a hunk; blames the shown side's line, then rebase-edits that commit",explicit
-magit-extras.el,432,option,magit-reshelve-since-committer-only,missing,,explicit
+magit-extras.el,432,option,magit-reshelve-since-committer-only,partial,keeps author dates,explicit
 magit-extras.el,440,command,magit-reshelve-since,partial,":Magit name; log-select the first commit, read its date; rewritten with commit-tree (no filter-branch), --gpg-sign from the rebase menu",explicit
-magit-extras.el,530,option,magit-pop-revision-stack-format,missing,,explicit
-magit-extras.el,577,option,magit-copy-revision-abbreviated,missing,,explicit
+magit-extras.el,530,option,magit-pop-revision-stack-format,partial,[POINT EOB INDEX-REGEXP] with %N; Emacs regexp groups translated,explicit
+magit-extras.el,577,option,magit-copy-revision-abbreviated,partial,ys/yb copy and stack the short hash,explicit
 magit-extras.el,584,command,magit-pop-revision-stack,partial,"C-c C-w in drafts; ys/yb push commits; default format (point and end entries, numbered); empty stack errors instead of reading a revision",explicit
 magit-extras.el,651,command,magit-copy-section-value,partial,"ys: commit, file, stash, module",explicit
 magit-extras.el,711,command,magit-copy-buffer-revision,partial,yb,explicit
@@ -441,7 +441,7 @@ magit-files.el,,command,magit-stage-buffer-file,partial,F s,runtime
 magit-files.el,,command,magit-unstage-buffer-file,partial,F u,runtime
 magit-files.el,,option,magit-blob-mode-hook,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-git.el,88,option,magit-git-output-coding-system,missing,,explicit
-magit-git.el,113,option,magit-git-executable,missing,,explicit
+magit-git.el,113,option,magit-git-executable,partial,program for every background and terminal Git command,explicit
 magit-git.el,150,option,magit-remote-git-executable,missing,,explicit
 magit-git.el,159,option,magit-run-hooks-from-githooks,missing,,explicit
 magit-git.el,172,option,magit-user-githook-file,missing,,explicit
@@ -462,7 +462,7 @@ magit-gitignore.el,171,command,magit-no-skip-worktree,partial,I W,explicit
 magit-gitignore.el,182,command,magit-assume-unchanged,partial,I u,explicit
 magit-gitignore.el,194,command,magit-no-assume-unchanged,partial,I U,explicit
 magit-log.el,76,option,magit-log-mode-hook,missing,,explicit
-magit-log.el,81,option,magit-log-remove-graph-args,missing,,explicit
+magit-log.el,81,option,magit-log-remove-graph-args,partial,these arguments drop --graph,explicit
 magit-log.el,95,option,magit-log-revision-headers-format,missing,,explicit
 magit-log.el,104,option,magit-log-auto-more,missing,,explicit
 magit-log.el,111,option,magit-log-margin,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
@@ -475,7 +475,7 @@ magit-log.el,198,option,magit-log-trace-definition-function,missing,,explicit
 magit-log.el,210,option,magit-log-color-graph-limit,missing,,explicit
 magit-log.el,220,option,magit-log-show-signatures-limit,missing,,explicit
 magit-log.el,267,option,magit-log-buffer-file-locked,missing,,explicit
-magit-log.el,276,option,magit-log-select-show-usage,missing,,explicit
+magit-log.el,276,option,magit-log-select-show-usage,partial,both/header-line/echo-area,explicit
 magit-log.el,288,option,magit-log-select-margin,missing,,explicit
 magit-log.el,320,option,magit-cherry-sections-hook,missing,,explicit
 magit-log.el,328,option,magit-cherry-margin,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
@@ -579,8 +579,8 @@ magit-merge.el,,command,transient:magit-merge:-Xignore-all-space,partial,-w,runt
 magit-merge.el,,command,transient:magit-merge:-Xignore-space-change,partial,-b,runtime
 magit-mode.el,60,option,magit-mode-hook,missing,,explicit
 magit-mode.el,67,option,magit-setup-buffer-hook,missing,,explicit
-magit-mode.el,83,option,magit-pre-refresh-hook,missing,,explicit
-magit-mode.el,98,option,magit-post-refresh-hook,missing,,explicit
+magit-mode.el,83,option,magit-pre-refresh-hook,partial,hook adapted: a list of shell commands run in the repository toplevel (the save-buffers default is the separate option),explicit
+magit-mode.el,98,option,magit-post-refresh-hook,partial,hook adapted: a list of shell commands run in the repository toplevel,explicit
 magit-mode.el,121,option,magit-display-buffer-function,missing,,explicit
 magit-mode.el,137,option,magit-pre-display-buffer-hook,missing,,explicit
 magit-mode.el,146,option,magit-post-display-buffer-hook,missing,,explicit
@@ -596,7 +596,7 @@ magit-mode.el,298,option,magit-post-create-buffer-hook,missing,,explicit
 magit-mode.el,307,option,magit-refresh-buffer-hook,missing,,explicit
 magit-mode.el,313,option,magit-refresh-status-buffer,missing,,explicit
 magit-mode.el,327,option,magit-refresh-verbose,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
-magit-mode.el,333,option,magit-save-repository-buffers,missing,,explicit
+magit-mode.el,333,option,magit-save-repository-buffers,partial,"t asks per modified repository buffer, dontask saves, false never (before refreshes and Git commands)",explicit
 magit-mode.el,438,command,magit-delete-thing,partial,x in status = discard (evil-collection),explicit
 magit-mode.el,446,command,magit-visit-thing,partial,"Enter (file, hunk, commit, stash, module, diff line)",explicit
 magit-mode.el,459,command,magit-edit-thing,partial,C-c C-e; placeholder error as upstream,explicit
@@ -659,7 +659,7 @@ magit-patch.el,,command,transient:magit-patch-create:--rfc,partial,menu argument
 magit-process.el,52,option,magit-process-connection-type,missing,,explicit
 magit-process.el,61,option,magit-need-cygwin-noglob,missing,,explicit
 magit-process.el,85,option,magit-process-popup-time,missing,,explicit
-magit-process.el,92,option,magit-process-log-max,missing,,explicit
+magit-process.el,92,option,magit-process-log-max,partial,process buffer entries kept (false keeps all),explicit
 magit-process.el,102,option,magit-process-error-tooltip-max-lines,missing,,explicit
 magit-process.el,114,option,magit-credential-cache-daemon-socket,missing,,explicit
 magit-process.el,146,option,magit-process-yes-or-no-prompt-regexp,missing,,explicit
@@ -685,7 +685,7 @@ magit-pull.el,,command,magit-pull:--rebase,partial,-r cycles true/merges/interac
 magit-pull.el,,command,transient:magit-pull:--autostash,partial,-A,runtime
 magit-pull.el,,command,transient:magit-pull:--ff-only,partial,-f; incompatible with rebasing choices,runtime
 magit-pull.el,,command,transient:magit-pull:--force,partial,-F,runtime
-magit-push.el,33,option,magit-push-options,missing,,explicit
+magit-push.el,33,option,magit-push-options,partial,offered in the -o prompt (no completion),explicit
 magit-push.el,42,command,magit-push,partial,"Space m p menu; arguments and p/u/e/o/r/m/T/t suffixes; dynamic target descriptions, -o, notes, C configure missing",explicit
 magit-push.el,96,command,magit-push-current-to-pushremote,partial,"Space m p p; prompts/sets branch.<b>.pushRemote when unset; prefix-arg change, set-and-push confirm and remote completion missing",explicit
 magit-push.el,132,command,magit-push-current-to-upstream,partial,Space m p u; prompts remote/branch and adds --set-upstream when unset; completion/defaults missing,explicit
@@ -779,10 +779,10 @@ magit-section.el,145,option,magit-section-highlight-current,missing,,explicit
 magit-section.el,151,option,magit-section-highlight-selection,missing,,explicit
 magit-section.el,160,option,magit-section-show-child-count,partial,default t behavior; not configurable,explicit
 magit-section.el,167,option,magit-section-cache-visibility,missing,,explicit
-magit-section.el,184,option,magit-section-initial-visibility-alist,missing,,explicit
+magit-section.el,184,option,magit-section-initial-visibility-alist,partial,"table of section = ""show""/""hide"" for status sections (untracked unstaged staged stashes unpushed unpulled recent)",explicit
 magit-section.el,212,option,magit-section-visibility-indicators,missing,,explicit
 magit-section.el,284,option,magit-section-keep-region-overlay,missing,,explicit
-magit-section.el,322,option,magit-section-disable-line-numbers,missing,,explicit
+magit-section.el,322,option,magit-section-disable-line-numbers,partial,Magit buffers hide line numbers unless false,explicit
 magit-section.el,803,command,magit-section-forward,partial,"C-j (on a file/hunk C-j visits the worktree file, as evil-collection section maps)",explicit
 magit-section.el,822,command,magit-section-backward,partial,C-k,explicit
 magit-section.el,860,command,magit-section-up,partial,gh in status,explicit
@@ -908,7 +908,7 @@ magit-status.el,69,option,magit-status-sections-hook,partial,"default hook partl
 magit-status.el,91,option,magit-status-initial-section,missing,,explicit
 magit-status.el,118,option,magit-status-goto-file-position,missing,,explicit
 magit-status.el,137,option,magit-status-show-hashes-in-headers,partial,default nil behavior; not configurable,explicit
-magit-status.el,147,option,magit-status-show-untracked-files,missing,,explicit
+magit-status.el,147,option,magit-status-show-untracked-files,partial,"true / ""all"" / false",explicit
 magit-status.el,184,option,magit-status-file-list-limit,missing,,explicit
 magit-status.el,192,option,magit-status-margin,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
 magit-status.el,222,option,magit-status-use-buffer-arguments,missing,,explicit
@@ -976,8 +976,8 @@ magit-tag.el,,command,transient:magit-tag:--edit,partial,switch in Space m t,run
 magit-tag.el,,command,transient:magit-tag:--force,partial,switch in Space m t,runtime
 magit-tag.el,,command,transient:magit-tag:--sign,partial,switch in Space m t,runtime
 magit-wip.el,43,option,magit-wip-mode-lighter,missing,,explicit
-magit-wip.el,49,option,magit-wip-merge-branch,missing,,explicit
-magit-wip.el,71,option,magit-wip-namespace,missing,,explicit
+magit-wip.el,49,option,magit-wip-merge-branch,partial,merge the branch into the wip ref instead of restarting it,explicit
+magit-wip.el,71,option,magit-wip-namespace,partial,"prefix of wip refs (commit, logs, purge)",explicit
 magit-wip.el,81,option,magit-wip-debug,missing,,explicit
 magit-wip.el,115,command,magit-wip-commit-buffer-file,partial,:Magit name,explicit
 magit-wip.el,149,command,magit-wip-commit,partial,Space m z r / :Magit: index and worktree wip refs (magit-wip-merge-branch nil),explicit
@@ -997,10 +997,10 @@ magit-worktree.el,155,command,magit-worktree-branch,partial,"Space m Z c; new br
 magit-worktree.el,169,command,magit-worktree-move,partial,Space m Z m; refuses the main worktree,explicit
 magit-worktree.el,191,command,magit-worktree-delete,partial,Space m Z k; refuses main/locked; dirty needs typed yes; remove --force then prune,explicit
 magit-worktree.el,234,command,magit-worktree-status,partial,Space m Z g; status of another worktree,explicit
-magit.el,77,option,magit-openpgp-default-signing-key,missing,,explicit
+magit.el,77,option,magit-openpgp-default-signing-key,partial,default for --gpg-sign= prompts,explicit
 magit.el,247,option,magit-define-global-key-bindings,missing,,explicit
 magit.el,327,command,magit-dispatch,partial,Space m; navigable command panels; full groups/options still missing,explicit
-magit.el,407,option,magit-shell-command-verbose-prompt,missing,,explicit
+magit.el,407,option,magit-shell-command-verbose-prompt,partial,prompt names the directory,explicit
 magit.el,418,command,magit-run,partial,Space m ! / ! in Magit buffers: git subcommand in root or working directory (shell and GUI launchers not ported),explicit
 magit.el,434,command,magit-git-command,partial,"| in Magit buffers (evil-collection), Space m Q: quote-aware words, terminal Git",explicit
 magit.el,446,command,magit-git-command-topdir,partial,! !,explicit

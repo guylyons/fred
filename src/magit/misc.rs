@@ -147,7 +147,17 @@ impl Repo {
             | Op::RepolistAll(_)
             | Op::RepolistFile => (vec![], vec![]),
             Op::ShellCommand { .. } | Op::ShellCommandIn(_) => {
-                (vec!["Async shell command: ".into()], vec![String::new()])
+                // magit-shell-command-verbose-prompt names the directory.
+                let prompt = if super::options::flag("magit-shell-command-verbose-prompt", true) {
+                    let dir = match op {
+                        Op::ShellCommandIn(d) => self.root.join(d),
+                        _ => self.root.clone(),
+                    };
+                    format!("Async shell command in {}: ", dir.display())
+                } else {
+                    "Async shell command: ".into()
+                };
+                (vec![prompt], vec![String::new()])
             }
             Op::AsyncShell(file) => (
                 vec![format!("& on {}: ", file.display())],
@@ -313,7 +323,11 @@ impl Repo {
                     shell_quote(&dir.to_string_lossy())
                 )))
             }
-            Op::Gitk(args) => self.launch("gitk", args.split_whitespace().collect()),
+            Op::Gitk(args) => {
+                let gitk = super::options::string("magit-gitk-executable", None)
+                    .unwrap_or_else(|| "gitk".into());
+                self.launch(&gitk, args.split_whitespace().collect())
+            }
             Op::GitGui => self.launch("git", vec!["gui"]),
             Op::GitGuiBlame(file, line) => {
                 let line = format!("--line={line}");
@@ -345,6 +359,7 @@ impl Repo {
                 argv.push("--".into());
                 argv.extend(files(at(0))?);
                 self.run(&argv, None)?;
+                super::options::run_hook("magit-post-stage-hook", &self.root);
                 Ok(Next::Done(Ok("Staged".into())))
             }
             Op::UnstageFiles => {
@@ -358,6 +373,7 @@ impl Repo {
                 argv.push("--".into());
                 argv.extend(files(at(0))?);
                 self.run(&argv, None)?;
+                super::options::run_hook("magit-post-unstage-hook", &self.root);
                 Ok(Next::Done(Ok("Unstaged".into())))
             }
             Op::RemoteSetHead | Op::RemoteUnsetHead => {

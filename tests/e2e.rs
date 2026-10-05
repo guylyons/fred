@@ -1105,7 +1105,10 @@ fn magit_status_stage_and_return_in_both_modes() {
         magit_init(&env);
         let mut p = env.fred(&[mode, "f.txt"]);
         p.wait_for("editor", |s| s.contains("NORMAL"));
+        // magit-save-repository-buffers t: decline saving the edited file.
         p.keys(&["iunsaved \x1b", " ms"]);
+        p.wait_text("Save file f.txt? (y or n)");
+        p.keys(&["n\r"]);
         p.wait_for("Git status", |s| {
             s.contains("Head:     main") && s.contains("Untracked files")
         });

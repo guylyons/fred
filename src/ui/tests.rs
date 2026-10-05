@@ -1392,9 +1392,10 @@ fn blame_margin_headings_and_lines_shift_text_and_show_message() {
     screen.cfg.numbers = false;
     screen.draw(&e);
     assert!(
-        screen
-            .row(0)
-            .starts_with("Ada                  1970-01-01 00:00 the summa alpha"),
+        screen.row(0).starts_with(&format!(
+            "Ada                  {} the summa alpha",
+            crate::magit::margin::strftime("%F %H:%M", 0)
+        )),
         "{}",
         screen.row(0)
     );

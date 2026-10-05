@@ -126,6 +126,32 @@ pub fn buffer_message(text: &str) -> Option<String> {
     let s = s.trim_matches('\n');
     (!s.trim().is_empty()).then(|| format!("{s}\n"))
 }
+/// git-commit-check-style-conventions: the questions this message raises
+/// under git-commit-style-convention-checks and -summary-max-length.
+pub fn style_questions(text: &str) -> Vec<String> {
+    let checks = super::options::strings(
+        "git-commit-style-convention-checks",
+        &["non-empty-second-line"],
+    );
+    let max = super::options::int("git-commit-summary-max-length", 68).max(0) as usize;
+    let mut lines = text
+        .lines()
+        .filter(|l| !l.starts_with('#'))
+        .skip_while(|l| l.trim().is_empty());
+    let Some(summary) = lines.next() else {
+        return vec![];
+    };
+    let mut out = vec![];
+    if checks.iter().any(|c| c == "overlong-summary-line") && summary.chars().count() > max {
+        out.push("Summary line is too long.  Commit anyway? (y or n) ".to_owned());
+    }
+    if checks.iter().any(|c| c == "non-empty-second-line")
+        && lines.next().is_some_and(|l| !l.trim().is_empty())
+    {
+        out.push("Second line is not empty.  Commit anyway? (y or n) ".to_owned());
+    }
+    out
+}
 /// git-commit-save-message: newest first, without duplicates, at most
 /// log-edit-maximum-comment-ring-size (32) entries.
 pub fn save_message(ed: &mut Editor) {
@@ -544,11 +570,30 @@ pub fn pop_revision_stack(ed: &mut Editor) {
         + lines
             .get(ed.cur.line)
             .map_or("", |l| &l[..ed.cur.byte.min(l.len())]);
-    let re = regex::Regex::new(r"\[([0-9]+)[\]:]").expect("valid regex");
+    // magit-pop-revision-stack-format: [POINT-FORMAT EOB-FORMAT INDEX-REGEXP]
+    // (false for nil); the regexp is Emacs syntax.
+    let custom = super::options::value("magit-pop-revision-stack-format")
+        .and_then(|v| v.as_array().cloned());
+    let part = |i: usize, default: &str| -> Option<String> {
+        match &custom {
+            Some(a) => a.get(i).and_then(|v| v.as_str()).map(str::to_owned),
+            None => Some(default.to_owned()),
+        }
+    };
+    let pnt_format = part(0, "[%N: %h] ");
+    let eob_format = part(1, "%N: %cs %H%n   %s");
+    let re = part(2, r"\[\([0-9]+\)[]:]").and_then(|r| {
+        regex::Regex::new(
+            &r.replace(r"\(", "(")
+                .replace(r"\)", ")")
+                .replace("[]", r"[\]"),
+        )
+        .ok()
+    });
     let n = re
-        .captures_iter(&before)
-        .last()
-        .and_then(|c| c[1].parse::<usize>().ok())
+        .as_ref()
+        .and_then(|re| re.captures_iter(&before).last())
+        .and_then(|c| c.get(1)?.as_str().parse::<usize>().ok())
         .map_or(1, |n| n + 1);
     let format = |f: &str| {
         repo.read(&["log", "--no-walk", &format!("--format={f}"), &rev, "--"])
@@ -558,10 +603,11 @@ pub fn pop_revision_stack(ed: &mut Editor) {
                     .to_owned()
             })
     };
-    let (Ok(at_point), Ok(at_end)) = (
-        format(&format!("[{n}: %h] ")),
-        format(&format!("{n}: %cs %H%n   %s")),
-    ) else {
+    let fill = |f: Option<String>| match f {
+        Some(f) => format(&f.replace("%N", &n.to_string()).replace('\n', "%n")),
+        None => Ok(String::new()),
+    };
+    let (Ok(at_point), Ok(at_end)) = (fill(pnt_format), fill(eob_format)) else {
         return ed.set_err(format!("Cannot describe {rev}"));
     };
     // Point text first, then the entry before the comment lines at the end.
@@ -579,6 +625,12 @@ pub fn pop_revision_stack(ed: &mut Editor) {
         end -= 1;
     }
     let mut entry: Vec<String> = at_end.lines().map(str::to_owned).collect();
+    if entry.is_empty() {
+        let cursor = (line, ed.cur.byte + at_point.len());
+        replace_all(ed, &new.join("\n"));
+        ed.set_cursor(cursor.0, cursor.1);
+        return;
+    }
     let previous_entry = end > 0 && {
         let mut i = end - 1;
         while i > 0 && new[i].starts_with("   ") {
