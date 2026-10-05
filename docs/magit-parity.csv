@@ -33,7 +33,7 @@ git-commit.el,,command,git-commit-mode,partial,Fred drafts and Git-opened messag
 git-commit.el,,command,git-commit-mode-menu,partial,:Magit name; the commit transient,runtime
 git-commit.el,,command,global-git-commit-mode,partial,message files Git opens in Fred get draft keys; Space m c c saves and quits,runtime
 git-commit.el,,option,git-commit-mode-hook,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
-git-commit.el,,option,global-git-commit-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+git-commit.el,,option,global-git-commit-mode,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),runtime
 git-commit.el,,option,global-git-commit-mode-hook,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 git-rebase.el,91,option,git-rebase-auto-advance,missing,,explicit
 git-rebase.el,96,option,git-rebase-show-instructions,missing,,explicit
@@ -86,18 +86,18 @@ magit-apply.el,802,command,magit-smerge-keep-base,partial,C-c ^ b on the conflic
 magit-apply.el,807,command,magit-smerge-keep-lower,partial,C-c ^ l on the conflict at point in the file buffer (not on status hunks),explicit
 magit-apply.el,812,command,magit-smerge-keep-all,partial,C-c ^ a on the conflict at point in the file buffer (not on status hunks),explicit
 magit-autorevert.el,49,option,auto-revert-buffer-list-filter,missing,,explicit
-magit-autorevert.el,76,option,magit-auto-revert-tracked-only,missing,,explicit
+magit-autorevert.el,76,option,magit-auto-revert-tracked-only,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
 magit-autorevert.el,88,option,magit-auto-revert-immediately,missing,,explicit
 magit-autorevert.el,,command,magit-auto-revert-mode,partial,on by default; after Git commands unmodified repository buffers changed on disk reload; :Magit toggles,runtime
-magit-autorevert.el,,option,magit-auto-revert-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-autorevert.el,,option,magit-auto-revert-mode,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),runtime
 magit-autorevert.el,,option,magit-auto-revert-mode-hook,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-base.el,60,option,magit-completing-read-function,missing,,explicit
 magit-base.el,78,option,magit-dwim-selection,missing,,explicit
-magit-base.el,156,option,magit-no-confirm,missing,,explicit
-magit-base.el,342,option,magit-slow-confirm,missing,,explicit
+magit-base.el,156,option,magit-no-confirm,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
+magit-base.el,342,option,magit-slow-confirm,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
 magit-base.el,358,option,magit-no-message,missing,,explicit
 magit-base.el,381,option,magit-verbose-messages,missing,,explicit
-magit-base.el,401,option,magit-ellipsis,missing,,explicit
+magit-base.el,401,option,magit-ellipsis,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
 magit-base.el,426,option,magit-update-other-window-delay,missing,,explicit
 magit-base.el,444,option,magit-view-git-manual-method,missing,,explicit
 magit-base.el,721,command,magit-whitespace-disallowed,partial,space typed in a new-branch-name prompt inserts -,explicit
@@ -219,7 +219,7 @@ magit-commit.el,36,option,magit-commit-ask-to-stage,missing,,explicit
 magit-commit.el,45,option,magit-commit-show-diff,missing,,explicit
 magit-commit.el,51,option,magit-commit-extend-override-date,missing,,explicit
 magit-commit.el,57,option,magit-commit-reword-override-date,missing,,explicit
-magit-commit.el,63,option,magit-commit-squash-confirm,missing,,explicit
+magit-commit.el,63,option,magit-commit-squash-confirm,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
 magit-commit.el,74,option,magit-commit-diff-inhibit-same-window,missing,,explicit
 magit-commit.el,117,command,magit-commit,partial,Space m C; source create/edit groups and common switches; remaining commands/options missing,explicit
 magit-commit.el,208,command,magit-commit-create,partial,Space m c c; draft creation/submission; complete source options/editor behavior missing,explicit
@@ -258,8 +258,8 @@ magit-diff.el,136,option,magit-diff-expansion-threshold,missing,,explicit
 magit-diff.el,154,option,magit-diff-highlight-hunk-body,missing,,explicit
 magit-diff.el,160,option,magit-diff-highlight-hunk-region-functions,missing,,explicit
 magit-diff.el,193,option,magit-diff-unmarked-lines-keep-foreground,missing,,explicit
-magit-diff.el,202,option,magit-diff-refine-hunk,missing,,explicit
-magit-diff.el,219,option,magit-diff-fontify-hunk,missing,,explicit
+magit-diff.el,202,option,magit-diff-refine-hunk,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
+magit-diff.el,219,option,magit-diff-fontify-hunk,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
 magit-diff.el,246,option,magit-diff-refine-ignore-whitespace,missing,,explicit
 magit-diff.el,254,option,magit-diff-adjust-tab-width,missing,,explicit
 magit-diff.el,282,option,magit-diff-paint-whitespace,missing,,explicit
@@ -465,8 +465,8 @@ magit-log.el,76,option,magit-log-mode-hook,missing,,explicit
 magit-log.el,81,option,magit-log-remove-graph-args,missing,,explicit
 magit-log.el,95,option,magit-log-revision-headers-format,missing,,explicit
 magit-log.el,104,option,magit-log-auto-more,missing,,explicit
-magit-log.el,111,option,magit-log-margin,missing,,explicit
-magit-log.el,136,option,magit-log-margin-show-committer-date,missing,,explicit
+magit-log.el,111,option,magit-log-margin,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
+magit-log.el,136,option,magit-log-margin-show-committer-date,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
 magit-log.el,148,option,magit-log-show-refname-after-summary,missing,,explicit
 magit-log.el,155,option,magit-log-wash-summary-hook,missing,,explicit
 magit-log.el,173,option,magit-log-trailer-labels,missing,,explicit
@@ -478,9 +478,9 @@ magit-log.el,267,option,magit-log-buffer-file-locked,missing,,explicit
 magit-log.el,276,option,magit-log-select-show-usage,missing,,explicit
 magit-log.el,288,option,magit-log-select-margin,missing,,explicit
 magit-log.el,320,option,magit-cherry-sections-hook,missing,,explicit
-magit-log.el,328,option,magit-cherry-margin,missing,,explicit
-magit-log.el,360,option,magit-log-section-commit-count,partial,default 10 used; not configurable,explicit
-magit-log.el,369,option,magit-log-merged-commit-count,missing,,explicit
+magit-log.el,328,option,magit-cherry-margin,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
+magit-log.el,360,option,magit-log-section-commit-count,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
+magit-log.el,369,option,magit-log-merged-commit-count,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
 magit-log.el,525,command,magit-log,partial,"Space m l: upstream groups (commit limiting, history simplification, ordering, formatting) with free-form values; Log l/o/h/u/L/b/a/R/B/T/m and Reflog r/O/H; missing shortlog, wiplog, -- files, set/save",explicit
 magit-log.el,556,command,magit-log-refresh,partial,"L in Magit buffers (evil default) / :Magit: log arguments shared with l; g applies them to this log buffer (no set/save, margin)",explicit
 magit-log.el,699,command,magit-log-current,partial,Space m l l: current branch (or HEAD) with menu arguments; inherits the file of a file-log buffer,explicit
@@ -595,7 +595,7 @@ magit-mode.el,290,option,magit-create-buffer-hook,missing,,explicit
 magit-mode.el,298,option,magit-post-create-buffer-hook,missing,,explicit
 magit-mode.el,307,option,magit-refresh-buffer-hook,missing,,explicit
 magit-mode.el,313,option,magit-refresh-status-buffer,missing,,explicit
-magit-mode.el,327,option,magit-refresh-verbose,missing,,explicit
+magit-mode.el,327,option,magit-refresh-verbose,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
 magit-mode.el,333,option,magit-save-repository-buffers,missing,,explicit
 magit-mode.el,438,command,magit-delete-thing,partial,x in status = discard (evil-collection),explicit
 magit-mode.el,446,command,magit-visit-thing,partial,"Enter (file, hunk, commit, stash, module, diff line)",explicit
@@ -706,8 +706,8 @@ magit-push.el,,command,transient:magit-push:--force-with-lease,partial,-f,runtim
 magit-push.el,,command,transient:magit-push:--no-verify,partial,-h,runtime
 magit-push.el,,command,transient:magit-push:--set-upstream,partial,-u (shown at default level; upstream hides at level 5),runtime
 magit-push.el,,command,transient:magit-push:--tags,partial,-T,runtime
-magit-reflog.el,34,option,magit-reflog-limit,missing,,explicit
-magit-reflog.el,42,option,magit-reflog-margin,missing,,explicit
+magit-reflog.el,34,option,magit-reflog-limit,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
+magit-reflog.el,42,option,magit-reflog-margin,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
 magit-reflog.el,113,command,magit-reflog-current,partial,Space m l r; branch or HEAD; 256 entries; RET shows commit,explicit
 magit-reflog.el,120,command,magit-reflog-other,partial,Space m l O; prompted ref,explicit
 magit-reflog.el,126,command,magit-reflog-head,partial,Space m l H,explicit
@@ -717,7 +717,7 @@ magit-refs.el,55,option,magit-refs-show-commit-count,missing,,explicit
 magit-refs.el,73,option,magit-refs-pad-commit-counts,missing,,explicit
 magit-refs.el,94,option,magit-refs-show-remote-prefix,missing,,explicit
 magit-refs.el,103,option,magit-refs-show-branch-descriptions,missing,,explicit
-magit-refs.el,112,option,magit-refs-margin,missing,,explicit
+magit-refs.el,112,option,magit-refs-margin,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
 magit-refs.el,143,option,magit-refs-margin-for-tags,missing,,explicit
 magit-refs.el,153,option,magit-refs-primary-column-width,missing,,explicit
 magit-refs.el,172,option,magit-refs-focus-column-width,missing,,explicit
@@ -876,7 +876,7 @@ magit-sparse-checkout.el,114,command,magit-sparse-checkout-reapply,partial,> r,e
 magit-sparse-checkout.el,123,command,magit-sparse-checkout-disable,partial,> d,explicit
 magit-sparse-checkout.el,,command,transient:magit-sparse-checkout:--sparse-index,partial,-i,runtime
 magit-stash.el,41,option,magit-stash-sections-hook,missing,,explicit
-magit-stash.el,53,option,magit-stashes-margin,missing,,explicit
+magit-stash.el,53,option,magit-stashes-margin,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
 magit-stash.el,91,command,magit-stash,partial,Space m z; source menu groups and -u/-a switches; worktree/snapshot/transform groups still missing,explicit
 magit-stash.el,124,command,magit-stash-both,partial,Space m z z/u; Git push implementation; plumbing/options differ,explicit
 magit-stash.el,140,command,magit-stash-index,partial,Space m z i; Git --staged implementation; source edge cases need comparison,explicit
@@ -910,7 +910,7 @@ magit-status.el,118,option,magit-status-goto-file-position,missing,,explicit
 magit-status.el,137,option,magit-status-show-hashes-in-headers,partial,default nil behavior; not configurable,explicit
 magit-status.el,147,option,magit-status-show-untracked-files,missing,,explicit
 magit-status.el,184,option,magit-status-file-list-limit,missing,,explicit
-magit-status.el,192,option,magit-status-margin,missing,,explicit
+magit-status.el,192,option,magit-status-margin,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),explicit
 magit-status.el,222,option,magit-status-use-buffer-arguments,missing,,explicit
 magit-status.el,252,command,magit-init,partial,"Space m i; directory prompt (default current, ~ expansion), nested/reinitialize y-or-n confirmation, status after init; directory completion missing",explicit
 magit-status.el,280,command,magit-status,partial,"Space m s; headers (Head/Merge|Rebase/Push/Tags), file sections, stashes, unpushed/recent and unpulled log sections, jumpers; sequence/bisect sections and options missing",explicit
@@ -987,7 +987,7 @@ magit-wip.el,297,command,magit-wip-log-current,partial,:Magit magit-wip-log-curr
 magit-wip.el,308,command,magit-wip-log,partial,:Magit magit-wip-log: current branch only (no branch prompt),explicit
 magit-wip.el,350,command,magit-wip-purge,partial,":Magit magit-wip-purge: confirm, delete dangling wip refs",explicit
 magit-wip.el,,command,magit-wip-mode,partial,:Magit name toggles; after-save (file) and after Git commands; not before-change,runtime
-magit-wip.el,,option,magit-wip-mode,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
+magit-wip.el,,option,magit-wip-mode,partial,[magit] TOML configuration; source defaults and behavior wired (limitations/scenarios: docs/magit-options-acceptance.md),runtime
 magit-wip.el,,option,magit-wip-mode-hook,missing,Runtime-expanded surface; source behavior/context and UI port required,runtime
 magit-worktree.el,33,option,magit-read-worktree-directory-function,missing,,explicit
 magit-worktree.el,46,option,magit-read-worktree-offsite-directory,missing,,explicit

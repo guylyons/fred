@@ -81,7 +81,7 @@ full-family points for partial command wrappers.
 | magit.el | 9 | 3 |
 
 Current inventory: 773 commands and 237 options. Of the commands, 765 are
-partial and 8 missing; 5 options are partial (defaults only) and 232 missing. The runtime surface
+partial and 8 missing; 25 options are partial and 212 missing. The runtime surface
 artifact also captures 51 transient prefixes, 565 menu entries, 53 keymaps with
 1,621 bindings (including inheritance), and 25 companion/derived/minor modes.
 

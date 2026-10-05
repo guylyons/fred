@@ -38,18 +38,53 @@ impl Margin {
     /// magit--right-margin-option's defaults: magit-log-margin and the
     /// options derived from it. None where upstream has no margin.
     pub fn for_kind(kind: &Kind) -> Option<Margin> {
-        let (shown, details) = match kind {
-            Kind::Log(..) | Kind::FileLog(..) => (true, true),
-            Kind::Cherry(..) => (true, true),
-            Kind::Reflog(_) | Kind::Stashes => (true, false),
-            Kind::Refs(..) | Kind::Status => (false, false),
+        use super::options;
+        let (option, shown, details) = match kind {
+            Kind::Log(..) | Kind::FileLog(..) => ("magit-log-margin", true, true),
+            Kind::Cherry(..) => ("magit-cherry-margin", true, true),
+            Kind::Reflog(_) => ("magit-reflog-margin", true, false),
+            Kind::Stashes => ("magit-stashes-margin", true, false),
+            Kind::Refs(..) => ("magit-refs-margin", false, false),
+            Kind::Status => ("magit-status-margin", false, false),
             _ => return None,
         };
-        Some(Margin {
-            shown,
-            style: Style::Age,
+        // The other margins default to magit-log-margin's style and widths.
+        let log = Self::parse(options::value("magit-log-margin"));
+        let mut m = Margin {
+            shown: shown && log.as_ref().is_none_or(|l| l.shown),
+            style: log.as_ref().map_or(Style::Age, |l| l.style.clone()),
             details,
-            details_width: 18,
+            details_width: log.as_ref().map_or(18, |l| l.details_width),
+            shortstat: false,
+        };
+        if option == "magit-log-margin"
+            && let Some(l) = &log
+        {
+            m.shown = l.shown;
+            m.details = l.details;
+        }
+        if let Some(own) = Self::parse(options::value(option)) {
+            m = own;
+        }
+        Some(m)
+    }
+    /// (INIT STYLE WIDTH AUTHOR AUTHOR-WIDTH) as a TOML array, e.g.
+    /// `[true, "age", "magit-log-margin-width", true, 18]`.
+    fn parse(v: Option<toml::Value>) -> Option<Margin> {
+        let a = v?.as_array()?.clone();
+        let style = match a.get(1).and_then(|s| s.as_str()) {
+            Some("age") | None => Style::Age,
+            Some("age-abbreviated") => Style::AgeAbbreviated,
+            Some(f) => Style::Format(f.to_owned()),
+        };
+        Some(Margin {
+            shown: a.first().and_then(|b| b.as_bool()).unwrap_or(true),
+            style,
+            details: a.get(3).and_then(|b| b.as_bool()).unwrap_or(false),
+            details_width: a
+                .get(4)
+                .and_then(|n| n.as_integer())
+                .map_or(18, |n| n.max(1) as usize),
             shortstat: false,
         })
     }
@@ -86,14 +121,9 @@ impl Margin {
         }
         let mut out = String::new();
         if self.details {
-            let name: String = stamp.author.chars().take(self.details_width).collect();
-            let name = if stamp.author.chars().count() > self.details_width {
-                let mut n: String = name.chars().take(self.details_width - 1).collect();
-                n.push('…');
-                n
-            } else {
-                name
-            };
+            let ellipsis =
+                super::options::string("magit-ellipsis", None).unwrap_or_else(|| "…".into());
+            let name = truncate_author(&stamp.author, &ellipsis, self.details_width);
             out.push_str(&format!("{name:<w$} ", w = self.details_width));
         }
         let rest = self.width() - out.chars().count();
@@ -201,8 +231,12 @@ impl super::repo::Repo {
         if ids.is_empty() {
             return Ok(vec![]);
         }
+        // magit-log-margin-show-committer-date: the author with the
+        // committer's date.
         let format = if committer {
             "--format=%x1e%H%x1f%cN%x1f%ct"
+        } else if super::options::flag("magit-log-margin-show-committer-date", false) {
+            "--format=%x1e%H%x1f%aN%x1f%ct"
         } else {
             "--format=%x1e%H%x1f%aN%x1f%at"
         };
@@ -236,5 +270,31 @@ impl super::repo::Repo {
             ));
         }
         Ok(stamps)
+    }
+}
+
+fn truncate_author(author: &str, ellipsis: &str, width: usize) -> String {
+    if author.chars().count() <= width {
+        return author.to_owned();
+    }
+    let keep = width.saturating_sub(ellipsis.chars().count());
+    author
+        .chars()
+        .take(keep)
+        .chain(ellipsis.chars())
+        .take(width)
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn author_truncation_respects_width_even_with_long_ellipsis() {
+        assert_eq!(
+            super::truncate_author("abcdef", "very-long-ellipsis", 2),
+            "ve"
+        );
+        assert_eq!(super::truncate_author("abcdef", "…", 3), "ab…");
+        assert_eq!(super::truncate_author("ab", "…", 3), "ab");
     }
 }

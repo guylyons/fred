@@ -4261,10 +4261,7 @@ fn pop_revision_stack_inserts_references() {
     let short = &id[..7];
     let text = ed.buf.text();
     assert!(text.starts_with(&format!("Fix it [1: {short}")), "{text:?}");
-    assert!(
-        text.contains("\n\n1: ") && text.contains(&id),
-        "{text:?}"
-    );
+    assert!(text.contains("\n\n1: ") && text.contains(&id), "{text:?}");
     assert!(text.ends_with("# comment"), "{text:?}");
     // The next one is numbered after the last index before point.
     super::message::pop_revision_stack(&mut ed);
@@ -4329,4 +4326,43 @@ fn process_kill_interrupts_background_git() {
     assert!(killed >= 1);
     assert!(worker.join().unwrap().is_err());
     assert!(start.elapsed() < std::time::Duration::from_secs(20));
+}
+
+#[test]
+fn confirmation_actions_keep_delete_and_remote_configuration_separate() {
+    let repo = Repo {
+        root: std::path::PathBuf::from("/unused"),
+    };
+    let ask =
+        |q, text: &str| super::Prompt::Ask(repo.clone(), q, vec![], vec![text.into()], vec![]);
+    assert_eq!(
+        super::confirm_action(&ask(
+            super::Question::Apply(super::apply::Op {
+                kind: super::apply::Kind::Discard,
+                thing: Some(super::apply::Thing::Section(
+                    super::Section::Untracked,
+                    vec![]
+                )),
+            }),
+            "Delete files? (y or n) "
+        )),
+        Some("delete")
+    );
+    assert_eq!(
+        super::confirm_action(&ask(
+            super::Question::Remote(super::remote::Op::AddPushDefault(
+                "origin".into(),
+                "url".into()
+            )),
+            "Set default? (y or n) "
+        )),
+        None
+    );
+    assert_eq!(
+        super::confirm_action(&ask(
+            super::Question::Sequence(super::sequence::Op::Abort),
+            "Abort revert? (y or n) "
+        )),
+        Some("abort-revert")
+    );
 }

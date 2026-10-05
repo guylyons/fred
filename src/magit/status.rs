@@ -14,7 +14,9 @@ pub struct Extra {
 }
 
 /// magit-log-section-commit-count.
-const RECENT: usize = 10;
+fn recent() -> usize {
+    super::options::int("magit-log-section-commit-count", 10).max(0) as usize
+}
 /// magit-status buffer log arguments default to -n256.
 pub const LIMIT: usize = 256;
 
@@ -272,7 +274,7 @@ impl Repo {
             _ => add(
                 Section::UnpushedUpstream,
                 "Recent commits".into(),
-                self.log_range("HEAD", Some(RECENT)),
+                self.log_range("HEAD", Some(recent())),
             ),
         }
         if let Some(p) = &push {

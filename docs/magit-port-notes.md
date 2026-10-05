@@ -269,3 +269,19 @@ through ed.blame: headings become a 48-column gutter margin (Fred has no
 virtual lines), lines a 1-column rule plus message-row summary. Blame is
 dropped when the buffer version changes, since overlays cannot track edits.
 The internal branch menu id is now 'b' and blame uses 'B'.
+
+## Customization continuation
+
+The `[magit]` configuration table now wires 21 upstream options; see
+[acceptance and explicit limits](magit-options-acceptance.md). All remain partial.
+Independent review corrected confirmation-policy action isolation and margin
+width handling. Recognized but unwired settings earn no implementation credit.
+Next queue is repository lists, remaining configuration behavior and the baseline
+UI mapping/scenario matrix. Score remains 3%. CodeGraph was initialized in this
+worktree at the user's request. The user also suggested zvec-grep (CLI `zg`),
+which is not installed; no global search-tool installation was performed.
+
+Customization verification: 493 tests passed / 18 ignored; format and diff checks,
+Clippy (existing argument-count allowance) and release build passed. An initial
+process-kill timing failure passed alone and on the full rerun. Final focused
+independent review found no remaining important defects in this batch.

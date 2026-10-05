@@ -1477,6 +1477,7 @@ fn magit_log_margin_and_hunk_styles() {
         },
     );
     v.refine = true;
+    v.fontify = true;
     e.path = Some("/state/magit-views/opaque-hash".into());
     e.magit = Some(Box::new(v));
     e.readonly = true;

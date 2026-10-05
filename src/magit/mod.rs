@@ -19,6 +19,7 @@ pub mod message;
 pub mod misc;
 pub mod network;
 pub mod notes;
+pub mod options;
 pub mod patch;
 pub mod rebase;
 pub mod refs;
@@ -382,7 +383,7 @@ pub struct View {
     pub margin: Option<margin::Margin>,
     /// Author and date of the commits (and stashes) shown, by object id.
     pub stamps: HashMap<String, margin::Stamp>,
-    /// magit-diff-refine-hunk (default nil) and magit-diff-fontify-hunk (t).
+    /// magit-diff-refine-hunk and magit-diff-fontify-hunk (both nil by default).
     pub refine: bool,
     pub fontify: bool,
     /// magit-toggle-buffer-lock: never reused to show another value.
@@ -432,8 +433,9 @@ impl View {
             suspended: vec![],
             margin: None,
             stamps: HashMap::new(),
-            refine: false,
-            fontify: true,
+            // nil, t (each hunk once selected) or all: Fred refines all.
+            refine: options::flag("magit-diff-refine-hunk", false),
+            fontify: options::flag("magit-diff-fontify-hunk", false),
             locked: false,
             select: None,
             back: vec![],
@@ -1683,7 +1685,71 @@ pub fn reads_branch_name(p: &Prompt) -> bool {
         _ => prompts.get(i).is_some_and(|p| p.contains("branch named")),
     }
 }
+/// The magit-confirm action a yes-or-no question stands for.
+fn confirm_action(p: &Prompt) -> Option<&'static str> {
+    Some(match p {
+        Prompt::DropStash(..) => "drop-stashes",
+        Prompt::Ask(_, q, _, prompts, answers) => {
+            let text = prompts.get(answers.len())?;
+            if !(text.contains("(y or n)") || text.contains("(yes or no)")) {
+                return None;
+            }
+            match q {
+                Question::Apply(op) => match op.kind {
+                    apply::Kind::Discard if text.starts_with("Delete ") => "delete",
+                    // A staged section can include added files which discard deletes.
+                    // Keep its confirmation until per-file actions are available.
+                    apply::Kind::Discard
+                        if matches!(op.thing, Some(apply::Thing::Section(Section::Staged, _))) =>
+                    {
+                        return None;
+                    }
+                    apply::Kind::Discard => "discard",
+                    apply::Kind::Reverse => "reverse",
+                    apply::Kind::UnstageAll => "unstage-all-changes",
+                    apply::Kind::StageModified => "stage-all-changes",
+                },
+                Question::ReverseDiff(..) => "reverse",
+                Question::Branch(
+                    branch::Op::DeleteUnmerged(_) | branch::Op::DeleteCurrentUnmerged(..),
+                ) => "delete-unmerged-branch",
+                Question::Branch(branch::Op::DeleteRemote(_)) => "delete-branch-on-remote",
+                Question::Merge(merge::Op::Abort) => "abort-merge",
+                Question::Merge(merge::Op::Dirty(..)) => "merge-dirty",
+                Question::Rebase(rebase::Op::Abort) => "abort-rebase",
+                Question::Rebase(rebase::Op::Published(..)) => "rebase-published",
+                Question::Commit(commit::Op::Published(..)) => "amend-published",
+                Question::Sequence(sequence::Op::Abort) => {
+                    if text.contains("revert") {
+                        "abort-revert"
+                    } else {
+                        "abort-cherry-pick"
+                    }
+                }
+                Question::Bisect(bisect::Op::Reset) => "reset-bisect",
+                Question::Submodule(submodule::Op::RemoveDirty(..)) => "remove-dirty-modules",
+                Question::Submodule(_) => "remove-modules",
+                Question::Wip(wip::Op::PurgeConfirmed(_)) => "purge-dangling-wiprefs",
+                Question::Remote(remote::Op::PruneStale(..)) => "prune-stale-refspecs",
+                Question::File(blob::FileOp::DeleteDir | blob::FileOp::Delete) => "delete",
+                Question::File(blob::FileOp::Rename) => "rename",
+                Question::File(blob::FileOp::Untrack) => "untrack",
+                _ => return None,
+            }
+        }
+        _ => return None,
+    })
+}
 pub fn prompt(ed: &mut Editor, question: Prompt) {
+    // magit-no-confirm: answer yes without asking.
+    if let Some(action) = confirm_action(&question)
+        && !options::confirm(action)
+    {
+        ed.magit_prompt = Some(question);
+        return answer(ed, "yes");
+    }
+    // magit-slow-confirm: these need a typed "yes".
+    let slow = confirm_action(&question).is_some_and(options::slow_confirm);
     let text = match &question {
         Prompt::Workflow(_, operation, _) => operation.prompt().unwrap_or("").to_owned(),
         Prompt::Ask(_, _, _, prompts, answers) => prompts[answers.len()].clone(),
@@ -1700,6 +1766,11 @@ pub fn prompt(ed: &mut Editor, question: Prompt) {
             &stash.id[..stash.id.len().min(8)]
         ),
     };
+    let text = if slow {
+        text.replace("(y or n)", "(yes or no)")
+    } else {
+        text.replace("(yes or no)", "(y or n)")
+    };
     ed.magit_prompt = Some(question);
     ed.open_cmdline('=', "");
     if let Mode::Command(cl) = &mut ed.mode {
@@ -1707,6 +1778,17 @@ pub fn prompt(ed: &mut Editor, question: Prompt) {
     }
 }
 pub fn answer(ed: &mut Editor, text: &str) {
+    // magit-slow-confirm: only a typed "yes" confirms.
+    let slow = ed
+        .magit_prompt
+        .as_ref()
+        .and_then(confirm_action)
+        .is_some_and(options::slow_confirm);
+    let text = if slow && text.trim() != "yes" {
+        "no"
+    } else {
+        text
+    };
     match ed.magit_prompt.take() {
         Some(Prompt::Workflow(repo, operation, args)) => {
             ed.pending_effect = Some(ExEffect::Magit(Action::Submit(
@@ -1716,7 +1798,7 @@ pub fn answer(ed: &mut Editor, text: &str) {
                 args,
             )))
         }
-        Some(Prompt::DropStash(repo, stash)) if text == "yes" => {
+        Some(Prompt::DropStash(repo, stash)) if matches!(text.trim(), "yes" | "y") => {
             ed.pending_effect = Some(ExEffect::Magit(Action::DropStash(repo, stash)))
         }
         Some(Prompt::DropStash(..)) => ed.set_msg("Stash drop cancelled"),

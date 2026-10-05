@@ -31,7 +31,15 @@ pub struct Config {
     pub ai_rules: String,
     /// What `:explain` (Visual `K`) runs, prompt on stdin.
     pub explain_command: String,
+    /// `[magit]`: Magit's customization options by their upstream names.
+    pub magit: MagitOptions,
 }
+
+/// The `[magit]` table (see `magit::options`).
+#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
+#[serde(transparent)]
+pub struct MagitOptions(pub toml::Table);
+impl Eq for MagitOptions {}
 
 impl Default for Config {
     fn default() -> Self {
@@ -52,6 +60,7 @@ impl Default for Config {
             ai_command: "claude -p --tools '' --safe-mode".into(),
             ai_rules: String::new(),
             explain_command: "claude -p --tools '' --safe-mode --model sonnet".into(),
+            magit: MagitOptions::default(),
         }
     }
 }
@@ -192,6 +201,19 @@ mod tests {
         let (c, err) = Config::parse("colour = 1\n");
         assert_eq!(c, Config::default());
         assert!(err.unwrap().contains("colour"));
+    }
+
+    #[test]
+    fn magit_table_preserves_upstream_names_and_values() {
+        let (cfg, err) = Config::parse(
+            "[magit]\nmagit-no-confirm = false\nmagit-log-section-commit-count = 20\n",
+        );
+        assert!(err.is_none(), "{err:?}");
+        assert_eq!(cfg.magit.0["magit-no-confirm"].as_bool(), Some(false));
+        assert_eq!(
+            cfg.magit.0["magit-log-section-commit-count"].as_integer(),
+            Some(20)
+        );
     }
 
     #[test]

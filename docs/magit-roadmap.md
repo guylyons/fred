@@ -47,12 +47,11 @@ additional behavior reopens its row and lowers the score until it is covered.
 
 ## Execution queue
 
-Submodule, subtree and patch/am batches done. Bundles and clone done.
-Refs, sparse checkout and gitignore done. Next: the remaining diff and
-log commands (reference movement, log-select), then commit menu remainder,
-subtrees, patches/bundles, clone, refs view, sparse checkout and gitignore,
-recording each accepted gate's evidence here. The baseline's UI map and
-scenario matrix remain open.
+Customization configuration is wired for 21 upstream options (all partial).
+Next: repository-list commands and their directory/column options, then remaining
+customization behavior, complete menu/section mapping and the source-linked
+acceptance scenario matrix. Keep incomplete command behavior and safety/recovery
+gaps open; command-name coverage alone does not close a family.
 
 At every implementation commit, update the command ledger and this queue. Report
 the same score even when useful partial functionality lands but no acceptance
@@ -356,3 +355,11 @@ C-c C-t / C-c C-e from hunks, process-kill for background Git, and the
 menu-bar menus mapped to transients. Ledger 765 partial / 8 missing
 commands (repolist, which needs magit-repository-directories, and two
 Emacs-only commands). Score remains 3%.
+
+October 4 customization checkpoint: `[magit]` TOML settings wire confirmation,
+counts, margins, hunk styling, squash selection, autorevert/WIP and diagnostic
+defaults ([scenarios and limits](magit-options-acceptance.md)). Independent review
+corrected action misclassification and margin overflow. Ledger: 765 partial / 8
+missing commands; 25 partial / 212 missing options. No acceptance gate closes;
+score remains 3%. Next: repository list, remaining customization behavior and
+baseline mapping/scenario gates.

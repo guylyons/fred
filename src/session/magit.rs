@@ -2261,34 +2261,40 @@ impl Session {
                 let pick =
                     |verb: &str| format!("Type . or C-c C-c on a commit to {verb}, or q to abort");
                 match &op {
-                    // magit-commit-squash-internal: the commit at point, else
-                    // magit-log-select.
+                    // magit-commit-squash-internal: the commit at point, unless
+                    // magit-commit-squash-confirm (or an instant variant) asks
+                    // for it in magit-log-select, starting on that commit.
                     C::Fixup
                     | C::Squash
                     | C::Alter
                     | C::Augment
                     | C::Revise
                     | C::InstantFixup
-                    | C::InstantSquash => match at_point {
-                        Some(id) => Ok(Outcome::Answer(
-                            repo,
-                            Question::Commit(op),
-                            vec![id.clone()],
-                            vec![id],
-                        )),
-                        None => {
-                            let msg = pick(&format!("{} it", op_verb(&op)));
-                            log_select(
+                    | C::InstantSquash => {
+                        let instant = matches!(op, C::InstantFixup | C::InstantSquash);
+                        let confirm = instant
+                            || crate::magit::options::flag("magit-commit-squash-confirm", true);
+                        match at_point {
+                            Some(id) if !confirm => Ok(Outcome::Answer(
                                 repo,
                                 Question::Commit(op),
-                                vec![],
-                                defaults,
-                                msg,
-                                None,
-                                origin,
-                            )
+                                vec![id.clone()],
+                                vec![id],
+                            )),
+                            initial => {
+                                let msg = pick(&format!("{} it", op_verb(&op)));
+                                log_select(
+                                    repo,
+                                    Question::Commit(op),
+                                    vec![],
+                                    defaults,
+                                    msg,
+                                    initial,
+                                    origin,
+                                )
+                            }
                         }
-                    },
+                    }
                     // Absorb into commits since the one picked, starting at the
                     // upstream's merge base.
                     C::Autofixup | C::Absorb | C::AbsorbModules => {
@@ -3646,7 +3652,11 @@ impl Session {
         // Fred's own drafts (also after a restart) live in its state directory.
         let own = path.starts_with(self.swap_dir.with_file_name("magit"))
             || self.magit_drafts.contains_key(&path);
-        if !named || own || self.ed.commit_repo.is_some() {
+        if !named
+            || own
+            || self.ed.commit_repo.is_some()
+            || !crate::magit::options::flag("global-git-commit-mode", true)
+        {
             return;
         }
         // Git runs the editor in the worktree; the file is in the git dir.
@@ -3817,6 +3827,24 @@ impl Session {
                         swap::canonical(p).starts_with(root)
                             && p.is_file()
                             && fileio::changed_on_disk(p, stamp)
+                            // magit-auto-revert-tracked-only.
+                            && (!crate::magit::options::flag("magit-auto-revert-tracked-only", true)
+                                || Repo { root: root.to_path_buf() }
+                                    .run(
+                                        &[
+                                            "ls-files".into(),
+                                            "--error-unmatch".into(),
+                                            "--".into(),
+                                            crate::magit::repo::literal_pathspec(
+                                                &swap::canonical(p)
+                                                    .strip_prefix(root)
+                                                    .map(Path::to_path_buf)
+                                                    .unwrap_or_default(),
+                                            ),
+                                        ],
+                                        None,
+                                    )
+                                    .is_ok())
                     })
             })
             .collect();
@@ -5094,11 +5122,15 @@ fn reflog_view(repo: Repo, target: String, origin: usize) -> Result<Outcome, Str
 fn refresh_log(view: &mut View) -> Result<(), String> {
     if let Kind::Reflog(target) = &view.kind {
         // magit-reflog-refresh-buffer, limited by magit-reflog-limit (256).
+        let limit = format!(
+            "-n{}",
+            crate::magit::options::int("magit-reflog-limit", 256).max(1)
+        );
         let out = view.repo.read(&[
             "reflog",
             "show",
             "--format=%H%x00%gd%x00%gs",
-            "-n256",
+            &limit,
             "--end-of-options",
             target,
             "--",

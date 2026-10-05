@@ -23,9 +23,6 @@ pub enum Op {
     Cherry,
 }
 
-/// magit-log-merged-commit-count.
-const MERGED_COUNT: usize = 20;
-
 /// One washed log line: graph prefix, then a commit or a continuation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Line {
@@ -283,7 +280,8 @@ impl Repo {
         let first_parent = lines(&["rev-list", "--first-parent", &b])?;
         if first_parent.contains(&c) {
             // Commit is directly on this branch: show surrounding history.
-            let half = MERGED_COUNT / 2;
+            // magit-log-merged-commit-count.
+            let half = super::options::int("magit-log-merged-commit-count", 20).max(2) as usize / 2;
             let from = id(&format!("{c}~{half}")).unwrap_or_else(|_| {
                 lines(&["rev-list", "--max-parents=0", &c])
                     .ok()
