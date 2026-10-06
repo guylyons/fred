@@ -21,6 +21,11 @@ thread_local! {
     static HISTORY: RefCell<Vec<String>> = const { RefCell::new(vec![]) };
 }
 
+/// Push onto org-stored-links (org-protocol, other packages).
+pub fn push_stored(link: String, desc: Option<String>) {
+    STORED.with(|s| s.borrow_mut().insert(0, (link, desc)));
+}
+
 pub fn stored_links() -> Vec<(String, Option<String>)> {
     STORED.with(|s| s.borrow().clone())
 }

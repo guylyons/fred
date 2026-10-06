@@ -357,6 +357,25 @@ mod tests {
     }
 
     #[test]
+    fn org_protocol_capture() {
+        let mut t = T::new(&[("notes.org", "* Web"), ("src.txt", "hello")], "src.txt");
+        crate::org::options::put(
+            "org-capture-templates",
+            toml::Value::String("'((\"p\" \"Protocol\" entry (file+headline org-default-notes-file \"Web\") \"* %:description\\n%:link\\n%i\" :immediate-finish t))".into()),
+        );
+        let notes = t.dir.path().join("notes.org").display().to_string();
+        crate::org::options::put("org-default-notes-file", toml::Value::String(notes));
+        t.keys(":org-protocol org-protocol://capture?template=p&url=https%3A%2F%2Fx.org&title=X+Y&body=quoted<CR>");
+        assert_eq!(
+            t.file("notes.org"),
+            "* Web\n** X Y\nhttps://x.org\nquoted",
+            "{:?}",
+            t.s.ed.msg
+        );
+        crate::org::options::put("org-capture-templates", toml::Value::Boolean(false));
+    }
+
+    #[test]
     fn edit_src_block_in_a_dedicated_buffer() {
         let mut t = T::new(
             &[(

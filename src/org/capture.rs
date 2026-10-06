@@ -290,6 +290,18 @@ pub struct Ctx {
     pub clipboard: String,
     pub clock_heading: String,
     pub clock_link: String,
+    /// org-store-link-plist, for `%:keyword`.
+    pub props: Vec<(String, String)>,
+}
+
+thread_local! {
+    /// Link properties set by org-protocol (org-capture-link-is-already-stored).
+    static LINK_PROPS: std::cell::RefCell<Option<Vec<(String, String)>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// org-link-store-props for the next capture.
+pub fn set_link_props(p: Vec<(String, String)>) {
+    LINK_PROPS.with(|l| *l.borrow_mut() = Some(p));
 }
 
 fn strftime(fmt: &str, t: i64) -> String {
@@ -372,7 +384,12 @@ fn fill_static(t: &str, c: &Ctx) -> String {
         let v = &m[1];
         let rep = match v.chars().next().unwrap() {
             '<' => strftime(&m[2], c.time),
-            ':' => String::new(),
+            ':' => c
+                .props
+                .iter()
+                .find(|(k, _)| *k == v[1..])
+                .map(|(_, v)| v.clone())
+                .unwrap_or_default(),
             'i' => {
                 // Repeat the line's leading text on every line of %i.
                 let line_start = out.rfind('\n').map_or(0, |i| i + 1);
@@ -1264,19 +1281,45 @@ struct Pending {
 
 /// Start capturing with template `t`.
 fn start(ed: &mut Editor, t: Template, goto: Prefix) {
-    let annotation = super::links::store(ed, Prefix::None)
-        .ok()
-        .map(|(l, d)| super::links::make_string(&l, d.as_deref()).unwrap_or_default())
-        .unwrap_or_default();
-    let initial = ed
-        .org_region
-        .map(|(lo, hi)| {
-            (lo..=hi)
-                .map(|l| ed.buf.line(l))
-                .collect::<Vec<_>>()
-                .join("\n")
-        })
-        .unwrap_or_default();
+    let preset = LINK_PROPS.with(|l| l.borrow_mut().take());
+    let get = |p: &[(String, String)], k: &str| {
+        p.iter()
+            .find(|(kk, _)| kk == k)
+            .map(|(_, v)| v.clone())
+            .unwrap_or_default()
+    };
+    let (annotation, initial, props) = match preset {
+        Some(p) => (get(&p, "annotation"), get(&p, "initial"), p),
+        None => {
+            let stored = super::links::store(ed, Prefix::None).ok();
+            let annotation = stored
+                .as_ref()
+                .map(|(l, d)| super::links::make_string(l, d.as_deref()).unwrap_or_default())
+                .unwrap_or_default();
+            let initial = ed
+                .org_region
+                .map(|(lo, hi)| {
+                    (lo..=hi)
+                        .map(|l| ed.buf.line(l))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                })
+                .unwrap_or_default();
+            let (link, desc) = stored.unwrap_or_default();
+            let kind = link
+                .split_once(':')
+                .map(|(k, _)| k.to_owned())
+                .unwrap_or_default();
+            let props = vec![
+                ("type".into(), kind),
+                ("link".into(), link),
+                ("description".into(), desc.unwrap_or_default()),
+                ("annotation".into(), annotation.clone()),
+                ("initial".into(), initial.clone()),
+            ];
+            (annotation, initial, props)
+        }
+    };
     let here = (goto == Prefix::Num(0)).then(|| (ed.path.clone(), ed.cur.line));
     let file = match (&here, t.target.list().and_then(|l| l.get(1)).cloned()) {
         (Some((Some(p), _)), _) => Ok(p.clone()),
@@ -1314,6 +1357,7 @@ fn start(ed: &mut Editor, t: Template, goto: Prefix) {
                 clipboard: ed.reg.text.clone(),
                 clock_heading: String::new(),
                 clock_link: String::new(),
+                props: props.clone(),
             };
             let text = template_text(&t);
             fill_template(ed, &text, ctx, move |ed, filled| {
@@ -1344,6 +1388,7 @@ fn start(ed: &mut Editor, t: Template, goto: Prefix) {
         clipboard: ed.reg.text.clone(),
         clock_heading: String::new(),
         clock_link: String::new(),
+        props,
     };
     let text = template_text(&t);
     let here_line = here.map(|(_, l)| l);
@@ -1715,6 +1760,7 @@ mod tests {
             clipboard: "clip".into(),
             clock_heading: String::new(),
             clock_link: String::new(),
+            props: vec![("link".into(), "https://x".into())],
         };
         let out = fill_static(
             "* TICKET %?\nEntered on %u %a %l %L %f\n  - %i\n100\\%a",

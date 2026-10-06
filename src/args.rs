@@ -6,6 +6,8 @@ pub const USAGE: &str = "usage: fred [-i | -f] [--height N] [+LINE] [FILE | DIR]
 
   FILE              file to edit (created on first write if missing)
   DIR               browse files there
+  org-protocol://…  run an Org protocol handler (capture, store-link,
+                    open-source)
   +LINE             start on line LINE; + alone starts on the last line
   -i, --inline      edit in a window under the prompt
   -f, --fullscreen  take over the terminal (the default, unless the

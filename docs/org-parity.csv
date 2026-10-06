@@ -3333,23 +3333,23 @@ org-plot.el,539,option,org-plot/gnuplot-term-extra,missing,,String or function w
 org-plot.el,548,function,org-plot/gnuplot-script,missing,,Write a gnuplot script for TABLE to DATA-FILE respecting options in PARAMS.
 org-plot.el,628,function,org-plot/redisplay-img-in-buffer,missing,,"Find any overlays for IMG-FILE in the current Org buffer, and refresh them."
 org-plot.el,639,command,org-plot/gnuplot,partial,src/org/table/mod.rs: ported command; acceptance gates open,Plot table using gnuplot.  Gnuplot options can be specified with PARAMS.
-org-protocol.el,173,option,org-protocol-reverse-list-of-files,missing,,Non-nil means re-reverse the list of filenames passed on the command line.
-org-protocol.el,181,option,org-protocol-project-alist,missing,,Map URLs to local filenames for `org-protocol-open-source' (open-source).
-org-protocol.el,239,option,org-protocol-protocol-alist,missing,,Register custom handlers for org-protocol.
-org-protocol.el,289,option,org-protocol-default-template-key,missing,,The default template key to use.
-org-protocol.el,295,option,org-protocol-data-separator,missing,,The default data separator to use.
-org-protocol.el,304,function,org-protocol-sanitize-uri,missing,,Sanitize slashes to double-slashes in URI.
-org-protocol.el,313,function,org-protocol-split-data,missing,,Split the DATA argument for an org-protocol handler function.
-org-protocol.el,326,function,org-protocol-flatten-greedy,missing,,Transform PARAM-LIST into a flat list for greedy handlers.
-org-protocol.el,372,function,org-protocol-flatten,missing,,Transform LIST into a flat list.
-org-protocol.el,382,function,org-protocol-parse-parameters,missing,,Return a property list of parameters from INFO.
-org-protocol.el,407,function,org-protocol-assign-parameters,missing,,Return a property list of parameters from DATA.
-org-protocol.el,427,function,org-protocol-store-link,missing,,Process an org-protocol://store-link style url.
-org-protocol.el,472,function,org-protocol-capture,missing,,Process an org-protocol://capture style url with INFO.
-org-protocol.el,542,function,org-protocol-convert-query-to-plist,missing,,Convert QUERY key=value pairs in the URL to a property list.
-org-protocol.el,551,function,org-protocol-open-source,missing,,Process an org-protocol://open-source?url= style URL with FNAME.
-org-protocol.el,625,function,org-protocol-check-filename-for-protocol,missing,,Check if `org-protocol-the-protocol' and a valid protocol are used in FNAME.
-org-protocol.el,686,function,org--protocol-detect-protocol-server,missing,,Advice `server-visit-files' to call `org-protocol-check-filename-for-protocol'.
+org-protocol.el,173,option,org-protocol-reverse-list-of-files,adapted,one URL per fred invocation; ordering is moot,Non-nil means re-reverse the list of filenames passed on the command line.
+org-protocol.el,181,option,org-protocol-project-alist,done,open-source mapping incl. :rewrites,Map URLs to local filenames for `org-protocol-open-source' (open-source).
+org-protocol.el,239,option,org-protocol-protocol-alist,adapted,":function names a Fred Org command, called with the parameter string",Register custom handlers for org-protocol.
+org-protocol.el,289,option,org-protocol-default-template-key,done,,The default template key to use.
+org-protocol.el,295,option,org-protocol-data-separator,done,old-style links,The default data separator to use.
+org-protocol.el,304,function,org-protocol-sanitize-uri,done,protocol::sanitize_uri,Sanitize slashes to double-slashes in URI.
+org-protocol.el,313,function,org-protocol-split-data,done,protocol::split_data,Split the DATA argument for an org-protocol handler function.
+org-protocol.el,326,function,org-protocol-flatten-greedy,adapted,no emacsclient file lists; greedy handlers get the URL,Transform PARAM-LIST into a flat list for greedy handlers.
+org-protocol.el,372,function,org-protocol-flatten,adapted,obsolete alias of flatten-tree,Transform LIST into a flat list.
+org-protocol.el,382,function,org-protocol-parse-parameters,done,protocol::parse,Return a property list of parameters from INFO.
+org-protocol.el,407,function,org-protocol-assign-parameters,done,protocol::assign,Return a property list of parameters from DATA.
+org-protocol.el,427,function,org-protocol-store-link,done,pushes org-stored-links and the register/clipboard,Process an org-protocol://store-link style url.
+org-protocol.el,472,function,org-protocol-capture,done,sets link props for %:keyword escapes and runs org-capture,Process an org-protocol://capture style url with INFO.
+org-protocol.el,542,function,org-protocol-convert-query-to-plist,done,protocol::query_to_plist,Convert QUERY key=value pairs in the URL to a property list.
+org-protocol.el,551,function,org-protocol-open-source,done,visits the mapped file,Process an org-protocol://open-source?url= style URL with FNAME.
+org-protocol.el,625,function,org-protocol-check-filename-for-protocol,adapted,protocol::dispatch; fred org-protocol://… or :org-protocol URL,Check if `org-protocol-the-protocol' and a valid protocol are used in FNAME.
+org-protocol.el,686,function,org--protocol-detect-protocol-server,adapted,fred startup argument instead of server-visit-files advice,Advice `server-visit-files' to call `org-protocol-check-filename-for-protocol'.
 org-protocol.el,713,command,org-protocol-create-for-org,missing,,Create an Org protocol project for the current file's project.
 org-protocol.el,727,command,org-protocol-create,missing,,Create a new org-protocol project interactively.
 org-refile.el,40,option,org-log-refile,missing,,Information to record when a task is refiled.

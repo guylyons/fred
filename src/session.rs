@@ -356,7 +356,11 @@ impl Session {
 
     pub fn handle_key(&mut self, k: Key) {
         self.ed.handle_key(k);
-        // Effects can ask for more effects (Org work across buffers).
+        self.run_effects();
+    }
+
+    /// Perform pending effects; they can ask for more (Org work across buffers).
+    pub fn run_effects(&mut self) {
         for _ in 0..16 {
             match self.ed.pending_effect.take() {
                 Some(eff) => self.perform(eff),

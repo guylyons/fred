@@ -562,7 +562,19 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
     // Magit's options are process-wide (Git work runs on worker threads).
     let unknown = crate::magit::options::set(cfg.magit.0.clone());
     let cfg_err = cfg_err.or_else(|| unknown.into_iter().next());
-    let (mut s, leftover) = match Session::open(args.file.clone(), &cfg, &swap::swap_dir()) {
+    // `fred org-protocol://...`: run the handler instead of visiting a file.
+    let protocol = args
+        .file
+        .as_ref()
+        .and_then(|p| p.to_str())
+        .filter(|p| crate::org::protocol::is_protocol(p))
+        .map(str::to_owned);
+    let file = if protocol.is_some() {
+        None
+    } else {
+        args.file.clone()
+    };
+    let (mut s, leftover) = match Session::open(file, &cfg, &swap::swap_dir()) {
         Ok(x) => x,
         Err(e) => {
             let name = args
@@ -573,6 +585,14 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
             return Ok(1);
         }
     };
+    if let Some(uri) = protocol {
+        if let Err(e) =
+            crate::org::call_with(&mut s.ed, "org-protocol", crate::org::Prefix::None, uri)
+        {
+            s.ed.set_err(e);
+        }
+        s.run_effects();
+    }
     match args.line {
         Some(LineArg::N(n)) => s.goto_line(Some(n)),
         Some(LineArg::Last) => s.goto_line(None),

@@ -23,6 +23,7 @@ pub mod links;
 pub mod list;
 pub mod options;
 pub mod props;
+pub mod protocol;
 pub mod re;
 pub mod refile;
 pub mod sexp;
@@ -833,6 +834,7 @@ const MODULES: &[Module] = &[
     entities::command,
     attach::command,
     crypt::command,
+    protocol::command,
 ];
 
 thread_local! {
@@ -1101,7 +1103,15 @@ pub fn ex(ed: &mut Editor, text: &str) -> bool {
     }
     let arg = std::mem::take(&mut ed.org_arg);
     set_region(ed, range);
-    run(ed, name, arg);
+    // `:org-protocol URL`: the rest is the command's string argument.
+    let rest = if t.starts_with("org ") { "" } else { _rest };
+    if rest.is_empty() {
+        run(ed, name, arg);
+    } else {
+        CALL_ARG.with(|c| *c.borrow_mut() = Some(rest.to_owned()));
+        run(ed, name, arg);
+        CALL_ARG.with(|c| c.borrow_mut().take());
+    }
     set_region(ed, None);
     true
 }

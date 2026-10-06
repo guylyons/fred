@@ -167,3 +167,14 @@ file prompts take a typed path.
 - `org-crypt-disable-auto-save` governs Fred's swap file
   (`Session::org_disable_swap`); `encrypt` and
   `org-crypt-use-before-save-magic` encrypt keyed entries in `write_own`.
+
+## org-protocol (src/org/protocol.rs)
+
+- No server: `fred 'org-protocol://SUB?k=v&…'` runs the handler at startup
+  (register fred as the URL handler); `:org-protocol URL` does the same.
+- `:org-NAME REST` passes REST as the command's string argument
+  (`take_call_arg`).
+- Capture link properties (`%:link`, `%:description`, `%:annotation`,
+  `%:initial`, query keys) live in `capture::set_link_props`; plain captures
+  fill them from the stored link.
+- org-protocol-create(-for-org) stay missing until ox-publish exists.
