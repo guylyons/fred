@@ -574,6 +574,9 @@ fn open_link_hook(ed: &mut Editor, arg: Prefix, spec: &str) -> Result<(), String
 type Then = Box<dyn FnOnce(&mut Editor, String) + Send>;
 
 pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), String>> {
+    if !(name.starts_with("org-ctags") || name == "org-open-link-functions") {
+        return None;
+    }
     let given = super::take_call_arg();
     // Commands reading one string argument (or taking it from call_with).
     let with_arg = |ed: &mut Editor, prompt: &str, f: Then| match given.clone() {
