@@ -1,5 +1,6 @@
 //! `~/.config/fred/config.toml`.
 
+use crate::options::{Level, Opt, Options, Value};
 use serde::Deserialize;
 use std::path::PathBuf;
 
@@ -35,7 +36,16 @@ pub struct Config {
     pub org: OrgTable,
     /// `[magit]`: Magit's customization options by their upstream names.
     pub magit: MagitOptions,
+    /// `[set]`: Neovim options by name (`tabstop = 4`, `wrap = true`), as
+    /// `:set` would set them.
+    pub set: SetTable,
 }
+
+/// The `[set]` table.
+#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
+#[serde(transparent)]
+pub struct SetTable(pub toml::Table);
+impl Eq for SetTable {}
 
 /// The `[org]` table.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
@@ -71,6 +81,7 @@ impl Default for Config {
             explain_command: "claude -p --tools '' --safe-mode --model sonnet".into(),
             org: OrgTable::default(),
             magit: MagitOptions::default(),
+            set: SetTable::default(),
         }
     }
 }
@@ -125,11 +136,10 @@ impl Config {
                 Config::default(),
                 Some("config: height must be at least 1".into()),
             ),
-            Ok(c) if c.tabstop == 0 || c.tabstop > 32 => (
-                Config::default(),
-                Some("config: tabstop must be 1-32".into()),
-            ),
-            Ok(c) => (c, None),
+            Ok(c) => match c.options() {
+                Ok(_) => (c, None),
+                Err(e) => (Config::default(), Some(format!("config: {e}"))),
+            },
             Err(e) => {
                 let msg = e
                     .message()
@@ -140,6 +150,39 @@ impl Config {
                 (Config::default(), Some(format!("config: {msg}")))
             }
         }
+    }
+
+    /// The options this config sets: the older top-level keys first, then
+    /// `[set]`.
+    pub fn options(&self) -> Result<Options, String> {
+        let mut o = Options::default();
+        let clipboard = if self.clipboard { "unnamedplus" } else { "" };
+        for (opt, v) in [
+            (Opt::Number, Value::Bool(self.numbers)),
+            (Opt::Relativenumber, Value::Bool(self.relative_numbers)),
+            (Opt::Wrap, Value::Bool(self.wrap)),
+            (Opt::Cursorline, Value::Bool(self.hl_line)),
+            (Opt::Tabstop, Value::Num(self.tabstop as i64)),
+            (Opt::Autocomplete, Value::Bool(self.autocomplete)),
+            (Opt::Clipboard, Value::Str(clipboard.into())),
+        ] {
+            o.put(opt, v, Level::Both)?;
+        }
+        for (name, v) in &self.set.0 {
+            let opt = Opt::find(name).ok_or_else(|| format!("[set] unknown option: {name}"))?;
+            let v = match v {
+                toml::Value::Boolean(b) => Value::Bool(*b),
+                toml::Value::Integer(n) => Value::Num(*n),
+                toml::Value::String(s) => Value::Str(s.clone()),
+                _ => return Err(format!("[set] {name}: not a boolean, number or string")),
+            };
+            if std::mem::discriminant(&v) != std::mem::discriminant(&opt.def().default.into()) {
+                return Err(format!("[set] {name}: wrong type of value"));
+            }
+            o.put(opt, v, Level::Both)
+                .map_err(|e| format!("[set] {name}: {e}"))?;
+        }
+        Ok(o)
     }
 
     /// Load the user's config file (missing file = defaults).
@@ -231,6 +274,24 @@ mod tests {
         assert!(Config::parse("height = 0").1.is_some());
         assert_eq!(Config::parse("height = \"max\"").0.height, usize::MAX);
         assert!(Config::parse("tabstop = 0").1.is_some());
+    }
+
+    #[test]
+    fn set_table_sets_options() {
+        let (c, err) = Config::parse("wrap = true\n[set]\nts = 4\nnumber = false\ncb = \"\"\n");
+        assert!(err.is_none(), "{err:?}");
+        let o = c.options().unwrap();
+        assert_eq!(o.num(Opt::Tabstop), 4);
+        assert!(o.bool(Opt::Wrap) && !o.bool(Opt::Number));
+        assert_eq!(o.str(Opt::Clipboard), "");
+        for bad in [
+            "[set]\nnosuch = 1",
+            "[set]\nts = true",
+            "[set]\nts = 0",
+            "[set]\nts = [1]",
+        ] {
+            assert!(Config::parse(bad).1.is_some(), "{bad}");
+        }
         assert!(Config::parse("height = \"x\"").1.is_some());
     }
 }

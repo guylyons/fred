@@ -33,7 +33,7 @@ pub fn insert_key(ed: &mut Editor, k: Key) {
         KeyCode::Backspace => true,
         _ => false,
     };
-    if typed && ed.autocomplete && ed.mode == Mode::Insert {
+    if typed && ed.opts.bool(crate::options::Opt::Autocomplete) && ed.mode == Mode::Insert {
         refresh_popup(ed, false);
     } else {
         ed.popup = None;
@@ -148,22 +148,30 @@ fn edit_key(ed: &mut Editor, k: Key) {
                 delete_chars(ed, (l, b), (l + 1, 0));
             }
         }
-        KeyCode::Char('w') if k.ctrl => {
-            if b > 0 {
-                let start = word_start_before(&line, b);
+        KeyCode::Char('w' | 'u') if k.ctrl => {
+            let mut start = match k.code {
+                KeyCode::Char('w') => word_start_before(&line, b),
+                // CTRL-U keeps the indent, unless already back at it.
+                _ => match indent_of(&line).len() {
+                    i if i < b => i,
+                    _ => 0,
+                },
+            };
+            // Typed text goes first: stop where this insert began.
+            let (sl, sb) = ed.vim.insert_start;
+            if sl == l && start < sb && sb < b {
+                start = sb;
+            }
+            if start < b {
                 delete_chars(ed, (l, start), (l, b));
                 ed.cur.byte = start;
             }
-        }
-        KeyCode::Char('u') if k.ctrl => {
-            delete_chars(ed, (l, 0), (l, b));
-            ed.cur.byte = 0;
         }
         KeyCode::Tab => {
             if ed.indent_spaces == 0 {
                 insert_text(ed, "\t");
             } else {
-                let col = col_of_byte(&line, b, ed.tabstop);
+                let col = col_of_byte(&line, b, ed.tabstop());
                 let n = ed.indent_spaces - col % ed.indent_spaces;
                 insert_text(ed, &" ".repeat(n));
             }

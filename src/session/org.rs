@@ -11,7 +11,11 @@ impl Session {
     /// Open a special Org buffer named `name` (`*Org Note*`) holding
     /// `text`, the cursor at `cursor`. `finish` runs on C-c C-c / C-c C-k.
     pub fn org_special(&mut self, name: &str, text: &str, cursor: (usize, usize), finish: Finish) {
-        let mut ed = make_editor(Buffer::from_text(text), &self.cfg);
+        let mut ed = make_editor(
+            Buffer::from_text(text),
+            self.ed.opts.for_new_buffer(),
+            &self.cfg,
+        );
         ed.org = Some(Box::default());
         ed.org_buffer_name = Some(name.to_owned());
         ed.org_finish = Some(crate::org::FinishSlot::new(finish));
@@ -64,7 +68,7 @@ impl Session {
         if let Some(i) = self.find(path) {
             return Ok(i);
         }
-        let o = open_file(Some(path), &self.cfg)?;
+        let o = open_file(Some(path), self.ed.opts.for_new_buffer(), &self.cfg)?;
         let swap = swap::swap_path_in(&self.swap_dir, Some(path));
         self.bufs.push(Some(Parked {
             ed: o.ed,

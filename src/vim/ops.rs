@@ -230,7 +230,7 @@ pub fn apply_op(ed: &mut Editor, op: char, sp: Span) {
 
 /// Set the register, and the system clipboard with it.
 pub(crate) fn set_reg(ed: &mut Editor, reg: Register) {
-    if ed.clipboard {
+    if ed.clipboard() {
         crate::clipboard::set(&reg);
     }
     ed.reg = reg;
@@ -238,7 +238,7 @@ pub(crate) fn set_reg(ed: &mut Editor, reg: Register) {
 
 pub fn put(ed: &mut Editor, count: usize, after: bool) {
     // Something copied in another app since our last yank wins.
-    if ed.clipboard
+    if ed.clipboard()
         && let Some(c) = crate::clipboard::get()
         && c != crate::clipboard::to_clip(&ed.reg)
     {
@@ -288,19 +288,8 @@ pub fn join(ed: &mut Editor, lo: usize, count: usize) -> bool {
             break;
         }
         let cur = ed.buf.line(lo);
-        let next = ed.buf.line(lo + 1);
-        let next = next.trim_start();
-        let sep = if cur.is_empty()
-            || next.is_empty()
-            || cur.ends_with([' ', '\t'])
-            || next.starts_with(')')
-        {
-            ""
-        } else {
-            " "
-        };
         col = cur.len();
-        let joined = format!("{cur}{sep}{next}");
+        let joined = crate::text::join_lines(&cur, &ed.buf.line(lo + 1));
         splice_lines(ed, lo, 2, &[joined]);
     }
     ed.set_cursor(lo, col);

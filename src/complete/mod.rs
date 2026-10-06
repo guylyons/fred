@@ -109,14 +109,41 @@ pub fn cmdline_candidates(text: &str, cwd: &Path) -> Vec<String> {
     let Some((cmd, arg)) = text.split_once(' ') else {
         return vec![];
     };
-    let name = cmd.trim_end_matches('!');
-    if !crate::ex::cmd::lookup(name).is_some_and(|c| c.flags & crate::ex::cmd::FILE != 0) {
+    use crate::ex::cmd::{FILE, OPTION, lookup};
+    let flags = lookup(cmd.trim_end_matches('!')).map_or(0, |c| c.flags);
+    if flags & OPTION != 0 {
+        return option_names(cmd, arg);
+    }
+    if flags & FILE == 0 {
         return vec![];
     }
     let arg = arg.trim_start();
     path::complete(arg, cwd)
         .into_iter()
         .map(|p| format!("{cmd} {p}"))
+        .collect()
+}
+
+/// `:set` lines completing the last word of `args` to an option name,
+/// keeping a `no` or `inv` before it.
+fn option_names(cmd: &str, args: &str) -> Vec<String> {
+    let (before, word) = args.rsplit_once(' ').map_or(("", args), |(b, w)| (b, w));
+    if word.contains(['=', ':', '!', '&', '?']) {
+        return vec![];
+    }
+    let (prefix, name) = ["no", "inv", ""]
+        .into_iter()
+        .find_map(|p| Some((p, word.strip_prefix(p)?)))
+        .unwrap_or(("", word));
+    let head = match before {
+        "" => format!("{cmd} "),
+        b => format!("{cmd} {b} "),
+    };
+    crate::options::OPTIONS
+        .iter()
+        .filter(|d| d.name.starts_with(name) && d.name != name)
+        .filter(|d| prefix.is_empty() || matches!(d.default, crate::options::DefaultValue::Bool(_)))
+        .map(|d| format!("{head}{prefix}{}", d.name))
         .collect()
 }
 
@@ -203,7 +230,7 @@ mod tests {
     #[test]
     fn autocomplete_off_still_allows_ctrl_n() {
         let mut e = crate::editor::Editor::new(Buffer::from_text("hello"));
-        e.autocomplete = false;
+        e.run_ex("set noautocomplete");
         for k in crate::key::parse_keys("ohe") {
             e.handle_key(k);
         }
@@ -224,6 +251,13 @@ mod tests {
             vec!["e! notes.txt"]
         );
         assert_eq!(cmdline_candidates("wr", d.path()), vec!["write"]);
+        assert_eq!(cmdline_candidates("set ta", d.path()), vec!["set tabstop"]);
+        assert_eq!(
+            cmdline_candidates("se ts=4 nowr", d.path()),
+            vec!["se ts=4 nowrap"]
+        );
+        assert!(cmdline_candidates("set note", d.path()).is_empty());
+        assert!(cmdline_candidates("set ts=", d.path()).is_empty());
         assert!(cmdline_candidates("s/x/y/", d.path()).is_empty());
     }
 }

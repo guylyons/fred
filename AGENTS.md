@@ -13,3 +13,9 @@ keys live under `Space m`. A Magit-inspired subset or simple Git wrappers do not
 satisfy the task. Use the pinned upstream source as the behavioral reference,
 track every incomplete feature explicitly, and continue implementation without
 repeated permission questions. Preserve the user's uncommitted `notes.md`.
+
+When working on the Neovim core port, read
+[docs/nvim-core-roadmap.md](docs/nvim-core-roadmap.md) first and keep its
+points, execution queue and log, and the `docs/nvim-parity.csv` ledger,
+current in every implementation commit. Verify behavior against real Neovim
+with `tests/nvim_oracle.rs` (`tools/nvim-oracle.lua`).

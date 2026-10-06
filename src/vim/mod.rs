@@ -27,6 +27,9 @@ pub struct State {
     pub(crate) pending_op: Option<(char, Option<usize>)>,
     /// The last Insert-mode key was a typed `j` (a second one leaves Insert).
     pub(crate) after_j: bool,
+    /// Where this Insert session began: `CTRL-W` and `CTRL-U` stop there
+    /// once, as with Neovim's default 'backspace'.
+    pub(crate) insert_start: (usize, usize),
 }
 
 impl State {

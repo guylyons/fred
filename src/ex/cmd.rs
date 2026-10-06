@@ -2,6 +2,7 @@
 
 use super::addr::{AddrCtx, Range, parse_addr, parse_range, read_delimited, use_pattern};
 use crate::buffer::{Buffer, Edit};
+use crate::options::Level;
 use crate::search;
 use crate::undo::Undo;
 use regex::{Captures, Regex};
@@ -49,6 +50,11 @@ pub enum ExEffect {
         range: Range,
         prompt: String,
         explain: bool,
+    },
+    /// `:set`, `:setlocal`, `:setglobal` with their arguments.
+    Set {
+        args: String,
+        level: crate::options::Level,
     },
     /// `:b [N|name|#]`, `:bn`, `:bp`, `:bd[!] [N|name]`, `:ls`.
     Buffer {
@@ -223,6 +229,8 @@ const EXTRA: u8 = 4;
 pub const FILE: u8 = 8;
 /// The argument is required (Tab adds the space before it).
 pub const NEEDARG: u8 = 16;
+/// The argument is option names (Tab completes them).
+pub const OPTION: u8 = 32;
 
 /// A named command, as in vim's `ex_cmds.lua`: `min` is how short an
 /// abbreviation may be (`:w` for `:write`).
@@ -270,7 +278,7 @@ pub const COMMANDS: &[Command] = &[
         st.cur = a.at.start.min(st.buf.len_lines() - 1);
         Ok(ExEffect::None)
     }),
-    cmd("join", 1, RANGE, join),
+    cmd("join", 1, RANGE | BANG, join),
     needs("move", 1, RANGE, "{address}", |st, a| {
         move_copy(st, a, false)
     }),
@@ -297,6 +305,9 @@ pub const COMMANDS: &[Command] = &[
         read(st, at, a.arg)
     }),
     cmd("pwd", 2, 0, |_, _| Ok(ExEffect::Pwd)),
+    cmd("set", 2, EXTRA | OPTION, |_, a| set(a, Level::Both)),
+    cmd("setlocal", 4, EXTRA | OPTION, |_, a| set(a, Level::Local)),
+    cmd("setglobal", 4, EXTRA | OPTION, |_, a| set(a, Level::Global)),
     cmd("cd", 2, EXTRA | FILE, |_, a| {
         Ok(ExEffect::Cd(path_arg(a.arg)?))
     }),
@@ -388,6 +399,13 @@ fn write(a: Args, then_quit: bool) -> Result<ExEffect, String> {
     })
 }
 
+fn set(a: Args, level: Level) -> Result<ExEffect, String> {
+    Ok(ExEffect::Set {
+        args: a.raw.trim().to_string(),
+        level,
+    })
+}
+
 fn buffer(a: Args, cmd: BufCmd) -> Result<ExEffect, String> {
     Ok(ExEffect::Buffer {
         cmd,
@@ -419,7 +437,14 @@ fn join(st: &mut ExState, a: Args) -> Result<ExEffect, String> {
         None => return Err("invalid address".into()),
     };
     if r.start < r.end {
-        let joined = st.lines(r).concat();
+        // `:j!` keeps white space as it is.
+        let lines = st.lines(r).into_iter();
+        let joined = match a.force {
+            true => lines.collect::<String>(),
+            false => lines
+                .reduce(|a, b| crate::text::join_lines(&a, &b))
+                .unwrap_or_default(),
+        };
         st.splice(r.start, r.end - r.start + 1, vec![joined]);
     }
     st.cur = r.start;
@@ -711,8 +736,9 @@ mod tests {
         );
         assert_eq!(ex(t, 0, "s/o/\\&/"), ("&ne\ntwo\nthree\nfour".into(), 0));
         assert_eq!(ex(t, 0, "s#o#/#"), ("/ne\ntwo\nthree\nfour".into(), 0));
-        assert_eq!(ex(t, 0, "1,2j"), ("onetwo\nthree\nfour".into(), 0));
-        assert_eq!(ex(t, 0, "j"), ("onetwo\nthree\nfour".into(), 0));
+        assert_eq!(ex(t, 0, "1,2j"), ("one two\nthree\nfour".into(), 0));
+        assert_eq!(ex(t, 0, "j"), ("one two\nthree\nfour".into(), 0));
+        assert_eq!(ex(t, 0, "j!"), ("onetwo\nthree\nfour".into(), 0));
         assert_eq!(ex(t, 0, "1m$"), ("two\nthree\nfour\none".into(), 3));
         assert_eq!(ex(t, 3, "4m0"), ("four\none\ntwo\nthree".into(), 0));
         assert_eq!(ex(t, 0, "1,2m3"), ("three\none\ntwo\nfour".into(), 2));

@@ -94,12 +94,12 @@ impl Ui {
         // `done.area` is the whole terminal; the buffer covers just the window.
         self.area = Some(done.buffer.area);
         let area = done.buffer.area;
-        let gutter = ui::render::gutter_width(&s.ed, cfg).min(area.width as usize / 2);
+        let gutter = ui::render::gutter_width(&s.ed).min(area.width as usize / 2);
         s.ed.viewport = Some(crate::zap::Viewport {
             view: self.view,
             rows: (area.height as usize).saturating_sub(2),
             cols: (area.width as usize).saturating_sub(gutter).max(1),
-            wrap: cfg.wrap,
+            wrap: s.ed.opts.bool(crate::options::Opt::Wrap),
         });
         // Paging scrolls by the text rows actually on screen (minus status
         // and command lines), not the configured height, which may be "max".
@@ -728,7 +728,7 @@ fn event_loop(
                 match ev {
                     Event::Mouse(m) => {
                         if let Some(area) = ui.area {
-                            ui::render::mouse(&mut s.ed, &mut ui.view, cfg, area, m);
+                            ui::render::mouse(&mut s.ed, &mut ui.view, area, m);
                         }
                     }
                     ev => {

@@ -7,6 +7,7 @@ use crate::editor::{CmdLine, Editor, Mode};
 use crate::git::FileState;
 use crate::git::Mark;
 use crate::highlight::{Highlighter, LineStyles};
+use crate::options::Opt;
 use crate::pick::{Kind, Picker, Row};
 use crate::text::{col_of_byte, display_width, is_control};
 use ratatui::Frame;
@@ -136,11 +137,12 @@ fn digits(n: usize) -> usize {
     n.to_string().len()
 }
 
-pub fn gutter_width(ed: &Editor, cfg: &Config) -> usize {
+pub fn gutter_width(ed: &Editor) -> usize {
     // magit-section-disable-line-numbers.
     let magit_off = ed.magit.is_some()
         && crate::magit::options::flag("magit-section-disable-line-numbers", true);
-    let numbers = if (cfg.numbers || cfg.relative_numbers) && !magit_off {
+    let numbers = if (ed.opts.bool(Opt::Number) || ed.opts.bool(Opt::Relativenumber)) && !magit_off
+    {
         digits(ed.line_count()).max(3) + 1
     } else {
         0
@@ -197,7 +199,6 @@ fn mode_name(m: &Mode) -> &'static str {
 pub fn mouse(
     ed: &mut Editor,
     view: &mut View,
-    cfg: &Config,
     area: Rect,
     event: ratatui::crossterm::event::MouseEvent,
 ) {
@@ -254,7 +255,7 @@ pub fn mouse(
         return;
     }
     ed.zap = None;
-    let gutter = gutter_width(ed, cfg).min(area.width as usize / 2);
+    let gutter = gutter_width(ed).min(area.width as usize / 2);
     let cols = (area.width as usize).saturating_sub(gutter).max(1);
     let rows = (area.height as usize).saturating_sub(2).max(1);
     match event.kind {
@@ -264,7 +265,7 @@ pub fn mouse(
                 ed,
                 rows,
                 cols,
-                cfg.wrap,
+                ed.opts.bool(Opt::Wrap),
                 event.kind == MouseEventKind::ScrollDown,
             );
         }
@@ -276,10 +277,10 @@ pub fn mouse(
                 let text = ed.buf.line(line);
                 let height = if line != ed.cur.line && ed.folds.hidden(line) {
                     0
-                } else if cfg.wrap {
-                    let height = super::layout::wrap_rows(&text, ed.tabstop, cols);
+                } else if ed.opts.bool(Opt::Wrap) {
+                    let height = super::layout::wrap_rows(&text, ed.tabstop(), cols);
                     if line == ed.cur.line {
-                        height.max(wrap_cursor(&text, ed.cur.byte, ed.tabstop, cols).0 + 1)
+                        height.max(wrap_cursor(&text, ed.cur.byte, ed.tabstop(), cols).0 + 1)
                     } else {
                         height
                     }
@@ -290,18 +291,27 @@ pub fn mouse(
                     y -= height;
                     continue;
                 }
-                let target = if cfg.wrap { x } else { x + view.left };
-                let byte = Layout::new(&text, ed.tabstop, cfg.wrap.then_some(cols))
-                    .find(|p| p.row == y && p.x + p.width > target)
-                    .map_or_else(
-                        || {
-                            Layout::new(&text, ed.tabstop, cfg.wrap.then_some(cols))
+                let target = if ed.opts.bool(Opt::Wrap) {
+                    x
+                } else {
+                    x + view.left
+                };
+                let byte =
+                    Layout::new(&text, ed.tabstop(), ed.opts.bool(Opt::Wrap).then_some(cols))
+                        .find(|p| p.row == y && p.x + p.width > target)
+                        .map_or_else(
+                            || {
+                                Layout::new(
+                                    &text,
+                                    ed.tabstop(),
+                                    ed.opts.bool(Opt::Wrap).then_some(cols),
+                                )
                                 .filter(|p| p.row == y)
                                 .last()
                                 .map_or(text.len(), |p| p.byte + p.text.len())
-                        },
-                        |p| p.byte,
-                    );
+                            },
+                            |p| p.byte,
+                        );
                 ed.set_cursor(line, byte);
                 ed.popup = None;
                 ed.vim.pending.clear();
@@ -597,7 +607,7 @@ pub fn draw(
     } else {
         view.picker_offset = 0;
     }
-    let gutter = gutter_width(ed, cfg).min(area.width as usize / 2);
+    let gutter = gutter_width(ed).min(area.width as usize / 2);
     let blame_w = blame_column(ed).min(gutter);
     let sign = git_column(ed).min(gutter - blame_w);
     let blame = ed.blame.as_ref().filter(|b| b.version == ed.buf.version);
@@ -609,7 +619,7 @@ pub fn draw(
     let cols = cols - margin_w;
     let now = crate::magit::margin::now();
     if panel == 0 && ed.zap.is_none() {
-        view.scroll(ed, rows.max(1), cols, cfg.wrap);
+        view.scroll(ed, rows.max(1), cols, ed.opts.bool(Opt::Wrap));
     }
     let n = ed.line_count();
     // Hidden lines take no rows, so the screen can reach further.
@@ -728,7 +738,7 @@ pub fn draw(
             }
             if gutter > 0 && row == 0 {
                 let mark = ed.git.mark(l).map(git_sign);
-                let num = if cfg.relative_numbers && l != ed.cur.line {
+                let num = if ed.opts.bool(Opt::Relativenumber) && l != ed.cur.line {
                     l.abs_diff(ed.cur.line)
                 } else {
                     l + 1
@@ -790,7 +800,7 @@ pub fn draw(
                     Style::default().bg(Color::Indexed(237)),
                 );
             }
-            if cfg.hl_line && l == ed.cur.line && !in_sel && !splash {
+            if ed.opts.bool(Opt::Cursorline) && l == ed.cur.line && !in_sel && !splash {
                 buf.set_style(
                     Rect::new(ox + gutter as u16, oy + *y as u16, cols as u16, 1),
                     Style::default().bg(Color::Indexed(235)),
@@ -798,11 +808,11 @@ pub fn draw(
             }
             *y += 1;
         };
-        if cfg.wrap {
+        if ed.opts.bool(Opt::Wrap) {
             let mut styler = Styler::new(&st);
             let mut row = 0;
             let mut spans = vec![];
-            for p in Layout::new(&line, ed.tabstop, Some(cols)) {
+            for p in Layout::new(&line, ed.tabstop(), Some(cols)) {
                 if p.row != row {
                     if row >= skip {
                         emit(&mut y, row, std::mem::take(&mut spans));
@@ -822,7 +832,7 @@ pub fn draw(
                 emit(&mut y, row, spans);
             }
             if l == ed.cur.line {
-                let (cr, cx) = wrap_cursor(&line, ed.cur.byte, ed.tabstop, cols);
+                let (cr, cx) = wrap_cursor(&line, ed.cur.byte, ed.tabstop(), cols);
                 // The end of a full row puts the cursor on a row of its own.
                 if cr > row && y < rows {
                     emit(&mut y, cr, vec![]);
@@ -832,9 +842,13 @@ pub fn draw(
                 }
             }
         } else {
-            emit(&mut y, 0, visible(&line, &st, ed.tabstop, view.left, cols));
+            emit(
+                &mut y,
+                0,
+                visible(&line, &st, ed.tabstop(), view.left, cols),
+            );
             if l == ed.cur.line {
-                let cc = col_of_byte(&line, ed.cur.byte, ed.tabstop);
+                let cc = col_of_byte(&line, ed.cur.byte, ed.tabstop());
                 if cc >= view.left && cc - view.left < cols {
                     cursor = Some((gutter + cc - view.left, first_y));
                 }
@@ -930,7 +944,7 @@ pub fn draw(
         let geom = Geom {
             gutter,
             rows,
-            wrap_cols: if cfg.wrap { cols } else { 0 },
+            wrap_cols: if ed.opts.bool(Opt::Wrap) { cols } else { 0 },
         };
         draw_popup(buf, area, ed, view, geom, (cx, cy));
     }
@@ -1025,7 +1039,7 @@ fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter) {
         return;
     }
     let line = ed.buf.line(ed.cur.line);
-    let col = col_of_byte(&line, ed.cur.byte, ed.tabstop) + 1;
+    let col = col_of_byte(&line, ed.cur.byte, ed.tabstop()) + 1;
     let mut right = vec![Span::styled(format!(" {}:{col} ", ed.cur.line + 1), bold)];
     if w >= 50 {
         let percent = (ed.cur.line + 1) * 100 / ed.line_count().max(1);
@@ -1647,11 +1661,11 @@ fn draw_popup(
     let line = ed.buf.line(ed.cur.line);
     let start = p.start.min(line.len());
     let start_col = if wrap_cols > 0 {
-        let (sr, sx) = wrap_cursor(&line, start, ed.tabstop, wrap_cols);
-        let (cr, _) = wrap_cursor(&line, ed.cur.byte, ed.tabstop, wrap_cols);
+        let (sr, sx) = wrap_cursor(&line, start, ed.tabstop(), wrap_cols);
+        let (cr, _) = wrap_cursor(&line, ed.cur.byte, ed.tabstop(), wrap_cols);
         gutter + if sr == cr { sx } else { 0 }
     } else {
-        gutter + col_of_byte(&line, start, ed.tabstop).saturating_sub(view.left)
+        gutter + col_of_byte(&line, start, ed.tabstop()).saturating_sub(view.left)
     };
     let x0 = start_col.saturating_sub(1).min(area.width as usize - width);
     let normal = Style::default().bg(Color::DarkGray).fg(Color::White);

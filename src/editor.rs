@@ -5,6 +5,7 @@ use crate::complete::index::WordIndex;
 use crate::complete::{self, Popup};
 use crate::ex::{self, ExEffect, ExState};
 use crate::key::{Key, KeyCode};
+use crate::options::Opt;
 use crate::search;
 use crate::text;
 use crate::undo::Undo;
@@ -174,7 +175,8 @@ pub struct Editor {
     pub win_height: usize,
     pub(crate) viewport: Option<crate::zap::Viewport>,
     pub(crate) zap: Option<crate::zap::Zap>,
-    pub tabstop: usize,
+    /// Option values (`:set`); see `crate::options`.
+    pub opts: crate::options::Options,
     /// Insert spaces for Tab, this many per indent level (0 = insert a tab).
     pub indent_spaces: usize,
     /// Undo state of the text as last saved; `u64::MAX` = never matches.
@@ -185,9 +187,6 @@ pub struct Editor {
     /// `:explain`: Claude's explanation of these lines, shown over them
     /// until Esc or a click outside it (or on its ✕).
     pub explain: Option<(ex::addr::Range, String)>,
-    pub autocomplete: bool,
-    /// Share yanks and puts with the system clipboard.
-    pub clipboard: bool,
     /// Words from nearby files, filled in by a background thread.
     pub nearby: Arc<Mutex<Vec<String>>>,
     pub(crate) word_index: WordIndex,
@@ -251,14 +250,12 @@ impl Editor {
             win_height: 12,
             viewport: None,
             zap: None,
-            tabstop: 8,
+            opts: Default::default(),
             indent_spaces,
             saved_state: 0,
             vim: vim::State::default(),
             popup: None,
             explain: None,
-            autocomplete: true,
-            clipboard: false,
             nearby: Arc::default(),
             word_index: WordIndex::default(),
             git: crate::git::Gutter::default(),
@@ -398,6 +395,7 @@ impl Editor {
             _ => {}
         }
         if self.mode == Mode::Insert && !was_insert {
+            self.vim.insert_start = self.cur.pos();
             self.word_index.ensure(&self.buf, true);
         }
         if self.mode != Mode::Insert {
@@ -420,6 +418,16 @@ impl Editor {
             _ => return None,
         };
         Some((a.min(self.cur.line), a.max(self.cur.line)))
+    }
+
+    /// Columns a tab takes ('tabstop').
+    pub fn tabstop(&self) -> usize {
+        self.opts.num(Opt::Tabstop) as usize
+    }
+
+    /// Yanks and puts share the system clipboard ('clipboard').
+    pub fn clipboard(&self) -> bool {
+        !self.opts.str(Opt::Clipboard).is_empty()
     }
 
     /// Generated Git text (status/log/diff views and blobs) is never edited or saved.
@@ -549,7 +557,7 @@ impl Editor {
         self.cur.line = line.min(self.line_count() - 1);
         let l = self.buf.line(self.cur.line);
         self.cur.byte = text::floor_grapheme(&l, byte);
-        self.cur.want_col = text::col_of_byte(&l, self.cur.byte, self.tabstop);
+        self.cur.want_col = text::col_of_byte(&l, self.cur.byte, self.tabstop());
     }
 
     /// Move to `line`, keeping the remembered screen column.
@@ -559,7 +567,7 @@ impl Editor {
         self.cur.byte = if self.cur.want_col == usize::MAX {
             text::prev_grapheme(&l, l.len())
         } else {
-            text::byte_of_col(&l, self.cur.want_col, self.tabstop)
+            text::byte_of_col(&l, self.cur.want_col, self.tabstop())
         };
     }
 
@@ -758,9 +766,7 @@ impl Editor {
             match result {
                 Ok(eff) => {
                     self.set_cursor(line.min(self.line_count() - 1), 0);
-                    if eff != ExEffect::None {
-                        self.pending_effect = Some(eff);
-                    }
+                    self.effect(eff);
                 }
                 Err(e) => self.set_err(e),
             }
@@ -784,11 +790,25 @@ impl Editor {
                     let b = self.first_nonblank(new_cur.min(self.line_count() - 1));
                     self.set_cursor(new_cur, b);
                 }
-                if eff != ExEffect::None {
-                    self.pending_effect = Some(eff);
-                }
+                self.effect(eff);
             }
             Err(e) => self.set_err(e),
+        }
+    }
+
+    /// What an ex command asks for: options are the editor's own; the rest
+    /// is for the session.
+    fn effect(&mut self, eff: ExEffect) {
+        match eff {
+            ExEffect::None => {}
+            ExEffect::Set { args, level } => {
+                match crate::options::set(&mut self.opts, &args, level) {
+                    Ok(shown) if !shown.is_empty() => self.set_msg(shown),
+                    Ok(_) => {}
+                    Err(e) => self.set_err(e),
+                }
+            }
+            eff => self.pending_effect = Some(eff),
         }
     }
 

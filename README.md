@@ -72,8 +72,8 @@ fred [-i | -f] [--height N] [+LINE] [FILE | DIR]
 
 **Editing:** `d c y` combined with any motion (including searches: `d/foo<Enter>`), plus `dd cc yy D C Y`,
 `x X s S r{c} J`, `p P`, `o O i a I A`, `u` (undo) and `Ctrl-R` (redo), `.`
-(repeat the last change), `m{a-z}` (set a mark), `V` (visual-line mode, then
-`d c y J :`).
+(repeat the last change), `m{a-z}` (set a mark), `v` (visual mode: move to
+select, then `d x y c s`), `V` (visual-line mode, then `d c y J :`).
 Yanks and deletes go to the system clipboard too, and `p`/`P` put what
 another app copied since (`clipboard = false` keeps them to fred).
 
@@ -81,8 +81,8 @@ another app copied since (`clipboard = false` keeps them to fred).
 next suggestion and `Shift-Tab`/`Ctrl-P` the previous one. `Enter` accepts a
 selected suggestion, or starts a new line when nothing is selected. `Esc`
 closes the popup and leaves Insert mode; so does typing `jj`. `Ctrl-W` deletes the word before the
-cursor and `Ctrl-U` deletes to the start of the line. Pasted text goes in
-exactly as pasted.
+cursor and `Ctrl-U` deletes to the indent, stopping first where you started
+typing, as in Neovim. Pasted text goes in exactly as pasted.
 
 `Ctrl-G` cancels, like `Esc`: a picker, the `:` line, a half-typed command.
 
@@ -122,8 +122,8 @@ Space is the leader key (`l` still moves right).
   the prompt is a path, and what you type after the last `/` fuzzy-matches
   every file below that directory (plus its subdirectories, to go into),
   honoring `.gitignore`. With nothing typed you see the directory itself.
-  `Tab` on a directory goes in and `Enter` lists it (dired), `Backspace`
-  after a `/` goes up a directory, `~/` jumps home, and `Enter` on a name
+  `Tab` or `Right` on a directory goes in and `Enter` lists it (dired),
+  `Left` (or `Backspace` after a `/`) goes up a directory, `~/` jumps home, and `Enter` on a name
   that doesn't exist starts a new file. It starts in the current file's
   directory. Dotfiles show once you type a `.`.
 - `Space b` lists the open buffers (like `:ls`); type to filter. `Ctrl-^`
@@ -376,6 +376,27 @@ ai_rules = ""            # extra instructions for every :ai, e.g.
 
 Set `hl_line = true` for a subtle, full-width dark-gray highlight (`#262626`).
 Syntax colors stay visible, and visual selections take priority.
+
+### Options and `:set`
+
+`wrap`, `numbers`, `relative_numbers`, `hl_line`, `tabstop`, `autocomplete`
+and `clipboard` above are Neovim options (`wrap`, `number`, `relativenumber`,
+`cursorline`, `tabstop`, `autocomplete`, `clipboard`). A `[set]` table sets
+any option by its Neovim name or abbreviation, as `:set` would:
+
+```toml
+[set]
+ts = 4
+cursorline = true
+```
+
+While editing, `:set`, `:setlocal` and `:setglobal` work as in Neovim:
+`:set ts=4`, `:set nowrap`, `:set invnu`, `:set rnu!`, `:set ts?`,
+`:set ts&`, `:set cb+=unnamed`, and `:set` alone lists what differs from the
+defaults. Window and buffer options are per buffer, so `:setlocal` changes
+only this one. Tab completes option names. Fred implements the options it
+lists; the rest of Neovim's are tracked in
+[the Neovim roadmap](docs/nvim-core-roadmap.md).
 
 ## Development
 

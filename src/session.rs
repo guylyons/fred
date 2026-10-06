@@ -7,6 +7,7 @@ use crate::ex::addr::Range;
 use crate::ex::{BufCmd, ExEffect};
 use crate::fileio::{self, FileStamp};
 use crate::key::Key;
+use crate::options::Options;
 use crate::swap::{self, SwapInfo};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -132,11 +133,9 @@ pub struct Session {
     clock: u64,
 }
 
-fn make_editor(buf: Buffer, cfg: &Config) -> Editor {
+fn make_editor(buf: Buffer, opts: Options, cfg: &Config) -> Editor {
     let mut ed = Editor::new(buf);
-    ed.tabstop = cfg.tabstop;
-    ed.autocomplete = cfg.autocomplete;
-    ed.clipboard = cfg.clipboard;
+    ed.opts = opts;
     ed.win_height = cfg.height;
     ed
 }
@@ -176,11 +175,11 @@ struct Opened {
     lossy: bool,
 }
 
-fn open_file(path: Option<&Path>, cfg: &Config) -> Result<Opened, String> {
+fn open_file(path: Option<&Path>, opts: Options, cfg: &Config) -> Result<Opened, String> {
     let Some(p) = path else {
         let buf = Buffer::from_text("");
         return Ok(Opened {
-            ed: make_editor(buf, cfg),
+            ed: make_editor(buf, opts, cfg),
             stamp: None,
             lossy: false,
         });
@@ -188,7 +187,7 @@ fn open_file(path: Option<&Path>, cfg: &Config) -> Result<Opened, String> {
     let l = fileio::load(p)?;
     let lossy = l.notice.as_deref() == Some("not valid UTF-8");
     let (lines, bytes) = (l.buf.len_lines(), l.buf.len_bytes());
-    let mut ed = make_editor(l.buf, cfg);
+    let mut ed = make_editor(l.buf, opts, cfg);
     ed.path = Some(p.to_path_buf());
     ed.readonly = l.readonly;
     crate::org::attach(&mut ed);
@@ -255,7 +254,9 @@ impl Session {
         crate::org::options::set(cfg.org.0.clone());
         let browse = path.clone().filter(|p| p.is_dir());
         let path = if browse.is_some() { None } else { path };
-        let o = open_file(path.as_deref(), cfg)?;
+        // Config errors were reported when it was parsed.
+        let opts = cfg.options().unwrap_or_default();
+        let o = open_file(path.as_deref(), opts, cfg)?;
         let swap_path = swap::swap_path_in(swap_dir, path.as_deref());
         let mut s = Session {
             seen_version: o.ed.buf.version,
@@ -367,7 +368,8 @@ impl Session {
 
     pub fn perform(&mut self, eff: ExEffect) {
         match eff {
-            ExEffect::None => {}
+            // The editor applies these itself (`Editor::run_ex`).
+            ExEffect::None | ExEffect::Set { .. } => {}
             ExEffect::Magit(a) => self.magit_action(a),
             ExEffect::Org(e) => {
                 if let Some(f) = e.take() {
@@ -640,7 +642,7 @@ impl Session {
             self.go(then);
             return;
         }
-        let o = match open_file(Some(&p), &self.cfg) {
+        let o = match open_file(Some(&p), self.ed.opts.for_new_buffer(), &self.cfg) {
             Ok(o) => o,
             Err(e) => {
                 self.ed.set_err(format!("{}: {e}", p.display()));
@@ -682,7 +684,11 @@ impl Session {
             }
             return;
         }
-        let mut ed = make_editor(Buffer::from_text(""), &self.cfg);
+        let mut ed = make_editor(
+            Buffer::from_text(""),
+            self.ed.opts.for_new_buffer(),
+            &self.cfg,
+        );
         if let Err(e) = crate::dired::visit(&mut ed, dir, focus) {
             return self.ed.set_err(e);
         }
@@ -758,7 +764,7 @@ impl Session {
             self.ed.set_msg(format!("still editing {}", self.name()));
             return;
         }
-        let o = match open_file(Some(&path), &self.cfg) {
+        let o = match open_file(Some(&path), self.ed.opts.for_new_buffer(), &self.cfg) {
             Ok(o) => o,
             Err(e) => {
                 self.ed.set_err(format!("{}: {e}", path.display()));
@@ -917,7 +923,8 @@ impl Session {
         }
         if n == 1 {
             // The last buffer: an empty one takes its place.
-            let o = open_file(None, &self.cfg).expect("an empty buffer");
+            let o =
+                open_file(None, self.ed.opts.for_new_buffer(), &self.cfg).expect("an empty buffer");
             self.replace(o, swap::swap_path_in(&self.swap_dir, None));
             self.lock();
             return;
@@ -994,7 +1001,11 @@ impl Session {
 
     /// Replace the buffer with a swap file's text.
     pub fn recover(&mut self, info: SwapInfo) {
-        let mut ed = make_editor(Buffer::from_text(&info.text), &self.cfg);
+        let mut ed = make_editor(
+            Buffer::from_text(&info.text),
+            self.ed.opts.for_new_buffer(),
+            &self.cfg,
+        );
         ed.inherit(&mut self.ed);
         ed.path = self.ed.path.clone();
         ed.readonly = self.ed.readonly;
@@ -2787,7 +2798,7 @@ mod tests {
                 .unwrap();
         // :Magit magit-copy-diff-as-kill copies the hunk (not to the
         // system clipboard in a test).
-        t.s.ed.clipboard = false;
+        t.s.ed.run_ex("set clipboard=");
         t.keys(&format!(
             "{}G:Magit magit-copy-diff-as-kill<Enter>",
             row + 1
