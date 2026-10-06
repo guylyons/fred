@@ -5546,36 +5546,36 @@ ox.el,1007,option,org-export-force-publishing,missing,,"The initial ""Force publ
 ox.el,1015,option,org-export-in-background,missing,,Non-nil means export and publishing commands will run in background.
 ox.el,1024,option,org-export-async-init-file,missing,,File used to initialize external export process.
 ox.el,1042,option,org-export-dispatch-use-expert-ui,missing,,Non-nil means using a non-intrusive `org-export-dispatch'.
-ox.el,1093,function,org-export-get-backend,missing,,Return export backend named after NAME.
-ox.el,1099,function,org-export-register-backend,missing,,Register BACKEND as a known export backend.
+ox.el,1093,function,org-export-get-backend,partial,src/org/export export::get; pipeline and backends not wired yet (WIP),Return export backend named after NAME.
+ox.el,1099,function,org-export-register-backend,partial,src/org/export export::register; pipeline and backends not wired yet (WIP),Register BACKEND as a known export backend.
 ox.el,1116,function,org-export-barf-if-invalid-backend,missing,,Signal an error if BACKEND isn't defined.
-ox.el,1122,function,org-export-derived-backend-p,missing,,Non-nil if BACKEND is derived from one of BACKENDS.
-ox.el,1137,function,org-export-get-all-transcoders,missing,,Return full translation table for BACKEND.
-ox.el,1158,function,org-export-get-all-options,missing,,Return export options for BACKEND.
-ox.el,1178,function,org-export-get-all-filters,missing,,Return complete list of filters for BACKEND.
-ox.el,1196,function,org-export-define-backend,missing,,Define a new backend BACKEND.
-ox.el,1322,function,org-export-define-derived-backend,missing,,Create a new backend as a variant of an existing one.
+ox.el,1122,function,org-export-derived-backend-p,partial,src/org/export Backend::derived_p; pipeline and backends not wired yet (WIP),Non-nil if BACKEND is derived from one of BACKENDS.
+ox.el,1137,function,org-export-get-all-transcoders,partial,src/org/export Backend::all_transcoders; pipeline and backends not wired yet (WIP),Return full translation table for BACKEND.
+ox.el,1158,function,org-export-get-all-options,partial,src/org/export Backend::all_options; pipeline and backends not wired yet (WIP),Return export options for BACKEND.
+ox.el,1178,function,org-export-get-all-filters,partial,src/org/export Backend::all_filters; pipeline and backends not wired yet (WIP),Return complete list of filters for BACKEND.
+ox.el,1196,function,org-export-define-backend,partial,src/org/export Backend struct (Rust data); pipeline and backends not wired yet (WIP),Define a new backend BACKEND.
+ox.el,1322,function,org-export-define-derived-backend,partial,src/org/export export::derived; pipeline and backends not wired yet (WIP),Create a new backend as a variant of an existing one.
 ox.el,1431,function,org-export-get-environment,missing,,Collect export options from the current buffer.
-ox.el,1457,function,org-export--parse-option-keyword,missing,,Parse an OPTIONS line and return values as a plist.
-ox.el,1488,function,org-export--get-subtree-options,missing,,Get export options in subtree at point.
-ox.el,1544,function,org-export--get-inbuffer-options,missing,,"Return current buffer export options, as a plist."
+ox.el,1457,function,org-export--parse-option-keyword,partial,src/org/export env::parse_option_keyword; pipeline and backends not wired yet (WIP),Parse an OPTIONS line and return values as a plist.
+ox.el,1488,function,org-export--get-subtree-options,partial,src/org/export env::subtree_options; pipeline and backends not wired yet (WIP),Get export options in subtree at point.
+ox.el,1544,function,org-export--get-inbuffer-options,partial,src/org/export env::inbuffer_options; pipeline and backends not wired yet (WIP),"Return current buffer export options, as a plist."
 ox.el,1630,function,org-export--get-export-attributes,missing,,"Return properties related to export process, as a plist."
 ox.el,1644,function,org-export--get-buffer-attributes,missing,,"Return properties related to buffer attributes, as a plist."
-ox.el,1649,function,org-export--get-global-options,missing,,Return global export options as a plist.
-ox.el,1673,function,org-export--list-bound-variables,missing,,Return variables bound from BIND keywords in current buffer.
+ox.el,1649,function,org-export--get-global-options,partial,src/org/export env::global_options; pipeline and backends not wired yet (WIP),Return global export options as a plist.
+ox.el,1673,function,org-export--list-bound-variables,partial,src/org/export env::bound_variables; pipeline and backends not wired yet (WIP),Return variables bound from BIND keywords in current buffer.
 ox.el,1697,function,org-export--collect-tree-properties,missing,,Extract tree properties from parse tree.
 ox.el,1739,function,org-export--get-min-level,missing,,Return minimum exportable headline's level in DATA.
 ox.el,1755,function,org-export--collect-headline-numbering,missing,,"Return numbering of all exportable, numbered headlines in a parse tree."
 ox.el,1781,function,org-export--selected-trees,missing,,List headlines and inlinetasks with a select tag in their tree.
 ox.el,1820,function,org-export--skip-p,missing,,Non-nil when element or object DATUM should be skipped during export.
 ox.el,1924,function,org-export--skip-timestamp-p,missing,,Decides whether to skip a timestamp during export.
-ox.el,1955,function,org-export-transcoder,missing,,Return appropriate transcoder for BLOB.
-ox.el,1964,function,org-export--keep-spaces,missing,,"Non-nil, when post-blank spaces after removing DATA should be preserved."
-ox.el,1997,function,org-export-data,missing,,Convert DATA into current backend format.
-ox.el,2106,function,org-export-data-with-backend,missing,,Convert DATA into BACKEND format.
-ox.el,2135,function,org-export-expand,missing,,Expand a parsed element or object to its original state.
-ox.el,2596,function,org-export-filter-apply-functions,missing,,Call every function in FILTERS.
-ox.el,2619,function,org-export-install-filters,missing,,Install filters properties in communication channel.
+ox.el,1955,function,org-export-transcoder,partial,src/org/export Info::transcoder; pipeline and backends not wired yet (WIP),Return appropriate transcoder for BLOB.
+ox.el,1964,function,org-export--keep-spaces,partial,src/org/export Info::keep_spaces; pipeline and backends not wired yet (WIP),"Non-nil, when post-blank spaces after removing DATA should be preserved."
+ox.el,1997,function,org-export-data,partial,src/org/export Info::data; pipeline and backends not wired yet (WIP),Convert DATA into current backend format.
+ox.el,2106,function,org-export-data-with-backend,partial,src/org/export Info::data_with_backend; pipeline and backends not wired yet (WIP),Convert DATA into BACKEND format.
+ox.el,2135,function,org-export-expand,partial,src/org/export element::expand; pipeline and backends not wired yet (WIP),Expand a parsed element or object to its original state.
+ox.el,2596,function,org-export-filter-apply-functions,partial,src/org/export Info::apply_filters; pipeline and backends not wired yet (WIP),Call every function in FILTERS.
+ox.el,2619,function,org-export-install-filters,partial,src/org/export Info::install_filters (backend filters only; no Lisp user filters); pipeline and backends not wired yet (WIP),Install filters properties in communication channel.
 ox.el,2678,function,org-export--set-variables,missing,,Set buffer-local variables according to VARIABLE-ALIST in current buffer.
 ox.el,2683,function,org-export-copy-buffer,missing,,Return a copy of the current buffer.
 ox.el,2704,macro,org-export-with-buffer-copy,missing,,Apply BODY in a copy of the current buffer.
@@ -5590,94 +5590,94 @@ ox.el,3119,function,org-export--annotate-info,missing,,Annotate the INFO plist a
 ox.el,3244,function,org-export-string-as,missing,,Transcode STRING into BACKEND code.
 ox.el,3265,function,org-export-replace-region-by,missing,,Replace the active region by its export to BACKEND.
 ox.el,3276,command,org-export-insert-default-template,missing,,Insert all export keywords with default values at beginning of line.
-ox.el,3360,function,org-export-expand-include-keyword,missing,,Expand every include keyword in buffer.
-ox.el,3439,function,org-export-parse-include-value,missing,,Extract the various parameters from #+include: VALUE.
-ox.el,3522,function,org-export--blindly-expand-include,missing,,Unconditionally include reference defined by PARAMETERS in the buffer.
-ox.el,3591,function,org-export--inclusion-absolute-lines,missing,,Resolve absolute lines for an included file with file-link.
-ox.el,3653,function,org-export--update-included-link,missing,,"Update relative file name of link at point, if possible."
-ox.el,3680,function,org-export--prepare-file-contents,missing,,Prepare contents of FILE for inclusion and return it as a string.
+ox.el,3360,function,org-export-expand-include-keyword,partial,src/org/export include::expand_include_keyword; pipeline and backends not wired yet (WIP),Expand every include keyword in buffer.
+ox.el,3439,function,org-export-parse-include-value,partial,src/org/export include::parse_include_value; pipeline and backends not wired yet (WIP),Extract the various parameters from #+include: VALUE.
+ox.el,3522,function,org-export--blindly-expand-include,partial,src/org/export include::blindly_expand; pipeline and backends not wired yet (WIP),Unconditionally include reference defined by PARAMETERS in the buffer.
+ox.el,3591,function,org-export--inclusion-absolute-lines,partial,src/org/export include::inclusion_absolute_lines (simplified org-link-search); pipeline and backends not wired yet (WIP),Resolve absolute lines for an included file with file-link.
+ox.el,3653,function,org-export--update-included-link,partial,src/org/export include::update_included_links; pipeline and backends not wired yet (WIP),"Update relative file name of link at point, if possible."
+ox.el,3680,function,org-export--prepare-file-contents,partial,src/org/export include::prepare_file_contents; pipeline and backends not wired yet (WIP),Prepare contents of FILE for inclusion and return it as a string.
 ox.el,3854,function,org-export--copy-to-kill-ring-p,missing,,Return a non-nil value when output should be added to the kill ring.
-ox.el,3880,function,org-export-read-attribute,missing,,Turn ATTRIBUTE property from ELEMENT into a plist.
-ox.el,3916,function,org-export-get-caption,missing,,Return caption from ELEMENT as a secondary string.
-ox.el,3944,function,org-export-with-backend,missing,,Call a transcoder from BACKEND on DATA.
-ox.el,3982,function,org-export-snippet-backend,missing,,Return EXPORT-SNIPPET targeted backend as a symbol.
-ox.el,4007,function,org-export-get-footnote-definition,missing,,Return definition of FOOTNOTE-REFERENCE as parsed data.
-ox.el,4045,function,org-export--footnote-reference-map,missing,,Apply FUNCTION on every footnote reference in DATA.
-ox.el,4090,function,org-export-collect-footnote-definitions,missing,,"Return an alist between footnote numbers, labels and definitions."
-ox.el,4118,function,org-export-footnote-first-reference-p,missing,,Non-nil when a footnote reference is the first one for its label.
-ox.el,4144,function,org-export-get-footnote-number,missing,,Return number associated to a footnote.
-ox.el,4199,function,org-export-get-relative-level,missing,,Return HEADLINE relative level within current parsed tree.
-ox.el,4205,function,org-export-low-level-p,missing,,Non-nil when HEADLINE is considered as low level.
-ox.el,4220,function,org-export-get-headline-number,missing,,Return numbered HEADLINE numbering as a list of numbers.
-ox.el,4226,function,org-export-numbered-headline-p,missing,,Return a non-nil value if HEADLINE element should be numbered.
-ox.el,4234,function,org-export-number-to-roman,missing,,Convert integer N into a roman numeral.
-ox.el,4250,function,org-export-get-tags,missing,,Return list of tags associated to ELEMENT.
-ox.el,4274,function,org-export-get-node-property,missing,,Return node PROPERTY value for DATUM.
-ox.el,4289,function,org-export-get-category,missing,,Return category for element or object BLOB.
-ox.el,4307,function,org-export-get-alt-title,missing,,"Return alternative title for HEADLINE, as a secondary string."
-ox.el,4313,function,org-export-first-sibling-p,missing,,Non-nil when BLOB is the first sibling in its parent.
-ox.el,4322,function,org-export-last-sibling-p,missing,,Non-nil when DATUM is the last sibling in its parent.
-ox.el,4339,function,org-export-get-date,missing,,Return date value for the current document.
-ox.el,4394,function,org-export-custom-protocol-maybe,missing,,Try exporting LINK object with a dedicated function.
-ox.el,4421,function,org-export-get-coderef-format,missing,,Return format string for code reference link.
-ox.el,4430,function,org-export-inline-image-p,missing,,Non-nil if LINK object points to an inline image.
+ox.el,3880,function,org-export-read-attribute,partial,src/org/export Info::read_attribute; pipeline and backends not wired yet (WIP),Turn ATTRIBUTE property from ELEMENT into a plist.
+ox.el,3916,function,org-export-get-caption,partial,src/org/export Info::caption; pipeline and backends not wired yet (WIP),Return caption from ELEMENT as a secondary string.
+ox.el,3944,function,org-export-with-backend,partial,src/org/export Info::with_backend; pipeline and backends not wired yet (WIP),Call a transcoder from BACKEND on DATA.
+ox.el,3982,function,org-export-snippet-backend,partial,src/org/export Info::snippet_backend; pipeline and backends not wired yet (WIP),Return EXPORT-SNIPPET targeted backend as a symbol.
+ox.el,4007,function,org-export-get-footnote-definition,partial,src/org/export Info::footnote_definition; pipeline and backends not wired yet (WIP),Return definition of FOOTNOTE-REFERENCE as parsed data.
+ox.el,4045,function,org-export--footnote-reference-map,partial,src/org/export Info::footnote_references; pipeline and backends not wired yet (WIP),Apply FUNCTION on every footnote reference in DATA.
+ox.el,4090,function,org-export-collect-footnote-definitions,partial,src/org/export Info::collect_footnote_definitions; pipeline and backends not wired yet (WIP),"Return an alist between footnote numbers, labels and definitions."
+ox.el,4118,function,org-export-footnote-first-reference-p,partial,src/org/export Info::footnote_first_reference_p; pipeline and backends not wired yet (WIP),Non-nil when a footnote reference is the first one for its label.
+ox.el,4144,function,org-export-get-footnote-number,partial,src/org/export Info::footnote_number; pipeline and backends not wired yet (WIP),Return number associated to a footnote.
+ox.el,4199,function,org-export-get-relative-level,partial,src/org/export Info::relative_level; pipeline and backends not wired yet (WIP),Return HEADLINE relative level within current parsed tree.
+ox.el,4205,function,org-export-low-level-p,partial,src/org/export Info::low_level_p; pipeline and backends not wired yet (WIP),Non-nil when HEADLINE is considered as low level.
+ox.el,4220,function,org-export-get-headline-number,partial,src/org/export Info::headline_number; pipeline and backends not wired yet (WIP),Return numbered HEADLINE numbering as a list of numbers.
+ox.el,4226,function,org-export-numbered-headline-p,partial,src/org/export Info::numbered_headline_p; pipeline and backends not wired yet (WIP),Return a non-nil value if HEADLINE element should be numbered.
+ox.el,4234,function,org-export-number-to-roman,partial,src/org/export tools::number_to_roman; pipeline and backends not wired yet (WIP),Convert integer N into a roman numeral.
+ox.el,4250,function,org-export-get-tags,partial,src/org/export Info::tags; pipeline and backends not wired yet (WIP),Return list of tags associated to ELEMENT.
+ox.el,4274,function,org-export-get-node-property,partial,src/org/export Info::node_property; pipeline and backends not wired yet (WIP),Return node PROPERTY value for DATUM.
+ox.el,4289,function,org-export-get-category,partial,src/org/export Info::category; pipeline and backends not wired yet (WIP),Return category for element or object BLOB.
+ox.el,4307,function,org-export-get-alt-title,partial,src/org/export Info::alt_title; pipeline and backends not wired yet (WIP),"Return alternative title for HEADLINE, as a secondary string."
+ox.el,4313,function,org-export-first-sibling-p,partial,src/org/export Info::first_sibling_p; pipeline and backends not wired yet (WIP),Non-nil when BLOB is the first sibling in its parent.
+ox.el,4322,function,org-export-last-sibling-p,partial,src/org/export Info::last_sibling_p; pipeline and backends not wired yet (WIP),Non-nil when DATUM is the last sibling in its parent.
+ox.el,4339,function,org-export-get-date,partial,src/org/export Info::date; pipeline and backends not wired yet (WIP),Return date value for the current document.
+ox.el,4394,function,org-export-custom-protocol-maybe,partial,src/org/export Info::custom_protocol_maybe (no link :export functions in Fred); pipeline and backends not wired yet (WIP),Try exporting LINK object with a dedicated function.
+ox.el,4421,function,org-export-get-coderef-format,partial,src/org/export tools::coderef_format; pipeline and backends not wired yet (WIP),Return format string for code reference link.
+ox.el,4430,function,org-export-inline-image-p,partial,src/org/export Info::inline_image_p; pipeline and backends not wired yet (WIP),Non-nil if LINK object points to an inline image.
 ox.el,4452,function,org-export-insert-image-links,missing,,Insert image links in DATA.
-ox.el,4497,function,org-export-resolve-coderef,missing,,Resolve a code reference REF.
-ox.el,4521,function,org-export-search-cells,missing,,List search cells for element or object DATUM.
-ox.el,4567,function,org-export-string-to-search-cell,missing,,Return search cells associated to string S.
-ox.el,4585,function,org-export-match-search-cell-p,missing,,Non-nil when DATUM matches search cells CELLS.
-ox.el,4592,function,org-export-resolve-fuzzy-link,missing,,Return LINK destination.
-ox.el,4656,function,org-export-resolve-id-link,missing,,Return headline referenced as LINK destination.
-ox.el,4688,function,org-export-resolve-radio-link,missing,,Return radio-target object referenced as LINK destination.
-ox.el,4704,function,org-export-resolve-link,missing,,Return LINK destination.
-ox.el,4729,function,org-export-file-uri,missing,,Return file URI associated to FILENAME.
-ox.el,4739,function,org-export-link-remote-p,missing,,Returns non-nil if the link refers to a remote resource.
+ox.el,4497,function,org-export-resolve-coderef,partial,src/org/export Info::resolve_coderef; pipeline and backends not wired yet (WIP),Resolve a code reference REF.
+ox.el,4521,function,org-export-search-cells,partial,src/org/export Info::search_cells; pipeline and backends not wired yet (WIP),List search cells for element or object DATUM.
+ox.el,4567,function,org-export-string-to-search-cell,partial,src/org/export tools::string_to_search_cell; pipeline and backends not wired yet (WIP),Return search cells associated to string S.
+ox.el,4585,function,org-export-match-search-cell-p,partial,src/org/export Info::match_search_cell_p; pipeline and backends not wired yet (WIP),Non-nil when DATUM matches search cells CELLS.
+ox.el,4592,function,org-export-resolve-fuzzy-link,partial,src/org/export Info::resolve_fuzzy_link; pipeline and backends not wired yet (WIP),Return LINK destination.
+ox.el,4656,function,org-export-resolve-id-link,partial,src/org/export Info::resolve_id_link; pipeline and backends not wired yet (WIP),Return headline referenced as LINK destination.
+ox.el,4688,function,org-export-resolve-radio-link,partial,src/org/export Info::resolve_radio_link; pipeline and backends not wired yet (WIP),Return radio-target object referenced as LINK destination.
+ox.el,4704,function,org-export-resolve-link,partial,src/org/export Info::resolve_link / resolve_link_string; pipeline and backends not wired yet (WIP),Return LINK destination.
+ox.el,4729,function,org-export-file-uri,partial,src/org/export tools::file_uri; pipeline and backends not wired yet (WIP),Return file URI associated to FILENAME.
+ox.el,4739,function,org-export-link-remote-p,partial,src/org/export tools::link_remote_p; pipeline and backends not wired yet (WIP),Returns non-nil if the link refers to a remote resource.
 ox.el,4745,function,org-export-link--remote-local-copy,missing,,"Download the remote resource specified by LINK, and return its local path."
 ox.el,4768,function,org-export-link-localise,missing,,Convert remote LINK to local link.
-ox.el,4787,function,org-export-file-relative-name-maybe,missing,,Maybe convert FILENAME to a relative filename.
-ox.el,4809,function,org-export-new-reference,missing,,"Return a unique reference, among REFERENCES."
-ox.el,4823,function,org-export-format-reference,missing,,Format REFERENCE into a string.
-ox.el,4829,function,org-export-get-reference,missing,,"Return a unique reference for DATUM, as a string."
-ox.el,4885,function,org-export-get-ordinal,missing,,Return ordinal number of an element or object.
-ox.el,4964,function,org-export-raw-string,missing,,Return a raw object containing string S.
-ox.el,4993,function,org-export-get-loc,missing,,Return count of lines of code before ELEMENT.
-ox.el,5023,function,org-export-unravel-code,missing,,Clean source code and extract references out of it.
-ox.el,5057,function,org-export-format-code,missing,,Format CODE by applying FUN line-wise and return it.
-ox.el,5087,function,org-export-format-code-default,missing,,"Return source code from ELEMENT, formatted in a standard way."
-ox.el,5159,function,org-export-table-has-special-column-p,missing,,Non-nil when TABLE has a special column.
-ox.el,5179,function,org-export-table-has-header-p,missing,,Non-nil when TABLE has a header.
-ox.el,5208,function,org-export-table-row-is-special-p,missing,,Non-nil if TABLE-ROW is considered special.
-ox.el,5238,function,org-export-table-row-group,missing,,"Return TABLE-ROW's group number, as an integer."
-ox.el,5265,function,org-export-table-cell-width,missing,,Return TABLE-CELL contents width.
-ox.el,5309,function,org-export-table-cell-alignment,missing,,Return TABLE-CELL contents alignment.
-ox.el,5394,function,org-export-table-cell-borders,missing,,Return TABLE-CELL borders.
-ox.el,5479,function,org-export-table-cell-starts-colgroup-p,missing,,Non-nil when TABLE-CELL is at the beginning of a column group.
-ox.el,5490,function,org-export-table-cell-ends-colgroup-p,missing,,Non-nil when TABLE-CELL is at the end of a column group.
-ox.el,5500,function,org-export-table-row-starts-rowgroup-p,missing,,Non-nil when TABLE-ROW is at the beginning of a row group.
-ox.el,5509,function,org-export-table-row-ends-rowgroup-p,missing,,Non-nil when TABLE-ROW is at the end of a row group.
-ox.el,5518,function,org-export-table-row-in-header-p,missing,,Non-nil when TABLE-ROW is located within table's header.
-ox.el,5526,function,org-export-table-row-starts-header-p,missing,,Non-nil when TABLE-ROW is the first table header's row.
-ox.el,5532,function,org-export-table-row-ends-header-p,missing,,Non-nil when TABLE-ROW is the last table header's row.
-ox.el,5538,function,org-export-table-row-number,missing,,Return TABLE-ROW number in the exported table.
-ox.el,5561,function,org-export-table-dimensions,missing,,Return TABLE dimensions.
-ox.el,5582,function,org-export-table-cell-address,missing,,Return address of a regular TABLE-CELL object.
-ox.el,5601,function,org-export-get-table-cell-at,missing,,Return regular table-cell object at ADDRESS in TABLE.
-ox.el,5641,function,org-export-collect-headlines,missing,,Collect headlines in order to build a table of contents.
-ox.el,5675,function,org-export-collect-elements,missing,,Collect referenceable elements of a determined type.
-ox.el,5695,function,org-export-collect-tables,missing,,Build a list of tables.
-ox.el,5702,function,org-export-collect-figures,missing,,Build a list of figures.
-ox.el,5717,function,org-export-collect-listings,missing,,Build a list of source blocks.
-ox.el,5725,function,org-export-excluded-from-toc-p,missing,,Non-nil if HEADLINE should be excluded from tables of contents.
-ox.el,5743,function,org-export-toc-default-link-transcoder,missing,,"Format a link by converting to regular text based on LINK, CONTENTS, and INFO."
-ox.el,5750,function,org-export-toc-entry-backend,missing,,Return an export backend appropriate for table of contents entries.
-ox.el,5782,option,org-export-smart-quotes-alist,missing,,Smart quotes translations.
-ox.el,5994,function,org-export--smart-quote-status,missing,,Return smart quote status at the beginning of string S.
-ox.el,6123,function,org-export-activate-smart-quotes,missing,,"Replace regular quotes with ""smart"" quotes in string S."
-ox.el,6159,function,org-export-get-parent-headline,missing,,Return BLOB parent headline or nil.
-ox.el,6164,function,org-export-get-parent-table,missing,,Return OBJECT parent table or nil.
-ox.el,6169,function,org-export-get-previous-element,missing,,Return previous element or object.
-ox.el,6194,function,org-export-get-next-element,missing,,Return next element or object.
-ox.el,6740,function,org-export-translate,missing,,Translate string S according to language specification.
+ox.el,4787,function,org-export-file-relative-name-maybe,partial,src/org/export tools::file_relative_name_maybe; pipeline and backends not wired yet (WIP),Maybe convert FILENAME to a relative filename.
+ox.el,4809,function,org-export-new-reference,partial,src/org/export Info::new_reference; pipeline and backends not wired yet (WIP),"Return a unique reference, among REFERENCES."
+ox.el,4823,function,org-export-format-reference,partial,src/org/export tools::format_reference; pipeline and backends not wired yet (WIP),Format REFERENCE into a string.
+ox.el,4829,function,org-export-get-reference,partial,src/org/export Info::reference; pipeline and backends not wired yet (WIP),"Return a unique reference for DATUM, as a string."
+ox.el,4885,function,org-export-get-ordinal,partial,src/org/export Info::ordinal; pipeline and backends not wired yet (WIP),Return ordinal number of an element or object.
+ox.el,4964,function,org-export-raw-string,partial,src/org/export Info::raw_string; pipeline and backends not wired yet (WIP),Return a raw object containing string S.
+ox.el,4993,function,org-export-get-loc,partial,src/org/export Info::loc; pipeline and backends not wired yet (WIP),Return count of lines of code before ELEMENT.
+ox.el,5023,function,org-export-unravel-code,partial,src/org/export tools::unravel_code; pipeline and backends not wired yet (WIP),Clean source code and extract references out of it.
+ox.el,5057,function,org-export-format-code,partial,src/org/export tools::format_code; pipeline and backends not wired yet (WIP),Format CODE by applying FUN line-wise and return it.
+ox.el,5087,function,org-export-format-code-default,partial,src/org/export Info::format_code_default; pipeline and backends not wired yet (WIP),"Return source code from ELEMENT, formatted in a standard way."
+ox.el,5159,function,org-export-table-has-special-column-p,partial,src/org/export Info::table_has_special_column_p; pipeline and backends not wired yet (WIP),Non-nil when TABLE has a special column.
+ox.el,5179,function,org-export-table-has-header-p,partial,src/org/export Info::table_has_header_p; pipeline and backends not wired yet (WIP),Non-nil when TABLE has a header.
+ox.el,5208,function,org-export-table-row-is-special-p,partial,src/org/export Info::table_row_is_special_p; pipeline and backends not wired yet (WIP),Non-nil if TABLE-ROW is considered special.
+ox.el,5238,function,org-export-table-row-group,partial,src/org/export Info::table_row_group; pipeline and backends not wired yet (WIP),"Return TABLE-ROW's group number, as an integer."
+ox.el,5265,function,org-export-table-cell-width,partial,src/org/export Info::table_cell_width; pipeline and backends not wired yet (WIP),Return TABLE-CELL contents width.
+ox.el,5309,function,org-export-table-cell-alignment,partial,src/org/export Info::table_cell_alignment; pipeline and backends not wired yet (WIP),Return TABLE-CELL contents alignment.
+ox.el,5394,function,org-export-table-cell-borders,partial,src/org/export Info::table_cell_borders; pipeline and backends not wired yet (WIP),Return TABLE-CELL borders.
+ox.el,5479,function,org-export-table-cell-starts-colgroup-p,partial,src/org/export Info::table_cell_starts_colgroup_p; pipeline and backends not wired yet (WIP),Non-nil when TABLE-CELL is at the beginning of a column group.
+ox.el,5490,function,org-export-table-cell-ends-colgroup-p,partial,src/org/export Info::table_cell_ends_colgroup_p; pipeline and backends not wired yet (WIP),Non-nil when TABLE-CELL is at the end of a column group.
+ox.el,5500,function,org-export-table-row-starts-rowgroup-p,partial,src/org/export Info::table_row_starts_rowgroup_p; pipeline and backends not wired yet (WIP),Non-nil when TABLE-ROW is at the beginning of a row group.
+ox.el,5509,function,org-export-table-row-ends-rowgroup-p,partial,src/org/export Info::table_row_ends_rowgroup_p; pipeline and backends not wired yet (WIP),Non-nil when TABLE-ROW is at the end of a row group.
+ox.el,5518,function,org-export-table-row-in-header-p,partial,src/org/export Info::table_row_in_header_p; pipeline and backends not wired yet (WIP),Non-nil when TABLE-ROW is located within table's header.
+ox.el,5526,function,org-export-table-row-starts-header-p,partial,src/org/export Info::table_row_starts_header_p; pipeline and backends not wired yet (WIP),Non-nil when TABLE-ROW is the first table header's row.
+ox.el,5532,function,org-export-table-row-ends-header-p,partial,src/org/export Info::table_row_ends_header_p; pipeline and backends not wired yet (WIP),Non-nil when TABLE-ROW is the last table header's row.
+ox.el,5538,function,org-export-table-row-number,partial,src/org/export Info::table_row_number; pipeline and backends not wired yet (WIP),Return TABLE-ROW number in the exported table.
+ox.el,5561,function,org-export-table-dimensions,partial,src/org/export Info::table_dimensions; pipeline and backends not wired yet (WIP),Return TABLE dimensions.
+ox.el,5582,function,org-export-table-cell-address,partial,src/org/export Info::table_cell_address; pipeline and backends not wired yet (WIP),Return address of a regular TABLE-CELL object.
+ox.el,5601,function,org-export-get-table-cell-at,partial,src/org/export Info::table_cell_at; pipeline and backends not wired yet (WIP),Return regular table-cell object at ADDRESS in TABLE.
+ox.el,5641,function,org-export-collect-headlines,partial,src/org/export Info::collect_headlines; pipeline and backends not wired yet (WIP),Collect headlines in order to build a table of contents.
+ox.el,5675,function,org-export-collect-elements,partial,src/org/export Info::collect_elements; pipeline and backends not wired yet (WIP),Collect referenceable elements of a determined type.
+ox.el,5695,function,org-export-collect-tables,partial,src/org/export Info::collect_tables; pipeline and backends not wired yet (WIP),Build a list of tables.
+ox.el,5702,function,org-export-collect-figures,partial,src/org/export Info::collect_figures; pipeline and backends not wired yet (WIP),Build a list of figures.
+ox.el,5717,function,org-export-collect-listings,partial,src/org/export Info::collect_listings; pipeline and backends not wired yet (WIP),Build a list of source blocks.
+ox.el,5725,function,org-export-excluded-from-toc-p,partial,src/org/export Info::excluded_from_toc_p; pipeline and backends not wired yet (WIP),Non-nil if HEADLINE should be excluded from tables of contents.
+ox.el,5743,function,org-export-toc-default-link-transcoder,partial,src/org/export tools::toc_default_link_transcoder; pipeline and backends not wired yet (WIP),"Format a link by converting to regular text based on LINK, CONTENTS, and INFO."
+ox.el,5750,function,org-export-toc-entry-backend,partial,src/org/export tools::toc_entry_backend; pipeline and backends not wired yet (WIP),Return an export backend appropriate for table of contents entries.
+ox.el,5782,option,org-export-smart-quotes-alist,partial,src/org/export quotes.rs (ox.el data in dictionary.sexp; overridable); pipeline and backends not wired yet (WIP),Smart quotes translations.
+ox.el,5994,function,org-export--smart-quote-status,partial,src/org/export Info::smart_quote_status; pipeline and backends not wired yet (WIP),Return smart quote status at the beginning of string S.
+ox.el,6123,function,org-export-activate-smart-quotes,partial,src/org/export Info::activate_smart_quotes; pipeline and backends not wired yet (WIP),"Replace regular quotes with ""smart"" quotes in string S."
+ox.el,6159,function,org-export-get-parent-headline,partial,src/org/export Info::parent_headline; pipeline and backends not wired yet (WIP),Return BLOB parent headline or nil.
+ox.el,6164,function,org-export-get-parent-table,partial,src/org/export Info::parent_table; pipeline and backends not wired yet (WIP),Return OBJECT parent table or nil.
+ox.el,6169,function,org-export-get-previous-element,partial,src/org/export Info::previous / previous_n; pipeline and backends not wired yet (WIP),Return previous element or object.
+ox.el,6194,function,org-export-get-next-element,partial,src/org/export Info::next / next_n; pipeline and backends not wired yet (WIP),Return next element or object.
+ox.el,6740,function,org-export-translate,partial,src/org/export quotes::translate (dictionary.sexp); pipeline and backends not wired yet (WIP),Translate string S according to language specification.
 ox.el,6785,function,org-export-async-start,missing,,Call function FUN on the results returned by BODY evaluation.
 ox.el,6876,function,org-export-to-buffer,missing,,Call `org-export-as' with output to a specified buffer.
 ox.el,6946,function,org-export-to-file,missing,,Call `org-export-as' with output to a specified file.
@@ -5713,4 +5713,4 @@ ox.el,,function,org-export-backend-p--inliner,missing,,
 ox.el,,function,org-export-backend-filters,missing,,"Access slot ""filters"" of `org-export-backend' struct X."
 ox.el,,function,org-export-backend-parent--inliner,missing,,
 ox.el,,function,org-export-backend-menu--inliner,missing,,
-ox.el,,function,org-export-create-backend,missing,,Constructor for objects of type `org-export-backend'.
+ox.el,,function,org-export-create-backend,partial,src/org/export Backend struct; pipeline and backends not wired yet (WIP),Constructor for objects of type `org-export-backend'.

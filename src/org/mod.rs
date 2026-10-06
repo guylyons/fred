@@ -18,6 +18,7 @@ pub mod dispatch;
 pub mod editing;
 pub mod element;
 pub mod entities;
+pub mod export;
 pub mod face;
 pub mod fold;
 pub mod keymap;

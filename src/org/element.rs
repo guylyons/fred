@@ -28,8 +28,8 @@ mod tests;
 
 pub use ast::*;
 pub use interpret::{
-    format_date, interpret, interpret_value, normalize_string, remove_indentation, table_align,
-    timestamp_string,
+    expand, format_date, interpret, interpret_value, normalize_contents, normalize_string,
+    remove_indentation, table_align, timestamp_string,
 };
 pub use objects::{
     escape as link_escape, expand_abbrev, macro_escape_arguments, macro_extract_arguments,
