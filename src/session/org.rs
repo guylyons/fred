@@ -230,6 +230,91 @@ impl Session {
     pub fn org_buffer_path(&self, i: usize) -> Option<PathBuf> {
         self.ed_at(i).path.clone()
     }
+
+    /// The agenda buffer named `name`.
+    pub fn org_agenda_find(&self, name: &str) -> Option<usize> {
+        (0..self.bufs.len()).find(|&i| {
+            self.ed_at(i)
+                .org_view
+                .as_ref()
+                .is_some_and(|v| v.name == name)
+        })
+    }
+
+    /// The names of every agenda buffer.
+    pub fn org_agenda_names(&self) -> Vec<String> {
+        (0..self.bufs.len())
+            .filter_map(|i| self.ed_at(i).org_view.as_ref().map(|v| v.name.clone()))
+            .collect()
+    }
+
+    /// Show agenda view `v` in its buffer (made if needed); `keep` keeps
+    /// the cursor's line (a redo).
+    pub fn org_agenda_show(&mut self, v: crate::org::View, keep: bool) -> usize {
+        if let Some(i) = self.org_agenda_find(&v.name) {
+            self.org_with_buffer(i, |ed| crate::org::agenda::install(ed, v, keep));
+            self.show(i);
+            return self.cur;
+        }
+        let mut ed = make_editor(Buffer::from_text(""), &self.cfg);
+        ed.readonly = true;
+        ed.org_return = Some(self.cur);
+        crate::org::agenda::install(&mut ed, v, false);
+        let swap = self
+            .swap_dir
+            .join(format!("org-agenda-{}", self.bufs.len()));
+        self.bufs.push(Some(Parked {
+            ed,
+            stamp: None,
+            swap_path: swap,
+            lossy: false,
+            no_swap: true,
+            swap_state: SwapState::None,
+            used: 0,
+        }));
+        self.show(self.bufs.len() - 1);
+        self.cur
+    }
+
+    /// org-agenda-kill-all-agenda-buffers.
+    pub fn org_agenda_kill_all(&mut self) {
+        while let Some(i) = (0..self.bufs.len()).find(|&i| self.ed_at(i).org_view.is_some()) {
+            if i == self.cur {
+                if self.org_quit_temp_checked() {
+                    continue;
+                }
+                self.ed.org_view = None;
+                break;
+            }
+            self.bufs.remove(i);
+            if i < self.cur {
+                self.cur -= 1;
+            }
+            self.clock += 1;
+        }
+    }
+
+    /// Leave the current temporary buffer; false when there is nowhere to go.
+    fn org_quit_temp_checked(&mut self) -> bool {
+        let n = self.bufs.len();
+        self.org_quit_temp();
+        self.bufs.len() < n
+    }
+
+    /// org-release-buffers: drop the unmodified buffer of `path` the
+    /// agenda opened (not the current one).
+    pub fn org_release(&mut self, path: &Path) {
+        if let Some(i) = self.find(path)
+            && i != self.cur
+            && !self.ed_at(i).buf.modified
+        {
+            self.bufs.remove(i);
+            if i < self.cur {
+                self.cur -= 1;
+            }
+            self.clock += 1;
+        }
+    }
 }
 
 #[cfg(test)]

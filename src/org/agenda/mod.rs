@@ -23,10 +23,16 @@ macro_rules! re {
     }};
 }
 
-// ponytail: work in progress. The finders (collect), views, buffer
-// commands, habits and solar modules are not written yet; until they
-// are, `command` answers nothing and org-agenda stays "not yet ported".
+pub mod cmds;
+pub mod collect;
+pub mod diary;
+pub mod filter;
 pub mod format;
+pub mod habit;
+pub mod solar;
+#[cfg(test)]
+mod tests;
+pub mod views;
 
 /// org-habit-parse-todo's result: scheduled day, `.+` repeat in days,
 /// deadline day, deadline repeat, done days, repeater type.
@@ -70,6 +76,8 @@ pub struct Loc {
     pub path: PathBuf,
     pub line: usize,
     pub text: String,
+    /// Byte column of the marker in the line (a timestamp's start).
+    pub col: usize,
 }
 
 impl Loc {
@@ -200,6 +208,12 @@ pub struct Item {
     pub fmt: &'static str,
     /// The heading text it was formatted from (for org-agenda-change-all-lines).
     pub head: String,
+    /// The clock is running in this entry (org-agenda-clocking face).
+    pub clocking: bool,
+    /// A line of the Emacs diary (org-agenda-diary-link).
+    pub diary_link: bool,
+    /// org-find-top-headline of the entry.
+    pub top: String,
 }
 
 impl Item {
@@ -247,6 +261,8 @@ pub struct Line {
     pub kind: LineKind,
     /// org-agenda-show-new-time: " S => <date>" drawn at the right.
     pub new_time: Option<String>,
+    /// Entry text shown by org-agenda-show (follow mode).
+    pub shown: bool,
 }
 
 /// An agenda span.
@@ -482,6 +498,22 @@ pub struct View {
     /// The line of the last item shown in another window (`SPC` repeats scroll).
     pub show_window: bool,
     pub bulk_persistent: bool,
+    /// The view line to put the cursor on when shown.
+    pub goto: Option<usize>,
+    /// The day to put the cursor on after a rebuild (org-agenda-goto-date).
+    pub goto_day: Option<i64>,
+    /// org-todo-keywords-for-agenda and org-tag-alist-for-agenda.
+    pub todo_kwds: Vec<String>,
+    pub tag_alist: Vec<(String, Option<char>)>,
+    /// org-agenda-append-agenda: the next dispatcher command adds a block.
+    pub appending: bool,
+    /// The prefix argument of the command that made the view.
+    pub last_arg: Prefix,
+    /// This and the previous agenda command (repeated-key behavior).
+    pub this_command: Option<String>,
+    pub last_command: Option<String>,
+    /// evil-execute-in-emacs-state: the next key uses org-agenda-mode-map.
+    pub emacs_next: bool,
 }
 
 impl View {
@@ -766,6 +798,35 @@ pub fn item(ed: &Editor) -> Result<Item, String> {
         .ok_or_else(|| "Command not allowed in this line".to_owned())
 }
 
+/// Show `v` in `ed` (an agenda buffer): the cursor on the view's goto
+/// line (or day), or kept on its buffer line when `keep`.
+pub fn install(ed: &mut Editor, v: View, keep: bool) {
+    let line = ed.cur.line;
+    let goto = v
+        .goto_day
+        .and_then(|d| {
+            v.lines
+                .iter()
+                .position(|l| l.date_header && l.day == Some(d))
+        })
+        .or(v.goto);
+    ed.org_buffer_name = Some(v.name.clone());
+    ed.org_view = Some(Box::new(v));
+    redisplay(ed);
+    let n = ed.line_count().saturating_sub(1);
+    if keep {
+        ed.set_cursor(line.min(n), 0);
+    } else if let Some(i) = goto {
+        let b = ed.org_view.as_ref().map_or(0, |v| v.buffer_line(i));
+        ed.set_cursor(b.min(n), 0);
+    } else {
+        ed.set_cursor(0, 0);
+    }
+    if let Some(v) = ed.org_view.as_deref_mut() {
+        v.goto_day = None;
+    }
+}
+
 /// Rewrite the buffer from the view, keeping the cursor on its view line.
 pub fn redisplay(ed: &mut Editor) {
     let at = cur_line(ed);
@@ -937,29 +998,325 @@ pub const NAMES: &[&str] = &[
     "org-diary",
 ];
 
-/// This module's interactive commands, by upstream name.
-pub fn command(_ed: &mut Editor, _name: &str, _arg: Prefix) -> Option<Result<(), String>> {
-    None
+pub fn set_appointments(a: Vec<(String, String, Option<String>)>) {
+    G.with(|g| g.borrow_mut().appts = a);
 }
 
-/// Keys the agenda leaves to Vim: the `Space` leader, `:`, counts, `G`.
+/// This module's interactive commands, by upstream name.
+pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), String>> {
+    let r = match name {
+        "org-agenda" => {
+            let r = crate::org::take_call_arg();
+            match r {
+                Some(keys) => views::run_keys(ed, &keys, arg, None),
+                None => {
+                    views::dispatch(ed, arg, None);
+                    Ok(())
+                }
+            }
+        }
+        "org-agenda-list" => {
+            let spec = Spec::List {
+                arg: match arg {
+                    Prefix::Num(n) => Some(n),
+                    _ => None,
+                },
+                start: None,
+                span: None,
+                with_hour: false,
+            };
+            views::start(
+                ed,
+                vec![Block {
+                    spec,
+                    lprops: vec![],
+                }],
+                None,
+                None,
+                arg,
+            )
+        }
+        "org-todo-list" => {
+            views::run_keys(ed, if arg.universal() > 0 { "T" } else { "t" }, arg, None)
+        }
+        "org-tags-view" => match crate::org::take_call_arg() {
+            Some(m) => views::start(
+                ed,
+                vec![Block {
+                    spec: Spec::Tags {
+                        todo_only: !arg.is_none(),
+                        matcher: m,
+                    },
+                    lprops: vec![],
+                }],
+                None,
+                None,
+                arg,
+            ),
+            None => views::run_keys(ed, "m", arg, None),
+        },
+        "org-search-view" => match crate::org::take_call_arg() {
+            Some(s) => views::start(
+                ed,
+                vec![Block {
+                    spec: Spec::Search {
+                        todo_only: !arg.is_none(),
+                        string: s,
+                    },
+                    lprops: vec![],
+                }],
+                None,
+                None,
+                arg,
+            ),
+            None => views::run_keys(ed, "s", arg, None),
+        },
+        "org-agenda-list-stuck-projects" => views::run_keys(ed, "#", arg, None),
+        "org-toggle-sticky-agenda" => {
+            let v = match arg {
+                Prefix::None => !sticky(),
+                a => a.value() > 0,
+            };
+            if v == sticky() {
+                ed.set_msg(format!(
+                    "Sticky agenda was already {}",
+                    if v { "enabled" } else { "disabled" }
+                ));
+            } else {
+                set_sticky(v);
+                crate::org::effect(ed, |s| s.org_agenda_kill_all());
+                ed.set_msg(format!(
+                    "Sticky agenda {}",
+                    if v { "enabled" } else { "disabled" }
+                ));
+            }
+            Ok(())
+        }
+        "org-store-agenda-views" | "org-batch-store-agenda-views" => store_views(ed),
+        "org-batch-agenda" | "org-batch-agenda-csv" | "org-diary" => Err(format!(
+            "{name}: Emacs batch/diary-sexp entry point; run `fred` interactively or use :org-store-agenda-views"
+        )),
+        _ => return cmds::command(ed, name, arg),
+    };
+    Some(r)
+}
+
+/// org-store-agenda-views: build every custom command that names files
+/// and write its text there (plain text; `.org` and `.html` as
+/// org-agenda-write does).
+fn store_views(ed: &mut Editor) -> Result<(), String> {
+    let (custom, _) = views::customs();
+    let jobs: Vec<views::Custom> = custom.into_iter().filter(|c| !c.files.is_empty()).collect();
+    if jobs.is_empty() {
+        ed.set_msg("No custom agenda commands write files");
+        return Ok(());
+    }
+    crate::org::effect(ed, move |s| {
+        let mut n = 0;
+        for c in jobs {
+            let Some(v) = views::custom_view(&c, Prefix::None) else {
+                continue;
+            };
+            let mut v = views::build(s, v);
+            filter::apply(&mut v);
+            let text = v.render();
+            for f in &c.files {
+                let p = crate::org::options::expand(f);
+                if std::fs::write(&p, format!("{text}\n")).is_ok() {
+                    n += 1;
+                }
+            }
+        }
+        s.ed.set_msg(format!("All agenda views stored ({n} files)"));
+    });
+    Ok(())
+}
+
+/// Keys the agenda leaves to Vim (Evil normal state): the `Space` leader,
+/// `:`, counts, and the motions evil-collection does not rebind.
 pub fn vim_keeps(ed: &Editor, k: crate::key::Key) -> bool {
     use crate::key::KeyCode;
-    if k.ctrl || k.alt {
+    if ed.org_view.as_ref().is_some_and(|v| v.emacs_next) {
         return false;
+    }
+    if k.alt {
+        return false;
+    }
+    if k.ctrl {
+        return matches!(
+            k.code,
+            KeyCode::Char('f' | 'b' | 'd' | 'u' | 'e' | 'y' | 'o' | 'i' | 'v')
+        );
     }
     match k.code {
         KeyCode::Char(' ') => ed.vim.pending.is_empty(),
-        KeyCode::Char(':') | KeyCode::Char('G') | KeyCode::Esc => true,
-        KeyCode::Char(c) if c.is_ascii_digit() => {
-            c != '0'
-                || ed
-                    .vim
-                    .pending
-                    .iter()
-                    .any(|p| p.char().is_some_and(|c| c.is_ascii_digit()))
-        }
+        KeyCode::Char(c) if c.is_ascii_digit() => true,
+        KeyCode::Char(c) => ":hlwWbeE^$G/?N*#%(){}`';,MyYVzK|_+-&@!~".contains(c),
+        KeyCode::Esc | KeyCode::Left | KeyCode::Right | KeyCode::Up | KeyCode::Down => !k.shift,
+        KeyCode::PageUp | KeyCode::PageDown | KeyCode::Home | KeyCode::End => true,
         _ => false,
+    }
+}
+
+/// Styles of agenda buffer line `l` for the renderer.
+pub fn styles(ed: &Editor, l: usize) -> crate::highlight::LineStyles {
+    let mut out = crate::highlight::LineStyles::new();
+    let Some(v) = ed.org_view.as_deref() else {
+        return out;
+    };
+    let Some(i) = v.at(l) else { return out };
+    let line = &v.lines[i];
+    let text = ed.buf.line(l);
+    let n = text.len();
+    if line.face != Face::Default {
+        add(&mut out, &text, face_style(line.face), 0..n);
+    }
+    if let Some(it) = &line.item {
+        // The TODO keyword, priority cookie and tags of the item text.
+        let h = it.heading.min(n);
+        let rest = &text[h..];
+        let dots = rest.len() - rest.trim_start_matches('.').len();
+        if let Some(kw) = it
+            .todo_kwds
+            .iter()
+            .filter(|k| rest[dots..].starts_with(k.as_str()))
+            .max_by_key(|k| k.len())
+        {
+            let s = h + dots;
+            let st = keyword_style(kw, &it.done_kwds);
+            let r = s..s + kw.len();
+            if r.end <= n {
+                add(&mut out, &text, st, r);
+            }
+        }
+        if let Some(m) = re!(r"\[#([A-Z0-9]+)\]").find(rest) {
+            let p =
+                crate::org::syntax::priority_value(&rest[m.start() + 2..m.end() - 1]).unwrap_or(0);
+            let fp = opt_sym("org-agenda-fontify-priorities", "cookies");
+            if fp != "nil" {
+                let r = if fp == "cookies" {
+                    h + m.start()..h + m.end()
+                } else {
+                    h + m.start()..n
+                };
+                add(&mut out, &text, face_style(Face::Priority(p)), r);
+            }
+        }
+        if let Some(c) = re!(r"[ \t](:[\w@#%:]+:)[ \t]*$").captures(&text)
+            && let Some(m) = c.get(1)
+        {
+            add(&mut out, &text, face_style(Face::Tag), m.range());
+        }
+        if it.blocked && opt_sym("org-agenda-dim-blocked-tasks", "t") != "nil" {
+            add(&mut out, &text, face_style(Face::Dimmed), 0..n);
+        }
+    }
+    for (r, f) in &line.spans {
+        add(&mut out, &text, face_style(*f), r.clone());
+    }
+    if let Some(it) = &line.item
+        && let Some(hd) = &it.hd
+        && v.marks.contains(hd)
+    {
+        let st = keyword_style("TODO", &[]);
+        add(&mut out, &text, st, 0..1.min(n));
+    }
+    if let Some(nt) = &line.new_time
+        && let Some(p) = text.rfind(nt.as_str())
+    {
+        add(&mut out, &text, face_style(Face::NewTime), p..n);
+    }
+    out
+}
+
+fn add(
+    out: &mut crate::highlight::LineStyles,
+    text: &str,
+    st: ratatui::style::Style,
+    r: std::ops::Range<usize>,
+) {
+    let n = text.len();
+    let r = r.start.min(n)..r.end.min(n);
+    if r.start < r.end && text.is_char_boundary(r.start) && text.is_char_boundary(r.end) {
+        out.push((st, r));
+    }
+}
+
+fn keyword_style(kw: &str, done: &[String]) -> ratatui::style::Style {
+    use crate::org::face;
+    if let Some(list) = opt("org-todo-keyword-faces")
+        && let Some(e) = list
+            .list()
+            .unwrap_or(&[])
+            .iter()
+            .find(|e| e.car().and_then(Sexp::str) == Some(kw))
+    {
+        return face::face_style(&e.cdr());
+    }
+    let name = if done.iter().any(|d| d == kw) {
+        "org-done"
+    } else {
+        "org-todo"
+    };
+    face::face_style(&Sexp::Sym(name.into()))
+}
+
+/// The style of an agenda face (org-faces.el defaults on a dark terminal).
+pub fn face_style(f: Face) -> ratatui::style::Style {
+    use ratatui::style::{Color, Modifier, Style};
+    let s = Style::default();
+    let bold = Modifier::BOLD;
+    match f {
+        Face::Default => s,
+        Face::Structure => s.fg(Color::LightBlue).add_modifier(bold),
+        Face::StructureSecondary => s.fg(Color::Blue),
+        Face::StructureFilter => s.fg(Color::LightBlue).add_modifier(bold | Modifier::ITALIC),
+        Face::Date => s.fg(Color::LightBlue),
+        Face::DateToday => s.fg(Color::LightBlue).add_modifier(bold | Modifier::ITALIC),
+        Face::DateWeekend => s.fg(Color::LightBlue).add_modifier(bold),
+        Face::DateWeekendToday => s.fg(Color::LightBlue).add_modifier(bold | Modifier::ITALIC),
+        Face::Scheduled => s.fg(Color::LightGreen),
+        Face::ScheduledToday => s.fg(Color::LightGreen),
+        Face::ScheduledPreviously => s.fg(Color::Rgb(255, 200, 120)),
+        Face::Deadline(fr) => match format::deadline_face_spec(fr) {
+            Some(spec) => crate::org::face::face_style(&spec),
+            None if fr >= 1.0 => s.fg(Color::LightRed).add_modifier(bold),
+            None if fr >= 0.5 => s.fg(Color::Rgb(255, 165, 0)),
+            None => s.fg(Color::Yellow),
+        },
+        Face::Done => s.fg(Color::Green),
+        Face::Event => s,
+        Face::SexpEntry => s,
+        Face::Daterange => s,
+        Face::Diary => s,
+        Face::TimeGrid => s.fg(Color::Yellow),
+        Face::CurrentTime => s.fg(Color::Yellow).add_modifier(bold),
+        Face::Warning => s.fg(Color::LightRed).add_modifier(bold),
+        Face::Dimmed => s.fg(Color::DarkGray),
+        Face::Clocking => s.bg(Color::Rgb(60, 60, 30)),
+        Face::Tag => s.add_modifier(bold),
+        Face::Priority(p) => {
+            match opt("org-priority-faces").and_then(|l| {
+                l.list()?
+                    .iter()
+                    .find(|e| e.car().and_then(Sexp::int) == Some(p as i64))
+                    .map(Sexp::cdr)
+            }) {
+                Some(spec) => crate::org::face::face_style(&spec),
+                None => s.fg(Color::Magenta),
+            }
+        }
+        Face::Todo | Face::Keyword => s.fg(Color::LightRed).add_modifier(bold),
+        Face::HabitClear => s.bg(Color::Rgb(0, 0, 139)),
+        Face::HabitClearFuture => s.bg(Color::Rgb(25, 25, 112)),
+        Face::HabitReady => s.bg(Color::Rgb(0, 100, 0)),
+        Face::HabitReadyFuture => s.bg(Color::Rgb(47, 79, 79)),
+        Face::HabitAlert => s.bg(Color::Rgb(255, 215, 0)).fg(Color::Black),
+        Face::HabitAlertFuture => s.bg(Color::Rgb(184, 134, 11)),
+        Face::HabitOverdue => s.bg(Color::Rgb(178, 34, 34)),
+        Face::HabitOverdueFuture => s.bg(Color::Rgb(139, 0, 0)),
+        Face::BulkMark => s.fg(Color::LightRed).add_modifier(bold),
+        Face::NewTime => s.bg(Color::Rgb(60, 60, 90)),
     }
 }
 
@@ -1071,6 +1428,7 @@ pub fn remote_now(s: &mut crate::session::Session, at: Loc, f: RunFn, after: Aft
         };
         crate::org::fold::widen(src);
         src.set_cursor(l, 0);
+        src.cur.byte = at.col.min(src.buf.line(l).len());
         if src.folds.hidden(l) {
             src.reveal_cursor();
         }

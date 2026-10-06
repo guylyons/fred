@@ -155,3 +155,44 @@ Hooks: org-attach-after-change-hook / org-attach-open-hook are lists of
 names; `org-attach-git-commit` and `org-attach-git-annex-get-maybe` run the
 git CLI. Gaps: no agenda entry point, custom org-attach-commands ignored,
 file prompts take a typed path.
+
+## Agenda (`src/org/agenda/`)
+
+org-agenda.el and org-habit.el. Submodules: `collect` (entry finders over a
+file's lines: todos, timestamps incl. repeaters and `<%%(...)>`, diary sexp
+lines, deadlines with warnings, scheduled with delays/past days, date
+ranges, log mode closed/clock/state, tags matcher, search view), `format`
+(prefix format, time grid, sorting, tag alignment), `views` (the `Space o a`
+dispatcher with `<` `>` `*`, custom commands and block agendas, the agenda,
+TODO, tags, search and stuck views, build/redo), `cmds` (buffer commands),
+`filter`, `habit` (parse, urgency, consistency graph), `diary` (holidays and
+common `diary-file` entry forms), `solar` (convert-date, holidays, moon
+phases, sunrise).
+
+- A view is a read-only buffer whose `org_view` holds the model; each line
+  keeps its item and source markers (`Loc`: file, line, text, column).
+  Session services: `org_agenda_show`, `org_agenda_find`,
+  `org_agenda_kill_all`, `org_release`. Builds read open buffers first.
+- Remote commands run the Org command by name (or module function) in the
+  source buffer (`agenda::remote`); prompts move to the agenda; the entry's
+  lines are reformatted (org-agenda-change-all-lines). Clock commands call
+  `org-clock-in`/`-out`/`-cancel`/`-goto`/`org-clock-get-clocktable` by name.
+- Keys: EVIL_AGENDA_MAP (evil-collection) before AGENDA_MAP; Evil motions
+  stay Vim's; `\` (evil-execute-in-emacs-state) sends the next key to
+  AGENDA_MAP. Keymap lookup now lets an earlier map's prefix shadow later
+  maps (Evil semantics). See org-user-bindings.md.
+- Faces via `agenda::styles` (hook in ui/render.rs); the status line shows
+  the buffer name and org-agenda-set-mode-name.
+- One window: org-agenda-show / follow mode show the entry text under its
+  agenda line. org-habit is active when `org-modules` has `org-habit`.
+- Tests (agenda/tests.rs) compare views with `emacs --batch -Q` output of
+  the pinned checkout (week, todo, tags, search, todo keyword, tags-todo,
+  block agenda, stuck, log+archives, habits) and drive commands on entries.
+
+Status (stopped at the coordinator's request); remaining: agenda column view
+(colview not ported); ps/pdf write; org-batch-agenda(-csv) and org-diary;
+org-agenda-custom-commands-contexts; persistent filters, window-setup and
+category-icon options; tag-filter group expansion; diary block/cyclic and
+date-tree diary insertion; non-US/Christian holidays and other calendars in
+convert-date; appointment notifications; the headline snapshot before a
+repeat; region looping. Per-symbol state: docs/org-parity.csv.

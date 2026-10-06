@@ -793,7 +793,7 @@ fn cmp(s: &str, a: &Item, b: &Item, done: &[String]) -> Option<i8> {
         "todo-state-up" => todo(a, b),
         "todo-state-down" => todo(b, a),
         "habit-up" => cmp_num(b.habit.is_some(), a.habit.is_some()),
-        "habit-down" => cmp_num(a.habit.is_some(), b.habit.is_some()).map(|x| -x),
+        "habit-down" => cmp_num(a.habit.is_some(), b.habit.is_some()),
         "alpha-up" => alpha(a, b),
         "alpha-down" => alpha(b, a),
         _ => None,
