@@ -468,7 +468,9 @@ impl<'a, L: Lines + ?Sized> Doc<'a, L> {
             } else {
                 String::new()
             }),
-            "CLOCKSUM" | "CLOCKSUM_T" => None,
+            "CLOCKSUM" | "CLOCKSUM_T" => {
+                super::clock::clocksum(self.b, h, self.file, prop == "CLOCKSUM_T")
+            }
             _ => None,
         }
     }

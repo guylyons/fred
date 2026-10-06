@@ -637,9 +637,16 @@ pub fn draw(
         }
         let mut line = ed.buf.line(l);
         // Org tables: shrunk columns, coordinates, the header line.
-        let table_display = crate::org::table::display(ed, l, l == view.top, &line);
+        let mut table_display = crate::org::table::display(ed, l, l == view.top, &line);
         if let Some(t) = &table_display {
             line = t.clone();
+        }
+        // org-clock-display's subtree times over the heading.
+        if ed.org.is_some()
+            && let Some(t) = crate::org::clock::display(ed, l, &line)
+        {
+            line = t.clone();
+            table_display = Some(t);
         }
         // org-ellipsis after a line whose following lines are folded.
         if ed.folds.folded_after(l) {
@@ -992,6 +999,10 @@ fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter) {
     let line = ed.buf.line(ed.cur.line);
     let col = col_of_byte(&line, ed.cur.byte, ed.tabstop) + 1;
     let mut right = vec![Span::styled(format!(" {}:{col} ", ed.cur.line + 1), bold)];
+    // Org's global-mode-string: the running clock and timer.
+    if let Some(org) = crate::org::mode_line() {
+        right.push(Span::styled(format!(" {org}"), bar.fg(Color::LightMagenta)));
+    }
     if w >= 50 {
         let percent = (ed.cur.line + 1) * 100 / ed.line_count().max(1);
         right.push(Span::styled(format!("{percent}% "), bar));

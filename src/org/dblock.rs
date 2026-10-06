@@ -152,19 +152,18 @@ type Writer = fn(&mut Editor, &Params, &mut Out) -> Result<(), String>;
 
 /// org-dynamic-block-alist (most recently defined first) and the
 /// org-dblock-write: functions.
-/// ponytail: the clocktable and columnview writers are not ported yet;
-/// they report so until org-clock.el and org-colview.el land.
 const TYPES: &[(&str, &str, Writer)] = &[
-    ("columnview", "org-columns-insert-dblock", pending),
-    ("clocktable", "org-clock-report", pending),
+    (
+        "columnview",
+        "org-columns-insert-dblock",
+        super::colview::dblock_write,
+    ),
+    (
+        "clocktable",
+        "org-clock-report",
+        super::clock::table::dblock_write,
+    ),
 ];
-
-fn pending(_ed: &mut Editor, p: &Params, _out: &mut Out) -> Result<(), String> {
-    Err(format!(
-        "org-dblock-write:{}: not yet ported to fred",
-        p.str(":name").unwrap_or_default()
-    ))
-}
 
 pub fn start_re() -> &'static regex::Regex {
     crate::org_re!(r"^[ \t]*#\+(?:BEGIN|begin):[ \t]+(\S+)(?:[ \t]+(.*))?")

@@ -155,3 +155,38 @@ Hooks: org-attach-after-change-hook / org-attach-open-hook are lists of
 names; `org-attach-git-commit` and `org-attach-git-annex-get-maybe` run the
 git CLI. Gaps: no agenda entry point, custom org-attach-commands ignored,
 file prompts take a typed path.
+
+## Clocking, timers and column view (`src/org/clock/`, `timer.rs`, `colview.rs`)
+
+org-clock.el, org-timer.el and org-colview.el, registered in `MODULES`.
+
+API for other modules:
+- `clock::running()`, `clock::history()`, `clock::out_time()`; the running
+  clock is session state found again by its open `CLOCK: [start]` line,
+  tasks by `clock::Marker` (file, line, heading text; `clock::locate`).
+- `clock::clock_in(ed, Prefix, start)`, `clock::clock_out(ed, state, quiet, at)`,
+  `clock::out_if_current` (org-todo calls `org-clock-out-if-current`).
+- `clock::sum::{sum, subtree_minutes, special_range}` (org-clock-sum,
+  org-clock-special-range; pure over lines). `clock::clocksum` answers the
+  CLOCKSUM/CLOCKSUM_T special properties (always computed, not only after
+  an org-clock-sum); `clock::minutes` serves org-sort's `k`.
+- `clock::table::get_clocktable(&Params)` for the agenda clock report;
+  `clock::table::{dblock_write, table_data, write_default}`.
+- `org::mode_line()` (clock + timer) is drawn in the status line;
+  `org::tick(s)` runs from the app loop (status refresh, effort overrun
+  notification, idle resolution / auto clock-out, countdown end, loading
+  the persisted clock).
+- `clock::display(ed, l, line)` is the renderer hook for org-clock-display's
+  per-heading times (`Org::clock_overlays`, dropped on the next change).
+- `colview::{compile_format, uncompile_format, summarize, entry_values,
+  compute_all, capture}` for the agenda column view. Column view is a
+  read-only `*Org Columns: FILE*` buffer; COLUMNS_MAP keys edit the source
+  entries through the session and rebuild the view.
+
+Remaining gaps (`partial` in the ledger): Lisp-valued options (state
+switch functions, heading function, clocktable/columnview formatters,
+colview collect functions) are not evaluated; scopes and `:id` targets in
+other files are read from disk; persistence uses Fred's own file in the
+state dir, written on every clock change; no agenda column view yet (the
+agenda must call the exposed functions); frame-title display and beeps
+have no Fred equivalent.

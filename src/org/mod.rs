@@ -9,6 +9,8 @@ pub mod attach;
 pub mod babel;
 pub mod buf;
 pub mod capture;
+pub mod clock;
+pub mod colview;
 pub mod ctx;
 pub mod dblock;
 pub mod dispatch;
@@ -31,6 +33,7 @@ pub mod syntax;
 pub mod table;
 pub mod tags;
 pub mod time;
+pub mod timer;
 pub mod todo;
 
 use crate::editor::{Editor, Mode};
@@ -46,9 +49,10 @@ impl Org {
     }
 }
 
-/// Column view in this buffer: C-c C-c quits it (org-colview).
-pub fn colview_active(_ed: &mut Editor) -> Option<Result<(), String>> {
-    None
+/// Column view in this buffer: C-c C-c toggles a checkbox or quits it
+/// (org-columns-toggle-or-columns-quit).
+pub fn colview_active(ed: &mut Editor) -> Option<Result<(), String>> {
+    colview::is_view(ed).then(|| call(ed, "org-columns-toggle-or-columns-quit", Prefix::None))
 }
 
 /// A generated Org buffer: an agenda view (see agenda/mod.rs).
@@ -85,6 +89,8 @@ pub struct Org {
     pub list: list::State,
     /// org-pretty-entities toggled in this buffer (None: the option).
     pub pretty_entities: Option<bool>,
+    /// org-clock-display's per-heading times.
+    pub clock_overlays: clock::Overlays,
 }
 
 /// org-region-active-p: the region's lines.
@@ -555,6 +561,9 @@ fn active_map(ed: &Editor) -> Option<Vec<Map>> {
     if ed.org_view.is_some() {
         return Some(vec![keymap::AGENDA_MAP]);
     }
+    if colview::is_view(ed) {
+        return Some(vec![keymap::COLUMNS_MAP]);
+    }
     let mut maps: Vec<Map> = vec![];
     match ed.org_buffer_name.as_deref() {
         Some(n) if n.starts_with("CAPTURE-") => maps.push(keymap::CAPTURE_MAP),
@@ -710,7 +719,7 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         run(ed, cmd, arg);
         return true;
     }
-    if table::orgtbl_key(ed, k) {
+    if table::orgtbl_key(ed, k) || colview::key(ed, k) {
         return true;
     }
     let Some(map) = active_map(ed) else {
@@ -727,6 +736,8 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     if ed.org_keys.is_empty() {
         let kept = if ed.org_view.is_some() {
             agenda::vim_keeps(ed, k)
+        } else if colview::is_view(ed) {
+            colview::vim_keeps(ed, k)
         } else if insert {
             vim_keeps_insert(k)
         } else {
@@ -829,6 +840,9 @@ const MODULES: &[Module] = &[
     babel::command,
     entities::command,
     attach::command,
+    clock::command,
+    timer::command,
+    colview::command,
 ];
 
 thread_local! {
@@ -990,8 +1004,8 @@ pub fn read_date_timestamp(s: &str, with_time: bool, inactive: bool) -> Option<S
 }
 
 /// The running clock's heading as a refile target (org-refile with 2).
-pub fn clock_target(_s: &crate::session::Session) -> Option<refile::Target> {
-    None
+pub fn clock_target(s: &crate::session::Session) -> Option<refile::Target> {
+    clock::target(s)
 }
 
 /// Typing in a table (org-self-insert-command's table part): true when
@@ -1000,20 +1014,25 @@ pub fn table_self_insert(ed: &mut Editor, c: char) -> bool {
     table::self_insert(ed, c)
 }
 
-/// Clocked minutes in the subtree at `h` (org-clock-sum), from CLOCK lines.
+/// Clocked minutes in the subtree at `h` (org-clock-sum).
 pub fn clock_minutes(ed: &Editor, h: usize) -> i64 {
-    let end = syntax::subtree_end(&ed.buf, h);
-    let re = crate::org_re!(r"=>\s*(-?\d+):(\d\d)");
-    (h..end)
-        .filter_map(|l| {
-            let t = ed.buf.line(l);
-            if !t.trim_start().starts_with("CLOCK:") {
-                return None;
-            }
-            re.captures(&t)
-                .map(|c| c[1].parse::<i64>().unwrap_or(0) * 60 + c[2].parse::<i64>().unwrap_or(0))
-        })
-        .sum()
+    clock::minutes(ed, h)
+}
+
+/// What Org adds to the status line (global-mode-string): the running
+/// clock (org-mode-line-string) and timer (org-timer-mode-line-string).
+pub fn mode_line() -> Option<String> {
+    let s: String = [clock::mode_line(), timer::mode_line()]
+        .into_iter()
+        .flatten()
+        .collect();
+    (!s.is_empty()).then_some(s)
+}
+
+/// The app loop's tick: clock and timer updates. True when the status
+/// line or a message changed.
+pub fn tick(s: &mut crate::session::Session) -> bool {
+    clock::tick(s) | timer::tick(&mut s.ed)
 }
 
 /// Run a command by name from another command (context dispatchers).
