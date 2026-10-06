@@ -19,6 +19,21 @@ pub fn interpret(t: &Tree, id: NodeId) -> String {
     .fun(id, None)
 }
 
+/// org-export-expand: ID back to Org syntax with CONTENTS (as the
+/// org-element-TYPE-interpreter), affiliated keywords first when asked.
+pub fn expand(t: &Tree, id: NodeId, contents: Option<String>, with_affiliated: bool) -> String {
+    let i = Interp {
+        t,
+        over: HashMap::new(),
+    };
+    let aff = if with_affiliated && t.class(id) == Class::Element {
+        i.affiliated(id)
+    } else {
+        String::new()
+    };
+    format!("{aff}{}", i.interpreter(id, contents))
+}
+
 /// org-element-interpret-data on a property value (secondary string,
 /// string, list of them).
 pub fn interpret_value(t: &Tree, v: &Value) -> String {
@@ -1201,7 +1216,7 @@ type Marks = HashMap<NodeId, Vec<(usize, usize, Option<usize>)>>;
 
 /// org-element-normalize-contents: plain text of a paragraph or verse
 /// block with the common indentation removed (by node).
-fn normalize_contents(t: &Tree, id: NodeId, ignore_first: bool) -> HashMap<NodeId, String> {
+pub fn normalize_contents(t: &Tree, id: NodeId, ignore_first: bool) -> HashMap<NodeId, String> {
     // Indentation marks per text node: (byte range, width or empty).
     let mut marks: HashMap<NodeId, Vec<(usize, usize, Option<usize>)>> = HashMap::new();
     let mut min = usize::MAX;

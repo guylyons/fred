@@ -337,3 +337,48 @@ category-icon options; tag-filter group expansion; diary block/cyclic and
 date-tree diary insertion; non-US/Christian holidays and other calendars in
 convert-date; appointment notifications; the headline snapshot before a
 repeat; region looping. Per-symbol state: docs/org-parity.csv.
+## Export (src/org/export) — work in progress
+
+Status: the ox.el framework is partly ported and compiles, but nothing is
+user-reachable yet (no pipeline, backends or dispatcher; `C-c C-e` still
+reports "not yet ported").
+
+Done (helpers, unit-tested where noted):
+- `mod.rs`: `Backend` as Rust data (name, parent, transcoders by type
+  name incl. `template`/`inner-template`/`plain-text`, options alist,
+  filters, menu entry), registry (`get`, `register`, `derived`), `Info`
+  (the communication channel: options by property name without colon,
+  the parse tree, caches), `Info::data` (org-export-data with
+  memoization, ignore list, post-blank, filters, broken links recorded in
+  `info.broken`/`info.fatal` instead of signals), `data_with_backend`,
+  `with_backend`, `graft`/`parse_secondary` (secondary strings into the
+  info tree).
+- `env.rs`: org-export-options-alist (`CORE`), OPTIONS parsing (tested),
+  global/in-buffer/subtree options, `#+BIND` (via `env::var`).
+- `tools.rs`, `table.rs`, `quotes.rs`: footnotes, headlines, links and
+  resolvers, references, ordinals, src helpers, TOC collection, topology,
+  the table API, smart quotes, `org-export-translate` (dictionary data
+  dumped from Emacs into `dictionary.sexp`).
+- `include.rs`: #+INCLUDE expansion on text (URLs not fetched).
+- `macros.rs`: THE MACRO SEAM.  `export::macros::expand_macros` is the only
+  entry point export uses for org-macro-initialize-templates +
+  org-macro-replace-all.  It implements title/author/date/email/
+  input-file/modification-time/n/keyword/property/time, `#+MACRO` with
+  `$N`, global macros, `results` deferral; `(eval ...)` expands to "".
+  At merge with src/org/macro.rs, replace its body with a call there.
+
+Remaining (in this order): `pipeline.rs` (org-export-as on text: narrowing
+for region/subtree, includes, comment-tree deletion, macros, Babel via
+`babel::export_process(_text)` — ob-exp is already ported in
+src/org/babel/exp.rs —, environment, prune/select/exclude, uninterpreted
+data, footnote installation, numbering, templates, string-as, to-buffer
+via `Session::org_temp_buffer`, to-file, output-file-name,
+insert-default-template, replace-region-by); an Emacs fill emulation for
+ox-ascii (fill-region with adaptive prefix and double sentence spacing —
+verified quirk: a long one-line paragraph starting with `*bold*` gets a
+one-space continuation prefix); backends ox-org, ox-ascii, ox-md and the
+ox-html subset md inherits (`html.rs`); the dispatcher (org menu with
+C-b/C-s/C-v/C-f/C-a toggles; no `Space o e`, per org-user-bindings.md);
+golden tests against `emacs --batch ... org-export-string-as`.
+Later backends (html, latex, odt, texinfo, man, icalendar, beamer, koma,
+publish) define a `Backend` value and register it in `builtins()`.
