@@ -202,11 +202,12 @@ fn ex_completion_popup_cycles_and_esc_dismisses_it() {
         s.term.backend().buffer()[(0, ai_y)].bg,
         ratatui::style::Color::Cyan
     );
-    assert_eq!(s.cursor(), (3, 11));
+    // `:ai` needs an argument, so it comes with the space before it.
+    assert_eq!(s.cursor(), (4, 11));
     e.handle_key(crate::key::Key::new(crate::key::KeyCode::Tab));
     assert!(matches!(&e.mode, Mode::Command(cl) if cl.text == "bdelete"));
     e.handle_key(crate::key::Key::new(crate::key::KeyCode::BackTab));
-    assert!(matches!(&e.mode, Mode::Command(cl) if cl.text == "ai"));
+    assert!(matches!(&e.mode, Mode::Command(cl) if cl.text == "ai "));
     e.handle_key(crate::key::Key::new(crate::key::KeyCode::Esc));
     assert!(
         matches!(&e.mode, Mode::Command(_)),
@@ -403,8 +404,31 @@ fn visual_selection_is_reversed() {
     s.draw(&e);
     let b = s.term.backend().buffer();
     assert!(b[(4, 0)].modifier.contains(Modifier::REVERSED));
-    assert!(b[(4, 1)].modifier.contains(Modifier::REVERSED));
+    // The cursor's cell (c) is left to the terminal's cursor to invert.
+    assert!(!b[(4, 1)].modifier.contains(Modifier::REVERSED));
+    assert!(b[(5, 1)].modifier.contains(Modifier::REVERSED));
     assert!(!b[(4, 2)].modifier.contains(Modifier::REVERSED));
+}
+
+#[test]
+fn charwise_visual_reverses_just_the_selection() {
+    let mut s = Screen::new(20, 5);
+    let e = editor("abcd\nefgh\nij", "lvj");
+    s.draw(&e);
+    let b = s.term.backend().buffer();
+    let rev = |x, y| b[(x, y)].modifier.contains(Modifier::REVERSED);
+    // Text starts at column 4: b-d of the first line, e-f of the second,
+    // except the cursor's cell (f), left to the terminal's cursor to invert.
+    assert_eq!(
+        (4..8).map(|x| rev(x, 0)).collect::<Vec<_>>(),
+        [false, true, true, true]
+    );
+    assert_eq!(
+        (4..8).map(|x| rev(x, 1)).collect::<Vec<_>>(),
+        [true, false, false, false]
+    );
+    assert!(!rev(4, 2));
+    assert!(s.row(4).contains("VISUAL") || s.row(3).contains("VISUAL"));
 }
 
 #[test]
@@ -1345,13 +1369,12 @@ fn explain_box_sits_above_the_selection_until_closed() {
     let b = s.view.explain_box.unwrap();
     super::render::mouse(&mut e, &mut s.view, &s.cfg, area, click(b.right() - 2, b.y));
     assert!(e.explain.is_none());
-    // A click away closes it and moves the cursor; so does Esc.
+    // A click away moves the cursor but leaves it open; only Esc closes it.
     e.explain = Some((crate::ex::addr::Range { start: 4, end: 5 }, "x".into()));
     s.draw(&e);
     super::render::mouse(&mut e, &mut s.view, &s.cfg, area, click(6, 7));
-    assert!(e.explain.is_none());
+    assert!(e.explain.is_some(), "clicks away leave it open");
     assert_eq!(e.cur.line, 7);
-    e.explain = Some((crate::ex::addr::Range { start: 4, end: 5 }, "x".into()));
     e.handle_key(Key::ch('j'));
     assert!(e.explain.is_some(), "other keys leave it open");
     e.handle_key(Key::new(KeyCode::Esc));

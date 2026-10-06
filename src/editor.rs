@@ -35,6 +35,10 @@ pub enum Mode {
     VisualLine {
         anchor: usize,
     },
+    /// Charwise Visual (`v`): `anchor` is the (line, byte) it started at.
+    Visual {
+        anchor: (usize, usize),
+    },
     Command(CmdLine),
     /// File or grep picker (`Space p`, `Space g`).
     Pick(Box<crate::pick::Picker>),
@@ -373,7 +377,7 @@ impl Editor {
         }
         let was_insert = self.mode == Mode::Insert;
         match self.mode {
-            Mode::Normal | Mode::VisualLine { .. } => {
+            Mode::Normal | Mode::VisualLine { .. } | Mode::Visual { .. } => {
                 if !crate::dired::key(self, k) {
                     vim::normal_key(self, k)
                 }
@@ -384,8 +388,14 @@ impl Editor {
         }
         self.clamp_cursor();
         // Undo/redo in Visual-line mode can delete the anchor's line.
-        if let Mode::VisualLine { anchor } = &mut self.mode {
-            *anchor = (*anchor).min(self.buf.len_lines() - 1);
+        let last = self.buf.len_lines() - 1;
+        match &mut self.mode {
+            Mode::VisualLine { anchor } => *anchor = (*anchor).min(last),
+            Mode::Visual { anchor } => {
+                anchor.0 = anchor.0.min(last);
+                anchor.1 = anchor.1.min(self.buf.line_len(anchor.0));
+            }
+            _ => {}
         }
         if self.mode == Mode::Insert && !was_insert {
             self.word_index.ensure(&self.buf, true);
@@ -402,6 +412,16 @@ impl Editor {
         }
     }
 
+    /// The lines a Visual or Visual-line selection covers, lowest first.
+    pub fn visual_lines(&self) -> Option<(usize, usize)> {
+        let a = match self.mode {
+            Mode::VisualLine { anchor } => anchor,
+            Mode::Visual { anchor } => anchor.0,
+            _ => return None,
+        };
+        Some((a.min(self.cur.line), a.max(self.cur.line)))
+    }
+
     /// Generated Git text (status/log/diff views and blobs) is never edited or saved.
     pub fn generated(&self) -> bool {
         self.magit.is_some() || self.blob.is_some()
@@ -413,7 +433,7 @@ impl Editor {
         if self.generated()
             && matches!(
                 self.mode,
-                Mode::Normal | Mode::Insert | Mode::VisualLine { .. }
+                Mode::Normal | Mode::Insert | Mode::VisualLine { .. } | Mode::Visual { .. }
             )
         {
             self.set_err("generated Git buffer is read-only");
@@ -449,7 +469,7 @@ impl Editor {
                     self.buf.modified = self.undo.state_id() != self.saved_state;
                 }
             }
-            Mode::VisualLine { .. } => {}
+            Mode::VisualLine { .. } | Mode::Visual { .. } => {}
         }
         self.sync_marks();
     }

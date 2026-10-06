@@ -710,10 +710,7 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         return false;
     };
     let insert = ed.mode == Mode::Insert;
-    let visual = match ed.mode {
-        Mode::VisualLine { anchor } => Some((anchor.min(ed.cur.line), anchor.max(ed.cur.line))),
-        _ => None,
-    };
+    let visual = ed.visual_lines();
     if !normal && !insert && visual.is_none() {
         return false;
     }

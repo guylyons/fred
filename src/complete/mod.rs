@@ -91,50 +91,26 @@ pub fn token_before(line: &str, byte: usize) -> Option<(usize, String, bool)> {
     (!w.is_empty()).then(|| (wstart, w.to_string(), false))
 }
 
-const COMMANDS: &[&str] = &[
-    "ai",
-    "bdelete",
-    "bnext",
-    "bprevious",
-    "buffer",
-    "buffers",
-    "cd",
-    "d",
-    "edit",
-    "explain",
-    "files",
-    "g",
-    "j",
-    "ls",
-    "m",
-    "pwd",
-    "quit",
-    "read",
-    "s",
-    "t",
-    "v",
-    "write",
-    "wq",
-    "xit",
-];
-
 /// Full `:` lines that Tab can complete `text` to.
 pub fn cmdline_candidates(text: &str, cwd: &Path) -> Vec<String> {
     if text.chars().all(|c| c.is_ascii_alphabetic()) {
-        return COMMANDS
+        let mut names: Vec<String> = crate::ex::cmd::COMMANDS
             .iter()
-            .filter(|c| c.starts_with(text) && **c != text)
-            .map(|c| c.to_string())
+            .filter(|c| c.name.starts_with(text) && c.name != text)
+            // One that needs an argument comes with the space before it.
+            .map(|c| match c.flags & crate::ex::cmd::NEEDARG {
+                0 => c.name.to_string(),
+                _ => format!("{} ", c.name),
+            })
             .collect();
+        names.sort_by_key(|n| n.to_lowercase());
+        return names;
     }
     let Some((cmd, arg)) = text.split_once(' ') else {
         return vec![];
     };
     let name = cmd.trim_end_matches('!');
-    if !matches!(
-        name,
-        "w" | "write" | "wq" | "e" | "edit" | "r" | "read" | "cd"
-    ) {
+    if !crate::ex::cmd::lookup(name).is_some_and(|c| c.flags & crate::ex::cmd::FILE != 0) {
         return vec![];
     }
     let arg = arg.trim_start();

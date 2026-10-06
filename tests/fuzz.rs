@@ -1222,8 +1222,11 @@ fn check_state(ed: &Editor, step: usize) -> Result<(), Failure> {
             format!("cursor {:?} in {line:?}, {mode:?}", c.pos()),
         );
     }
-    if let Mode::VisualLine { anchor } = *mode
-        && anchor >= n
+    if let Some(anchor) = match *mode {
+        Mode::VisualLine { anchor } => Some(anchor),
+        Mode::Visual { anchor } => Some(anchor.0),
+        _ => None,
+    } && anchor >= n
     {
         return fail(
             "visual-anchor-out-of-range",
@@ -1417,7 +1420,7 @@ impl Runner {
                 self.count = CountGuess::default();
                 None
             }
-            Mode::Normal | Mode::VisualLine { .. } => {
+            Mode::Normal | Mode::VisualLine { .. } | Mode::Visual { .. } => {
                 let bug = "redo_in_visual_line_leaves_anchor_past_end";
                 if matches!(self.ed.mode, Mode::VisualLine { .. })
                     && *k == Key::ctrl('r')

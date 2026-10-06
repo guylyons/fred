@@ -2865,7 +2865,9 @@ mod tests {
         // magit-log-move-to-revision in a log buffer.
         t.keys(" mll");
         magit_settle(&mut t);
-        t.keys(":Magit magit-log-move-to-revision<Enter>v1<Enter>");
+        t.keys(":Magit magit-log-move-to-revision<Enter>");
+        magit_settle(&mut t);
+        t.keys("v1<Enter>");
         magit_settle(&mut t);
         assert!(t.s.ed.buf.line(t.s.ed.cur.line).ends_with(" first"));
         // A diff buffer remembers what it showed: C-c C-b and C-c C-f.
