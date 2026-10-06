@@ -288,6 +288,33 @@ fn scrolloff_keeps_context() {
 }
 
 #[test]
+fn zz_centers_the_cursor_line() {
+    // 10 text rows: zz puts the cursor on the fifth.
+    let mut s = Screen::new(20, 12);
+    let text = (1..=40)
+        .map(|i| i.to_string())
+        .collect::<Vec<_>>()
+        .join("\n");
+    let mut e = editor(&text, "10G");
+    s.draw(&e);
+    assert_eq!(
+        s.view.top, 2,
+        "scrolloff alone leaves line 10 near the bottom"
+    );
+    for k in crate::key::parse_keys("zz") {
+        e.handle_key(k);
+    }
+    s.draw(&e);
+    assert_eq!(s.view.top, 5);
+    assert_eq!(s.cursor().1, 4);
+    for k in crate::key::parse_keys("2Gzz") {
+        e.handle_key(k);
+    }
+    s.draw(&e);
+    assert_eq!(s.view.top, 0, "no scrolling above the first line");
+}
+
+#[test]
 fn wrap_mode() {
     let mut s = Screen::new(20, 5);
     s.cfg.wrap = true;

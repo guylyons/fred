@@ -98,6 +98,9 @@ impl View {
         if self.detached {
             return;
         }
+        if ed.recenter.take() {
+            self.recenter(ed, rows.max(1), cols.max(1), wrap);
+        }
         if wrap {
             self.scroll_wrapped(ed, rows.max(1), cols.max(1));
             return;
@@ -153,6 +156,28 @@ impl View {
                 full
             };
         }
+    }
+
+    /// `zz`: the cursor's screen row in the middle of the window (the
+    /// normal scroll then keeps the last line from rising off the bottom).
+    fn recenter(&mut self, ed: &Editor, rows: usize, cols: usize, wrap: bool) {
+        let c = ed.cur.line;
+        let cr = if wrap {
+            wrap_cursor(&ed.buf.line(c), ed.cur.byte, ed.tabstop, cols).0
+        } else {
+            0
+        };
+        let rows_of = |l: usize| {
+            if l != c && ed.folds.hidden(l) {
+                0
+            } else if wrap {
+                let r = wrap_rows(&ed.buf.line(l), ed.tabstop, cols);
+                if l == c { r.max(cr + 1) } else { r }
+            } else {
+                1
+            }
+        };
+        (self.top, self.top_row) = up((c, cr), (rows - 1) / 2, &rows_of);
     }
 
     /// Wrap mode: scroll by screen rows (a line can be taller than the

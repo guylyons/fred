@@ -157,10 +157,10 @@ fn parse_motion(keys: &[Key]) -> Parse<(Motion, usize)> {
 }
 
 /// Commands that take one character argument.
-const ARG_CMDS: &[char] = &['r', 'm', 'Z', ' ', 'g'];
+const ARG_CMDS: &[char] = &['r', 'm', 'Z', 'z', ' ', 'g'];
 const SIMPLE: &[char] = &[
     'x', 'X', 's', 'S', 'J', 'p', 'P', 'o', 'O', 'i', 'a', 'I', 'A', 'u', 'D', 'C', 'Y', 'V', ':',
-    '/', '?', '.', 'r', 'm', 'Z', ' ', 'g',
+    '/', '?', '.', 'r', 'm', 'Z', 'z', ' ', 'g',
 ];
 
 fn parse(keys: &[Key]) -> Parse<Cmd> {
@@ -271,7 +271,9 @@ pub fn normal_key(ed: &mut Editor, k: Key) {
                 let allowed = match &cmd {
                     Cmd::Move { .. } => true,
                     Cmd::Simple { key, .. } => {
-                        key.ctrl || key.char() == Some('m') || !matches!(key.code, KeyCode::Char(_))
+                        key.ctrl
+                            || matches!(key.char(), Some('m' | 'z'))
+                            || !matches!(key.code, KeyCode::Char(_))
                     }
                     Cmd::Op { .. } | Cmd::OpSearch { .. } => false,
                 };
@@ -661,6 +663,8 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
             Some('Q') => ed.pending_effect = Some(ExEffect::Quit { force: true }),
             _ => {}
         },
+        // zz centres the cursor line in the window.
+        (KeyCode::Char('z'), false) if arg == Some('z') => ed.recenter.set(true),
         (KeyCode::Char('m'), false) => {
             if let Some(c) = arg.filter(char::is_ascii_lowercase) {
                 ed.marks.insert(c, ed.cur.line);
