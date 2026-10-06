@@ -796,8 +796,12 @@ fn obsolete_properties_drawer(c: &Ctx) -> Reports {
     // (reverse contents))`, which never matches a node: the list is always
     // empty, so the message is always the "contents" one.
     c.map(&[Type::Drawer], |d| {
-        (c.s(d, "drawer-name") == Some("PROPERTIES"))
-            .then(|| (c.post_aff(d), "Incorrect contents for PROPERTIES drawer".into()))
+        (c.s(d, "drawer-name") == Some("PROPERTIES")).then(|| {
+            (
+                c.post_aff(d),
+                "Incorrect contents for PROPERTIES drawer".into(),
+            )
+        })
     })
 }
 

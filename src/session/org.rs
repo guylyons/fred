@@ -406,7 +406,10 @@ mod tests {
         );
         // h hides the checker of the report at point.
         t.keys("h");
-        assert_eq!(t.s.ed.buf.text(), "     3 nil   Missing definition for footnote [9]");
+        assert_eq!(
+            t.s.ed.buf.text(),
+            "     3 nil   Missing definition for footnote [9]"
+        );
         // RET jumps to the source line.
         t.keys("<CR>");
         assert_eq!(t.s.ed.path.as_ref().unwrap().file_name().unwrap(), "a.org");

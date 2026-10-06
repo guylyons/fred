@@ -321,51 +321,6 @@ pub fn format_entry(e: &Entry, template: &str) -> String {
 
 // ---- status drawer ----
 
-/// SHA-1 hex digest (Emacs `sha1` of a string's UTF-8 bytes).
-pub fn sha1(data: &[u8]) -> String {
-    let mut h: [u32; 5] = [0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0];
-    let mut msg = data.to_vec();
-    let bits = (data.len() as u64).wrapping_mul(8);
-    msg.push(0x80);
-    while msg.len() % 64 != 56 {
-        msg.push(0);
-    }
-    msg.extend_from_slice(&bits.to_be_bytes());
-    for chunk in msg.chunks(64) {
-        let mut w = [0u32; 80];
-        for i in 0..16 {
-            w[i] = u32::from_be_bytes(chunk[i * 4..i * 4 + 4].try_into().unwrap());
-        }
-        for i in 16..80 {
-            w[i] = (w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16]).rotate_left(1);
-        }
-        let [mut a, mut b, mut c, mut d, mut e] = h;
-        for (i, wi) in w.iter().enumerate() {
-            let (f, k) = match i {
-                0..=19 => ((b & c) | (!b & d), 0x5A827999),
-                20..=39 => (b ^ c ^ d, 0x6ED9EBA1),
-                40..=59 => ((b & c) | (b & d) | (c & d), 0x8F1BBCDC),
-                _ => (b ^ c ^ d, 0xCA62C1D6),
-            };
-            let t = a
-                .rotate_left(5)
-                .wrapping_add(f)
-                .wrapping_add(e)
-                .wrapping_add(k)
-                .wrapping_add(*wi);
-            e = d;
-            d = c;
-            c = b.rotate_left(30);
-            b = a;
-            a = t;
-        }
-        for (x, y) in h.iter_mut().zip([a, b, c, d, e]) {
-            *x = x.wrapping_add(y);
-        }
-    }
-    h.iter().map(|x| format!("{x:08x}")).collect()
-}
-
 /// (guid, handled, hash).
 type Status = Vec<(String, bool, String)>;
 
@@ -515,7 +470,7 @@ pub fn update_in(ed: &mut Editor, feed: &Feed, raw: &str) -> usize {
             (
                 g,
                 now,
-                sha1(get(e, "item-full-text").unwrap_or_default().as_bytes()),
+                super::babel::sha1::hex(get(e, "item-full-text").unwrap_or_default().as_bytes()),
             )
         })
         .collect();
@@ -698,7 +653,6 @@ mod tests {
     /// Checked against Emacs (org-feed-update-all on the same feed).
     #[test]
     fn rss_update_matches_emacs() {
-        assert_eq!(sha1(b"a\nb"), "fcd127ffa1016069006ad91f3f361248f9bdf272");
         super::super::set_now(Some(1_780_000_000));
         let ts = super::super::timestamp(1_780_000_000, true, true);
         let mut e = super::super::tests::org("* Inbox\n", "");
