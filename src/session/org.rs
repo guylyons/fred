@@ -361,8 +361,14 @@ mod tests {
         let mut t = T::new(
             &[
                 ("inbox.org", "* A\n* B\n"),
-                ("a.xml", "<rss><item><title>X</title><guid>g1</guid></item></rss>"),
-                ("b.xml", "<rss><item><title>Y</title><guid>g2</guid></item></rss>"),
+                (
+                    "a.xml",
+                    "<rss><item><title>X</title><guid>g1</guid></item></rss>",
+                ),
+                (
+                    "b.xml",
+                    "<rss><item><title>Y</title><guid>g2</guid></item></rss>",
+                ),
                 ("src.txt", "hello"),
             ],
             "src.txt",
@@ -376,9 +382,35 @@ mod tests {
         );
         t.keys(":org-feed-update-all<CR>");
         let text = t.file("inbox.org");
-        assert!(text.contains("** X") && text.contains("** Y"), "{text}\n{:?}", t.s.ed.msg);
-        assert!(format!("{:?}", t.s.ed.msg).contains("2 new entries from 2 feeds"), "{:?}", t.s.ed.msg);
+        assert!(
+            text.contains("** X") && text.contains("** Y"),
+            "{text}\n{:?}",
+            t.s.ed.msg
+        );
+        assert!(
+            format!("{:?}", t.s.ed.msg).contains("2 new entries from 2 feeds"),
+            "{:?}",
+            t.s.ed.msg
+        );
         crate::org::options::remove("org-feed-alist");
+    }
+
+    #[test]
+    fn lint_report_buffer() {
+        let mut t = T::new(&[("a.org", "* H\n#+NAME x\ntext [fn:9]\n")], "a.org");
+        t.keys(":org-lint<CR>");
+        assert_eq!(t.s.ed.org_buffer_name.as_deref(), Some("*Org Lint*"));
+        assert_eq!(
+            t.s.ed.buf.text(),
+            "     2 low   Possible missing colon in keyword \"NAME\"\n     3 nil   Missing definition for footnote [9]"
+        );
+        // h hides the checker of the report at point.
+        t.keys("h");
+        assert_eq!(t.s.ed.buf.text(), "     3 nil   Missing definition for footnote [9]");
+        // RET jumps to the source line.
+        t.keys("<CR>");
+        assert_eq!(t.s.ed.path.as_ref().unwrap().file_name().unwrap(), "a.org");
+        assert_eq!(t.s.ed.cur.line, 2);
     }
 
     #[test]

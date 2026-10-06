@@ -23,6 +23,7 @@ pub mod feed;
 pub mod fold;
 pub mod keymap;
 pub mod links;
+pub mod lint;
 pub mod list;
 pub mod mobile;
 pub mod options;
@@ -576,6 +577,9 @@ fn active_map(ed: &Editor) -> Option<Vec<Map>> {
     if ed.org_view.is_some() {
         return Some(vec![keymap::AGENDA_MAP]);
     }
+    if ed.org_buffer_name.as_deref() == Some(lint::BUFFER) {
+        return Some(vec![lint::MAP]);
+    }
     let mut maps: Vec<Map> = vec![];
     match ed.org_buffer_name.as_deref() {
         Some(n) if n.starts_with("CAPTURE-") => maps.push(keymap::CAPTURE_MAP),
@@ -748,6 +752,8 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     if ed.org_keys.is_empty() {
         let kept = if ed.org_view.is_some() {
             agenda::vim_keeps(ed, k)
+        } else if ed.org_buffer_name.as_deref() == Some(lint::BUFFER) {
+            lint::vim_keeps(k)
         } else if insert {
             vim_keeps_insert(k)
         } else {
@@ -856,6 +862,7 @@ const MODULES: &[Module] = &[
     mobile::command,
     compat::command,
     feed::command,
+    lint::command,
 ];
 
 thread_local! {

@@ -206,3 +206,17 @@ file prompts take a typed path.
   fetching uses curl/wget, `file://` works.
 - `org::effect` now chains: a second effect queued before the session runs
   the first runs after it (it used to replace it).
+
+## org-lint (src/org/lint.rs)
+
+- `lint::CHECKERS` mirrors `org-lint--checkers` (order, trust, categories);
+  `generate` sorts reports by position like upstream.
+- Golden data: `tools/org-lint-golden.el` turns every org-lint case of
+  upstream's test-org-lint.el into src/org/lint/golden.json (Emacs output);
+  `lint::tests` must match all of it.
+- Static tables (OPTIONS items, export option keywords, default
+  properties) were printed by Emacs with the default backends loaded;
+  regenerate when the export port registers more backends.
+- Upstream quirks kept: obsolete-properties-drawer always says "Incorrect
+  contents"; `{{{title}}}` etc. need one argument; LaTeX-$ is the
+  ambiguous-$ checker only.

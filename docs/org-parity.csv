@@ -2755,97 +2755,97 @@ org-keys.el,840,function,org-speed-command-activate,missing,,Hook for activating
 org-keys.el,916,function,org-babel-speed-command-activate,missing,,Hook for activating single-letter code block commands.
 org-keys.el,925,command,org-babel-describe-bindings,partial,src/org/babel/mod.rs: ported command; acceptance gates open,Describe all keybindings behind `org-babel-key-prefix'.
 org-keys.el,,option,org-CUA-compatible,missing,,Non-nil means use alternative key bindings for some keys.
-org-lint.el,114,function,org-lint-add-checker,missing,,Add a new checker for linter.
-org-lint.el,163,function,org-lint-remove-checker,missing,,Remove checker(s) from linter.
-org-lint.el,186,command,org-lint--report-mode,missing,,Major mode used to display reports emitted during linting.
-org-lint.el,199,function,org-lint--generate-reports,missing,,Generate linting report for BUFFER.
-org-lint.el,251,function,org-lint--refresh-reports,missing,,
-org-lint.el,257,function,org-lint--current-line,missing,,"Return current report line, as a number."
-org-lint.el,261,function,org-lint--current-marker,missing,,Return current report marker.
-org-lint.el,265,function,org-lint--current-checker,missing,,Return current report checker.
-org-lint.el,271,function,org-lint--display-reports,missing,,Display linting reports for buffer SOURCE.
-org-lint.el,283,command,org-lint--jump-to-source,missing,,Move to source line that generated the report at point.
-org-lint.el,293,command,org-lint--show-source,missing,,Show source line that generated the report at point.
-org-lint.el,300,command,org-lint--hide-checker,missing,,Hide all reports from checker that generated the report at point.
-org-lint.el,309,command,org-lint--ignore-checker,missing,,Ignore all reports from checker that generated the report at point.
-org-lint.el,321,command,org-lint,missing,,Check current Org buffer for syntax mistakes.
-org-lint.el,370,function,org-lint--collect-duplicates,missing,,Helper function to collect duplicates in parse tree AST.
-org-lint.el,400,function,org-lint-misplaced-heading,missing,,Check for accidentally misplaced heading lines.
-org-lint.el,422,function,org-lint-duplicate-custom-id,missing,,
-org-lint.el,433,function,org-lint-duplicate-name,missing,,
-org-lint.el,445,function,org-lint-duplicate-target,missing,,
-org-lint.el,454,function,org-lint-duplicate-footnote-definition,missing,,
-org-lint.el,462,function,org-lint-orphaned-affiliated-keywords,missing,,
-org-lint.el,477,function,org-lint-regular-keyword-before-affiliated,missing,,
-org-lint.el,493,function,org-lint-obsolete-affiliated-keywords,missing,,
-org-lint.el,515,function,org-lint-deprecated-export-blocks,missing,,
-org-lint.el,529,function,org-lint-deprecated-header-syntax,missing,,
-org-lint.el,557,function,org-lint-missing-language-in-src-block,missing,,
-org-lint.el,564,function,org-lint-suspicious-language-in-src-block,missing,,
-org-lint.el,574,function,org-lint-missing-backend-in-export-block,missing,,
-org-lint.el,581,function,org-lint-invalid-babel-call-block,missing,,
-org-lint.el,594,function,org-lint-deprecated-category-setup,missing,,
-org-lint.el,605,function,org-lint-invalid-coderef-link,missing,,
-org-lint.el,615,function,org-lint-invalid-custom-id-link,missing,,
-org-lint.el,625,function,org-lint-invalid-fuzzy-link,missing,,
-org-lint.el,638,function,org-lint-invalid-id-link,missing,,
-org-lint.el,657,function,org-lint-confusing-brackets,missing,,
-org-lint.el,665,function,org-lint-brackets-inside-description,missing,,
-org-lint.el,681,function,org-lint-special-property-in-properties-drawer,missing,,
-org-lint.el,691,function,org-lint-obsolete-properties-drawer,missing,,
-org-lint.el,706,function,org-lint-invalid-effort-property,missing,,
-org-lint.el,716,function,org-lint-invalid-id-property,missing,,
-org-lint.el,726,function,org-lint-link-to-local-file,missing,,
-org-lint.el,752,function,org-lint-non-existent-setupfile-parameter,missing,,
-org-lint.el,765,function,org-lint-wrong-include-link-parameter,missing,,
-org-lint.el,805,function,org-lint-obsolete-include-markup,missing,,
-org-lint.el,824,function,org-lint-unknown-options-item,missing,,
-org-lint.el,854,function,org-lint-export-option-keywords,missing,,Check for options keyword properties without EXPORT in AST.
-org-lint.el,889,function,org-lint-invalid-macro-argument-and-template,missing,,Check for invalid macro arguments in AST.
-org-lint.el,987,function,org-lint-undefined-footnote-reference,missing,,
-org-lint.el,1003,function,org-lint-unreferenced-footnote-definition,missing,,
-org-lint.el,1015,function,org-lint-mismatched-planning-repeaters,missing,,
-org-lint.el,1043,function,org-lint-misplaced-planning-info,missing,,
-org-lint.el,1055,function,org-lint-incomplete-drawer,missing,,
-org-lint.el,1083,function,org-lint-indented-diary-sexp,missing,,
-org-lint.el,1094,function,org-lint-invalid-block,missing,,
-org-lint.el,1118,function,org-lint-invalid-keyword-syntax,missing,,
-org-lint.el,1136,function,org-lint-invalid-image-alignment,missing,,
-org-lint.el,1166,function,org-lint-extraneous-element-in-footnote-section,missing,,
-org-lint.el,1183,function,org-lint-quote-section,missing,,
-org-lint.el,1192,function,org-lint-file-application,missing,,
-org-lint.el,1200,function,org-lint-percent-encoding-link-escape,missing,,
-org-lint.el,1217,function,org-lint-wrong-header-argument,missing,,
-org-lint.el,1301,function,org-lint-empty-header-argument,missing,,
-org-lint.el,1332,function,org-lint-wrong-header-value,missing,,
-org-lint.el,1407,function,org-lint-named-result,missing,,
-org-lint.el,1425,function,org-lint-spurious-colons,missing,,
-org-lint.el,1432,function,org-lint-non-existent-bibliography,missing,,
-org-lint.el,1442,function,org-lint-missing-print-bibliography,missing,,
-org-lint.el,1451,function,org-lint-invalid-cite-export-declaration,missing,,
-org-lint.el,1474,function,org-lint-incomplete-citation,missing,,
-org-lint.el,1485,function,org-lint-item-number,missing,,
-org-lint.el,1509,function,org-lint-priority,missing,,"Report out-of-bounds, invalid, and malformed priorities."
-org-lint.el,1537,function,org-lint-LaTeX-$,missing,,Report semi-obsolete $...$ LaTeX fragments.
-org-lint.el,1546,function,org-lint-LaTeX-$-ambiguous,missing,,Report LaTeX fragment-like text.
-org-lint.el,1563,function,org-lint-timestamp-syntax,missing,,Report malformed timestamps.
-org-lint.el,1576,function,org-lint-clock-syntax,missing,,Report malformed clocks.
-org-lint.el,1592,function,org-lint-inactive-planning,missing,,Report inactive timestamp in SCHEDULED/DEADLINE.
-org-lint.el,1607,function,org-lint-beamer-frame,missing,,Check for occurrences of begin or end frame.
-org-lint.el,,function,org-lint-checker-trust--inliner,missing,,
-org-lint.el,,function,org-lint-checker-p--inliner,missing,,
-org-lint.el,,function,org-lint-checker-name,missing,,"Access slot ""name"" of `org-lint-checker' struct X."
-org-lint.el,,function,make-org-lint-checker,missing,,Constructor for objects of type `org-lint-checker'.
-org-lint.el,,function,org-lint-checker-summary,missing,,"Access slot ""summary"" of `org-lint-checker' struct X."
-org-lint.el,,function,make-org-lint-checker--cmacro,missing,,compiler-macro for `make-org-lint-checker'.
-org-lint.el,,function,org-lint-checker-categories--inliner,missing,,
-org-lint.el,,function,org-lint-checker-p,missing,,
-org-lint.el,,function,org-lint-checker-trust,missing,,"Access slot ""trust"" of `org-lint-checker' struct X."
-org-lint.el,,function,org-lint-checker-categories,missing,,"Access slot ""categories"" of `org-lint-checker' struct X."
-org-lint.el,,function,org-lint-checker-function,missing,,"Access slot ""function"" of `org-lint-checker' struct X."
-org-lint.el,,function,org-lint-checker-name--inliner,missing,,
-org-lint.el,,function,org-lint-checker-function--inliner,missing,,
-org-lint.el,,function,org-lint-checker-summary--inliner,missing,,
+org-lint.el,114,function,org-lint-add-checker,adapted,checkers are compiled in (lint::CHECKERS); no Lisp registration API,Add a new checker for linter.
+org-lint.el,163,function,org-lint-remove-checker,adapted,`i` in the report ignores a checker for the session,Remove checker(s) from linter.
+org-lint.el,186,command,org-lint--report-mode,adapted,*Org Lint* temp buffer with lint::MAP,Major mode used to display reports emitted during linting.
+org-lint.el,199,function,org-lint--generate-reports,done,lint.rs; golden-tested against Emacs on test-org-lint.el,Generate linting report for BUFFER.
+org-lint.el,251,function,org-lint--refresh-reports,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,257,function,org-lint--current-line,done,lint.rs; golden-tested against Emacs on test-org-lint.el,"Return current report line, as a number."
+org-lint.el,261,function,org-lint--current-marker,done,lint.rs; golden-tested against Emacs on test-org-lint.el,Return current report marker.
+org-lint.el,265,function,org-lint--current-checker,done,lint.rs; golden-tested against Emacs on test-org-lint.el,Return current report checker.
+org-lint.el,271,function,org-lint--display-reports,done,lint.rs; golden-tested against Emacs on test-org-lint.el,Display linting reports for buffer SOURCE.
+org-lint.el,283,command,org-lint--jump-to-source,done,lint.rs; golden-tested against Emacs on test-org-lint.el,Move to source line that generated the report at point.
+org-lint.el,293,command,org-lint--show-source,adapted,shows the source line in the message area (no windows),Show source line that generated the report at point.
+org-lint.el,300,command,org-lint--hide-checker,done,lint.rs; golden-tested against Emacs on test-org-lint.el,Hide all reports from checker that generated the report at point.
+org-lint.el,309,command,org-lint--ignore-checker,done,lint.rs; golden-tested against Emacs on test-org-lint.el,Ignore all reports from checker that generated the report at point.
+org-lint.el,321,command,org-lint,done,lint.rs; golden-tested against Emacs on test-org-lint.el,Check current Org buffer for syntax mistakes.
+org-lint.el,370,function,org-lint--collect-duplicates,done,lint.rs; golden-tested against Emacs on test-org-lint.el,Helper function to collect duplicates in parse tree AST.
+org-lint.el,400,function,org-lint-misplaced-heading,done,lint.rs; golden-tested against Emacs on test-org-lint.el,Check for accidentally misplaced heading lines.
+org-lint.el,422,function,org-lint-duplicate-custom-id,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,433,function,org-lint-duplicate-name,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,445,function,org-lint-duplicate-target,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,454,function,org-lint-duplicate-footnote-definition,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,462,function,org-lint-orphaned-affiliated-keywords,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,477,function,org-lint-regular-keyword-before-affiliated,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,493,function,org-lint-obsolete-affiliated-keywords,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,515,function,org-lint-deprecated-export-blocks,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,529,function,org-lint-deprecated-header-syntax,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,557,function,org-lint-missing-language-in-src-block,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,564,function,org-lint-suspicious-language-in-src-block,adapted,known = Babel language or a syntax Fred highlights,
+org-lint.el,574,function,org-lint-missing-backend-in-export-block,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,581,function,org-lint-invalid-babel-call-block,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,594,function,org-lint-deprecated-category-setup,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,605,function,org-lint-invalid-coderef-link,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,615,function,org-lint-invalid-custom-id-link,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,625,function,org-lint-invalid-fuzzy-link,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,638,function,org-lint-invalid-id-link,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,657,function,org-lint-confusing-brackets,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,665,function,org-lint-brackets-inside-description,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,681,function,org-lint-special-property-in-properties-drawer,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,691,function,org-lint-obsolete-properties-drawer,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,706,function,org-lint-invalid-effort-property,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,716,function,org-lint-invalid-id-property,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,726,function,org-lint-link-to-local-file,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,752,function,org-lint-non-existent-setupfile-parameter,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,765,function,org-lint-wrong-include-link-parameter,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,805,function,org-lint-obsolete-include-markup,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,824,function,org-lint-unknown-options-item,done,OPTIONS items of the default backends (from Emacs),
+org-lint.el,854,function,org-lint-export-option-keywords,done,option keywords of the default backends (from Emacs),Check for options keyword properties without EXPORT in AST.
+org-lint.el,889,function,org-lint-invalid-macro-argument-and-template,done,lint.rs; golden-tested against Emacs on test-org-lint.el,Check for invalid macro arguments in AST.
+org-lint.el,987,function,org-lint-undefined-footnote-reference,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,1003,function,org-lint-unreferenced-footnote-definition,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,1015,function,org-lint-mismatched-planning-repeaters,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,1043,function,org-lint-misplaced-planning-info,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,1055,function,org-lint-incomplete-drawer,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,1083,function,org-lint-indented-diary-sexp,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,1094,function,org-lint-invalid-block,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,1118,function,org-lint-invalid-keyword-syntax,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,1136,function,org-lint-invalid-image-alignment,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,1166,function,org-lint-extraneous-element-in-footnote-section,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,1183,function,org-lint-quote-section,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,1192,function,org-lint-file-application,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,1200,function,org-lint-percent-encoding-link-escape,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,1217,function,org-lint-wrong-header-argument,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,1301,function,org-lint-empty-header-argument,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,1332,function,org-lint-wrong-header-value,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,1407,function,org-lint-named-result,partial,origin block :exports from its own headers (not inherited properties),
+org-lint.el,1425,function,org-lint-spurious-colons,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,1432,function,org-lint-non-existent-bibliography,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,1442,function,org-lint-missing-print-bibliography,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,1451,function,org-lint-invalid-cite-export-declaration,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,1474,function,org-lint-incomplete-citation,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,1485,function,org-lint-item-number,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,1509,function,org-lint-priority,done,lint.rs; golden-tested against Emacs on test-org-lint.el,"Report out-of-bounds, invalid, and malformed priorities."
+org-lint.el,1537,function,org-lint-LaTeX-$,internal,unreachable upstream: the ambiguous-$ checker replaces it under the same name,Report semi-obsolete $...$ LaTeX fragments.
+org-lint.el,1546,function,org-lint-LaTeX-$-ambiguous,done,lint.rs; golden-tested against Emacs on test-org-lint.el,Report LaTeX fragment-like text.
+org-lint.el,1563,function,org-lint-timestamp-syntax,done,lint.rs; golden-tested against Emacs on test-org-lint.el,Report malformed timestamps.
+org-lint.el,1576,function,org-lint-clock-syntax,done,lint.rs; golden-tested against Emacs on test-org-lint.el,Report malformed clocks.
+org-lint.el,1592,function,org-lint-inactive-planning,done,lint.rs; golden-tested against Emacs on test-org-lint.el,Report inactive timestamp in SCHEDULED/DEADLINE.
+org-lint.el,1607,function,org-lint-beamer-frame,done,lint.rs; golden-tested against Emacs on test-org-lint.el,Check for occurrences of begin or end frame.
+org-lint.el,,function,org-lint-checker-trust--inliner,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,,function,org-lint-checker-p--inliner,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,,function,org-lint-checker-name,done,lint.rs; golden-tested against Emacs on test-org-lint.el,"Access slot ""name"" of `org-lint-checker' struct X."
+org-lint.el,,function,make-org-lint-checker,done,lint.rs; golden-tested against Emacs on test-org-lint.el,Constructor for objects of type `org-lint-checker'.
+org-lint.el,,function,org-lint-checker-summary,done,lint.rs; golden-tested against Emacs on test-org-lint.el,"Access slot ""summary"" of `org-lint-checker' struct X."
+org-lint.el,,function,make-org-lint-checker--cmacro,done,lint.rs; golden-tested against Emacs on test-org-lint.el,compiler-macro for `make-org-lint-checker'.
+org-lint.el,,function,org-lint-checker-categories--inliner,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,,function,org-lint-checker-p,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,,function,org-lint-checker-trust,done,lint.rs; golden-tested against Emacs on test-org-lint.el,"Access slot ""trust"" of `org-lint-checker' struct X."
+org-lint.el,,function,org-lint-checker-categories,done,lint.rs; golden-tested against Emacs on test-org-lint.el,"Access slot ""categories"" of `org-lint-checker' struct X."
+org-lint.el,,function,org-lint-checker-function,done,lint.rs; golden-tested against Emacs on test-org-lint.el,"Access slot ""function"" of `org-lint-checker' struct X."
+org-lint.el,,function,org-lint-checker-name--inliner,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,,function,org-lint-checker-function--inliner,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
+org-lint.el,,function,org-lint-checker-summary--inliner,done,lint.rs; golden-tested against Emacs on test-org-lint.el,
 org-list.el,172,option,org-cycle-include-plain-lists,partial,TAB cycles items (list::cycle_item); nil disables; `integrate` (items as heading children) not supported,"When t, make TAB cycle visibility on plain list items."
 org-list.el,195,option,org-list-demote-modify-bullet,done,read as an alist from [org] (TOML pairs or a Lisp string); applied by struct_indent,Default bullet type installed when demoting an item.
 org-list.el,237,option,org-plain-list-ordered-item-terminator,done,"t, 46 (?.) or 41 (?)); item regexps and bullet cycling follow it",The character that makes a line with leading number an ordered list item.

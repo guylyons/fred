@@ -17,6 +17,11 @@ const MAX_LINE: usize = 20_000;
 /// Styled byte ranges of one line.
 pub type LineStyles = Vec<(Style, Range<usize>)>;
 
+/// Fred highlights files with extension `ext`.
+pub fn has_syntax(ext: &str) -> bool {
+    syntaxes().find_syntax_by_extension(ext).is_some()
+}
+
 fn syntaxes() -> &'static SyntaxSet {
     static SET: OnceLock<SyntaxSet> = OnceLock::new();
     SET.get_or_init(two_face::syntax::extra_newlines)
