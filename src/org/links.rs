@@ -1273,6 +1273,11 @@ pub fn open(ed: &mut Editor, lk: &Link, arg: Prefix) -> Result<(), String> {
             lk.application.as_deref(),
         ),
         "custom-id" | "fuzzy" | "coderef" | "radio" => {
+            // org-open-link-functions (org-ctags) get the first chance.
+            let spec = format!("{}\n{}", lk.kind, lk.path);
+            if super::call_with(ed, "org-open-link-functions", arg, spec).is_ok() {
+                return Ok(());
+            }
             mark_ring_push(ed);
             let s = match lk.kind.as_str() {
                 "custom-id" => format!("#{}", lk.path),

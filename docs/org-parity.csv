@@ -2077,29 +2077,29 @@ org-crypt.el,256,command,org-decrypt-entry,adapted,gpg --decrypt; subheadings re
 org-crypt.el,317,command,org-encrypt-entries,done,all crypt-tagged entries,Encrypt all top-level entries in the current buffer.
 org-crypt.el,327,command,org-decrypt-entries,done,all crypt-tagged entries,Decrypt all entries in the current buffer.
 org-crypt.el,337,function,org-crypt-use-before-save-magic,adapted,option org-crypt-use-before-save-magic = true (or the command) encrypts keyed entries on :w,Add a hook to automatically encrypt entries before a file is saved to disk.
-org-ctags.el,164,option,org-ctags-path-to-ctags,missing,,Name of the ctags executable file.
-org-ctags.el,188,option,org-ctags-open-link-functions,missing,,List of functions to be prepended to ORG-OPEN-LINK-FUNCTIONS by ORG-CTAGS.
-org-ctags.el,202,option,org-ctags-new-topic-template,missing,,Text to insert when creating a new org file via opening a hyperlink.
-org-ctags.el,211,function,org-ctags--visit-tags-table,missing,,Load tags for current file.
+org-ctags.el,164,option,org-ctags-path-to-ctags,done,ctags:: port,Name of the ctags executable file.
+org-ctags.el,188,option,org-ctags-open-link-functions,done,ctags:: port,List of functions to be prepended to ORG-OPEN-LINK-FUNCTIONS by ORG-CTAGS.
+org-ctags.el,202,option,org-ctags-new-topic-template,done,ctags:: port,Text to insert when creating a new org file via opening a hyperlink.
+org-ctags.el,211,function,org-ctags--visit-tags-table,done,ctags:: port,Load tags for current file.
 org-ctags.el,226,function,org--ctags-load-tag-list,missing,,
-org-ctags.el,232,function,org-ctags-enable,missing,,
-org-ctags.el,244,function,org-ctags-unload-function,missing,,Disable `org-ctags' library.
-org-ctags.el,258,command,org-ctags-get-filename-for-tag,missing,,TAG is a string.  Search the active TAGS file for a matching tag.
-org-ctags.el,285,command,org-ctags-all-tags-in-current-tags-table,missing,,"Read all tags defined in the active TAGS file, into a list of strings."
+org-ctags.el,232,function,org-ctags-enable,done,ctags:: port,
+org-ctags.el,244,function,org-ctags-unload-function,done,ctags:: port,Disable `org-ctags' library.
+org-ctags.el,258,command,org-ctags-get-filename-for-tag,done,ctags:: port,TAG is a string.  Search the active TAGS file for a matching tag.
+org-ctags.el,285,command,org-ctags-all-tags-in-current-tags-table,done,ctags:: port,"Read all tags defined in the active TAGS file, into a list of strings."
 org-ctags.el,302,function,org-ctags-string-search-and-replace,missing,,Replace all instances of SEARCH with REPLACE in STRING.
-org-ctags.el,310,command,org-ctags-open-file,missing,,"Visit or create a file called `NAME.org', and insert a new topic."
-org-ctags.el,330,function,org--ctags-set-org-mark-before-finding-tag,missing,,"Before trying to find a tag, save our current position on org mark ring."
+org-ctags.el,310,command,org-ctags-open-file,done,ctags:: port,"Visit or create a file called `NAME.org', and insert a new topic."
+org-ctags.el,330,function,org--ctags-set-org-mark-before-finding-tag,done,ctags:: port,"Before trying to find a tag, save our current position on org mark ring."
 org-ctags.el,338,function,org-ctags-find-tag-at-point,missing,,"Determine default tag to search for, based on text at point."
-org-ctags.el,377,command,org-ctags-find-tag,missing,,This function is intended to be used in ORG-OPEN-LINK-FUNCTIONS.
-org-ctags.el,396,command,org-ctags-visit-buffer-or-file,missing,,This function is intended to be used in ORG-OPEN-LINK-FUNCTIONS.
-org-ctags.el,428,function,org-ctags-ask-visit-buffer-or-file,missing,,This function is intended to be used in ORG-OPEN-LINK-FUNCTIONS.
-org-ctags.el,435,command,org-ctags-append-topic,missing,,This function is intended to be used in ORG-OPEN-LINK-FUNCTIONS.
-org-ctags.el,456,function,org-ctags-ask-append-topic,missing,,This function is intended to be used in ORG-OPEN-LINK-FUNCTIONS.
-org-ctags.el,466,function,org-ctags-rebuild-tags-file-then-find-tag,missing,,This function is intended to be used in ORG-OPEN-LINK-FUNCTIONS.
-org-ctags.el,477,function,org-ctags-ask-rebuild-tags-file-then-find-tag,missing,,This function is intended to be used in ORG-OPEN-LINK-FUNCTIONS.
-org-ctags.el,490,function,org-ctags-fail-silently,missing,,This function is intended to be used in ORG-OPEN-LINK-FUNCTIONS.
-org-ctags.el,500,command,org-ctags-create-tags,missing,,(Re)create tags file in the directory of the active buffer.
-org-ctags.el,541,command,org-ctags-find-tag-interactive,missing,,"Prompt for the name of a tag, with autocompletion, then visit the named tag."
+org-ctags.el,377,command,org-ctags-find-tag,done,ctags:: port,This function is intended to be used in ORG-OPEN-LINK-FUNCTIONS.
+org-ctags.el,396,command,org-ctags-visit-buffer-or-file,done,ctags:: port,This function is intended to be used in ORG-OPEN-LINK-FUNCTIONS.
+org-ctags.el,428,function,org-ctags-ask-visit-buffer-or-file,done,ctags:: port,This function is intended to be used in ORG-OPEN-LINK-FUNCTIONS.
+org-ctags.el,435,command,org-ctags-append-topic,done,ctags:: port,This function is intended to be used in ORG-OPEN-LINK-FUNCTIONS.
+org-ctags.el,456,function,org-ctags-ask-append-topic,done,ctags:: port,This function is intended to be used in ORG-OPEN-LINK-FUNCTIONS.
+org-ctags.el,466,function,org-ctags-rebuild-tags-file-then-find-tag,done,ctags:: port,This function is intended to be used in ORG-OPEN-LINK-FUNCTIONS.
+org-ctags.el,477,function,org-ctags-ask-rebuild-tags-file-then-find-tag,done,ctags:: port,This function is intended to be used in ORG-OPEN-LINK-FUNCTIONS.
+org-ctags.el,490,function,org-ctags-fail-silently,done,ctags:: port,This function is intended to be used in ORG-OPEN-LINK-FUNCTIONS.
+org-ctags.el,500,command,org-ctags-create-tags,done,ctags:: port,(Re)create tags file in the directory of the active buffer.
+org-ctags.el,541,command,org-ctags-find-tag-interactive,done,ctags:: port,"Prompt for the name of a tag, with autocompletion, then visit the named tag."
 org-cycle.el,98,option,org-cycle-skip-children-state-if-no-children,missing,,Non-nil means skip CHILDREN state in entries that don't have any.
 org-cycle.el,103,option,org-cycle-max-level,missing,,Maximum level which should still be subject to visibility cycling.
 org-cycle.el,119,option,org-cycle-hide-block-startup,missing,,Non-nil means entering Org mode will fold all blocks.
@@ -3105,46 +3105,46 @@ org-macs.el,1879,function,org-display-buffer-split,missing,,Display BUFFER in th
 org-macs.el,1899,function,org-display-buffer-in-window,missing,,Display BUFFER in specific window.
 org-macs.el,1916,function,org-base-buffer-file-name,missing,,Resolve the base file name for the provided BUFFER.
 org-macs.el,1925,function,org-format-percent-cookie,missing,,Format the percent cookie `[N%]' for COMPLETED/TOTAL tasks.
-org-mobile.el,49,option,org-mobile-files,missing,,Files to be staged for the mobile application.
-org-mobile.el,71,option,org-mobile-files-exclude-regexp,missing,,A regexp to exclude files from `org-mobile-files'.
-org-mobile.el,77,option,org-mobile-directory,missing,,The WebDAV directory where the interaction with the mobile takes place.
-org-mobile.el,82,option,org-mobile-allpriorities,missing,,Default set of priority cookies for the index file.
-org-mobile.el,89,option,org-mobile-use-encryption,missing,,Non-nil means keep only encrypted files on the WebDAV server.
-org-mobile.el,103,option,org-mobile-encryption-tempfile,missing,,File that is being used as a temporary file for encryption.
-org-mobile.el,111,option,org-mobile-encryption-password,missing,,Password for encrypting files uploaded to the server.
-org-mobile.el,111,function,org-mobile-encryption-password,missing,,
-org-mobile.el,141,option,org-mobile-inbox-for-pull,missing,,The file where captured notes and flags will be appended to.
-org-mobile.el,154,option,org-mobile-index-file,missing,,Index file with links to all Org files.
-org-mobile.el,162,option,org-mobile-agendas,missing,,The agendas that should be pushed to the mobile application.
+org-mobile.el,49,option,org-mobile-files,done,mobile:: port,Files to be staged for the mobile application.
+org-mobile.el,71,option,org-mobile-files-exclude-regexp,done,mobile:: port,A regexp to exclude files from `org-mobile-files'.
+org-mobile.el,77,option,org-mobile-directory,done,mobile:: port,The WebDAV directory where the interaction with the mobile takes place.
+org-mobile.el,82,option,org-mobile-allpriorities,done,mobile:: port,Default set of priority cookies for the index file.
+org-mobile.el,89,option,org-mobile-use-encryption,done,mobile:: port,Non-nil means keep only encrypted files on the WebDAV server.
+org-mobile.el,103,option,org-mobile-encryption-tempfile,done,mobile:: port,File that is being used as a temporary file for encryption.
+org-mobile.el,111,option,org-mobile-encryption-password,done,mobile:: port,Password for encrypting files uploaded to the server.
+org-mobile.el,111,function,org-mobile-encryption-password,done,mobile:: port,
+org-mobile.el,141,option,org-mobile-inbox-for-pull,done,mobile:: port,The file where captured notes and flags will be appended to.
+org-mobile.el,154,option,org-mobile-index-file,done,mobile:: port,Index file with links to all Org files.
+org-mobile.el,162,option,org-mobile-agendas,done,mobile:: port,The agendas that should be pushed to the mobile application.
 org-mobile.el,180,option,org-mobile-force-id-on-agenda-items,missing,,Non-nil means make all agenda items carry an ID.
-org-mobile.el,185,option,org-mobile-force-mobile-change,missing,,Non-nil means force the change made on the mobile device.
-org-mobile.el,203,option,org-mobile-checksum-binary,missing,,Executable used for computing checksums of agenda files.
-org-mobile.el,261,function,org-mobile-files-alist,missing,,Expand the list in `org-mobile-files' to a list of existing files.
+org-mobile.el,185,option,org-mobile-force-mobile-change,done,mobile:: port,Non-nil means force the change made on the mobile device.
+org-mobile.el,203,option,org-mobile-checksum-binary,done,mobile:: port,Executable used for computing checksums of agenda files.
+org-mobile.el,261,function,org-mobile-files-alist,done,mobile:: port,Expand the list in `org-mobile-files' to a list of existing files.
 org-mobile.el,275,function,org-mobile-prepare-file-lists,missing,,
-org-mobile.el,328,command,org-mobile-push,missing,,Push the current state of Org affairs to the target directory.
-org-mobile.el,369,command,org-mobile-pull,missing,,Pull the contents of `org-mobile-capture-file' and integrate them.
-org-mobile.el,394,function,org-mobile-check-setup,missing,,Check if `org-mobile-directory' has been set up.
-org-mobile.el,431,function,org-mobile-create-index-file,missing,,Write the index file in the WebDAV directory.
-org-mobile.el,484,function,org-mobile-copy-agenda-files,missing,,Copy all agenda files to the stage or WebDAV directory.
-org-mobile.el,521,function,org-mobile-write-checksums,missing,,Create checksums for all files in `org-mobile-directory'.
-org-mobile.el,533,function,org-mobile-sumo-agenda-command,missing,,Return an agenda custom command that comprises all custom commands.
+org-mobile.el,328,command,org-mobile-push,done,mobile:: port,Push the current state of Org affairs to the target directory.
+org-mobile.el,369,command,org-mobile-pull,done,mobile:: port,Pull the contents of `org-mobile-capture-file' and integrate them.
+org-mobile.el,394,function,org-mobile-check-setup,done,mobile:: port,Check if `org-mobile-directory' has been set up.
+org-mobile.el,431,function,org-mobile-create-index-file,done,mobile:: port,Write the index file in the WebDAV directory.
+org-mobile.el,484,function,org-mobile-copy-agenda-files,done,mobile:: port,Copy all agenda files to the stage or WebDAV directory.
+org-mobile.el,521,function,org-mobile-write-checksums,done,mobile:: port,Create checksums for all files in `org-mobile-directory'.
+org-mobile.el,533,function,org-mobile-sumo-agenda-command,done,mobile:: port,Return an agenda custom command that comprises all custom commands.
 org-mobile.el,611,function,org-mobile-write-agenda-for-mobile,missing,,
-org-mobile.el,674,function,org-mobile-get-outline-path-link,missing,,
-org-mobile.el,685,function,org-mobile-escape-olp,missing,,
-org-mobile.el,688,command,org-mobile-create-sumo-agenda,missing,,Create a file that contains all custom agenda views.
-org-mobile.el,709,function,org-mobile-encrypt-and-move,missing,,"Encrypt INFILE locally to INFILE_enc, then move it to OUTFILE."
+org-mobile.el,674,function,org-mobile-get-outline-path-link,done,mobile:: port,
+org-mobile.el,685,function,org-mobile-escape-olp,done,mobile:: port,
+org-mobile.el,688,command,org-mobile-create-sumo-agenda,done,mobile:: port,Create a file that contains all custom agenda views.
+org-mobile.el,709,function,org-mobile-encrypt-and-move,done,mobile:: port,"Encrypt INFILE locally to INFILE_enc, then move it to OUTFILE."
 org-mobile.el,719,function,org-mobile-encrypt-file,missing,,"Encrypt INFILE to OUTFILE, using `org-mobile-encryption-password'."
 org-mobile.el,728,function,org-mobile-decrypt-file,missing,,"Decrypt INFILE to OUTFILE, using `org-mobile-encryption-password'."
-org-mobile.el,737,function,org-mobile-cleanup-encryption-tempfile,missing,,Remove the encryption tempfile if it exists.
-org-mobile.el,743,command,org-mobile-move-capture,missing,,Move the contents of the capture file to the inbox file.
-org-mobile.el,784,function,org-mobile-update-checksum-for-capture-file,missing,,Find the checksum line and modify it to match BUFFER-STRING.
-org-mobile.el,799,command,org-mobile-apply,missing,,Apply all change requests in the current buffer.
-org-mobile.el,922,function,org-mobile-timestamp-buffer,missing,,"Time stamp buffer BUF, just to make sure its checksum will change."
+org-mobile.el,737,function,org-mobile-cleanup-encryption-tempfile,done,mobile:: port,Remove the encryption tempfile if it exists.
+org-mobile.el,743,command,org-mobile-move-capture,done,mobile:: port,Move the contents of the capture file to the inbox file.
+org-mobile.el,784,function,org-mobile-update-checksum-for-capture-file,done,mobile:: port,Find the checksum line and modify it to match BUFFER-STRING.
+org-mobile.el,799,command,org-mobile-apply,done,mobile:: port,Apply all change requests in the current buffer.
+org-mobile.el,922,function,org-mobile-timestamp-buffer,done,mobile:: port,"Time stamp buffer BUF, just to make sure its checksum will change."
 org-mobile.el,939,function,org-mobile-smart-read,missing,,
-org-mobile.el,971,function,org-mobile-locate-entry,missing,,
-org-mobile.el,996,function,org-mobile-edit,missing,,Edit item WHAT in the current entry by replacing OLD with NEW.
-org-mobile.el,1119,function,org-mobile-tags-same-p,missing,,Are the two tag lists the same?
-org-mobile.el,1124,function,org-mobile-bodies-same-p,missing,,Compare if A and B are visually equal strings.
+org-mobile.el,971,function,org-mobile-locate-entry,done,mobile:: port,
+org-mobile.el,996,function,org-mobile-edit,done,mobile:: port,Edit item WHAT in the current entry by replacing OLD with NEW.
+org-mobile.el,1119,function,org-mobile-tags-same-p,done,mobile:: port,Are the two tag lists the same?
+org-mobile.el,1124,function,org-mobile-bodies-same-p,done,mobile:: port,Compare if A and B are visually equal strings.
 org-mouse.el,171,option,org-mouse-punctuation,missing,,Punctuation used when inserting text by drag and drop.
 org-mouse.el,175,option,org-mouse-features,missing,,The features of org-mouse that should be activated.
 org-mouse.el,187,function,org-mouse-re-search-line,missing,,Search the current line for a given regular expression REGEXP.

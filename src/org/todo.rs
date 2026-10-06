@@ -605,6 +605,15 @@ pub fn todo_to(ed: &mut Editor, state: Option<String>) -> Result<(), String> {
     change_state(ed, Target::State(state), false, false, None)
 }
 
+/// [`todo_to`] with org-inhibit-logging bound to `inhibit`.
+pub fn todo_to_inhibit(
+    ed: &mut Editor,
+    state: Option<String>,
+    inhibit: Option<How>,
+) -> Result<(), String> {
+    change_state(ed, Target::State(state), false, false, inhibit)
+}
+
 #[derive(Clone, Debug)]
 enum Target {
     /// Cycle forward (plain org-todo).

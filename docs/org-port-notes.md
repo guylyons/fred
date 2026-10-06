@@ -178,3 +178,13 @@ file prompts take a typed path.
   `%:initial`, query keys) live in `capture::set_link_props`; plain captures
   fill them from the stored link.
 - org-protocol-create(-for-org) stay missing until ox-publish exists.
+
+## org-ctags and org-mobile (src/org/ctags.rs, src/org/mobile.rs)
+
+- ctags: Fred reads etags `TAGS` tables itself. links.rs calls the
+  `org-open-link-functions` command before searching custom-id, fuzzy,
+  coderef and radio links; Err means "not handled".
+- mobile: push/pull with openssl encryption and an internal MD5 for
+  checksums.dat; edits apply through `todo::todo_to_inhibit` (no
+  interactive notes). The agenda export (org-mobile-write-agenda-for-mobile)
+  waits for the agenda port.

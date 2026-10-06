@@ -10,6 +10,7 @@ pub mod babel;
 pub mod buf;
 pub mod capture;
 pub mod crypt;
+pub mod ctags;
 pub mod ctx;
 pub mod dblock;
 pub mod dispatch;
@@ -21,6 +22,7 @@ pub mod fold;
 pub mod keymap;
 pub mod links;
 pub mod list;
+pub mod mobile;
 pub mod options;
 pub mod props;
 pub mod protocol;
@@ -835,6 +837,8 @@ const MODULES: &[Module] = &[
     attach::command,
     crypt::command,
     protocol::command,
+    ctags::command,
+    mobile::command,
 ];
 
 thread_local! {
