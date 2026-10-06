@@ -2424,29 +2424,29 @@ org-faces.el,488,option,org-fontify-quote-and-verse-blocks,missing,,"Non-nil mea
 org-faces.el,605,option,org-agenda-deadline-faces,missing,,Faces for showing deadlines in the agenda.
 org-faces.el,687,option,org-n-level-faces,missing,,The number of different faces to be used for headlines.
 org-faces.el,694,option,org-cycle-level-faces,missing,,Non-nil means level styles cycle after level `org-n-level-faces'.
-org-feed.el,113,option,org-feed-alist,missing,,Alist specifying RSS feeds that should create inputs for Org.
-org-feed.el,218,option,org-feed-drawer,missing,,The name of the drawer for feed status information.
-org-feed.el,225,option,org-feed-default-template,missing,,Template for the Org node created from RSS feed items.
-org-feed.el,243,option,org-feed-save-after-adding,missing,,Non-nil means save buffer after adding new feed items.
-org-feed.el,248,option,org-feed-retrieve-method,missing,,The method to be used to retrieve a feed URL.
-org-feed.el,260,option,org-feed-before-adding-hook,missing,,Hook that is run before adding new feed items to a file.
-org-feed.el,267,option,org-feed-after-adding-hook,missing,,Hook that is run after new items have been added to a file.
-org-feed.el,278,command,org-feed-update-all,missing,,Get inbox items from all feeds in `org-feed-alist'.
-org-feed.el,298,command,org-feed-update,missing,,Get inbox items from FEED.
-org-feed.el,430,command,org-feed-goto-inbox,missing,,Go to the inbox that captures the feed named FEED.
-org-feed.el,442,command,org-feed-show-raw-feed,missing,,Show the raw feed buffer of a feed.
-org-feed.el,455,function,org-feed-goto-inbox-internal,missing,,Find or create HEADING in FILE.
-org-feed.el,470,function,org-feed-read-previous-status,missing,,Get the alist of old GUIDs from the entry at POS.
-org-feed.el,482,function,org-feed-write-status,missing,,Write the feed STATUS to DRAWER in entry at POS.
-org-feed.el,500,function,org-feed-add-items,missing,,Add the formatted items to the headline as POS.
-org-feed.el,516,function,org-feed-format-entry,missing,,Format ENTRY so that it can be inserted into an Org file.
-org-feed.el,586,function,org-feed-make-indented-block,missing,,Add indentation of N spaces to a multiline string S.
-org-feed.el,594,function,org-feed-skip-http-headers,missing,,"Remove HTTP headers from BUFFER, and return it."
-org-feed.el,604,function,org-feed-get-feed,missing,,Get the RSS feed file at URL and return the buffer.
-org-feed.el,620,function,org-feed-parse-rss-feed,missing,,Parse BUFFER for RSS feed entries.
-org-feed.el,643,function,org-feed-parse-rss-entry,missing,,Parse the `:item-full-text' field for xml tags and create new properties.
-org-feed.el,659,function,org-feed-parse-atom-feed,missing,,Parse BUFFER for Atom feed entries.
-org-feed.el,677,function,org-feed-parse-atom-entry,missing,,Parse the `:item-full-text' as a sexp and create new properties.
+org-feed.el,113,option,org-feed-alist,partial,"name/url/file/headline, :template, :drawer, built-in :parse-feed/:parse-entry; Lisp :filter/:formatter/handlers rejected",Alist specifying RSS feeds that should create inputs for Org.
+org-feed.el,218,option,org-feed-drawer,done,,The name of the drawer for feed status information.
+org-feed.el,225,option,org-feed-default-template,done,"%h %t %T %u %U %a %field, %(sexp) via emacs",Template for the Org node created from RSS feed items.
+org-feed.el,243,option,org-feed-save-after-adding,done,,Non-nil means save buffer after adding new feed items.
+org-feed.el,248,option,org-feed-retrieve-method,adapted,"curl (default, also for url-retrieve-synchronously) or wget",The method to be used to retrieve a feed URL.
+org-feed.el,260,option,org-feed-before-adding-hook,adapted,shell commands,Hook that is run before adding new feed items to a file.
+org-feed.el,267,option,org-feed-after-adding-hook,adapted,shell commands,Hook that is run after new items have been added to a file.
+org-feed.el,278,command,org-feed-update-all,done,,Get inbox items from all feeds in `org-feed-alist'.
+org-feed.el,298,command,org-feed-update,done,retrieve-only via org-feed-show-raw-feed,Get inbox items from FEED.
+org-feed.el,430,command,org-feed-goto-inbox,done,,Go to the inbox that captures the feed named FEED.
+org-feed.el,442,command,org-feed-show-raw-feed,done,,Show the raw feed buffer of a feed.
+org-feed.el,455,function,org-feed-goto-inbox-internal,internal,feed::goto_inbox,Find or create HEADING in FILE.
+org-feed.el,470,function,org-feed-read-previous-status,internal,feed::read_status,Get the alist of old GUIDs from the entry at POS.
+org-feed.el,482,function,org-feed-write-status,internal,feed::write_status (pp format),Write the feed STATUS to DRAWER in entry at POS.
+org-feed.el,500,function,org-feed-add-items,internal,feed::update_in,Add the formatted items to the headline as POS.
+org-feed.el,516,function,org-feed-format-entry,done,feed::format_entry,Format ENTRY so that it can be inserted into an Org file.
+org-feed.el,586,function,org-feed-make-indented-block,internal,unreachable upstream (escape deleted before the check),Add indentation of N spaces to a multiline string S.
+org-feed.el,594,function,org-feed-skip-http-headers,adapted,curl output has no headers,"Remove HTTP headers from BUFFER, and return it."
+org-feed.el,604,function,org-feed-get-feed,done,feed::get_feed,Get the RSS feed file at URL and return the buffer.
+org-feed.el,620,function,org-feed-parse-rss-feed,done,,Parse BUFFER for RSS feed entries.
+org-feed.el,643,function,org-feed-parse-rss-entry,done,,Parse the `:item-full-text' field for xml tags and create new properties.
+org-feed.el,659,function,org-feed-parse-atom-feed,adapted,regexp XML scan; change hash over XML text,Parse BUFFER for Atom feed entries.
+org-feed.el,677,function,org-feed-parse-atom-entry,done,,Parse the `:item-full-text' as a sexp and create new properties.
 org-fold-core.el,287,option,org-fold-core-style,missing,,Internal implementation detail used to hide folded text.
 org-fold-core.el,422,function,org-fold-core-folding-spec-list,missing,,Return list of all the folding spec symbols in BUFFER.
 org-fold-core.el,428,function,org-fold-core-get-folding-spec-from-alias,missing,,Return the folding spec symbol for SPEC-OR-ALIAS.

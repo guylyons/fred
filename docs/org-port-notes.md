@@ -198,3 +198,11 @@ file prompts take a typed path.
   `options::get` reads an option's obsolete names from `[org]`.
 - Emacs-version shims are `internal`; flyspell, imenu, speedbar, bookmark,
   calendar and ECB hooks stay `missing` until Fred has an equivalent.
+
+## org-feed (src/org/feed.rs)
+
+- `feed::update_in` is the buffer work of org-feed-update (verified against
+  Emacs, including the FEEDSTATUS drawer's pp layout and sha1 hashes);
+  fetching uses curl/wget, `file://` works.
+- `org::effect` now chains: a second effect queued before the session runs
+  the first runs after it (it used to replace it).

@@ -19,6 +19,7 @@ pub mod editing;
 pub mod element;
 pub mod entities;
 pub mod face;
+pub mod feed;
 pub mod fold;
 pub mod keymap;
 pub mod links;
@@ -239,9 +240,22 @@ pub fn timestamp(t: i64, with_time: bool, inactive: bool) -> String {
     }
 }
 
-/// Ask the session to run `f`.
+/// Ask the session to run `f`, after any effect already pending.
 pub fn effect(ed: &mut Editor, f: impl FnOnce(&mut crate::session::Session) + Send + 'static) {
-    ed.pending_effect = Some(crate::ex::ExEffect::Org(Effect::new(f)));
+    let e = match ed.pending_effect.take() {
+        None => Effect::new(f),
+        Some(crate::ex::ExEffect::Org(prev)) => Effect::new(move |s| {
+            if let Some(p) = prev.take() {
+                p(s);
+            }
+            f(s)
+        }),
+        Some(other) => Effect::new(move |s| {
+            s.perform(other);
+            f(s)
+        }),
+    };
+    ed.pending_effect = Some(crate::ex::ExEffect::Org(e));
 }
 
 /// A buffer at `path` is Org: `.org` (and `.org_archive`), or a
@@ -841,6 +855,7 @@ const MODULES: &[Module] = &[
     ctags::command,
     mobile::command,
     compat::command,
+    feed::command,
 ];
 
 thread_local! {

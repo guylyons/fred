@@ -357,6 +357,31 @@ mod tests {
     }
 
     #[test]
+    fn feed_update_all_two_feeds() {
+        let mut t = T::new(
+            &[
+                ("inbox.org", "* A\n* B\n"),
+                ("a.xml", "<rss><item><title>X</title><guid>g1</guid></item></rss>"),
+                ("b.xml", "<rss><item><title>Y</title><guid>g2</guid></item></rss>"),
+                ("src.txt", "hello"),
+            ],
+            "src.txt",
+        );
+        let d = t.dir.path().display().to_string();
+        crate::org::options::put(
+            "org-feed-alist",
+            toml::Value::String(format!(
+                "'((\"a\" \"file://{d}/a.xml\" \"{d}/inbox.org\" \"A\" :template \"\\n* %h\\n\") (\"b\" \"file://{d}/b.xml\" \"{d}/inbox.org\" \"B\" :template \"\\n* %h\\n\"))"
+            )),
+        );
+        t.keys(":org-feed-update-all<CR>");
+        let text = t.file("inbox.org");
+        assert!(text.contains("** X") && text.contains("** Y"), "{text}\n{:?}", t.s.ed.msg);
+        assert!(format!("{:?}", t.s.ed.msg).contains("2 new entries from 2 feeds"), "{:?}", t.s.ed.msg);
+        crate::org::options::remove("org-feed-alist");
+    }
+
+    #[test]
     fn org_protocol_capture() {
         let mut t = T::new(&[("notes.org", "* Web"), ("src.txt", "hello")], "src.txt");
         crate::org::options::put(

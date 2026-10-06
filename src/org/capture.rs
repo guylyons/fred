@@ -435,9 +435,14 @@ fn fill_files_and_sexps(t: &str) -> String {
                 .unwrap_or_else(|e| format!("%![could not insert {}: {e}]", f.display()))
         })
         .into_owned();
-    // %(sexp): evaluated by Emacs, when available.
+    eval_sexps(&t)
+}
+
+/// %(sexp) escapes, evaluated by Emacs when available
+/// (org-capture-expand-embedded-elisp).
+pub fn eval_sexps(t: &str) -> String {
     let mut out = String::new();
-    let mut rest = t.as_str();
+    let mut rest = t;
     while let Some(i) = rest.find("%(") {
         if escaped(rest, i) {
             out.push_str(&rest[..i + 2]);
