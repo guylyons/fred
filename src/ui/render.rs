@@ -250,7 +250,14 @@ pub fn mouse(
             let x = (event.column - area.x) as usize;
             let x = x.saturating_sub(gutter);
             for line in view.top..ed.line_count() {
-                let text = ed.buf.line(line);
+                // Org lines as drawn (prefixes, concealed markup).
+                let shown = ed
+                    .org
+                    .is_some()
+                    .then(|| crate::org::display::shown(ed, line));
+                let text = shown
+                    .as_ref()
+                    .map_or_else(|| ed.buf.line(line), |s| s.text.clone());
                 let height = if line != ed.cur.line && ed.folds.hidden(line) {
                     0
                 } else if cfg.wrap {
@@ -279,6 +286,9 @@ pub fn mouse(
                         },
                         |p| p.byte,
                     );
+                let byte = shown
+                    .as_ref()
+                    .map_or(byte, |s| crate::org::display::source_byte(&s.map, byte));
                 ed.set_cursor(line, byte);
                 ed.popup = None;
                 ed.vim.pending.clear();
@@ -669,12 +679,20 @@ pub fn draw(
         } else {
             styles.get(l - view.top).cloned().flatten()
         };
-        // Org: descriptive links and hidden markers, except on the cursor line.
-        let (line, st) = if ed.org.is_some() && l != ed.cur.line {
-            crate::org::face::conceal(line, st, &org_settings)
+        // Org: prefixes, numbers; except on the cursor line descriptive
+        // links, hidden markers, custom times and entities (org/display.rs).
+        let (line, st, cmap) = if ed.org.is_some() && table_display.is_none() {
+            let s = crate::org::display::show(ed, l, line, st, &org_settings, l == ed.cur.line);
+            (s.text, s.styles, Some(s.map))
+        } else if ed.org.is_some() && l != ed.cur.line {
+            let (a, b) = crate::org::face::conceal(line, st, &org_settings);
+            (a, b, None)
         } else {
-            (line, st)
+            (line, st, None)
         };
+        let cur_byte = cmap
+            .as_ref()
+            .map_or(ed.cur.byte, |m| m[ed.cur.byte.min(m.len() - 1)]);
         let selected = sel.is_some_and(|(a, b)| l >= a && l <= b);
         // Rows of this line already scrolled off the top.
         let skip = if l == view.top { view.top_row } else { 0 };
@@ -795,7 +813,7 @@ pub fn draw(
                 emit(&mut y, row, spans);
             }
             if l == ed.cur.line {
-                let (cr, cx) = wrap_cursor(&line, ed.cur.byte, ed.tabstop, cols);
+                let (cr, cx) = wrap_cursor(&line, cur_byte, ed.tabstop, cols);
                 // The end of a full row puts the cursor on a row of its own.
                 if cr > row && y < rows {
                     emit(&mut y, cr, vec![]);
@@ -807,7 +825,7 @@ pub fn draw(
         } else {
             emit(&mut y, 0, visible(&line, &st, ed.tabstop, view.left, cols));
             if l == ed.cur.line {
-                let cc = col_of_byte(&line, ed.cur.byte, ed.tabstop);
+                let cc = col_of_byte(&line, cur_byte, ed.tabstop);
                 if cc >= view.left && cc - view.left < cols {
                     cursor = Some((gutter + cc - view.left, first_y));
                 }

@@ -155,3 +155,44 @@ Hooks: org-attach-after-change-hook / org-attach-open-hook are lists of
 names; `org-attach-git-commit` and `org-attach-git-annex-get-maybe` run the
 git CLI. Gaps: no agenda entry point, custom org-attach-commands ignored,
 file prompts take a typed path.
+
+## Footnotes, IDs, inline tasks, goto, speed keys, tempo, pcomplete, macros, num, indent
+
+Modules: `footnote.rs` (org-footnote.el + org-edit-footnote-reference),
+`id.rs`, `inlinetask.rs`, `goto.rs`, `keys.rs` (speed commands),
+`tempo.rs` (org-tempo + org-insert-structure-template), `pcomplete.rs`,
+`macros.rs` (org-macro.el; `macro` is a Rust keyword), `num.rs`,
+`indent.rs`, and `display.rs` (the renderer hook).
+
+- `buf.rs`: `EBuf::mark`/`marker` (Emacs markers following edits) and
+  `load_emacs`/`store_emacs` (text with the file's final newline, as the
+  Emacs buffer has it).
+- Footnotes work on an `EBuf` with the element parser (reparsed when the
+  text changes). `*Edit footnote [L]*` uses SRC_MAP (C-c ' / C-c C-k); the
+  label prefix must stay unchanged (upstream makes it read-only).
+- IDs: the location file is Emacs's format; Fred writes it on every new
+  location, merged with the file's current entries (Emacs writes at exit).
+  `org::find_id_file` is `id::find`. Tests use a temp location file.
+  ID links: store (org-id-store-link-maybe in links::store), open with
+  `::search` inside the subtree (`links::search_in`), `id:` completion and
+  descriptions in org-insert-link, new IDs in clones, paste tracker.
+- Inline tasks: TAB folds the body, org-cycle-hook hides bodies,
+  M-left/right promote/demote, M-up/down drag; faces still use the
+  normal heading faces (org-inlinetask face not drawn yet).
+- org-goto: `*org-goto*` is a read-only copy in OVERVIEW; with
+  org-goto-auto-isearch letters stay Vim keys (`/` searches).
+- Speed keys run in Normal mode at column 0 of a headline (and Babel keys
+  on `#+begin_src`); SPC stays the leader.
+- Org Tempo is active unless org-modules is set without `org-tempo`.
+- pcomplete feeds Fred's Insert-mode popup (typing, C-n, M-TAB/C-M-i);
+  extensions: property values, link types.
+- display.rs: org-indent prefixes and hidden stars and org-num numbers on
+  every line (exact cursor mapping); descriptive links, hidden markers,
+  custom timestamps and pretty entities only off the cursor line. Mouse
+  clicks map back through the same transform. View scrolling still
+  measures wrapped rows on the raw text; no wrap-prefix.
+
+Remaining (ledger `partial`): footnote refill after inline extraction,
+org-goto heading-only isearch, custom org-num-format-function/face,
+org-indent wrap-prefix, #+BIND completion, org-inlinetask face, custom
+org-speed-command-hook functions.

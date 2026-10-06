@@ -88,7 +88,22 @@ fn cycle(ed: &mut Editor, next: bool) {
 }
 
 /// Recompute completions for the token before the cursor.
-fn refresh_popup(ed: &mut Editor, manual: bool) {
+pub(crate) fn refresh_popup(ed: &mut Editor, manual: bool) {
+    // Org buffers: org-pcomplete's candidates where it has any.
+    if ed.org.is_some()
+        && let Some((start, typed, items)) = crate::org::pcomplete::candidates(ed)
+    {
+        let items: Vec<String> = items.into_iter().filter(|i| *i != typed).collect();
+        if !items.is_empty() {
+            ed.popup = Some(Popup {
+                items,
+                sel: None,
+                start,
+                typed,
+            });
+            return;
+        }
+    }
     let (l, b) = ed.cur.pos();
     let line = ed.buf.line(l);
     let Some((start, text, is_path)) = complete::token_before(&line, b) else {

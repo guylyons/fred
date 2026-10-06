@@ -2551,50 +2551,50 @@ org-fold.el,811,function,org-fold--reveal-drawer-or-block-maybe,missing,,Reveal 
 org-fold.el,882,function,org-fold-check-before-invisible-edit,missing,,Check if editing KIND is dangerous with invisible text around.
 org-fold.el,934,function,org-fold-check-before-invisible-edit-maybe,missing,,Check before invisible command by `this-command'.
 org-fold.el,941,function,org-fold--advice-edit-commands,missing,,Advice editing commands according to `org-fold-catch-invisible-edits-commands'.
-org-footnote.el,95,option,org-footnote-section,missing,,Outline heading containing footnote definitions.
-org-footnote.el,125,option,org-footnote-define-inline,missing,,"Non-nil means define footnotes inline, at reference location."
-org-footnote.el,134,option,org-footnote-auto-label,missing,,Non-nil means define automatically new labels for footnotes.
-org-footnote.el,155,option,org-footnote-auto-adjust,missing,,Non-nil means automatically adjust footnotes after insert/delete.
-org-footnote.el,174,option,org-footnote-fill-after-inline-note-extraction,missing,,Non-nil means fill paragraphs after extracting footnotes.
-org-footnote.el,186,function,org-footnote-in-valid-context-p,missing,,Is point in a context where footnotes are allowed?
-org-footnote.el,199,function,org-footnote-at-reference-p,missing,,Non-nil if point is at a footnote reference.
-org-footnote.el,219,function,org-footnote-at-definition-p,missing,,Non-nil if point is within a footnote definition.
-org-footnote.el,251,function,org-footnote--allow-reference-p,missing,,Non-nil when a footnote reference can be inserted at point.
-org-footnote.el,313,function,org-footnote--clear-footnote-section,missing,,Remove all footnote sections in buffer and create a new one.
-org-footnote.el,337,function,org-footnote--set-label,missing,,Set label of footnote at point to string LABEL.
-org-footnote.el,346,function,org-footnote--collect-references,missing,,Collect all labeled footnote references in current buffer.
-org-footnote.el,412,function,org-footnote--collect-definitions,missing,,Collect all footnote definitions in current buffer.
-org-footnote.el,447,function,org-footnote--goto-local-insertion-point,missing,,"Find insertion point for footnote, just before next outline heading."
-org-footnote.el,458,function,org-footnote-get-next-reference,missing,,Return complete reference of the next footnote.
-org-footnote.el,477,function,org-footnote-next-reference-or-definition,missing,,Move point to next footnote reference or definition.
-org-footnote.el,548,command,org-footnote-goto-definition,missing,,Move point to the definition of the footnote LABEL.
-org-footnote.el,576,command,org-footnote-goto-previous-reference,missing,,Find the first closest (to point) reference of footnote with label LABEL.
-org-footnote.el,600,function,org-footnote-normalize-label,missing,,"Return LABEL without ""fn:"" prefix."
-org-footnote.el,609,function,org-footnote-get-definition,missing,,"Return label, boundaries and definition of the footnote LABEL."
-org-footnote.el,635,function,org-footnote-all-labels,missing,,List all defined footnote labels used throughout the buffer.
-org-footnote.el,650,function,org-footnote-unique-label,missing,,Return a new unique footnote label.
-org-footnote.el,666,command,org-footnote-new,missing,,Insert a new footnote.
-org-footnote.el,718,function,org-footnote-create-definition,missing,,Start the definition of a footnote with label LABEL.
-org-footnote.el,741,function,org-footnote-delete-references,missing,,Delete every reference to footnote LABEL.
-org-footnote.el,753,function,org-footnote-delete-definitions,missing,,Delete every definition of the footnote LABEL.
-org-footnote.el,775,function,org-footnote-delete,missing,,Delete the footnote at point.
-org-footnote.el,812,command,org-footnote-renumber-fn:N,missing,,Order numbered footnotes into a sequence in the document.
-org-footnote.el,835,function,org-footnote-sort,missing,,Rearrange footnote definitions in the current buffer.
-org-footnote.el,876,command,org-footnote-normalize,missing,,Turn every footnote in buffer into a numbered one.
-org-footnote.el,961,function,org-footnote-auto-adjust-maybe,missing,,Renumber and/or sort footnotes according to user settings.
-org-footnote.el,979,command,org-footnote-action,missing,,Do the right thing for footnotes.
-org-goto.el,57,option,org-goto-interface,missing,,The default interface to be used for `org-goto'.
-org-goto.el,77,option,org-goto-max-level,missing,,Maximum target level when running `org-goto' with refile interface.
-org-goto.el,82,option,org-goto-auto-isearch,missing,,Non-nil means typing characters in `org-goto' starts incremental search.
-org-goto.el,99,function,org-goto--set-map,missing,,Set the keymap `org-goto'.
-org-goto.el,141,function,org-goto--local-search-headings,missing,,Search and make sure that any matches are in headlines.
-org-goto.el,155,command,org-goto-local-auto-isearch,missing,,Start isearch.
-org-goto.el,164,command,org-goto-ret,missing,,Finish `org-goto' by going to the new location.
-org-goto.el,171,command,org-goto-left,missing,,Finish `org-goto' by going to the new location.
-org-goto.el,182,command,org-goto-right,missing,,Finish `org-goto' by going to the new location.
-org-goto.el,192,command,org-goto-quit,missing,,Finish `org-goto' without cursor motion.
-org-goto.el,204,function,org-goto-location,missing,,Let the user select a location in current buffer.
-org-goto.el,245,command,org-goto,missing,,"Look up a different location in the current file, keeping current visibility."
+org-footnote.el,95,option,org-footnote-section,done,src/org/footnote.rs,Outline heading containing footnote definitions.
+org-footnote.el,125,option,org-footnote-define-inline,done,src/org/footnote.rs,"Non-nil means define footnotes inline, at reference location."
+org-footnote.el,134,option,org-footnote-auto-label,done,src/org/footnote.rs,Non-nil means define automatically new labels for footnotes.
+org-footnote.el,155,option,org-footnote-auto-adjust,done,src/org/footnote.rs,Non-nil means automatically adjust footnotes after insert/delete.
+org-footnote.el,174,option,org-footnote-fill-after-inline-note-extraction,partial,src/org/footnote.rs: option read nowhere: inline notes extracted by normalize are not refilled,Non-nil means fill paragraphs after extracting footnotes.
+org-footnote.el,186,function,org-footnote-in-valid-context-p,adapted,src/org/footnote.rs: fontification predicate; face.rs/ctx.rs cover it,Is point in a context where footnotes are allowed?
+org-footnote.el,199,function,org-footnote-at-reference-p,internal,src/org/footnote.rs,Non-nil if point is at a footnote reference.
+org-footnote.el,219,function,org-footnote-at-definition-p,internal,src/org/footnote.rs,Non-nil if point is within a footnote definition.
+org-footnote.el,251,function,org-footnote--allow-reference-p,internal,src/org/footnote.rs,Non-nil when a footnote reference can be inserted at point.
+org-footnote.el,313,function,org-footnote--clear-footnote-section,internal,src/org/footnote.rs,Remove all footnote sections in buffer and create a new one.
+org-footnote.el,337,function,org-footnote--set-label,internal,src/org/footnote.rs,Set label of footnote at point to string LABEL.
+org-footnote.el,346,function,org-footnote--collect-references,internal,src/org/footnote.rs,Collect all labeled footnote references in current buffer.
+org-footnote.el,412,function,org-footnote--collect-definitions,internal,src/org/footnote.rs,Collect all footnote definitions in current buffer.
+org-footnote.el,447,function,org-footnote--goto-local-insertion-point,internal,src/org/footnote.rs,"Find insertion point for footnote, just before next outline heading."
+org-footnote.el,458,function,org-footnote-get-next-reference,internal,src/org/footnote.rs,Return complete reference of the next footnote.
+org-footnote.el,477,function,org-footnote-next-reference-or-definition,adapted,src/org/footnote.rs: fontification predicate; face.rs/ctx.rs cover it,Move point to next footnote reference or definition.
+org-footnote.el,548,command,org-footnote-goto-definition,done,src/org/footnote.rs,Move point to the definition of the footnote LABEL.
+org-footnote.el,576,command,org-footnote-goto-previous-reference,done,src/org/footnote.rs,Find the first closest (to point) reference of footnote with label LABEL.
+org-footnote.el,600,function,org-footnote-normalize-label,internal,src/org/footnote.rs,"Return LABEL without ""fn:"" prefix."
+org-footnote.el,609,function,org-footnote-get-definition,internal,src/org/footnote.rs,"Return label, boundaries and definition of the footnote LABEL."
+org-footnote.el,635,function,org-footnote-all-labels,internal,src/org/footnote.rs,List all defined footnote labels used throughout the buffer.
+org-footnote.el,650,function,org-footnote-unique-label,internal,src/org/footnote.rs,Return a new unique footnote label.
+org-footnote.el,666,command,org-footnote-new,done,src/org/footnote.rs,Insert a new footnote.
+org-footnote.el,718,function,org-footnote-create-definition,internal,src/org/footnote.rs,Start the definition of a footnote with label LABEL.
+org-footnote.el,741,function,org-footnote-delete-references,internal,src/org/footnote.rs,Delete every reference to footnote LABEL.
+org-footnote.el,753,function,org-footnote-delete-definitions,internal,src/org/footnote.rs,Delete every definition of the footnote LABEL.
+org-footnote.el,775,function,org-footnote-delete,internal,src/org/footnote.rs,Delete the footnote at point.
+org-footnote.el,812,command,org-footnote-renumber-fn:N,done,src/org/footnote.rs,Order numbered footnotes into a sequence in the document.
+org-footnote.el,835,function,org-footnote-sort,internal,src/org/footnote.rs,Rearrange footnote definitions in the current buffer.
+org-footnote.el,876,command,org-footnote-normalize,done,src/org/footnote.rs,Turn every footnote in buffer into a numbered one.
+org-footnote.el,961,function,org-footnote-auto-adjust-maybe,internal,src/org/footnote.rs,Renumber and/or sort footnotes according to user settings.
+org-footnote.el,979,command,org-footnote-action,done,src/org/footnote.rs,Do the right thing for footnotes.
+org-goto.el,57,option,org-goto-interface,done,src/org/goto.rs,The default interface to be used for `org-goto'.
+org-goto.el,77,option,org-goto-max-level,done,src/org/goto.rs,Maximum target level when running `org-goto' with refile interface.
+org-goto.el,82,option,org-goto-auto-isearch,partial,src/org/goto.rs: t: letters are Vim keys (/ searches); nil: n/p/f/b/u/q bound,Non-nil means typing characters in `org-goto' starts incremental search.
+org-goto.el,99,function,org-goto--set-map,internal,src/org/goto.rs,Set the keymap `org-goto'.
+org-goto.el,141,function,org-goto--local-search-headings,partial,src/org/goto.rs: not ported: no heading-only isearch (Vim / searches),Search and make sure that any matches are in headlines.
+org-goto.el,155,command,org-goto-local-auto-isearch,partial,src/org/goto.rs: Fred: typed letters stay Vim keys; this opens / search (no heading-restricted isearch),Start isearch.
+org-goto.el,164,command,org-goto-ret,done,src/org/goto.rs,Finish `org-goto' by going to the new location.
+org-goto.el,171,command,org-goto-left,done,src/org/goto.rs,Finish `org-goto' by going to the new location.
+org-goto.el,182,command,org-goto-right,done,src/org/goto.rs,Finish `org-goto' by going to the new location.
+org-goto.el,192,command,org-goto-quit,done,src/org/goto.rs,Finish `org-goto' without cursor motion.
+org-goto.el,204,function,org-goto-location,internal,src/org/goto.rs,Let the user select a location in current buffer.
+org-goto.el,245,command,org-goto,done,src/org/goto.rs,"Look up a different location in the current file, keeping current visibility."
 org-habit.el,43,option,org-habit-graph-column,missing,,The absolute column at which to insert habit consistency graphs.
 org-habit.el,49,option,org-habit-preceding-days,missing,,Number of days before today to appear in consistency graphs.
 org-habit.el,54,option,org-habit-following-days,missing,,Number of days after today to appear in consistency graphs.
@@ -2621,83 +2621,83 @@ org-habit.el,347,function,org-habit-build-graph,missing,,"Build a graph for the 
 org-habit.el,453,function,org-habit-insert-consistency-graphs,missing,,Insert consistency graph for any habitual tasks.
 org-habit.el,489,command,org-habit-toggle-habits,missing,,Toggle display of habits in an agenda buffer.
 org-habit.el,499,command,org-habit-toggle-display-in-agenda,missing,,Toggle display of habits in agenda.
-org-id.el,91,option,org-id-link-to-org-use-id,missing,,Non-nil means storing a link to an Org file will use entry IDs.
-org-id.el,130,option,org-id-link-consider-parent-id,missing,,Non-nil means storing a link to an Org entry considers inherited IDs.
-org-id.el,159,option,org-id-link-use-context,missing,,Non-nil means enables search string context in org-id links.
-org-id.el,170,option,org-id-uuid-program,missing,,"Program used to generate the UUID, or nil to use Emacs's own generator."
-org-id.el,181,option,org-id-ts-format,missing,,Timestamp format for IDs generated using `ts' `org-id-method'.
-org-id.el,190,option,org-id-method,missing,,The method that should be used to create new IDs.
-org-id.el,214,option,org-id-prefix,missing,,The prefix for IDs.
-org-id.el,225,option,org-id-include-domain,missing,,Non-nil means add the domain name to new IDs.
-org-id.el,237,option,org-id-track-globally,missing,,"Non-nil means track IDs through files, so that links work globally."
-org-id.el,250,option,org-id-locations-file,missing,,The file for remembering in which file an ID was defined.
-org-id.el,256,option,org-id-locations-file-relative,missing,,Determine if `org-id-locations' should be stored as relative links.
-org-id.el,280,option,org-id-extra-files,missing,,"Files to be searched for IDs, besides the agenda files."
-org-id.el,295,option,org-id-search-archives,missing,,Non-nil means search also the archive files of agenda files for entries.
-org-id.el,303,option,org-id-completion-targets,missing,,"Candidate headings for completing ""id:"" links in `\[org-insert-link]'."
-org-id.el,316,command,org-id-get-create,missing,,Create an ID for the current entry and return it.
-org-id.el,326,command,org-id-copy,missing,,Copy the ID of the entry at point to the kill ring.
-org-id.el,338,function,org-id-get,missing,,Get the ID of the entry at EPOM.
-org-id.el,366,function,org-id-get-with-outline-path-completion,missing,,Use `outline-path-completion' to retrieve the ID of an entry.
-org-id.el,383,function,org-id-get-with-outline-drilling,missing,,Use an outline-cycling interface to retrieve the ID of an entry.
-org-id.el,393,command,org-id-goto,missing,,Switch to the buffer containing the entry with id ID.
-org-id.el,406,function,org-id-find,missing,,Return the location of the entry with the id ID.
-org-id.el,430,function,org-id-new,missing,,Create a new globally unique ID.
-org-id.el,470,function,org-id-int-to-b36-one-digit,missing,,"Convert INTEGER between 0 and 61 into a single character 0..9, A..Z, a..z."
-org-id.el,477,function,org-id-b36-to-int-one-digit,missing,,"Convert character 0..9, A..Z, a..z into a number 0..61."
-org-id.el,486,function,org-id-int-to-b36,missing,,Convert an INTEGER to a base-36 number represented as a string.
-org-id.el,500,function,org-id-b36-to-int,missing,,Convert a base-36 STRING into the corresponding integer.
-org-id.el,507,function,org-id-time-to-b36,missing,,Encode TIME as a 12-digit string.
-org-id.el,519,function,org-id-decode,missing,,Split ID into the prefix and the time value that was used to create it.
-org-id.el,537,command,org-id-update-id-locations,missing,,Scan relevant files for IDs.
-org-id.el,621,function,org-id-locations-save,missing,,Save `org-id-locations' in `org-id-locations-file'.
-org-id.el,642,function,org-id-locations-load,missing,,Read the data from `org-id-locations-file'.
-org-id.el,665,function,org-id-add-location,missing,,Add the ID with location FILE to the database of ID locations.
-org-id.el,680,function,org-id-hash-to-alist,missing,,Turn an org-id HASH into an alist.
-org-id.el,692,function,org-id-alist-to-hash,missing,,Turn an org-id location LIST into a hash table.
-org-id.el,705,function,org-id-paste-tracker,missing,,Update any ids in TXT and assign BUFFER-OR-FILE to them.
-org-id.el,724,function,org-id-find-id-file,missing,,Query the id database for the file in which ID is located.
-org-id.el,735,function,org-id-find-id-in-file,missing,,Return the position of the entry ID in FILE.
-org-id.el,773,function,org-id--get-id-to-store-link,missing,,Get or create the relevant ID for storing a link.
-org-id.el,794,command,org-id-store-link,missing,,"Store a link to the current entry, using its ID."
-org-id.el,844,function,org-id-store-link-maybe,missing,,Store a link to the current entry using its ID if enabled.
-org-id.el,865,function,org-id-open,missing,,Go to the entry indicated by id link LINK.
-org-id.el,911,function,org-id-complete,missing,,Complete IDs for `org-insert-link'.
-org-id.el,928,function,org-id-description,missing,,"Return a description for an ID link, derived from the linked headline."
-org-indent.el,80,option,org-indent-boundary-char,missing,,"The end of the virtual indentation strings, a single-character string."
-org-indent.el,88,option,org-indent-mode-turns-off-org-adapt-indentation,missing,,Non-nil means setting `org-indent-mode' will turn off indentation adaptation.
-org-indent.el,94,option,org-indent-mode-turns-on-hiding-stars,missing,,Non-nil means setting `org-indent-mode' will turn on `org-hide-leading-stars'.
-org-indent.el,99,option,org-indent-indentation-per-level,missing,,Indentation per level in number of characters.
-org-indent.el,104,option,org-indent-post-buffer-init-functions,missing,,Hook run after org-indent finishes initializing a buffer.
-org-indent.el,130,function,org-indent--compute-prefixes,missing,,Compute prefix strings for regular text and headlines.
-org-indent.el,165,function,org-indent-remove-properties,missing,,Remove indentations between BEG and END.
-org-indent.el,171,command,org-indent-mode,missing,,"When active, indent text according to outline structure."
-org-indent.el,228,command,org-indent-indent-buffer,missing,,Add indentation properties to the accessible part of the buffer.
-org-indent.el,238,function,org-indent-remove-properties-from-string,missing,,Remove indentation properties from STRING.
-org-indent.el,244,function,org-indent-initialize-agent,missing,,Start or resume current buffer initialization.
-org-indent.el,265,function,org-indent-initialize-buffer,missing,,"Set virtual indentation for the buffer BUFFER, asynchronously."
-org-indent.el,290,function,org-indent-set-line-properties,missing,,Set prefix properties on current line an move to next one.
-org-indent.el,315,function,org-indent-add-properties,missing,,Add indentation properties between BEG and END.
-org-indent.el,376,function,org-indent-notify-modified-headline,missing,,Set `org-indent-modified-headline-flag' depending on context.
-org-indent.el,394,function,org-indent-refresh-maybe,missing,,Refresh indentation properties in an adequate portion of buffer.
-org-indent.el,,option,org-indent-mode-hook,missing,,Hook run after entering or leaving `org-indent-mode'.
-org-inlinetask.el,91,option,org-inlinetask-min-level,missing,,Minimum level a headline must have before it is treated as an inline task.
-org-inlinetask.el,104,option,org-inlinetask-show-first-star,missing,,Non-nil means display the first star of an inline task as additional marker.
-org-inlinetask.el,116,option,org-inlinetask-default-state,missing,,Non-nil means make inline tasks have a TODO keyword initially.
-org-inlinetask.el,126,command,org-inlinetask-insert-task,missing,,Insert an inline task.
-org-inlinetask.el,156,function,org-inlinetask-outline-regexp,missing,,Return string matching an inline task heading.
-org-inlinetask.el,164,function,org-inlinetask-end-p,missing,,Return a non-nil value if point is on inline task's END part.
-org-inlinetask.el,169,function,org-inlinetask-at-task-p,missing,,Return non-nil if point is at beginning of an inline task.
-org-inlinetask.el,174,function,org-inlinetask-in-task-p,missing,,Return non-nil if point is inside an inline task.
-org-inlinetask.el,183,function,org-inlinetask-goto-beginning,missing,,Go to the beginning of the inline task at point.
-org-inlinetask.el,192,function,org-inlinetask-goto-end,missing,,Go to the end of the inline task at point.
-org-inlinetask.el,216,function,org-inlinetask-get-task-level,missing,,Get the level of the inline task around.
-org-inlinetask.el,224,command,org-inlinetask-promote,missing,,Promote the inline task at point.
-org-inlinetask.el,253,command,org-inlinetask-demote,missing,,Demote the inline task at point.
-org-inlinetask.el,285,function,org-inlinetask-fontify,missing,,Fontify the inline tasks down to LIMIT.
-org-inlinetask.el,310,function,org-inlinetask-toggle-visibility,missing,,Toggle visibility of inline task at point.
-org-inlinetask.el,330,function,org-inlinetask-hide-tasks,missing,,Hide inline tasks in buffer when STATE is `contents' or `children'.
-org-inlinetask.el,349,function,org-inlinetask-remove-END-maybe,missing,,Remove an END line when present.
+org-id.el,91,option,org-id-link-to-org-use-id,done,src/org/id.rs,Non-nil means storing a link to an Org file will use entry IDs.
+org-id.el,130,option,org-id-link-consider-parent-id,done,src/org/id.rs,Non-nil means storing a link to an Org entry considers inherited IDs.
+org-id.el,159,option,org-id-link-use-context,done,src/org/id.rs,Non-nil means enables search string context in org-id links.
+org-id.el,170,option,org-id-uuid-program,done,src/org/id.rs,"Program used to generate the UUID, or nil to use Emacs's own generator."
+org-id.el,181,option,org-id-ts-format,done,src/org/id.rs,Timestamp format for IDs generated using `ts' `org-id-method'.
+org-id.el,190,option,org-id-method,done,src/org/id.rs,The method that should be used to create new IDs.
+org-id.el,214,option,org-id-prefix,done,src/org/id.rs,The prefix for IDs.
+org-id.el,225,option,org-id-include-domain,done,src/org/id.rs,Non-nil means add the domain name to new IDs.
+org-id.el,237,option,org-id-track-globally,done,src/org/id.rs,"Non-nil means track IDs through files, so that links work globally."
+org-id.el,250,option,org-id-locations-file,done,src/org/id.rs,The file for remembering in which file an ID was defined.
+org-id.el,256,option,org-id-locations-file-relative,done,src/org/id.rs,Determine if `org-id-locations' should be stored as relative links.
+org-id.el,280,option,org-id-extra-files,done,src/org/id.rs,"Files to be searched for IDs, besides the agenda files."
+org-id.el,295,option,org-id-search-archives,done,src/org/id.rs,Non-nil means search also the archive files of agenda files for entries.
+org-id.el,303,option,org-id-completion-targets,done,src/org/id.rs,"Candidate headings for completing ""id:"" links in `\[org-insert-link]'."
+org-id.el,316,command,org-id-get-create,done,src/org/id.rs,Create an ID for the current entry and return it.
+org-id.el,326,command,org-id-copy,done,src/org/id.rs,Copy the ID of the entry at point to the kill ring.
+org-id.el,338,function,org-id-get,internal,src/org/id.rs,Get the ID of the entry at EPOM.
+org-id.el,366,function,org-id-get-with-outline-path-completion,internal,src/org/id.rs,Use `outline-path-completion' to retrieve the ID of an entry.
+org-id.el,383,function,org-id-get-with-outline-drilling,partial,src/org/id.rs: not exposed (goto::location provides the drilling UI),Use an outline-cycling interface to retrieve the ID of an entry.
+org-id.el,393,command,org-id-goto,done,src/org/id.rs,Switch to the buffer containing the entry with id ID.
+org-id.el,406,function,org-id-find,internal,src/org/id.rs,Return the location of the entry with the id ID.
+org-id.el,430,function,org-id-new,internal,src/org/id.rs,Create a new globally unique ID.
+org-id.el,470,function,org-id-int-to-b36-one-digit,internal,src/org/id.rs,"Convert INTEGER between 0 and 61 into a single character 0..9, A..Z, a..z."
+org-id.el,477,function,org-id-b36-to-int-one-digit,internal,src/org/id.rs,"Convert character 0..9, A..Z, a..z into a number 0..61."
+org-id.el,486,function,org-id-int-to-b36,internal,src/org/id.rs,Convert an INTEGER to a base-36 number represented as a string.
+org-id.el,500,function,org-id-b36-to-int,internal,src/org/id.rs,Convert a base-36 STRING into the corresponding integer.
+org-id.el,507,function,org-id-time-to-b36,internal,src/org/id.rs,Encode TIME as a 12-digit string.
+org-id.el,519,function,org-id-decode,internal,src/org/id.rs,Split ID into the prefix and the time value that was used to create it.
+org-id.el,537,command,org-id-update-id-locations,done,src/org/id.rs,Scan relevant files for IDs.
+org-id.el,621,function,org-id-locations-save,partial,"src/org/id.rs: written on every add (merged with the file), not at exit",Save `org-id-locations' in `org-id-locations-file'.
+org-id.el,642,function,org-id-locations-load,internal,src/org/id.rs,Read the data from `org-id-locations-file'.
+org-id.el,665,function,org-id-add-location,internal,src/org/id.rs,Add the ID with location FILE to the database of ID locations.
+org-id.el,680,function,org-id-hash-to-alist,internal,src/org/id.rs,Turn an org-id HASH into an alist.
+org-id.el,692,function,org-id-alist-to-hash,internal,src/org/id.rs,Turn an org-id location LIST into a hash table.
+org-id.el,705,function,org-id-paste-tracker,internal,src/org/id.rs,Update any ids in TXT and assign BUFFER-OR-FILE to them.
+org-id.el,724,function,org-id-find-id-file,internal,src/org/id.rs,Query the id database for the file in which ID is located.
+org-id.el,735,function,org-id-find-id-in-file,internal,src/org/id.rs,Return the position of the entry ID in FILE.
+org-id.el,773,function,org-id--get-id-to-store-link,internal,src/org/id.rs,Get or create the relevant ID for storing a link.
+org-id.el,794,command,org-id-store-link,done,src/org/id.rs,"Store a link to the current entry, using its ID."
+org-id.el,844,function,org-id-store-link-maybe,internal,src/org/id.rs,Store a link to the current entry using its ID if enabled.
+org-id.el,865,function,org-id-open,internal,src/org/id.rs,Go to the entry indicated by id link LINK.
+org-id.el,911,function,org-id-complete,internal,src/org/id.rs,Complete IDs for `org-insert-link'.
+org-id.el,928,function,org-id-description,internal,src/org/id.rs,"Return a description for an ID link, derived from the linked headline."
+org-indent.el,80,option,org-indent-boundary-char,done,src/org/indent.rs,"The end of the virtual indentation strings, a single-character string."
+org-indent.el,88,option,org-indent-mode-turns-off-org-adapt-indentation,done,src/org/indent.rs,Non-nil means setting `org-indent-mode' will turn off indentation adaptation.
+org-indent.el,94,option,org-indent-mode-turns-on-hiding-stars,done,src/org/indent.rs,Non-nil means setting `org-indent-mode' will turn on `org-hide-leading-stars'.
+org-indent.el,99,option,org-indent-indentation-per-level,done,src/org/indent.rs,Indentation per level in number of characters.
+org-indent.el,104,option,org-indent-post-buffer-init-functions,partial,src/org/indent.rs: not run (no asynchronous init in Fred),Hook run after org-indent finishes initializing a buffer.
+org-indent.el,130,function,org-indent--compute-prefixes,internal,src/org/indent.rs,Compute prefix strings for regular text and headlines.
+org-indent.el,165,function,org-indent-remove-properties,internal,src/org/indent.rs,Remove indentations between BEG and END.
+org-indent.el,171,command,org-indent-mode,done,src/org/indent.rs,"When active, indent text according to outline structure."
+org-indent.el,228,command,org-indent-indent-buffer,done,src/org/indent.rs,Add indentation properties to the accessible part of the buffer.
+org-indent.el,238,function,org-indent-remove-properties-from-string,internal,src/org/indent.rs,Remove indentation properties from STRING.
+org-indent.el,244,function,org-indent-initialize-agent,adapted,"src/org/indent.rs: adapted: prefixes computed per buffer version, no idle agent",Start or resume current buffer initialization.
+org-indent.el,265,function,org-indent-initialize-buffer,adapted,"src/org/indent.rs: adapted: prefixes computed per buffer version, no idle agent","Set virtual indentation for the buffer BUFFER, asynchronously."
+org-indent.el,290,function,org-indent-set-line-properties,partial,src/org/indent.rs: line prefixes drawn by display.rs; no wrap-prefix on wrapped rows,Set prefix properties on current line an move to next one.
+org-indent.el,315,function,org-indent-add-properties,internal,src/org/indent.rs,Add indentation properties between BEG and END.
+org-indent.el,376,function,org-indent-notify-modified-headline,internal,src/org/indent.rs,Set `org-indent-modified-headline-flag' depending on context.
+org-indent.el,394,function,org-indent-refresh-maybe,internal,src/org/indent.rs,Refresh indentation properties in an adequate portion of buffer.
+org-indent.el,,option,org-indent-mode-hook,done,src/org/indent.rs,Hook run after entering or leaving `org-indent-mode'.
+org-inlinetask.el,91,option,org-inlinetask-min-level,done,src/org/inlinetask.rs,Minimum level a headline must have before it is treated as an inline task.
+org-inlinetask.el,104,option,org-inlinetask-show-first-star,done,src/org/inlinetask.rs,Non-nil means display the first star of an inline task as additional marker.
+org-inlinetask.el,116,option,org-inlinetask-default-state,done,src/org/inlinetask.rs,Non-nil means make inline tasks have a TODO keyword initially.
+org-inlinetask.el,126,command,org-inlinetask-insert-task,done,src/org/inlinetask.rs,Insert an inline task.
+org-inlinetask.el,156,function,org-inlinetask-outline-regexp,internal,src/org/inlinetask.rs,Return string matching an inline task heading.
+org-inlinetask.el,164,function,org-inlinetask-end-p,internal,src/org/inlinetask.rs,Return a non-nil value if point is on inline task's END part.
+org-inlinetask.el,169,function,org-inlinetask-at-task-p,internal,src/org/inlinetask.rs,Return non-nil if point is at beginning of an inline task.
+org-inlinetask.el,174,function,org-inlinetask-in-task-p,internal,src/org/inlinetask.rs,Return non-nil if point is inside an inline task.
+org-inlinetask.el,183,function,org-inlinetask-goto-beginning,internal,src/org/inlinetask.rs,Go to the beginning of the inline task at point.
+org-inlinetask.el,192,function,org-inlinetask-goto-end,internal,src/org/inlinetask.rs,Go to the end of the inline task at point.
+org-inlinetask.el,216,function,org-inlinetask-get-task-level,internal,src/org/inlinetask.rs,Get the level of the inline task around.
+org-inlinetask.el,224,command,org-inlinetask-promote,done,src/org/inlinetask.rs,Promote the inline task at point.
+org-inlinetask.el,253,command,org-inlinetask-demote,done,src/org/inlinetask.rs,Demote the inline task at point.
+org-inlinetask.el,285,function,org-inlinetask-fontify,internal,src/org/inlinetask.rs,Fontify the inline tasks down to LIMIT.
+org-inlinetask.el,310,function,org-inlinetask-toggle-visibility,internal,src/org/inlinetask.rs,Toggle visibility of inline task at point.
+org-inlinetask.el,330,function,org-inlinetask-hide-tasks,internal,src/org/inlinetask.rs,Hide inline tasks in buffer when STATE is `contents' or `children'.
+org-inlinetask.el,349,function,org-inlinetask-remove-END-maybe,internal,src/org/inlinetask.rs,Remove an END line when present.
 org-inside.el,76,option,org-inside-appearance,missing,,Special appearance when point is inside text with hidden contents.
 org-inside.el,121,option,org-inside-unhide-delay,missing,,Default delay in seconds before auto-unhiding entities.
 org-inside.el,141,function,org-inside--setup-hidden-contents-types,missing,,Setup entity types with hidden contents.
@@ -2745,15 +2745,15 @@ org-keys.el,329,function,org-key,missing,,Select KEY according to `org-replace-d
 org-keys.el,339,function,org-defkey,missing,,"Define KEY, possibly translated, as returned by `org-key' in KEYMAP to DEF."
 org-keys.el,343,function,org-remap,missing,,"In MAP, remap the functions given in COMMANDS."
 org-keys.el,416,command,org-up-heading,partial,src/org/structure.rs: ported command; acceptance gates open,Move to the visible heading line of which the present line is a subheading.
-org-keys.el,686,option,org-use-speed-commands,missing,,Non-nil means activate single letter commands at beginning of a headline.
-org-keys.el,707,option,org-speed-command-hook,missing,,Hook for activating speed commands at strategic locations.
-org-keys.el,726,option,org-speed-commands,missing,,Alist of speed commands.
-org-keys.el,803,function,org--print-speed-command,missing,,Print information about SPEED-COMMAND in help buffer.
-org-keys.el,820,command,org-speed-command-help,missing,,Show the available speed commands.
-org-keys.el,831,function,org-speed-move-safe,missing,,"Execute CMD, but make sure that the cursor always ends up in a headline."
-org-keys.el,840,function,org-speed-command-activate,missing,,Hook for activating single-letter speed commands.
-org-keys.el,916,function,org-babel-speed-command-activate,missing,,Hook for activating single-letter code block commands.
-org-keys.el,925,command,org-babel-describe-bindings,partial,src/org/babel/mod.rs: ported command; acceptance gates open,Describe all keybindings behind `org-babel-key-prefix'.
+org-keys.el,686,option,org-use-speed-commands,partial,src/org/keys.rs: t or any non-nil (function values count as t); SPC stays Fred leader,Non-nil means activate single letter commands at beginning of a headline.
+org-keys.el,707,option,org-speed-command-hook,partial,src/org/keys.rs: fixed: org-speed-command-activate + babel; custom hook functions not called,Hook for activating speed commands at strategic locations.
+org-keys.el,726,option,org-speed-commands,done,src/org/keys.rs,Alist of speed commands.
+org-keys.el,803,function,org--print-speed-command,internal,src/org/keys.rs,Print information about SPEED-COMMAND in help buffer.
+org-keys.el,820,command,org-speed-command-help,done,src/org/keys.rs,Show the available speed commands.
+org-keys.el,831,function,org-speed-move-safe,internal,src/org/keys.rs,"Execute CMD, but make sure that the cursor always ends up in a headline."
+org-keys.el,840,function,org-speed-command-activate,internal,src/org/keys.rs,Hook for activating single-letter speed commands.
+org-keys.el,916,function,org-babel-speed-command-activate,internal,src/org/keys.rs,Hook for activating single-letter code block commands.
+org-keys.el,925,command,org-babel-describe-bindings,done,src/org/keys.rs,Describe all keybindings behind `org-babel-key-prefix'.
 org-keys.el,,option,org-CUA-compatible,missing,,Non-nil means use alternative key bindings for some keys.
 org-lint.el,114,function,org-lint-add-checker,missing,,Add a new checker for linter.
 org-lint.el,163,function,org-lint-remove-checker,missing,,Remove checker(s) from linter.
@@ -2963,20 +2963,20 @@ org-list.el,3644,function,org-list-to-texinfo,partial,list::export::to_texinfo: 
 org-list.el,3652,function,org-list-to-org,done,list::export::to_org,Convert LIST into an Org plain list.
 org-list.el,3671,function,org-list-to-subtree,done,list::export::to_subtree,Convert LIST into an Org subtree.
 org-list.el,,option,org-list-checkbox-radio-mode-hook,adapted,no Elisp hooks; the mode is a per-buffer flag,Hook run after entering or leaving `org-list-checkbox-radio-mode'.
-org-macro.el,93,function,org-macro--makeargs,missing,,Compute the formal arglist to use for TEMPLATE.
-org-macro.el,106,function,org-macro--set-templates,missing,,Set template for the macro NAME.
-org-macro.el,138,function,org-macro--collect-macros,missing,,Collect macro definitions in current buffer and setup files.
-org-macro.el,155,function,org-macro-initialize-templates,missing,,Collect macro templates defined in current buffer.
-org-macro.el,198,function,org-macro-expand,missing,,"Return expanded MACRO, as a string."
-org-macro.el,222,function,org-macro-replace-all,missing,,Replace all macros in current buffer by their expansion.
-org-macro.el,293,function,org-macro-escape-arguments,missing,,Build macro's arguments string from ARGS.
-org-macro.el,317,function,org-macro-extract-arguments,missing,,Extract macro arguments from string S.
-org-macro.el,337,function,org-macro--get-property,missing,,Find PROPERTY's value at LOCATION.
-org-macro.el,350,function,org-macro--find-keyword-value,missing,,Find value for keyword NAME in current buffer.
-org-macro.el,369,function,org-macro--find-date,missing,,Find value for DATE in current buffer.
-org-macro.el,387,function,org-macro--vc-modified-time,missing,,
-org-macro.el,415,function,org-macro--counter-initialize,missing,,Initialize `org-macro--counter-table'.
-org-macro.el,419,function,org-macro--counter-increment,missing,,Increment counter NAME.
+org-macro.el,93,function,org-macro--makeargs,internal,src/org/macros.rs,Compute the formal arglist to use for TEMPLATE.
+org-macro.el,106,function,org-macro--set-templates,internal,src/org/macros.rs,Set template for the macro NAME.
+org-macro.el,138,function,org-macro--collect-macros,internal,src/org/macros.rs,Collect macro definitions in current buffer and setup files.
+org-macro.el,155,function,org-macro-initialize-templates,internal,src/org/macros.rs,Collect macro templates defined in current buffer.
+org-macro.el,198,function,org-macro-expand,internal,src/org/macros.rs,"Return expanded MACRO, as a string."
+org-macro.el,222,function,org-macro-replace-all,internal,src/org/macros.rs,Replace all macros in current buffer by their expansion.
+org-macro.el,293,function,org-macro-escape-arguments,internal,src/org/macros.rs,Build macro's arguments string from ARGS.
+org-macro.el,317,function,org-macro-extract-arguments,internal,src/org/macros.rs,Extract macro arguments from string S.
+org-macro.el,337,function,org-macro--get-property,internal,src/org/macros.rs,Find PROPERTY's value at LOCATION.
+org-macro.el,350,function,org-macro--find-keyword-value,internal,src/org/macros.rs,Find value for keyword NAME in current buffer.
+org-macro.el,369,function,org-macro--find-date,internal,src/org/macros.rs,Find value for DATE in current buffer.
+org-macro.el,387,function,org-macro--vc-modified-time,partial,src/org/macros.rs: git only,
+org-macro.el,415,function,org-macro--counter-initialize,internal,src/org/macros.rs,Initialize `org-macro--counter-table'.
+org-macro.el,419,function,org-macro--counter-increment,internal,src/org/macros.rs,Increment counter NAME.
 org-macs.el,55,macro,org-assert-version,missing,,Assert compile time and runtime version match.
 org-macs.el,137,macro,org-require-package,missing,,Try to load library SYMBOL and display error otherwise.
 org-macs.el,146,macro,org-with-gensyms,missing,,
@@ -3195,57 +3195,57 @@ org-mouse.el,992,command,org-mouse-transform-to-outline,missing,,
 org-mouse.el,1009,function,org-mouse-do-remotely,missing,,
 org-mouse.el,1045,function,org-mouse-agenda-context-menu,missing,,
 org-mouse.el,1098,function,org-mouse-get-gesture,missing,,
-org-num.el,83,option,org-num-face,missing,,Face to use for numbering.
-org-num.el,94,option,org-num-format-function,missing,,Function used to display numbering.
-org-num.el,105,option,org-num-max-level,missing,,Level below which headlines are not numbered.
-org-num.el,115,option,org-num-skip-commented,missing,,Non-nil means commented sub-trees are not numbered.
-org-num.el,123,option,org-num-skip-footnotes,missing,,Non-nil means footnotes sections are not numbered.
-org-num.el,131,option,org-num-skip-tags,missing,,List of tags preventing the numbering of sub-trees.
-org-num.el,146,option,org-num-skip-unnumbered,missing,,Non-nil means numbering obeys to UNNUMBERED property.
-org-num.el,182,function,org-num--headline-regexp,missing,,Return regexp matching a numbered headline.
-org-num.el,189,function,org-num--overlay-p,missing,,Non-nil if overlay O is a numbering overlay.
-org-num.el,193,function,org-num--valid-overlay-p,missing,,Non-nil if overlay O is still active in the buffer.
-org-num.el,197,function,org-num--invalidate-overlay,missing,,Mark overlay O as invalid.
-org-num.el,203,function,org-num--clear,missing,,Remove all numbering overlays in current buffer.
-org-num.el,208,function,org-num--make-overlay,missing,,Return overlay for numbering headline at point.
-org-num.el,240,function,org-num--refresh-display,missing,,Refresh OVERLAY's display.
-org-num.el,250,function,org-num--skip-value,missing,,Return skip value for headline at point.
-org-num.el,275,function,org-num--current-numbering,missing,,Return numbering for current headline.
-org-num.el,305,function,org-num--number-region,missing,,Add numbering overlays between START and END positions.
-org-num.el,326,function,org-num--update,missing,,Update buffer's numbering.
-org-num.el,392,function,org-num--verify,missing,,Check numbering integrity; update it if necessary.
-org-num.el,454,function,org-num-default-format,missing,,Default numbering display function.
-org-num.el,460,command,org-num-mode,missing,,Dynamic numbering of headlines in an Org buffer.
-org-num.el,,option,org-num-mode-hook,missing,,Hook run after entering or leaving `org-num-mode'.
-org-pcomplete.el,85,function,org-thing-at-point,missing,,Examine the thing at point and let the caller know what it is.
-org-pcomplete.el,154,function,org-pcomplete-case-double,missing,,Return list with both upcase and downcase version of all strings in LIST.
-org-pcomplete.el,184,function,org-command-at-point,missing,,Return the qualified name of the Org completion entity at point.
-org-pcomplete.el,197,function,org-parse-arguments,missing,,Parse whitespace separated arguments in the current region.
-org-pcomplete.el,223,function,org-pcomplete-initial,missing,,Call the right completion function for first argument completions.
-org-pcomplete.el,233,function,pcomplete/org-mode/file-option,missing,,Complete against all valid file options.
-org-pcomplete.el,247,function,pcomplete/org-mode/file-option/author,missing,,Complete arguments for the #+AUTHOR file option.
-org-pcomplete.el,251,function,pcomplete/org-mode/file-option/date,missing,,Complete arguments for the #+DATE file option.
-org-pcomplete.el,255,function,pcomplete/org-mode/file-option/email,missing,,Complete arguments for the #+EMAIL file option.
-org-pcomplete.el,259,function,pcomplete/org-mode/file-option/exclude_tags,missing,,Complete arguments for the #+EXCLUDE_TAGS file option.
-org-pcomplete.el,266,function,pcomplete/org-mode/file-option/filetags,missing,,Complete arguments for the #+FILETAGS file option.
-org-pcomplete.el,270,function,pcomplete/org-mode/file-option/language,missing,,Complete arguments for the #+LANGUAGE file option.
-org-pcomplete.el,277,function,pcomplete/org-mode/file-option/priorities,missing,,Complete arguments for the #+PRIORITIES file option.
-org-pcomplete.el,285,function,pcomplete/org-mode/file-option/select_tags,missing,,Complete arguments for the #+SELECT_TAGS file option.
-org-pcomplete.el,292,function,pcomplete/org-mode/file-option/startup,missing,,Complete arguments for the #+STARTUP file option.
-org-pcomplete.el,305,function,pcomplete/org-mode/file-option/tags,missing,,Complete arguments for the #+TAGS file option.
-org-pcomplete.el,310,function,pcomplete/org-mode/file-option/title,missing,,Complete arguments for the #+TITLE file option.
-org-pcomplete.el,320,function,pcomplete/org-mode/file-option/options,missing,,Complete arguments for the #+OPTIONS file option.
-org-pcomplete.el,340,function,pcomplete/org-mode/file-option/infojs_opt,missing,,Complete arguments for the #+INFOJS_OPT file option.
-org-pcomplete.el,347,function,pcomplete/org-mode/file-option/bind,missing,,"Complete arguments for the #+BIND file option, which are variable names."
-org-pcomplete.el,354,function,pcomplete/org-mode/link,missing,,Complete against defined #+LINK patterns.
-org-pcomplete.el,363,function,pcomplete/org-mode/tex,missing,,Complete against TeX-style HTML entity names.
-org-pcomplete.el,371,function,pcomplete/org-mode/todo,missing,,Complete against known TODO keywords.
-org-pcomplete.el,375,function,pcomplete/org-mode/searchhead,missing,,Complete against all headings.
-org-pcomplete.el,388,function,pcomplete/org-mode/tag,missing,,Complete a tag name.  Omit tags already set.
-org-pcomplete.el,405,function,pcomplete/org-mode/drawer,missing,,"Complete a drawer name, including ""PROPERTIES""."
-org-pcomplete.el,421,function,pcomplete/org-mode/prop,missing,,Complete a property name.  Omit properties already set.
-org-pcomplete.el,434,function,pcomplete/org-mode/block-option/src,missing,,Complete the arguments of a source block.
-org-pcomplete.el,457,function,pcomplete/org-mode/block-option/clocktable,missing,,Complete keywords in a clocktable line.
+org-num.el,83,option,org-num-face,partial,src/org/num.rs: nil (headline face) only; named faces not mapped,Face to use for numbering.
+org-num.el,94,option,org-num-format-function,partial,src/org/num.rs: only the default format (custom Lisp functions not called),Function used to display numbering.
+org-num.el,105,option,org-num-max-level,done,src/org/num.rs,Level below which headlines are not numbered.
+org-num.el,115,option,org-num-skip-commented,done,src/org/num.rs,Non-nil means commented sub-trees are not numbered.
+org-num.el,123,option,org-num-skip-footnotes,done,src/org/num.rs,Non-nil means footnotes sections are not numbered.
+org-num.el,131,option,org-num-skip-tags,done,src/org/num.rs,List of tags preventing the numbering of sub-trees.
+org-num.el,146,option,org-num-skip-unnumbered,done,src/org/num.rs,Non-nil means numbering obeys to UNNUMBERED property.
+org-num.el,182,function,org-num--headline-regexp,internal,src/org/num.rs,Return regexp matching a numbered headline.
+org-num.el,189,function,org-num--overlay-p,internal,src/org/num.rs,Non-nil if overlay O is a numbering overlay.
+org-num.el,193,function,org-num--valid-overlay-p,internal,src/org/num.rs,Non-nil if overlay O is still active in the buffer.
+org-num.el,197,function,org-num--invalidate-overlay,internal,src/org/num.rs,Mark overlay O as invalid.
+org-num.el,203,function,org-num--clear,internal,src/org/num.rs,Remove all numbering overlays in current buffer.
+org-num.el,208,function,org-num--make-overlay,internal,src/org/num.rs,Return overlay for numbering headline at point.
+org-num.el,240,function,org-num--refresh-display,internal,src/org/num.rs,Refresh OVERLAY's display.
+org-num.el,250,function,org-num--skip-value,internal,src/org/num.rs,Return skip value for headline at point.
+org-num.el,275,function,org-num--current-numbering,internal,src/org/num.rs,Return numbering for current headline.
+org-num.el,305,function,org-num--number-region,internal,src/org/num.rs,Add numbering overlays between START and END positions.
+org-num.el,326,function,org-num--update,internal,src/org/num.rs,Update buffer's numbering.
+org-num.el,392,function,org-num--verify,internal,src/org/num.rs,Check numbering integrity; update it if necessary.
+org-num.el,454,function,org-num-default-format,internal,src/org/num.rs,Default numbering display function.
+org-num.el,460,command,org-num-mode,done,src/org/num.rs,Dynamic numbering of headlines in an Org buffer.
+org-num.el,,option,org-num-mode-hook,done,src/org/num.rs,Hook run after entering or leaving `org-num-mode'.
+org-pcomplete.el,85,function,org-thing-at-point,internal,src/org/pcomplete.rs,Examine the thing at point and let the caller know what it is.
+org-pcomplete.el,154,function,org-pcomplete-case-double,internal,src/org/pcomplete.rs,Return list with both upcase and downcase version of all strings in LIST.
+org-pcomplete.el,184,function,org-command-at-point,internal,src/org/pcomplete.rs,Return the qualified name of the Org completion entity at point.
+org-pcomplete.el,197,function,org-parse-arguments,internal,src/org/pcomplete.rs,Parse whitespace separated arguments in the current region.
+org-pcomplete.el,223,function,org-pcomplete-initial,internal,src/org/pcomplete.rs,Call the right completion function for first argument completions.
+org-pcomplete.el,233,function,pcomplete/org-mode/file-option,internal,src/org/pcomplete.rs,Complete against all valid file options.
+org-pcomplete.el,247,function,pcomplete/org-mode/file-option/author,internal,src/org/pcomplete.rs,Complete arguments for the #+AUTHOR file option.
+org-pcomplete.el,251,function,pcomplete/org-mode/file-option/date,internal,src/org/pcomplete.rs,Complete arguments for the #+DATE file option.
+org-pcomplete.el,255,function,pcomplete/org-mode/file-option/email,internal,src/org/pcomplete.rs,Complete arguments for the #+EMAIL file option.
+org-pcomplete.el,259,function,pcomplete/org-mode/file-option/exclude_tags,internal,src/org/pcomplete.rs,Complete arguments for the #+EXCLUDE_TAGS file option.
+org-pcomplete.el,266,function,pcomplete/org-mode/file-option/filetags,internal,src/org/pcomplete.rs,Complete arguments for the #+FILETAGS file option.
+org-pcomplete.el,270,function,pcomplete/org-mode/file-option/language,internal,src/org/pcomplete.rs,Complete arguments for the #+LANGUAGE file option.
+org-pcomplete.el,277,function,pcomplete/org-mode/file-option/priorities,internal,src/org/pcomplete.rs,Complete arguments for the #+PRIORITIES file option.
+org-pcomplete.el,285,function,pcomplete/org-mode/file-option/select_tags,internal,src/org/pcomplete.rs,Complete arguments for the #+SELECT_TAGS file option.
+org-pcomplete.el,292,function,pcomplete/org-mode/file-option/startup,internal,src/org/pcomplete.rs,Complete arguments for the #+STARTUP file option.
+org-pcomplete.el,305,function,pcomplete/org-mode/file-option/tags,internal,src/org/pcomplete.rs,Complete arguments for the #+TAGS file option.
+org-pcomplete.el,310,function,pcomplete/org-mode/file-option/title,internal,src/org/pcomplete.rs,Complete arguments for the #+TITLE file option.
+org-pcomplete.el,320,function,pcomplete/org-mode/file-option/options,internal,src/org/pcomplete.rs,Complete arguments for the #+OPTIONS file option.
+org-pcomplete.el,340,function,pcomplete/org-mode/file-option/infojs_opt,internal,src/org/pcomplete.rs,Complete arguments for the #+INFOJS_OPT file option.
+org-pcomplete.el,347,function,pcomplete/org-mode/file-option/bind,partial,src/org/pcomplete.rs: no completion (no Emacs variable list),"Complete arguments for the #+BIND file option, which are variable names."
+org-pcomplete.el,354,function,pcomplete/org-mode/link,internal,src/org/pcomplete.rs,Complete against defined #+LINK patterns.
+org-pcomplete.el,363,function,pcomplete/org-mode/tex,internal,src/org/pcomplete.rs,Complete against TeX-style HTML entity names.
+org-pcomplete.el,371,function,pcomplete/org-mode/todo,internal,src/org/pcomplete.rs,Complete against known TODO keywords.
+org-pcomplete.el,375,function,pcomplete/org-mode/searchhead,internal,src/org/pcomplete.rs,Complete against all headings.
+org-pcomplete.el,388,function,pcomplete/org-mode/tag,internal,src/org/pcomplete.rs,Complete a tag name.  Omit tags already set.
+org-pcomplete.el,405,function,pcomplete/org-mode/drawer,internal,src/org/pcomplete.rs,"Complete a drawer name, including ""PROPERTIES""."
+org-pcomplete.el,421,function,pcomplete/org-mode/prop,internal,src/org/pcomplete.rs,Complete a property name.  Omit properties already set.
+org-pcomplete.el,434,function,pcomplete/org-mode/block-option/src,internal,src/org/pcomplete.rs,Complete the arguments of a source block.
+org-pcomplete.el,457,function,pcomplete/org-mode/block-option/clocktable,internal,src/org/pcomplete.rs,Complete keywords in a clocktable line.
 org-persist.el,278,option,org-persist-directory,missing,,Directory where the data is stored.
 org-persist.el,295,option,org-persist-remote-files,missing,,Whether to keep persistent data for remote files.
 org-persist.el,312,option,org-persist-default-expiry,missing,,Default expiry condition for persistent data.
@@ -3422,7 +3422,7 @@ org-src.el,1036,function,org-src-source-type,missing,,Return type of element edi
 org-src.el,1042,function,org-src-switch-to-buffer,missing,,Switch to BUFFER considering CONTEXT and `org-src-window-setup'.
 org-src.el,1084,function,org-src-coderef-format,missing,,Return format string for block at point.
 org-src.el,1099,function,org-src-coderef-regexp,missing,,Return regexp matching a coderef format string FMT.
-org-src.el,1117,command,org-edit-footnote-reference,missing,,Edit definition of footnote reference at point.
+org-src.el,1117,command,org-edit-footnote-reference,done,src/org/footnote.rs,Edit definition of footnote reference at point.
 org-src.el,1177,command,org-edit-table.el,missing,,"Edit ""table.el"" table at point."
 org-src.el,1201,command,org-edit-latex-fragment,missing,,Edit LaTeX fragment at point.
 org-src.el,1241,command,org-edit-latex-environment,partial,src/org/src.rs: ported command; acceptance gates open,Edit LaTeX environment at point.
@@ -3696,15 +3696,15 @@ org-table.el,,command,orgtbl-mode-menu,missing,,OrgTbl menu.
 org-table.el,,command,orgtbl-hijacker-command-7,missing,,"In tables, run `org-table-move-row-up'."
 org-table.el,,option,org-table-follow-field-mode-hook,missing,,Hook run after entering or leaving `org-table-follow-field-mode'.
 org-table.el,,command,orgtbl-hijacker-command-23,missing,,"In tables, run `org-table-edit-field'."
-org-tempo.el,59,option,org-tempo-keywords-alist,missing,,Keyword completion elements.
-org-tempo.el,81,function,org-tempo-setup,missing,,Setup tempo tags and match finder for the current buffer.
-org-tempo.el,87,function,org-tempo--keys,missing,,"Return a list of all Org Tempo expansion strings, like ""<s""."
-org-tempo.el,93,function,org-tempo--update-maybe,missing,,Check and add new Org Tempo templates if necessary.
-org-tempo.el,102,function,org-tempo-add-templates,missing,,Update all Org Tempo templates.
-org-tempo.el,120,function,org-tempo-add-block,missing,,Add block ENTRY from `org-structure-template-alist'.
-org-tempo.el,141,function,org-tempo-add-keyword,missing,,Add keyword ENTRY from `org-tempo-keywords-alist'.
-org-tempo.el,151,function,org-tempo-complete-tag,missing,,Look for a tag and expand it silently.
-org-tempo.el,164,function,org-tempo--include-file,missing,,Add #+include: and a file name.
+org-tempo.el,59,option,org-tempo-keywords-alist,done,src/org/tempo.rs,Keyword completion elements.
+org-tempo.el,81,function,org-tempo-setup,internal,src/org/tempo.rs,Setup tempo tags and match finder for the current buffer.
+org-tempo.el,87,function,org-tempo--keys,internal,src/org/tempo.rs,"Return a list of all Org Tempo expansion strings, like ""<s""."
+org-tempo.el,93,function,org-tempo--update-maybe,internal,src/org/tempo.rs,Check and add new Org Tempo templates if necessary.
+org-tempo.el,102,function,org-tempo-add-templates,internal,src/org/tempo.rs,Update all Org Tempo templates.
+org-tempo.el,120,function,org-tempo-add-block,internal,src/org/tempo.rs,Add block ENTRY from `org-structure-template-alist'.
+org-tempo.el,141,function,org-tempo-add-keyword,internal,src/org/tempo.rs,Add keyword ENTRY from `org-tempo-keywords-alist'.
+org-tempo.el,151,function,org-tempo-complete-tag,internal,src/org/tempo.rs,Look for a tag and expand it silently.
+org-tempo.el,164,function,org-tempo--include-file,partial,src/org/tempo.rs: reads a typed path (no file completion),Add #+include: and a file name.
 org-timer.el,62,option,org-timer-format,missing,,The format to insert the time of the timer.
 org-timer.el,69,option,org-timer-default-timer,missing,,"The default timer when a timer is set, in minutes or hh:mm:ss format."
 org-timer.el,77,option,org-timer-display,missing,,"Define where running timer is displayed, if at all."
@@ -4083,12 +4083,12 @@ org.el,9383,command,org-update-dblock,partial,src/org/dblock.rs: ported command;
 org.el,9416,function,org-beginning-of-dblock,missing,,Find the beginning of the dynamic block at point.
 org.el,9430,command,org-update-all-dblocks,partial,src/org/dblock.rs: ported command; acceptance gates open,Update all dynamic blocks in the buffer.
 org.el,9441,function,org-get-export-keywords,missing,,Return a list of all currently understood export keywords.
-org.el,9465,option,org-structure-template-alist,missing,,An alist of keys and block types.
-org.el,9497,function,org--check-org-structure-template-alist,missing,,Check whether `org-structure-template-alist' is set up correctly.
-org.el,9525,function,org--insert-structure-template-mks,missing,,Present `org-structure-template-alist' with `org-mks'.
-org.el,9583,function,org--insert-structure-template-unique-keys,missing,,"Make a list of unique, two characters long elements from KEYS."
+org.el,9465,option,org-structure-template-alist,done,src/org/tempo.rs,An alist of keys and block types.
+org.el,9497,function,org--check-org-structure-template-alist,internal,src/org/tempo.rs,Check whether `org-structure-template-alist' is set up correctly.
+org.el,9525,function,org--insert-structure-template-mks,internal,src/org/tempo.rs,Present `org-structure-template-alist' with `org-mks'.
+org.el,9583,function,org--insert-structure-template-unique-keys,internal,src/org/tempo.rs,"Make a list of unique, two characters long elements from KEYS."
 org.el,9608,command,org-insert-block-template,missing,,Insert a block structure of the type #+begin_foo/#+end_foo.
-org.el,9609,command,org-insert-structure-template,missing,,Insert a block structure of the type #+begin_foo/#+end_foo.
+org.el,9609,command,org-insert-structure-template,done,src/org/tempo.rs,Insert a block structure of the type #+begin_foo/#+end_foo.
 org.el,9665,command,org-toggle-comment,partial,src/org/todo.rs: ported command; acceptance gates open,Change the COMMENT state of an entry.
 org.el,9700,function,org-current-effective-time,partial,time::current_effective_time (no last clock-out time),Return current time adjusted for `org-extend-today-until' variable.
 org.el,9713,command,org-todo-yesterday,partial,src/org/todo.rs: ported command; acceptance gates open,Like `org-todo' but the time of change will be 23:59 of yesterday.

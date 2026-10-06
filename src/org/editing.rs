@@ -732,10 +732,23 @@ fn clone_subtree(ed: &mut Editor, n: usize, shift: &str) -> Result<(), String> {
     };
     for i in 1..=total {
         let mut lines: Vec<String> = template.clone();
-        // Remove ID properties and CLOCK lines in clones.
+        // Clones get a new ID (or none with org-clone-delete-id) and no
+        // CLOCK lines.
+        let delete_id = super::options::bool("org-clone-delete-id", false);
         lines.retain(|l| {
-            !(l.trim_start().starts_with(":ID:") || l.trim_start().starts_with("CLOCK:"))
+            !((delete_id && l.trim_start().starts_with(":ID:"))
+                || l.trim_start().starts_with("CLOCK:"))
         });
+        for l in lines.iter_mut() {
+            if let Some(rest) = l.trim_start().strip_prefix(":ID:") {
+                let id = super::id::new(super::id::IdPrefix::Default)?;
+                let pad = l.len() - l.trim_start().len();
+                let gap = rest.len() - rest.trim_start().len();
+                let sep = if gap == 0 { " " } else { &rest[..gap] };
+                *l = format!("{}:ID:{sep}{id}", &l[..pad]);
+                let _ = super::id::add_location(&id, ed.path.as_deref());
+            }
+        }
         if repeat && doshift.is_some() && i < total || repeat && doshift.is_none() {
             for l in lines.iter_mut() {
                 *l = super::time::stamp::repeat_re()

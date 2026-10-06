@@ -213,7 +213,7 @@ fn priority_style(st: &Settings, p: u32) -> Style {
     Style::default().fg(Color::Magenta)
 }
 
-fn level_style(st: &Settings, lvl: usize) -> Style {
+pub fn level_style(st: &Settings, lvl: usize) -> Style {
     let n = if st.opt_bool("org-odd-levels-only", false) {
         lvl.div_ceil(2)
     } else {
@@ -545,6 +545,25 @@ pub fn conceal(
     st: Option<LineStyles>,
     settings: &Settings,
 ) -> (String, Option<LineStyles>) {
+    let hide = conceal_ranges(&line, settings);
+    if hide.is_empty() {
+        return (line, st);
+    }
+    let edits: Vec<super::display::Edit> = hide
+        .into_iter()
+        .map(|r| super::display::Edit {
+            range: r,
+            text: String::new(),
+            style: None,
+        })
+        .collect();
+    let s = super::display::apply(&line, line.len(), &edits, st);
+    (s.text, s.styles)
+}
+
+/// The byte ranges [`conceal`] hides, sorted.
+pub fn conceal_ranges(line: &str, settings: &Settings) -> Vec<std::ops::Range<usize>> {
+    let line = line.to_owned();
     let mut hide: Vec<std::ops::Range<usize>> = vec![];
     if settings.opt_bool("org-link-descriptive", true) && line.contains("[[") {
         for lk in super::links::links_in(&line, settings) {
@@ -593,34 +612,8 @@ pub fn conceal(
             from = e + 3;
         }
     }
-    if hide.is_empty() {
-        return (line, st);
-    }
     hide.sort_by_key(|r| r.start);
-    let mut out = String::with_capacity(line.len());
-    // New position of each old byte offset.
-    let mut map: Vec<usize> = Vec::with_capacity(line.len() + 1);
-    let mut h = 0;
-    for (i, c) in line.char_indices() {
-        while h < hide.len() && hide[h].end <= i {
-            h += 1;
-        }
-        let hidden = h < hide.len() && hide[h].contains(&i);
-        for _ in 0..c.len_utf8() {
-            map.push(out.len());
-        }
-        if !hidden {
-            out.push(c);
-        }
-    }
-    map.push(out.len());
-    let st = st.map(|v| {
-        v.into_iter()
-            .map(|(s, r)| (s, map[r.start.min(line.len())]..map[r.end.min(line.len())]))
-            .filter(|(_, r)| r.start < r.end)
-            .collect()
-    });
-    (out, st)
+    hide
 }
 
 #[cfg(test)]

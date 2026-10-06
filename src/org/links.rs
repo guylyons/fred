@@ -431,8 +431,8 @@ pub fn heading_text(line: &str, st: &Settings) -> String {
         .unwrap_or_default()
 }
 
-/// org-link-precise-link-target: (search, description).
-fn precise_target(ed: &Editor) -> Option<(String, Option<String>)> {
+/// org-link-precise-link-target: (search, description, line of the target).
+pub fn precise_target(ed: &Editor) -> Option<(String, Option<String>, usize)> {
     let st = super::settings(ed);
     let l = ed.cur.line;
     if let Some((lo, hi)) = ed.org_region {
@@ -441,7 +441,7 @@ fn precise_target(ed: &Editor) -> Option<(String, Option<String>)> {
             .map(|i| ed.buf.line(i))
             .collect::<Vec<_>>()
             .join("\n");
-        return Some((normalize(&text, true, false), None)).filter(|(s, _)| !s.is_empty());
+        return Some((normalize(&text, true, false), None, lo)).filter(|(s, _, _)| !s.is_empty());
     }
     let line = ed.buf.line(l);
     if ed.org.is_some() {
@@ -453,7 +453,7 @@ fn precise_target(ed: &Editor) -> Option<(String, Option<String>)> {
             };
             if (s..e + 2).contains(&ed.cur.byte) && !line[s..].starts_with("<<<") {
                 let v = line[s + 2..e].to_owned();
-                return Some((v.clone(), Some(v)));
+                return Some((v.clone(), Some(v), l));
             }
             from = e + 2;
         }
@@ -463,7 +463,7 @@ fn precise_target(ed: &Editor) -> Option<(String, Option<String>)> {
             if let Some((k, v)) = syntax::keyword_line(&ed.buf.line(i))
                 && k == "NAME"
             {
-                return Some((v.to_owned(), Some(v.to_owned())));
+                return Some((v.to_owned(), Some(v.to_owned()), i));
             }
             if i == 0 || syntax::keyword_line(&ed.buf.line(i)).is_none() && i != l {
                 break;
@@ -473,7 +473,7 @@ fn precise_target(ed: &Editor) -> Option<(String, Option<String>)> {
         match fold::back_to_heading(ed, l) {
             None => {
                 let s = normalize(&line, true, false);
-                return (!s.is_empty()).then_some((s, None));
+                return (!s.is_empty()).then_some((s, None, l));
             }
             Some(h) => {
                 let text = heading_text(&ed.buf.line(h), &st);
@@ -482,12 +482,12 @@ fn precise_target(ed: &Editor) -> Option<(String, Option<String>)> {
                     Some(c) => format!("#{c}"),
                     None => format!("*{}", normalize(&text, false, false)),
                 };
-                return Some((search, Some(normalize(&text, false, false))));
+                return Some((search, Some(normalize(&text, false, false)), h));
             }
         }
     }
     let s = normalize(&line, true, false);
-    (!s.is_empty()).then_some((s, None))
+    (!s.is_empty()).then_some((s, None, l))
 }
 
 fn abbreviate(p: &Path) -> String {
@@ -528,7 +528,7 @@ pub fn store(ed: &mut Editor, arg: Prefix) -> Result<(String, Option<String>), S
     } else if let Some(p) = ed.path.clone() {
         let f = abbreviate(&p);
         let base = format!("file:{f}");
-        if context && let Some((search, sdesc)) = precise_target(ed) {
+        if context && let Some((search, sdesc, _)) = precise_target(ed) {
             (format!("{base}::{search}"), sdesc.or_else(|| file_desc(&f)))
         } else {
             (base, file_desc(&f))
@@ -536,40 +536,11 @@ pub fn store(ed: &mut Editor, arg: Prefix) -> Result<(String, Option<String>), S
     } else {
         return Err("No method for storing a link from this buffer".into());
     };
-    // ID links when org-id-link-to-org-use-id says so.
-    let (link, desc) = match super::options::string("org-id-link-to-org-use-id", "nil").as_str() {
-        "t" | "create-if-interactive" | "create-if-interactive-and-no-custom-id"
-            if ed.org.is_some() && !ctx::before_first_heading(ed, ed.cur.line) =>
-        {
-            let h = fold::back_to_heading(ed, ed.cur.line).unwrap();
-            let has_custom = props::get(ed, Some(h), "CUSTOM_ID", props::Inherit::No).is_some();
-            let mode = super::options::string("org-id-link-to-org-use-id", "nil");
-            if mode == "create-if-interactive-and-no-custom-id" && has_custom {
-                (link, desc)
-            } else {
-                let id = match props::get(ed, Some(h), "ID", props::Inherit::No) {
-                    Some(id) => id,
-                    None => {
-                        let id = new_id();
-                        props::put(ed, Some(h), "ID", &id)?;
-                        id
-                    }
-                };
-                let st = super::settings(ed);
-                (format!("id:{id}"), Some(heading_text(&ed.buf.line(h), &st)))
-            }
-        }
-        "use-existing" if ed.org.is_some() && !ctx::before_first_heading(ed, ed.cur.line) => {
-            let h = fold::back_to_heading(ed, ed.cur.line).unwrap();
-            match props::get(ed, Some(h), "ID", props::Inherit::No) {
-                Some(id) => {
-                    let st = super::settings(ed);
-                    (format!("id:{id}"), Some(heading_text(&ed.buf.line(h), &st)))
-                }
-                None => (link, desc),
-            }
-        }
-        _ => (link, desc),
+    // ID links when org-id-link-to-org-use-id says so (the id type's
+    // :store function, org-id-store-link-maybe).
+    let (link, desc) = match super::id::store_link_maybe(ed, true)? {
+        Some((l, d)) => (l, d),
+        None => (link, desc),
     };
     let desc = desc.filter(|d| d != "NONE").map(|d| display_format(&d));
     Ok((link, desc))
@@ -795,6 +766,14 @@ pub fn insert_link(
             .strip_suffix(':')
             .filter(|t| link_types().iter().any(|x| x == t))
             .map_or(link.clone(), |t| format!("{t}:"));
+        // The id type's :complete function (org-id-complete).
+        if link == "id:" {
+            let desc = region_text.clone();
+            super::id::complete(ed, move |ed, link| {
+                finish_insert(ed, link, desc, None, false, true);
+            });
+            return;
+        }
         let entry = stored.iter().find(|(l, _)| *l == link).cloned();
         if entry.is_none() {
             HISTORY.with(|h| h.borrow_mut().insert(0, link.clone()));
@@ -826,6 +805,12 @@ fn finish_insert(
     abs: bool,
     ask: bool,
 ) {
+    // The id type's :insert-description (org-id-description).
+    let desc = if link.starts_with("id:") {
+        super::id::description(ed, &link, desc.as_deref())
+    } else {
+        desc
+    };
     let go = move |ed: &mut Editor, desc: String| {
         let desc = if desc.trim().is_empty() {
             None
@@ -947,6 +932,17 @@ fn goto_position(ed: &mut Editor, path: Option<PathBuf>, line: usize) {
 /// org-link-search in the editor: moves the cursor. Returns the kind
 /// (`dedicated` or `fuzzy`).
 pub fn search(ed: &mut Editor, s: &str, avoid: Option<usize>) -> Result<&'static str, String> {
+    let n = ed.line_count();
+    search_in(ed, s, avoid, 0..n)
+}
+
+/// org-link-search within lines `lines` (a narrowed region).
+pub fn search_in(
+    ed: &mut Editor,
+    s: &str,
+    avoid: Option<usize>,
+    lines: std::ops::Range<usize>,
+) -> Result<&'static str, String> {
     if s.trim().is_empty() {
         return Err(format!("Invalid search string \"{s}\""));
     }
@@ -957,7 +953,7 @@ pub fn search(ed: &mut Editor, s: &str, avoid: Option<usize>) -> Result<&'static
         .split_whitespace()
         .map(str::to_owned)
         .collect();
-    let n = ed.line_count();
+
     let found = |ed: &mut Editor, l: usize, b: usize, kind: &'static str| {
         ed.set_cursor(l, b);
         if ed.org.is_some() {
@@ -966,7 +962,7 @@ pub fn search(ed: &mut Editor, s: &str, avoid: Option<usize>) -> Result<&'static
         Ok(kind)
     };
     if let Some(id) = normalized.strip_prefix('#') {
-        for l in 0..n {
+        for l in lines.clone() {
             if let Some((k, v)) = props::parse_property(&ed.buf.line(l))
                 && k.eq_ignore_ascii_case("CUSTOM_ID")
                 && v == id
@@ -981,7 +977,7 @@ pub fn search(ed: &mut Editor, s: &str, avoid: Option<usize>) -> Result<&'static
     if normalized.starts_with('(') && normalized.ends_with(')') {
         let label = &normalized[1..normalized.len() - 1];
         let pat = format!("(ref:{label})");
-        for l in 0..n {
+        for l in lines.clone() {
             let line = ed.buf.line(l);
             if let Some(i) = line.find(&pat)
                 && ctx::in_block(ed, l)
@@ -1008,14 +1004,14 @@ pub fn search(ed: &mut Editor, s: &str, avoid: Option<usize>) -> Result<&'static
     };
     if !starred {
         let t = ci(&format!("<<{words_re}>>"));
-        for l in 0..n {
+        for l in lines.clone() {
             if let Some(m) = t.find(&ed.buf.line(l))
                 && !ed.buf.line(l)[m.start()..].starts_with("<<<")
             {
                 return found(ed, l, m.start(), "dedicated");
             }
         }
-        for l in 0..n {
+        for l in lines.clone() {
             if let Some((k, v)) = syntax::keyword_line(&ed.buf.line(l))
                 && k == "NAME"
                 && v.split_whitespace()
@@ -1028,7 +1024,7 @@ pub fn search(ed: &mut Editor, s: &str, avoid: Option<usize>) -> Result<&'static
     }
     if ed.org.is_some() {
         for pipes in [false, true] {
-            for l in 0..n {
+            for l in lines.clone() {
                 let line = ed.buf.line(l);
                 if syntax::headline(&line, &st).is_some() {
                     let t = normalize(&heading_text(&line, &st), false, pipes);
@@ -1063,7 +1059,7 @@ pub fn search(ed: &mut Editor, s: &str, avoid: Option<usize>) -> Result<&'static
         }
     }
     let re = ci(&words_re);
-    for l in 0..n {
+    for l in lines.clone() {
         let line = ed.buf.line(l);
         for m in re.find_iter(&line) {
             if avoid.is_some_and(|a| a == l) {
@@ -1394,33 +1390,9 @@ pub fn open(ed: &mut Editor, lk: &Link, arg: Prefix) -> Result<(), String> {
     }
 }
 
-/// org-id-open: search this buffer, open buffers and the ID locations.
+/// org-id-open (see id.rs).
 pub fn open_id(ed: &mut Editor, id: &str) -> Result<(), String> {
-    // This buffer first.
-    for l in 0..ed.line_count() {
-        if let Some((k, v)) = props::parse_property(&ed.buf.line(l))
-            && k.eq_ignore_ascii_case("ID")
-            && v == id
-            && ctx::at_property(ed, l)
-        {
-            mark_ring_push(ed);
-            let h = fold::back_to_heading(ed, l).unwrap_or(0);
-            ed.set_cursor(h, 0);
-            fold::show_context_for(ed, h, "link-search");
-            return Ok(());
-        }
-    }
-    let id = id.to_owned();
-    mark_ring_push(ed);
-    super::effect(ed, move |s| match super::find_id_file(s, &id) {
-        Some((path, line)) => {
-            if let Err(e) = s.org_visit(&path, line) {
-                s.ed.set_err(e);
-            }
-        }
-        None => s.ed.set_err(format!("Cannot find entry with ID \"{id}\"")),
-    });
-    Ok(())
+    super::id::open(ed, id)
 }
 
 /// org-open-at-point.
