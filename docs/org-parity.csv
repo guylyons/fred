@@ -1039,9 +1039,9 @@ ol.el,3054,command,org-insert-link-global,partial,src/org/links.rs: ported comma
 ol.el,3061,function,org--re-list-search-forward,missing,,"Like `re-search-forward', but REGEXP-LIST is a list of regexps."
 ol.el,3081,function,org--re-list-looking-at,missing,,"Like `looking-at', but REGEXP-LIST is a list of regexps."
 ol.el,3095,command,org-update-radio-target-regexp,partial,src/org/links.rs: ported command; acceptance gates open,Find all radio targets in this file and update the regular expression.
-org-agenda.el,114,option,org-agenda-confirm-kill,missing,,"When set, remote killing from the agenda buffer needs confirmation."
-org-agenda.el,124,option,org-agenda-compact-blocks,missing,,Non-nil means make the block agenda more compact.
-org-agenda.el,131,option,org-agenda-block-separator,missing,,The separator between blocks in the agenda.
+org-agenda.el,114,option,org-agenda-confirm-kill,done,honored by src/org/agenda,"When set, remote killing from the agenda buffer needs confirmation."
+org-agenda.el,124,option,org-agenda-compact-blocks,done,honored by src/org/agenda,Non-nil means make the block agenda more compact.
+org-agenda.el,131,option,org-agenda-block-separator,done,honored by src/org/agenda,The separator between blocks in the agenda.
 org-agenda.el,153,option,org-agenda-with-colors,missing,,Non-nil means use colors in agenda views.
 org-agenda.el,158,option,org-agenda-exporter-settings,missing,,Alist of variable/value pairs that should be active during agenda export.
 org-agenda.el,175,option,org-agenda-before-write-hook,missing,,Hook run in a temporary buffer before writing the agenda to an export file.
@@ -1049,400 +1049,400 @@ org-agenda.el,182,option,org-agenda-add-entry-text-maxlines,missing,,Maximum num
 org-agenda.el,196,option,org-agenda-add-entry-text-descriptive-links,missing,,Non-nil means export org-links as descriptive links in agenda added text.
 org-agenda.el,204,option,org-agenda-export-html-style,missing,,The style specification for exported HTML Agenda files.
 org-agenda.el,247,option,org-agenda-persistent-filter,missing,,"When set, keep filters from one agenda view to the next."
-org-agenda.el,457,option,org-agenda-custom-commands,missing,,Custom commands for the agenda.
+org-agenda.el,457,option,org-agenda-custom-commands,done,honored by src/org/agenda,Custom commands for the agenda.
 org-agenda.el,599,option,org-agenda-query-register,missing,,The register holding the current query string.
-org-agenda.el,606,option,org-stuck-projects,missing,,How to identify stuck projects.
-org-agenda.el,654,option,org-agenda-skip-function-global,missing,,Function to be called at each match during agenda construction.
-org-agenda.el,687,command,org-agenda-archives-mode,missing,,Toggle inclusion of items in trees marked with :ARCHIVE:.
+org-agenda.el,606,option,org-stuck-projects,done,honored by src/org/agenda,How to identify stuck projects.
+org-agenda.el,654,option,org-agenda-skip-function-global,done,honored by src/org/agenda,Function to be called at each match during agenda construction.
+org-agenda.el,687,command,org-agenda-archives-mode,done,src/org/agenda (cmds.rs/views.rs),Toggle inclusion of items in trees marked with :ARCHIVE:.
 org-agenda.el,694,option,org-agenda-restriction-lock-highlight-subtree,missing,,Non-nil means highlight the whole subtree when restriction is active.
-org-agenda.el,701,option,org-agenda-skip-comment-trees,missing,,Non-nil means skip trees that start with the COMMENT keyword.
-org-agenda.el,707,option,org-agenda-todo-list-sublevels,missing,,Non-nil means check also the sublevels of a TODO entry for TODO entries.
-org-agenda.el,715,option,org-agenda-todo-ignore-with-date,missing,,Non-nil means don't show entries with a date in the global todo list.
-org-agenda.el,727,option,org-agenda-todo-ignore-timestamp,missing,,Non-nil means don't show entries with a timestamp.
-org-agenda.el,764,option,org-agenda-todo-ignore-scheduled,missing,,"Non-nil means, ignore some scheduled TODO items when making TODO list."
-org-agenda.el,797,option,org-agenda-todo-ignore-deadlines,missing,,Non-nil means ignore some deadline TODO items when making TODO list.
+org-agenda.el,701,option,org-agenda-skip-comment-trees,done,honored by src/org/agenda,Non-nil means skip trees that start with the COMMENT keyword.
+org-agenda.el,707,option,org-agenda-todo-list-sublevels,done,honored by src/org/agenda,Non-nil means check also the sublevels of a TODO entry for TODO entries.
+org-agenda.el,715,option,org-agenda-todo-ignore-with-date,done,honored by src/org/agenda,Non-nil means don't show entries with a date in the global todo list.
+org-agenda.el,727,option,org-agenda-todo-ignore-timestamp,done,honored by src/org/agenda,Non-nil means don't show entries with a timestamp.
+org-agenda.el,764,option,org-agenda-todo-ignore-scheduled,done,honored by src/org/agenda,"Non-nil means, ignore some scheduled TODO items when making TODO list."
+org-agenda.el,797,option,org-agenda-todo-ignore-deadlines,done,honored by src/org/agenda,Non-nil means ignore some deadline TODO items when making TODO list.
 org-agenda.el,840,option,org-agenda-todo-ignore-time-comparison-use-seconds,missing,,Time unit to use when possibly ignoring an agenda item.
-org-agenda.el,856,option,org-agenda-tags-todo-honor-ignore-options,missing,,Non-nil means honor todo-list ignores options also in tags-todo search.
-org-agenda.el,872,option,org-agenda-skip-scheduled-if-done,missing,,Non-nil means don't show scheduled items in agenda when they are done.
-org-agenda.el,881,option,org-agenda-skip-scheduled-if-deadline-is-shown,missing,,Non-nil means skip scheduling line if same entry shows because of deadline.
-org-agenda.el,904,option,org-agenda-skip-timestamp-if-deadline-is-shown,missing,,Non-nil means skip timestamp line if same entry shows because of deadline.
-org-agenda.el,919,option,org-agenda-skip-deadline-if-done,missing,,Non-nil means don't show deadlines when the corresponding item is done.
-org-agenda.el,929,option,org-agenda-skip-deadline-prewarning-if-scheduled,missing,,Non-nil means skip deadline prewarning when entry is also scheduled.
-org-agenda.el,950,option,org-agenda-skip-scheduled-delay-if-deadline,missing,,Non-nil means skip scheduled delay when entry also has a deadline.
-org-agenda.el,966,option,org-agenda-skip-additional-timestamps-same-entry,missing,,"When nil, multiple same-day timestamps in entry make multiple agenda lines."
-org-agenda.el,973,option,org-agenda-skip-timestamp-if-done,missing,,Non-nil means don't select item by timestamp or -range if it is DONE.
-org-agenda.el,979,option,org-agenda-dim-blocked-tasks,missing,,Non-nil means dim blocked tasks in the agenda display.
-org-agenda.el,979,command,org-agenda-dim-blocked-tasks,missing,,Dim currently blocked TODOs in the agenda display.
-org-agenda.el,1007,option,org-agenda-menu-show-matcher,missing,,Non-nil means show the match string in the agenda dispatcher menu.
+org-agenda.el,856,option,org-agenda-tags-todo-honor-ignore-options,done,honored by src/org/agenda,Non-nil means honor todo-list ignores options also in tags-todo search.
+org-agenda.el,872,option,org-agenda-skip-scheduled-if-done,done,honored by src/org/agenda,Non-nil means don't show scheduled items in agenda when they are done.
+org-agenda.el,881,option,org-agenda-skip-scheduled-if-deadline-is-shown,done,honored by src/org/agenda,Non-nil means skip scheduling line if same entry shows because of deadline.
+org-agenda.el,904,option,org-agenda-skip-timestamp-if-deadline-is-shown,done,honored by src/org/agenda,Non-nil means skip timestamp line if same entry shows because of deadline.
+org-agenda.el,919,option,org-agenda-skip-deadline-if-done,done,honored by src/org/agenda,Non-nil means don't show deadlines when the corresponding item is done.
+org-agenda.el,929,option,org-agenda-skip-deadline-prewarning-if-scheduled,done,honored by src/org/agenda,Non-nil means skip deadline prewarning when entry is also scheduled.
+org-agenda.el,950,option,org-agenda-skip-scheduled-delay-if-deadline,done,honored by src/org/agenda,Non-nil means skip scheduled delay when entry also has a deadline.
+org-agenda.el,966,option,org-agenda-skip-additional-timestamps-same-entry,done,honored by src/org/agenda,"When nil, multiple same-day timestamps in entry make multiple agenda lines."
+org-agenda.el,973,option,org-agenda-skip-timestamp-if-done,done,honored by src/org/agenda,Non-nil means don't select item by timestamp or -range if it is DONE.
+org-agenda.el,979,option,org-agenda-dim-blocked-tasks,partial,blocked entries dimmed when org-enforce-todo-dependencies; invisible not supported,Non-nil means dim blocked tasks in the agenda display.
+org-agenda.el,979,command,org-agenda-dim-blocked-tasks,partial,blocked entries dimmed when org-enforce-todo-dependencies; invisible not supported,Dim currently blocked TODOs in the agenda display.
+org-agenda.el,1007,option,org-agenda-menu-show-matcher,done,honored by src/org/agenda,Non-nil means show the match string in the agenda dispatcher menu.
 org-agenda.el,1017,option,org-agenda-menu-two-columns,missing,,"Non-nil means, use two columns to show custom commands in the dispatcher."
 org-agenda.el,1025,option,org-agenda-finalize-hook,missing,,Hook run just before displaying an agenda buffer.
 org-agenda.el,1035,option,org-agenda-filter-hook,missing,,Hook run just after filtering with `org-agenda-filter'.
 org-agenda.el,1041,option,org-agenda-mouse-1-follows-link,missing,,Non-nil means \`mouse-1' on a link will follow the link in the agenda.
-org-agenda.el,1048,option,org-agenda-start-with-follow-mode,missing,,The initial value of follow mode in a newly created agenda window.
+org-agenda.el,1048,option,org-agenda-start-with-follow-mode,done,honored by src/org/agenda,The initial value of follow mode in a newly created agenda window.
 org-agenda.el,1053,option,org-agenda-follow-indirect,missing,,Non-nil means `org-agenda-follow-mode' displays only the
-org-agenda.el,1060,option,org-agenda-show-outline-path,missing,,Non-nil means show outline path in echo area after line motion.
-org-agenda.el,1072,option,org-agenda-start-with-entry-text-mode,missing,,The initial value of entry-text-mode in a newly created agenda window.
-org-agenda.el,1077,option,org-agenda-entry-text-maxlines,missing,,Number of text lines to be added when `E' is pressed in the agenda.
-org-agenda.el,1086,option,org-agenda-entry-text-exclude-regexps,missing,,List of regular expressions to clean up entry text.
-org-agenda.el,1093,option,org-agenda-entry-text-leaders,missing,,Text prepended to the entry text in agenda buffers.
-org-agenda.el,1100,option,org-agenda-start-with-archives-mode,missing,,Initial value of archive mode in a newly created agenda window.
+org-agenda.el,1060,option,org-agenda-show-outline-path,done,honored by src/org/agenda,Non-nil means show outline path in echo area after line motion.
+org-agenda.el,1072,option,org-agenda-start-with-entry-text-mode,done,honored by src/org/agenda,The initial value of entry-text-mode in a newly created agenda window.
+org-agenda.el,1077,option,org-agenda-entry-text-maxlines,done,honored by src/org/agenda,Number of text lines to be added when `E' is pressed in the agenda.
+org-agenda.el,1086,option,org-agenda-entry-text-exclude-regexps,done,honored by src/org/agenda,List of regular expressions to clean up entry text.
+org-agenda.el,1093,option,org-agenda-entry-text-leaders,done,honored by src/org/agenda,Text prepended to the entry text in agenda buffers.
+org-agenda.el,1100,option,org-agenda-start-with-archives-mode,done,honored by src/org/agenda,Initial value of archive mode in a newly created agenda window.
 org-agenda.el,1125,option,org-agenda-window-setup,missing,,How the agenda buffer should be displayed.
 org-agenda.el,1152,option,org-agenda-window-frame-fractions,missing,,The min and max height of the agenda window as a fraction of frame height.
 org-agenda.el,1159,option,org-agenda-restore-windows-after-quit,missing,,Non-nil means restore window configuration upon exiting agenda.
-org-agenda.el,1169,option,org-agenda-span,missing,,Number of days to include in overview display.
-org-agenda.el,1181,option,org-agenda-start-on-weekday,missing,,Non-nil means start the overview always on the specified weekday.
-org-agenda.el,1192,option,org-agenda-show-all-dates,missing,,Non-nil means `org-agenda' shows every day in the selected range.
-org-agenda.el,1198,option,org-agenda-format-date,missing,,Format string for displaying dates in the agenda.
-org-agenda.el,1209,command,org-agenda-end-of-line,missing,,Go to the end of visible line.
-org-agenda.el,1214,function,org-agenda-format-date-aligned,missing,,Format a DATE string for display in the daily/weekly agenda.
-org-agenda.el,1237,option,org-agenda-time-leading-zero,missing,,Non-nil means use leading zero for military times in agenda.
-org-agenda.el,1244,option,org-agenda-timegrid-use-ampm,missing,,"When set, show AM/PM style timestamps on the timegrid."
-org-agenda.el,1250,option,org-agenda-clock-report-header,missing,,Header inserted before the table in Org agenda clock report mode.
-org-agenda.el,1261,function,org-agenda-time-of-day-to-ampm,missing,,"Convert TIME of a string like ""13:45"" to an AM/PM style time string."
-org-agenda.el,1278,function,org-agenda-time-of-day-to-ampm-maybe,missing,,Conditionally convert TIME to AM/PM format.
-org-agenda.el,1285,option,org-agenda-weekend-days,missing,,Which days are weekend?
-org-agenda.el,1298,option,org-agenda-move-date-from-past-immediately-to-today,missing,,Non-nil means jump to today when moving a past date forward in time.
-org-agenda.el,1308,option,org-agenda-diary-file,missing,,File to which to add new entries with the `i' key in agenda and calendar.
-org-agenda.el,1318,option,org-agenda-include-diary,missing,,"If non-nil, include in the agenda entries from the Emacs Calendar's diary."
-org-agenda.el,1324,option,org-agenda-include-deadlines,missing,,"If non-nil, include entries within their deadline warning period."
-org-agenda.el,1331,option,org-agenda-show-future-repeats,missing,,Non-nil shows repeated entries in the future part of the agenda.
-org-agenda.el,1342,option,org-agenda-skip-scheduled-repeats-after-deadline,missing,,Non-nil hides scheduled repeated entries past deadline.
-org-agenda.el,1349,option,org-agenda-prefer-last-repeat,missing,,Non-nil sets date for repeated entries to their last repeat.
-org-agenda.el,1375,option,org-scheduled-past-days,missing,,Number of days to continue listing scheduled items not marked DONE.
-org-agenda.el,1384,option,org-deadline-past-days,missing,,Number of days to warn about missed deadlines.
-org-agenda.el,1395,option,org-agenda-log-mode-items,missing,,List of items that should be shown in agenda log mode.
-org-agenda.el,1409,option,org-agenda-clock-consistency-checks,missing,,"This is a property list, with the following keys:"
-org-agenda.el,1453,option,org-agenda-log-mode-add-notes,missing,,Non-nil means add first line of notes to log entries in agenda views.
-org-agenda.el,1461,option,org-agenda-start-with-log-mode,missing,,The initial value of log-mode in a newly created agenda window.
-org-agenda.el,1475,option,org-agenda-start-with-clockreport-mode,missing,,The initial value of clockreport-mode in a newly created agenda window.
-org-agenda.el,1481,option,org-agenda-clockreport-parameter-plist,missing,,Property list with parameters for the clocktable in clockreport mode.
-org-agenda.el,1495,option,org-agenda-search-view-always-boolean,missing,,Non-nil means the search string is interpreted as individual parts.
-org-agenda.el,1523,option,org-agenda-search-view-force-full-words,missing,,"Non-nil means, search words must be matches as complete words."
-org-agenda.el,1530,option,org-agenda-search-view-max-outline-level,missing,,Maximum outline level to display in search view.
-org-agenda.el,1545,option,org-agenda-search-headline-for-time,missing,,Non-nil means search headline for a time-of-day.
-org-agenda.el,1553,option,org-agenda-use-time-grid,missing,,Non-nil means show a time grid in the agenda schedule.
-org-agenda.el,1563,option,org-agenda-time-grid,missing,,The settings for time grid for agenda display.
-org-agenda.el,1604,option,org-agenda-show-current-time-in-grid,missing,,Non-nil means show the current time in the time grid.
-org-agenda.el,1610,option,org-agenda-current-time-string,missing,,The string for the current time marker in the agenda.
-org-agenda.el,1626,option,org-agenda-sorting-strategy,missing,,Sorting structure for the agenda items of a single day.
+org-agenda.el,1169,option,org-agenda-span,done,honored by src/org/agenda,Number of days to include in overview display.
+org-agenda.el,1181,option,org-agenda-start-on-weekday,done,honored by src/org/agenda,Non-nil means start the overview always on the specified weekday.
+org-agenda.el,1192,option,org-agenda-show-all-dates,done,honored by src/org/agenda,Non-nil means `org-agenda' shows every day in the selected range.
+org-agenda.el,1198,option,org-agenda-format-date,done,honored by src/org/agenda,Format string for displaying dates in the agenda.
+org-agenda.el,1209,command,org-agenda-end-of-line,done,src/org/agenda (cmds.rs/views.rs),Go to the end of visible line.
+org-agenda.el,1214,function,org-agenda-format-date-aligned,internal,src/org/agenda (Rust function of the same role),Format a DATE string for display in the daily/weekly agenda.
+org-agenda.el,1237,option,org-agenda-time-leading-zero,done,honored by src/org/agenda,Non-nil means use leading zero for military times in agenda.
+org-agenda.el,1244,option,org-agenda-timegrid-use-ampm,done,honored by src/org/agenda,"When set, show AM/PM style timestamps on the timegrid."
+org-agenda.el,1250,option,org-agenda-clock-report-header,done,honored by src/org/agenda,Header inserted before the table in Org agenda clock report mode.
+org-agenda.el,1261,function,org-agenda-time-of-day-to-ampm,internal,src/org/agenda (Rust function of the same role),"Convert TIME of a string like ""13:45"" to an AM/PM style time string."
+org-agenda.el,1278,function,org-agenda-time-of-day-to-ampm-maybe,internal,src/org/agenda/format.rs to_ampm,Conditionally convert TIME to AM/PM format.
+org-agenda.el,1285,option,org-agenda-weekend-days,done,honored by src/org/agenda,Which days are weekend?
+org-agenda.el,1298,option,org-agenda-move-date-from-past-immediately-to-today,done,honored by src/org/agenda,Non-nil means jump to today when moving a past date forward in time.
+org-agenda.el,1308,option,org-agenda-diary-file,done,honored by src/org/agenda,File to which to add new entries with the `i' key in agenda and calendar.
+org-agenda.el,1318,option,org-agenda-include-diary,done,honored by src/org/agenda,"If non-nil, include in the agenda entries from the Emacs Calendar's diary."
+org-agenda.el,1324,option,org-agenda-include-deadlines,done,honored by src/org/agenda,"If non-nil, include entries within their deadline warning period."
+org-agenda.el,1331,option,org-agenda-show-future-repeats,done,honored by src/org/agenda,Non-nil shows repeated entries in the future part of the agenda.
+org-agenda.el,1342,option,org-agenda-skip-scheduled-repeats-after-deadline,done,honored by src/org/agenda,Non-nil hides scheduled repeated entries past deadline.
+org-agenda.el,1349,option,org-agenda-prefer-last-repeat,done,honored by src/org/agenda,Non-nil sets date for repeated entries to their last repeat.
+org-agenda.el,1375,option,org-scheduled-past-days,done,honored by src/org/agenda,Number of days to continue listing scheduled items not marked DONE.
+org-agenda.el,1384,option,org-deadline-past-days,done,honored by src/org/agenda,Number of days to warn about missed deadlines.
+org-agenda.el,1395,option,org-agenda-log-mode-items,done,honored by src/org/agenda,List of items that should be shown in agenda log mode.
+org-agenda.el,1409,option,org-agenda-clock-consistency-checks,done,honored by src/org/agenda,"This is a property list, with the following keys:"
+org-agenda.el,1453,option,org-agenda-log-mode-add-notes,done,honored by src/org/agenda,Non-nil means add first line of notes to log entries in agenda views.
+org-agenda.el,1461,option,org-agenda-start-with-log-mode,done,honored by src/org/agenda,The initial value of log-mode in a newly created agenda window.
+org-agenda.el,1475,option,org-agenda-start-with-clockreport-mode,done,honored by src/org/agenda,The initial value of clockreport-mode in a newly created agenda window.
+org-agenda.el,1481,option,org-agenda-clockreport-parameter-plist,done,honored by src/org/agenda,Property list with parameters for the clocktable in clockreport mode.
+org-agenda.el,1495,option,org-agenda-search-view-always-boolean,done,honored by src/org/agenda,Non-nil means the search string is interpreted as individual parts.
+org-agenda.el,1523,option,org-agenda-search-view-force-full-words,done,honored by src/org/agenda,"Non-nil means, search words must be matches as complete words."
+org-agenda.el,1530,option,org-agenda-search-view-max-outline-level,done,honored by src/org/agenda,Maximum outline level to display in search view.
+org-agenda.el,1545,option,org-agenda-search-headline-for-time,done,honored by src/org/agenda,Non-nil means search headline for a time-of-day.
+org-agenda.el,1553,option,org-agenda-use-time-grid,done,honored by src/org/agenda,Non-nil means show a time grid in the agenda schedule.
+org-agenda.el,1563,option,org-agenda-time-grid,done,honored by src/org/agenda,The settings for time grid for agenda display.
+org-agenda.el,1604,option,org-agenda-show-current-time-in-grid,done,honored by src/org/agenda,Non-nil means show the current time in the time grid.
+org-agenda.el,1610,option,org-agenda-current-time-string,done,honored by src/org/agenda,The string for the current time marker in the agenda.
+org-agenda.el,1626,option,org-agenda-sorting-strategy,done,honored by src/org/agenda,Sorting structure for the agenda items of a single day.
 org-agenda.el,1706,option,org-agenda-cmp-user-defined,missing,,A function to define the comparison `user-defined'.
-org-agenda.el,1716,option,org-agenda-sort-notime-is-late,missing,,Non-nil means items without time are considered late.
-org-agenda.el,1726,option,org-agenda-sort-noeffort-is-high,missing,,Non-nil means items without effort estimate are sorted as high effort.
-org-agenda.el,1740,option,org-agenda-prefix-format,missing,,Format specifications for the prefix of items in the agenda views.
-org-agenda.el,1817,option,org-agenda-breadcrumbs-separator,missing,,The separator of breadcrumbs in agenda lines.
-org-agenda.el,1830,option,org-agenda-todo-keyword-format,missing,,Format for the TODO keyword in agenda lines.
-org-agenda.el,1837,option,org-agenda-diary-sexp-prefix,missing,,A regexp that matches part of a diary sexp entry
-org-agenda.el,1847,option,org-agenda-timerange-leaders,missing,,Text preceding timerange entries in the agenda view.
-org-agenda.el,1864,option,org-agenda-scheduled-leaders,missing,,Text preceding scheduled items in the agenda view.
-org-agenda.el,1879,option,org-agenda-inactive-leader,missing,,Text preceding item pulled into the agenda by inactive time stamps.
-org-agenda.el,1886,option,org-agenda-deadline-leaders,missing,,Text preceding deadline items in the agenda view.
-org-agenda.el,1900,option,org-agenda-remove-times-when-in-prefix,missing,,Non-nil means remove duplicate time specifications in agenda items.
-org-agenda.el,1917,option,org-agenda-remove-timeranges-from-blocks,missing,,Non-nil means remove time ranges specifications in agenda
-org-agenda.el,1924,option,org-agenda-default-appointment-duration,missing,,Default duration for appointments that only have a starting time.
-org-agenda.el,1933,option,org-agenda-show-inherited-tags,missing,,Non-nil means show inherited tags in each agenda line.
-org-agenda.el,1959,option,org-agenda-use-tag-inheritance,missing,,List of agenda view types where to use tag inheritance.
-org-agenda.el,1984,option,org-agenda-hide-tags-regexp,missing,,Regular expression used to filter away specific tags in agenda views.
-org-agenda.el,1997,option,org-agenda-remove-tags,missing,,Non-nil means remove the tags from the headline copy in the agenda.
-org-agenda.el,2009,option,org-agenda-tags-column,missing,,Shift tags in agenda items to this column.
-org-agenda.el,2025,option,org-agenda-fontify-priorities,missing,,Non-nil means highlight low and high priorities in agenda.
-org-agenda.el,2025,command,org-agenda-fontify-priorities,missing,,"Make highest priority lines bold, and lowest italic."
-org-agenda.el,2050,option,org-agenda-day-face-function,missing,,Function called to determine what face should be used to display a day.
+org-agenda.el,1716,option,org-agenda-sort-notime-is-late,done,honored by src/org/agenda,Non-nil means items without time are considered late.
+org-agenda.el,1726,option,org-agenda-sort-noeffort-is-high,done,honored by src/org/agenda,Non-nil means items without effort estimate are sorted as high effort.
+org-agenda.el,1740,option,org-agenda-prefix-format,done,honored by src/org/agenda,Format specifications for the prefix of items in the agenda views.
+org-agenda.el,1817,option,org-agenda-breadcrumbs-separator,done,honored by src/org/agenda,The separator of breadcrumbs in agenda lines.
+org-agenda.el,1830,option,org-agenda-todo-keyword-format,done,honored by src/org/agenda,Format for the TODO keyword in agenda lines.
+org-agenda.el,1837,option,org-agenda-diary-sexp-prefix,done,honored by src/org/agenda,A regexp that matches part of a diary sexp entry
+org-agenda.el,1847,option,org-agenda-timerange-leaders,done,honored by src/org/agenda,Text preceding timerange entries in the agenda view.
+org-agenda.el,1864,option,org-agenda-scheduled-leaders,done,honored by src/org/agenda,Text preceding scheduled items in the agenda view.
+org-agenda.el,1879,option,org-agenda-inactive-leader,done,honored by src/org/agenda,Text preceding item pulled into the agenda by inactive time stamps.
+org-agenda.el,1886,option,org-agenda-deadline-leaders,done,honored by src/org/agenda,Text preceding deadline items in the agenda view.
+org-agenda.el,1900,option,org-agenda-remove-times-when-in-prefix,done,honored by src/org/agenda,Non-nil means remove duplicate time specifications in agenda items.
+org-agenda.el,1917,option,org-agenda-remove-timeranges-from-blocks,done,honored by src/org/agenda,Non-nil means remove time ranges specifications in agenda
+org-agenda.el,1924,option,org-agenda-default-appointment-duration,done,honored by src/org/agenda,Default duration for appointments that only have a starting time.
+org-agenda.el,1933,option,org-agenda-show-inherited-tags,done,honored by src/org/agenda,Non-nil means show inherited tags in each agenda line.
+org-agenda.el,1959,option,org-agenda-use-tag-inheritance,done,honored by src/org/agenda,List of agenda view types where to use tag inheritance.
+org-agenda.el,1984,option,org-agenda-hide-tags-regexp,done,honored by src/org/agenda,Regular expression used to filter away specific tags in agenda views.
+org-agenda.el,1997,option,org-agenda-remove-tags,done,honored by src/org/agenda,Non-nil means remove the tags from the headline copy in the agenda.
+org-agenda.el,2009,option,org-agenda-tags-column,done,honored by src/org/agenda,Shift tags in agenda items to this column.
+org-agenda.el,2025,option,org-agenda-fontify-priorities,done,honored by src/org/agenda,Non-nil means highlight low and high priorities in agenda.
+org-agenda.el,2025,command,org-agenda-fontify-priorities,done,src/org/agenda (cmds.rs/views.rs),"Make highest priority lines bold, and lowest italic."
+org-agenda.el,2050,option,org-agenda-day-face-function,adapted,agenda faces map to terminal styles (agenda::face_style),Function called to determine what face should be used to display a day.
 org-agenda.el,2059,option,org-agenda-category-icon-alist,missing,,Alist of category icon to be displayed in agenda views.
 org-agenda.el,2106,option,org-agenda-view-columns-initially,missing,,"When non-nil, switch to columns view right after creating the agenda."
 org-agenda.el,2114,option,org-agenda-columns-show-summaries,missing,,Non-nil means show summaries for columns displayed in the agenda view.
 org-agenda.el,2119,option,org-agenda-columns-compute-summary-properties,missing,,Non-nil means recompute all summary properties before column view.
 org-agenda.el,2130,option,org-agenda-columns-add-appointments-to-effort-sum,missing,,Non-nil means the duration of an appointment will add to day effort.
-org-agenda.el,2140,option,org-agenda-auto-exclude-function,missing,,A function called with a tag to decide if it is filtered on \<org-agenda-mode-map>`\[org-agenda-filter-by-tag] RET'.
-org-agenda.el,2154,option,org-agenda-bulk-custom-functions,missing,,Alist of characters and custom functions for bulk actions.
-org-agenda.el,2186,macro,org-agenda-with-point-at-orig-entry,missing,,Execute BODY with point at location given by `org-hd-marker' property.
+org-agenda.el,2140,option,org-agenda-auto-exclude-function,done,honored by src/org/agenda,A function called with a tag to decide if it is filtered on \<org-agenda-mode-map>`\[org-agenda-filter-by-tag] RET'.
+org-agenda.el,2154,option,org-agenda-bulk-custom-functions,done,honored by src/org/agenda,Alist of characters and custom functions for bulk actions.
+org-agenda.el,2186,macro,org-agenda-with-point-at-orig-entry,internal,src/org/agenda/agenda::remote,Execute BODY with point at location given by `org-hd-marker' property.
 org-agenda.el,2200,function,org-add-agenda-custom-command,missing,,Replace or add a command in `org-agenda-custom-commands'.
-org-agenda.el,2209,macro,org-agenda--insert-overriding-header,missing,,Insert header into agenda view.
-org-agenda.el,2237,command,org-agenda-menu,missing,,Agenda menu.
-org-agenda.el,2249,command,org-agenda-follow-mode,missing,,Toggle follow mode in an agenda buffer.
-org-agenda.el,2250,command,org-agenda-entry-text-mode,missing,,Toggle entry text mode in an agenda buffer.
-org-agenda.el,2251,command,org-agenda-clockreport-mode,missing,,Toggle clocktable mode in an agenda buffer.
-org-agenda.el,2270,option,org-agenda-sticky,missing,,Non-nil means agenda q key will bury agenda buffers.
-org-agenda.el,2280,command,org-toggle-sticky-agenda,missing,,Toggle `org-agenda-sticky'.
-org-agenda.el,2337,command,org-agenda-mode,missing,,Mode for time-sorted view on action items in Org files.
-org-agenda.el,2733,command,org-agenda-undo,missing,,Undo a remote editing step in the agenda.
+org-agenda.el,2209,macro,org-agenda--insert-overriding-header,internal,src/org/agenda (Rust function of the same role),Insert header into agenda view.
+org-agenda.el,2237,command,org-agenda-menu,adapted,adapted: opens the dispatcher (no menu bar),Agenda menu.
+org-agenda.el,2249,command,org-agenda-follow-mode,adapted,adapted: follows by showing entry text under the cursor line,Toggle follow mode in an agenda buffer.
+org-agenda.el,2250,command,org-agenda-entry-text-mode,done,src/org/agenda (cmds.rs/views.rs),Toggle entry text mode in an agenda buffer.
+org-agenda.el,2251,command,org-agenda-clockreport-mode,partial,toggles; the table comes from org-clock-get-clocktable (clock module) by name,Toggle clocktable mode in an agenda buffer.
+org-agenda.el,2270,option,org-agenda-sticky,done,honored by src/org/agenda,Non-nil means agenda q key will bury agenda buffers.
+org-agenda.el,2280,command,org-toggle-sticky-agenda,done,src/org/agenda (cmds.rs/views.rs),Toggle `org-agenda-sticky'.
+org-agenda.el,2337,command,org-agenda-mode,done,src/org/agenda (cmds.rs/views.rs),Mode for time-sorted view on action items in Org files.
+org-agenda.el,2733,command,org-agenda-undo,partial,partial: undoes the last change in the most recently edited source buffer,Undo a remote editing step in the agenda.
 org-agenda.el,2767,function,org-verify-change-for-undo,missing,,Verify that a real change occurred between the undo lists L1 and L2.
 org-agenda.el,2785,option,org-agenda-custom-commands-contexts,missing,,Alist of custom agenda keys and contextual rules.
-org-agenda.el,2836,option,org-agenda-max-entries,missing,,Maximum number of entries to display in an agenda.
-org-agenda.el,2854,option,org-agenda-max-todos,missing,,Maximum number of TODOs to display in an agenda.
-org-agenda.el,2872,option,org-agenda-max-tags,missing,,Maximum number of tagged entries to display in an agenda.
-org-agenda.el,2890,option,org-agenda-max-effort,missing,,Maximum cumulated effort duration for the agenda.
-org-agenda.el,2912,command,org-agenda,missing,,Dispatch agenda commands to collect entries to the agenda buffer.
-org-agenda.el,3099,command,org-agenda-append-agenda,missing,,Append another agenda view to the current one.
-org-agenda.el,3113,function,org-agenda-normalize-custom-commands,missing,,Normalize custom commands CMDS.
-org-agenda.el,3124,function,org-agenda-get-restriction-and-command,missing,,The user interface for selecting an agenda command.
-org-agenda.el,3327,function,org-agenda-fit-window-to-buffer,missing,,Fit the window to the buffer size.
-org-agenda.el,3344,function,org-agenda-run-series,missing,,Run agenda NAME as a SERIES of agenda commands.
-org-agenda.el,3403,function,org-agenda--split-plist,missing,,
-org-agenda.el,3412,macro,org-batch-agenda,missing,,Run an agenda command in batch mode and send the result to STDOUT.
+org-agenda.el,2836,option,org-agenda-max-entries,done,honored by src/org/agenda,Maximum number of entries to display in an agenda.
+org-agenda.el,2854,option,org-agenda-max-todos,done,honored by src/org/agenda,Maximum number of TODOs to display in an agenda.
+org-agenda.el,2872,option,org-agenda-max-tags,done,honored by src/org/agenda,Maximum number of tagged entries to display in an agenda.
+org-agenda.el,2890,option,org-agenda-max-effort,done,honored by src/org/agenda,Maximum cumulated effort duration for the agenda.
+org-agenda.el,2912,command,org-agenda,done,src/org/agenda (cmds.rs/views.rs),Dispatch agenda commands to collect entries to the agenda buffer.
+org-agenda.el,3099,command,org-agenda-append-agenda,done,src/org/agenda (cmds.rs/views.rs),Append another agenda view to the current one.
+org-agenda.el,3113,function,org-agenda-normalize-custom-commands,internal,src/org/agenda/views.rs customs,Normalize custom commands CMDS.
+org-agenda.el,3124,function,org-agenda-get-restriction-and-command,internal,src/org/agenda/views.rs dispatch,The user interface for selecting an agenda command.
+org-agenda.el,3327,function,org-agenda-fit-window-to-buffer,internal,src/org/agenda/one window,Fit the window to the buffer size.
+org-agenda.el,3344,function,org-agenda-run-series,internal,src/org/agenda (Rust function of the same role),Run agenda NAME as a SERIES of agenda commands.
+org-agenda.el,3403,function,org-agenda--split-plist,internal,src/org/agenda/views.rs customs,
+org-agenda.el,3412,macro,org-batch-agenda,missing,missing: Emacs batch entry point,Run an agenda command in batch mode and send the result to STDOUT.
 org-agenda.el,3422,function,org--batch-agenda,missing,,
-org-agenda.el,3436,macro,org-batch-agenda-csv,missing,,Run an agenda command in batch mode and send the result to STDOUT.
+org-agenda.el,3436,macro,org-batch-agenda-csv,missing,missing: Emacs batch entry point,Run an agenda command in batch mode and send the result to STDOUT.
 org-agenda.el,3473,function,org--batch-agenda-csv,missing,,
 org-agenda.el,3495,function,org-fix-agenda-info,missing,,Make sure all properties on an agenda item have a canonical form.
 org-agenda.el,3530,function,org-agenda-export-csv-mapper,missing,,
-org-agenda.el,3540,command,org-store-agenda-views,missing,,Store agenda views.
-org-agenda.el,3546,macro,org-batch-store-agenda-views,missing,,Run all custom agenda commands that have a file argument.
+org-agenda.el,3540,command,org-store-agenda-views,partial,partial: writes plain text of custom commands with files,Store agenda views.
+org-agenda.el,3546,macro,org-batch-store-agenda-views,partial,partial: same as org-store-agenda-views (plain text files),Run all custom agenda commands that have a file argument.
 org-agenda.el,3551,function,org--batch-store-agenda-views,missing,,
-org-agenda.el,3592,function,org-agenda-mark-header-line,missing,,Mark the line at POS as an agenda structure header.
-org-agenda.el,3604,command,org-agenda-write,missing,,Write the current buffer (an agenda view) as a file.
-org-agenda.el,3699,function,org-agenda-remove-marked-text,missing,,Delete all text marked with VALUE of PROPERTY.
+org-agenda.el,3592,function,org-agenda-mark-header-line,internal,src/org/agenda/Line.structural,Mark the line at POS as an agenda structure header.
+org-agenda.el,3604,command,org-agenda-write,partial,"partial: .txt/.org/.html (plain <pre>), .ics via org-icalendar-export-current-agenda; no ps/pdf",Write the current buffer (an agenda view) as a file.
+org-agenda.el,3699,function,org-agenda-remove-marked-text,internal,src/org/agenda/cmds.rs write uses visible lines,Delete all text marked with VALUE of PROPERTY.
 org-agenda.el,3710,function,org-agenda-add-entry-text,missing,,Add entry text to agenda lines.
-org-agenda.el,3729,function,org-agenda-get-some-entry-text,missing,,"Extract entry text from MARKER, at most N-LINES lines."
-org-agenda.el,3813,function,org-check-for-org-mode,missing,,Make sure current buffer is in Org mode.  Error if not.
-org-agenda.el,3855,function,org-agenda-filter-any,missing,,Is any filter active?
-org-agenda.el,3892,function,org-agenda-use-sticky-p,missing,,Return non-nil if an agenda buffer named
-org-agenda.el,3915,function,org-agenda--get-buffer-name,missing,,
-org-agenda.el,3921,function,org-agenda-prepare-window,missing,,Setup agenda buffer in the window.
-org-agenda.el,3956,function,org-agenda-prepare,missing,,
-org-agenda.el,4015,function,org-agenda-finalize,missing,,Finishing touch for the agenda buffer.
-org-agenda.el,4093,function,org-agenda-mark-clocking-task,missing,,Mark the current clock entry in the agenda if it is present.
-org-agenda.el,4116,function,org-agenda-unmark-clocking-task,missing,,Unmark the current clocking task.
-org-agenda.el,4196,function,org-agenda--mark-blocked-entry,missing,,"If ENTRY is blocked, mark it for fontification or invisibility."
-org-agenda.el,4248,function,org-agenda-skip,missing,,Throw to `:skip' in places that should be skipped.
-org-agenda.el,4275,function,org-agenda-skip-eval,missing,,"If FORM is a function or a list, call (or eval) it and return the result."
-org-agenda.el,4295,function,org-agenda-new-marker,missing,,Return a new agenda marker.
-org-agenda.el,4307,function,org-agenda-reset-markers,missing,,Reset markers created by `org-agenda'.
+org-agenda.el,3729,function,org-agenda-get-some-entry-text,internal,src/org/agenda (Rust function of the same role),"Extract entry text from MARKER, at most N-LINES lines."
+org-agenda.el,3813,function,org-check-for-org-mode,internal,src/org/agenda/views.rs run_custom,Make sure current buffer is in Org mode.  Error if not.
+org-agenda.el,3855,function,org-agenda-filter-any,internal,src/org/agenda/filter.rs,Is any filter active?
+org-agenda.el,3892,function,org-agenda-use-sticky-p,internal,src/org/agenda (Rust function of the same role),Return non-nil if an agenda buffer named
+org-agenda.el,3915,function,org-agenda--get-buffer-name,internal,src/org/agenda/views.rs buffer_name,
+org-agenda.el,3921,function,org-agenda-prepare-window,internal,src/org/agenda/Session::org_agenda_show,Setup agenda buffer in the window.
+org-agenda.el,3956,function,org-agenda-prepare,internal,src/org/agenda/views.rs build/start,
+org-agenda.el,4015,function,org-agenda-finalize,internal,src/org/agenda (Rust function of the same role),Finishing touch for the agenda buffer.
+org-agenda.el,4093,function,org-agenda-mark-clocking-task,internal,src/org/agenda/Item.clocking face,Mark the current clock entry in the agenda if it is present.
+org-agenda.el,4116,function,org-agenda-unmark-clocking-task,internal,src/org/agenda/Item.clocking face,Unmark the current clocking task.
+org-agenda.el,4196,function,org-agenda--mark-blocked-entry,internal,src/org/agenda/Item.blocked,"If ENTRY is blocked, mark it for fontification or invisibility."
+org-agenda.el,4248,function,org-agenda-skip,internal,src/org/agenda (Rust function of the same role),Throw to `:skip' in places that should be skipped.
+org-agenda.el,4275,function,org-agenda-skip-eval,internal,src/org/agenda/collect.rs eval_skip,"If FORM is a function or a list, call (or eval) it and return the result."
+org-agenda.el,4295,function,org-agenda-new-marker,internal,src/org/agenda/Loc (collect.rs Src::loc),Return a new agenda marker.
+org-agenda.el,4307,function,org-agenda-reset-markers,internal,src/org/agenda/Loc markers need no reset,Reset markers created by `org-agenda'.
 org-agenda.el,4312,function,org-agenda-save-markers-for-cut-and-paste,missing,,Save relative positions of markers in region.
-org-agenda.el,4323,function,org-agenda-entry-text-show-here,missing,,Add some text from the entry as context to the current line.
-org-agenda.el,4339,command,org-agenda-entry-text-show,missing,,Add entry context for all agenda lines.
-org-agenda.el,4350,function,org-agenda-entry-text-hide,missing,,Remove any shown entry context.
-org-agenda.el,4358,function,org-agenda-get-day-face,missing,,Return the face DATE should be displayed with.
-org-agenda.el,4387,command,org-agenda-list,missing,,Produce a daily/weekly view from all files in variable `org-agenda-files'.
-org-agenda.el,4593,function,org-agenda-ndays-to-span,missing,,"Return a span symbol for a span of N days, or N if none matches."
-org-agenda.el,4601,function,org-agenda-span-to-ndays,missing,,"Return ndays from SPAN, possibly starting at START-DAY."
-org-agenda.el,4615,function,org-agenda-span-name,missing,,Return a SPAN name.
-org-agenda.el,4627,function,org-search-syntax-table,missing,,
-org-agenda.el,4643,command,org-search-view,missing,,Show all entries that contain a phrase or words or regular expressions.
-org-agenda.el,4942,function,org-agenda-propertize-selected-todo-keywords,missing,,Use `org-todo-keyword-faces' for the selected todo KEYWORDS.
-org-agenda.el,4963,command,org-todo-list,missing,,Show all (not done) TODO entries from all agenda files in a single list.
-org-agenda.el,5055,command,org-tags-view,missing,,Show all headlines for all `org-agenda-files' matching a TAGS criterion.
-org-agenda.el,5168,function,org-agenda-skip-entry-if,missing,,Skip entry if any of CONDITIONS is true.
-org-agenda.el,5176,function,org-agenda-skip-subtree-if,missing,,Skip subtree if any of CONDITIONS is true.
-org-agenda.el,5184,function,org-agenda-skip-if,missing,,Check current entity for CONDITIONS.
-org-agenda.el,5260,function,org-agenda-skip-if-todo,missing,,"Helper function for `org-agenda-skip-if', do not use it directly."
-org-agenda.el,5299,command,org-agenda-list-stuck-projects,missing,,Create agenda view for projects that are stuck.
-org-agenda.el,5362,function,org-get-entries-from-diary,missing,,Get the (Emacs Calendar) diary entries for DATE.
+org-agenda.el,4323,function,org-agenda-entry-text-show-here,internal,src/org/agenda/cmds.rs entry_text_show,Add some text from the entry as context to the current line.
+org-agenda.el,4339,command,org-agenda-entry-text-show,done,src/org/agenda (cmds.rs/views.rs),Add entry context for all agenda lines.
+org-agenda.el,4350,function,org-agenda-entry-text-hide,internal,src/org/agenda/cmds.rs entry_text_show,Remove any shown entry context.
+org-agenda.el,4358,function,org-agenda-get-day-face,internal,src/org/agenda (Rust function of the same role),Return the face DATE should be displayed with.
+org-agenda.el,4387,command,org-agenda-list,done,src/org/agenda (cmds.rs/views.rs),Produce a daily/weekly view from all files in variable `org-agenda-files'.
+org-agenda.el,4593,function,org-agenda-ndays-to-span,internal,src/org/agenda (Rust function of the same role),"Return a span symbol for a span of N days, or N if none matches."
+org-agenda.el,4601,function,org-agenda-span-to-ndays,internal,src/org/agenda (Rust function of the same role),"Return ndays from SPAN, possibly starting at START-DAY."
+org-agenda.el,4615,function,org-agenda-span-name,internal,src/org/agenda (Rust function of the same role),Return a SPAN name.
+org-agenda.el,4627,function,org-search-syntax-table,internal,src/org/agenda/collect.rs search (case-folded regexps),
+org-agenda.el,4643,command,org-search-view,done,src/org/agenda (cmds.rs/views.rs),Show all entries that contain a phrase or words or regular expressions.
+org-agenda.el,4942,function,org-agenda-propertize-selected-todo-keywords,internal,src/org/agenda (Rust function of the same role),Use `org-todo-keyword-faces' for the selected todo KEYWORDS.
+org-agenda.el,4963,command,org-todo-list,done,src/org/agenda (cmds.rs/views.rs),Show all (not done) TODO entries from all agenda files in a single list.
+org-agenda.el,5055,command,org-tags-view,done,src/org/agenda (cmds.rs/views.rs),Show all headlines for all `org-agenda-files' matching a TAGS criterion.
+org-agenda.el,5168,function,org-agenda-skip-entry-if,internal,src/org/agenda (Rust function of the same role),Skip entry if any of CONDITIONS is true.
+org-agenda.el,5176,function,org-agenda-skip-subtree-if,internal,src/org/agenda (Rust function of the same role),Skip subtree if any of CONDITIONS is true.
+org-agenda.el,5184,function,org-agenda-skip-if,internal,src/org/agenda (Rust function of the same role),Check current entity for CONDITIONS.
+org-agenda.el,5260,function,org-agenda-skip-if-todo,internal,src/org/agenda/collect.rs skip_if_todo,"Helper function for `org-agenda-skip-if', do not use it directly."
+org-agenda.el,5299,command,org-agenda-list-stuck-projects,done,src/org/agenda (cmds.rs/views.rs),Create agenda view for projects that are stuck.
+org-agenda.el,5362,function,org-get-entries-from-diary,internal,src/org/agenda (Rust function of the same role),Get the (Emacs Calendar) diary entries for DATE.
 org-agenda.el,5416,function,org-agenda-cleanup-fancy-diary,missing,,Remove unwanted stuff in buffer created by `diary-fancy-display'.
 org-agenda.el,5438,function,org-modify-diary-entry-string,missing,,"Add text properties to string, allowing Org to act on it."
 org-agenda.el,5449,function,org-diary-default-entry,missing,,Add a dummy entry to the diary.
-org-agenda.el,5459,function,org-diary,missing,,Return diary information from org files.
-org-agenda.el,5521,function,org-agenda--timestamp-to-absolute,missing,,Call `org-time-string-to-absolute' with ARGS.
-org-agenda.el,5531,function,org-agenda-get-day-entries,missing,,Does the work for `org-diary' and `org-agenda'.
-org-agenda.el,5595,function,org-em,missing,,Is X or Y a member of LIST?
-org-agenda.el,5602,function,org-agenda-entry-get-agenda-timestamp,missing,,Retrieve timestamp information for sorting agenda views.
-org-agenda.el,5636,function,org-agenda-get-todos,missing,,Return the TODO information for agenda display.
-org-agenda.el,5722,function,org-agenda-todo-custom-ignore-p,missing,,Check whether timestamp is farther away than n number of days.
-org-agenda.el,5734,function,org-agenda-check-for-timestamp-as-reason-to-ignore-todo-item,missing,,Do we have a reason to ignore this TODO entry because it has a time stamp?
-org-agenda.el,5808,function,org-agenda-get-timestamps,missing,,Return the date stamp information for agenda display.
-org-agenda.el,5961,function,org-agenda-get-sexps,missing,,Return the sexp information for agenda display.
-org-agenda.el,6043,function,org-anniversary,done,time::diary,"Like `diary-anniversary', but with fixed (ISO) order of arguments."
+org-agenda.el,5459,function,org-diary,missing,missing: diary sexp entry point for the Emacs calendar,Return diary information from org files.
+org-agenda.el,5521,function,org-agenda--timestamp-to-absolute,internal,src/org/agenda/collect.rs abs_near,Call `org-time-string-to-absolute' with ARGS.
+org-agenda.el,5531,function,org-agenda-get-day-entries,internal,src/org/agenda (Rust function of the same role),Does the work for `org-diary' and `org-agenda'.
+org-agenda.el,5595,function,org-em,internal,src/org/agenda/collect.rs,Is X or Y a member of LIST?
+org-agenda.el,5602,function,org-agenda-entry-get-agenda-timestamp,internal,src/org/agenda (Rust function of the same role),Retrieve timestamp information for sorting agenda views.
+org-agenda.el,5636,function,org-agenda-get-todos,internal,src/org/agenda (Rust function of the same role),Return the TODO information for agenda display.
+org-agenda.el,5722,function,org-agenda-todo-custom-ignore-p,internal,src/org/agenda/collect.rs ignore_custom,Check whether timestamp is farther away than n number of days.
+org-agenda.el,5734,function,org-agenda-check-for-timestamp-as-reason-to-ignore-todo-item,internal,src/org/agenda (Rust function of the same role),Do we have a reason to ignore this TODO entry because it has a time stamp?
+org-agenda.el,5808,function,org-agenda-get-timestamps,internal,src/org/agenda (Rust function of the same role),Return the date stamp information for agenda display.
+org-agenda.el,5961,function,org-agenda-get-sexps,internal,src/org/agenda (Rust function of the same role),Return the sexp information for agenda display.
+org-agenda.el,6043,function,org-anniversary,internal,src/org/agenda (Rust function of the same role),"Like `diary-anniversary', but with fixed (ISO) order of arguments."
 org-agenda.el,6048,function,org-cyclic,done,time::diary,"Like `diary-cyclic', but with fixed (ISO) order of arguments."
 org-agenda.el,6053,function,org-block,done,time::diary,"Like `diary-block', but with fixed (ISO) order of arguments."
 org-agenda.el,6058,function,org-date,done,time::diary,"Like `diary-date', but with fixed (ISO) order of arguments."
 org-agenda.el,6065,function,org-class,done,time::diary (holidays as above),"Entry applies if date is between dates on DAYNAME, but skips SKIP-WEEKS."
-org-agenda.el,6090,function,org-get-closed,missing,,Return the logged TODO entries for agenda display.
-org-agenda.el,6091,function,org-agenda-get-progress,missing,,Return the logged TODO entries for agenda display.
-org-agenda.el,6208,command,org-agenda-show-clocking-issues,missing,,"Add overlays, showing issues with clocking."
-org-agenda.el,6298,function,org-agenda-check-clock-gap,missing,,Check if gap T1 -> T2 contains one of the OK-LIST time-of-day values.
-org-agenda.el,6330,function,org-agenda-get-deadlines,missing,,Return the deadline information for agenda display.
-org-agenda.el,6524,function,org-agenda-deadline-face,missing,,Return the face to displaying a deadline item.
-org-agenda.el,6529,function,org-agenda-get-scheduled,missing,,Return the scheduled information for agenda display.
-org-agenda.el,6783,function,org-agenda-get-blocks,missing,,Return the date-range information for agenda display.
-org-agenda.el,6934,function,org-agenda-get-category-icon,missing,,Return an image for CATEGORY according to `org-agenda-category-icon-alist'.
-org-agenda.el,6942,function,org-agenda-format-item,missing,,Format TXT to be inserted into the agenda buffer.
-org-agenda.el,7149,function,org-agenda-fix-displayed-tags,missing,,"Remove tags string from TXT, and add a modified list of tags."
-org-agenda.el,7183,function,org-agenda-add-time-grid-maybe,missing,,Add a time-grid for agenda items which need it.
-org-agenda.el,7231,function,org-compile-prefix-format,missing,,Compile the prefix format into a Lisp form that can be evaluated.
-org-agenda.el,7300,function,org-set-sorting-strategy,missing,,
-org-agenda.el,7309,function,org-get-time-of-day,missing,,Check string S for a time of day.
-org-agenda.el,7373,function,org-agenda-finalize-entries,missing,,"Sort, limit and concatenate the LIST of agenda items."
-org-agenda.el,7419,function,org-agenda-limit-entries,missing,,Limit the number of agenda entries.
-org-agenda.el,7437,command,org-agenda-limit-interactively,missing,,"In agenda, interactively limit entries to various maximums."
-org-agenda.el,7463,function,org-agenda-highlight-todo,missing,,
-org-agenda.el,7516,function,org-cmp-values,missing,,Compare the numeric value of text PROPERTY for string A and B.
-org-agenda.el,7523,function,org-cmp-effort,missing,,Compare the effort values of string A and B.
-org-agenda.el,7537,function,org-cmp-category,missing,,Compare the string values of categories of strings A and B.
-org-agenda.el,7544,function,org-cmp-todo-state,missing,,Compare the todo states of strings A and B.
-org-agenda.el,7566,function,org-cmp-alpha,missing,,"Compare the headlines, alphabetically."
-org-agenda.el,7591,function,org-cmp-tag,missing,,Compare the string values of the first tags of A and B.
-org-agenda.el,7601,function,org-cmp-time,missing,,Compare the time-of-day values of strings A and B.
-org-agenda.el,7609,function,org-cmp-ts,missing,,Compare the timestamps values of entries A and B.
-org-agenda.el,7624,function,org-cmp-habit-p,missing,,Compare the todo states of strings A and B.
-org-agenda.el,7631,function,org-entries-lessp,missing,,Predicate for sorting agenda entries A and B.
-org-agenda.el,7691,command,org-agenda-set-restriction-lock-from-agenda,missing,,Set the restriction lock to the agenda item at point from within the agenda.
-org-agenda.el,7708,command,org-agenda-set-restriction-lock,missing,,Set restriction lock for agenda to current subtree or file.
-org-agenda.el,7757,command,org-agenda-remove-restriction-lock,missing,,Remove agenda restriction lock.
-org-agenda.el,7773,function,org-agenda-maybe-redo,missing,,"If there is any window showing the agenda view, update it."
-org-agenda.el,7790,function,org-agenda-check-type,missing,,Check if agenda buffer or component is of allowed type.
-org-agenda.el,7801,command,org-agenda-Quit,missing,,"Exit the agenda, killing the agenda buffer."
-org-agenda.el,7808,command,org-agenda-quit,missing,,Exit the agenda.
-org-agenda.el,7822,function,org-agenda--quit,missing,,
-org-agenda.el,7861,command,org-agenda-exit,missing,,"Exit the agenda, killing Org buffers loaded by the agenda."
-org-agenda.el,7873,command,org-agenda-kill-all-agenda-buffers,missing,,Kill all buffers in `org-agenda-mode'.
-org-agenda.el,7883,command,org-agenda-execute,missing,,"Execute another agenda command, keeping same window."
-org-agenda.el,7891,command,org-agenda-redo,missing,,Rebuild possibly ALL agenda view(s) in the current buffer.
-org-agenda.el,7957,command,org-agenda-redo-all,missing,,Rebuild all agenda views in the current buffer.
-org-agenda.el,7972,function,org-agenda-get-category,missing,,Return the category of the agenda line.
-org-agenda.el,7976,command,org-agenda-filter-by-category,missing,,Filter lines in the agenda buffer that have a specific category.
-org-agenda.el,7998,function,org-find-top-headline,missing,,Find the topmost parent headline and return it.
-org-agenda.el,8013,command,org-agenda-filter-by-top-headline,missing,,Keep only those lines that are descendants from the same top headline.
-org-agenda.el,8028,command,org-agenda-filter-by-regexp,missing,,Filter agenda entries by a regular expressions.
-org-agenda.el,8053,command,org-agenda-filter-by-effort,missing,,Filter agenda entries by effort.
-org-agenda.el,8105,command,org-agenda-filter,missing,,Prompt for a general filter string and apply it to the agenda.
-org-agenda.el,8217,function,org-agenda-filter-completion-function,missing,,Complete a complex filter string.
-org-agenda.el,8263,command,org-agenda-filter-remove-all,missing,,Remove all filters from the current agenda buffer.
-org-agenda.el,8280,command,org-agenda-filter-by-tag,missing,,Keep only those lines in the agenda buffer that have a specific tag.
-org-agenda.el,8368,function,org-agenda-get-represented-categories,missing,,Return a list of all categories used in this agenda buffer.
-org-agenda.el,8384,function,org-agenda-get-represented-tags,missing,,Return a list of all tags used in this agenda buffer.
-org-agenda.el,8406,function,org-agenda-filter-make-matcher,missing,,Create the form that tests a line for agenda filter.
-org-agenda.el,8462,function,org-agenda-filter-make-matcher-tag-exp,missing,,Return a form associated to tag-expression TAGS.
-org-agenda.el,8480,function,org-agenda-filter-effort-form,missing,,Return the form to compare the effort of the current line with what E says.
-org-agenda.el,8493,function,org-agenda-compare-effort,missing,,"Compare the effort of the current line with VALUE, using OP."
-org-agenda.el,8503,function,org-agenda-filter-expand-tags,missing,,Expand group tags in FILTER for the agenda.
-org-agenda.el,8522,function,org-agenda-filter-apply,missing,,Set FILTER as the new agenda filter and apply it.
-org-agenda.el,8552,function,org-agenda-filter-top-headline-apply,missing,,Filter by top headline HL.
-org-agenda.el,8569,function,org-agenda-filter-hide-line,missing,,"If current line is TYPE, hide it in the agenda buffer."
+org-agenda.el,6090,function,org-get-closed,internal,src/org/agenda/collect.rs progress,Return the logged TODO entries for agenda display.
+org-agenda.el,6091,function,org-agenda-get-progress,internal,src/org/agenda (Rust function of the same role),Return the logged TODO entries for agenda display.
+org-agenda.el,6208,command,org-agenda-show-clocking-issues,done,src/org/agenda (cmds.rs/views.rs),"Add overlays, showing issues with clocking."
+org-agenda.el,6298,function,org-agenda-check-clock-gap,internal,src/org/agenda (Rust function of the same role),Check if gap T1 -> T2 contains one of the OK-LIST time-of-day values.
+org-agenda.el,6330,function,org-agenda-get-deadlines,internal,src/org/agenda (Rust function of the same role),Return the deadline information for agenda display.
+org-agenda.el,6524,function,org-agenda-deadline-face,internal,src/org/agenda (Rust function of the same role),Return the face to displaying a deadline item.
+org-agenda.el,6529,function,org-agenda-get-scheduled,internal,src/org/agenda (Rust function of the same role),Return the scheduled information for agenda display.
+org-agenda.el,6783,function,org-agenda-get-blocks,internal,src/org/agenda (Rust function of the same role),Return the date-range information for agenda display.
+org-agenda.el,6934,function,org-agenda-get-category-icon,internal,src/org/agenda/Item.category,Return an image for CATEGORY according to `org-agenda-category-icon-alist'.
+org-agenda.el,6942,function,org-agenda-format-item,internal,src/org/agenda (Rust function of the same role),Format TXT to be inserted into the agenda buffer.
+org-agenda.el,7149,function,org-agenda-fix-displayed-tags,internal,src/org/agenda (Rust function of the same role),"Remove tags string from TXT, and add a modified list of tags."
+org-agenda.el,7183,function,org-agenda-add-time-grid-maybe,internal,src/org/agenda (Rust function of the same role),Add a time-grid for agenda items which need it.
+org-agenda.el,7231,function,org-compile-prefix-format,internal,src/org/agenda (Rust function of the same role),Compile the prefix format into a Lisp form that can be evaluated.
+org-agenda.el,7300,function,org-set-sorting-strategy,internal,src/org/agenda (Rust function of the same role),
+org-agenda.el,7309,function,org-get-time-of-day,internal,src/org/agenda (Rust function of the same role),Check string S for a time of day.
+org-agenda.el,7373,function,org-agenda-finalize-entries,internal,src/org/agenda (Rust function of the same role),"Sort, limit and concatenate the LIST of agenda items."
+org-agenda.el,7419,function,org-agenda-limit-entries,internal,src/org/agenda (Rust function of the same role),Limit the number of agenda entries.
+org-agenda.el,7437,command,org-agenda-limit-interactively,partial,sets the org-agenda-max-* options globally and redoes,"In agenda, interactively limit entries to various maximums."
+org-agenda.el,7463,function,org-agenda-highlight-todo,internal,src/org/agenda (Rust function of the same role),
+org-agenda.el,7516,function,org-cmp-values,internal,src/org/agenda/format.rs cmp (org-entries-lessp strategies),Compare the numeric value of text PROPERTY for string A and B.
+org-agenda.el,7523,function,org-cmp-effort,internal,src/org/agenda/format.rs cmp (org-entries-lessp strategies),Compare the effort values of string A and B.
+org-agenda.el,7537,function,org-cmp-category,internal,src/org/agenda/format.rs cmp (org-entries-lessp strategies),Compare the string values of categories of strings A and B.
+org-agenda.el,7544,function,org-cmp-todo-state,internal,src/org/agenda/format.rs cmp (org-entries-lessp strategies),Compare the todo states of strings A and B.
+org-agenda.el,7566,function,org-cmp-alpha,internal,src/org/agenda/format.rs cmp (org-entries-lessp strategies),"Compare the headlines, alphabetically."
+org-agenda.el,7591,function,org-cmp-tag,internal,src/org/agenda/format.rs cmp (org-entries-lessp strategies),Compare the string values of the first tags of A and B.
+org-agenda.el,7601,function,org-cmp-time,internal,src/org/agenda/format.rs cmp (org-entries-lessp strategies),Compare the time-of-day values of strings A and B.
+org-agenda.el,7609,function,org-cmp-ts,internal,src/org/agenda/format.rs cmp (org-entries-lessp strategies),Compare the timestamps values of entries A and B.
+org-agenda.el,7624,function,org-cmp-habit-p,internal,src/org/agenda/format.rs cmp (org-entries-lessp strategies),Compare the todo states of strings A and B.
+org-agenda.el,7631,function,org-entries-lessp,internal,src/org/agenda (Rust function of the same role),Predicate for sorting agenda entries A and B.
+org-agenda.el,7691,command,org-agenda-set-restriction-lock-from-agenda,done,src/org/agenda (cmds.rs/views.rs),Set the restriction lock to the agenda item at point from within the agenda.
+org-agenda.el,7708,command,org-agenda-set-restriction-lock,done,src/org/agenda (cmds.rs/views.rs),Set restriction lock for agenda to current subtree or file.
+org-agenda.el,7757,command,org-agenda-remove-restriction-lock,done,src/org/agenda (cmds.rs/views.rs),Remove agenda restriction lock.
+org-agenda.el,7773,function,org-agenda-maybe-redo,internal,src/org/agenda (Rust function of the same role),"If there is any window showing the agenda view, update it."
+org-agenda.el,7790,function,org-agenda-check-type,internal,src/org/agenda (Rust function of the same role),Check if agenda buffer or component is of allowed type.
+org-agenda.el,7801,command,org-agenda-Quit,done,src/org/agenda (cmds.rs quit),"Exit the agenda, killing the agenda buffer."
+org-agenda.el,7808,command,org-agenda-quit,done,src/org/agenda (cmds.rs/views.rs),Exit the agenda.
+org-agenda.el,7822,function,org-agenda--quit,internal,src/org/agenda/cmds.rs quit,
+org-agenda.el,7861,command,org-agenda-exit,done,src/org/agenda (cmds.rs/views.rs),"Exit the agenda, killing Org buffers loaded by the agenda."
+org-agenda.el,7873,command,org-agenda-kill-all-agenda-buffers,done,src/org/agenda (cmds.rs/views.rs),Kill all buffers in `org-agenda-mode'.
+org-agenda.el,7883,command,org-agenda-execute,done,src/org/agenda (cmds.rs/views.rs),"Execute another agenda command, keeping same window."
+org-agenda.el,7891,command,org-agenda-redo,done,src/org/agenda (cmds.rs/views.rs),Rebuild possibly ALL agenda view(s) in the current buffer.
+org-agenda.el,7957,command,org-agenda-redo-all,done,src/org/agenda (cmds.rs/views.rs),Rebuild all agenda views in the current buffer.
+org-agenda.el,7972,function,org-agenda-get-category,internal,src/org/agenda/Item.category,Return the category of the agenda line.
+org-agenda.el,7976,command,org-agenda-filter-by-category,done,src/org/agenda (cmds.rs/views.rs),Filter lines in the agenda buffer that have a specific category.
+org-agenda.el,7998,function,org-find-top-headline,internal,src/org/agenda (Rust function of the same role),Find the topmost parent headline and return it.
+org-agenda.el,8013,command,org-agenda-filter-by-top-headline,done,src/org/agenda (cmds.rs/views.rs),Keep only those lines that are descendants from the same top headline.
+org-agenda.el,8028,command,org-agenda-filter-by-regexp,done,src/org/agenda (cmds.rs/views.rs),Filter agenda entries by a regular expressions.
+org-agenda.el,8053,command,org-agenda-filter-by-effort,done,src/org/agenda (cmds.rs/views.rs),Filter agenda entries by effort.
+org-agenda.el,8105,command,org-agenda-filter,partial,triple C-u (auto exclude) unsupported,Prompt for a general filter string and apply it to the agenda.
+org-agenda.el,8217,function,org-agenda-filter-completion-function,internal,src/org/agenda/filter.rs,Complete a complex filter string.
+org-agenda.el,8263,command,org-agenda-filter-remove-all,done,src/org/agenda (cmds.rs/views.rs),Remove all filters from the current agenda buffer.
+org-agenda.el,8280,command,org-agenda-filter-by-tag,partial,no group-tag expansion; RET (auto-exclude) unsupported,Keep only those lines in the agenda buffer that have a specific tag.
+org-agenda.el,8368,function,org-agenda-get-represented-categories,internal,src/org/agenda (Rust function of the same role),Return a list of all categories used in this agenda buffer.
+org-agenda.el,8384,function,org-agenda-get-represented-tags,internal,src/org/agenda (Rust function of the same role),Return a list of all tags used in this agenda buffer.
+org-agenda.el,8406,function,org-agenda-filter-make-matcher,internal,src/org/agenda (Rust function of the same role),Create the form that tests a line for agenda filter.
+org-agenda.el,8462,function,org-agenda-filter-make-matcher-tag-exp,internal,src/org/agenda/filter.rs,Return a form associated to tag-expression TAGS.
+org-agenda.el,8480,function,org-agenda-filter-effort-form,internal,src/org/agenda (Rust function of the same role),Return the form to compare the effort of the current line with what E says.
+org-agenda.el,8493,function,org-agenda-compare-effort,internal,src/org/agenda (Rust function of the same role),"Compare the effort of the current line with VALUE, using OP."
+org-agenda.el,8503,function,org-agenda-filter-expand-tags,internal,src/org/agenda/filter.rs,Expand group tags in FILTER for the agenda.
+org-agenda.el,8522,function,org-agenda-filter-apply,internal,src/org/agenda (Rust function of the same role),Set FILTER as the new agenda filter and apply it.
+org-agenda.el,8552,function,org-agenda-filter-top-headline-apply,internal,src/org/agenda/filter.rs,Filter by top headline HL.
+org-agenda.el,8569,function,org-agenda-filter-hide-line,internal,src/org/agenda/filter.rs,"If current line is TYPE, hide it in the agenda buffer."
 org-agenda.el,8578,function,org-agenda-remove-filter,missing,,Remove filter of type TYPE from the agenda buffer.
-org-agenda.el,8594,function,org-agenda-filter-show-all-tag,missing,,
-org-agenda.el,8596,function,org-agenda-filter-show-all-re,missing,,
-org-agenda.el,8598,function,org-agenda-filter-show-all-effort,missing,,
-org-agenda.el,8600,function,org-agenda-filter-show-all-cat,missing,,
-org-agenda.el,8602,function,org-agenda-filter-show-all-top-filter,missing,,
-org-agenda.el,8605,command,org-agenda-manipulate-query-add,missing,,Manipulate the query by adding a search term with positive selection.
-org-agenda.el,8610,command,org-agenda-manipulate-query-subtract,missing,,Manipulate the query by adding a search term with negative selection.
-org-agenda.el,8615,command,org-agenda-manipulate-query-add-re,missing,,Manipulate the query by adding a search regexp with positive selection.
-org-agenda.el,8620,command,org-agenda-manipulate-query-subtract-re,missing,,Manipulate the query by adding a search regexp with negative selection.
-org-agenda.el,8625,function,org-agenda-manipulate-query,missing,,
-org-agenda.el,8660,function,org-add-to-string,missing,,
-org-agenda.el,8663,command,org-agenda-goto-date,missing,,Jump to DATE in the agenda buffer.
-org-agenda.el,8705,command,org-agenda-goto-today,missing,,Go to today's date in the agenda buffer.
-org-agenda.el,8728,function,org-agenda-find-same-or-today-or-agenda,missing,,
-org-agenda.el,8737,command,org-agenda-backward-block,missing,,Move backward by one agenda block.
-org-agenda.el,8742,command,org-agenda-forward-block,missing,,Move forward by one agenda block.
-org-agenda.el,8769,command,org-agenda-later,missing,,Go forward in time by the current span in the agenda buffer.
-org-agenda.el,8816,command,org-agenda-earlier,missing,,Go backward in time by the current span in the agenda buffer.
-org-agenda.el,8827,command,org-agenda-view-mode-dispatch,missing,,Call one of the view mode commands.
-org-agenda.el,8859,command,org-agenda-reset-view,missing,,Switch to default view for agenda.
-org-agenda.el,8864,command,org-agenda-day-view,missing,,Switch to daily view for agenda.
-org-agenda.el,8870,command,org-agenda-week-view,missing,,Switch to weekly view for agenda.
-org-agenda.el,8880,command,org-agenda-fortnight-view,missing,,Switch to fortnightly view for agenda.
-org-agenda.el,8890,command,org-agenda-month-view,missing,,Switch to monthly view for agenda.
-org-agenda.el,8900,command,org-agenda-year-view,missing,,Switch to yearly view for agenda.
-org-agenda.el,8912,function,org-agenda-change-time-span,missing,,Change the agenda view to SPAN.
-org-agenda.el,8933,function,org-agenda-compute-starting-span,missing,,Compute starting date for agenda.
-org-agenda.el,8977,command,org-agenda-next-date-line,missing,,Jump to the next line indicating a date in agenda buffer.
-org-agenda.el,8989,command,org-agenda-previous-date-line,missing,,Jump to the previous line indicating a date in agenda buffer.
+org-agenda.el,8594,function,org-agenda-filter-show-all-tag,internal,src/org/agenda/filter.rs,
+org-agenda.el,8596,function,org-agenda-filter-show-all-re,internal,src/org/agenda/filter.rs,
+org-agenda.el,8598,function,org-agenda-filter-show-all-effort,internal,src/org/agenda/filter.rs,
+org-agenda.el,8600,function,org-agenda-filter-show-all-cat,internal,src/org/agenda/filter.rs,
+org-agenda.el,8602,function,org-agenda-filter-show-all-top-filter,internal,src/org/agenda/filter.rs,
+org-agenda.el,8605,command,org-agenda-manipulate-query-add,done,src/org/agenda (cmds.rs/views.rs),Manipulate the query by adding a search term with positive selection.
+org-agenda.el,8610,command,org-agenda-manipulate-query-subtract,done,src/org/agenda (cmds.rs/views.rs),Manipulate the query by adding a search term with negative selection.
+org-agenda.el,8615,command,org-agenda-manipulate-query-add-re,done,src/org/agenda (cmds.rs/views.rs),Manipulate the query by adding a search regexp with positive selection.
+org-agenda.el,8620,command,org-agenda-manipulate-query-subtract-re,done,src/org/agenda (cmds.rs/views.rs),Manipulate the query by adding a search regexp with negative selection.
+org-agenda.el,8625,function,org-agenda-manipulate-query,internal,src/org/agenda (Rust function of the same role),
+org-agenda.el,8660,function,org-add-to-string,internal,src/org/agenda/cmds.rs manipulate_query,
+org-agenda.el,8663,command,org-agenda-goto-date,done,src/org/agenda (cmds.rs/views.rs),Jump to DATE in the agenda buffer.
+org-agenda.el,8705,command,org-agenda-goto-today,done,src/org/agenda (cmds.rs/views.rs),Go to today's date in the agenda buffer.
+org-agenda.el,8728,function,org-agenda-find-same-or-today-or-agenda,internal,src/org/agenda (Rust function of the same role),
+org-agenda.el,8737,command,org-agenda-backward-block,done,src/org/agenda (cmds.rs/views.rs),Move backward by one agenda block.
+org-agenda.el,8742,command,org-agenda-forward-block,done,src/org/agenda (cmds.rs/views.rs),Move forward by one agenda block.
+org-agenda.el,8769,command,org-agenda-later,done,src/org/agenda (cmds.rs/views.rs),Go forward in time by the current span in the agenda buffer.
+org-agenda.el,8816,command,org-agenda-earlier,done,src/org/agenda (cmds.rs/views.rs),Go backward in time by the current span in the agenda buffer.
+org-agenda.el,8827,command,org-agenda-view-mode-dispatch,done,src/org/agenda (cmds.rs/views.rs),Call one of the view mode commands.
+org-agenda.el,8859,command,org-agenda-reset-view,done,src/org/agenda (cmds.rs/views.rs),Switch to default view for agenda.
+org-agenda.el,8864,command,org-agenda-day-view,done,src/org/agenda (cmds.rs/views.rs),Switch to daily view for agenda.
+org-agenda.el,8870,command,org-agenda-week-view,done,src/org/agenda (cmds.rs/views.rs),Switch to weekly view for agenda.
+org-agenda.el,8880,command,org-agenda-fortnight-view,done,src/org/agenda (cmds.rs/views.rs),Switch to fortnightly view for agenda.
+org-agenda.el,8890,command,org-agenda-month-view,done,src/org/agenda (cmds.rs/views.rs),Switch to monthly view for agenda.
+org-agenda.el,8900,command,org-agenda-year-view,done,src/org/agenda (cmds.rs/views.rs),Switch to yearly view for agenda.
+org-agenda.el,8912,function,org-agenda-change-time-span,internal,src/org/agenda (Rust function of the same role),Change the agenda view to SPAN.
+org-agenda.el,8933,function,org-agenda-compute-starting-span,internal,src/org/agenda (Rust function of the same role),Compute starting date for agenda.
+org-agenda.el,8977,command,org-agenda-next-date-line,done,src/org/agenda (cmds.rs/views.rs),Jump to the next line indicating a date in agenda buffer.
+org-agenda.el,8989,command,org-agenda-previous-date-line,done,src/org/agenda (cmds.rs/views.rs),Jump to the previous line indicating a date in agenda buffer.
 org-agenda.el,9001,function,org-highlight,missing,,Highlight a region with overlay.
 org-agenda.el,9005,function,org-unhighlight,missing,,Detach overlay INDEX.
 org-agenda.el,9009,function,org-unhighlight-once,missing,,"Remove the highlight from its position, and this function from the hook."
-org-agenda.el,9061,command,org-agenda-log-mode,missing,,Toggle log mode in an agenda buffer.
-org-agenda.el,9105,command,org-agenda-toggle-diary,missing,,Toggle diary inclusion in an agenda buffer.
-org-agenda.el,9115,command,org-agenda-toggle-deadlines,missing,,Toggle inclusion of entries with a deadline in an agenda buffer.
-org-agenda.el,9125,command,org-agenda-toggle-time-grid,missing,,Toggle time grid in an agenda buffer.
-org-agenda.el,9135,function,org-agenda-set-mode-name,missing,,Set the mode name to indicate all the small mode settings.
-org-agenda.el,9214,function,org-agenda-update-agenda-type,missing,,Update the agenda type after each command.
-org-agenda.el,9220,command,org-agenda-next-line,missing,,"Move cursor to the next line, and show if follow mode is active."
-org-agenda.el,9226,command,org-agenda-previous-line,missing,,"Move cursor to the previous line, and show if follow mode is active."
-org-agenda.el,9232,command,org-agenda-next-item,missing,,Move cursor to next agenda item.
-org-agenda.el,9243,command,org-agenda-previous-item,missing,,Move cursor to next agenda item.
-org-agenda.el,9255,function,org-agenda-do-context-action,missing,,"Show outline path and, maybe, follow mode window."
-org-agenda.el,9267,command,org-agenda-show-tags,missing,,Show the tags applicable to the current item.
-org-agenda.el,9276,command,org-agenda-goto,missing,,Go to the entry at point in the corresponding Org file.
+org-agenda.el,9061,command,org-agenda-log-mode,done,src/org/agenda (cmds.rs/views.rs),Toggle log mode in an agenda buffer.
+org-agenda.el,9105,command,org-agenda-toggle-diary,done,src/org/agenda (cmds.rs/views.rs),Toggle diary inclusion in an agenda buffer.
+org-agenda.el,9115,command,org-agenda-toggle-deadlines,done,src/org/agenda (cmds.rs/views.rs),Toggle inclusion of entries with a deadline in an agenda buffer.
+org-agenda.el,9125,command,org-agenda-toggle-time-grid,done,src/org/agenda (cmds.rs/views.rs),Toggle time grid in an agenda buffer.
+org-agenda.el,9135,function,org-agenda-set-mode-name,internal,src/org/agenda (Rust function of the same role),Set the mode name to indicate all the small mode settings.
+org-agenda.el,9214,function,org-agenda-update-agenda-type,internal,src/org/agenda/View::kind_at,Update the agenda type after each command.
+org-agenda.el,9220,command,org-agenda-next-line,done,src/org/agenda (cmds.rs/views.rs),"Move cursor to the next line, and show if follow mode is active."
+org-agenda.el,9226,command,org-agenda-previous-line,done,src/org/agenda (cmds.rs/views.rs),"Move cursor to the previous line, and show if follow mode is active."
+org-agenda.el,9232,command,org-agenda-next-item,done,src/org/agenda (cmds.rs/views.rs),Move cursor to next agenda item.
+org-agenda.el,9243,command,org-agenda-previous-item,done,src/org/agenda (cmds.rs/views.rs),Move cursor to next agenda item.
+org-agenda.el,9255,function,org-agenda-do-context-action,internal,src/org/agenda (Rust function of the same role),"Show outline path and, maybe, follow mode window."
+org-agenda.el,9267,command,org-agenda-show-tags,done,src/org/agenda (cmds.rs/views.rs),Show the tags applicable to the current item.
+org-agenda.el,9276,command,org-agenda-goto,done,src/org/agenda (cmds.rs/views.rs),Go to the entry at point in the corresponding Org file.
 org-agenda.el,9307,option,org-agenda-loop-over-headlines-in-active-region,missing,,Shall some commands act upon headlines in the active region?
-org-agenda.el,9309,function,org-agenda-do-in-region,missing,,"Between region BEG and END, call agenda command CMD."
-org-agenda.el,9337,macro,org-agenda-maybe-loop,missing,,Maybe loop over agenda entries and perform CMD.
-org-agenda.el,9348,command,org-agenda-kill,missing,,Kill the entry or subtree belonging to the current agenda entry.
-org-agenda.el,9389,command,org-agenda-archive-default,missing,,Archive the entry or subtree belonging to the current agenda entry.
-org-agenda.el,9396,command,org-agenda-archive-default-with-confirmation,missing,,Archive the entry or subtree belonging to the current agenda entry.
-org-agenda.el,9403,command,org-agenda-archive,missing,,Archive the entry or subtree belonging to the current agenda entry.
-org-agenda.el,9409,command,org-agenda-archive-to-archive-sibling,missing,,Move the entry to the archive sibling.
-org-agenda.el,9417,command,org-agenda-archive-with,missing,,Move the entry to the archive sibling.
-org-agenda.el,9443,function,org-remove-subtree-entries-from-agenda,missing,,Remove all lines in the agenda that correspond to a given subtree.
-org-agenda.el,9469,command,org-agenda-refile,missing,,Refile the item at point.
-org-agenda.el,9507,command,org-agenda-open-link,missing,,"Open the link(s) in the current entry, if any."
+org-agenda.el,9309,function,org-agenda-do-in-region,internal,src/org/agenda/no active region in the agenda,"Between region BEG and END, call agenda command CMD."
+org-agenda.el,9337,macro,org-agenda-maybe-loop,internal,src/org/agenda/no active region in the agenda,Maybe loop over agenda entries and perform CMD.
+org-agenda.el,9348,command,org-agenda-kill,done,src/org/agenda (cmds.rs/views.rs),Kill the entry or subtree belonging to the current agenda entry.
+org-agenda.el,9389,command,org-agenda-archive-default,done,src/org/agenda (cmds.rs/views.rs),Archive the entry or subtree belonging to the current agenda entry.
+org-agenda.el,9396,command,org-agenda-archive-default-with-confirmation,done,src/org/agenda (cmds.rs/views.rs),Archive the entry or subtree belonging to the current agenda entry.
+org-agenda.el,9403,command,org-agenda-archive,done,src/org/agenda (cmds.rs/views.rs),Archive the entry or subtree belonging to the current agenda entry.
+org-agenda.el,9409,command,org-agenda-archive-to-archive-sibling,done,src/org/agenda (cmds.rs/views.rs),Move the entry to the archive sibling.
+org-agenda.el,9417,command,org-agenda-archive-with,done,src/org/agenda (cmds.rs/views.rs),Move the entry to the archive sibling.
+org-agenda.el,9443,function,org-remove-subtree-entries-from-agenda,internal,src/org/agenda (Rust function of the same role),Remove all lines in the agenda that correspond to a given subtree.
+org-agenda.el,9469,command,org-agenda-refile,done,src/org/agenda (cmds.rs/views.rs),Refile the item at point.
+org-agenda.el,9507,command,org-agenda-open-link,done,src/org/agenda (cmds.rs/views.rs),"Open the link(s) in the current entry, if any."
 org-agenda.el,9553,function,org-agenda-copy-local-variable,missing,,Get a variable from a referenced buffer and install it here.
-org-agenda.el,9561,command,org-agenda-switch-to,missing,,Go to the Org mode file which contains the item at point.
-org-agenda.el,9584,command,org-agenda-goto-mouse,missing,,Go to the Org file which contains the item at the mouse click.
-org-agenda.el,9590,command,org-agenda-show,missing,,Display the Org file which contains the item at point.
-org-agenda.el,9601,command,org-agenda-show-and-scroll-up,missing,,Display the Org file which contains the item at point.
-org-agenda.el,9625,command,org-agenda-show-scroll-down,missing,,Scroll down the window showing the agenda.
-org-agenda.el,9634,command,org-agenda-show-1,missing,,Display the Org file which contains the item at point.
-org-agenda.el,9678,command,org-agenda-cycle-show,missing,,"Show the current entry in another window, with default settings."
-org-agenda.el,9702,command,org-agenda-recenter,missing,,Display the Org file which contains the item at point and recenter.
-org-agenda.el,9710,command,org-agenda-show-mouse,missing,,Display the Org file which contains the item at the mouse click.
-org-agenda.el,9716,function,org-agenda-check-no-diary,missing,,Check if the entry is a diary link and abort if yes.
-org-agenda.el,9721,function,org-agenda-error,missing,,Throw an error when a command is not allowed in the agenda.
-org-agenda.el,9725,command,org-agenda-tree-to-indirect-buffer,missing,,Show the subtree corresponding to the current entry in an indirect buffer.
-org-agenda.el,9753,command,org-agenda-todo-nextset,missing,,Switch TODO entry to next sequence.
-org-agenda.el,9758,command,org-agenda-todo-previousset,missing,,Switch TODO entry to previous sequence.
-org-agenda.el,9765,command,org-agenda-todo,missing,,"Cycle TODO state of line at point, also in Org file."
-org-agenda.el,9817,command,org-agenda-add-note,missing,,Add a time-stamped note to the entry at point.
-org-agenda.el,9833,function,org-agenda-change-all-lines,missing,,Change all lines in the agenda buffer which match HDMARKER.
-org-agenda.el,9911,function,org-agenda-align-tags,missing,,Align all tags in agenda items to `org-agenda-tags-column'.
-org-agenda.el,9947,command,org-agenda-priority-up,missing,,"Increase the priority of line at point, also in Org file."
-org-agenda.el,9952,command,org-agenda-priority-down,missing,,"Decrease the priority of line at point, also in Org file."
-org-agenda.el,9957,command,org-agenda-priority,missing,,"Set the priority of line at point, also in Org file."
-org-agenda.el,9990,command,org-agenda-set-tags,missing,,Set tags for the current headline.
-org-agenda.el,10015,command,org-agenda-set-property,missing,,Set a property for the current headline.
-org-agenda.el,10034,command,org-agenda-set-effort,missing,,Set the effort property for the current headline.
-org-agenda.el,10056,command,org-agenda-toggle-archive-tag,missing,,Toggle the archive tag for the current entry.
-org-agenda.el,10079,command,org-agenda-do-date-later,missing,,
-org-agenda.el,10095,command,org-agenda-do-date-earlier,missing,,
-org-agenda.el,10111,command,org-agenda-date-later,missing,,Change the date of this item to ARG day(s) later.
-org-agenda.el,10150,command,org-agenda-date-earlier,missing,,Change the date of this item to ARG day(s) earlier.
-org-agenda.el,10155,command,org-agenda-date-later-minutes,missing,,"Change the time of this item, in units of `org-time-stamp-rounding-minutes'."
-org-agenda.el,10161,command,org-agenda-date-earlier-minutes,missing,,"Change the time of this item, in units of `org-time-stamp-rounding-minutes'."
-org-agenda.el,10167,command,org-agenda-date-later-hours,missing,,"Change the time of this item, in hour steps."
-org-agenda.el,10172,command,org-agenda-date-earlier-hours,missing,,"Change the time of this item, in hour steps."
-org-agenda.el,10177,function,org-agenda-show-new-time,missing,,Show new date stamp via text properties.
-org-agenda.el,10202,command,org-agenda-date-prompt,missing,,"Change the date of this item.  Date is prompted for, with default today."
-org-agenda.el,10224,command,org-agenda-schedule,missing,,Schedule the item at point.
-org-agenda.el,10247,command,org-agenda-deadline,missing,,Schedule the item at point.
-org-agenda.el,10268,command,org-agenda-clock-in,missing,,Start the clock on the currently selected item.
-org-agenda.el,10290,command,org-agenda-clock-out,missing,,Stop the currently running clock.
-org-agenda.el,10309,command,org-agenda-clock-cancel,missing,,Cancel the currently running clock.
-org-agenda.el,10318,command,org-agenda-clock-goto,missing,,Jump to the currently clocked-in task from the agenda.
-org-agenda.el,10349,function,org-agenda-diary-entry-in-org-file,missing,,Make a diary entry in the file `org-agenda-diary-file'.
+org-agenda.el,9561,command,org-agenda-switch-to,done,src/org/agenda (cmds.rs/views.rs),Go to the Org mode file which contains the item at point.
+org-agenda.el,9584,command,org-agenda-goto-mouse,adapted,adapted: no mouse; same as org-agenda-goto,Go to the Org file which contains the item at the mouse click.
+org-agenda.el,9590,command,org-agenda-show,adapted,"adapted: one window, so the entry text is shown under its agenda line (follow mode too)",Display the Org file which contains the item at point.
+org-agenda.el,9601,command,org-agenda-show-and-scroll-up,adapted,adapted: shows the whole entry under its line (no other window to scroll),Display the Org file which contains the item at point.
+org-agenda.el,9625,command,org-agenda-show-scroll-down,adapted,adapted: hides the shown entry text,Scroll down the window showing the agenda.
+org-agenda.el,9634,command,org-agenda-show-1,adapted,adapted: shows the whole entry under its line; folding levels 0-4 not applied,Display the Org file which contains the item at point.
+org-agenda.el,9678,command,org-agenda-cycle-show,adapted,adapted: shows the entry under its line; no children/subtree cycling,"Show the current entry in another window, with default settings."
+org-agenda.el,9702,command,org-agenda-recenter,adapted,adapted: shows the entry under its line,Display the Org file which contains the item at point and recenter.
+org-agenda.el,9710,command,org-agenda-show-mouse,adapted,adapted: no mouse; same as org-agenda-show,Display the Org file which contains the item at the mouse click.
+org-agenda.el,9716,function,org-agenda-check-no-diary,internal,src/org/agenda/cmds.rs markers,Check if the entry is a diary link and abort if yes.
+org-agenda.el,9721,function,org-agenda-error,internal,src/org/agenda (Rust function of the same role),Throw an error when a command is not allowed in the agenda.
+org-agenda.el,9725,command,org-agenda-tree-to-indirect-buffer,adapted,adapted: visits the entry (no indirect buffers),Show the subtree corresponding to the current entry in an indirect buffer.
+org-agenda.el,9753,command,org-agenda-todo-nextset,done,src/org/agenda (cmds.rs/views.rs),Switch TODO entry to next sequence.
+org-agenda.el,9758,command,org-agenda-todo-previousset,done,src/org/agenda (cmds.rs/views.rs),Switch TODO entry to previous sequence.
+org-agenda.el,9765,command,org-agenda-todo,done,src/org/agenda (cmds.rs/views.rs),"Cycle TODO state of line at point, also in Org file."
+org-agenda.el,9817,command,org-agenda-add-note,done,src/org/agenda (cmds.rs/views.rs),Add a time-stamped note to the entry at point.
+org-agenda.el,9833,function,org-agenda-change-all-lines,internal,src/org/agenda (Rust function of the same role),Change all lines in the agenda buffer which match HDMARKER.
+org-agenda.el,9911,function,org-agenda-align-tags,internal,src/org/agenda (Rust function of the same role),Align all tags in agenda items to `org-agenda-tags-column'.
+org-agenda.el,9947,command,org-agenda-priority-up,done,src/org/agenda (cmds.rs/views.rs),"Increase the priority of line at point, also in Org file."
+org-agenda.el,9952,command,org-agenda-priority-down,done,src/org/agenda (cmds.rs/views.rs),"Decrease the priority of line at point, also in Org file."
+org-agenda.el,9957,command,org-agenda-priority,done,src/org/agenda (cmds.rs/views.rs),"Set the priority of line at point, also in Org file."
+org-agenda.el,9990,command,org-agenda-set-tags,done,src/org/agenda (cmds.rs/views.rs),Set tags for the current headline.
+org-agenda.el,10015,command,org-agenda-set-property,done,src/org/agenda (cmds.rs/views.rs),Set a property for the current headline.
+org-agenda.el,10034,command,org-agenda-set-effort,done,src/org/agenda (cmds.rs/views.rs),Set the effort property for the current headline.
+org-agenda.el,10056,command,org-agenda-toggle-archive-tag,done,src/org/agenda (cmds.rs/views.rs),Toggle the archive tag for the current entry.
+org-agenda.el,10079,command,org-agenda-do-date-later,done,src/org/agenda (cmds.rs/views.rs),
+org-agenda.el,10095,command,org-agenda-do-date-earlier,done,src/org/agenda (cmds.rs/views.rs),
+org-agenda.el,10111,command,org-agenda-date-later,done,src/org/agenda (cmds.rs/views.rs),Change the date of this item to ARG day(s) later.
+org-agenda.el,10150,command,org-agenda-date-earlier,done,src/org/agenda (cmds.rs/views.rs),Change the date of this item to ARG day(s) earlier.
+org-agenda.el,10155,command,org-agenda-date-later-minutes,done,src/org/agenda (cmds.rs/views.rs),"Change the time of this item, in units of `org-time-stamp-rounding-minutes'."
+org-agenda.el,10161,command,org-agenda-date-earlier-minutes,done,src/org/agenda (cmds.rs/views.rs),"Change the time of this item, in units of `org-time-stamp-rounding-minutes'."
+org-agenda.el,10167,command,org-agenda-date-later-hours,done,src/org/agenda (cmds.rs/views.rs),"Change the time of this item, in hour steps."
+org-agenda.el,10172,command,org-agenda-date-earlier-hours,done,src/org/agenda (cmds.rs/views.rs),"Change the time of this item, in hour steps."
+org-agenda.el,10177,function,org-agenda-show-new-time,internal,src/org/agenda (Rust function of the same role),Show new date stamp via text properties.
+org-agenda.el,10202,command,org-agenda-date-prompt,done,src/org/agenda (cmds.rs/views.rs),"Change the date of this item.  Date is prompted for, with default today."
+org-agenda.el,10224,command,org-agenda-schedule,done,src/org/agenda (cmds.rs/views.rs),Schedule the item at point.
+org-agenda.el,10247,command,org-agenda-deadline,done,src/org/agenda (cmds.rs/views.rs),Schedule the item at point.
+org-agenda.el,10268,command,org-agenda-clock-in,partial,depends on the clock module (org-clock-in by name),Start the clock on the currently selected item.
+org-agenda.el,10290,command,org-agenda-clock-out,partial,depends on the clock module (org-clock-out by name),Stop the currently running clock.
+org-agenda.el,10309,command,org-agenda-clock-cancel,partial,depends on the clock module (org-clock-cancel by name),Cancel the currently running clock.
+org-agenda.el,10318,command,org-agenda-clock-goto,partial,clocking lines from open CLOCK entries; else org-clock-goto by name,Jump to the currently clocked-in task from the agenda.
+org-agenda.el,10349,function,org-agenda-diary-entry-in-org-file,internal,src/org/agenda/cmds.rs diary_entry,Make a diary entry in the file `org-agenda-diary-file'.
 org-agenda.el,10392,option,org-agenda-insert-diary-strategy,missing,,Where in `org-agenda-diary-file' should new entries be added?
 org-agenda.el,10405,option,org-agenda-insert-diary-extract-time,missing,,Non-nil means extract any time specification from the diary entry.
-org-agenda.el,10411,option,org-agenda-bulk-mark-char,missing,,A single-character string to be used as the bulk mark.
-org-agenda.el,10417,function,org-agenda-add-entry-to-org-agenda-diary-file,missing,,Add a diary entry with TYPE to `org-agenda-diary-file'.
-org-agenda.el,10497,function,org-agenda-insert-diary-as-top-level,missing,,Make new entry as a top-level entry at the end of the file.
-org-agenda.el,10510,function,org-agenda-insert-diary-make-new-entry,missing,,Make a new entry with TEXT as a child of the current subtree.
-org-agenda.el,10534,command,org-agenda-diary-entry,missing,,"Make a diary entry, like the `i' command from the calendar."
-org-agenda.el,10580,function,org-agenda-execute-calendar-command,missing,,Execute a calendar command from the agenda with date from cursor.
-org-agenda.el,10603,command,org-agenda-phases-of-moon,missing,,Display the phases of the moon for the 3 months around the cursor date.
-org-agenda.el,10608,command,org-agenda-holidays,missing,,Display the holidays for the 3 months around the cursor date.
-org-agenda.el,10617,command,org-agenda-sunrise-sunset,missing,,Display sunrise and sunset for the cursor date.
-org-agenda.el,10630,command,org-agenda-goto-calendar,missing,,Open the Emacs calendar with the date at the cursor.
-org-agenda.el,10644,command,org-calendar-goto-agenda,missing,,Compute the Org agenda for the calendar date displayed at the cursor.
-org-agenda.el,10656,command,org-agenda-convert-date,missing,,
-org-agenda.el,10686,function,org-agenda-bulk-marked-p,missing,,Non-nil when current entry is marked for bulk action.
-org-agenda.el,10691,command,org-agenda-bulk-mark,missing,,Mark entries for future bulk action.
-org-agenda.el,10735,command,org-agenda-bulk-mark-all,missing,,Mark all entries for future agenda bulk action.
-org-agenda.el,10740,command,org-agenda-bulk-mark-regexp,missing,,Mark entries matching REGEXP for future agenda bulk action.
-org-agenda.el,10758,command,org-agenda-bulk-unmark,missing,,Unmark the entry at point for future bulk action.
-org-agenda.el,10779,command,org-agenda-bulk-toggle-all,missing,,Toggle all marks for bulk action.
-org-agenda.el,10788,command,org-agenda-bulk-toggle,missing,,Toggle the mark at point for bulk action.
-org-agenda.el,10795,command,org-agenda-bulk-remove-overlays,missing,,Remove the mark overlays between BEG and END in the agenda buffer.
-org-agenda.el,10807,command,org-agenda-bulk-unmark-all,missing,,Remove all marks in the agenda buffer.
-org-agenda.el,10816,option,org-agenda-persistent-marks,missing,,Non-nil means marked items will stay marked after a bulk action.
-org-agenda.el,10851,command,org-agenda-bulk-action,missing,,Execute an remote-editing action on all marked entries.
-org-agenda.el,11049,command,org-agenda-capture,missing,,Call `org-capture' with the date at point.
-org-agenda.el,11062,function,org-agenda-reapply-filters,missing,,Re-apply all agenda filters.
-org-agenda.el,11075,command,org-agenda-drag-line-forward,missing,,Drag an agenda line forward by ARG lines.
-org-agenda.el,11097,command,org-agenda-drag-line-backward,missing,,Drag an agenda line backward by ARG lines.
-org-agenda.el,11104,command,org-agenda-show-the-flagging-note,missing,,Display the flagging note in the other window.
-org-agenda.el,11137,function,org-agenda-remove-flag,missing,,Remove the FLAGGED tag and any flagging note in the entry.
-org-agenda.el,11147,function,org-agenda-get-any-marker,missing,,
-org-agenda.el,11156,command,org-agenda-to-appt,missing,,Activate appointments found in `org-agenda-files'.
-org-agenda.el,11255,function,org-agenda-today-p,missing,,Non-nil when DATE means today.
-org-agenda.el,11264,command,org-agenda-todo-yesterday,missing,,Like `org-agenda-todo' but the time of change will be 23:59 of yesterday.
-org-agenda.el,11272,command,org-agenda-ctrl-c-ctrl-c,missing,,Set tags in agenda buffer.
+org-agenda.el,10411,option,org-agenda-bulk-mark-char,done,honored by src/org/agenda,A single-character string to be used as the bulk mark.
+org-agenda.el,10417,function,org-agenda-add-entry-to-org-agenda-diary-file,internal,src/org/agenda/cmds.rs diary_entry,Add a diary entry with TYPE to `org-agenda-diary-file'.
+org-agenda.el,10497,function,org-agenda-insert-diary-as-top-level,internal,src/org/agenda/cmds.rs diary_entry,Make new entry as a top-level entry at the end of the file.
+org-agenda.el,10510,function,org-agenda-insert-diary-make-new-entry,internal,src/org/agenda/cmds.rs diary_entry,Make a new entry with TEXT as a child of the current subtree.
+org-agenda.el,10534,command,org-agenda-diary-entry,partial,"partial: appends day/weekly/monthly/yearly/anniversary entries; no block/cyclic, no date tree insertion","Make a diary entry, like the `i' command from the calendar."
+org-agenda.el,10580,function,org-agenda-execute-calendar-command,internal,src/org/agenda/cmds.rs calendar_cmd,Execute a calendar command from the agenda with date from cursor.
+org-agenda.el,10603,command,org-agenda-phases-of-moon,adapted,adapted: Meeus approximation in *Phases of Moon*,Display the phases of the moon for the 3 months around the cursor date.
+org-agenda.el,10608,command,org-agenda-holidays,partial,partial: US general and Christian holidays only (time::diary::holidays),Display the holidays for the 3 months around the cursor date.
+org-agenda.el,10617,command,org-agenda-sunrise-sunset,adapted,adapted: NOAA equations with calendar-latitude/longitude options; no prompt with C-u,Display sunrise and sunset for the cursor date.
+org-agenda.el,10630,command,org-agenda-goto-calendar,adapted,adapted: no calendar window; sets the Org calendar date and reports holidays,Open the Emacs calendar with the date at the cursor.
+org-agenda.el,10644,command,org-calendar-goto-agenda,adapted,adapted: agenda for the Org calendar date (time::calendar_date),Compute the Org agenda for the calendar date displayed at the cursor.
+org-agenda.el,10656,command,org-agenda-convert-date,partial,"partial: Gregorian, ISO, day of year, Julian, astronomical JD (no Hebrew/Islamic/French/Bahai/Mayan/Coptic/Ethiopic/Persian/Chinese)",
+org-agenda.el,10686,function,org-agenda-bulk-marked-p,internal,src/org/agenda/cmds.rs marked,Non-nil when current entry is marked for bulk action.
+org-agenda.el,10691,command,org-agenda-bulk-mark,done,src/org/agenda (cmds.rs/views.rs),Mark entries for future bulk action.
+org-agenda.el,10735,command,org-agenda-bulk-mark-all,done,src/org/agenda (cmds.rs/views.rs),Mark all entries for future agenda bulk action.
+org-agenda.el,10740,command,org-agenda-bulk-mark-regexp,done,src/org/agenda (cmds.rs/views.rs),Mark entries matching REGEXP for future agenda bulk action.
+org-agenda.el,10758,command,org-agenda-bulk-unmark,done,src/org/agenda (cmds.rs/views.rs),Unmark the entry at point for future bulk action.
+org-agenda.el,10779,command,org-agenda-bulk-toggle-all,done,src/org/agenda (cmds.rs/views.rs),Toggle all marks for bulk action.
+org-agenda.el,10788,command,org-agenda-bulk-toggle,done,src/org/agenda (cmds.rs/views.rs),Toggle the mark at point for bulk action.
+org-agenda.el,10795,command,org-agenda-bulk-remove-overlays,done,src/org/agenda (cmds.rs/views.rs),Remove the mark overlays between BEG and END in the agenda buffer.
+org-agenda.el,10807,command,org-agenda-bulk-unmark-all,done,src/org/agenda (cmds.rs/views.rs),Remove all marks in the agenda buffer.
+org-agenda.el,10816,option,org-agenda-persistent-marks,done,honored by src/org/agenda,Non-nil means marked items will stay marked after a bulk action.
+org-agenda.el,10851,command,org-agenda-bulk-action,partial,partial: refile asks for a typed target; [f] runs Org commands by name; scatter uses a simple random,Execute an remote-editing action on all marked entries.
+org-agenda.el,11049,command,org-agenda-capture,partial,org-overriding-default-time for the template time (not the datetree date),Call `org-capture' with the date at point.
+org-agenda.el,11062,function,org-agenda-reapply-filters,internal,src/org/agenda/filter.rs apply,Re-apply all agenda filters.
+org-agenda.el,11075,command,org-agenda-drag-line-forward,done,src/org/agenda (cmds.rs/views.rs),Drag an agenda line forward by ARG lines.
+org-agenda.el,11097,command,org-agenda-drag-line-backward,done,src/org/agenda (cmds.rs/views.rs),Drag an agenda line backward by ARG lines.
+org-agenda.el,11104,command,org-agenda-show-the-flagging-note,done,src/org/agenda (cmds.rs/views.rs),Display the flagging note in the other window.
+org-agenda.el,11137,function,org-agenda-remove-flag,internal,src/org/agenda/cmds.rs flagging_note,Remove the FLAGGED tag and any flagging note in the entry.
+org-agenda.el,11147,function,org-agenda-get-any-marker,internal,src/org/agenda (Rust function of the same role),
+org-agenda.el,11156,command,org-agenda-to-appt,partial,partial: collects today's timed entries (filter arg ignored); Fred has no appt notifications,Activate appointments found in `org-agenda-files'.
+org-agenda.el,11255,function,org-agenda-today-p,internal,src/org/agenda/collect.rs,Non-nil when DATE means today.
+org-agenda.el,11264,command,org-agenda-todo-yesterday,partial,partial: org-use-effective-time binding only during the command,Like `org-agenda-todo' but the time of change will be 23:59 of yesterday.
+org-agenda.el,11272,command,org-agenda-ctrl-c-ctrl-c,done,src/org/agenda (cmds.rs/views.rs),Set tags in agenda buffer.
 org-agenda.el,,option,org-agenda-align-tags-to-column,missing,,Shift tags in agenda items to this column.
 org-agenda.el,,option,org-agenda-search-view-search-words-only,missing,,Non-nil means the search string is interpreted as individual parts.
 org-agenda.el,,option,org-agenda-remove-tags-when-in-prefix,missing,,Non-nil means remove the tags from the headline copy in the agenda.
@@ -2595,32 +2595,32 @@ org-goto.el,182,command,org-goto-right,done,src/org/goto.rs,Finish `org-goto' by
 org-goto.el,192,command,org-goto-quit,done,src/org/goto.rs,Finish `org-goto' without cursor motion.
 org-goto.el,204,function,org-goto-location,internal,src/org/goto.rs,Let the user select a location in current buffer.
 org-goto.el,245,command,org-goto,done,src/org/goto.rs,"Look up a different location in the current file, keeping current visibility."
-org-habit.el,43,option,org-habit-graph-column,missing,,The absolute column at which to insert habit consistency graphs.
-org-habit.el,49,option,org-habit-preceding-days,missing,,Number of days before today to appear in consistency graphs.
-org-habit.el,54,option,org-habit-following-days,missing,,Number of days after today to appear in consistency graphs.
-org-habit.el,59,option,org-habit-show-habits,missing,,"If non-nil, show habits in agenda buffers."
-org-habit.el,64,option,org-habit-show-habits-only-for-today,missing,,"If non-nil, only show habits on today's agenda, and not for future days."
-org-habit.el,71,option,org-habit-show-all-today,missing,,"If non-nil, show the consistency graph of all habits on"
-org-habit.el,77,option,org-habit-today-glyph,missing,,Glyph character used to identify today.
-org-habit.el,83,option,org-habit-completed-glyph,missing,,Glyph character used to show completed days on which a task was done.
-org-habit.el,89,option,org-habit-show-done-always-green,missing,,Non-nil means DONE days will always be green in the consistency graph.
-org-habit.el,95,option,org-habit-scheduled-past-days,missing,,"Value to use instead of `org-scheduled-past-days', for habits only."
-org-habit.el,162,function,org-habit-repeater-to-days,missing,,
-org-habit.el,172,function,org-habit-duration-to-days,missing,,
-org-habit.el,181,function,org-is-habit-p,missing,,Is the task at EPOM or point a habit?
-org-habit.el,186,function,org-habit-parse-todo,missing,,Parse the TODO EPOM for its habit-related data.
-org-habit.el,271,function,org-habit-scheduled,missing,,
-org-habit.el,273,function,org-habit-scheduled-repeat,missing,,
-org-habit.el,275,function,org-habit-deadline,missing,,
-org-habit.el,282,function,org-habit-deadline-repeat,missing,,
-org-habit.el,285,function,org-habit-done-dates,missing,,
-org-habit.el,287,function,org-habit-repeat-type,missing,,
-org-habit.el,290,function,org-habit-get-urgency,missing,,Determine the relative urgency of a habit.
-org-habit.el,312,function,org-habit-get-faces,missing,,Return faces for HABIT relative to NOW-DAYS and SCHEDULED-DAYS.
-org-habit.el,347,function,org-habit-build-graph,missing,,"Build a graph for the given HABIT, from STARTING to ENDING."
-org-habit.el,453,function,org-habit-insert-consistency-graphs,missing,,Insert consistency graph for any habitual tasks.
-org-habit.el,489,command,org-habit-toggle-habits,missing,,Toggle display of habits in an agenda buffer.
-org-habit.el,499,command,org-habit-toggle-display-in-agenda,missing,,Toggle display of habits in agenda.
+org-habit.el,43,option,org-habit-graph-column,done,honored by src/org/agenda,The absolute column at which to insert habit consistency graphs.
+org-habit.el,49,option,org-habit-preceding-days,done,honored by src/org/agenda,Number of days before today to appear in consistency graphs.
+org-habit.el,54,option,org-habit-following-days,done,honored by src/org/agenda,Number of days after today to appear in consistency graphs.
+org-habit.el,59,option,org-habit-show-habits,done,honored by src/org/agenda,"If non-nil, show habits in agenda buffers."
+org-habit.el,64,option,org-habit-show-habits-only-for-today,done,honored by src/org/agenda,"If non-nil, only show habits on today's agenda, and not for future days."
+org-habit.el,71,option,org-habit-show-all-today,done,honored by src/org/agenda,"If non-nil, show the consistency graph of all habits on"
+org-habit.el,77,option,org-habit-today-glyph,done,honored by src/org/agenda,Glyph character used to identify today.
+org-habit.el,83,option,org-habit-completed-glyph,done,honored by src/org/agenda,Glyph character used to show completed days on which a task was done.
+org-habit.el,89,option,org-habit-show-done-always-green,done,honored by src/org/agenda,Non-nil means DONE days will always be green in the consistency graph.
+org-habit.el,95,option,org-habit-scheduled-past-days,done,honored by src/org/agenda,"Value to use instead of `org-scheduled-past-days', for habits only."
+org-habit.el,162,function,org-habit-repeater-to-days,internal,src/org/agenda (Rust function of the same role),
+org-habit.el,172,function,org-habit-duration-to-days,internal,src/org/agenda/habit.rs,
+org-habit.el,181,function,org-is-habit-p,internal,src/org/agenda (Rust function of the same role),Is the task at EPOM or point a habit?
+org-habit.el,186,function,org-habit-parse-todo,internal,src/org/agenda (Rust function of the same role),Parse the TODO EPOM for its habit-related data.
+org-habit.el,271,function,org-habit-scheduled,internal,src/org/agenda/habit.rs,
+org-habit.el,273,function,org-habit-scheduled-repeat,internal,src/org/agenda/habit.rs,
+org-habit.el,275,function,org-habit-deadline,internal,src/org/agenda (Rust function of the same role),
+org-habit.el,282,function,org-habit-deadline-repeat,internal,src/org/agenda/habit.rs,
+org-habit.el,285,function,org-habit-done-dates,internal,src/org/agenda/habit.rs,
+org-habit.el,287,function,org-habit-repeat-type,internal,src/org/agenda/habit.rs,
+org-habit.el,290,function,org-habit-get-urgency,internal,src/org/agenda (Rust function of the same role),Determine the relative urgency of a habit.
+org-habit.el,312,function,org-habit-get-faces,internal,src/org/agenda (Rust function of the same role),Return faces for HABIT relative to NOW-DAYS and SCHEDULED-DAYS.
+org-habit.el,347,function,org-habit-build-graph,internal,src/org/agenda (Rust function of the same role),"Build a graph for the given HABIT, from STARTING to ENDING."
+org-habit.el,453,function,org-habit-insert-consistency-graphs,internal,src/org/agenda (Rust function of the same role),Insert consistency graph for any habitual tasks.
+org-habit.el,489,command,org-habit-toggle-habits,done,src/org/agenda (habit.rs),Toggle display of habits in an agenda buffer.
+org-habit.el,499,command,org-habit-toggle-display-in-agenda,done,src/org/agenda (habit.rs),Toggle display of habits in agenda.
 org-id.el,91,option,org-id-link-to-org-use-id,done,src/org/id.rs,Non-nil means storing a link to an Org file will use entry IDs.
 org-id.el,130,option,org-id-link-consider-parent-id,done,src/org/id.rs,Non-nil means storing a link to an Org entry considers inherited IDs.
 org-id.el,159,option,org-id-link-use-context,done,src/org/id.rs,Non-nil means enables search string context in org-id links.

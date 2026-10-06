@@ -610,7 +610,7 @@ pub fn draw(
     } else {
         std::rc::Rc::default()
     };
-    let styles = if ed.magit.is_some() || ed.org.is_some() {
+    let styles = if ed.magit.is_some() || ed.org.is_some() || ed.org_view.is_some() {
         vec![]
     } else {
         hl.styles(&ed.buf, view.top..last, budget)
@@ -664,6 +664,8 @@ pub fn draw(
         }
         let st = if ed.magit.is_some() {
             Some(magit_styles(ed, hl, l, &line))
+        } else if ed.org_view.is_some() {
+            Some(crate::org::agenda::styles(ed, l))
         } else if ed.dired.is_some() {
             Some(crate::dired::styles(ed, l))
         } else if ed.org.is_some() {
@@ -994,6 +996,7 @@ fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter) {
     let label = match (&ed.mode, &ed.dired) {
         _ if ed.zap.is_some() => "ZAP".to_string(),
         _ if ed.magit.is_some() => "MAGIT".to_string(),
+        _ if ed.org_view.is_some() => "AGENDA".to_string(),
         (Mode::Normal, Some(d)) if !d.editing => "DIRED".to_string(),
         (m, _) => mode_name(m).to_string(),
     };
@@ -1089,6 +1092,10 @@ fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter) {
     }
     let name = ed.magit.as_ref().map_or_else(
         || {
+            // An Org agenda: its buffer name and org-agenda-set-mode-name.
+            if let Some(v) = &ed.org_view {
+                return format!("{} ({})", v.name, v.mode_name);
+            }
             ed.path.as_ref().map_or_else(
                 || "[No Name]".to_string(),
                 |p| crate::pick::browse::tilde(p),

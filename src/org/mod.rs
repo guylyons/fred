@@ -597,8 +597,12 @@ type Map = &'static [(&'static str, &'static str)];
 
 /// The keymaps of this buffer, minor modes first.
 fn active_map(ed: &Editor) -> Option<Vec<Map>> {
-    if ed.org_view.is_some() {
-        return Some(vec![keymap::AGENDA_MAP]);
+    if let Some(v) = &ed.org_view {
+        // evil-execute-in-emacs-state (`\`): the next key is org-agenda-mode-map's.
+        if v.emacs_next {
+            return Some(vec![keymap::AGENDA_MAP]);
+        }
+        return Some(vec![keymap::EVIL_AGENDA_MAP, keymap::AGENDA_MAP]);
     }
     if ed.org_buffer_name.as_deref() == Some(lint::BUFFER) {
         return Some(vec![lint::MAP]);
@@ -666,20 +670,28 @@ enum Lookup {
     None,
 }
 
+/// Look `seq` up in `maps` in order: a map where `seq` is bound or is a
+/// prefix shadows the maps after it (as Evil's state maps shadow the
+/// mode's map).
 fn lookup(maps: &[Map], seq: &[Key]) -> Lookup {
-    let mut prefix = false;
-    for (desc, cmd) in maps.iter().flat_map(|m| m.iter()) {
-        let Some(keys) = parse_keys(desc) else {
-            continue;
-        };
-        if keys == seq {
-            return Lookup::Exact(cmd);
+    for m in maps {
+        let mut prefix = false;
+        for (desc, cmd) in m.iter() {
+            let Some(keys) = parse_keys(desc) else {
+                continue;
+            };
+            if keys == seq {
+                return Lookup::Exact(cmd);
+            }
+            if keys.len() > seq.len() && keys[..seq.len()] == *seq {
+                prefix = true;
+            }
         }
-        if keys.len() > seq.len() && keys[..seq.len()] == *seq {
-            prefix = true;
+        if prefix {
+            return Lookup::Prefix;
         }
     }
-    if prefix { Lookup::Prefix } else { Lookup::None }
+    Lookup::None
 }
 
 /// Describe keys the Emacs way, for messages.
@@ -822,7 +834,13 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     }
     let mut seq = ed.org_keys.clone();
     seq.push(k);
-    match lookup(&map, &seq) {
+    let found = lookup(&map, &seq);
+    if !matches!(found, Lookup::Prefix)
+        && let Some(v) = ed.org_view.as_deref_mut()
+    {
+        v.emacs_next = false;
+    }
+    match found {
         Lookup::Exact(cmd) => {
             ed.org_keys.clear();
             // A Vim count typed first is the numeric prefix.
@@ -1044,6 +1062,21 @@ pub fn read_date_timestamp(s: &str, with_time: bool, inactive: bool) -> Option<S
     } else {
         format!("<{body}>")
     })
+}
+
+thread_local! {
+    /// org-overriding-default-time for the next capture (org-agenda-capture).
+    static OVERRIDING_TIME: std::cell::Cell<Option<i64>> = const { std::cell::Cell::new(None) };
+}
+
+/// Set org-overriding-default-time for the next org-capture.
+pub fn set_overriding_time(t: Option<i64>) {
+    OVERRIDING_TIME.with(|c| c.set(t));
+}
+
+/// The time a capture uses: org-overriding-default-time (taken), else now.
+pub fn capture_time() -> i64 {
+    OVERRIDING_TIME.with(|c| c.take()).unwrap_or_else(now)
 }
 
 /// The running clock's heading as a refile target (org-refile with 2).
