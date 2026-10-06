@@ -932,7 +932,8 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
     let l = ed.cur.line;
     Some(match name {
         "org-return" => org_return(ed, false),
-        "org-return-and-maybe-indent" | "org-return-indent" | "org-newline-and-indent" => {
+        "org-return-indent" => org_return(ed, true),
+        "org-return-and-maybe-indent" | "org-newline-and-indent" => {
             org_return(ed, !super::options::bool("electric-indent-mode", true))
         }
         "org-force-self-insert" | "org-self-insert-command" => {

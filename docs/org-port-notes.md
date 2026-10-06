@@ -188,3 +188,13 @@ file prompts take a typed path.
   checksums.dat; edits apply through `todo::todo_to_inhibit` (no
   interactive notes). The agenda export (org-mobile-write-agenda-for-mobile)
   waits for the agenda port.
+
+## org-compat (src/org/compat.rs)
+
+- `FUNCTIONS`/`VARIABLES` are every `define-obsolete-{function,variable}-alias`
+  in the pinned tree, sorted. Regenerate with a regexp over
+  `lisp/*.el`: `\(define-obsolete-(function|variable)-alias\s+'(\S+)\s+'?(\S+)`.
+- `dispatch` falls back to the replacement of an obsolete command;
+  `options::get` reads an option's obsolete names from `[org]`.
+- Emacs-version shims are `internal`; flyspell, imenu, speedbar, bookmark,
+  calendar and ECB hooks stay `missing` until Fred has an equivalent.

@@ -9,6 +9,7 @@ pub mod attach;
 pub mod babel;
 pub mod buf;
 pub mod capture;
+pub mod compat;
 pub mod crypt;
 pub mod ctags;
 pub mod ctx;
@@ -839,6 +840,7 @@ const MODULES: &[Module] = &[
     protocol::command,
     ctags::command,
     mobile::command,
+    compat::command,
 ];
 
 thread_local! {
@@ -1055,7 +1057,10 @@ fn dispatch(ed: &mut Editor, name: &str, arg: Prefix) -> Result<(), String> {
             }
             Ok(())
         }
-        _ => Err(format!("{name}: not yet ported to fred")),
+        _ => match compat::function(name) {
+            Some(new) => dispatch(ed, new, arg),
+            None => Err(format!("{name}: not yet ported to fred")),
+        },
     }
 }
 

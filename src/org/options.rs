@@ -24,8 +24,14 @@ pub fn remove(name: &str) {
     TABLE.with(|t| t.borrow_mut().remove(name));
 }
 
+/// An option's value; an obsolete name (org-compat) sets it too.
 pub fn get(name: &str) -> Option<Value> {
-    TABLE.with(|t| t.borrow().get(name).cloned())
+    TABLE.with(|t| {
+        let t = t.borrow();
+        t.get(name)
+            .or_else(|| super::compat::old_names(name).find_map(|o| t.get(o)))
+            .cloned()
+    })
 }
 
 pub fn bool(name: &str, default: bool) -> bool {

@@ -1057,6 +1057,15 @@ fn change_tag_in_region(ed: &mut Editor) -> Result<(), String> {
 pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), String>> {
     Some(match name {
         "org-set-tags-command" => set_tags_command(ed, arg),
+        // org-align-tags (ALL with a prefix); org-align-all-tags (org-compat).
+        "org-align-tags" | "org-align-all-tags" => {
+            if arg != Prefix::None || name == "org-align-all-tags" {
+                align_all(ed);
+            } else if let Some(h) = super::fold::back_to_heading(ed, ed.cur.line) {
+                align(ed, h);
+            }
+            Ok(())
+        }
         "org-change-tag-in-region" => change_tag_in_region(ed),
         "org-toggle-tags-groups" => {
             let on = !super::options::bool("org-group-tags", true);
@@ -1082,6 +1091,14 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
 #[cfg(test)]
 mod tests {
     use super::super::tests::org;
+
+    #[test]
+    fn align_tags_command() {
+        let mut e = super::super::tests::org("* H :a:\n* I    :b:", "");
+        super::super::call(&mut e, "org-align-tags", Prefix::None).unwrap();
+        assert_eq!(e.buf.line(0), format!("* H{}:a:", " ".repeat(71)));
+        assert_eq!(e.buf.line(1), "* I    :b:");
+    }
     use super::*;
 
     fn eval(

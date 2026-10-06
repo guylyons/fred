@@ -235,7 +235,7 @@ ob-ditaa.el,132,option,org-ditaa-eps-jar-path,missing,,Path to the DitaaEps.jar 
 ob-ditaa.el,145,function,ob-ditaa--ensure-jar-file,missing,,"Return FILE if it exists, signal error otherwise."
 ob-ditaa.el,151,function,org-babel-execute:ditaa,missing,,Execute BODY of ditaa code with org-babel according to PARAMS.
 ob-ditaa.el,205,function,org-babel-prep-session:ditaa,missing,,Return an error because ditaa does not support sessions.
-ob-ditaa.el,,option,org-babel-ditaa-java-cmd,missing,,Java executable to use when evaluating ditaa blocks using a JAR.
+ob-ditaa.el,,option,org-babel-ditaa-java-cmd,done,obsolete alias of org-ditaa-java-exec (compat.rs),Java executable to use when evaluating ditaa blocks using a JAR.
 ob-dot.el,52,function,org-babel-expand-body:dot,missing,,"Expand BODY according to PARAMS, return the expanded body."
 ob-dot.el,74,function,org-babel-execute:dot,missing,,Execute Dot BODY with org-babel according to PARAMS.
 ob-dot.el,94,function,org-babel-prep-session:dot,missing,,Return an error because Dot does not support sessions.
@@ -1821,179 +1821,179 @@ org-colview.el,,function,make-org-columns--spec,missing,,Constructor for objects
 org-colview.el,,function,org-columns--make-spec,missing,,Constructor for objects of type `org-columns--spec'.
 org-colview.el,,function,org-columns--spec-property,missing,,"Access slot ""property"" of `org-columns--spec' struct X."
 org-colview.el,,function,org-columns--spec-title,missing,,"Access slot ""title"" of `org-columns--spec' struct X."
-org-compat.el,184,function,org-buffer-text-pixel-width,missing,,Return pixel width of text in current buffer.
-org-compat.el,395,function,org--set-faces-extend,missing,,Set the :extend attribute of FACES to EXTEND-P.
-org-compat.el,426,function,org-babel-edit-distance,missing,,Return Levenshtein distance between STRING1 and STRING2.
-org-compat.el,485,function,org-activate-mark,missing,,Activate the mark.
-org-compat.el,486,function,org-add-hook,missing,,Add to the value of HOOK the function FUNCTION.
-org-compat.el,487,macro,org-bound-and-true-p,missing,,"Return the value of symbol VAR if it is bound, else nil."
-org-compat.el,488,command,org-decompose-region,missing,,Decompose text in the current region.
-org-compat.el,489,function,org-defvaralias,missing,,Make NEW-ALIAS a variable alias for symbol BASE-VARIABLE.
-org-compat.el,490,function,org-detach-overlay,missing,,Delete the overlay OVERLAY from its buffer.
-org-compat.el,491,function,org-file-equal-p,missing,,Return non-nil if files FILE1 and FILE2 name the same file.
-org-compat.el,492,function,org-float-time,missing,,"Return the current time, as a float number of seconds since the epoch."
-org-compat.el,493,function,org-indent-line-to,missing,,Indent current line to COLUMN.
-org-compat.el,494,command,org-indent-to-column,missing,,Indent from point with tabs and spaces until COLUMN is reached.
-org-compat.el,495,function,org-looking-at-p,missing,,Same as `looking-at' except this function does not change the match data.
-org-compat.el,496,function,org-looking-back,missing,,Return non-nil if text before point matches regular expression REGEXP.
-org-compat.el,497,function,org-match-string-no-properties,missing,,"Return string of text matched by last search, without text properties."
-org-compat.el,498,function,org-propertize,missing,,Return a copy of STRING with text properties added.
-org-compat.el,499,function,org-select-frame-set-input-focus,missing,,"Select FRAME, raise it, and set input focus, if possible."
-org-compat.el,500,function,org-file-remote-p,missing,,Test whether FILE specifies a location on a remote system.
-org-compat.el,502,function,org-show-context,missing,,Make sure point and context are visible.
-org-compat.el,503,command,org-show-entry,partial,src/org/fold.rs: ported command; acceptance gates open,Show the body directly following its heading.
-org-compat.el,504,command,org-show-children,partial,src/org/fold.rs: ported command; acceptance gates open,Show all direct subheadings of this heading.
-org-compat.el,507,macro,org-re,missing,,Replace posix classes in regular expression S.
-org-compat.el,514,function,org-count,missing,,Count the number of occurrences of ITEM in SEQ.
-org-compat.el,515,function,org-every,missing,,Return true if PREDICATE is true of every element of SEQ or SEQs.
-org-compat.el,516,function,org-find-if,missing,,Find the first item satisfying PREDICATE in SEQ.
-org-compat.el,517,function,org-reduce,missing,,Reduce two-argument FUNCTION across SEQ.
-org-compat.el,518,function,org-remove-if,missing,,Remove all items satisfying PREDICATE in SEQ.
-org-compat.el,519,function,org-remove-if-not,missing,,Remove all items not satisfying PREDICATE in SEQ.
-org-compat.el,520,function,org-some,missing,,Say whether PREDICATE is true for any element in the SEQ sequences.
-org-compat.el,521,function,org-floor*,missing,,Return a list of the floor of X and the fractional part of X.
-org-compat.el,523,function,org-sublist,missing,,"Return a section of LIST, from START to END."
-org-compat.el,532,function,org-string-collate-lessp,missing,,Return t if first arg string is less than second in collation order.
-org-compat.el,533,function,org-decode-time,missing,,Decode a timestamp into (SEC MINUTE HOUR DAY MONTH YEAR DOW DST UTCOFF).
-org-compat.el,534,function,org-format-time-string,missing,,Use FORMAT-STRING to format the time value TIME.
-org-compat.el,535,function,org-time-add,missing,,"Return the sum of two time values A and B, as a time value."
-org-compat.el,536,function,org-time-subtract,missing,,"Return the difference between two time values A and B, as a time value."
-org-compat.el,537,function,org-time-since,missing,,Return the time elapsed since TIME.
-org-compat.el,538,function,org-time-less-p,missing,,Return non-nil if time value A is less than time value B.
-org-compat.el,541,function,org-buffer-narrowed-p,missing,,Return non-nil if the current buffer is narrowed.
-org-compat.el,542,function,org-called-interactively-p,missing,,Return t if the containing function was called by `call-interactively'.
-org-compat.el,543,function,org-char-to-string,missing,,Convert arg CHAR to a string containing that character.
-org-compat.el,544,command,org-delete-directory,missing,,Delete the directory named DIRECTORY.  Does not follow symlinks.
-org-compat.el,545,function,org-format-seconds,missing,,Use format control STRING to format the time value SECONDS.
-org-compat.el,546,function,org-link-escape-browser,missing,,Return a properly URI-encoded version of URL.
-org-compat.el,547,function,org-no-warnings,missing,,"Like `progn', but prevents compiler warnings in the body."
-org-compat.el,548,function,org-number-sequence,missing,,Return a sequence of numbers from FROM to TO (both inclusive) as a list.
-org-compat.el,549,function,org-pop-to-buffer-same-window,missing,,"Select buffer BUFFER in some window, preferably the same one."
-org-compat.el,550,function,org-string-match-p,missing,,Same as `string-match' except this function does not change the match data.
-org-compat.el,561,function,org-habit-get-priority,missing,,Determine the relative urgency of a habit.
-org-compat.el,563,function,org-timestamp-format,missing,,Format a TIMESTAMP object into a string.
-org-compat.el,569,function,org-element-remove-indentation,missing,,Remove maximum common indentation in string CODE and return it.
-org-compat.el,577,function,org-table-p,missing,,Non-nil if the cursor is inside an Org table.
-org-compat.el,578,function,org-on-heading-p,missing,,Return t if point is on a (possibly invisible) heading line.
-org-compat.el,579,function,org-at-regexp-p,missing,,Check if point is inside a match of REGEXP.
-org-compat.el,580,function,org-image-file-name-regexp,missing,,Return a regular expression matching image-file filenames.
-org-compat.el,582,function,org-completing-read-no-i,missing,,"Read a string in the minibuffer, with completion."
-org-compat.el,584,function,org-icompleting-read,missing,,"Read a string in the minibuffer, with completion."
-org-compat.el,586,function,org-iread-file-name,missing,,"Read a file name, prompting with PROMPT and completing in directory DIR."
-org-compat.el,587,function,org-days-to-time,missing,,Difference between TIMESTAMP-STRING and now in days.
-org-compat.el,591,command,org-preview-latex-fragment,missing,,Toggle preview of the LaTeX fragment at point.
-org-compat.el,593,function,org-export-get-genealogy,missing,,List all ancestors of a given element or object.
-org-compat.el,600,function,org-list-parse-list,missing,,Parse the list at point and maybe DELETE it.
-org-compat.el,601,function,org-agenda-todayp,missing,,Non-nil when DATE means today.
-org-compat.el,603,command,org-babel-examplize-region,missing,,Comment out region BEG..END using the inline `==' or `: ' org example quote.
-org-compat.el,608,function,org-babel-trim,missing,,Remove whitespace at the beginning and the end of string S.
-org-compat.el,610,command,org-insert-columns-dblock,missing,,Create a dynamic block capturing a column view table.
-org-compat.el,614,function,org-activate-bracket-links,missing,,Add link properties to links.
-org-compat.el,616,command,org-activate-plain-links,missing,,"Ignore ARGUMENTS, do nothing, and return nil."
-org-compat.el,617,command,org-activate-angle-links,missing,,"Ignore ARGUMENTS, do nothing, and return nil."
-org-compat.el,618,function,org-remove-double-quotes,missing,,"Strip double quotes from around STRING, if applicable."
-org-compat.el,619,function,org-get-indentation,missing,,Return the indentation of the current line.
-org-compat.el,621,function,org-capture-member,missing,,Get PROPERTY from the capture property list `org-capture-plist'.
-org-compat.el,622,function,org-remove-from-invisibility-spec,missing,,Remove ELEMENT from `buffer-invisibility-spec'.
-org-compat.el,628,command,org-toggle-latex-fragment,missing,,Toggle preview of the LaTeX fragment at point.
-org-compat.el,631,function,org-remove-latex-fragment-image-overlays,missing,,Remove all overlays with LaTeX fragment images in current buffer.
-org-compat.el,634,function,org-hide-archived-subtrees,missing,,Re-hide all archived subtrees after a visibility state change.
-org-compat.el,637,function,org-flag-region,missing,,"Hide or show lines from FROM to TO, according to FLAG."
-org-compat.el,640,function,org-flag-subtree,missing,,Hide (when FLAG) or reveal subtree at point.
-org-compat.el,643,command,org-hide-entry,partial,src/org/fold.rs: ported command; acceptance gates open,Hide the body directly following this heading.
-org-compat.el,646,command,org-show-subtree,partial,src/org/fold.rs: ported command; acceptance gates open,Show everything after this heading at deeper levels.
-org-compat.el,649,function,org--hide-wrapper-toggle,missing,,Toggle visibility for ELEMENT.
-org-compat.el,652,command,org-hide-block-toggle,partial,src/org/fold.rs: ported command; acceptance gates open,Toggle the visibility of the current block.
-org-compat.el,655,command,org-hide-drawer-toggle,partial,src/org/fold.rs: ported command; acceptance gates open,Toggle the visibility of the current drawer.
-org-compat.el,658,function,org--hide-drawers,missing,,Hide all drawers between BEGIN and END.
-org-compat.el,661,command,org-hide-block-all,partial,src/org/fold.rs: ported command; acceptance gates open,Fold all blocks in the current buffer.
-org-compat.el,664,command,org-hide-drawer-all,partial,src/org/fold.rs: ported command; acceptance gates open,Fold all drawers in the current buffer or active region BEGIN..END.
-org-compat.el,667,command,org-show-all,partial,src/org/fold.rs: ported command; acceptance gates open,Show all contents in the visible part of the buffer.
-org-compat.el,670,function,org-set-startup-visibility,missing,,Set the visibility required by startup options and properties.
-org-compat.el,673,function,org-show-set-visibility,missing,,Set visibility around point according to DETAIL.
-org-compat.el,676,function,org-check-before-invisible-edit,missing,,Check if editing KIND is dangerous with invisible text around.
-org-compat.el,679,function,org-flag-above-first-heading,missing,,Hide from bob up to the first heading.
-org-compat.el,682,function,org-show-branches-buffer,missing,,Show all branches in the buffer.
-org-compat.el,685,function,org-show-siblings,missing,,Show all siblings of the current headline.
-org-compat.el,688,command,org-show-hidden-entry,missing,,Show the body directly following its heading.
-org-compat.el,691,function,org-flag-heading,missing,,Fold/unfold the current heading.  FLAG non-nil means make invisible.
-org-compat.el,697,command,org-set-visibility-according-to-property,partial,src/org/fold.rs: ported command; acceptance gates open,Switch subtree visibility according to VISIBILITY property.
-org-compat.el,702,function,org-optimize-window-after-visibility-change,missing,,Adjust the window after a change in outline visibility.
-org-compat.el,713,function,org-file-url-p,missing,,Non-nil if string S is a URL.
-org-compat.el,731,function,org-cached-entry-get,missing,,
-org-compat.el,767,function,org-in-fixed-width-region-p,missing,,Non-nil if point in a fixed-width region.
-org-compat.el,775,function,org--math-always-on,missing,,Return t inside math fragments or running `cdlatex-math-symbol'.
-org-compat.el,778,macro,org-no-popups,missing,,Suppress popup windows and evaluate BODY.
-org-compat.el,784,function,org-switch-to-buffer-other-window,missing,,Switch to buffer in a second window on the current frame.
-org-compat.el,795,function,org-compatible-face,missing,,Make a compatible face specification.
-org-compat.el,806,function,org-add-link-type,missing,,Add a new TYPE link.
-org-compat.el,838,function,org-table-recognize-table.el,missing,,"If there is a table.el table nearby, recognize it and move into it."
-org-compat.el,861,macro,org-preserve-lc,missing,,
-org-compat.el,873,function,org-version-check,missing,,Non-nil if VERSION is lower (older) than `emacs-version'.
-org-compat.el,879,function,org-remove-angle-brackets,missing,,
+org-compat.el,184,function,org-buffer-text-pixel-width,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Return pixel width of text in current buffer.
+org-compat.el,395,function,org--set-faces-extend,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Set the :extend attribute of FACES to EXTEND-P.
+org-compat.el,426,function,org-babel-edit-distance,done,obsolete alias of org-string-distance (compat.rs),Return Levenshtein distance between STRING1 and STRING2.
+org-compat.el,485,function,org-activate-mark,done,obsolete alias of activate-mark (compat.rs),Activate the mark.
+org-compat.el,486,function,org-add-hook,done,obsolete alias of add-hook (compat.rs),Add to the value of HOOK the function FUNCTION.
+org-compat.el,487,macro,org-bound-and-true-p,done,obsolete alias of bound-and-true-p (compat.rs),"Return the value of symbol VAR if it is bound, else nil."
+org-compat.el,488,command,org-decompose-region,done,obsolete alias of decompose-region (compat.rs),Decompose text in the current region.
+org-compat.el,489,function,org-defvaralias,done,obsolete alias of defvaralias (compat.rs),Make NEW-ALIAS a variable alias for symbol BASE-VARIABLE.
+org-compat.el,490,function,org-detach-overlay,done,obsolete alias of delete-overlay (compat.rs),Delete the overlay OVERLAY from its buffer.
+org-compat.el,491,function,org-file-equal-p,done,obsolete alias of file-equal-p (compat.rs),Return non-nil if files FILE1 and FILE2 name the same file.
+org-compat.el,492,function,org-float-time,done,obsolete alias of float-time (compat.rs),"Return the current time, as a float number of seconds since the epoch."
+org-compat.el,493,function,org-indent-line-to,done,obsolete alias of indent-line-to (compat.rs),Indent current line to COLUMN.
+org-compat.el,494,command,org-indent-to-column,done,obsolete alias of indent-to-column (compat.rs),Indent from point with tabs and spaces until COLUMN is reached.
+org-compat.el,495,function,org-looking-at-p,done,obsolete alias of looking-at-p (compat.rs),Same as `looking-at' except this function does not change the match data.
+org-compat.el,496,function,org-looking-back,done,obsolete alias of looking-back (compat.rs),Return non-nil if text before point matches regular expression REGEXP.
+org-compat.el,497,function,org-match-string-no-properties,done,obsolete alias of match-string-no-properties (compat.rs),"Return string of text matched by last search, without text properties."
+org-compat.el,498,function,org-propertize,done,obsolete alias of propertize (compat.rs),Return a copy of STRING with text properties added.
+org-compat.el,499,function,org-select-frame-set-input-focus,done,obsolete alias of select-frame-set-input-focus (compat.rs),"Select FRAME, raise it, and set input focus, if possible."
+org-compat.el,500,function,org-file-remote-p,done,obsolete alias of file-remote-p (compat.rs),Test whether FILE specifies a location on a remote system.
+org-compat.el,502,function,org-show-context,done,obsolete alias of org-fold-show-context (compat.rs),Make sure point and context are visible.
+org-compat.el,503,command,org-show-entry,done,obsolete alias of org-fold-show-entry (compat.rs),Show the body directly following its heading.
+org-compat.el,504,command,org-show-children,done,obsolete alias of org-fold-show-children (compat.rs),Show all direct subheadings of this heading.
+org-compat.el,507,macro,org-re,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Replace posix classes in regular expression S.
+org-compat.el,514,function,org-count,done,obsolete alias of cl-count (compat.rs),Count the number of occurrences of ITEM in SEQ.
+org-compat.el,515,function,org-every,done,obsolete alias of cl-every (compat.rs),Return true if PREDICATE is true of every element of SEQ or SEQs.
+org-compat.el,516,function,org-find-if,done,obsolete alias of cl-find-if (compat.rs),Find the first item satisfying PREDICATE in SEQ.
+org-compat.el,517,function,org-reduce,done,obsolete alias of cl-reduce (compat.rs),Reduce two-argument FUNCTION across SEQ.
+org-compat.el,518,function,org-remove-if,done,obsolete alias of cl-remove-if (compat.rs),Remove all items satisfying PREDICATE in SEQ.
+org-compat.el,519,function,org-remove-if-not,done,obsolete alias of cl-remove-if-not (compat.rs),Remove all items not satisfying PREDICATE in SEQ.
+org-compat.el,520,function,org-some,done,obsolete alias of cl-some (compat.rs),Say whether PREDICATE is true for any element in the SEQ sequences.
+org-compat.el,521,function,org-floor*,done,obsolete alias of cl-floor (compat.rs),Return a list of the floor of X and the fractional part of X.
+org-compat.el,523,function,org-sublist,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,"Return a section of LIST, from START to END."
+org-compat.el,532,function,org-string-collate-lessp,done,obsolete alias of string-collate-lessp (compat.rs),Return t if first arg string is less than second in collation order.
+org-compat.el,533,function,org-decode-time,done,obsolete alias of decode-time (compat.rs),Decode a timestamp into (SEC MINUTE HOUR DAY MONTH YEAR DOW DST UTCOFF).
+org-compat.el,534,function,org-format-time-string,done,obsolete alias of format-time-string (compat.rs),Use FORMAT-STRING to format the time value TIME.
+org-compat.el,535,function,org-time-add,done,obsolete alias of time-add (compat.rs),"Return the sum of two time values A and B, as a time value."
+org-compat.el,536,function,org-time-subtract,done,obsolete alias of time-subtract (compat.rs),"Return the difference between two time values A and B, as a time value."
+org-compat.el,537,function,org-time-since,done,obsolete alias of time-since (compat.rs),Return the time elapsed since TIME.
+org-compat.el,538,function,org-time-less-p,done,obsolete alias of time-less-p (compat.rs),Return non-nil if time value A is less than time value B.
+org-compat.el,541,function,org-buffer-narrowed-p,done,obsolete alias of buffer-narrowed-p (compat.rs),Return non-nil if the current buffer is narrowed.
+org-compat.el,542,function,org-called-interactively-p,done,obsolete alias of called-interactively-p (compat.rs),Return t if the containing function was called by `call-interactively'.
+org-compat.el,543,function,org-char-to-string,done,obsolete alias of char-to-string (compat.rs),Convert arg CHAR to a string containing that character.
+org-compat.el,544,command,org-delete-directory,done,obsolete alias of delete-directory (compat.rs),Delete the directory named DIRECTORY.  Does not follow symlinks.
+org-compat.el,545,function,org-format-seconds,done,obsolete alias of format-seconds (compat.rs),Use format control STRING to format the time value SECONDS.
+org-compat.el,546,function,org-link-escape-browser,done,obsolete alias of url-encode-url (compat.rs),Return a properly URI-encoded version of URL.
+org-compat.el,547,function,org-no-warnings,done,obsolete alias of with-no-warnings (compat.rs),"Like `progn', but prevents compiler warnings in the body."
+org-compat.el,548,function,org-number-sequence,done,obsolete alias of number-sequence (compat.rs),Return a sequence of numbers from FROM to TO (both inclusive) as a list.
+org-compat.el,549,function,org-pop-to-buffer-same-window,done,obsolete alias of pop-to-buffer-same-window (compat.rs),"Select buffer BUFFER in some window, preferably the same one."
+org-compat.el,550,function,org-string-match-p,done,obsolete alias of string-match-p (compat.rs),Same as `string-match' except this function does not change the match data.
+org-compat.el,561,function,org-habit-get-priority,done,obsolete alias of org-habit-get-urgency (compat.rs),Determine the relative urgency of a habit.
+org-compat.el,563,function,org-timestamp-format,done,obsolete alias of org-format-timestamp (compat.rs),Format a TIMESTAMP object into a string.
+org-compat.el,569,function,org-element-remove-indentation,done,obsolete alias of org-remove-indentation (compat.rs),Remove maximum common indentation in string CODE and return it.
+org-compat.el,577,function,org-table-p,done,obsolete alias of org-at-table-p (compat.rs),Non-nil if the cursor is inside an Org table.
+org-compat.el,578,function,org-on-heading-p,done,obsolete alias of org-at-heading-p (compat.rs),Return t if point is on a (possibly invisible) heading line.
+org-compat.el,579,function,org-at-regexp-p,done,obsolete alias of org-in-regexp (compat.rs),Check if point is inside a match of REGEXP.
+org-compat.el,580,function,org-image-file-name-regexp,done,obsolete alias of image-file-name-regexp (compat.rs),Return a regular expression matching image-file filenames.
+org-compat.el,582,function,org-completing-read-no-i,done,obsolete alias of completing-read (compat.rs),"Read a string in the minibuffer, with completion."
+org-compat.el,584,function,org-icompleting-read,done,obsolete alias of completing-read (compat.rs),"Read a string in the minibuffer, with completion."
+org-compat.el,586,function,org-iread-file-name,done,obsolete alias of read-file-name (compat.rs),"Read a file name, prompting with PROMPT and completing in directory DIR."
+org-compat.el,587,function,org-days-to-time,done,obsolete alias of org-timestamp-to-now (compat.rs),Difference between TIMESTAMP-STRING and now in days.
+org-compat.el,591,command,org-preview-latex-fragment,done,obsolete alias of org-toggle-latex-fragment (compat.rs),Toggle preview of the LaTeX fragment at point.
+org-compat.el,593,function,org-export-get-genealogy,done,obsolete alias of org-element-lineage (compat.rs),List all ancestors of a given element or object.
+org-compat.el,600,function,org-list-parse-list,done,obsolete alias of org-list-to-lisp (compat.rs),Parse the list at point and maybe DELETE it.
+org-compat.el,601,function,org-agenda-todayp,done,obsolete alias of org-agenda-today-p (compat.rs),Non-nil when DATE means today.
+org-compat.el,603,command,org-babel-examplize-region,done,obsolete alias of org-babel-examplify-region (compat.rs),Comment out region BEG..END using the inline `==' or `: ' org example quote.
+org-compat.el,608,function,org-babel-trim,done,obsolete alias of org-trim (compat.rs),Remove whitespace at the beginning and the end of string S.
+org-compat.el,610,command,org-insert-columns-dblock,done,obsolete alias of org-columns-insert-dblock (compat.rs),Create a dynamic block capturing a column view table.
+org-compat.el,614,function,org-activate-bracket-links,done,obsolete alias of org-activate-links (compat.rs),Add link properties to links.
+org-compat.el,616,command,org-activate-plain-links,done,obsolete alias of ignore (compat.rs),"Ignore ARGUMENTS, do nothing, and return nil."
+org-compat.el,617,command,org-activate-angle-links,done,obsolete alias of ignore (compat.rs),"Ignore ARGUMENTS, do nothing, and return nil."
+org-compat.el,618,function,org-remove-double-quotes,done,obsolete alias of org-strip-quotes (compat.rs),"Strip double quotes from around STRING, if applicable."
+org-compat.el,619,function,org-get-indentation,done,obsolete alias of current-indentation (compat.rs),Return the indentation of the current line.
+org-compat.el,621,function,org-capture-member,done,obsolete alias of org-capture-get (compat.rs),Get PROPERTY from the capture property list `org-capture-plist'.
+org-compat.el,622,function,org-remove-from-invisibility-spec,done,obsolete alias of remove-from-invisibility-spec (compat.rs),Remove ELEMENT from `buffer-invisibility-spec'.
+org-compat.el,628,command,org-toggle-latex-fragment,done,obsolete alias of org-latex-preview (compat.rs),Toggle preview of the LaTeX fragment at point.
+org-compat.el,631,function,org-remove-latex-fragment-image-overlays,done,obsolete alias of org-clear-latex-preview (compat.rs),Remove all overlays with LaTeX fragment images in current buffer.
+org-compat.el,634,function,org-hide-archived-subtrees,done,obsolete alias of org-fold-hide-archived-subtrees (compat.rs),Re-hide all archived subtrees after a visibility state change.
+org-compat.el,637,function,org-flag-region,done,obsolete alias of org-fold-region (compat.rs),"Hide or show lines from FROM to TO, according to FLAG."
+org-compat.el,640,function,org-flag-subtree,done,obsolete alias of org-fold-subtree (compat.rs),Hide (when FLAG) or reveal subtree at point.
+org-compat.el,643,command,org-hide-entry,done,obsolete alias of org-fold-hide-entry (compat.rs),Hide the body directly following this heading.
+org-compat.el,646,command,org-show-subtree,done,obsolete alias of org-fold-show-subtree (compat.rs),Show everything after this heading at deeper levels.
+org-compat.el,649,function,org--hide-wrapper-toggle,done,obsolete alias of org-fold--hide-wrapper-toggle (compat.rs),Toggle visibility for ELEMENT.
+org-compat.el,652,command,org-hide-block-toggle,done,obsolete alias of org-fold-hide-block-toggle (compat.rs),Toggle the visibility of the current block.
+org-compat.el,655,command,org-hide-drawer-toggle,done,obsolete alias of org-fold-hide-drawer-toggle (compat.rs),Toggle the visibility of the current drawer.
+org-compat.el,658,function,org--hide-drawers,done,obsolete alias of org-fold--hide-drawers (compat.rs),Hide all drawers between BEGIN and END.
+org-compat.el,661,command,org-hide-block-all,done,obsolete alias of org-fold-hide-block-all (compat.rs),Fold all blocks in the current buffer.
+org-compat.el,664,command,org-hide-drawer-all,done,obsolete alias of org-fold-hide-drawer-all (compat.rs),Fold all drawers in the current buffer or active region BEGIN..END.
+org-compat.el,667,command,org-show-all,done,obsolete alias of org-fold-show-all (compat.rs),Show all contents in the visible part of the buffer.
+org-compat.el,670,function,org-set-startup-visibility,done,obsolete alias of org-cycle-set-startup-visibility (compat.rs),Set the visibility required by startup options and properties.
+org-compat.el,673,function,org-show-set-visibility,done,obsolete alias of org-fold-show-set-visibility (compat.rs),Set visibility around point according to DETAIL.
+org-compat.el,676,function,org-check-before-invisible-edit,done,obsolete alias of org-fold-check-before-invisible-edit (compat.rs),Check if editing KIND is dangerous with invisible text around.
+org-compat.el,679,function,org-flag-above-first-heading,done,obsolete alias of org-fold-flag-above-first-heading (compat.rs),Hide from bob up to the first heading.
+org-compat.el,682,function,org-show-branches-buffer,done,obsolete alias of org-fold-show-branches-buffer (compat.rs),Show all branches in the buffer.
+org-compat.el,685,function,org-show-siblings,done,obsolete alias of org-fold-show-siblings (compat.rs),Show all siblings of the current headline.
+org-compat.el,688,command,org-show-hidden-entry,done,obsolete alias of org-fold-show-hidden-entry (compat.rs),Show the body directly following its heading.
+org-compat.el,691,function,org-flag-heading,done,obsolete alias of org-fold-heading (compat.rs),Fold/unfold the current heading.  FLAG non-nil means make invisible.
+org-compat.el,697,command,org-set-visibility-according-to-property,done,obsolete alias of org-cycle-set-visibility-according-to-property (compat.rs),Switch subtree visibility according to VISIBILITY property.
+org-compat.el,702,function,org-optimize-window-after-visibility-change,done,obsolete alias of org-cycle-optimize-window-after-visibility-change (compat.rs),Adjust the window after a change in outline visibility.
+org-compat.el,713,function,org-file-url-p,done,obsolete alias of org-url-p (compat.rs),Non-nil if string S is a URL.
+org-compat.el,731,function,org-cached-entry-get,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,
+org-compat.el,767,function,org-in-fixed-width-region-p,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Non-nil if point in a fixed-width region.
+org-compat.el,775,function,org--math-always-on,done,obsolete alias of org--math-p (compat.rs),Return t inside math fragments or running `cdlatex-math-symbol'.
+org-compat.el,778,macro,org-no-popups,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Suppress popup windows and evaluate BODY.
+org-compat.el,784,function,org-switch-to-buffer-other-window,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Switch to buffer in a second window on the current frame.
+org-compat.el,795,function,org-compatible-face,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Make a compatible face specification.
+org-compat.el,806,function,org-add-link-type,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Add a new TYPE link.
+org-compat.el,838,function,org-table-recognize-table.el,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,"If there is a table.el table nearby, recognize it and move into it."
+org-compat.el,861,macro,org-preserve-lc,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,
+org-compat.el,873,function,org-version-check,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Non-nil if VERSION is lower (older) than `emacs-version'.
+org-compat.el,879,function,org-remove-angle-brackets,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,
 org-compat.el,883,option,org-capture-bookmark,missing,,"When non-nil, add bookmark pointing at the last stored position when capturing."
 org-compat.el,893,option,org-publish-sitemap-file-entry-format,missing,,Format string for site-map file entry.
 org-compat.el,908,function,org-agenda-skip-entry-when-regexp-matches,missing,,Check if the current entry contains match for `org-agenda-skip-regexp'.
 org-compat.el,921,function,org-agenda-skip-subtree-when-regexp-matches,missing,,Check if the current subtree contains match for `org-agenda-skip-regexp'.
 org-compat.el,933,function,org-agenda-skip-entry-when-regexp-matches-in-subtree,missing,,Check if the current subtree contains match for `org-agenda-skip-regexp'.
-org-compat.el,948,function,org-minutes-to-clocksum-string,missing,,Return duration string for a given number of MINUTES.
-org-compat.el,951,function,org-hh:mm-string-to-minutes,missing,,Return number of minutes of DURATION string.
-org-compat.el,954,function,org-duration-string-to-minutes,missing,,Return number of minutes of DURATION string.
-org-compat.el,969,function,org-babel-number-p,missing,,If STRING represents a number return its value.
-org-compat.el,1017,function,org-file-complete-link,missing,,Create a file link using completion.
-org-compat.el,1020,function,org-email-link-description,missing,,Return the description part of an email link.
-org-compat.el,1023,function,org-make-link-string,missing,,"Make a bracket link, consisting of LINK and DESCRIPTION."
-org-compat.el,1026,function,org-store-link-props,missing,,Store link properties PLIST.
-org-compat.el,1029,function,org-add-link-props,missing,,Add these properties to the link property list PLIST.
-org-compat.el,1032,function,org-make-org-heading-search-string,missing,,Make search string for the current headline or STRING.
-org-compat.el,1035,function,org-make-link-regexps,missing,,Update the link regular expressions.
-org-compat.el,1038,function,org-property-global-value,missing,,
-org-compat.el,1058,command,org-open-link-from-string,partial,src/org/links.rs: ported command; acceptance gates open,"Open a link in the string S, as if it was in Org mode."
-org-compat.el,1061,function,org-add-angle-brackets,missing,,Wrap string S within angle brackets.
-org-compat.el,1075,function,org-display-inline-remove-overlay,missing,,Remove link-preview overlay OV if a corresponding region is modified.
-org-compat.el,1077,function,org--inline-image-overlays,missing,,Return link preview overlays between BEG and END.
-org-compat.el,1079,command,org-remove-inline-images,missing,,Clear link previews in region BEG to END.
-org-compat.el,1081,command,org-redisplay-inline-images,missing,,Assure display of link previews in buffer and refresh them.
+org-compat.el,948,function,org-minutes-to-clocksum-string,done,obsolete alias of org-duration-from-minutes (compat.rs),Return duration string for a given number of MINUTES.
+org-compat.el,951,function,org-hh:mm-string-to-minutes,done,obsolete alias of org-duration-to-minutes (compat.rs),Return number of minutes of DURATION string.
+org-compat.el,954,function,org-duration-string-to-minutes,done,obsolete alias of org-duration-to-minutes (compat.rs),Return number of minutes of DURATION string.
+org-compat.el,969,function,org-babel-number-p,done,obsolete alias of org-babel--string-to-number (compat.rs),If STRING represents a number return its value.
+org-compat.el,1017,function,org-file-complete-link,done,obsolete alias of org-link-complete-file (compat.rs),Create a file link using completion.
+org-compat.el,1020,function,org-email-link-description,done,obsolete alias of org-link-email-description (compat.rs),Return the description part of an email link.
+org-compat.el,1023,function,org-make-link-string,done,obsolete alias of org-link-make-string (compat.rs),"Make a bracket link, consisting of LINK and DESCRIPTION."
+org-compat.el,1026,function,org-store-link-props,done,obsolete alias of org-link-store-props (compat.rs),Store link properties PLIST.
+org-compat.el,1029,function,org-add-link-props,done,obsolete alias of org-link-add-props (compat.rs),Add these properties to the link property list PLIST.
+org-compat.el,1032,function,org-make-org-heading-search-string,done,obsolete alias of org-link-heading-search-string (compat.rs),Make search string for the current headline or STRING.
+org-compat.el,1035,function,org-make-link-regexps,done,obsolete alias of org-link-make-regexps (compat.rs),Update the link regular expressions.
+org-compat.el,1038,function,org-property-global-value,done,obsolete alias of org-property-global-or-keyword-value (compat.rs),
+org-compat.el,1058,command,org-open-link-from-string,done,obsolete alias of org-link-open-from-string (compat.rs),"Open a link in the string S, as if it was in Org mode."
+org-compat.el,1061,function,org-add-angle-brackets,done,obsolete alias of org-link-add-angle-brackets (compat.rs),Wrap string S within angle brackets.
+org-compat.el,1075,function,org-display-inline-remove-overlay,done,obsolete alias of org-link-preview--remove-overlay (compat.rs),Remove link-preview overlay OV if a corresponding region is modified.
+org-compat.el,1077,function,org--inline-image-overlays,done,obsolete alias of org-link-preview--get-overlays (compat.rs),Return link preview overlays between BEG and END.
+org-compat.el,1079,command,org-remove-inline-images,done,obsolete alias of org-link-preview-clear (compat.rs),Clear link previews in region BEG to END.
+org-compat.el,1081,command,org-redisplay-inline-images,done,obsolete alias of org-link-preview-refresh (compat.rs),Assure display of link previews in buffer and refresh them.
 org-compat.el,1094,command,org-display-inline-images,missing,,Display inline images.
 org-compat.el,1231,command,org-toggle-inline-images,missing,,Toggle the display of inline images.
-org-compat.el,1255,command,org-show-block-all,missing,,Unfold all blocks in the current buffer.
-org-compat.el,1264,function,org-get-tags-at,missing,,Get the list of tags specified in the headline at EPOM.
-org-compat.el,1266,function,org-get-local-tags,missing,,Get a list of tags defined in the current headline.
-org-compat.el,1271,function,org-get-local-tags-at,missing,,Get a list of tags defined in the current headline.
-org-compat.el,1276,function,org-get-tags-string,missing,,Get the TAGS string in the current headline.
-org-compat.el,1281,function,org-set-tags-to,missing,,"Set the tags of the current entry to TAGS, replacing current tags."
-org-compat.el,1283,function,org-align-all-tags,missing,,Align the tags in all headings.
-org-compat.el,1288,function,org-at-property-block-p,missing,,Non-nil when point is at the first line of a property drawer.
-org-compat.el,1291,function,org-flag-drawer,missing,,"When FLAG is non-nil, hide the drawer we are at."
-org-compat.el,1321,command,org-hide-block-toggle-maybe,missing,,Toggle visibility of block at point.
-org-compat.el,1329,function,org-hide-block-toggle-all,missing,,Toggle the visibility of all blocks in the current buffer.
-org-compat.el,1345,command,org-return-indent,partial,src/org/editing.rs: ported command; acceptance gates open,Goto next table row or insert a newline and indent.
-org-compat.el,1354,macro,org-with-silent-modifications,missing,,
-org-compat.el,1359,function,org-babel-strip-quotes,missing,,"Strip double quotes from around STRING, if applicable."
-org-compat.el,1379,command,org-copy,missing,,"Like `org-refile', but preserve the refiled subtree."
-org-compat.el,1381,function,org-get-last-sibling,missing,,"Move to previous heading of the same level, and return point."
-org-compat.el,1383,function,org-publish-cache-ctime-of-src,missing,,Get the mtime of FILE as an integer.
-org-compat.el,1386,function,org-truely-invisible-p,missing,,Compatibility alias for legacy misspelling of `org-truly-invisible-p'.
-org-compat.el,1544,function,ob-clojure-eval-with-babashka,missing,,"Evaluate EXPANDED code block using CMD (babashka, clojure or nbb)."
-org-compat.el,1547,function,org-export-get-parent,missing,,Return `:parent' property of NODE.
-org-compat.el,1549,function,org-export-get-parent-element,missing,,Return first element containing OBJECT or nil.
-org-compat.el,1552,function,org-print-speed-command,missing,,Internal function.  Subject of unannounced changes.
-org-compat.el,1569,function,org-get-x-clipboard,missing,,Get the value of the X or Windows clipboard.
-org-compat.el,1588,function,org-region-active-p,missing,,Non-nil when the region active.
-org-compat.el,1594,function,org-cursor-to-region-beginning,missing,,
-org-compat.el,1602,function,org-in-invisibility-spec-p,missing,,Is ARG a member of `buffer-invisibility-spec'?
-org-compat.el,1607,function,org-move-to-column,missing,,Move to column COLUMN.
-org-compat.el,1616,macro,org-find-library-dir,missing,,
-org-compat.el,1619,function,org-count-lines,missing,,How many lines in string S?
-org-compat.el,1628,function,org-kill-new,missing,,
-org-compat.el,1634,function,org-babel-local-file-name,missing,,Return the local name component of FILE.
-org-compat.el,1642,macro,org-check-version,missing,,Try very hard to provide sensible version strings.
-org-compat.el,1659,function,org-define-error,missing,,Define NAME as a new error signal.
-org-compat.el,1660,function,org-without-partial-completion,missing,,Eval BODY forms sequentially and return value of last one.
+org-compat.el,1255,command,org-show-block-all,done,compat::command / org-return / org-align-tags,Unfold all blocks in the current buffer.
+org-compat.el,1264,function,org-get-tags-at,done,obsolete alias of org-get-tags (compat.rs),Get the list of tags specified in the headline at EPOM.
+org-compat.el,1266,function,org-get-local-tags,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Get a list of tags defined in the current headline.
+org-compat.el,1271,function,org-get-local-tags-at,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Get a list of tags defined in the current headline.
+org-compat.el,1276,function,org-get-tags-string,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Get the TAGS string in the current headline.
+org-compat.el,1281,function,org-set-tags-to,done,obsolete alias of org-set-tags (compat.rs),"Set the tags of the current entry to TAGS, replacing current tags."
+org-compat.el,1283,function,org-align-all-tags,done,compat::command / org-return / org-align-tags,Align the tags in all headings.
+org-compat.el,1288,function,org-at-property-block-p,done,obsolete alias of org-at-property-drawer-p (compat.rs),Non-nil when point is at the first line of a property drawer.
+org-compat.el,1291,function,org-flag-drawer,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,"When FLAG is non-nil, hide the drawer we are at."
+org-compat.el,1321,command,org-hide-block-toggle-maybe,done,compat::command / org-return / org-align-tags,Toggle visibility of block at point.
+org-compat.el,1329,function,org-hide-block-toggle-all,done,compat::command / org-return / org-align-tags,Toggle the visibility of all blocks in the current buffer.
+org-compat.el,1345,command,org-return-indent,done,compat::command / org-return / org-align-tags,Goto next table row or insert a newline and indent.
+org-compat.el,1354,macro,org-with-silent-modifications,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,
+org-compat.el,1359,function,org-babel-strip-quotes,done,obsolete alias of org-strip-quotes (compat.rs),"Strip double quotes from around STRING, if applicable."
+org-compat.el,1379,command,org-copy,done,obsolete alias of org-refile-copy (compat.rs),"Like `org-refile', but preserve the refiled subtree."
+org-compat.el,1381,function,org-get-last-sibling,done,obsolete alias of org-get-previous-sibling (compat.rs),"Move to previous heading of the same level, and return point."
+org-compat.el,1383,function,org-publish-cache-ctime-of-src,done,obsolete alias of org-publish-cache-mtime-of-src (compat.rs),Get the mtime of FILE as an integer.
+org-compat.el,1386,function,org-truely-invisible-p,done,obsolete alias of org-truly-invisible-p (compat.rs),Compatibility alias for legacy misspelling of `org-truly-invisible-p'.
+org-compat.el,1544,function,ob-clojure-eval-with-babashka,done,obsolete alias of #'ob-clojure-eval-with-cmd (compat.rs),"Evaluate EXPANDED code block using CMD (babashka, clojure or nbb)."
+org-compat.el,1547,function,org-export-get-parent,done,obsolete alias of org-element-parent (compat.rs),Return `:parent' property of NODE.
+org-compat.el,1549,function,org-export-get-parent-element,done,obsolete alias of org-element-parent-element (compat.rs),Return first element containing OBJECT or nil.
+org-compat.el,1552,function,org-print-speed-command,done,obsolete alias of org--print-speed-command (compat.rs),Internal function.  Subject of unannounced changes.
+org-compat.el,1569,function,org-get-x-clipboard,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Get the value of the X or Windows clipboard.
+org-compat.el,1588,function,org-region-active-p,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Non-nil when the region active.
+org-compat.el,1594,function,org-cursor-to-region-beginning,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,
+org-compat.el,1602,function,org-in-invisibility-spec-p,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Is ARG a member of `buffer-invisibility-spec'?
+org-compat.el,1607,function,org-move-to-column,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Move to column COLUMN.
+org-compat.el,1616,macro,org-find-library-dir,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,
+org-compat.el,1619,function,org-count-lines,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,How many lines in string S?
+org-compat.el,1628,function,org-kill-new,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,
+org-compat.el,1634,function,org-babel-local-file-name,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Return the local name component of FILE.
+org-compat.el,1642,macro,org-check-version,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Try very hard to provide sensible version strings.
+org-compat.el,1659,function,org-define-error,done,obsolete alias of #'define-error (compat.rs),Define NAME as a new error signal.
+org-compat.el,1660,function,org-without-partial-completion,done,obsolete alias of progn (compat.rs),Eval BODY forms sequentially and return value of last one.
 org-compat.el,1670,option,org-imenu-depth,missing,,The maximum level for Imenu access to Org headlines.
 org-compat.el,1680,function,org-imenu-get-tree,missing,,Produce the index for Imenu.
 org-compat.el,1727,command,org-speedbar-set-agenda-restriction,missing,,Restrict future agenda commands to the location at point in speedbar.
-org-compat.el,1781,function,org-add-log-current-headline,missing,,Return current headline or nil.
+org-compat.el,1781,function,org-add-log-current-headline,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Return current headline or nil.
 org-compat.el,1789,function,org--flyspell-object-check-p,missing,,Non-nil when Flyspell can check object at point.
 org-compat.el,1813,function,org-mode-flyspell-verify,missing,,Function used for `flyspell-generic-check-word-predicate'.
 org-compat.el,1865,function,org-remove-flyspell-overlays-in,missing,,Remove flyspell overlays in region.
@@ -2002,69 +2002,69 @@ org-compat.el,1890,option,org-calendar-to-agenda-key,missing,,Key to be installe
 org-compat.el,1908,option,org-calendar-insert-diary-entry-key,missing,,The key to be installed in `calendar-mode-map' for adding diary entries.
 org-compat.el,1919,function,org--setup-calendar-bindings,missing,,Bind Org functions in Calendar keymap.
 org-compat.el,1945,function,org--ecb-show-context,missing,,Make hierarchy visible when jumping into location from ECB tree buffer.
-org-compat.el,1952,function,org-mark-jump-unhide,missing,,Make the point visible with `org-fold-show-context' after jumping to the mark.
-org-compat.el,,option,org-make-link-description-function,missing,,Function to use for generating link descriptions from links.
-org-compat.el,,function,outline-toggle-children@fix-for-org-fold,missing,,Run `org-fold-hide-sublevels' when in org-mode.
-org-compat.el,,function,org-time-convert-to-list,missing,,
-org-compat.el,,option,org-from-is-user-regexp,missing,,"Regexp matched against the ""From:"" header of an email or Usenet message."
-org-compat.el,,macro,org-combine-change-calls,missing,,"Evaluate BODY, running the change hooks just once."
-org-compat.el,,option,org-display-internal-link-with-indirect-buffer,missing,,Non-nil means use indirect buffer to display infile links.
-org-compat.el,,option,org-effort-durations,missing,,Conversion factor to minutes for a duration.
-org-compat.el,,function,outline-hide-sublevels@fix-for-org-fold,missing,,Run `org-fold-hide-sublevels' when in org-mode.
-org-compat.el,,function,org-time-convert-to-integer,missing,,
-org-compat.el,,option,org-doi-server-url,missing,,The URL of the DOI server.
-org-compat.el,,option,org-checkbox-hierarchical-statistics,missing,,Non-nil means checkbox statistics counts only the state of direct children.
-org-compat.el,,option,org-confirm-shell-link-not-regexp,missing,,Regexp to skip confirmation for shell links.
-org-compat.el,,option,org-export-babel-evaluate,missing,,Switch controlling code evaluation and header processing during export.
-org-compat.el,,option,org-plantuml-executable-args,missing,,The arguments passed to plantuml when executing PlantUML.
-org-compat.el,,function,org-format-prompt,missing,,Format PROMPT with DEFAULT according to `minibuffer-default-prompt-format'.
-org-compat.el,,function,org-buffer-hash,missing,,Return a hash of the contents of BUFFER-OR-NAME.
-org-compat.el,,option,org-export-htmlized-org-css-url,missing,,URL pointing to the CSS defining colors for htmlized Emacs buffers.
-org-compat.el,,option,org-html-style,missing,,Org-wide head definitions for exported HTML files.
-org-compat.el,,option,org-confirm-elisp-link-function,missing,,Non-nil means ask for confirmation before executing Emacs Lisp links.
-org-compat.el,,option,org-email-link-description-format,missing,,Format of the description part of a link to an email or Usenet message.
-org-compat.el,,option,org-babel-capitalize-example-region-markers,missing,,"When non-nil, begin/end example markers will be inserted in upper case."
-org-compat.el,,option,org-catch-invisible-edits,missing,,Check if in invisible region before inserting or deleting a character.
-org-compat.el,,option,org-latex-listings,missing,,Backend used to generate source code listings.
-org-compat.el,,option,org-hierarchical-todo-statistics,missing,,Non-nil means TODO statistics covers just direct children.
-org-compat.el,,option,org-latex-preview-ltxpng-directory,missing,,Path to store latex preview images.
-org-compat.el,,option,org-texinfo-def-table-markup,missing,,Default markup for first column in two-column tables.
-org-compat.el,,option,org-show-context-detail,missing,,Alist between context and visibility span when revealing a location.
-org-compat.el,,option,org-confirm-shell-link-function,missing,,Non-nil means ask for confirmation before executing shell links.
-org-compat.el,,option,org-descriptive-links,missing,,Non-nil means Org displays descriptive links.
-org-compat.el,,function,org-string-clean-whitespace,missing,,Clean up whitespace in STRING.
-org-compat.el,,function,outline-next-visible-heading@fix-for-org-fold,missing,,Run `org-next-visible-heading' when in org-mode.
-org-compat.el,,function,org-string-equal-ignore-case,missing,,Compare STRING1 and STRING2 case-insensitively.
-org-compat.el,,function,org-get-buffer-create,missing,,"Return the buffer specified by BUFFER-OR-NAME, creating a new one if needed."
-org-compat.el,,option,org-sort-agenda-noeffort-is-high,missing,,Non-nil means items without effort estimate are sorted as high effort.
-org-compat.el,,option,org-edit-src-content-indentation,missing,,Indentation for the content of a source code block.
-org-compat.el,,option,org-latex-with-hyperref,missing,,Template for hyperref package options.
-org-compat.el,,command,org-newline-and-indent,partial,src/org/editing.rs: ported command; acceptance gates open,"Insert a newline, then indent according to major mode."
-org-compat.el,,macro,org-with-undo-amalgamate,missing,,Like `progn' but perform BODY with amalgamated undo barriers.
-org-compat.el,,option,org-agenda-ignore-drawer-properties,missing,,Avoid updating text properties when building the agenda.
-org-compat.el,,function,org-decoded-time-add,missing,,"Add DELTA to TIME, both of which are `decoded-time' structures."
-org-compat.el,,option,org-usenet-links-prefer-google,missing,,"If non-nil, `org-store-link' creates web links to Google groups."
-org-compat.el,,function,org-assoc-delete-all,missing,,Delete from ALIST all elements whose car is KEY.
-org-compat.el,,option,org-sort-agenda-notime-is-late,missing,,Non-nil means items without time are considered late.
-org-compat.el,,function,org--flatten-tree,missing,,"Return a ""flattened"" copy of TREE."
-org-compat.el,,function,org-xor,missing,,Return the boolean exclusive-or of COND1 and COND2.
-org-compat.el,,function,org-replace-buffer-contents,missing,,
-org-compat.el,,option,org-attach-directory,missing,,The directory where attachments are stored.
-org-compat.el,,option,org-latex-create-formula-image-program,missing,,The default process to convert LaTeX fragments to image files.
-org-compat.el,,option,org-keep-stored-link-after-insertion,missing,,Non-nil means keep link in list for entire session.
-org-compat.el,,function,outline-back-to-heading@fix-for-org-fold,missing,,Run `org-back-to-heading' when in org-mode.
-org-compat.el,,option,org-context-in-file-links,missing,,Non-nil means file links from `org-store-link' contain context.
-org-compat.el,,function,org-string-distance,missing,,Return Levenshtein distance between STRING1 and STRING2.
-org-compat.el,,function,org-line-number-display-width,missing,,Return the width used for displaying line numbers in the selected window.
-org-compat.el,,function,org-completion-table-with-metadata,missing,,Return new completion TABLE with METADATA.
-org-compat.el,,function,outline-flag-region@fix-for-org-fold,missing,,Run `org-fold-region' when in org-mode.
-org-compat.el,,function,outline-on-heading-p@fix-for-org-fold,missing,,Run `org-at-heading-p' when in org-mode.
-org-compat.el,,function,org-directory-empty-p,missing,,Return t if DIR names an existing directory containing no other files.
-org-compat.el,,option,org-confirm-elisp-link-not-regexp,missing,,A regexp to skip confirmation for Elisp links.
-org-compat.el,,function,org-list-of-strings-p,missing,,Return t if OBJECT is nil or a list of strings.
-org-compat.el,,function,org-display-buffer-full-frame,missing,,"Display BUFFER in the current frame, taking the entire frame."
-org-compat.el,,function,org-file-has-changed-p,missing,,Return non-nil if FILE has changed.
-org-compat.el,,function,org-file-name-concat,missing,,Append COMPONENTS to DIRECTORY and return the resulting string.
+org-compat.el,1952,function,org-mark-jump-unhide,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Make the point visible with `org-fold-show-context' after jumping to the mark.
+org-compat.el,,option,org-make-link-description-function,done,obsolete alias of org-link-make-description-function (compat.rs),Function to use for generating link descriptions from links.
+org-compat.el,,function,outline-toggle-children@fix-for-org-fold,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Run `org-fold-hide-sublevels' when in org-mode.
+org-compat.el,,function,org-time-convert-to-list,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,
+org-compat.el,,option,org-from-is-user-regexp,done,obsolete alias of org-link-from-user-regexp (compat.rs),"Regexp matched against the ""From:"" header of an email or Usenet message."
+org-compat.el,,macro,org-combine-change-calls,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,"Evaluate BODY, running the change hooks just once."
+org-compat.el,,option,org-display-internal-link-with-indirect-buffer,done,obsolete alias of org-link-use-indirect-buffer-for-internals (compat.rs),Non-nil means use indirect buffer to display infile links.
+org-compat.el,,option,org-effort-durations,done,obsolete alias of org-duration-units (compat.rs),Conversion factor to minutes for a duration.
+org-compat.el,,function,outline-hide-sublevels@fix-for-org-fold,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Run `org-fold-hide-sublevels' when in org-mode.
+org-compat.el,,function,org-time-convert-to-integer,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,
+org-compat.el,,option,org-doi-server-url,done,obsolete alias of org-link-doi-server-url (compat.rs),The URL of the DOI server.
+org-compat.el,,option,org-checkbox-hierarchical-statistics,done,obsolete alias of org-checkbox-children-only-statistics (compat.rs),Non-nil means checkbox statistics counts only the state of direct children.
+org-compat.el,,option,org-confirm-shell-link-not-regexp,done,obsolete alias of org-link-shell-skip-confirm-regexp (compat.rs),Regexp to skip confirmation for shell links.
+org-compat.el,,option,org-export-babel-evaluate,done,obsolete alias of org-export-use-babel (compat.rs),Switch controlling code evaluation and header processing during export.
+org-compat.el,,option,org-plantuml-executable-args,done,obsolete alias of org-plantuml-args (compat.rs),The arguments passed to plantuml when executing PlantUML.
+org-compat.el,,function,org-format-prompt,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Format PROMPT with DEFAULT according to `minibuffer-default-prompt-format'.
+org-compat.el,,function,org-buffer-hash,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Return a hash of the contents of BUFFER-OR-NAME.
+org-compat.el,,option,org-export-htmlized-org-css-url,done,obsolete alias of org-org-htmlized-css-url (compat.rs),URL pointing to the CSS defining colors for htmlized Emacs buffers.
+org-compat.el,,option,org-html-style,done,obsolete alias of org-html-head (compat.rs),Org-wide head definitions for exported HTML files.
+org-compat.el,,option,org-confirm-elisp-link-function,done,obsolete alias of org-link-elisp-confirm-function (compat.rs),Non-nil means ask for confirmation before executing Emacs Lisp links.
+org-compat.el,,option,org-email-link-description-format,done,obsolete alias of org-link-email-description-format (compat.rs),Format of the description part of a link to an email or Usenet message.
+org-compat.el,,option,org-babel-capitalize-example-region-markers,done,obsolete alias of org-babel-uppercase-example-markers (compat.rs),"When non-nil, begin/end example markers will be inserted in upper case."
+org-compat.el,,option,org-catch-invisible-edits,done,obsolete alias of org-fold-catch-invisible-edits (compat.rs),Check if in invisible region before inserting or deleting a character.
+org-compat.el,,option,org-latex-listings,done,obsolete alias of org-latex-src-block-backend (compat.rs),Backend used to generate source code listings.
+org-compat.el,,option,org-hierarchical-todo-statistics,done,obsolete alias of org-todo-children-only-statistics (compat.rs),Non-nil means TODO statistics covers just direct children.
+org-compat.el,,option,org-latex-preview-ltxpng-directory,done,obsolete alias of org-preview-latex-image-directory (compat.rs),Path to store latex preview images.
+org-compat.el,,option,org-texinfo-def-table-markup,done,obsolete alias of org-texinfo-table-default-markup (compat.rs),Default markup for first column in two-column tables.
+org-compat.el,,option,org-show-context-detail,done,obsolete alias of org-fold-show-context-detail (compat.rs),Alist between context and visibility span when revealing a location.
+org-compat.el,,option,org-confirm-shell-link-function,done,obsolete alias of org-link-shell-confirm-function (compat.rs),Non-nil means ask for confirmation before executing shell links.
+org-compat.el,,option,org-descriptive-links,done,obsolete alias of org-link-descriptive (compat.rs),Non-nil means Org displays descriptive links.
+org-compat.el,,function,org-string-clean-whitespace,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Clean up whitespace in STRING.
+org-compat.el,,function,outline-next-visible-heading@fix-for-org-fold,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Run `org-next-visible-heading' when in org-mode.
+org-compat.el,,function,org-string-equal-ignore-case,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Compare STRING1 and STRING2 case-insensitively.
+org-compat.el,,function,org-get-buffer-create,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,"Return the buffer specified by BUFFER-OR-NAME, creating a new one if needed."
+org-compat.el,,option,org-sort-agenda-noeffort-is-high,done,obsolete alias of org-agenda-sort-noeffort-is-high (compat.rs),Non-nil means items without effort estimate are sorted as high effort.
+org-compat.el,,option,org-edit-src-content-indentation,done,obsolete alias of org-src-content-indentation (compat.rs),Indentation for the content of a source code block.
+org-compat.el,,option,org-latex-with-hyperref,done,obsolete alias of org-latex-hyperref-template (compat.rs),Template for hyperref package options.
+org-compat.el,,command,org-newline-and-indent,done,compat::command / org-return / org-align-tags,"Insert a newline, then indent according to major mode."
+org-compat.el,,macro,org-with-undo-amalgamate,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Like `progn' but perform BODY with amalgamated undo barriers.
+org-compat.el,,option,org-agenda-ignore-drawer-properties,done,obsolete alias of org-agenda-ignore-properties (compat.rs),Avoid updating text properties when building the agenda.
+org-compat.el,,function,org-decoded-time-add,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,"Add DELTA to TIME, both of which are `decoded-time' structures."
+org-compat.el,,option,org-usenet-links-prefer-google,done,obsolete alias of org-gnus-prefer-web-links (compat.rs),"If non-nil, `org-store-link' creates web links to Google groups."
+org-compat.el,,function,org-assoc-delete-all,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Delete from ALIST all elements whose car is KEY.
+org-compat.el,,option,org-sort-agenda-notime-is-late,done,obsolete alias of org-agenda-sort-notime-is-late (compat.rs),Non-nil means items without time are considered late.
+org-compat.el,,function,org--flatten-tree,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,"Return a ""flattened"" copy of TREE."
+org-compat.el,,function,org-xor,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Return the boolean exclusive-or of COND1 and COND2.
+org-compat.el,,function,org-replace-buffer-contents,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,
+org-compat.el,,option,org-attach-directory,done,obsolete alias of org-attach-id-dir (compat.rs),The directory where attachments are stored.
+org-compat.el,,option,org-latex-create-formula-image-program,done,obsolete alias of org-preview-latex-default-process (compat.rs),The default process to convert LaTeX fragments to image files.
+org-compat.el,,option,org-keep-stored-link-after-insertion,done,obsolete alias of org-link-keep-stored-after-insertion (compat.rs),Non-nil means keep link in list for entire session.
+org-compat.el,,function,outline-back-to-heading@fix-for-org-fold,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Run `org-back-to-heading' when in org-mode.
+org-compat.el,,option,org-context-in-file-links,done,obsolete alias of org-link-context-for-files (compat.rs),Non-nil means file links from `org-store-link' contain context.
+org-compat.el,,function,org-string-distance,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Return Levenshtein distance between STRING1 and STRING2.
+org-compat.el,,function,org-line-number-display-width,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Return the width used for displaying line numbers in the selected window.
+org-compat.el,,function,org-completion-table-with-metadata,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Return new completion TABLE with METADATA.
+org-compat.el,,function,outline-flag-region@fix-for-org-fold,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Run `org-fold-region' when in org-mode.
+org-compat.el,,function,outline-on-heading-p@fix-for-org-fold,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Run `org-at-heading-p' when in org-mode.
+org-compat.el,,function,org-directory-empty-p,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Return t if DIR names an existing directory containing no other files.
+org-compat.el,,option,org-confirm-elisp-link-not-regexp,done,obsolete alias of org-link-elisp-skip-confirm-regexp (compat.rs),A regexp to skip confirmation for Elisp links.
+org-compat.el,,function,org-list-of-strings-p,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Return t if OBJECT is nil or a list of strings.
+org-compat.el,,function,org-display-buffer-full-frame,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,"Display BUFFER in the current frame, taking the entire frame."
+org-compat.el,,function,org-file-has-changed-p,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Return non-nil if FILE has changed.
+org-compat.el,,function,org-file-name-concat,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Append COMPONENTS to DIRECTORY and return the resulting string.
 org-crypt.el,91,option,org-crypt-tag-matcher,done,tags matcher for crypt entries (crypt::crypt_entries),The tag matcher used to find headings whose contents should be encrypted.
 org-crypt.el,98,option,org-crypt-key,done,"default key; CRYPTKEY property overrides, nil means symmetric",The default key to use when encrypting the contents of a heading.
 org-crypt.el,114,option,org-crypt-disable-auto-save,adapted,"applies to Fred swap files: ask/t disable swap, encrypt re-encrypts on save, nil warns",What org-decrypt should do if `auto-save-mode' is enabled.
