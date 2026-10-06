@@ -26,6 +26,7 @@ pub mod links;
 pub mod lint;
 pub mod list;
 pub mod mobile;
+pub mod motion;
 pub mod options;
 pub mod props;
 pub mod protocol;
@@ -863,6 +864,7 @@ const MODULES: &[Module] = &[
     compat::command,
     feed::command,
     lint::command,
+    motion::command,
 ];
 
 thread_local! {

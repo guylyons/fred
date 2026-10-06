@@ -4488,22 +4488,22 @@ org.el,21995,command,org-forward-heading-same-level,partial,src/org/structure.rs
 org.el,22029,command,org-backward-heading-same-level,partial,src/org/structure.rs: ported command; acceptance gates open,Move backward to the ARG'th subheading at same level as this one.
 org.el,22035,command,org-next-visible-heading,partial,src/org/structure.rs: ported command; acceptance gates open,Move to the next visible heading line.
 org.el,22058,command,org-previous-visible-heading,partial,src/org/structure.rs: ported command; acceptance gates open,Move to the previous visible heading.
-org.el,22064,command,org-forward-paragraph,missing,,"Move forward by a paragraph, or equivalent, unit."
-org.el,22088,command,org-backward-paragraph,missing,,"Move backward by a paragraph, or equivalent, unit."
-org.el,22115,function,org--paragraph-at-point,missing,,"Return paragraph, or equivalent, element at point."
-org.el,22193,command,org--forward-paragraph-once,missing,,"Move forward to end of paragraph or equivalent, once."
-org.el,22265,command,org--backward-paragraph-once,missing,,"Move backward to start of paragraph or equivalent, once."
-org.el,22361,command,org-forward-element,missing,,Move forward by one element.
-org.el,22381,command,org-backward-element,missing,,Move backward by one element.
-org.el,22414,command,org-up-element,missing,,Move to upper element.
-org.el,22431,command,org-down-element,missing,,Move to inner element.
-org.el,22446,command,org-drag-element-backward,missing,,Move backward element at point.
-org.el,22478,command,org-drag-element-forward,missing,,Move forward element at point.
-org.el,22513,command,org-drag-line-forward,missing,,Drag the line at point ARG lines forward.
-org.el,22527,command,org-drag-line-backward,missing,,Drag the line at point ARG lines backward.
-org.el,22532,command,org-mark-element,missing,,"Put point at beginning of this element, mark at end."
+org.el,22064,command,org-forward-paragraph,done,motion.rs (checked against Emacs),"Move forward by a paragraph, or equivalent, unit."
+org.el,22088,command,org-backward-paragraph,done,motion.rs (checked against Emacs),"Move backward by a paragraph, or equivalent, unit."
+org.el,22115,function,org--paragraph-at-point,done,motion.rs (checked against Emacs),"Return paragraph, or equivalent, element at point."
+org.el,22193,command,org--forward-paragraph-once,done,motion.rs (checked against Emacs),"Move forward to end of paragraph or equivalent, once."
+org.el,22265,command,org--backward-paragraph-once,done,motion.rs (checked against Emacs),"Move backward to start of paragraph or equivalent, once."
+org.el,22361,command,org-forward-element,done,motion.rs (checked against Emacs),Move forward by one element.
+org.el,22381,command,org-backward-element,done,motion.rs (checked against Emacs),Move backward by one element.
+org.el,22414,command,org-up-element,done,motion.rs (checked against Emacs),Move to upper element.
+org.el,22431,command,org-down-element,done,motion.rs (checked against Emacs),Move to inner element.
+org.el,22446,command,org-drag-element-backward,done,motion.rs (checked against Emacs),Move backward element at point.
+org.el,22478,command,org-drag-element-forward,done,motion.rs (checked against Emacs),Move forward element at point.
+org.el,22513,command,org-drag-line-forward,done,motion.rs (checked against Emacs),Drag the line at point ARG lines forward.
+org.el,22527,command,org-drag-line-backward,done,motion.rs (checked against Emacs),Drag the line at point ARG lines backward.
+org.el,22532,command,org-mark-element,adapted,Visual-line selection of the element; repeating extends it,"Put point at beginning of this element, mark at end."
 org.el,22553,command,org-narrow-to-element,partial,src/org/fold.rs: ported command; acceptance gates open,Narrow buffer to current element.
-org.el,22572,command,org-transpose-element,missing,,"Transpose current and previous elements, keeping blank lines between."
+org.el,22572,command,org-transpose-element,done,motion.rs (checked against Emacs),"Transpose current and previous elements, keeping blank lines between."
 org.el,22581,command,org-unindent-buffer,partial,src/org/editing.rs: ported command; acceptance gates open,Un-indent the visible part of the buffer.
 org.el,22602,function,org-make-options-regexp,missing,,Make a regular expression for keyword lines.
 org.el,22614,command,org-info-find-node,partial,src/org/editing.rs: ported command; acceptance gates open,Find Info documentation NODENAME or Org documentation according context.
