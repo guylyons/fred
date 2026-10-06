@@ -1570,257 +1570,257 @@ org-capture.el,2119,function,org-capture-expand-embedded-elisp,missing,,Evaluate
 org-capture.el,2152,function,org-capture--expand-keyword-in-embedded-elisp,missing,,Recursively replace capture link keywords in ATTR sexp.
 org-capture.el,2166,function,org-capture-inside-embedded-elisp-p,missing,,Non-nil if point is inside of embedded elisp %(sexp).
 org-capture.el,2173,command,org-capture-import-remember-templates,missing,,Set `org-capture-templates' to be similar to `org-remember-templates'.
-org-clock.el,73,option,org-clock-into-drawer,missing,,Non-nil when clocking info should be wrapped into a drawer.
-org-clock.el,73,function,org-clock-into-drawer,missing,,"Value of `org-clock-into-drawer', but let properties overrule."
-org-clock.el,118,option,org-clock-out-when-done,missing,,"When non-nil, clock will be stopped when the clocked entry is marked DONE."
-org-clock.el,133,option,org-clock-rounding-minutes,missing,,Rounding minutes when clocking in or out.
-org-clock.el,151,option,org-clock-out-remove-zero-time-clocks,missing,,Non-nil means remove the clock line when the resulting time is zero.
-org-clock.el,156,option,org-clock-in-switch-to-state,missing,,Set task to a special todo state while clocking it.
-org-clock.el,169,option,org-clock-out-switch-to-state,missing,,Set task to a special todo state after clocking out.
-org-clock.el,182,option,org-clock-history-length,missing,,Number of clock tasks to remember in history.
-org-clock.el,190,option,org-clock-goto-may-find-recent-task,missing,,Non-nil means `org-clock-goto' can go to recent task if no active clock.
-org-clock.el,195,option,org-clock-heading-function,missing,,"When non-nil, should be a function to create `org-clock-heading'."
-org-clock.el,202,option,org-clock-string-limit,missing,,Maximum length of clock strings in the mode line.  0 means no limit.
-org-clock.el,207,option,org-clock-in-resume,missing,,"If non-nil, resume clock when clocking into task with open clock."
-org-clock.el,214,option,org-clock-persist,missing,,"When non-nil, save the running clock when Emacs is closed."
-org-clock.el,235,option,org-clock-persist-file,missing,,File to save clock data to.
-org-clock.el,240,option,org-clock-persist-query-save,missing,,"When non-nil, ask before saving the current clock on exit."
-org-clock.el,245,option,org-clock-persist-query-resume,missing,,"When non-nil, ask before resuming any stored clock during load."
-org-clock.el,250,option,org-clock-sound,missing,,Sound to use for notifications.
-org-clock.el,263,option,org-clock-mode-line-total,missing,,Default setting for the time included for the mode line clock.
-org-clock.el,282,option,org-clock-task-overrun-text,missing,,Extra mode line text to indicate that the clock is overrun.
-org-clock.el,294,option,org-show-notification-timeout,missing,,Number of seconds to wait before closing Org notifications.
-org-clock.el,303,option,org-show-notification-handler,missing,,Function or program to send notification with.
-org-clock.el,318,option,org-clocktable-defaults,missing,,Default properties for clock tables.
-org-clock.el,349,option,org-clock-clocktable-formatter,missing,,Function to turn clocking data into a table.
-org-clock.el,356,option,org-clock-clocktable-language-setup,missing,,"Terms used in clocktable, translated to different languages."
-org-clock.el,371,option,org-clock-clocktable-default-properties,missing,,Default properties for new clocktables.
-org-clock.el,379,option,org-clock-idle-time,missing,,"When non-nil, resolve open clocks if the user is idle more than X minutes."
-org-clock.el,386,option,org-clock-auto-clock-resolution,missing,,When to automatically resolve open clocks found in Org buffers.
-org-clock.el,394,option,org-clock-report-include-clocking-task,missing,,"When non-nil, include the current clocking task time in clock reports."
-org-clock.el,400,option,org-clock-resolve-expert,missing,,Non-nil means do not show the splash buffer with the clock resolver.
-org-clock.el,406,option,org-clock-continuously,missing,,"Non-nil means to start clocking from the last clock-out time, if any."
-org-clock.el,412,option,org-clock-total-time-cell-format,missing,,Format string for the total time cells.
-org-clock.el,418,option,org-clock-file-time-cell-format,missing,,Format string for the file time cells.
-org-clock.el,424,option,org-clock-clocked-in-display,missing,,Where to display clocked in task and accumulated time when clocked in.
-org-clock.el,440,option,org-clock-frame-title-format,missing,,The value for `frame-title-format' when clocking in.
-org-clock.el,452,option,org-clock-x11idle-program-name,missing,,Name of the program which prints X11 idle time in milliseconds.
-org-clock.el,466,option,org-clock-goto-before-context,missing,,Number of lines of context to display before currently clocked-in entry.
-org-clock.el,472,option,org-clock-display-default-range,missing,,Default range when displaying clocks with `org-clock-display'.
-org-clock.el,489,option,org-clock-auto-clockout-timer,missing,,Timer for auto clocking out when Emacs is idle.
-org-clock.el,502,option,org-clock-ask-before-exiting,missing,,"If non-nil, ask if the user wants to clock out before exiting Emacs."
-org-clock.el,574,function,org-clock--translate,missing,,Translate string S into using string LANGUAGE.
-org-clock.el,588,function,org-clock--mode-line-heading,missing,,"Return currently clocked heading, formatted for mode line."
-org-clock.el,596,command,org-clock-menu,missing,,Pop up org-clock menu.
-org-clock.el,606,function,org-clock-history-push,missing,,Push point marker to the clock history.
-org-clock.el,631,function,org-clock-save-markers-for-cut-and-paste,missing,,Save relative positions of markers in region BEG..END.
-org-clock.el,643,function,org-clock-drawer-name,missing,,"Return clock drawer's name for current entry, or nil."
-org-clock.el,652,function,org-clocking-p,missing,,Return t when clocking a task.
-org-clock.el,659,function,org-clock-select-task,missing,,Select a task that was recently associated with clocking.
-org-clock.el,713,function,org-clock-insert-selection-line,missing,,Insert a line for the clock selection menu.
-org-clock.el,746,function,org-clock-get-clock-string,missing,,"Form a clock-string, that will be shown in the mode line."
-org-clock.el,821,function,org-clock-get-last-clock-out-time,missing,,Get the last clock-out time for the current subtree.
-org-clock.el,830,function,org-clock-update-mode-line,missing,,Update mode line with clock information.
-org-clock.el,853,function,org-clock-get-clocked-time,missing,,Get the clocked time for the current item in minutes.
-org-clock.el,864,command,org-clock-modify-effort-estimate,missing,,Add to or set the effort estimate of the item currently being clocked.
-org-clock.el,906,function,org-clock-notify-once-if-expired,missing,,Show notification if we spent more time than we estimated before.
-org-clock.el,924,function,org-notify,missing,,Send a NOTIFICATION and maybe PLAY-SOUND.
-org-clock.el,930,function,org-show-notification,missing,,Show notification.
-org-clock.el,980,function,org-clock-play-sound,missing,,Play sound as configured by `org-clock-sound'.
-org-clock.el,1001,function,org-find-open-clocks,missing,,Search through the given file and find all open clocks.
-org-clock.el,1018,function,org-is-active-clock,missing,,Return t if CLOCK is the currently active clock.
-org-clock.el,1023,macro,org-with-clock-position,missing,,Evaluate FORMS with CLOCK as the current active clock.
-org-clock.el,1032,macro,org-with-clock,missing,,Evaluate FORMS with CLOCK as the current active clock.
-org-clock.el,1047,function,org-clock-clock-in,missing,,Clock in to the clock located by CLOCK.
-org-clock.el,1054,function,org-clock-clock-out,missing,,Clock out of the clock located by CLOCK.
-org-clock.el,1064,function,org-clock-clock-cancel,missing,,Cancel the clock located by CLOCK.
-org-clock.el,1078,function,org-clock-resolve-clock,missing,,"Resolve CLOCK given the time RESOLVE-TO, and the present."
-org-clock.el,1117,function,org-clock-jump-to-current-clock,missing,,"When an Org clock is running, jump to it."
-org-clock.el,1140,function,org-clock-resolve,missing,,Resolve an open Org clock.
-org-clock.el,1260,command,org-resolve-clocks,missing,,Resolve all currently open Org clocks.
-org-clock.el,1285,function,org-emacs-idle-seconds,missing,,"Return the current Emacs idle time in seconds, or nil if not idle."
-org-clock.el,1292,function,org-mac-idle-seconds,missing,,Return the current Mac idle time in seconds.
-org-clock.el,1304,function,org-x11-idle-seconds,missing,,Return the current X11 idle time in seconds.
-org-clock.el,1320,function,org-logind-user-idle-seconds,missing,,Return the number of idle seconds for the user according to logind.
-org-clock.el,1329,function,org-user-idle-seconds,missing,,Return the number of seconds the user has been idle for.
-org-clock.el,1351,function,org-resolve-clocks-if-idle,missing,,Resolve all currently open Org clocks.
-org-clock.el,1383,command,org-clock-in,missing,,Start the clock on the current item.
-org-clock.el,1574,function,org-clock--auto-clockout-maybe,missing,,Clock out the currently clocked in task when idle.
-org-clock.el,1599,function,org-clock-auto-clockout,missing,,Clock out the currently clocked in task if Emacs is idle.
-org-clock.el,1613,command,org-clock-toggle-auto-clockout,missing,,
-org-clock.el,1622,command,org-clock-in-last,missing,,Clock in the last closed clocked item.
-org-clock.el,1656,command,org-clock-mark-default-task,missing,,Mark current task as default task.
-org-clock.el,1663,function,org-clock-get-sum-start,missing,,Return the time from which clock times should be counted.
-org-clock.el,1699,function,org-clock-find-position,missing,,Find the location where the next clock line should be inserted.
-org-clock.el,1797,function,org-clock-restore-frame-title-format,missing,,Restore `frame-title-format' from `org-frame-title-format-backup'.
-org-clock.el,1811,command,org-clock-out,missing,,Stop the currently running clock.
-org-clock.el,1908,function,org-clock-remove-empty-clock-drawer,missing,,Remove empty clock drawers in current subtree.
-org-clock.el,1922,command,org-clock-timestamps-up,missing,,Increase CLOCK timestamps at cursor.
-org-clock.el,1928,command,org-clock-timestamps-down,missing,,Decrease CLOCK timestamps at cursor.
-org-clock.el,1934,function,org-clock-timestamps-change,missing,,Change CLOCK timestamps synchronously at cursor.
-org-clock.el,1965,command,org-clock-cancel,missing,,Cancel the running clock by removing the start timestamp.
-org-clock.el,1996,command,org-clock-goto,missing,,"Go to the currently clocked-in entry, or to the most recently clocked one."
-org-clock.el,2027,function,org-clock-sum-today,missing,,Sum the times for each subtree for today.
-org-clock.el,2033,function,org-clock-sum-custom,missing,,Sum the times for each subtree for today.
-org-clock.el,2047,function,org-clock-sum,missing,,Sum the times for each subtree.
-org-clock.el,2154,function,org-clock-sum-current-item,missing,,"Return time, clocked on current item in total."
-org-clock.el,2168,command,org-clock-display,missing,,Show subtree times in the entire buffer.
-org-clock.el,2229,function,org-clock-put-overlay,missing,,"Put an overlay on the headline at point, displaying TIME."
-org-clock.el,2254,command,org-clock-remove-overlays,missing,,Remove the occur highlights from the buffer.
-org-clock.el,2267,function,org-clock-out-if-current,missing,,Clock out if the current entry contains the running clock.
-org-clock.el,2291,function,org-clock-get-clocktable,missing,,Get a formatted clocktable with parameters according to PROPS.
-org-clock.el,2312,command,org-clock-report,missing,,Update or create a table containing a report about clocked time.
-org-clock.el,2348,function,org-day-of-week,missing,,Return the day of the week as an integer.
-org-clock.el,2355,function,org-quarter-to-date,missing,,Get the date (week day year) of the first day of a given quarter.
-org-clock.el,2404,function,org-clock-special-range,missing,,Return two times bordering a special time range.
-org-clock.el,2567,function,org-count-quarter,missing,,
-org-clock.el,2575,function,org-clocktable-shift,missing,,Try to shift the :block date of the clocktable at point.
-org-clock.el,2666,function,org-dblock-write:clocktable,missing,,Write the standard clocktable.
-org-clock.el,2759,function,org-clocktable-write-default,missing,,Write out a clock table at position IPOS in the current buffer.
-org-clock.el,3010,function,org-clocktable-indent-string,missing,,Return indentation string according to LEVEL.
-org-clock.el,3016,function,org-clocktable-steps,missing,,"Create one or more clock tables, according to PARAMS."
-org-clock.el,3109,function,org-clock-get-table-data,missing,,"Get the clocktable data for file FILE, with parameters PARAMS."
-org-clock.el,3222,command,org-clock-update-time-maybe,partial,time::clock_update_time_maybe on CLOCK ranges; running-clock mode line is the clock module's,"If this is a CLOCK line, update it and return t."
-org-clock.el,3280,function,org-clock-save,missing,,Persist various clock-related data to disk.
-org-clock.el,3322,function,org-clock-load,missing,,"Load clock-related data from disk, maybe resuming a stored clock."
-org-clock.el,3350,function,org-clock-kill-emacs-query,missing,,Query user when killing Emacs.
-org-clock.el,,option,org-task-overrun-text,missing,,Extra mode line text to indicate that the clock is overrun.
-org-colview.el,66,option,org-columns-checkbox-allowed-values,missing,,Allowed values for columns with SUMMARY-TYPE that uses checkbox.
-org-colview.el,79,option,org-columns-modify-value-for-display-function,missing,,Function that modifies values for display in column view.
-org-colview.el,92,option,org-columns-summary-types,missing,,Alist between operators and summarize functions.
-org-colview.el,129,option,org-columns-dblock-formatter,missing,,Function to format data in column view dynamic blocks.
-org-colview.el,204,function,org-columns--spec-at-point,missing,,Return the column specification for the column at point.
-org-colview.el,212,command,org-columns-content,missing,,Switch to content view while in column view.
-org-colview.el,316,command,org-columns-help-quick-toggle,missing,,Toggle quick help for column view.
-org-colview.el,333,function,org-columns--help-quick-close,missing,,"Close column view quick-help, if it is visible."
-org-colview.el,340,function,org-columns--displayed-value,missing,,Return displayed value for specification SPEC in current entry.
-org-colview.el,369,function,org-columns--agenda-effort-fallback,missing,,Return appointment duration as fallback value for Effort column.
-org-colview.el,385,function,org-columns--collect-values,missing,,Collect values for columns on the current line.
-org-colview.el,412,function,org-columns--collect-rows,missing,,Collect column view rows in the current scope.
-org-colview.el,420,function,org-columns--compute-clock-summaries,missing,,Compute clock summaries needed by the current column format.
-org-colview.el,429,function,org-columns--update-column-width,missing,,Update WIDTHS according to SPEC and CELL.
-org-colview.el,439,function,org-columns--set-widths,missing,,Compute the maximum column widths from the format and ROWS.
-org-colview.el,480,function,org-columns--new-overlay,missing,,Create a new column overlay and add it to the list.
-org-colview.el,488,function,org-columns--cell-format-string,missing,,Return `format' template for a column overlay cell of WIDTH characters.
-org-colview.el,497,function,org-columns--propertize-tags,missing,,Apply Org tag faces to TAG-TEXT.
-org-colview.el,506,function,org-columns--overlay-text,missing,,Return decorated DISPLAYED-VALUE string for column overlay display.
-org-colview.el,525,function,org-columns--pad-line-for-overlays,missing,,"Pad current line with spaces, one per column if needed."
-org-colview.el,542,function,org-columns--line-face,missing,,Return the column overlay face for the current line.
-org-colview.el,558,function,org-columns--mark-line-read-only,missing,,Mark the column view rendered line as read-only.
-org-colview.el,574,function,org-columns--make-row,missing,,Create and install the overlay for each column on the next character.
-org-colview.el,590,function,org-columns--make-cell-overlay,missing,,Place an overlay rendering one column on the next character at point.
-org-colview.el,611,function,org-columns--hide-rest-of-line,missing,,Make the rest of the line disappear using overlays.
-org-colview.el,623,function,org-columns--display-line,missing,,Overlay the current line with column display.
-org-colview.el,639,function,org-columns--truncate-below-width,missing,,Return a substring of STRING no wider than WIDTH.
-org-colview.el,653,function,org-columns-add-ellipses,missing,,"Truncate STRING with WIDTH characters, with ellipses."
-org-colview.el,681,function,org-columns--suspend-conflicting-modes,missing,,Suspend minor modes that conflict with column view.
-org-colview.el,690,function,org-columns--resume-conflicting-modes,missing,,Resume minor modes that were suspended by column view.
-org-colview.el,697,function,org-columns--suspend-line-wrapping,missing,,Suspend line wrapping for column view by forcing `truncate-lines'.
-org-colview.el,705,function,org-columns--resume-line-wrapping,missing,,Resume line wrapping suspended by `org-columns--suspend-line-wrapping'.
-org-colview.el,710,function,org-columns--suspend-display-environment,missing,,Suspend display state that conflicts with column view.
-org-colview.el,715,function,org-columns--resume-display-environment,missing,,Resume display state suspended by column view.
-org-colview.el,732,function,org-columns--remap-header-line,missing,,Remap the header line to default face if not already done.
-org-colview.el,738,function,org-columns--display-header-line,missing,,Prepare the table heading with column titles for the window's header line.
-org-colview.el,760,function,org-columns-hscroll-title,missing,,Set the `header-line-format' so that it scrolls along with the table.
-org-colview.el,775,function,org-columns--clear-markers,missing,,Clear column view markers.
-org-colview.el,785,command,org-columns-remove-overlays,missing,,Remove all currently active column overlays.
-org-colview.el,804,command,org-columns-quit,missing,,Remove the column overlays and in this way exit column editing.
-org-colview.el,817,command,org-columns-show-value,missing,,Show the full value of the property.
-org-colview.el,823,command,org-columns-todo,missing,,Change the TODO state during column view.
-org-colview.el,828,command,org-columns-toggle-or-columns-quit,missing,,"Toggle checkbox at point, or quit column view."
-org-colview.el,834,function,org-columns--toggle,missing,,"Toggle checkbox at point.  Return non-nil if toggle happened, else nil."
-org-colview.el,842,command,org-columns-open-link,missing,,
-org-colview.el,849,function,org-columns-check-computed,missing,,Throw an error if current column value is computed.
-org-colview.el,857,function,org-columns--update-agenda-single-file,missing,,Update `org-agenda-columns' for the file containing POM.
-org-colview.el,867,function,org-columns--execute-and-update,missing,,Execute ACTION and update column view.
-org-colview.el,891,command,org-columns-edit-value,missing,,Edit the value of the property at point in column view.
-org-colview.el,944,command,org-columns-edit-allowed,missing,,Edit the list of allowed values for the current property.
-org-colview.el,965,function,org-columns--call,missing,,Call function FUN while preserving heading visibility.
-org-colview.el,975,command,org-columns-previous-allowed-value,missing,,Switch to the previous allowed value for this column.
-org-colview.el,980,command,org-columns-next-allowed-value,missing,,Switch to the next allowed value for this column.
-org-colview.el,1019,function,org-colview-construct-allowed-dates,missing,,Construct a list of three dates around the date in S.
-org-colview.el,1054,function,org-columns-get-format-and-top-level,missing,,
-org-colview.el,1058,function,org-columns--get-columns-keyword,missing,,Return the first COLUMNS keyword value in the current buffer.
-org-colview.el,1062,command,org-columns-get-format,missing,,Return column format specifications.
-org-colview.el,1082,function,org-columns-goto-top-level,missing,,Move to the beginning of the column view area.
-org-colview.el,1093,function,org-columns--set-scope,missing,,Set column view scope markers and move point to the scope beginning.
-org-colview.el,1119,function,org-columns--display-rows,missing,,Display the header line and ROWS as column view overlays.
-org-colview.el,1129,function,org-columns--prepare-rows,missing,,Set up column view and return rows for the recorded scope.
-org-colview.el,1145,command,org-columns,missing,,Turn on column view on an Org mode file.
-org-colview.el,1167,function,org-columns--summary-types-completion-function,missing,,Complete column summary type operators.
-org-colview.el,1188,command,org-columns-new,missing,,"Insert a new column, to the left of the current column."
-org-colview.el,1235,command,org-columns-delete,missing,,Delete the column at point from column view.
-org-colview.el,1251,command,org-columns-edit-attributes,missing,,Edit the attributes of the current column.
-org-colview.el,1256,command,org-columns-widen,missing,,Make the column wider by ARG characters.
-org-colview.el,1267,command,org-columns-narrow,missing,,Make the column narrower by ARG characters.
-org-colview.el,1274,function,org-columns--move-cursor,missing,,Move cursor up or down one row.
-org-colview.el,1285,command,org-columns-move-up,missing,,Move cursor up one row.
-org-colview.el,1291,command,org-columns-move-down,missing,,Move cursor down one row.
-org-colview.el,1297,command,org-columns-move-right,missing,,Swap this column with the one to the right.
-org-colview.el,1321,command,org-columns-move-left,missing,,Swap this column with the one to the left.
-org-colview.el,1331,function,org-columns--move-row,missing,,Move the current table row down.
-org-colview.el,1342,command,org-columns-move-row-down,missing,,Move the current table row down.
-org-colview.el,1347,command,org-columns-move-row-up,missing,,Move the current table row up.
-org-colview.el,1354,function,org-columns-update,missing,,"Recompute PROPERTY, and update its display in column view."
-org-colview.el,1381,command,org-columns-redo,missing,,Construct the column display again.
-org-colview.el,1398,function,org-columns--replace-columns-keyword,missing,,Replace the first COLUMNS keyword value with COLUMNS-FORMAT.
-org-colview.el,1411,function,org-columns--insert-columns-keyword,missing,,Insert COLUMNS-FORMAT as a COLUMNS keyword before the first heading.
-org-colview.el,1421,function,org-columns-store-format,missing,,Store the text version of the current column format.
-org-colview.el,1440,function,org-columns-uncompile-format,missing,,Turn the compiled column format back into a string representation.
-org-colview.el,1458,function,org-columns-compile-format,missing,,Compile COLUMNS-FORMAT into a list of specifications.
-org-colview.el,1506,function,org-columns--age-to-minutes,missing,,Turn age string S into a number of minutes.
-org-colview.el,1519,function,org-columns--format-age,missing,,Format MINUTES float as an age string.
-org-colview.el,1525,function,org-columns--summary-apply-times,missing,,Apply FUN to time values TIMES.
-org-colview.el,1532,function,org-columns--summary-type,missing,,Return summary type definition for OPERATOR.
-org-colview.el,1538,function,org-columns--summarize-function,missing,,Return summary function associated with OPERATOR.
-org-colview.el,1546,function,org-columns--collect-function,missing,,Return collect function associated with OPERATOR.
-org-colview.el,1556,function,org-columns--put-summary,missing,,Set SUMMARY for SPEC in `org-summaries' at POS.
-org-colview.el,1566,function,org-columns--update-summary-property,missing,,"Update PROPERTY at point when it exists, even if empty."
-org-colview.el,1579,function,org-columns--summarizable-operator,missing,,Return SPEC operator when its property can be summarized.
-org-colview.el,1587,function,org-columns--compute-spec,missing,,Update tree according to SPEC.
-org-colview.el,1625,function,org-columns-compute,missing,,Summarize the values of PROPERTY hierarchically.
-org-colview.el,1642,function,org-columns-compute-all,missing,,Compute all columns that have operators defined.
-org-colview.el,1656,function,org-columns--summary-sum,missing,,Compute the sum of VALUES.
-org-colview.el,1661,function,org-columns--summary-currencies,missing,,"Compute the sum of VALUES, with two decimals."
-org-colview.el,1665,function,org-columns--summary-checkbox,missing,,Summarize CHECKBOXES with a checkbox.
-org-colview.el,1673,function,org-columns--summary-checkbox-count,missing,,Summarize CHECKBOXES with a checkbox cookie.
-org-colview.el,1684,function,org-columns--summary-checkbox-percent,missing,,Summarize CHECKBOXES with a checkbox percent.
-org-colview.el,1690,function,org-columns--summary-min,missing,,Compute the minimum of VALUES.
-org-colview.el,1696,function,org-columns--summary-max,missing,,Compute the maximum of VALUES.
-org-colview.el,1702,function,org-columns--summary-mean,missing,,Compute the mean of VALUES.
-org-colview.el,1709,function,org-columns--summary-sum-times,missing,,Sum TIMES.
-org-colview.el,1713,function,org-columns--summary-min-time,missing,,Compute the minimum time among TIMES.
-org-colview.el,1717,function,org-columns--summary-max-time,missing,,Compute the maximum time among TIMES.
-org-colview.el,1721,function,org-columns--summary-mean-time,missing,,Compute the mean time among TIMES.
-org-colview.el,1727,function,org-columns--summary-min-age,missing,,Compute the minimum age among AGES.
-org-colview.el,1732,function,org-columns--summary-max-age,missing,,Compute the maximum age among AGES.
-org-colview.el,1737,function,org-columns--summary-mean-age,missing,,Compute the mean age among AGES.
-org-colview.el,1743,function,org-columns--summary-estimate,missing,,"Combine a list of estimates, using mean and variance."
-org-colview.el,1767,function,org-columns--capture-view,missing,,Get the column view of the current buffer.
-org-colview.el,1828,function,org-columns--clean-item,missing,,Remove sensitive contents from string ITEM.
-org-colview.el,1845,function,org-columns--dblock-capture,missing,,Capture a column view table for dynamic block parameters PARAMS.
-org-colview.el,1877,function,org-dblock-write:columnview,missing,,Write the column view table.
-org-colview.el,1943,function,org-columns-dblock-write-default,missing,,Write out a column view table at position IPOS in the current buffer.
-org-colview.el,2029,command,org-columns-insert-dblock,missing,,Create a dynamic block capturing a column view table.
-org-colview.el,2053,command,org-agenda-columns,missing,,Turn on or update column view in the agenda.
-org-colview.el,2113,function,org-agenda-colview-summarize,missing,,Summarize the summarizable columns in column view in the agenda.
-org-colview.el,2179,function,org-agenda-colview-compute,missing,,Compute the relevant columns in the contributing source buffers.
-org-colview.el,,function,org-columns--spec-property--inliner,missing,,
-org-colview.el,,function,org-columns--spec-title--inliner,missing,,
-org-colview.el,,function,make-org-columns--spec--cmacro,missing,,compiler-macro for `make-org-columns--spec'.
-org-colview.el,,function,org-columns--spec-width,missing,,"Access slot ""width"" of `org-columns--spec' struct X."
-org-colview.el,,function,org-columns--spec-format-string,missing,,"Access slot ""format-string"" of `org-columns--spec' struct X."
-org-colview.el,,function,org-columns--make-spec--cmacro,missing,,compiler-macro for `org-columns--make-spec'.
-org-colview.el,,function,org-columns--spec-width--inliner,missing,,
-org-colview.el,,function,org-columns--spec-operator,missing,,"Access slot ""operator"" of `org-columns--spec' struct X."
-org-colview.el,,function,org-columns--spec-operator--inliner,missing,,
-org-colview.el,,command,org-columns-menu,missing,,Org Column Menu.
-org-colview.el,,function,org-columns--spec-format-string--inliner,missing,,
-org-colview.el,,function,copy-org-columns--spec,missing,,"Return a copy of a list, vector, string, char-table or record."
-org-colview.el,,function,make-org-columns--spec,missing,,Constructor for objects of type `org-columns--spec'.
-org-colview.el,,function,org-columns--make-spec,missing,,Constructor for objects of type `org-columns--spec'.
-org-colview.el,,function,org-columns--spec-property,missing,,"Access slot ""property"" of `org-columns--spec' struct X."
-org-colview.el,,function,org-columns--spec-title,missing,,"Access slot ""title"" of `org-columns--spec' struct X."
+org-clock.el,73,option,org-clock-into-drawer,done,src/org/clock: read by name,Non-nil when clocking info should be wrapped into a drawer.
+org-clock.el,73,function,org-clock-into-drawer,internal,src/org/clock,"Value of `org-clock-into-drawer', but let properties overrule."
+org-clock.el,118,option,org-clock-out-when-done,done,src/org/clock: read by name,"When non-nil, clock will be stopped when the clocked entry is marked DONE."
+org-clock.el,133,option,org-clock-rounding-minutes,done,src/org/clock: read by name,Rounding minutes when clocking in or out.
+org-clock.el,151,option,org-clock-out-remove-zero-time-clocks,done,src/org/clock: read by name,Non-nil means remove the clock line when the resulting time is zero.
+org-clock.el,156,option,org-clock-in-switch-to-state,partial,src/org/clock: string state only; function values not evaluated,Set task to a special todo state while clocking it.
+org-clock.el,169,option,org-clock-out-switch-to-state,partial,src/org/clock: string state only; function values not evaluated,Set task to a special todo state after clocking out.
+org-clock.el,182,option,org-clock-history-length,done,src/org/clock: read by name,Number of clock tasks to remember in history.
+org-clock.el,190,option,org-clock-goto-may-find-recent-task,done,src/org/clock: read by name,Non-nil means `org-clock-goto' can go to recent task if no active clock.
+org-clock.el,195,option,org-clock-heading-function,partial,src/org/clock: not evaluated (Lisp function); title is used,"When non-nil, should be a function to create `org-clock-heading'."
+org-clock.el,202,option,org-clock-string-limit,done,src/org/clock: read by name,Maximum length of clock strings in the mode line.  0 means no limit.
+org-clock.el,207,option,org-clock-in-resume,done,src/org/clock: read by name,"If non-nil, resume clock when clocking into task with open clock."
+org-clock.el,214,option,org-clock-persist,partial,"src/org/clock: saved to Fred state dir (Fred sexp format, line+heading) on every clock change; resumed at first tick","When non-nil, save the running clock when Emacs is closed."
+org-clock.el,235,option,org-clock-persist-file,done,src/org/clock: read by name,File to save clock data to.
+org-clock.el,240,option,org-clock-persist-query-save,partial,src/org/clock: not asked (saved on change),"When non-nil, ask before saving the current clock on exit."
+org-clock.el,245,option,org-clock-persist-query-resume,done,src/org/clock: read by name,"When non-nil, ask before resuming any stored clock during load."
+org-clock.el,250,option,org-clock-sound,partial,src/org/clock: sound file played with aplay/afplay; t (beep) is silent,Sound to use for notifications.
+org-clock.el,263,option,org-clock-mode-line-total,done,src/org/clock: read by name,Default setting for the time included for the mode line clock.
+org-clock.el,282,option,org-clock-task-overrun-text,done,src/org/clock: read by name,Extra mode line text to indicate that the clock is overrun.
+org-clock.el,294,option,org-show-notification-timeout,adapted,"src/org/clock: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Number of seconds to wait before closing Org notifications.
+org-clock.el,303,option,org-show-notification-handler,partial,src/org/clock: program string runs; Lisp functions not called; else message,Function or program to send notification with.
+org-clock.el,318,option,org-clocktable-defaults,done,src/org/clock: read by name,Default properties for clock tables.
+org-clock.el,349,option,org-clock-clocktable-formatter,partial,src/org/clock: only org-clocktable-write-default; other formatters error,Function to turn clocking data into a table.
+org-clock.el,356,option,org-clock-clocktable-language-setup,done,src/org/clock: read by name,"Terms used in clocktable, translated to different languages."
+org-clock.el,371,option,org-clock-clocktable-default-properties,done,src/org/clock: read by name,Default properties for new clocktables.
+org-clock.el,379,option,org-clock-idle-time,partial,src/org/clock: idle from ioreg (macOS) or xprintidle; checked once a minute by the tick,"When non-nil, resolve open clocks if the user is idle more than X minutes."
+org-clock.el,386,option,org-clock-auto-clock-resolution,done,src/org/clock: read by name,When to automatically resolve open clocks found in Org buffers.
+org-clock.el,394,option,org-clock-report-include-clocking-task,done,src/org/clock: read by name,"When non-nil, include the current clocking task time in clock reports."
+org-clock.el,400,option,org-clock-resolve-expert,done,src/org/clock: read by name,Non-nil means do not show the splash buffer with the clock resolver.
+org-clock.el,406,option,org-clock-continuously,done,src/org/clock: read by name,"Non-nil means to start clocking from the last clock-out time, if any."
+org-clock.el,412,option,org-clock-total-time-cell-format,done,src/org/clock: read by name,Format string for the total time cells.
+org-clock.el,418,option,org-clock-file-time-cell-format,done,src/org/clock: read by name,Format string for the file time cells.
+org-clock.el,424,option,org-clock-clocked-in-display,partial,src/org/clock: mode-line/both show in the status line; frame-title has no Fred equivalent,Where to display clocked in task and accumulated time when clocked in.
+org-clock.el,440,option,org-clock-frame-title-format,adapted,"src/org/clock: Emacs display/plumbing; Fred view buffer, status line or renderer hook",The value for `frame-title-format' when clocking in.
+org-clock.el,452,option,org-clock-x11idle-program-name,adapted,"src/org/clock: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Name of the program which prints X11 idle time in milliseconds.
+org-clock.el,466,option,org-clock-goto-before-context,adapted,"src/org/clock: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Number of lines of context to display before currently clocked-in entry.
+org-clock.el,472,option,org-clock-display-default-range,done,src/org/clock: read by name,Default range when displaying clocks with `org-clock-display'.
+org-clock.el,489,option,org-clock-auto-clockout-timer,done,src/org/clock: read by name,Timer for auto clocking out when Emacs is idle.
+org-clock.el,502,option,org-clock-ask-before-exiting,partial,src/org/clock: not asked on exit,"If non-nil, ask if the user wants to clock out before exiting Emacs."
+org-clock.el,574,function,org-clock--translate,internal,src/org/clock,Translate string S into using string LANGUAGE.
+org-clock.el,588,function,org-clock--mode-line-heading,internal,src/org/clock,"Return currently clocked heading, formatted for mode line."
+org-clock.el,596,command,org-clock-menu,adapted,"src/org/clock: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Pop up org-clock menu.
+org-clock.el,606,function,org-clock-history-push,internal,src/org/clock,Push point marker to the clock history.
+org-clock.el,631,function,org-clock-save-markers-for-cut-and-paste,adapted,"src/org/clock: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Save relative positions of markers in region BEG..END.
+org-clock.el,643,function,org-clock-drawer-name,internal,src/org/clock,"Return clock drawer's name for current entry, or nil."
+org-clock.el,652,function,org-clocking-p,internal,src/org/clock,Return t when clocking a task.
+org-clock.el,659,function,org-clock-select-task,internal,src/org/clock,Select a task that was recently associated with clocking.
+org-clock.el,713,function,org-clock-insert-selection-line,internal,src/org/clock,Insert a line for the clock selection menu.
+org-clock.el,746,function,org-clock-get-clock-string,internal,src/org/clock,"Form a clock-string, that will be shown in the mode line."
+org-clock.el,821,function,org-clock-get-last-clock-out-time,internal,src/org/clock,Get the last clock-out time for the current subtree.
+org-clock.el,830,function,org-clock-update-mode-line,internal,src/org/clock,Update mode line with clock information.
+org-clock.el,853,function,org-clock-get-clocked-time,internal,src/org/clock,Get the clocked time for the current item in minutes.
+org-clock.el,864,command,org-clock-modify-effort-estimate,done,src/org/clock::command,Add to or set the effort estimate of the item currently being clocked.
+org-clock.el,906,function,org-clock-notify-once-if-expired,internal,src/org/clock,Show notification if we spent more time than we estimated before.
+org-clock.el,924,function,org-notify,internal,src/org/clock,Send a NOTIFICATION and maybe PLAY-SOUND.
+org-clock.el,930,function,org-show-notification,internal,src/org/clock,Show notification.
+org-clock.el,980,function,org-clock-play-sound,internal,src/org/clock,Play sound as configured by `org-clock-sound'.
+org-clock.el,1001,function,org-find-open-clocks,internal,src/org/clock,Search through the given file and find all open clocks.
+org-clock.el,1018,function,org-is-active-clock,internal,src/org/clock,Return t if CLOCK is the currently active clock.
+org-clock.el,1023,macro,org-with-clock-position,adapted,"src/org/clock: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Evaluate FORMS with CLOCK as the current active clock.
+org-clock.el,1032,macro,org-with-clock,adapted,"src/org/clock: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Evaluate FORMS with CLOCK as the current active clock.
+org-clock.el,1047,function,org-clock-clock-in,internal,src/org/clock,Clock in to the clock located by CLOCK.
+org-clock.el,1054,function,org-clock-clock-out,internal,src/org/clock,Clock out of the clock located by CLOCK.
+org-clock.el,1064,function,org-clock-clock-cancel,internal,src/org/clock,Cancel the clock located by CLOCK.
+org-clock.el,1078,function,org-clock-resolve-clock,internal,src/org/clock,"Resolve CLOCK given the time RESOLVE-TO, and the present."
+org-clock.el,1117,function,org-clock-jump-to-current-clock,internal,src/org/clock,"When an Org clock is running, jump to it."
+org-clock.el,1140,function,org-clock-resolve,partial,src/org/clock: key menu with the splash text as labels; jump only within the current buffer,Resolve an open Org clock.
+org-clock.el,1260,command,org-resolve-clocks,partial,src/org/clock: scans this buffer and agenda files on disk (unsaved other buffers not seen),Resolve all currently open Org clocks.
+org-clock.el,1285,function,org-emacs-idle-seconds,adapted,"src/org/clock: Emacs display/plumbing; Fred view buffer, status line or renderer hook","Return the current Emacs idle time in seconds, or nil if not idle."
+org-clock.el,1292,function,org-mac-idle-seconds,adapted,"src/org/clock: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Return the current Mac idle time in seconds.
+org-clock.el,1304,function,org-x11-idle-seconds,adapted,"src/org/clock: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Return the current X11 idle time in seconds.
+org-clock.el,1320,function,org-logind-user-idle-seconds,adapted,"src/org/clock: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Return the number of idle seconds for the user according to logind.
+org-clock.el,1329,function,org-user-idle-seconds,adapted,"src/org/clock: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Return the number of seconds the user has been idle for.
+org-clock.el,1351,function,org-resolve-clocks-if-idle,internal,src/org/clock,Resolve all currently open Org clocks.
+org-clock.el,1383,command,org-clock-in,partial,src/org/clock: all prefix variants; dangling-clock resolution scans agenda files on disk,Start the clock on the current item.
+org-clock.el,1574,function,org-clock--auto-clockout-maybe,internal,src/org/clock,Clock out the currently clocked in task when idle.
+org-clock.el,1599,function,org-clock-auto-clockout,internal,src/org/clock,Clock out the currently clocked in task if Emacs is idle.
+org-clock.el,1613,command,org-clock-toggle-auto-clockout,done,src/org/clock::command,
+org-clock.el,1622,command,org-clock-in-last,done,src/org/clock::command,Clock in the last closed clocked item.
+org-clock.el,1656,command,org-clock-mark-default-task,done,src/org/clock::command,Mark current task as default task.
+org-clock.el,1663,function,org-clock-get-sum-start,internal,src/org/clock,Return the time from which clock times should be counted.
+org-clock.el,1699,function,org-clock-find-position,internal,src/org/clock,Find the location where the next clock line should be inserted.
+org-clock.el,1797,function,org-clock-restore-frame-title-format,adapted,"src/org/clock: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Restore `frame-title-format' from `org-frame-title-format-backup'.
+org-clock.el,1811,command,org-clock-out,done,src/org/clock::command,Stop the currently running clock.
+org-clock.el,1908,function,org-clock-remove-empty-clock-drawer,internal,src/org/clock,Remove empty clock drawers in current subtree.
+org-clock.el,1922,command,org-clock-timestamps-up,done,src/org/clock::command,Increase CLOCK timestamps at cursor.
+org-clock.el,1928,command,org-clock-timestamps-down,done,src/org/clock::command,Decrease CLOCK timestamps at cursor.
+org-clock.el,1934,function,org-clock-timestamps-change,internal,src/org/clock,Change CLOCK timestamps synchronously at cursor.
+org-clock.el,1965,command,org-clock-cancel,done,src/org/clock::command,Cancel the running clock by removing the start timestamp.
+org-clock.el,1996,command,org-clock-goto,done,src/org/clock::command,"Go to the currently clocked-in entry, or to the most recently clocked one."
+org-clock.el,2027,function,org-clock-sum-today,internal,src/org/clock,Sum the times for each subtree for today.
+org-clock.el,2033,function,org-clock-sum-custom,internal,src/org/clock,Sum the times for each subtree for today.
+org-clock.el,2047,function,org-clock-sum,internal,src/org/clock,Sum the times for each subtree.
+org-clock.el,2154,function,org-clock-sum-current-item,internal,src/org/clock,"Return time, clocked on current item in total."
+org-clock.el,2168,command,org-clock-display,done,src/org/clock::command,Show subtree times in the entire buffer.
+org-clock.el,2229,function,org-clock-put-overlay,adapted,"src/org/clock: Emacs display/plumbing; Fred view buffer, status line or renderer hook","Put an overlay on the headline at point, displaying TIME."
+org-clock.el,2254,command,org-clock-remove-overlays,adapted,"src/org/clock: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Remove the occur highlights from the buffer.
+org-clock.el,2267,function,org-clock-out-if-current,internal,src/org/clock,Clock out if the current entry contains the running clock.
+org-clock.el,2291,function,org-clock-get-clocktable,partial,src/org/clock: clock::table::get_clocktable(params); agenda files read from disk,Get a formatted clocktable with parameters according to PROPS.
+org-clock.el,2312,command,org-clock-report,done,src/org/clock::command,Update or create a table containing a report about clocked time.
+org-clock.el,2348,function,org-day-of-week,internal,src/org/clock,Return the day of the week as an integer.
+org-clock.el,2355,function,org-quarter-to-date,internal,src/org/clock,Get the date (week day year) of the first day of a given quarter.
+org-clock.el,2404,function,org-clock-special-range,internal,src/org/clock,Return two times bordering a special time range.
+org-clock.el,2567,function,org-count-quarter,internal,src/org/clock,
+org-clock.el,2575,function,org-clocktable-shift,internal,src/org/clock,Try to shift the :block date of the clocktable at point.
+org-clock.el,2666,function,org-dblock-write:clocktable,partial,src/org/clock: all parameters; :scope lambda only (list ...) forms; other files read from disk; archives = FILE_archive,Write the standard clocktable.
+org-clock.el,2759,function,org-clocktable-write-default,internal,src/org/clock,Write out a clock table at position IPOS in the current buffer.
+org-clock.el,3010,function,org-clocktable-indent-string,internal,src/org/clock,Return indentation string according to LEVEL.
+org-clock.el,3016,function,org-clocktable-steps,internal,src/org/clock,"Create one or more clock tables, according to PARAMS."
+org-clock.el,3109,function,org-clock-get-table-data,internal,src/org/clock,"Get the clocktable data for file FILE, with parameters PARAMS."
+org-clock.el,3222,command,org-clock-update-time-maybe,done,src/org/clock::command,"If this is a CLOCK line, update it and return t."
+org-clock.el,3280,function,org-clock-save,partial,src/org/clock: clock::save on every clock change (not on exit),Persist various clock-related data to disk.
+org-clock.el,3322,function,org-clock-load,partial,src/org/clock: clock::load at the first tick in an Org buffer,"Load clock-related data from disk, maybe resuming a stored clock."
+org-clock.el,3350,function,org-clock-kill-emacs-query,adapted,"src/org/clock: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Query user when killing Emacs.
+org-clock.el,,option,org-task-overrun-text,done,src/org/clock: read by name,Extra mode line text to indicate that the clock is overrun.
+org-colview.el,66,option,org-columns-checkbox-allowed-values,done,src/org/colview: read by name,Allowed values for columns with SUMMARY-TYPE that uses checkbox.
+org-colview.el,79,option,org-columns-modify-value-for-display-function,partial,src/org/colview: not evaluated (Lisp function),Function that modifies values for display in column view.
+org-colview.el,92,option,org-columns-summary-types,partial,src/org/colview: Lisp summarize lambdas run in the table Lisp interpreter; collect functions ignored,Alist between operators and summarize functions.
+org-colview.el,129,option,org-columns-dblock-formatter,partial,src/org/colview: only the default formatter,Function to format data in column view dynamic blocks.
+org-colview.el,204,function,org-columns--spec-at-point,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Return the column specification for the column at point.
+org-colview.el,212,command,org-columns-content,partial,src/org/colview: shows all rows of the view,Switch to content view while in column view.
+org-colview.el,316,command,org-columns-help-quick-toggle,partial,src/org/colview: quick help shown as a message,Toggle quick help for column view.
+org-colview.el,333,function,org-columns--help-quick-close,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook","Close column view quick-help, if it is visible."
+org-colview.el,340,function,org-columns--displayed-value,internal,src/org/colview,Return displayed value for specification SPEC in current entry.
+org-colview.el,369,function,org-columns--agenda-effort-fallback,internal,src/org/colview,Return appointment duration as fallback value for Effort column.
+org-colview.el,385,function,org-columns--collect-values,internal,src/org/colview,Collect values for columns on the current line.
+org-colview.el,412,function,org-columns--collect-rows,internal,src/org/colview,Collect column view rows in the current scope.
+org-colview.el,420,function,org-columns--compute-clock-summaries,internal,src/org/colview,Compute clock summaries needed by the current column format.
+org-colview.el,429,function,org-columns--update-column-width,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Update WIDTHS according to SPEC and CELL.
+org-colview.el,439,function,org-columns--set-widths,internal,src/org/colview,Compute the maximum column widths from the format and ROWS.
+org-colview.el,480,function,org-columns--new-overlay,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Create a new column overlay and add it to the list.
+org-colview.el,488,function,org-columns--cell-format-string,internal,src/org/colview,Return `format' template for a column overlay cell of WIDTH characters.
+org-colview.el,497,function,org-columns--propertize-tags,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Apply Org tag faces to TAG-TEXT.
+org-colview.el,506,function,org-columns--overlay-text,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Return decorated DISPLAYED-VALUE string for column overlay display.
+org-colview.el,525,function,org-columns--pad-line-for-overlays,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook","Pad current line with spaces, one per column if needed."
+org-colview.el,542,function,org-columns--line-face,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Return the column overlay face for the current line.
+org-colview.el,558,function,org-columns--mark-line-read-only,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Mark the column view rendered line as read-only.
+org-colview.el,574,function,org-columns--make-row,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Create and install the overlay for each column on the next character.
+org-colview.el,590,function,org-columns--make-cell-overlay,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Place an overlay rendering one column on the next character at point.
+org-colview.el,611,function,org-columns--hide-rest-of-line,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Make the rest of the line disappear using overlays.
+org-colview.el,623,function,org-columns--display-line,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Overlay the current line with column display.
+org-colview.el,639,function,org-columns--truncate-below-width,internal,src/org/colview,Return a substring of STRING no wider than WIDTH.
+org-colview.el,653,function,org-columns-add-ellipses,internal,src/org/colview,"Truncate STRING with WIDTH characters, with ellipses."
+org-colview.el,681,function,org-columns--suspend-conflicting-modes,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Suspend minor modes that conflict with column view.
+org-colview.el,690,function,org-columns--resume-conflicting-modes,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Resume minor modes that were suspended by column view.
+org-colview.el,697,function,org-columns--suspend-line-wrapping,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Suspend line wrapping for column view by forcing `truncate-lines'.
+org-colview.el,705,function,org-columns--resume-line-wrapping,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Resume line wrapping suspended by `org-columns--suspend-line-wrapping'.
+org-colview.el,710,function,org-columns--suspend-display-environment,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Suspend display state that conflicts with column view.
+org-colview.el,715,function,org-columns--resume-display-environment,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Resume display state suspended by column view.
+org-colview.el,732,function,org-columns--remap-header-line,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Remap the header line to default face if not already done.
+org-colview.el,738,function,org-columns--display-header-line,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Prepare the table heading with column titles for the window's header line.
+org-colview.el,760,function,org-columns-hscroll-title,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Set the `header-line-format' so that it scrolls along with the table.
+org-colview.el,775,function,org-columns--clear-markers,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Clear column view markers.
+org-colview.el,785,command,org-columns-remove-overlays,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Remove all currently active column overlays.
+org-colview.el,804,command,org-columns-quit,done,src/org/colview::command,Remove the column overlays and in this way exit column editing.
+org-colview.el,817,command,org-columns-show-value,done,src/org/colview::command,Show the full value of the property.
+org-colview.el,823,command,org-columns-todo,done,src/org/colview::command,Change the TODO state during column view.
+org-colview.el,828,command,org-columns-toggle-or-columns-quit,done,src/org/colview::command,"Toggle checkbox at point, or quit column view."
+org-colview.el,834,function,org-columns--toggle,internal,src/org/colview,"Toggle checkbox at point.  Return non-nil if toggle happened, else nil."
+org-colview.el,842,command,org-columns-open-link,partial,src/org/colview: first link of the value,
+org-colview.el,849,function,org-columns-check-computed,internal,src/org/colview,Throw an error if current column value is computed.
+org-colview.el,857,function,org-columns--update-agenda-single-file,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Update `org-agenda-columns' for the file containing POM.
+org-colview.el,867,function,org-columns--execute-and-update,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Execute ACTION and update column view.
+org-colview.el,891,command,org-columns-edit-value,partial,"src/org/colview: TODO via completion, TAGS via typed tags, dates via the date prompt",Edit the value of the property at point in column view.
+org-colview.el,944,command,org-columns-edit-allowed,done,src/org/colview::command,Edit the list of allowed values for the current property.
+org-colview.el,965,function,org-columns--call,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Call function FUN while preserving heading visibility.
+org-colview.el,975,command,org-columns-previous-allowed-value,done,src/org/colview::command,Switch to the previous allowed value for this column.
+org-colview.el,980,command,org-columns-next-allowed-value,done,src/org/colview::command,Switch to the next allowed value for this column.
+org-colview.el,1019,function,org-colview-construct-allowed-dates,internal,src/org/colview,Construct a list of three dates around the date in S.
+org-colview.el,1054,function,org-columns-get-format-and-top-level,internal,src/org/colview,
+org-colview.el,1058,function,org-columns--get-columns-keyword,internal,src/org/colview,Return the first COLUMNS keyword value in the current buffer.
+org-colview.el,1062,command,org-columns-get-format,done,src/org/colview::command,Return column format specifications.
+org-colview.el,1082,function,org-columns-goto-top-level,internal,src/org/colview,Move to the beginning of the column view area.
+org-colview.el,1093,function,org-columns--set-scope,internal,src/org/colview,Set column view scope markers and move point to the scope beginning.
+org-colview.el,1119,function,org-columns--display-rows,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Display the header line and ROWS as column view overlays.
+org-colview.el,1129,function,org-columns--prepare-rows,internal,src/org/colview,Set up column view and return rows for the recorded scope.
+org-colview.el,1145,command,org-columns,partial,src/org/colview: generated *Org Columns: FILE* view buffer instead of overlays,Turn on column view on an Org mode file.
+org-colview.el,1167,function,org-columns--summary-types-completion-function,internal,src/org/colview,Complete column summary type operators.
+org-colview.el,1188,command,org-columns-new,done,src/org/colview::command,"Insert a new column, to the left of the current column."
+org-colview.el,1235,command,org-columns-delete,done,src/org/colview::command,Delete the column at point from column view.
+org-colview.el,1251,command,org-columns-edit-attributes,done,src/org/colview::command,Edit the attributes of the current column.
+org-colview.el,1256,command,org-columns-widen,done,src/org/colview::command,Make the column wider by ARG characters.
+org-colview.el,1267,command,org-columns-narrow,done,src/org/colview::command,Make the column narrower by ARG characters.
+org-colview.el,1274,function,org-columns--move-cursor,internal,src/org/colview,Move cursor up or down one row.
+org-colview.el,1285,command,org-columns-move-up,done,src/org/colview::command,Move cursor up one row.
+org-colview.el,1291,command,org-columns-move-down,done,src/org/colview::command,Move cursor down one row.
+org-colview.el,1297,command,org-columns-move-right,done,src/org/colview::command,Swap this column with the one to the right.
+org-colview.el,1321,command,org-columns-move-left,done,src/org/colview::command,Swap this column with the one to the left.
+org-colview.el,1331,function,org-columns--move-row,internal,src/org/colview,Move the current table row down.
+org-colview.el,1342,command,org-columns-move-row-down,done,src/org/colview::command,Move the current table row down.
+org-colview.el,1347,command,org-columns-move-row-up,done,src/org/colview::command,Move the current table row up.
+org-colview.el,1354,function,org-columns-update,internal,src/org/colview,"Recompute PROPERTY, and update its display in column view."
+org-colview.el,1381,command,org-columns-redo,done,src/org/colview::command,Construct the column display again.
+org-colview.el,1398,function,org-columns--replace-columns-keyword,internal,src/org/colview,Replace the first COLUMNS keyword value with COLUMNS-FORMAT.
+org-colview.el,1411,function,org-columns--insert-columns-keyword,internal,src/org/colview,Insert COLUMNS-FORMAT as a COLUMNS keyword before the first heading.
+org-colview.el,1421,function,org-columns-store-format,internal,src/org/colview,Store the text version of the current column format.
+org-colview.el,1440,function,org-columns-uncompile-format,internal,src/org/colview,Turn the compiled column format back into a string representation.
+org-colview.el,1458,function,org-columns-compile-format,internal,src/org/colview,Compile COLUMNS-FORMAT into a list of specifications.
+org-colview.el,1506,function,org-columns--age-to-minutes,internal,src/org/colview,Turn age string S into a number of minutes.
+org-colview.el,1519,function,org-columns--format-age,internal,src/org/colview,Format MINUTES float as an age string.
+org-colview.el,1525,function,org-columns--summary-apply-times,internal,src/org/colview,Apply FUN to time values TIMES.
+org-colview.el,1532,function,org-columns--summary-type,internal,src/org/colview,Return summary type definition for OPERATOR.
+org-colview.el,1538,function,org-columns--summarize-function,internal,src/org/colview,Return summary function associated with OPERATOR.
+org-colview.el,1546,function,org-columns--collect-function,partial,src/org/colview: collect functions ignored (plain property used),Return collect function associated with OPERATOR.
+org-colview.el,1556,function,org-columns--put-summary,internal,src/org/colview,Set SUMMARY for SPEC in `org-summaries' at POS.
+org-colview.el,1566,function,org-columns--update-summary-property,internal,src/org/colview,"Update PROPERTY at point when it exists, even if empty."
+org-colview.el,1579,function,org-columns--summarizable-operator,internal,src/org/colview,Return SPEC operator when its property can be summarized.
+org-colview.el,1587,function,org-columns--compute-spec,internal,src/org/colview,Update tree according to SPEC.
+org-colview.el,1625,function,org-columns-compute,internal,src/org/colview,Summarize the values of PROPERTY hierarchically.
+org-colview.el,1642,function,org-columns-compute-all,internal,src/org/colview,Compute all columns that have operators defined.
+org-colview.el,1656,function,org-columns--summary-sum,internal,src/org/colview,Compute the sum of VALUES.
+org-colview.el,1661,function,org-columns--summary-currencies,internal,src/org/colview,"Compute the sum of VALUES, with two decimals."
+org-colview.el,1665,function,org-columns--summary-checkbox,internal,src/org/colview,Summarize CHECKBOXES with a checkbox.
+org-colview.el,1673,function,org-columns--summary-checkbox-count,internal,src/org/colview,Summarize CHECKBOXES with a checkbox cookie.
+org-colview.el,1684,function,org-columns--summary-checkbox-percent,internal,src/org/colview,Summarize CHECKBOXES with a checkbox percent.
+org-colview.el,1690,function,org-columns--summary-min,internal,src/org/colview,Compute the minimum of VALUES.
+org-colview.el,1696,function,org-columns--summary-max,internal,src/org/colview,Compute the maximum of VALUES.
+org-colview.el,1702,function,org-columns--summary-mean,internal,src/org/colview,Compute the mean of VALUES.
+org-colview.el,1709,function,org-columns--summary-sum-times,internal,src/org/colview,Sum TIMES.
+org-colview.el,1713,function,org-columns--summary-min-time,internal,src/org/colview,Compute the minimum time among TIMES.
+org-colview.el,1717,function,org-columns--summary-max-time,internal,src/org/colview,Compute the maximum time among TIMES.
+org-colview.el,1721,function,org-columns--summary-mean-time,internal,src/org/colview,Compute the mean time among TIMES.
+org-colview.el,1727,function,org-columns--summary-min-age,internal,src/org/colview,Compute the minimum age among AGES.
+org-colview.el,1732,function,org-columns--summary-max-age,internal,src/org/colview,Compute the maximum age among AGES.
+org-colview.el,1737,function,org-columns--summary-mean-age,internal,src/org/colview,Compute the mean age among AGES.
+org-colview.el,1743,function,org-columns--summary-estimate,internal,src/org/colview,"Combine a list of estimates, using mean and variance."
+org-colview.el,1767,function,org-columns--capture-view,internal,src/org/colview,Get the column view of the current buffer.
+org-colview.el,1828,function,org-columns--clean-item,internal,src/org/colview,Remove sensitive contents from string ITEM.
+org-colview.el,1845,function,org-columns--dblock-capture,internal,src/org/colview,Capture a column view table for dynamic block parameters PARAMS.
+org-colview.el,1877,function,org-dblock-write:columnview,partial,src/org/colview: all parameters; :id in other files read from disk (summaries not written back there); custom formatter errors,Write the column view table.
+org-colview.el,1943,function,org-columns-dblock-write-default,internal,src/org/colview,Write out a column view table at position IPOS in the current buffer.
+org-colview.el,2029,command,org-columns-insert-dblock,done,src/org/colview::command,Create a dynamic block capturing a column view table.
+org-colview.el,2053,command,org-agenda-columns,partial,src/org/colview: agenda calls colview::entry_values/summarize; no agenda column view yet,Turn on or update column view in the agenda.
+org-colview.el,2113,function,org-agenda-colview-summarize,partial,src/org/colview: colview::summarize exposed for the agenda,Summarize the summarizable columns in column view in the agenda.
+org-colview.el,2179,function,org-agenda-colview-compute,partial,src/org/colview: colview::compute_all exposed for the agenda,Compute the relevant columns in the contributing source buffers.
+org-colview.el,,function,org-columns--spec-property--inliner,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",
+org-colview.el,,function,org-columns--spec-title--inliner,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",
+org-colview.el,,function,make-org-columns--spec--cmacro,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",compiler-macro for `make-org-columns--spec'.
+org-colview.el,,function,org-columns--spec-width,internal,src/org/colview,"Access slot ""width"" of `org-columns--spec' struct X."
+org-colview.el,,function,org-columns--spec-format-string,internal,src/org/colview,"Access slot ""format-string"" of `org-columns--spec' struct X."
+org-colview.el,,function,org-columns--make-spec--cmacro,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",compiler-macro for `org-columns--make-spec'.
+org-colview.el,,function,org-columns--spec-width--inliner,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",
+org-colview.el,,function,org-columns--spec-operator,internal,src/org/colview,"Access slot ""operator"" of `org-columns--spec' struct X."
+org-colview.el,,function,org-columns--spec-operator--inliner,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",
+org-colview.el,,command,org-columns-menu,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Org Column Menu.
+org-colview.el,,function,org-columns--spec-format-string--inliner,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",
+org-colview.el,,function,copy-org-columns--spec,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook","Return a copy of a list, vector, string, char-table or record."
+org-colview.el,,function,make-org-columns--spec,adapted,"src/org/colview: Emacs display/plumbing; Fred view buffer, status line or renderer hook",Constructor for objects of type `org-columns--spec'.
+org-colview.el,,function,org-columns--make-spec,internal,src/org/colview,Constructor for objects of type `org-columns--spec'.
+org-colview.el,,function,org-columns--spec-property,internal,src/org/colview,"Access slot ""property"" of `org-columns--spec' struct X."
+org-colview.el,,function,org-columns--spec-title,internal,src/org/colview,"Access slot ""title"" of `org-columns--spec' struct X."
 org-compat.el,184,function,org-buffer-text-pixel-width,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Return pixel width of text in current buffer.
 org-compat.el,395,function,org--set-faces-extend,internal,Emacs Lisp compatibility helper; Rust code uses std or the org helpers,Set the :extend attribute of FACES to EXTEND-P.
 org-compat.el,426,function,org-babel-edit-distance,done,obsolete alias of org-string-distance (compat.rs),Return Levenshtein distance between STRING1 and STRING2.
@@ -1887,7 +1887,7 @@ org-compat.el,600,function,org-list-parse-list,done,obsolete alias of org-list-t
 org-compat.el,601,function,org-agenda-todayp,done,obsolete alias of org-agenda-today-p (compat.rs),Non-nil when DATE means today.
 org-compat.el,603,command,org-babel-examplize-region,done,obsolete alias of org-babel-examplify-region (compat.rs),Comment out region BEG..END using the inline `==' or `: ' org example quote.
 org-compat.el,608,function,org-babel-trim,done,obsolete alias of org-trim (compat.rs),Remove whitespace at the beginning and the end of string S.
-org-compat.el,610,command,org-insert-columns-dblock,done,obsolete alias of org-columns-insert-dblock (compat.rs),Create a dynamic block capturing a column view table.
+org-compat.el,610,command,org-insert-columns-dblock,done,alias of org-columns-insert-dblock,Create a dynamic block capturing a column view table.
 org-compat.el,614,function,org-activate-bracket-links,done,obsolete alias of org-activate-links (compat.rs),Add link properties to links.
 org-compat.el,616,command,org-activate-plain-links,done,obsolete alias of ignore (compat.rs),"Ignore ARGUMENTS, do nothing, and return nil."
 org-compat.el,617,command,org-activate-angle-links,done,obsolete alias of ignore (compat.rs),"Ignore ARGUMENTS, do nothing, and return nil."
@@ -3705,25 +3705,25 @@ org-tempo.el,120,function,org-tempo-add-block,missing,,Add block ENTRY from `org
 org-tempo.el,141,function,org-tempo-add-keyword,missing,,Add keyword ENTRY from `org-tempo-keywords-alist'.
 org-tempo.el,151,function,org-tempo-complete-tag,missing,,Look for a tag and expand it silently.
 org-tempo.el,164,function,org-tempo--include-file,missing,,Add #+include: and a file name.
-org-timer.el,62,option,org-timer-format,missing,,The format to insert the time of the timer.
-org-timer.el,69,option,org-timer-default-timer,missing,,"The default timer when a timer is set, in minutes or hh:mm:ss format."
-org-timer.el,77,option,org-timer-display,missing,,"Define where running timer is displayed, if at all."
-org-timer.el,113,command,org-timer-start,missing,,Set the starting time for the relative timer to now.
-org-timer.el,153,command,org-timer-pause-or-continue,missing,,Pause or continue the relative or countdown timer.
-org-timer.el,186,command,org-timer-stop,missing,,Stop the relative or countdown timer.
-org-timer.el,201,command,org-timer,missing,,Insert a H:MM:SS string from the timer into the buffer.
-org-timer.el,224,function,org-timer-value-string,missing,,Return current timer string.
-org-timer.el,233,command,org-timer-change-times-in-region,missing,,Change all h:mm:ss time in region BEG..END by a DELTA.
-org-timer.el,259,command,org-timer-item,missing,,Insert a description-type item with the current timer value.
-org-timer.el,285,function,org-timer-fix-incomplete,missing,,"If HMS is a H:MM:SS string with missing hour or hour and minute, fix it."
-org-timer.el,296,function,org-timer-hms-to-secs,missing,,Convert h:mm:ss (HMS) string to an integer time.
-org-timer.el,310,function,org-timer-secs-to-hms,missing,,Convert integer S into h:mm:ss.
-org-timer.el,323,function,org-timer-set-mode-line,missing,,Set the mode-line display for relative or countdown timer.
-org-timer.el,375,function,org-timer-update-mode-line,missing,,Update the timer time in the mode line.
-org-timer.el,383,command,org-timer-show-remaining-time,missing,,Display the remaining time before the timer ends.
-org-timer.el,397,command,org-timer-set-timer,missing,,Prompt for a duration in minutes or hh:mm:ss and set a timer.
-org-timer.el,465,function,org-timer--run-countdown-timer,missing,,Start countdown timer that will last SECS.
-org-timer.el,479,function,org-timer--get-timer-title,missing,,Construct timer title.
+org-timer.el,62,option,org-timer-format,done,src/org/timer: read by name,The format to insert the time of the timer.
+org-timer.el,69,option,org-timer-default-timer,done,src/org/timer: read by name,"The default timer when a timer is set, in minutes or hh:mm:ss format."
+org-timer.el,77,option,org-timer-display,partial,src/org/timer: mode-line/both in the status line; frame-title unsupported,"Define where running timer is displayed, if at all."
+org-timer.el,113,command,org-timer-start,done,src/org/timer::command,Set the starting time for the relative timer to now.
+org-timer.el,153,command,org-timer-pause-or-continue,done,src/org/timer::command,Pause or continue the relative or countdown timer.
+org-timer.el,186,command,org-timer-stop,done,src/org/timer::command,Stop the relative or countdown timer.
+org-timer.el,201,command,org-timer,done,src/org/timer::command,Insert a H:MM:SS string from the timer into the buffer.
+org-timer.el,224,function,org-timer-value-string,internal,src/org/timer,Return current timer string.
+org-timer.el,233,command,org-timer-change-times-in-region,done,src/org/timer::command,Change all h:mm:ss time in region BEG..END by a DELTA.
+org-timer.el,259,command,org-timer-item,done,src/org/timer::command,Insert a description-type item with the current timer value.
+org-timer.el,285,function,org-timer-fix-incomplete,internal,src/org/timer,"If HMS is a H:MM:SS string with missing hour or hour and minute, fix it."
+org-timer.el,296,function,org-timer-hms-to-secs,internal,src/org/timer,Convert h:mm:ss (HMS) string to an integer time.
+org-timer.el,310,function,org-timer-secs-to-hms,internal,src/org/timer,Convert integer S into h:mm:ss.
+org-timer.el,323,function,org-timer-set-mode-line,internal,src/org/timer,Set the mode-line display for relative or countdown timer.
+org-timer.el,375,function,org-timer-update-mode-line,internal,src/org/timer,Update the timer time in the mode line.
+org-timer.el,383,command,org-timer-show-remaining-time,done,src/org/timer::command,Display the remaining time before the timer ends.
+org-timer.el,397,command,org-timer-set-timer,partial,src/org/timer: countdown checked by the app tick; org-timer-display frame-title unsupported,Prompt for a duration in minutes or hh:mm:ss and set a timer.
+org-timer.el,465,function,org-timer--run-countdown-timer,internal,src/org/timer,Start countdown timer that will last SECS.
+org-timer.el,479,function,org-timer--get-timer-title,internal,src/org/timer,Construct timer title.
 org-version.el,5,function,org-release,missing,,The release version of Org.
 org-version.el,11,function,org-git-version,missing,,The Git version of Org mode.
 org.el,106,command,org-global-cycle,partial,src/org/fold.rs: ported command; acceptance gates open,Cycle the global visibility.  For details see `org-cycle'.
@@ -3901,7 +3901,7 @@ org.el,3933,function,org-set-emph-re,missing,,Set variable and compute the empha
 org.el,4064,function,org-clocking-buffer,missing,,Return the buffer where the clock is currently running.
 org.el,4068,function,org-clock-is-active,missing,,Return the buffer where the clock is currently running.
 org.el,4070,function,org-check-running-clock,missing,,Check if the current buffer contains the running clock.
-org.el,4080,function,org-clocktable-try-shift,missing,,"Check if this line starts a clock table, if yes, shift the time block."
+org.el,4080,function,org-clocktable-try-shift,done,clock::table::shift / in_clocktable,"Check if this line starts a clock table, if yes, shift the time block."
 org.el,4086,function,org-clock-persistence-insinuate,missing,,Set up hooks for clock persistence.
 org.el,4092,function,org-clock-auto-clockout-insinuate,missing,,Set up hook for auto clocking out when Emacs is idle.
 org.el,4105,option,org-archive-location,missing,,The location where subtrees should be archived.
@@ -4070,17 +4070,17 @@ org.el,9182,command,org-mark-ring-goto,partial,src/org/links.rs: ported command;
 org.el,9204,function,org-follow-timestamp-link,missing,,Open an agenda view for the timestamp date/range at point.
 org.el,9238,function,org-get-org-file,missing,,"Read a filename, with default directory `org-directory'."
 org.el,9245,function,org-notes-order-reversed-p,missing,,Check if the current file should receive notes in reversed order.
-org.el,9262,function,org-find-dblock,missing,,Find the first dynamic block with name NAME in the buffer.
-org.el,9274,function,org-create-dblock,missing,,"Create a dynamic block section, with parameters taken from PLIST."
-org.el,9291,function,org-prepare-dblock,missing,,Prepare dynamic block for refresh.
-org.el,9316,function,org-map-dblocks,missing,,Apply COMMAND to all dynamic blocks in the current buffer.
+org.el,9262,function,org-find-dblock,internal,src/org/dblock.rs,Find the first dynamic block with name NAME in the buffer.
+org.el,9274,function,org-create-dblock,internal,src/org/dblock.rs,"Create a dynamic block section, with parameters taken from PLIST."
+org.el,9291,function,org-prepare-dblock,internal,src/org/dblock.rs,Prepare dynamic block for refresh.
+org.el,9316,function,org-map-dblocks,internal,src/org/dblock.rs,Apply COMMAND to all dynamic blocks in the current buffer.
 org.el,9339,function,org-dynamic-block-function,missing,,Return function associated to a given dynamic block type.
 org.el,9344,function,org-dynamic-block-types,missing,,List all defined dynamic block types.
 org.el,9349,function,org-dynamic-block-define,missing,,Define dynamic block TYPE with FUNC.
 org.el,9357,command,org-dynamic-block-insert-dblock,partial,src/org/dblock.rs: ported command; acceptance gates open,Insert a dynamic block of type TYPE.
 org.el,9372,command,org-dblock-update,partial,src/org/dblock.rs: ported command; acceptance gates open,User command for updating dynamic blocks.
 org.el,9383,command,org-update-dblock,partial,src/org/dblock.rs: ported command; acceptance gates open,Update the dynamic block at point.
-org.el,9416,function,org-beginning-of-dblock,missing,,Find the beginning of the dynamic block at point.
+org.el,9416,function,org-beginning-of-dblock,internal,src/org/dblock.rs,Find the beginning of the dynamic block at point.
 org.el,9430,command,org-update-all-dblocks,partial,src/org/dblock.rs: ported command; acceptance gates open,Update all dynamic blocks in the buffer.
 org.el,9441,function,org-get-export-keywords,missing,,Return a list of all currently understood export keywords.
 org.el,9465,option,org-structure-template-alist,missing,,An alist of keys and block types.
@@ -4389,7 +4389,7 @@ org.el,19324,command,org-require-autoloaded-modules,partial,src/org/editing.rs: 
 org.el,19331,command,org-reload,partial,src/org/editing.rs: ported command; acceptance gates open,Reload all Org Lisp files.
 org.el,19381,command,org-customize,partial,src/org/editing.rs: ported command; acceptance gates open,Call the customize function with org as argument.
 org.el,19388,command,org-create-customize-menu,partial,src/org/editing.rs: ported command; acceptance gates open,"Create a full customization menu for Org mode, insert it into the menu."
-org.el,19409,function,org-in-clocktable-p,missing,,Check if the cursor is in a clocktable.
+org.el,19409,function,org-in-clocktable-p,done,clock::table::shift / in_clocktable,Check if the cursor is in a clocktable.
 org.el,19420,function,org-in-verbatim-emphasis,missing,,
 org.el,19426,function,org-goto-marker-or-bmk,missing,,"Go to MARKER, widen if necessary.  When marker is not live, try BOOKMARK."
 org.el,19441,function,org-quote-csv-field,missing,,Quote field for inclusion in CSV material.

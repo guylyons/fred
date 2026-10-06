@@ -781,6 +781,7 @@ fn event_loop(
         if s.tick_magit() {
             dirty = true;
         }
+        dirty |= crate::org::tick(s);
         if let Some(inv) = s.pending_git.take() {
             run_git(ui, s, inv)?;
             dirty = true;
