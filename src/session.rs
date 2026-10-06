@@ -523,6 +523,7 @@ impl Session {
             self.ed.set_err("read-only (w! to override)");
             return false;
         }
+        crate::org::crypt::before_save(&mut self.ed);
         let data = self.ed.buf.to_bytes();
         match fileio::write(p, &data, self.stamp.as_ref(), force) {
             Ok(st) => {

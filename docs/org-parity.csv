@@ -2065,18 +2065,18 @@ org-compat.el,,function,org-list-of-strings-p,missing,,Return t if OBJECT is nil
 org-compat.el,,function,org-display-buffer-full-frame,missing,,"Display BUFFER in the current frame, taking the entire frame."
 org-compat.el,,function,org-file-has-changed-p,missing,,Return non-nil if FILE has changed.
 org-compat.el,,function,org-file-name-concat,missing,,Append COMPONENTS to DIRECTORY and return the resulting string.
-org-crypt.el,91,option,org-crypt-tag-matcher,missing,,The tag matcher used to find headings whose contents should be encrypted.
-org-crypt.el,98,option,org-crypt-key,missing,,The default key to use when encrypting the contents of a heading.
-org-crypt.el,114,option,org-crypt-disable-auto-save,missing,,What org-decrypt should do if `auto-save-mode' is enabled.
-org-crypt.el,138,function,org-crypt--encrypted-text,missing,,Return encrypted text in between BEG and END.
-org-crypt.el,145,function,org-at-encrypted-entry-p,missing,,Is the current entry encrypted?
-org-crypt.el,168,function,org-crypt-check-auto-save,missing,,Check whether `auto-save-mode' is enabled for the current buffer.
-org-crypt.el,198,function,org-crypt-key-for-heading,missing,,Return the encryption key(s) for the current heading.
-org-crypt.el,212,command,org-encrypt-entry,missing,,Encrypt the content of the current headline.
-org-crypt.el,256,command,org-decrypt-entry,missing,,Decrypt the content of the current headline.
-org-crypt.el,317,command,org-encrypt-entries,missing,,Encrypt all top-level entries in the current buffer.
-org-crypt.el,327,command,org-decrypt-entries,missing,,Decrypt all entries in the current buffer.
-org-crypt.el,337,function,org-crypt-use-before-save-magic,missing,,Add a hook to automatically encrypt entries before a file is saved to disk.
+org-crypt.el,91,option,org-crypt-tag-matcher,done,tags matcher for crypt entries (crypt::crypt_entries),The tag matcher used to find headings whose contents should be encrypted.
+org-crypt.el,98,option,org-crypt-key,done,"default key; CRYPTKEY property overrides, nil means symmetric",The default key to use when encrypting the contents of a heading.
+org-crypt.el,114,option,org-crypt-disable-auto-save,adapted,"applies to Fred swap files: ask/t disable swap, encrypt re-encrypts on save, nil warns",What org-decrypt should do if `auto-save-mode' is enabled.
+org-crypt.el,138,function,org-crypt--encrypted-text,internal,ciphertext read by crypt::decrypt_at,Return encrypted text in between BEG and END.
+org-crypt.el,145,function,org-at-encrypted-entry-p,done,crypt::encrypted_region,Is the current entry encrypted?
+org-crypt.el,168,function,org-crypt-check-auto-save,adapted,crypt::check_swap disables the swap file,Check whether `auto-save-mode' is enabled for the current buffer.
+org-crypt.el,198,function,org-crypt-key-for-heading,done,crypt::key_for,Return the encryption key(s) for the current heading.
+org-crypt.el,212,command,org-encrypt-entry,adapted,gpg --armor (recipient key or symmetric with masked passphrase prompt); unchanged ciphertext reused by checksum,Encrypt the content of the current headline.
+org-crypt.el,256,command,org-decrypt-entry,adapted,gpg --decrypt; subheadings re-levelled,Decrypt the content of the current headline.
+org-crypt.el,317,command,org-encrypt-entries,done,all crypt-tagged entries,Encrypt all top-level entries in the current buffer.
+org-crypt.el,327,command,org-decrypt-entries,done,all crypt-tagged entries,Decrypt all entries in the current buffer.
+org-crypt.el,337,function,org-crypt-use-before-save-magic,adapted,option org-crypt-use-before-save-magic = true (or the command) encrypts keyed entries on :w,Add a hook to automatically encrypt entries before a file is saved to disk.
 org-ctags.el,164,option,org-ctags-path-to-ctags,missing,,Name of the ctags executable file.
 org-ctags.el,188,option,org-ctags-open-link-functions,missing,,List of functions to be prepended to ORG-OPEN-LINK-FUNCTIONS by ORG-CTAGS.
 org-ctags.el,202,option,org-ctags-new-topic-template,missing,,Text to insert when creating a new org file via opening a hyperlink.

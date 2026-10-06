@@ -8,6 +8,13 @@ use super::*;
 pub type Finish = Box<dyn FnOnce(&mut Session, String, bool) + Send>;
 
 impl Session {
+    /// Stop writing this buffer's swap file and delete it
+    /// (org-crypt-check-auto-save turning auto-save-mode off).
+    pub fn org_disable_swap(&mut self) {
+        swap::remove(&self.swap_path);
+        self.no_swap = true;
+    }
+
     /// Open a special Org buffer named `name` (`*Org Note*`) holding
     /// `text`, the cursor at `cursor`. `finish` runs on C-c C-c / C-c C-k.
     pub fn org_special(&mut self, name: &str, text: &str, cursor: (usize, usize), finish: Finish) {

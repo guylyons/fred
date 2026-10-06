@@ -9,6 +9,7 @@ pub mod attach;
 pub mod babel;
 pub mod buf;
 pub mod capture;
+pub mod crypt;
 pub mod ctx;
 pub mod dblock;
 pub mod dispatch;
@@ -85,6 +86,8 @@ pub struct Org {
     pub list: list::State,
     /// org-pretty-entities toggled in this buffer (None: the option).
     pub pretty_entities: Option<bool>,
+    /// org-crypt-disable-auto-save `encrypt`: re-encrypt on save.
+    pub reencrypt_on_save: bool,
 }
 
 /// org-region-active-p: the region's lines.
@@ -829,6 +832,7 @@ const MODULES: &[Module] = &[
     babel::command,
     entities::command,
     attach::command,
+    crypt::command,
 ];
 
 thread_local! {

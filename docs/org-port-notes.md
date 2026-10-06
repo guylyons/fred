@@ -155,3 +155,15 @@ Hooks: org-attach-after-change-hook / org-attach-open-hook are lists of
 names; `org-attach-git-commit` and `org-attach-git-annex-get-maybe` run the
 git CLI. Gaps: no agenda entry point, custom org-attach-commands ignored,
 file prompts take a typed path.
+
+## org-crypt (src/org/crypt.rs)
+
+- `gpg --armor` replaces EasyPG. A recipient key comes from CRYPTKEY
+  (inherited) or `org-crypt-key`; otherwise symmetric encryption with a
+  passphrase read in a masked prompt (`CmdLine::secret`) and passed via
+  `--pinentry-mode loopback --passphrase-fd 0`.
+- Ciphertext of an unchanged decrypted entry is reused by plaintext checksum
+  (thread-local table) instead of text properties.
+- `org-crypt-disable-auto-save` governs Fred's swap file
+  (`Session::org_disable_swap`); `encrypt` and
+  `org-crypt-use-before-save-magic` encrypt keyed entries in `write_own`.

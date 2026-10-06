@@ -53,6 +53,8 @@ pub struct CmdLine {
     stash: String,
     /// Tab completion in progress: candidates, current index, text before Tab.
     pub(crate) comp: Option<(Vec<String>, usize, String)>,
+    /// A passphrase: drawn as `*`.
+    pub secret: bool,
 }
 
 impl CmdLine {
@@ -565,6 +567,7 @@ impl Editor {
             hist: None,
             stash: String::new(),
             comp: None,
+            secret: false,
         });
     }
 

@@ -1162,8 +1162,18 @@ fn draw_command_row(buf: &mut Screen, area: Rect, ed: &Editor) -> Option<usize> 
 fn draw_input(buf: &mut Screen, area: Rect, prompt: &str, cl: &CmdLine) -> usize {
     let y = area.y + area.height - 1;
     let w = area.width as usize;
-    let full = format!("{prompt}{}", cl.text);
-    let ccol = display_width(prompt, 1, 0) + display_width(&cl.text[..cl.cursor], 1, 0);
+    let text = if cl.secret {
+        "*".repeat(cl.text.chars().count())
+    } else {
+        cl.text.clone()
+    };
+    let before = if cl.secret {
+        cl.text[..cl.cursor].chars().count()
+    } else {
+        display_width(&cl.text[..cl.cursor], 1, 0)
+    };
+    let full = format!("{prompt}{text}");
+    let ccol = display_width(prompt, 1, 0) + before;
     let skip = (ccol + 1).saturating_sub(w);
     let mut col = 0;
     let mut shown = String::new();
