@@ -131,6 +131,8 @@ pub struct Editor {
     pub org_menu_typed: String,
     /// An Org key sequence in progress (`C-c C-x`).
     pub org_keys: Vec<Key>,
+    /// `zz`: the next draw puts the cursor line in the middle of the window.
+    pub recenter: std::cell::Cell<bool>,
     /// The prefix argument for the next Org command (`Space u`).
     pub org_arg: crate::org::Prefix,
     /// The active region (Visual-line selection) for an Org command.
@@ -222,6 +224,7 @@ impl Editor {
             org_menu: vec![],
             org_menu_typed: String::new(),
             org_keys: vec![],
+            recenter: Default::default(),
             org_arg: crate::org::Prefix::None,
             org_region: None,
             org_buffer_name: None,
