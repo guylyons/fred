@@ -416,6 +416,8 @@ fn cycle_hook(ed: &mut Editor, state: &str, h: usize) {
             }
         }
     }
+    // org-inlinetask-hide-tasks.
+    super::inlinetask::hide_tasks(ed, state, h);
     if global {
         show_empty_lines(ed, 0, n(ed));
     } else if matches!(state, "children" | "folded") {
@@ -824,6 +826,10 @@ pub fn cycle(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
     if hooks::cycle_level(ed)? {
         return Ok(());
     }
+    // Inline task: org-inlinetask-toggle-visibility.
+    if super::inlinetask::cycle(ed) {
+        return Ok(());
+    }
     if toggle_wrapper(ed, l, false, None) || toggle_wrapper(ed, l, true, None) {
         return Ok(());
     }
@@ -835,6 +841,10 @@ pub fn cycle(ed: &mut Editor, arg: Prefix) -> Result<(), String> {
         return Ok(());
     }
     if hooks::item_cycle(ed, repeat)? {
+        return Ok(());
+    }
+    // org-tab-before-tab-emulation-hook: Org Tempo.
+    if super::tempo::tab_hook(ed)? {
         return Ok(());
     }
     hooks::emulate_tab(ed)

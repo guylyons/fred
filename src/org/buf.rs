@@ -14,6 +14,8 @@ pub struct EBuf {
     /// The text when loaded, for writing back only what changed.
     orig: String,
     orig_pt: usize,
+    /// Emacs markers (see [`EBuf::mark`]): positions that follow edits.
+    marks: Vec<usize>,
 }
 
 impl EBuf {
@@ -23,6 +25,7 @@ impl EBuf {
             pt: pt.min(s.len()),
             orig: s.to_owned(),
             orig_pt: pt,
+            marks: vec![],
         }
     }
 
@@ -74,6 +77,33 @@ impl EBuf {
         if self.s != self.orig || self.pt != self.orig_pt {
             let (l, b) = self.line_col(self.pt);
             ed.set_cursor(l, b);
+        }
+    }
+
+    /// The editor's text as Emacs holds it: with the file's final newline.
+    pub fn load_emacs(ed: &Editor) -> EBuf {
+        let b = EBuf::load(ed);
+        if ed.buf.final_newline {
+            EBuf::new(&format!("{}\n", b.s), b.pt)
+        } else {
+            b
+        }
+    }
+
+    /// Store text loaded with [`EBuf::load_emacs`]: a final newline is the
+    /// file's (gained if the text now ends in one).
+    pub fn store_emacs(self, ed: &mut Editor) {
+        let (mut s, pt) = (self.s, self.pt);
+        let nl = s.ends_with('\n');
+        if nl {
+            s.pop();
+        }
+        let mut b = EBuf::load(ed);
+        b.pt = pt.min(s.len());
+        b.s = s;
+        b.store(ed);
+        if nl {
+            ed.buf.final_newline = true;
         }
     }
 
@@ -229,15 +259,37 @@ impl EBuf {
         &self.s[a.min(b)..b.max(a).min(self.s.len())]
     }
 
+    /// copy-marker: a position that moves with later edits (text
+    /// inserted at it goes after it). Returns its handle.
+    pub fn mark(&mut self, pos: usize) -> usize {
+        self.marks.push(pos.min(self.s.len()));
+        self.marks.len() - 1
+    }
+
+    /// marker-position.
+    pub fn marker(&self, m: usize) -> usize {
+        self.marks[m]
+    }
+
+    fn marks_inserted(&mut self, at: usize, n: usize) {
+        for m in &mut self.marks {
+            if *m > at {
+                *m += n;
+            }
+        }
+    }
+
     /// Insert at point, moving point after it.
     pub fn insert(&mut self, t: &str) {
         self.s.insert_str(self.pt, t);
+        self.marks_inserted(self.pt, t.len());
         self.pt += t.len();
     }
 
     /// Insert at `pos`; point moves along when it is after `pos`.
     pub fn insert_at(&mut self, pos: usize, t: &str) {
         self.s.insert_str(pos, t);
+        self.marks_inserted(pos, t.len());
         if self.pt > pos {
             self.pt += t.len();
         }
@@ -247,10 +299,12 @@ impl EBuf {
     pub fn delete(&mut self, a: usize, b: usize) -> String {
         let (a, b) = (a.min(b), b.max(a).min(self.s.len()));
         let out: String = self.s.drain(a..b).collect();
-        if self.pt > b {
-            self.pt -= b - a;
-        } else if self.pt > a {
-            self.pt = a;
+        for p in self.marks.iter_mut().chain(std::iter::once(&mut self.pt)) {
+            if *p > b {
+                *p -= b - a;
+            } else if *p > a {
+                *p = a;
+            }
         }
         out
     }
@@ -260,6 +314,7 @@ impl EBuf {
         let old_pt = self.pt;
         self.delete(a, b);
         self.s.insert_str(a, t);
+        self.marks_inserted(a, t.len());
         if old_pt >= b {
             self.pt = old_pt - (b - a) + t.len();
         } else if old_pt > a {

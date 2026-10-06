@@ -561,7 +561,7 @@ pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), St
     let in_src = ed
         .org_buffer_name
         .as_deref()
-        .is_some_and(|n| n.starts_with("*Org Src"));
+        .is_some_and(|n| n.starts_with("*Org Src") || n.starts_with("*Edit footnote"));
     Some(match name {
         "org-edit-special" => edit_special(ed, arg),
         "org-edit-src-code" | "org-edit-export-block" | "org-edit-comment-block" => {

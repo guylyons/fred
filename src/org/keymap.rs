@@ -152,6 +152,9 @@ pub const ORG_MODE_MAP: &[(&str, &str)] = &[
     ("C-c <up>", "org-shiftup"),
     ("C-c C-<tab>", "org-cycle-force-archived"),
     ("C-c C-x t", "org-inlinetask-insert-task"),
+    // The global completion-at-point keys (org-pcomplete).
+    ("C-M-i", "pcomplete"),
+    ("M-TAB", "pcomplete"),
     ("C-c C-x C-e", "org-clock-modify-effort-estimate"),
     ("C-c C-x I", "org-info-find-node"),
     ("C-c C-x [", "org-reftex-citation"),

@@ -17,19 +17,29 @@ pub mod ctags;
 pub mod ctx;
 pub mod dblock;
 pub mod dispatch;
+pub mod display;
 pub mod editing;
 pub mod element;
 pub mod entities;
 pub mod face;
 pub mod feed;
 pub mod fold;
+pub mod footnote;
+pub mod goto;
+pub mod id;
+pub mod indent;
+pub mod inlinetask;
 pub mod keymap;
+pub mod keys;
 pub mod links;
 pub mod lint;
 pub mod list;
+pub mod macros;
 pub mod mobile;
 pub mod motion;
+pub mod num;
 pub mod options;
+pub mod pcomplete;
 pub mod props;
 pub mod protocol;
 pub mod re;
@@ -40,6 +50,7 @@ pub mod structure;
 pub mod syntax;
 pub mod table;
 pub mod tags;
+pub mod tempo;
 pub mod time;
 pub mod timer;
 pub mod todo;
@@ -101,6 +112,11 @@ pub struct Org {
     pub reencrypt_on_save: bool,
     /// org-clock-display's per-heading times.
     pub clock_overlays: clock::Overlays,
+    /// org-num-mode and org-indent-mode toggled here (None: startup option).
+    pub num_mode: Option<bool>,
+    pub indent_mode: Option<bool>,
+    /// Display prefixes and numbers (display.rs).
+    pub display: display::Cache,
 }
 
 /// org-region-active-p: the region's lines.
@@ -590,10 +606,15 @@ fn active_map(ed: &Editor) -> Option<Vec<Map>> {
     if colview::is_view(ed) {
         return Some(vec![keymap::COLUMNS_MAP]);
     }
+    if goto::active(ed) {
+        return Some(goto::maps());
+    }
     let mut maps: Vec<Map> = vec![];
     match ed.org_buffer_name.as_deref() {
         Some(n) if n.starts_with("CAPTURE-") => maps.push(keymap::CAPTURE_MAP),
-        Some(n) if n.starts_with("*Org Src") => maps.push(keymap::SRC_MAP),
+        Some(n) if n.starts_with("*Org Src") || n.starts_with("*Edit footnote") => {
+            maps.push(keymap::SRC_MAP)
+        }
         _ => {}
     }
     if ed.org.is_some() {
@@ -704,6 +725,13 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     if ed.zap.is_some() || ed.explain.is_some() {
         return false;
     }
+    // TAB and S-TAB drive an open completion popup.
+    if ed.mode == Mode::Insert
+        && ed.popup.is_some()
+        && (k.is(KeyCode::Tab) || k.is(KeyCode::BackTab))
+    {
+        return false;
+    }
     let normal = ed.mode == Mode::Normal;
     // The user's `Space o` leader (gl-keys.el) and `Space u` (universal-argument).
     if normal && ed.vim.pending == [Key::ch(' ')] {
@@ -748,6 +776,10 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     if table::orgtbl_key(ed, k) || colview::key(ed, k) {
         return true;
     }
+    // org-speed-commands at the start of a headline.
+    if keys::speed_key(ed, k) {
+        return true;
+    }
     let Some(map) = active_map(ed) else {
         return false;
     };
@@ -766,6 +798,8 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             lint::vim_keeps(k)
         } else if colview::is_view(ed) {
             colview::vim_keeps(ed, k)
+        } else if goto::active(ed) {
+            !goto::binds(k) && vim_keeps_normal(k)
         } else if insert {
             vim_keeps_insert(k)
         } else {
@@ -879,6 +913,15 @@ const MODULES: &[Module] = &[
     clock::command,
     timer::command,
     colview::command,
+    footnote::command,
+    inlinetask::command,
+    id::command,
+    goto::command,
+    keys::command,
+    tempo::command,
+    pcomplete::command,
+    num::command,
+    indent::command,
 ];
 
 thread_local! {
@@ -952,48 +995,12 @@ pub fn agenda_files() -> Vec<std::path::PathBuf> {
     out
 }
 
-/// org-id-find: the file and heading line of entry ID, searching open
-/// buffers, the agenda files and org-id-locations.
+/// org-id-find: the file and heading line of entry ID (see id.rs).
 pub fn find_id_file(
     s: &mut crate::session::Session,
     id: &str,
 ) -> Option<(std::path::PathBuf, usize)> {
-    let mut files: Vec<std::path::PathBuf> = (0..s.org_buffer_count())
-        .filter_map(|i| s.org_buffer_path(i))
-        .filter(|p| p.extension().is_some_and(|e| e == "org"))
-        .collect();
-    files.extend(agenda_files());
-    let loc = options::expand(&options::string(
-        "org-id-locations-file",
-        "~/.emacs.d/.org-id-locations",
-    ));
-    if let Ok(text) = std::fs::read_to_string(&loc)
-        && let Ok(v) = sexp::read(&text)
-    {
-        for e in v.list().unwrap_or(&[]) {
-            if let Some(items) = e.list()
-                && items.iter().skip(1).any(|x| x.str() == Some(id))
-                && let Some(f) = items.first().and_then(|x| x.str())
-            {
-                files.insert(0, options::expand(f));
-            }
-        }
-    }
-    let needle = id.to_owned();
-    for f in files {
-        let Ok(text) = s.org_text(&f) else { continue };
-        let lines: Vec<String> = text.lines().map(str::to_owned).collect();
-        for (i, l) in lines.iter().enumerate() {
-            if let Some((k, v)) = props::parse_property(l)
-                && k.eq_ignore_ascii_case("ID")
-                && v == needle
-            {
-                let h = syntax::heading_at_or_before(&lines, i).unwrap_or(0);
-                return Some((f, h));
-            }
-        }
-    }
-    None
+    id::find(s, id)
 }
 
 /// A timestamp for a typed date (`2026-10-04`, `2026-10-04 13:00`, `+2d`,

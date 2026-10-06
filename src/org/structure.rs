@@ -309,7 +309,7 @@ fn change_heading_level(
 }
 
 /// org-fixup-indentation (org-adapt-indentation decides what moves).
-fn fixup_indentation(b: &mut EBuf, diff: i64) {
+pub(crate) fn fixup_indentation(b: &mut EBuf, diff: i64) {
     let adapt = super::sexp::option("org-adapt-indentation").map_or("nil".to_owned(), |v| {
         v.sym().map_or("t".into(), str::to_owned)
     });
@@ -457,7 +457,7 @@ pub fn promote_subtree(ed: &mut Editor, change: i64) -> Result<(), String> {
 
 /// org-adapt-indentation, unless a caller bound it to nil.
 fn adapt_override(ed: &Editor) -> bool {
-    !ed.org.as_ref().is_some_and(|o| o.no_adapt)
+    !ed.org.as_ref().is_some_and(|o| o.no_adapt) && !super::indent::adapt_off(ed)
 }
 
 /// org-cycle-level: TAB on an empty heading cycles its level. True if it acted.
@@ -658,6 +658,7 @@ pub fn paste_subtree(
     if !kill_is_subtree(&tree) {
         return Err("The kill is not a (set of) tree(s).  Use `p' to yank anyway".into());
     }
+    super::id::paste_tracker(&tree, ed.path.as_deref());
     let odd = odd_levels(ed);
     let visible_heading = |ed: &Editor, from: usize, down: bool| -> Option<usize> {
         if down {
@@ -1279,6 +1280,19 @@ fn meta_vertical(ed: &mut Editor, arg: Prefix, dir: i64) -> Result<(), String> {
             arg,
         );
     }
+    let st = super::settings(ed);
+    let lines: Vec<String> = (0..ed.line_count()).map(|i| ed.buf.line(i)).collect();
+    if super::inlinetask::min_level(&st).is_some() && super::inlinetask::in_task_p(&lines, l, &st) {
+        return call(
+            ed,
+            if dir < 0 {
+                "org-drag-element-backward"
+            } else {
+                "org-drag-element-forward"
+            },
+            arg,
+        );
+    }
     if ctx::at_heading(ed, l) {
         return move_subtree(ed, dir * arg.value());
     }
@@ -1318,8 +1332,24 @@ fn meta_horizontal(ed: &mut Editor, arg: Prefix, dir: i64) -> Result<(), String>
             arg,
         );
     }
-    if ed.org_region.is_some_and(|(lo, _)| ctx::at_heading(ed, lo)) || ctx::at_heading(ed, l) {
+    // org-with-limited-levels: inline tasks are not headings here.
+    let st = super::settings(ed);
+    let limited = |ed: &Editor, i: usize| {
+        ctx::at_heading(ed, i) && super::inlinetask::task_stars(&ed.buf.line(i), &st).is_none()
+    };
+    if ed.org_region.is_some_and(|(lo, _)| limited(ed, lo)) || limited(ed, l) {
         return do_promote(ed, dir);
+    }
+    if ctx::at_heading(ed, l) {
+        return call(
+            ed,
+            if dir < 0 {
+                "org-inlinetask-promote"
+            } else {
+                "org-inlinetask-demote"
+            },
+            arg,
+        );
     }
     if ed.org_region.is_some_and(|(lo, _)| ctx::at_item(ed, lo)) || ctx::at_item(ed, l) {
         return call(
