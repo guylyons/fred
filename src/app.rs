@@ -31,7 +31,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 const TICK: Duration = Duration::from_millis(50);
-const HIGHLIGHT_BUDGET: Duration = Duration::from_millis(20);
+pub(crate) const HIGHLIGHT_BUDGET: Duration = Duration::from_millis(20);
 /// How long to wait for more pending input before drawing. Not zero: with
 /// `use-dev-tty`, crossterm's poll reads nothing when given no time.
 const BATCH: Duration = Duration::from_millis(1);
@@ -92,18 +92,9 @@ impl Ui {
             .term
             .draw(|f| ui::draw(f, &s.ed, view, hl, cfg, HIGHLIGHT_BUDGET))?;
         // `done.area` is the whole terminal; the buffer covers just the window.
-        self.area = Some(done.buffer.area);
         let area = done.buffer.area;
-        let gutter = ui::render::gutter_width(&s.ed).min(area.width as usize / 2);
-        s.ed.viewport = Some(crate::zap::Viewport {
-            view: self.view,
-            rows: (area.height as usize).saturating_sub(2),
-            cols: (area.width as usize).saturating_sub(gutter).max(1),
-            wrap: s.ed.opts.bool(crate::options::Opt::Wrap),
-        });
-        // Paging scrolls by the text rows actually on screen (minus status
-        // and command lines), not the configured height, which may be "max".
-        s.ed.win_height = (done.buffer.area.height as usize).saturating_sub(2).max(1);
+        self.area = Some(area);
+        drawn(s, self.view, area);
         let bar = s.ed.mode == Mode::Insert;
         if bar != self.bar_cursor {
             self.bar_cursor = bar;
@@ -162,6 +153,154 @@ impl Ui {
         self.bar_cursor = false;
         Ok(())
     }
+}
+
+/// Tell the editor what the last draw showed in `area`.
+pub(crate) fn drawn(s: &mut Session, view: View, area: Rect) {
+    let gutter = ui::render::gutter_width(&s.ed).min(area.width as usize / 2);
+    s.ed.viewport = Some(crate::zap::Viewport {
+        view,
+        rows: (area.height as usize).saturating_sub(2),
+        cols: (area.width as usize).saturating_sub(gutter).max(1),
+        wrap: s.ed.opts.bool(crate::options::Opt::Wrap),
+    });
+    // Paging scrolls by the text rows actually on screen (minus status
+    // and command lines), not the configured height, which may be "max".
+    s.ed.win_height = (area.height as usize).saturating_sub(2).max(1);
+}
+
+/// Keyboard input from any front end (the terminal's or the GUI's).
+pub(crate) enum Input<'a> {
+    Key(Key),
+    Paste(&'a str),
+    Resize,
+}
+
+pub(crate) fn input(s: &mut Session, hl: &mut Highlighter, view: &mut View, inp: Input) {
+    let keep_view = s.ed.zap.is_some();
+    view.last_click = None;
+    match inp {
+        // Magit-style buffers bind Alt keys (M-j, M-w, M-1 ...): they get
+        // the key whole; elsewhere Alt+X stays Esc, X.
+        Input::Key(key)
+            if key.alt && !crate::magit::wants_alt(&s.ed) && !crate::org::wants_alt(&s.ed) =>
+        {
+            s.handle_key(Key::new(KeyCode::Esc));
+            s.handle_key(Key { alt: false, ..key });
+        }
+        Input::Key(key) => s.handle_key(key),
+        Input::Paste(text) => s.ed.paste(text),
+        Input::Resize => s.ed.zap = None,
+    }
+    if let Some(d) = s.ed.buf.take_dirty_from() {
+        hl.invalidate(d);
+    }
+    if !keep_view && s.ed.zap.is_none() && s.ed.vim.pending != [Key::ch(' ')] {
+        view.detached = false;
+    }
+}
+
+/// Background work any front end checks between events. True when the
+/// screen needs drawing.
+pub(crate) fn tick(s: &mut Session, hl: &mut Highlighter, view: &mut View) -> bool {
+    let mut dirty = false;
+    if s.reloaded {
+        s.reloaded = false;
+        hl.set_file(
+            s.ed.path.as_deref().or(s.ed.syntax_path.as_deref()),
+            &s.ed.buf,
+        );
+        s.ed.nearby = nearby::spawn(s.ed.path.clone());
+        *view = View::default();
+        dirty = true;
+    }
+    // Picker results from background threads, or a grep due to start.
+    if crate::pick::tick(&mut s.ed) {
+        view.last_click = None;
+        dirty = true;
+    }
+    // A definition search may have found where to jump.
+    if let Some(eff) = s.ed.pending_effect.take() {
+        s.perform(eff);
+        dirty = true;
+    }
+    // Git marks after an edit (or once the staged text has loaded).
+    dirty |= s.ed.git.refresh(&s.ed.buf);
+    let msg = s.ed.msg.clone();
+    s.maybe_swap(Instant::now());
+    dirty | (s.ed.msg != msg)
+}
+
+/// Open the session and its highlighter, as `args` and `cfg` say.
+pub(crate) fn open(
+    args: &Args,
+    cfg: &Config,
+    cfg_err: Option<String>,
+    truecolor: bool,
+) -> Result<(Session, Option<SwapInfo>, Highlighter)> {
+    // Magit's options are process-wide (Git work runs on worker threads).
+    let unknown = crate::magit::options::set(cfg.magit.0.clone());
+    let cfg_err = cfg_err.or_else(|| unknown.into_iter().next());
+    let (mut s, leftover) =
+        Session::open(args.file.clone(), cfg, &swap::swap_dir()).map_err(|e| {
+            let name = args
+                .file
+                .as_ref()
+                .map_or(String::new(), |p| format!("{}: ", p.display()));
+            anyhow!("{name}{e}")
+        })?;
+    match args.line {
+        Some(LineArg::N(n)) => s.goto_line(Some(n)),
+        Some(LineArg::Last) => s.goto_line(None),
+        None => {}
+    }
+    let mut hl = match Highlighter::new(&cfg.theme, truecolor) {
+        Ok(h) => h,
+        Err(e) => {
+            s.ed.set_err(e);
+            Highlighter::new("ansi", truecolor).map_err(|e| anyhow!(e))?
+        }
+    };
+    hl.set_file(
+        s.ed.path.as_deref().or(s.ed.syntax_path.as_deref()),
+        &s.ed.buf,
+    );
+    if let Some(r) = &hl.disabled {
+        s.ed.set_msg(r.clone());
+    }
+    if let Some(e) = cfg_err {
+        s.ed.set_err(e);
+    }
+    s.ed.nearby = nearby::spawn(s.ed.path.clone());
+    Ok((s, leftover, hl))
+}
+
+/// The question for a file's existing swap file. `name` is set for `:e`.
+pub(crate) fn swap_prompt(info: &SwapInfo, alive: bool, name: Option<&str>) -> String {
+    if alive {
+        let what = name.map_or("swap: ".into(), |n| format!("{n}: "));
+        format!(
+            "{what}file is open in fred (pid {}): [o]pen read-only, [q]uit",
+            info.pid
+        )
+    } else {
+        let what = name.map_or(String::new(), |n| format!("{n}: "));
+        format!(
+            "{what}swap found (saved {}): [r]ecover, [d]elete, [q]uit",
+            ago(info.saved_at)
+        )
+    }
+}
+
+/// The answer `key` gives to `swap_prompt`, if any.
+pub(crate) fn swap_choice(alive: bool, key: Key) -> Option<SwapChoice> {
+    Some(match (alive, key.char(), key.code) {
+        (true, Some('o'), _) => SwapChoice::ReadOnly,
+        (false, Some('r'), _) => SwapChoice::Recover,
+        (false, Some('d'), _) => SwapChoice::Delete,
+        (_, Some('q'), _) | (_, _, KeyCode::Esc) => SwapChoice::Cancel,
+        _ => return None,
+    })
 }
 
 /// crossterm key → fred keys. Alt+X becomes Esc, X: fred binds no Alt keys,
@@ -299,22 +438,7 @@ fn ask_swap(
     name: Option<&str>,
 ) -> Result<SwapChoice> {
     let alive = swap::owner_alive(info);
-    let what = match name {
-        Some(n) => format!("{n}: "),
-        None => "swap: ".into(),
-    };
-    let prompt = if alive {
-        format!(
-            "{what}file is open in fred (pid {}): [o]pen read-only, [q]uit",
-            info.pid
-        )
-    } else {
-        let what = name.map_or(String::new(), |n| format!("{n}: "));
-        format!(
-            "{what}swap found (saved {}): [r]ecover, [d]elete, [q]uit",
-            ago(info.saved_at)
-        )
-    };
+    let prompt = swap_prompt(info, alive, name);
     let saved_msg = s.ed.msg.take();
     let mut redraw = true;
     loop {
@@ -336,46 +460,11 @@ fn ask_swap(
         let Some(key) = map_keys(k).pop() else {
             continue;
         };
-        let choice = match (alive, key.char(), key.code) {
-            (true, Some('o'), _) => SwapChoice::ReadOnly,
-            (false, Some('r'), _) => SwapChoice::Recover,
-            (false, Some('d'), _) => SwapChoice::Delete,
-            (_, Some('q'), _) | (_, _, KeyCode::Esc) => SwapChoice::Cancel,
-            _ => continue,
+        let Some(choice) = swap_choice(alive, key) else {
+            continue;
         };
         s.ed.msg = saved_msg;
         return Ok(choice);
-    }
-}
-
-fn step(s: &mut Session, hl: &mut Highlighter, ev: Event, resized: &mut bool) {
-    match ev {
-        Event::Key(k) => {
-            // Magit-style buffers bind Alt keys (M-j, M-w, M-1 ...): they get
-            // the key whole; elsewhere Alt+X stays Esc, X.
-            match map_key(k) {
-                Some(key)
-                    if key.alt
-                        && (crate::magit::wants_alt(&s.ed) || crate::org::wants_alt(&s.ed)) =>
-                {
-                    s.handle_key(key)
-                }
-                _ => {
-                    for key in map_keys(k) {
-                        s.handle_key(key);
-                    }
-                }
-            }
-        }
-        Event::Paste(text) => s.ed.paste(&text),
-        Event::Resize(..) => {
-            s.ed.zap = None;
-            *resized = true;
-        }
-        _ => {}
-    }
-    if let Some(d) = s.ed.buf.take_dirty_from() {
-        hl.invalidate(d);
     }
 }
 
@@ -421,27 +510,10 @@ fn ask_claude(
     prompt: String,
     explain: bool,
 ) -> Result<()> {
-    const SPIN: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-    let cmd = if explain {
-        cfg.explain_command.clone()
-    } else {
-        cfg.ai_command.clone()
-    };
-    let verb = if explain { "explaining" } else { "rewriting" };
-    let prompt = match cfg.ai_rules.trim() {
-        "" => prompt,
-        rules => format!("{prompt}\nRules: {rules}\n"),
-    };
-    let job = std::thread::spawn(move || crate::shell::capture(&cmd, Some(prompt)));
-    let what = match r.end - r.start {
-        0 => format!("line {}", r.start + 1),
-        _ => format!("lines {}-{}", r.start + 1, r.end + 1),
-    };
+    let job = start_ai(cfg, prompt, explain);
     let start = Instant::now();
     while !job.is_finished() {
-        let t = start.elapsed();
-        let spin = SPIN[(t.as_millis() / 100) as usize % SPIN.len()];
-        s.ed.set_msg(format!("{spin} Claude is {verb} {what}… {}s", t.as_secs()));
+        ai_spin(s, r, explain, start);
         ui.draw(s, hl, cfg)?;
         if event::poll(TICK)? {
             event::read()?;
@@ -450,19 +522,64 @@ fn ask_claude(
             return Ok(());
         }
     }
-    match job.join() {
+    finish_ai(s, r, explain, job.join());
+    Ok(())
+}
+
+pub(crate) type AiJob = std::thread::JoinHandle<Result<String, String>>;
+
+/// Ask Claude in the background.
+pub(crate) fn start_ai(cfg: &Config, prompt: String, explain: bool) -> AiJob {
+    let cmd = if explain {
+        cfg.explain_command.clone()
+    } else {
+        cfg.ai_command.clone()
+    };
+    let prompt = match cfg.ai_rules.trim() {
+        "" => prompt,
+        rules => format!("{prompt}\nRules: {rules}\n"),
+    };
+    std::thread::spawn(move || crate::shell::capture(&cmd, Some(prompt)))
+}
+
+fn ai_what(r: Range) -> String {
+    match r.end - r.start {
+        0 => format!("line {}", r.start + 1),
+        _ => format!("lines {}-{}", r.start + 1, r.end + 1),
+    }
+}
+
+/// The spinner while Claude, started at `start`, works on `r`.
+pub(crate) fn ai_spin(s: &mut Session, r: Range, explain: bool, start: Instant) {
+    const SPIN: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+    let verb = if explain { "explaining" } else { "rewriting" };
+    let t = start.elapsed();
+    let spin = SPIN[(t.as_millis() / 100) as usize % SPIN.len()];
+    s.ed.set_msg(format!(
+        "{spin} Claude is {verb} {}… {}s",
+        ai_what(r),
+        t.as_secs()
+    ));
+}
+
+pub(crate) fn finish_ai(
+    s: &mut Session,
+    r: Range,
+    explain: bool,
+    reply: std::thread::Result<Result<String, String>>,
+) {
+    match reply {
         Ok(Ok(out)) if explain => {
             s.ed.explain = Some((r, out.trim().to_string()));
             s.ed.msg = None;
         }
         Ok(Ok(out)) => {
             s.ed.ai_reply(r, &out);
-            s.ed.set_msg(format!("Claude rewrote {what}"));
+            s.ed.set_msg(format!("Claude rewrote {}", ai_what(r)));
         }
         Ok(Err(e)) => s.ed.set_err(e),
         Err(_) => s.ed.set_err("claude: crashed"),
     }
-    Ok(())
 }
 
 fn run_shell(ui: &mut Ui, s: &mut Session, cmd: &str) -> Result<()> {
@@ -559,47 +676,17 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
     if let Some(h) = args.height {
         cfg.height = h;
     }
-    // Magit's options are process-wide (Git work runs on worker threads).
-    let unknown = crate::magit::options::set(cfg.magit.0.clone());
-    let cfg_err = cfg_err.or_else(|| unknown.into_iter().next());
-    let (mut s, leftover) = match Session::open(args.file.clone(), &cfg, &swap::swap_dir()) {
-        Ok(x) => x,
-        Err(e) => {
-            let name = args
-                .file
-                .as_ref()
-                .map_or(String::new(), |p| format!("{}: ", p.display()));
-            eprintln!("fred: {name}{e}");
-            return Ok(1);
-        }
-    };
-    match args.line {
-        Some(LineArg::N(n)) => s.goto_line(Some(n)),
-        Some(LineArg::Last) => s.goto_line(None),
-        None => {}
-    }
     let truecolor = matches!(
         std::env::var("COLORTERM").as_deref(),
         Ok("truecolor" | "24bit")
     );
-    let mut hl = match Highlighter::new(&cfg.theme, truecolor) {
-        Ok(h) => h,
+    let (mut s, leftover, mut hl) = match open(&args, &cfg, cfg_err, truecolor) {
+        Ok(x) => x,
         Err(e) => {
-            s.ed.set_err(e);
-            Highlighter::new("ansi", truecolor).map_err(|e| anyhow!(e))?
+            eprintln!("fred: {e}");
+            return Ok(1);
         }
     };
-    hl.set_file(
-        s.ed.path.as_deref().or(s.ed.syntax_path.as_deref()),
-        &s.ed.buf,
-    );
-    if let Some(r) = &hl.disabled {
-        s.ed.set_msg(r.clone());
-    }
-    if let Some(e) = cfg_err {
-        s.ed.set_err(e);
-    }
-    s.ed.nearby = nearby::spawn(s.ed.path.clone());
 
     let stop = Arc::new(AtomicBool::new(false));
     for sig in [signal_hook::consts::SIGTERM, signal_hook::consts::SIGHUP] {
@@ -731,22 +818,17 @@ fn event_loop(
                             ui::render::mouse(&mut s.ed, &mut ui.view, area, m);
                         }
                     }
-                    ev => {
-                        let keep_view = s.ed.zap.is_some();
-                        let keyboard =
-                            matches!(ev, Event::Key(_) | Event::Paste(_) | Event::Resize(..));
-                        if keyboard {
-                            ui.view.last_click = None;
-                        }
-                        step(s, hl, ev, &mut resized);
-                        if keyboard
-                            && !keep_view
-                            && s.ed.zap.is_none()
-                            && s.ed.vim.pending != [Key::ch(' ')]
-                        {
-                            ui.view.detached = false;
+                    Event::Key(k) => {
+                        if let Some(key) = map_key(k) {
+                            input(s, hl, &mut ui.view, Input::Key(key));
                         }
                     }
+                    Event::Paste(text) => input(s, hl, &mut ui.view, Input::Paste(&text)),
+                    Event::Resize(..) => {
+                        resized = true;
+                        input(s, hl, &mut ui.view, Input::Resize);
+                    }
+                    _ => {}
                 }
                 // Synchronize the viewport snapshot before handling keys that
                 // follow mouse scrolling or a terminal resize in the same batch.
@@ -781,16 +863,7 @@ fn event_loop(
             s.resolve_edit(choice);
             dirty = true;
         }
-        if s.reloaded {
-            s.reloaded = false;
-            hl.set_file(
-                s.ed.path.as_deref().or(s.ed.syntax_path.as_deref()),
-                &s.ed.buf,
-            );
-            s.ed.nearby = nearby::spawn(s.ed.path.clone());
-            ui.view = View::default();
-            dirty = true;
-        }
+        dirty |= tick(s, hl, &mut ui.view);
         let rows = terminal::size()?.1;
         let shown = (ui.height as usize).saturating_sub(2);
         // A picker gets the full configured height, whatever the file's size.
@@ -805,21 +878,6 @@ fn event_loop(
             ui.rebuild(want)?;
             dirty = true;
         }
-        // Picker results from background threads, or a grep due to start.
-        if crate::pick::tick(&mut s.ed) {
-            ui.view.last_click = None;
-            dirty = true;
-        }
-        // A definition search may have found where to jump.
-        if let Some(eff) = s.ed.pending_effect.take() {
-            s.perform(eff);
-            dirty = true;
-        }
-        // Git marks after an edit (or once the staged text has loaded).
-        dirty |= s.ed.git.refresh(&s.ed.buf);
-        let msg = s.ed.msg.clone();
-        s.maybe_swap(Instant::now());
-        dirty |= s.ed.msg != msg;
     }
 }
 

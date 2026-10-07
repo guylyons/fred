@@ -10,6 +10,7 @@ pub mod ex;
 pub mod fileio;
 pub mod fold;
 pub mod git;
+pub mod gui;
 pub mod highlight;
 pub mod key;
 pub mod magit;

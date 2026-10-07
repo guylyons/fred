@@ -1,0 +1,5 @@
+module CFred {
+    header "fred.h"
+    link "fred"
+    export *
+}
