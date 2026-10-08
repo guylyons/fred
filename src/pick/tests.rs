@@ -252,6 +252,13 @@ fn browse_like_find_file() {
     query(&mut ed, &format!("{start}src/"));
     keys(&mut ed, "<BS>");
     assert_eq!(picker(&ed).query.text, start);
+    // Right goes into the selected (here the first) directory, Left back
+    // up, even mid-name.
+    settle(&mut ed, |p| !p.searching);
+    keys(&mut ed, "<Right>");
+    assert_eq!(picker(&ed).query.text, format!("{start}src/"));
+    keys(&mut ed, "ma<Left>");
+    assert_eq!(picker(&ed).query.text, start);
     // Dotfiles once the name starts with a dot.
     keys(&mut ed, ".h");
     assert_eq!(picker(&ed).rows[0].text, ".hidden");

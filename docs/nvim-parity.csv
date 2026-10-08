@@ -1,0 +1,1770 @@
+kind,mode,symbol,detail,state,fred_behavior,doc
+key,insert,CTRL-@,,missing,,insert previously inserted text and stop
+key,insert,CTRL-A,,missing,,insert previously inserted text
+key,insert,CTRL-C,,partial,present; not yet verified against nvim,"quit insert mode, without checking for"
+key,insert,CTRL-D,,missing,,delete one shiftwidth of indent in the current
+key,insert,CTRL-E,,missing,,insert the character which is below the cursor
+key,insert,CTRL-G CTRL-J,,missing,,"line down, to column where inserting started"
+key,insert,CTRL-G j,,missing,,"line down, to column where inserting started"
+key,insert,CTRL-G <Down>,,missing,,"line down, to column where inserting started"
+key,insert,CTRL-G CTRL-K,,missing,,"line up, to column where inserting started"
+key,insert,CTRL-G k,,missing,,"line up, to column where inserting started"
+key,insert,CTRL-G <Up>,,missing,,"line up, to column where inserting started"
+key,insert,CTRL-G u,,missing,,start new undoable edit
+key,insert,CTRL-G U,,missing,,don't break undo with next cursor movement
+key,insert,<BS>,,partial,present; not yet verified against nvim,delete character before the cursor
+key,insert,{char1}<BS>{char2},,missing,,
+key,insert,CTRL-H,,missing,,same as <BS>
+key,insert,<Tab>,,partial,inserts the detected indent; cycles the completion popup,insert a <Tab> character
+key,insert,CTRL-I,,missing,,same as <Tab>
+key,insert,<NL>,,missing,,same as <CR>
+key,insert,CTRL-J,,missing,,same as <CR>
+key,insert,CTRL-K {char1} {char2},,missing,,
+key,insert,<CR>,,partial,present; not yet verified against nvim,begin new line
+key,insert,CTRL-M,,missing,,same as <CR>
+key,insert,CTRL-N,,partial,present; not yet verified against nvim,find next match for keyword in front of the
+key,insert,CTRL-O,,missing,,execute a single command and return to insert
+key,insert,CTRL-P,,partial,present; not yet verified against nvim,find previous match for keyword in front of
+key,insert,CTRL-Q,,missing,,"same as CTRL-V, unless used for terminal"
+key,insert,CTRL-R {register},,missing,,
+key,insert,CTRL-T,,missing,,insert one shiftwidth of indent in current
+key,insert,CTRL-U,,partial,present; not yet verified against nvim,delete all entered characters in the current
+key,insert,CTRL-V {char},,missing,,insert next non-digit literally
+key,insert,CTRL-W,,partial,present; not yet verified against nvim,delete word before the cursor
+key,insert,CTRL-X {mode},,missing,,"enter CTRL-X sub mode, see |i_CTRL-X_index|"
+key,insert,CTRL-Y,,missing,,insert the character which is above the cursor
+key,insert,<Esc>,,partial,present; not yet verified against nvim,end insert mode
+key,insert,CTRL-[,,missing,,same as <Esc>
+key,insert,CTRL-],,missing,,trigger abbreviation
+key,insert,CTRL-^,,missing,,toggle use of |:lmap| mappings
+key,insert,CTRL-_,,missing,,When 'allowrevins' set: toggle 'revins'
+key,insert,0 CTRL-D,,missing,,delete all indent in the current line
+key,insert,^ CTRL-D,,missing,,"delete all indent in the current line, restore"
+key,insert,<Del>,,partial,present; not yet verified against nvim,delete character under the cursor
+key,insert,<Left>,,partial,present; not yet verified against nvim,cursor one character left
+key,insert,<S-Left>,,missing,,cursor one word left
+key,insert,<C-Left>,,missing,,cursor one word left
+key,insert,<Right>,,partial,present; not yet verified against nvim,cursor one character right
+key,insert,<S-Right>,,missing,,cursor one word right
+key,insert,<C-Right>,,missing,,cursor one word right
+key,insert,<Up>,,partial,present; not yet verified against nvim,cursor one line up
+key,insert,<S-Up>,,missing,,same as <PageUp>
+key,insert,<Down>,,partial,present; not yet verified against nvim,cursor one line down
+key,insert,<S-Down>,,missing,,same as <PageDown>
+key,insert,<Home>,,partial,present; not yet verified against nvim,cursor to start of line
+key,insert,<C-Home>,,missing,,cursor to start of file
+key,insert,<End>,,partial,present; not yet verified against nvim,cursor past end of line
+key,insert,<C-End>,,missing,,cursor past end of file
+key,insert,<PageUp>,,missing,,one screenful backward
+key,insert,<PageDown>,,missing,,one screenful forward
+key,insert,<F1>,,missing,,same as <Help>
+key,insert,<Help>,,missing,,stop insert mode and display help window
+key,insert,<Insert>,,missing,,toggle Insert/Replace mode
+key,insert,<LeftMouse>,,missing,,cursor at mouse click
+key,insert,<ScrollWheelDown>,,missing,,move window three lines down
+key,insert,<S-ScrollWheelDown>,,missing,,move window one page down
+key,insert,<ScrollWheelUp>,,missing,,move window three lines up
+key,insert,<S-ScrollWheelUp>,,missing,,move window one page up
+key,insert,<ScrollWheelLeft>,,missing,,move window six columns left
+key,insert,<S-ScrollWheelLeft>,,missing,,move window one page left
+key,insert,<ScrollWheelRight>,,missing,,move window six columns right
+key,insert,CTRL-X CTRL-D,,missing,,complete defined identifiers
+key,insert,CTRL-X CTRL-E,,missing,,scroll up
+key,insert,CTRL-X CTRL-F,,missing,,complete file names
+key,insert,CTRL-X CTRL-I,,missing,,complete identifiers
+key,insert,CTRL-X CTRL-K,,missing,,complete identifiers from dictionary
+key,insert,CTRL-X CTRL-L,,missing,,complete whole lines
+key,insert,CTRL-X CTRL-N,,missing,,next completion
+key,insert,CTRL-X CTRL-O,,missing,,omni completion
+key,insert,CTRL-X CTRL-P,,missing,,previous completion
+key,insert,CTRL-X CTRL-R,,missing,,complete contents from registers
+key,insert,CTRL-X CTRL-S,,missing,,spelling suggestions
+key,insert,CTRL-X CTRL-T,,missing,,complete identifiers from thesaurus
+key,insert,CTRL-X CTRL-Y,,missing,,scroll down
+key,insert,CTRL-X CTRL-U,,missing,,complete with 'completefunc'
+key,insert,CTRL-X CTRL-V,,missing,,complete like in : command line
+key,insert,CTRL-X CTRL-Z,,missing,,"stop completion, text is unchanged"
+key,insert,CTRL-X CTRL-],,missing,,complete tags
+key,insert,CTRL-X s,,missing,,spelling suggestions
+key,normal,CTRL-A,change,missing,,add N to number at/after cursor
+key,normal,CTRL-B,motion,partial,present; not yet verified against nvim,scroll N screens Backwards
+key,normal,CTRL-C,,missing,,interrupt current (search) command
+key,normal,CTRL-D,,partial,present; not yet verified against nvim,scroll Down N lines (default: half a screen)
+key,normal,CTRL-E,,missing,,scroll N lines upwards (N lines Extra)
+key,normal,CTRL-F,motion,partial,present; not yet verified against nvim,scroll N screens Forward
+key,normal,CTRL-G,,missing,,display current file name and position
+key,normal,<BS>,motion,partial,present; not yet verified against nvim,"same as ""h"""
+key,normal,CTRL-H,motion,missing,,"same as ""h"""
+key,normal,<Tab>,motion,missing,,go to N newer entry in jump list
+key,normal,CTRL-I,motion,missing,,same as <Tab>
+key,normal,<NL>,motion,missing,,"same as ""j"""
+key,normal,<S-NL>,motion,missing,,same as CTRL-F
+key,normal,CTRL-J,motion,missing,,"same as ""j"""
+key,normal,CTRL-L,,missing,,redraw screen
+key,normal,<CR>,motion,partial,present; not yet verified against nvim,cursor to the first CHAR N lines lower
+key,normal,<S-CR>,motion,missing,,same as CTRL-F
+key,normal,CTRL-M,motion,missing,,same as <CR>
+key,normal,CTRL-N,motion,partial,present; not yet verified against nvim,"same as ""j"""
+key,normal,CTRL-O,motion,missing,,go to N older entry in jump list
+key,normal,CTRL-P,motion,partial,present; not yet verified against nvim,"same as ""k"""
+key,normal,CTRL-R,change,partial,present; not yet verified against nvim,redo changes which were undone with 'u'
+key,normal,CTRL-T,,missing,,jump to N older Tag in tag list
+key,normal,CTRL-U,,partial,present; not yet verified against nvim,scroll N lines Upwards (default: half a
+key,normal,CTRL-V,,missing,,start blockwise Visual mode
+key,normal,CTRL-W {char},,missing,,"window commands, see |CTRL-W|"
+key,normal,CTRL-X,change,missing,,subtract N from number at/after cursor
+key,normal,CTRL-Y,,missing,,scroll N lines downwards
+key,normal,CTRL-Z,,missing,,suspend program (or start new shell)
+key,normal,CTRL-\ CTRL-N,,missing,,go to Normal mode (no-op)
+key,normal,CTRL-\ CTRL-G,,missing,,go to Normal mode (no-op)
+key,normal,CTRL-],,missing,,:ta to ident under cursor
+key,normal,CTRL-^,,partial,present; not yet verified against nvim,edit Nth alternate file (equivalent to
+key,normal,CTRL-<Tab>,,missing,,same as `g<Tab>` : go to last accessed tab
+key,normal,<Space>,motion,partial,"Fred leader key (Space s/p/g/k/r/b/B/d/-/j/;/Enter, Space m Magit)","same as ""l"""
+key,normal,!{motion}{filter},,missing,,
+key,normal,!!{filter},change,missing,,filter N lines through the {filter} command
+key,normal,"""{register}",,missing,,"use {register} for next delete, yank or put"
+key,normal,#,motion,missing,,search backward for the Nth occurrence of
+key,normal,$,motion,partial,present; not yet verified against nvim,cursor to the end of Nth next line
+key,normal,%,motion,missing,,find the next (curly/square) bracket on
+key,normal,{count}%,motion,missing,,go to N percentage in the file
+key,normal,&,change,missing,,repeat last :s
+key,normal,'{a-zA-Z0-9},motion,partial,a-z only,cursor to the first CHAR on the line with
+key,normal,'',motion,missing,,cursor to the first CHAR of the line where
+key,normal,'(,motion,missing,,cursor to the first CHAR on the line of the
+key,normal,'),motion,missing,,cursor to the first CHAR on the line of the
+key,normal,'<,motion,missing,,cursor to the first CHAR of the line where
+key,normal,'>,motion,missing,,cursor to the first CHAR of the line where
+key,normal,'[,motion,missing,,cursor to the first CHAR on the line of the
+key,normal,'],motion,missing,,cursor to the first CHAR on the line of the
+key,normal,'{,motion,missing,,cursor to the first CHAR on the line of the
+key,normal,'},motion,missing,,cursor to the first CHAR on the line of the
+key,normal,(,motion,missing,,cursor N sentences backward
+key,normal,),motion,missing,,cursor N sentences forward
+key,normal,*,motion,missing,,search forward for the Nth occurrence of
+key,normal,+,motion,partial,present; not yet verified against nvim,same as <CR>
+key,normal,<S-+>,motion,missing,,same as CTRL-F
+key,normal,",",motion,partial,present; not yet verified against nvim,"repeat latest f, t, F or T in opposite"
+key,normal,-,motion,partial,present; not yet verified against nvim,cursor to the first CHAR N lines higher
+key,normal,<S-->,motion,missing,,same as CTRL-B
+key,normal,.,change,partial,present; not yet verified against nvim,repeat last change with count replaced with
+key,normal,/{pattern}<CR>,motion,partial,present; not yet verified against nvim,search forward for the Nth occurrence of
+key,normal,/<CR>,motion,missing,,search forward for {pattern} of last search
+key,normal,0,motion,partial,present; not yet verified against nvim,cursor to the first char of the line
+key,normal,1,,partial,present; not yet verified against nvim,prepend to command to give a count
+key,normal,2,,partial,present; not yet verified against nvim,""""
+key,normal,3,,partial,present; not yet verified against nvim,""""
+key,normal,4,,partial,present; not yet verified against nvim,""""
+key,normal,5,,partial,present; not yet verified against nvim,""""
+key,normal,6,,partial,present; not yet verified against nvim,""""
+key,normal,7,,partial,present; not yet verified against nvim,""""
+key,normal,8,,partial,present; not yet verified against nvim,""""
+key,normal,9,,partial,present; not yet verified against nvim,""""
+key,normal,{count}:,,partial,present; not yet verified against nvim,start entering an Ex command with range
+key,normal,;,motion,partial,present; not yet verified against nvim,"repeat latest f, t, F or T N times"
+key,normal,<{motion},change,missing,,shift Nmove lines one 'shiftwidth'
+key,normal,<<,change,missing,,shift N lines one 'shiftwidth' leftwards
+key,normal,={motion},change,missing,,"filter Nmove lines through ""indent"""
+key,normal,==,change,missing,,"filter N lines through ""indent"""
+key,normal,>{motion},change,missing,,shift Nmove lines one 'shiftwidth'
+key,normal,>>,change,missing,,shift N lines one 'shiftwidth' rightwards
+key,normal,?{pattern}<CR>,motion,partial,present; not yet verified against nvim,search backward for the Nth previous
+key,normal,?<CR>,motion,missing,,search backward for {pattern} of last search
+key,normal,@{a-z},change,missing,,execute the contents of register {a-z}
+key,normal,@:,,missing,,"repeat the previous "":"" command N times"
+key,normal,@@,change,missing,,repeat the previous @{a-z} N times
+key,normal,A,change,partial,present; not yet verified against nvim,append text after the end of the line N times
+key,normal,B,motion,partial,present; not yet verified against nvim,cursor N WORDS backward
+key,normal,"[""x]C",change,partial,present; not yet verified against nvim,change from the cursor position to the end
+key,normal,"[""x]D",change,partial,present; not yet verified against nvim,delete the characters under the cursor
+key,normal,E,motion,partial,present; not yet verified against nvim,cursor forward to the end of WORD N
+key,normal,F{char},motion,partial,present; not yet verified against nvim,cursor to the Nth occurrence of {char} to
+key,normal,G,motion,partial,present; not yet verified against nvim,"cursor to line N, default last line"
+key,normal,H,motion,missing,,cursor to line N from top of screen
+key,normal,I,change,partial,present; not yet verified against nvim,insert text before the first CHAR on the
+key,normal,J,change,partial,present; not yet verified against nvim,Join N lines; default is 2
+key,normal,K,,missing,,lookup Keyword under the cursor with
+key,normal,L,motion,missing,,cursor to line N from bottom of screen
+key,normal,M,motion,missing,,cursor to middle line of screen
+key,normal,N,motion,partial,present; not yet verified against nvim,repeat the latest '/' or '?' N times in
+key,normal,O,change,partial,present; not yet verified against nvim,begin a new line above the cursor and
+key,normal,"[""x]P",change,partial,present; not yet verified against nvim,put the text [from register x] before the
+key,normal,R,change,missing,,enter replace mode: overtype existing
+key,normal,"[""x]S",change,partial,present; not yet verified against nvim,delete N lines [into register x] and start
+key,normal,T{char},motion,partial,present; not yet verified against nvim,cursor till after Nth occurrence of {char}
+key,normal,U,change,missing,,undo all latest changes on one line
+key,normal,V,,partial,present; not yet verified against nvim,start linewise Visual mode
+key,normal,W,motion,partial,present; not yet verified against nvim,cursor N WORDS forward
+key,normal,"[""x]X",change,partial,present; not yet verified against nvim,delete N characters before the cursor [into
+key,normal,"[""x]Y",,partial,present; not yet verified against nvim,yank N lines [into register x]; synonym for
+key,normal,ZZ,,partial,present; not yet verified against nvim,write if buffer changed and close window
+key,normal,ZQ,,partial,present; not yet verified against nvim,close window without writing
+key,normal,[{char},,missing,,square bracket command (see |[| below)
+key,normal,]{char},,missing,,square bracket command (see |]| below)
+key,normal,^,motion,partial,present; not yet verified against nvim,cursor to the first CHAR of the line
+key,normal,_,motion,missing,,cursor to the first CHAR N - 1 lines lower
+key,normal,`{a-zA-Z0-9},motion,missing,,cursor to the mark {a-zA-Z0-9}
+key,normal,`(,motion,missing,,cursor to the start of the current sentence
+key,normal,`),motion,missing,,cursor to the end of the current sentence
+key,normal,`<,motion,missing,,cursor to the start of the highlighted area
+key,normal,`>,motion,missing,,cursor to the end of the highlighted area
+key,normal,`[,motion,missing,,cursor to the start of last operated text
+key,normal,`],motion,missing,,cursor to the end of last operated text or
+key,normal,"""``""",motion,missing,,cursor to the position before latest jump
+key,normal,`{,motion,missing,,cursor to the start of the current paragraph
+key,normal,`},motion,missing,,cursor to the end of the current paragraph
+key,normal,a,change,partial,present; not yet verified against nvim,append text after the cursor N times
+key,normal,b,motion,partial,present; not yet verified against nvim,cursor N words backward
+key,normal,"[""x]c{motion}",change,partial,present; not yet verified against nvim,delete Nmove text [into register x] and
+key,normal,"[""x]cc",change,partial,present; not yet verified against nvim,delete N lines [into register x] and start
+key,normal,"[""x]d{motion}",change,partial,present; not yet verified against nvim,delete Nmove text [into register x]
+key,normal,"[""x]dd",change,partial,present; not yet verified against nvim,delete N lines [into register x]
+key,normal,do,change,missing,,"same as "":diffget"""
+key,normal,dp,change,missing,,"same as "":diffput"""
+key,normal,e,motion,partial,present; not yet verified against nvim,cursor forward to the end of word N
+key,normal,f{char},motion,partial,present; not yet verified against nvim,cursor to Nth occurrence of {char} to the
+key,normal,g{char},,missing,,"extended commands, see |g| below"
+key,normal,h,motion,partial,present; not yet verified against nvim,cursor N chars to the left
+key,normal,i,change,partial,present; not yet verified against nvim,insert text before the cursor N times
+key,normal,j,motion,partial,present; not yet verified against nvim,cursor N lines downward
+key,normal,k,motion,partial,present; not yet verified against nvim,cursor N lines upward
+key,normal,l,motion,partial,present; not yet verified against nvim,cursor N chars to the right
+key,normal,m{A-Za-z},,partial,"a-z only, line marks",set mark {A-Za-z} at cursor position
+key,normal,n,motion,partial,present; not yet verified against nvim,repeat the latest '/' or '?' N times
+key,normal,o,change,partial,present; not yet verified against nvim,begin a new line below the cursor and
+key,normal,"[""x]p",change,partial,present; not yet verified against nvim,put the text [from register x] after the
+key,normal,"q{0-9a-zA-Z""}",,missing,,record typed characters into named register
+key,normal,q,,missing,,(while recording) stops recording
+key,normal,Q,change,missing,,replay last recorded register
+key,normal,q:,,missing,,edit : command-line in command-line window
+key,normal,q/,,missing,,edit / command-line in command-line window
+key,normal,q?,,missing,,edit ? command-line in command-line window
+key,normal,r{char},change,partial,present; not yet verified against nvim,replace N chars with {char}
+key,normal,"[""x]s",change,partial,present; not yet verified against nvim,(substitute) delete N characters [into
+key,normal,t{char},motion,partial,present; not yet verified against nvim,cursor till before Nth occurrence of {char}
+key,normal,u,change,partial,present; not yet verified against nvim,undo changes
+key,normal,v,,partial,present; not yet verified against nvim,start charwise Visual mode
+key,normal,w,motion,partial,present; not yet verified against nvim,cursor N words forward
+key,normal,"[""x]x",change,partial,present; not yet verified against nvim,delete N characters under and after the
+key,normal,"[""x]y{motion}",,partial,present; not yet verified against nvim,yank Nmove text [into register x]
+key,normal,"[""x]yy",,partial,present; not yet verified against nvim,yank N lines [into register x]
+key,normal,z{char},,missing,,"commands starting with 'z', see |z| below"
+key,normal,{,motion,partial,present; not yet verified against nvim,cursor N paragraphs backward
+key,normal,|,motion,missing,,cursor to column N
+key,normal,},motion,partial,present; not yet verified against nvim,cursor N paragraphs forward
+key,normal,~,change,missing,,'tildeop' off: switch case of N characters
+key,normal,~{motion},,missing,,'tildeop' on: switch case of Nmove text
+key,normal,<C-End>,motion,missing,,"same as ""G"""
+key,normal,<C-Home>,motion,missing,,"same as ""gg"""
+key,normal,<C-Left>,motion,missing,,"same as ""b"""
+key,normal,<C-LeftMouse>,,missing,,""":ta"" to the keyword at the mouse click"
+key,normal,<C-Right>,motion,missing,,"same as ""w"""
+key,normal,<C-Tab>,,missing,,"same as ""g<Tab>"""
+key,normal,"[""x]<Del>",change,partial,present; not yet verified against nvim,"same as ""x"""
+key,normal,{count}<Del>,,missing,,remove the last digit from {count}
+key,normal,<Down>,motion,partial,present; not yet verified against nvim,"same as ""j"""
+key,normal,<End>,motion,partial,present; not yet verified against nvim,"same as ""$"""
+key,normal,<F1>,,missing,,same as <Help>
+key,normal,<Help>,,missing,,open a help window
+key,normal,<Home>,motion,partial,present; not yet verified against nvim,"same as ""0"""
+key,normal,<Insert>,change,missing,,"same as ""i"""
+key,normal,<Left>,motion,partial,present; not yet verified against nvim,"same as ""h"""
+key,normal,<LeftMouse>,motion,partial,present; not yet verified against nvim,move cursor to the mouse click position
+key,normal,<MiddleMouse>,change,missing,,"same as ""gP"" at the mouse click position"
+key,normal,<PageDown>,,partial,present; not yet verified against nvim,same as CTRL-F
+key,normal,<PageUp>,,partial,present; not yet verified against nvim,same as CTRL-B
+key,normal,<Right>,motion,partial,present; not yet verified against nvim,"same as ""l"""
+key,normal,<RightMouse>,,missing,,"start Visual mode, move cursor to the mouse"
+key,normal,<S-Down>,motion,missing,,same as CTRL-F
+key,normal,<S-Left>,motion,missing,,"same as ""b"""
+key,normal,<S-LeftMouse>,,missing,,"same as ""*"" at the mouse click position"
+key,normal,<S-Right>,motion,missing,,"same as ""w"""
+key,normal,<S-Up>,motion,missing,,same as CTRL-B
+key,normal,<Undo>,change,missing,,"same as ""u"""
+key,normal,<Up>,motion,partial,present; not yet verified against nvim,"same as ""k"""
+key,textobject,"a""",,missing,,double quoted string
+key,textobject,a',,missing,,single quoted string
+key,textobject,a(,,missing,,same as ab
+key,textobject,a),,missing,,same as ab
+key,textobject,a<,,missing,,"""a <>"" from '<' to the matching '>'"
+key,textobject,a>,,missing,,same as a<
+key,textobject,aB,,missing,,"""a Block"" from `[{` to `]}` (with brackets)"
+key,textobject,aW,,missing,,"""a WORD"" (with white space)"
+key,textobject,a[,,missing,,"""a []"" from '[' to the matching ']'"
+key,textobject,a],,missing,,same as a[
+key,textobject,a`,,missing,,string in backticks
+key,textobject,ab,,missing,,"""a block"" from ""[("" to ""])"" (with braces)"
+key,textobject,ap,,missing,,"""a paragraph"" (with white space)"
+key,textobject,as,,missing,,"""a sentence"" (with white space)"
+key,textobject,at,,missing,,"""a tag block"" (with white space)"
+key,textobject,aw,,missing,,"""a word"" (with white space)"
+key,textobject,a{,,missing,,same as aB
+key,textobject,a},,missing,,same as aB
+key,textobject,"i""",,missing,,double quoted string without the quotes
+key,textobject,i',,missing,,single quoted string without the quotes
+key,textobject,i(,,missing,,same as ib
+key,textobject,i),,missing,,same as ib
+key,textobject,i<,,missing,,"""inner <>"" from '<' to the matching '>'"
+key,textobject,i>,,missing,,same as i<
+key,textobject,iB,,missing,,"""inner Block"" from `[{` and `]}`"
+key,textobject,iW,,missing,,"""inner WORD"""
+key,textobject,i[,,missing,,"""inner []"" from '[' to the matching ']'"
+key,textobject,i],,missing,,same as i[
+key,textobject,i`,,missing,,string in backticks without the backticks
+key,textobject,ib,,missing,,"""inner block"" from ""[("" to ""])"""
+key,textobject,ip,,missing,,"""inner paragraph"""
+key,textobject,is,,missing,,"""inner sentence"""
+key,textobject,it,,missing,,"""inner tag block"""
+key,textobject,iw,,missing,,"""inner word"""
+key,textobject,i{,,missing,,same as iB
+key,textobject,i},,missing,,same as iB
+key,ctrl-w,CTRL-W CTRL-B,,missing,,"same as ""CTRL-W b"""
+key,ctrl-w,CTRL-W CTRL-C,,missing,,no-op
+key,ctrl-w,CTRL-W CTRL-D,,missing,,"same as ""CTRL-W d"""
+key,ctrl-w,CTRL-W CTRL-F,,missing,,"same as ""CTRL-W f"""
+key,ctrl-w,CTRL-W CTRL-H,,missing,,"same as ""CTRL-W h"""
+key,ctrl-w,CTRL-W CTRL-I,,missing,,"same as ""CTRL-W i"""
+key,ctrl-w,CTRL-W CTRL-J,,missing,,"same as ""CTRL-W j"""
+key,ctrl-w,CTRL-W CTRL-K,,missing,,"same as ""CTRL-W k"""
+key,ctrl-w,CTRL-W CTRL-L,,missing,,"same as ""CTRL-W l"""
+key,ctrl-w,CTRL-W CTRL-N,,missing,,"same as ""CTRL-W n"""
+key,ctrl-w,CTRL-W CTRL-O,,missing,,"same as ""CTRL-W o"""
+key,ctrl-w,CTRL-W CTRL-P,,missing,,"same as ""CTRL-W p"""
+key,ctrl-w,CTRL-W CTRL-Q,,missing,,"same as ""CTRL-W q"""
+key,ctrl-w,CTRL-W CTRL-R,,missing,,"same as ""CTRL-W r"""
+key,ctrl-w,CTRL-W CTRL-S,,missing,,"same as ""CTRL-W s"""
+key,ctrl-w,CTRL-W CTRL-T,,missing,,"same as ""CTRL-W t"""
+key,ctrl-w,CTRL-W CTRL-V,,missing,,"same as ""CTRL-W v"""
+key,ctrl-w,CTRL-W CTRL-W,,missing,,"same as ""CTRL-W w"""
+key,ctrl-w,CTRL-W CTRL-X,,missing,,"same as ""CTRL-W x"""
+key,ctrl-w,CTRL-W CTRL-Z,,missing,,"same as ""CTRL-W z"""
+key,ctrl-w,CTRL-W CTRL-],,missing,,"same as ""CTRL-W ]"""
+key,ctrl-w,CTRL-W CTRL-^,,missing,,"same as ""CTRL-W ^"""
+key,ctrl-w,CTRL-W CTRL-_,,missing,,"same as ""CTRL-W _"""
+key,ctrl-w,CTRL-W +,,missing,,increase current window height N lines
+key,ctrl-w,CTRL-W -,,missing,,decrease current window height N lines
+key,ctrl-w,CTRL-W <,,missing,,decrease current window width N columns
+key,ctrl-w,CTRL-W =,,missing,,make all windows the same height & width
+key,ctrl-w,CTRL-W >,,missing,,increase current window width N columns
+key,ctrl-w,CTRL-W H,,missing,,move current window to the far left
+key,ctrl-w,CTRL-W J,,missing,,move current window to the very bottom
+key,ctrl-w,CTRL-W K,,missing,,move current window to the very top
+key,ctrl-w,CTRL-W L,,missing,,move current window to the far right
+key,ctrl-w,CTRL-W P,,missing,,go to preview window
+key,ctrl-w,CTRL-W R,,missing,,rotate windows upwards N times
+key,ctrl-w,CTRL-W S,,missing,,"same as ""CTRL-W s"""
+key,ctrl-w,CTRL-W T,,missing,,move current window to a new tabpage
+key,ctrl-w,CTRL-W W,,missing,,go to N previous window (wrap around)
+key,ctrl-w,CTRL-W ],,missing,,split window and jump to tag under cursor
+key,ctrl-w,CTRL-W ^,,missing,,split current window and edit alternate
+key,ctrl-w,CTRL-W _,,missing,,set current window height to N (default:
+key,ctrl-w,CTRL-W b,,missing,,go to bottom window
+key,ctrl-w,CTRL-W c,,missing,,close current window (like |:close|)
+key,ctrl-w,CTRL-W d,,missing,,split window and jump to definition under
+key,ctrl-w,CTRL-W f,,missing,,split window and edit file name under the
+key,ctrl-w,CTRL-W F,,missing,,split window and edit file name under the
+key,ctrl-w,CTRL-W g ],,missing,,split window and do |:tselect| for tag
+key,ctrl-w,CTRL-W g },,missing,,do a |:ptjump| to the tag under the cursor
+key,ctrl-w,CTRL-W g f,,missing,,edit file name under the cursor in a new
+key,ctrl-w,CTRL-W g F,,missing,,edit file name under the cursor in a new
+key,ctrl-w,CTRL-W g t,,missing,,same as `gt`: go to next tabpage
+key,ctrl-w,CTRL-W g T,,missing,,same as `gT`: go to previous tabpage
+key,ctrl-w,CTRL-W g <Tab>,,missing,,same as |g<Tab>|: go to last accessed tab
+key,ctrl-w,CTRL-W h,,missing,,go to Nth left window (stop at first window)
+key,ctrl-w,CTRL-W i,,missing,,split window and jump to declaration of
+key,ctrl-w,CTRL-W j,,missing,,go N windows down (stop at last window)
+key,ctrl-w,CTRL-W k,,missing,,go N windows up (stop at first window)
+key,ctrl-w,CTRL-W l,,missing,,go to Nth right window (stop at last window)
+key,ctrl-w,CTRL-W n,,missing,,"open new window, N lines high"
+key,ctrl-w,CTRL-W o,,missing,,close all but current window (like |:only|)
+key,ctrl-w,CTRL-W p,,missing,,go to previous (last accessed) window
+key,ctrl-w,CTRL-W q,,missing,,quit current window (like |:quit|)
+key,ctrl-w,CTRL-W r,,missing,,rotate windows downwards N times
+key,ctrl-w,CTRL-W s,,missing,,"split current window in two parts, new"
+key,ctrl-w,CTRL-W t,,missing,,go to top window
+key,ctrl-w,CTRL-W v,,missing,,"split current window vertically, new window"
+key,ctrl-w,CTRL-W w,,missing,,go to N next window (wrap around)
+key,ctrl-w,CTRL-W x,,missing,,exchange current window with window N
+key,ctrl-w,CTRL-W z,,missing,,close preview window
+key,ctrl-w,CTRL-W |,,missing,,set window width to N columns
+key,ctrl-w,CTRL-W },,missing,,show tag under cursor in preview window
+key,ctrl-w,CTRL-W <Down>,,missing,,"same as ""CTRL-W j"""
+key,ctrl-w,CTRL-W <Up>,,missing,,"same as ""CTRL-W k"""
+key,ctrl-w,CTRL-W <Left>,,missing,,"same as ""CTRL-W h"""
+key,bracket,[ CTRL-D,,missing,,jump to first #define found in current and
+key,bracket,[ CTRL-I,,missing,,jump to first line in current and included
+key,bracket,[#,motion,missing,,"cursor to N previous unmatched #if, #else"
+key,bracket,[',motion,missing,,"cursor to previous lowercase mark, on first"
+key,bracket,[(,motion,missing,,cursor N times back to unmatched '('
+key,bracket,[*,motion,missing,,"same as ""[/"""
+key,bracket,[`,motion,missing,,cursor to previous lowercase mark
+key,bracket,[/,motion,missing,,cursor to N previous start of a C comment
+key,bracket,[D,,missing,,list all defines found in current and
+key,bracket,[I,,missing,,list all lines found in current and
+key,bracket,[P,change,missing,,"same as ""[p"""
+key,bracket,[[,motion,missing,,cursor N sections backward
+key,bracket,[],motion,missing,,cursor N SECTIONS backward
+key,bracket,[c,motion,missing,,cursor N times backwards to start of change
+key,bracket,[d,,missing,,show first #define found in current and
+key,bracket,[f,,missing,,"same as ""gf"""
+key,bracket,[i,,missing,,show first line found in current and
+key,bracket,[m,motion,missing,,cursor N times back to start of member
+key,bracket,[p,change,missing,,"like ""P"", but adjust indent to current line"
+key,bracket,[s,motion,missing,,move to the previous misspelled word
+key,bracket,[z,motion,missing,,move to start of open fold
+key,bracket,[{,motion,missing,,cursor N times back to unmatched '{'
+key,bracket,] CTRL-D,,missing,,jump to first #define found in current and
+key,bracket,] CTRL-I,,missing,,jump to first line in current and included
+key,bracket,]#,motion,missing,,cursor to N next unmatched #endif or #else
+key,bracket,]',motion,missing,,"cursor to next lowercase mark, on first"
+key,bracket,]),motion,missing,,cursor N times forward to unmatched ')'
+key,bracket,]*,motion,missing,,"same as ""]/"""
+key,bracket,]`,motion,missing,,cursor to next lowercase mark
+key,bracket,]/,motion,missing,,cursor to N next end of a C comment
+key,bracket,]D,,missing,,list all #defines found in current and
+key,bracket,]I,,missing,,list all lines found in current and
+key,bracket,]P,change,missing,,"same as ""[p"""
+key,bracket,][,motion,missing,,cursor N SECTIONS forward
+key,bracket,]],motion,missing,,cursor N sections forward
+key,bracket,]c,motion,missing,,cursor N times forward to start of change
+key,bracket,]d,,missing,,show first #define found in current and
+key,bracket,]f,,missing,,"same as ""gf"""
+key,bracket,]i,,missing,,show first line found in current and
+key,bracket,]m,motion,missing,,cursor N times forward to end of member
+key,bracket,]p,change,missing,,"like ""p"", but adjust indent to current line"
+key,bracket,]s,motion,missing,,move to next misspelled word
+key,bracket,]z,motion,missing,,move to end of open fold
+key,bracket,]},motion,missing,,cursor N times forward to unmatched '}'
+key,g,g CTRL-G,,missing,,show information about current cursor
+key,g,g CTRL-H,,missing,,start Select block mode
+key,g,g CTRL-],,missing,,|:tjump| to the tag under the cursor
+key,g,g#,motion,missing,,"like ""#"", but without using ""\<"" and ""\>"""
+key,g,g$,motion,missing,,when 'wrap' off go to rightmost character of
+key,g,g&,change,missing,,"repeat last "":s"" on all lines"
+key,g,g'{mark},motion,missing,,like |'| but without changing the jumplist
+key,g,g`{mark},motion,missing,,like |`| but without changing the jumplist
+key,g,g*,motion,missing,,"like ""*"", but without using ""\<"" and ""\>"""
+key,g,g+,,missing,,go to newer text state N times
+key,g,"g,",motion,missing,,go to N newer position in change list
+key,g,g-,,missing,,go to older text state N times
+key,g,g0,motion,missing,,when 'wrap' off go to leftmost character of
+key,g,g8,,missing,,print hex value of bytes used in UTF-8
+key,g,g;,motion,missing,,go to N older position in change list
+key,g,g<,,missing,,display previous command output
+key,g,g?,change,missing,,Rot13 encoding operator
+key,g,g??,change,missing,,Rot13 encode current line
+key,g,g?g?,change,missing,,Rot13 encode current line
+key,g,gD,motion,missing,,go to definition of word under the cursor
+key,g,gE,motion,missing,,go backwards to the end of the previous
+key,g,gH,,missing,,start Select line mode
+key,g,gI,change,missing,,"like ""I"", but always start in column 1"
+key,g,gJ,change,missing,,join lines without inserting space
+key,g,gN,,missing,,"1,2  find the previous match with the last used"
+key,g,"[""x]gP",change,missing,,put the text [from register x] before the
+key,g,gQ,,missing,,"switch to ""Ex"" mode with Vim editing"
+key,g,gR,change,missing,,enter Virtual Replace mode
+key,g,gT,,missing,,go to the previous tabpage
+key,g,gU{motion},change,missing,,make Nmove text uppercase
+key,g,gV,,missing,,don't reselect the previous Visual area
+key,g,g],,missing,,:tselect on the tag under the cursor
+key,g,g^,motion,missing,,when 'wrap' off go to leftmost non-white
+key,g,g_,motion,missing,,cursor to the last CHAR N - 1 lines lower
+key,g,ga,,missing,,print ascii value of character under the
+key,g,gd,motion,partial,present; not yet verified against nvim,go to definition of word under the cursor
+key,g,ge,motion,missing,,go backwards to the end of the previous
+key,g,gf,,missing,,start editing the file whose name is under
+key,g,gF,,missing,,start editing the file whose name is under
+key,g,gg,motion,partial,present; not yet verified against nvim,"cursor to line N, default first line"
+key,g,gh,,missing,,start Select mode
+key,g,gi,change,missing,,"like ""i"", but first move to the |'^| mark"
+key,g,gj,motion,missing,,"like ""j"", but when 'wrap' on go N screen"
+key,g,gk,motion,missing,,"like ""k"", but when 'wrap' on go N screen"
+key,g,gm,motion,missing,,go to character at middle of the screenline
+key,g,gM,motion,missing,,go to character at middle of the text line
+key,g,gn,,missing,,"1,2  find the next match with the last used"
+key,g,go,motion,missing,,cursor to byte N in the buffer
+key,g,"[""x]gp",change,missing,,put the text [from register x] after the
+key,g,gq{motion},change,missing,,format Nmove text
+key,g,gr{char},change,missing,,virtual replace N chars with {char}
+key,g,gs,,missing,,go to sleep for N seconds (default 1)
+key,g,gt,,missing,,go to the next tabpage
+key,g,gu{motion},change,missing,,make Nmove text lowercase
+key,g,gv,,missing,,reselect the previous Visual area
+key,g,gw{motion},change,missing,,format Nmove text and keep cursor
+key,g,gx,,missing,,execute application for filepath at cursor
+key,g,g@{motion},,missing,,call 'operatorfunc'
+key,g,g~{motion},change,missing,,swap case for Nmove text
+key,g,g<Down>,motion,missing,,"same as ""gj"""
+key,g,g<End>,motion,missing,,"same as ""g$"" but go to the rightmost"
+key,g,g<Home>,motion,missing,,"same as ""g0"""
+key,g,g<LeftMouse>,,missing,,same as <C-LeftMouse>
+key,g,g<RightMouse>,,missing,,same as <C-RightMouse>
+key,g,g<Tab>,,missing,,go to last accessed tabpage
+key,g,g<Up>,motion,missing,,"same as ""gk"""
+key,z,z<CR>,,missing,,"redraw, cursor line to top of window,"
+key,z,z{height}<CR>,,missing,,"redraw, make window {height} lines high"
+key,z,z+,,missing,,cursor on line N (default line below
+key,z,z-,,missing,,"redraw, cursor line at bottom of window,"
+key,z,z.,,missing,,"redraw, cursor line to center of window,"
+key,z,z=,,missing,,give spelling suggestions
+key,z,zA,,missing,,open a closed fold or close an open fold
+key,z,zC,,missing,,close folds recursively
+key,z,zD,,missing,,delete folds recursively
+key,z,zE,,missing,,eliminate all folds
+key,z,zF,,missing,,create a fold for N lines
+key,z,zG,,missing,,temporarily mark word as correctly spelled
+key,z,zH,,missing,,when 'wrap' off scroll half a screenwidth
+key,z,zL,,missing,,when 'wrap' off scroll half a screenwidth
+key,z,zM,,missing,,set 'foldlevel' to zero
+key,z,zN,,missing,,set 'foldenable'
+key,z,zO,,missing,,open folds recursively
+key,z,zR,,missing,,set 'foldlevel' to the deepest fold
+key,z,zW,,missing,,temporarily mark word as incorrectly spelled
+key,z,zX,,missing,,re-apply 'foldlevel'
+key,z,z^,,missing,,cursor on line N (default line above
+key,z,za,,missing,,"open a closed fold, close an open fold"
+key,z,zb,,missing,,"redraw, cursor line at bottom of window"
+key,z,zc,,missing,,close a fold
+key,z,zd,,missing,,delete a fold
+key,z,ze,,missing,,when 'wrap' off scroll horizontally to
+key,z,zf{motion},,missing,,create a fold for Nmove text
+key,z,zg,,missing,,permanently mark word as correctly spelled
+key,z,zh,,missing,,when 'wrap' off scroll screen N characters
+key,z,zi,,missing,,toggle 'foldenable'
+key,z,zj,motion,missing,,move to the start of the next fold
+key,z,zk,motion,missing,,move to the end of the previous fold
+key,z,zl,,missing,,when 'wrap' off scroll screen N characters
+key,z,zm,,missing,,subtract one from 'foldlevel'
+key,z,zn,,missing,,reset 'foldenable'
+key,z,zo,,missing,,open fold
+key,z,zp,,missing,,paste in block-mode without trailing spaces
+key,z,zP,,missing,,paste in block-mode without trailing spaces
+key,z,zr,,missing,,add one to 'foldlevel'
+key,z,zs,,missing,,when 'wrap' off scroll horizontally to
+key,z,zt,,missing,,"redraw, cursor line at top of window"
+key,z,zuw,,missing,,undo |zw|
+key,z,zug,,missing,,undo |zg|
+key,z,zuW,,missing,,undo |zW|
+key,z,zuG,,missing,,undo |zG|
+key,z,zv,,missing,,open enough folds to view the cursor line
+key,z,zw,,missing,,permanently mark word as incorrectly spelled
+key,z,zx,,missing,,"re-apply 'foldlevel' and do ""zv"""
+key,z,zy,,missing,,yank without trailing spaces
+key,z,zz,,partial,present; not yet verified against nvim,"redraw, cursor line at center of window"
+key,z,z<Left>,,missing,,"same as ""zh"""
+key,z,z<Right>,,missing,,"same as ""zl"""
+key,operator-pending,v,,missing,,force operator to work charwise
+key,operator-pending,V,,missing,,force operator to work linewise
+key,operator-pending,CTRL-V,,missing,,force operator to work blockwise
+key,visual,CTRL-A,change,missing,,add N to number in highlighted text
+key,visual,CTRL-C,,missing,,stop Visual mode
+key,visual,CTRL-G,,missing,,toggle between Visual mode and Select mode
+key,visual,<BS>,change,missing,,Select mode: delete highlighted area
+key,visual,CTRL-H,change,missing,,same as <BS>
+key,visual,CTRL-O,,missing,,switch from Select to Visual mode for one
+key,visual,CTRL-V,,missing,,make Visual mode blockwise or stop Visual
+key,visual,CTRL-X,change,missing,,subtract N from number in highlighted text
+key,visual,<Esc>,,partial,present; not yet verified against nvim,stop Visual mode
+key,visual,CTRL-],,missing,,jump to highlighted tag
+key,visual,!{filter},change,missing,,filter the highlighted lines through the
+key,visual,:,,partial,present; not yet verified against nvim,start a command-line with the highlighted
+key,visual,<,change,missing,,shift the highlighted lines one
+key,visual,=,change,missing,,filter the highlighted lines through the
+key,visual,>,change,missing,,shift the highlighted lines one
+key,visual,A,change,missing,,"block mode: append same text in all lines,"
+key,visual,C,change,partial,present; not yet verified against nvim,delete the highlighted lines and start
+key,visual,D,change,partial,present; not yet verified against nvim,delete the highlighted lines
+key,visual,I,change,missing,,"block mode: insert same text in all lines,"
+key,visual,J,change,partial,present; not yet verified against nvim,join the highlighted lines
+key,visual,K,,partial,Fred: Claude explains the selection (Neovim: keywordprg lookup),run 'keywordprg' on the highlighted area
+key,visual,O,,missing,,move horizontally to other corner of area
+key,visual,P,,missing,,replace highlighted area with register
+key,visual,R,change,missing,,delete the highlighted lines and start
+key,visual,S,change,partial,present; not yet verified against nvim,delete the highlighted lines and start
+key,visual,U,change,missing,,make highlighted area uppercase
+key,visual,V,,partial,present; not yet verified against nvim,make Visual mode linewise or stop Visual
+key,visual,X,change,partial,present; not yet verified against nvim,delete the highlighted lines
+key,visual,Y,,partial,present; not yet verified against nvim,yank the highlighted lines
+key,visual,"a""",,missing,,extend highlighted area with a double
+key,visual,a',,missing,,extend highlighted area with a single
+key,visual,a(,,missing,,same as ab
+key,visual,a),,missing,,same as ab
+key,visual,a<,,missing,,extend highlighted area with a <> block
+key,visual,a>,,missing,,same as a<
+key,visual,aB,,missing,,extend highlighted area with a {} block
+key,visual,aW,,missing,,"extend highlighted area with ""a WORD"""
+key,visual,a[,,missing,,extend highlighted area with a [] block
+key,visual,a],,missing,,same as a[
+key,visual,a`,,missing,,extend highlighted area with a backtick
+key,visual,ab,,missing,,extend highlighted area with a () block
+key,visual,ap,,missing,,extend highlighted area with a paragraph
+key,visual,as,,missing,,extend highlighted area with a sentence
+key,visual,at,,missing,,extend highlighted area with a tag block
+key,visual,aw,,missing,,"extend highlighted area with ""a word"""
+key,visual,a{,,missing,,same as aB
+key,visual,a},,missing,,same as aB
+key,visual,c,change,partial,present; not yet verified against nvim,delete highlighted area and start insert
+key,visual,d,change,partial,present; not yet verified against nvim,delete highlighted area
+key,visual,g CTRL-A,change,missing,,add N to number in highlighted text
+key,visual,g CTRL-X,change,missing,,subtract N from number in highlighted text
+key,visual,gJ,change,missing,,join the highlighted lines without
+key,visual,gq,change,missing,,format the highlighted lines
+key,visual,gv,,missing,,exchange current and previous highlighted
+key,visual,"i""",,missing,,extend highlighted area with a double
+key,visual,i',,missing,,extend highlighted area with a single
+key,visual,i(,,missing,,same as ib
+key,visual,i),,missing,,same as ib
+key,visual,i<,,missing,,extend highlighted area with inner <> block
+key,visual,i>,,missing,,same as i<
+key,visual,iB,,missing,,extend highlighted area with inner {} block
+key,visual,iW,,missing,,"extend highlighted area with ""inner WORD"""
+key,visual,i[,,missing,,extend highlighted area with inner [] block
+key,visual,i],,missing,,same as i[
+key,visual,i`,,missing,,extend highlighted area with a backtick
+key,visual,ib,,missing,,extend highlighted area with inner () block
+key,visual,ip,,missing,,extend highlighted area with inner paragraph
+key,visual,is,,missing,,extend highlighted area with inner sentence
+key,visual,it,,missing,,extend highlighted area with inner tag block
+key,visual,iw,,missing,,"extend highlighted area with ""inner word"""
+key,visual,i{,,missing,,same as iB
+key,visual,i},,missing,,same as iB
+key,visual,o,,partial,present; not yet verified against nvim,move cursor to other corner of area
+key,visual,p,,missing,,replace highlighted area with register
+key,visual,r,change,missing,,replace highlighted area with a character
+key,visual,s,change,partial,present; not yet verified against nvim,delete highlighted area and start insert
+key,visual,u,change,missing,,make highlighted area lowercase
+key,visual,v,,partial,present; not yet verified against nvim,make Visual mode charwise or stop
+key,visual,x,change,partial,present; not yet verified against nvim,delete the highlighted area
+key,visual,y,,partial,present; not yet verified against nvim,yank the highlighted area
+key,visual,~,change,missing,,swap case for the highlighted area
+key,cmdline,CTRL-A,,missing,,do completion on the pattern in front of the
+key,cmdline,CTRL-B,,missing,,cursor to begin of command-line
+key,cmdline,CTRL-C,,partial,present; not yet verified against nvim,same as <Esc>
+key,cmdline,CTRL-D,,missing,,list completions that match the pattern in
+key,cmdline,CTRL-E,,missing,,cursor to end of command-line
+key,cmdline,CTRL-G,,missing,,next match when 'incsearch' is active
+key,cmdline,<BS>,,partial,present; not yet verified against nvim,delete the character in front of the cursor
+key,cmdline,{char1} <BS> {char2},,missing,,
+key,cmdline,CTRL-H,,missing,,same as <BS>
+key,cmdline,<Tab>,,partial,present; not yet verified against nvim,if 'wildchar' is <Tab>: Do completion on
+key,cmdline,<S-Tab>,,partial,present; not yet verified against nvim,same as CTRL-P
+key,cmdline,'wildchar',,missing,,Do completion on the pattern in front of the
+key,cmdline,CTRL-I,,missing,,same as <Tab>
+key,cmdline,<NL>,,missing,,same as <CR>
+key,cmdline,CTRL-J,,missing,,same as <CR>
+key,cmdline,CTRL-K {char1} {char2},,missing,,
+key,cmdline,CTRL-L,,missing,,do completion on the pattern in front of the
+key,cmdline,<CR>,,partial,present; not yet verified against nvim,execute entered command
+key,cmdline,CTRL-M,,missing,,same as <CR>
+key,cmdline,CTRL-N,,missing,,after using 'wildchar' with multiple matches:
+key,cmdline,CTRL-P,,missing,,after using 'wildchar' with multiple matches:
+key,cmdline,CTRL-Q,,missing,,"same as CTRL-V, unless it's used for terminal"
+key,cmdline,CTRL-R {regname},,missing,,
+key,cmdline,CTRL-T,,missing,,previous match when 'incsearch' is active
+key,cmdline,CTRL-U,,partial,present; not yet verified against nvim,remove all characters between the cursor
+key,cmdline,CTRL-V,,missing,,"insert next non-digit literally, insert three"
+key,cmdline,CTRL-W,,partial,present; not yet verified against nvim,delete the word in front of the cursor
+key,cmdline,<Esc>,,partial,present; not yet verified against nvim,abandon command-line without executing it
+key,cmdline,CTRL-[,,missing,,same as <Esc>
+key,cmdline,CTRL-\ e {expr} replace the command line with the result of,,missing,,
+key,cmdline,CTRL-],,missing,,trigger abbreviation
+key,cmdline,CTRL-^,,missing,,toggle use of |:lmap| mappings
+key,cmdline,<Del>,,partial,present; not yet verified against nvim,delete the character under the cursor
+key,cmdline,<Left>,,partial,present; not yet verified against nvim,cursor left
+key,cmdline,<S-Left>,,missing,,cursor one word left
+key,cmdline,<C-Left>,,missing,,cursor one word left
+key,cmdline,<Right>,,partial,present; not yet verified against nvim,cursor right
+key,cmdline,<S-Right>,,missing,,cursor one word right
+key,cmdline,<C-Right>,,missing,,cursor one word right
+key,cmdline,<Up>,,partial,present; not yet verified against nvim,recall previous command-line from history that
+key,cmdline,<S-Up>,,missing,,recall previous command-line from history
+key,cmdline,<Down>,,partial,present; not yet verified against nvim,recall next command-line from history that
+key,cmdline,<S-Down>,,missing,,recall next command-line from history
+key,cmdline,<Home>,,partial,present; not yet verified against nvim,cursor to start of command-line
+key,cmdline,<End>,,partial,present; not yet verified against nvim,cursor to end of command-line
+key,cmdline,<PageDown>,,missing,,same as <S-Down>
+key,cmdline,<PageUp>,,missing,,same as <S-Up>
+key,cmdline,<Insert>,,missing,,toggle insert/overstrike mode
+key,cmdline,<LeftMouse>,,missing,,cursor at mouse click
+ex,,append,:a[ppend] ADDR_LINES,missing,,ex_append
+ex,,abbreviate,:ab[breviate] ADDR_NONE,missing,,ex_abbreviate
+ex,,abclear,:abc[lear] ADDR_NONE,missing,,ex_abclear
+ex,,aboveleft,:abo[veleft] ADDR_NONE,missing,,ex_wrongmodifier
+ex,,all,:al[l] ADDR_OTHER,missing,,ex_all
+ex,,amenu,:am[enu] ADDR_OTHER,excluded,GUI,ex_menu
+ex,,anoremenu,:an[oremenu] ADDR_OTHER,excluded,GUI,ex_menu
+ex,,args,:ar[gs] ADDR_NONE,missing,,ex_args
+ex,,argadd,:arga[dd] ADDR_ARGUMENTS,missing,,ex_argadd
+ex,,argdelete,:argd[elete] ADDR_ARGUMENTS,missing,,ex_argdelete
+ex,,argdo,:argdo ADDR_ARGUMENTS,missing,,ex_listdo
+ex,,argdedupe,:argded[upe] ADDR_NONE,missing,,ex_argdedupe
+ex,,argedit,:arge[dit] ADDR_ARGUMENTS,missing,,ex_argedit
+ex,,argglobal,:argg[lobal] ADDR_NONE,missing,,ex_args
+ex,,arglocal,:argl[ocal] ADDR_NONE,missing,,ex_args
+ex,,argument,:argu[ment] ADDR_ARGUMENTS,missing,,ex_argument
+ex,,ascii,:as[cii] ADDR_NONE,missing,,do_ascii
+ex,,autocmd,:au[tocmd] ADDR_NONE,missing,,ex_autocmd
+ex,,augroup,:aug[roup] ADDR_NONE,missing,,ex_autocmd
+ex,,aunmenu,:aun[menu] ADDR_NONE,excluded,GUI,ex_menu
+ex,,buffer,:b[uffer] ADDR_BUFFERS,partial,present; not yet verified against nvim,ex_buffer
+ex,,bNext,:bN[ext] ADDR_OTHER,partial,present; not yet verified against nvim,ex_bprevious
+ex,,ball,:ba[ll] ADDR_OTHER,missing,,ex_buffer_all
+ex,,badd,:bad[d] ADDR_NONE,missing,,ex_edit
+ex,,balt,:balt ADDR_NONE,missing,,ex_edit
+ex,,bdelete,:bd[elete] ADDR_BUFFERS,partial,present; not yet verified against nvim,ex_bunload
+ex,,belowright,:bel[owright] ADDR_NONE,missing,,ex_wrongmodifier
+ex,,bfirst,:bf[irst] ADDR_OTHER,missing,,ex_brewind
+ex,,blast,:bl[ast] ADDR_OTHER,missing,,ex_blast
+ex,,bmodified,:bm[odified] ADDR_OTHER,missing,,ex_bmodified
+ex,,bnext,:bn[ext] ADDR_OTHER,partial,present; not yet verified against nvim,ex_bnext
+ex,,botright,:bo[tright] ADDR_NONE,missing,,ex_wrongmodifier
+ex,,bprevious,:bp[revious] ADDR_OTHER,partial,present; not yet verified against nvim,ex_bprevious
+ex,,brewind,:br[ewind] ADDR_OTHER,missing,,ex_brewind
+ex,,break,:brea[k] ADDR_NONE,excluded,Vimscript language,ex_break
+ex,,breakadd,:breaka[dd] ADDR_NONE,excluded,Vimscript language,ex_breakadd
+ex,,breakdel,:breakd[el] ADDR_NONE,excluded,Vimscript language,ex_breakdel
+ex,,breaklist,:breakl[ist] ADDR_NONE,excluded,Vimscript language,ex_breaklist
+ex,,browse,:bro[wse] ADDR_NONE,excluded,GUI,ex_wrongmodifier
+ex,,buffers,:buffers ADDR_NONE,partial,present; not yet verified against nvim,buflist_list
+ex,,bufdo,:bufd[o] ADDR_BUFFERS,missing,,ex_listdo
+ex,,bunload,:bun[load] ADDR_LOADED_BUFFERS,missing,,ex_bunload
+ex,,bwipeout,:bw[ipeout] ADDR_BUFFERS,missing,,ex_bunload
+ex,,change,:c[hange] ADDR_LINES,missing,,ex_change
+ex,,cNext,:cN[ext] ADDR_UNSIGNED,missing,,ex_cnext
+ex,,cNfile,:cNf[ile] ADDR_UNSIGNED,missing,,ex_cnext
+ex,,cabbrev,:ca[bbrev] ADDR_NONE,missing,,ex_abbreviate
+ex,,cabclear,:cabc[lear] ADDR_NONE,missing,,ex_abclear
+ex,,cabove,:cabo[ve] ADDR_UNSIGNED,missing,,ex_cbelow
+ex,,caddbuffer,:cad[dbuffer] ADDR_LINES,missing,,ex_cbuffer
+ex,,caddexpr,:cadde[xpr] ADDR_NONE,missing,,ex_cexpr
+ex,,caddfile,:caddf[ile] ADDR_NONE,missing,,ex_cfile
+ex,,cafter,:caf[ter] ADDR_UNSIGNED,missing,,ex_cbelow
+ex,,call,:cal[l] ADDR_LINES,excluded,Vimscript language,ex_call
+ex,,catch,:cat[ch] ADDR_NONE,excluded,Vimscript language,ex_catch
+ex,,cbuffer,:cb[uffer] ADDR_LINES,missing,,ex_cbuffer
+ex,,cbefore,:cbe[fore] ADDR_UNSIGNED,missing,,ex_cbelow
+ex,,cbelow,:cbel[ow] ADDR_UNSIGNED,missing,,ex_cbelow
+ex,,cbottom,:cbo[ttom] ADDR_NONE,missing,,ex_cbottom
+ex,,cc,:cc ADDR_QUICKFIX,missing,,ex_cc
+ex,,cclose,:ccl[ose] ADDR_NONE,missing,,ex_cclose
+ex,,cd,:cd ADDR_NONE,partial,present; not yet verified against nvim,ex_cd
+ex,,cdo,:cdo ADDR_QUICKFIX_VALID,missing,,ex_listdo
+ex,,center,:ce[nter] ADDR_LINES,missing,,ex_align
+ex,,cexpr,:cex[pr] ADDR_NONE,missing,,ex_cexpr
+ex,,cfile,:cf[ile] ADDR_NONE,missing,,ex_cfile
+ex,,cfdo,:cfd[o] ADDR_QUICKFIX_VALID,missing,,ex_listdo
+ex,,cfirst,:cfir[st] ADDR_UNSIGNED,missing,,ex_cc
+ex,,cgetfile,:cg[etfile] ADDR_NONE,missing,,ex_cfile
+ex,,cgetbuffer,:cgetb[uffer] ADDR_LINES,missing,,ex_cbuffer
+ex,,cgetexpr,:cgete[xpr] ADDR_NONE,missing,,ex_cexpr
+ex,,chdir,:chd[ir] ADDR_NONE,missing,,ex_cd
+ex,,changes,:changes ADDR_NONE,missing,,ex_changes
+ex,,checkhealth,:che[ckhealth] ADDR_NONE,excluded,"other languages, plugins and remote UI",ex_checkhealth
+ex,,checkpath,:checkp[ath] ADDR_NONE,missing,,ex_checkpath
+ex,,checktime,:checkt[ime] ADDR_OTHER,missing,,ex_checktime
+ex,,chistory,:chi[story] ADDR_UNSIGNED,missing,,qf_history
+ex,,clist,:cl[ist] ADDR_NONE,missing,,qf_list
+ex,,clast,:cla[st] ADDR_UNSIGNED,missing,,ex_cc
+ex,,close,:clo[se] ADDR_WINDOWS,missing,,ex_close
+ex,,clearjumps,:cle[arjumps] ADDR_NONE,missing,,ex_clearjumps
+ex,,cmap,:cm[ap] ADDR_NONE,missing,,ex_map
+ex,,cmapclear,:cmapc[lear] ADDR_NONE,missing,,ex_mapclear
+ex,,cmenu,:cme[nu] ADDR_OTHER,excluded,GUI,ex_menu
+ex,,cnext,:cn[ext] ADDR_UNSIGNED,missing,,ex_cnext
+ex,,cnewer,:cnew[er] ADDR_UNSIGNED,missing,,qf_age
+ex,,cnfile,:cnf[ile] ADDR_UNSIGNED,missing,,ex_cnext
+ex,,cnoremap,:cno[remap] ADDR_NONE,missing,,ex_map
+ex,,cnoreabbrev,:cnorea[bbrev] ADDR_NONE,missing,,ex_abbreviate
+ex,,cnoremenu,:cnoreme[nu] ADDR_OTHER,excluded,GUI,ex_menu
+ex,,copy,:co[py] ADDR_LINES,partial,present; not yet verified against nvim,ex_copymove
+ex,,colder,:col[der] ADDR_UNSIGNED,missing,,qf_age
+ex,,colorscheme,:colo[rscheme] ADDR_NONE,missing,,ex_colorscheme
+ex,,command,:com[mand] ADDR_NONE,missing,,ex_command
+ex,,comclear,:comc[lear] ADDR_NONE,missing,,ex_comclear
+ex,,compiler,:comp[iler] ADDR_NONE,missing,,ex_compiler
+ex,,continue,:con[tinue] ADDR_NONE,excluded,Vimscript language,ex_continue
+ex,,confirm,:conf[irm] ADDR_NONE,missing,,ex_wrongmodifier
+ex,,connect,connect ADDR_NONE,excluded,"other languages, plugins and remote UI",ex_connect
+ex,,const,:cons[t] ADDR_NONE,excluded,Vimscript language,ex_let
+ex,,copen,:cope[n] ADDR_OTHER,missing,,ex_copen
+ex,,cprevious,:cp[revious] ADDR_UNSIGNED,missing,,ex_cnext
+ex,,cpfile,:cpf[ile] ADDR_OTHER,missing,,ex_cnext
+ex,,cquit,:cq[uit] ADDR_UNSIGNED,missing,,ex_cquit
+ex,,crewind,:cr[ewind] ADDR_UNSIGNED,missing,,ex_cc
+ex,,cunmap,:cu[nmap] ADDR_NONE,missing,,ex_unmap
+ex,,cunabbrev,:cuna[bbrev] ADDR_NONE,missing,,ex_abbreviate
+ex,,cunmenu,:cunme[nu] ADDR_NONE,excluded,GUI,ex_menu
+ex,,cwindow,:cw[indow] ADDR_OTHER,missing,,ex_cwindow
+ex,,delete,:d[elete] ADDR_LINES,partial,present; not yet verified against nvim,ex_operators
+ex,,delmarks,:delm[arks] ADDR_NONE,missing,,ex_delmarks
+ex,,debug,:deb[ug] ADDR_NONE,excluded,Vimscript language,ex_debug
+ex,,debuggreedy,:debugg[reedy] ADDR_OTHER,excluded,Vimscript language,ex_debuggreedy
+ex,,defer,:defe[r] ADDR_NONE,excluded,Vimscript language,ex_call
+ex,,delcommand,:delc[ommand] ADDR_NONE,missing,,ex_delcommand
+ex,,delfunction,:delf[unction] ADDR_NONE,excluded,Vimscript language,ex_delfunction
+ex,,detach,:detach ADDR_NONE,excluded,"other languages, plugins and remote UI",ex_detach
+ex,,display,:di[splay] ADDR_NONE,missing,,ex_display
+ex,,diffupdate,:dif[fupdate] ADDR_NONE,deferred,diff mode,ex_diffupdate
+ex,,diffget,:diffg[et] ADDR_LINES,deferred,diff mode,ex_diffgetput
+ex,,diffoff,:diffo[ff] ADDR_NONE,deferred,diff mode,ex_diffoff
+ex,,diffpatch,:diffp[atch] ADDR_NONE,deferred,diff mode,ex_diffpatch
+ex,,diffput,:diffpu[t] ADDR_LINES,deferred,diff mode,ex_diffgetput
+ex,,diffsplit,:diffs[plit] ADDR_NONE,deferred,diff mode,ex_diffsplit
+ex,,diffthis,:difft[his] ADDR_NONE,deferred,diff mode,ex_diffthis
+ex,,digraphs,:dig[raphs] ADDR_NONE,missing,,ex_digraphs
+ex,,djump,:dj[ump] ADDR_LINES,missing,,ex_findpat
+ex,,dlist,:dli[st] ADDR_LINES,missing,,ex_findpat
+ex,,doautocmd,:do[autocmd] ADDR_NONE,missing,,ex_doautocmd
+ex,,doautoall,:doautoa[ll] ADDR_NONE,missing,,ex_doautoall
+ex,,drop,:dr[op] ADDR_NONE,missing,,ex_drop
+ex,,dsearch,:ds[earch] ADDR_LINES,missing,,ex_findpat
+ex,,dsplit,:dsp[lit] ADDR_LINES,missing,,ex_findpat
+ex,,edit,:e[dit] ADDR_NONE,partial,present; not yet verified against nvim,ex_edit
+ex,,earlier,:ea[rlier] ADDR_NONE,missing,,ex_later
+ex,,echo,:ec[ho] ADDR_NONE,excluded,Vimscript language,ex_echo
+ex,,echoerr,:echoe[rr] ADDR_NONE,excluded,Vimscript language,ex_execute
+ex,,echohl,:echoh[l] ADDR_NONE,excluded,Vimscript language,ex_echohl
+ex,,echomsg,:echom[sg] ADDR_NONE,excluded,Vimscript language,ex_execute
+ex,,echon,:echon ADDR_NONE,excluded,Vimscript language,ex_echo
+ex,,else,:el[se] ADDR_NONE,excluded,Vimscript language,ex_else
+ex,,elseif,:elsei[f] ADDR_NONE,excluded,Vimscript language,ex_else
+ex,,emenu,:em[enu] ADDR_OTHER,excluded,GUI,ex_emenu
+ex,,endif,:en[dif] ADDR_NONE,excluded,Vimscript language,ex_endif
+ex,,endfunction,:endf[unction] ADDR_NONE,excluded,Vimscript language,ex_endfunction
+ex,,endfor,:endfo[r] ADDR_NONE,excluded,Vimscript language,ex_endwhile
+ex,,endtry,:endt[ry] ADDR_NONE,excluded,Vimscript language,ex_endtry
+ex,,endwhile,:endw[hile] ADDR_NONE,excluded,Vimscript language,ex_endwhile
+ex,,enew,:ene[w] ADDR_NONE,missing,,ex_edit
+ex,,eval,:ev[al] ADDR_NONE,excluded,Vimscript language,ex_eval
+ex,,ex,:ex ADDR_NONE,missing,,ex_edit
+ex,,execute,:exe[cute] ADDR_NONE,excluded,Vimscript language,ex_execute
+ex,,exit,:exi[t] ADDR_LINES,missing,,ex_exit
+ex,,exusage,:exu[sage] ADDR_NONE,missing,,ex_exusage
+ex,,file,:f[ile] ADDR_OTHER,missing,,ex_file
+ex,,files,:files ADDR_NONE,partial,present; not yet verified against nvim,buflist_list
+ex,,filetype,:filet[ype] ADDR_NONE,missing,,ex_filetype
+ex,,filter,:filt[er] ADDR_NONE,missing,,ex_wrongmodifier
+ex,,find,:fin[d] ADDR_OTHER,missing,,ex_find
+ex,,finally,:fina[lly] ADDR_NONE,excluded,Vimscript language,ex_finally
+ex,,finish,:fini[sh] ADDR_NONE,excluded,Vimscript language,ex_finish
+ex,,first,:fir[st] ADDR_NONE,missing,,ex_rewind
+ex,,fold,:fo[ld] ADDR_LINES,missing,,ex_fold
+ex,,foldclose,:foldc[lose] ADDR_LINES,missing,,ex_foldopen
+ex,,folddoopen,:foldd[oopen] ADDR_LINES,missing,,ex_folddo
+ex,,folddoclosed,:folddoc[losed] ADDR_LINES,missing,,ex_folddo
+ex,,foldopen,:foldo[pen] ADDR_LINES,missing,,ex_foldopen
+ex,,for,:for ADDR_NONE,excluded,Vimscript language,ex_while
+ex,,function,:fu[nction] ADDR_NONE,excluded,Vimscript language,ex_function
+ex,,fclose,:fc[lose] ADDR_OTHER,missing,,ex_fclose
+ex,,global,:g[lobal] ADDR_LINES,partial,present; not yet verified against nvim,ex_global
+ex,,goto,:go[to] ADDR_OTHER,missing,,ex_goto
+ex,,grep,:gr[ep] ADDR_OTHER,missing,,ex_make
+ex,,grepadd,:grepa[dd] ADDR_OTHER,missing,,ex_make
+ex,,gui,:gu[i] ADDR_NONE,excluded,GUI,ex_nogui
+ex,,gvim,:gv[im] ADDR_NONE,excluded,GUI,ex_nogui
+ex,,help,:h[elp] ADDR_NONE,deferred,help system,ex_help
+ex,,helpclose,:helpc[lose] ADDR_NONE,deferred,help system,ex_helpclose
+ex,,helpgrep,:helpg[rep] ADDR_NONE,deferred,help system,ex_helpgrep
+ex,,helptags,:helpt[ags] ADDR_NONE,deferred,help system,ex_helptags
+ex,,highlight,:hi[ghlight] ADDR_NONE,missing,,ex_highlight
+ex,,hide,:hid[e] ADDR_WINDOWS,missing,,ex_hide
+ex,,history,:his[tory] ADDR_NONE,missing,,ex_history
+ex,,horizontal,:hor[izontal] ADDR_NONE,missing,,ex_wrongmodifier
+ex,,insert,:i[nsert] ADDR_LINES,missing,,ex_append
+ex,,iabbrev,:ia[bbrev] ADDR_NONE,missing,,ex_abbreviate
+ex,,iabclear,:iabc[lear] ADDR_NONE,missing,,ex_abclear
+ex,,if,:if ADDR_NONE,excluded,Vimscript language,ex_if
+ex,,ijump,:ij[ump] ADDR_LINES,missing,,ex_findpat
+ex,,ilist,:il[ist] ADDR_LINES,missing,,ex_findpat
+ex,,imap,:im[ap] ADDR_NONE,missing,,ex_map
+ex,,imapclear,:imapc[lear] ADDR_NONE,missing,,ex_mapclear
+ex,,imenu,:ime[nu] ADDR_OTHER,excluded,GUI,ex_menu
+ex,,inoremap,:ino[remap] ADDR_NONE,missing,,ex_map
+ex,,inoreabbrev,:inorea[bbrev] ADDR_NONE,missing,,ex_abbreviate
+ex,,inoremenu,:inoreme[nu] ADDR_OTHER,excluded,GUI,ex_menu
+ex,,intro,:int[ro] ADDR_NONE,missing,,ex_intro
+ex,,iput,:ip[ut] ADDR_LINES,missing,,ex_iput
+ex,,isearch,:is[earch] ADDR_LINES,missing,,ex_findpat
+ex,,isplit,:isp[lit] ADDR_LINES,missing,,ex_findpat
+ex,,iunmap,:iu[nmap] ADDR_NONE,missing,,ex_unmap
+ex,,iunabbrev,:iuna[bbrev] ADDR_NONE,missing,,ex_abbreviate
+ex,,iunmenu,:iunme[nu] ADDR_NONE,excluded,GUI,ex_menu
+ex,,join,:j[oin] ADDR_LINES,partial,joins with a space; :j! keeps white space,ex_join
+ex,,jumps,:ju[mps] ADDR_NONE,missing,,ex_jumps
+ex,,k,:k ADDR_LINES,missing,,ex_mark
+ex,,keepmarks,:kee[pmarks] ADDR_NONE,missing,,ex_wrongmodifier
+ex,,keepjumps,:keepj[umps] ADDR_NONE,missing,,ex_wrongmodifier
+ex,,keeppatterns,:keepp[atterns] ADDR_NONE,missing,,ex_wrongmodifier
+ex,,keepalt,:keepa[lt] ADDR_NONE,missing,,ex_wrongmodifier
+ex,,list,:l[ist] ADDR_LINES,missing,,ex_print
+ex,,lNext,:lN[ext] ADDR_UNSIGNED,missing,,ex_cnext
+ex,,lNfile,:lNf[ile] ADDR_UNSIGNED,missing,,ex_cnext
+ex,,last,:la[st] ADDR_NONE,missing,,ex_last
+ex,,labove,:lab[ove] ADDR_UNSIGNED,missing,,ex_cbelow
+ex,,language,:lan[guage] ADDR_NONE,missing,,ex_language
+ex,,laddexpr,:lad[dexpr] ADDR_NONE,missing,,ex_cexpr
+ex,,laddbuffer,:laddb[uffer] ADDR_LINES,missing,,ex_cbuffer
+ex,,laddfile,:laddf[ile] ADDR_NONE,missing,,ex_cfile
+ex,,lafter,:laf[ter] ADDR_UNSIGNED,missing,,ex_cbelow
+ex,,later,:lat[er] ADDR_NONE,missing,,ex_later
+ex,,lbuffer,:lb[uffer] ADDR_LINES,missing,,ex_cbuffer
+ex,,lbefore,:lbe[fore] ADDR_UNSIGNED,missing,,ex_cbelow
+ex,,lbelow,:lbel[ow] ADDR_UNSIGNED,missing,,ex_cbelow
+ex,,lbottom,:lbo[ttom] ADDR_NONE,missing,,ex_cbottom
+ex,,lcd,:lc[d] ADDR_NONE,missing,,ex_cd
+ex,,lchdir,:lch[dir] ADDR_NONE,missing,,ex_cd
+ex,,lclose,:lcl[ose] ADDR_OTHER,missing,,ex_cclose
+ex,,ldo,:ld[o] ADDR_QUICKFIX_VALID,missing,,ex_listdo
+ex,,left,:le[ft] ADDR_LINES,missing,,ex_align
+ex,,leftabove,:lefta[bove] ADDR_NONE,missing,,ex_wrongmodifier
+ex,,let,:let ADDR_NONE,excluded,Vimscript language,ex_let
+ex,,lexpr,:lex[pr] ADDR_NONE,missing,,ex_cexpr
+ex,,lfile,:lf[ile] ADDR_NONE,missing,,ex_cfile
+ex,,lfdo,:lfd[o] ADDR_QUICKFIX_VALID,missing,,ex_listdo
+ex,,lfirst,:lfir[st] ADDR_UNSIGNED,missing,,ex_cc
+ex,,lgetfile,:lg[etfile] ADDR_NONE,missing,,ex_cfile
+ex,,lgetbuffer,:lgetb[uffer] ADDR_LINES,missing,,ex_cbuffer
+ex,,lgetexpr,:lgete[xpr] ADDR_NONE,missing,,ex_cexpr
+ex,,lgrep,:lgr[ep] ADDR_OTHER,missing,,ex_make
+ex,,lgrepadd,:lgrepa[dd] ADDR_OTHER,missing,,ex_make
+ex,,lhelpgrep,:lh[elpgrep] ADDR_NONE,deferred,help system,ex_helpgrep
+ex,,lhistory,:lhi[story] ADDR_UNSIGNED,missing,,qf_history
+ex,,ll,:ll ADDR_QUICKFIX,missing,,ex_cc
+ex,,llast,:lla[st] ADDR_UNSIGNED,missing,,ex_cc
+ex,,llist,:lli[st] ADDR_NONE,missing,,qf_list
+ex,,lmap,:lm[ap] ADDR_NONE,missing,,ex_map
+ex,,lmapclear,:lmapc[lear] ADDR_NONE,missing,,ex_mapclear
+ex,,lmake,:lmak[e] ADDR_NONE,missing,,ex_make
+ex,,lnoremap,:ln[oremap] ADDR_NONE,missing,,ex_map
+ex,,lnext,:lne[xt] ADDR_UNSIGNED,missing,,ex_cnext
+ex,,lnewer,:lnew[er] ADDR_UNSIGNED,missing,,qf_age
+ex,,lnfile,:lnf[ile] ADDR_UNSIGNED,missing,,ex_cnext
+ex,,loadview,:lo[adview] ADDR_NONE,deferred,"sessions, views and shada",ex_loadview
+ex,,loadkeymap,:loadk[eymap] ADDR_NONE,missing,,ex_loadkeymap
+ex,,lockmarks,:loc[kmarks] ADDR_NONE,missing,,ex_wrongmodifier
+ex,,lockvar,:lockv[ar] ADDR_NONE,excluded,Vimscript language,ex_lockvar
+ex,,lolder,:lol[der] ADDR_UNSIGNED,missing,,qf_age
+ex,,lopen,:lop[en] ADDR_OTHER,missing,,ex_copen
+ex,,lprevious,:lp[revious] ADDR_UNSIGNED,missing,,ex_cnext
+ex,,lpfile,:lpf[ile] ADDR_OTHER,missing,,ex_cnext
+ex,,lrewind,:lr[ewind] ADDR_UNSIGNED,missing,,ex_cc
+ex,,ltag,:lt[ag] ADDR_NONE,missing,,ex_tag
+ex,,lunmap,:lu[nmap] ADDR_NONE,missing,,ex_unmap
+ex,,lua,:lua ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_lua
+ex,,luado,:luad[o] ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_luado
+ex,,luafile,:luaf[ile] ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_luafile
+ex,,lvimgrep,:lv[imgrep] ADDR_OTHER,missing,,ex_vimgrep
+ex,,lvimgrepadd,:lvimgrepa[dd] ADDR_OTHER,missing,,ex_vimgrep
+ex,,lwindow,:lw[indow] ADDR_OTHER,missing,,ex_cwindow
+ex,,ls,:ls ADDR_NONE,partial,present; not yet verified against nvim,buflist_list
+ex,,lsp,:lsp ADDR_NONE,excluded,"other languages, plugins and remote UI",ex_lsp
+ex,,move,:m[ove] ADDR_LINES,partial,present; not yet verified against nvim,ex_copymove
+ex,,mark,:ma[rk] ADDR_LINES,missing,,ex_mark
+ex,,make,:mak[e] ADDR_NONE,missing,,ex_make
+ex,,map,:map ADDR_NONE,missing,,ex_map
+ex,,mapclear,:mapc[lear] ADDR_NONE,missing,,ex_mapclear
+ex,,marks,:marks ADDR_NONE,missing,,ex_marks
+ex,,match,:mat[ch] ADDR_OTHER,missing,,ex_match
+ex,,menu,:me[nu] ADDR_OTHER,excluded,GUI,ex_menu
+ex,,menutranslate,menutranslate ADDR_NONE,excluded,GUI,ex_menutranslate
+ex,,messages,:mes[sages] ADDR_OTHER,missing,,ex_messages
+ex,,mkexrc,:mk[exrc] ADDR_NONE,deferred,"sessions, views and shada",ex_mkrc
+ex,,mksession,:mks[ession] ADDR_NONE,deferred,"sessions, views and shada",ex_mkrc
+ex,,mkspell,:mksp[ell] ADDR_NONE,deferred,spell checking,ex_mkspell
+ex,,mkvimrc,:mkv[imrc] ADDR_NONE,deferred,"sessions, views and shada",ex_mkrc
+ex,,mkview,:mkvie[w] ADDR_NONE,deferred,"sessions, views and shada",ex_mkrc
+ex,,mode,:mod[e] ADDR_NONE,missing,,ex_mode
+ex,,mzscheme,mzscheme ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_script_ni
+ex,,mzfile,mzfile ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_ni
+ex,,next,:n[ext] ADDR_OTHER,missing,,ex_next
+ex,,new,:new ADDR_OTHER,missing,,ex_splitview
+ex,,nmap,:nm[ap] ADDR_NONE,missing,,ex_map
+ex,,nmapclear,:nmapc[lear] ADDR_NONE,missing,,ex_mapclear
+ex,,nmenu,:nme[nu] ADDR_OTHER,excluded,GUI,ex_menu
+ex,,nnoremap,:nn[oremap] ADDR_NONE,missing,,ex_map
+ex,,nnoremenu,:nnoreme[nu] ADDR_OTHER,excluded,GUI,ex_menu
+ex,,noremap,:no[remap] ADDR_NONE,missing,,ex_map
+ex,,noautocmd,:noa[utocmd] ADDR_NONE,missing,,ex_wrongmodifier
+ex,,nohlsearch,:noh[lsearch] ADDR_NONE,missing,,ex_nohlsearch
+ex,,noreabbrev,:norea[bbrev] ADDR_NONE,missing,,ex_abbreviate
+ex,,noremenu,:noreme[nu] ADDR_OTHER,excluded,GUI,ex_menu
+ex,,noswapfile,:nos[wapfile] ADDR_NONE,missing,,ex_wrongmodifier
+ex,,normal,:norm[al] ADDR_LINES,missing,,ex_normal
+ex,,number,:nu[mber] ADDR_LINES,missing,,ex_print
+ex,,nunmap,:nun[map] ADDR_NONE,missing,,ex_unmap
+ex,,nunmenu,:nunme[nu] ADDR_NONE,excluded,GUI,ex_menu
+ex,,oldfiles,:ol[dfiles] ADDR_NONE,missing,,ex_oldfiles
+ex,,omap,:om[ap] ADDR_NONE,missing,,ex_map
+ex,,omapclear,:omapc[lear] ADDR_NONE,missing,,ex_mapclear
+ex,,omenu,:ome[nu] ADDR_OTHER,excluded,GUI,ex_menu
+ex,,only,:on[ly] ADDR_WINDOWS,missing,,ex_only
+ex,,onoremap,:ono[remap] ADDR_NONE,missing,,ex_map
+ex,,onoremenu,:onoreme[nu] ADDR_OTHER,excluded,GUI,ex_menu
+ex,,options,:opt[ions] ADDR_NONE,missing,,ex_options
+ex,,ounmap,:ou[nmap] ADDR_NONE,missing,,ex_unmap
+ex,,ounmenu,:ounme[nu] ADDR_NONE,excluded,GUI,ex_menu
+ex,,ownsyntax,ownsyntax ADDR_NONE,missing,,ex_ownsyntax
+ex,,print,:p[rint] ADDR_LINES,missing,,ex_print
+ex,,packadd,:pa[ckadd] ADDR_NONE,excluded,"other languages, plugins and remote UI",ex_packadd
+ex,,packloadall,:packl[oadall] ADDR_NONE,excluded,"other languages, plugins and remote UI",ex_packloadall
+ex,,pbuffer,:pb[uffer] ADDR_BUFFERS,missing,,ex_pbuffer
+ex,,pclose,:pc[lose] ADDR_NONE,missing,,ex_pclose
+ex,,perl,:pe[rl] ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_perl
+ex,,perldo,:perld[o] ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_perldo
+ex,,perlfile,:perlf[ile] ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_perlfile
+ex,,pedit,:ped[it] ADDR_NONE,missing,,ex_pedit
+ex,,pop,:po[p] ADDR_OTHER,missing,,ex_tag
+ex,,popup,:popu[p] ADDR_NONE,excluded,GUI,ex_popup
+ex,,ppop,:pp[op] ADDR_OTHER,missing,,ex_ptag
+ex,,preserve,:pre[serve] ADDR_NONE,missing,,ex_preserve
+ex,,previous,:prev[ious] ADDR_OTHER,missing,,ex_previous
+ex,,profile,:prof[ile] ADDR_NONE,excluded,Vimscript language,ex_profile
+ex,,profdel,:profd[el] ADDR_NONE,excluded,Vimscript language,ex_breakdel
+ex,,psearch,:ps[earch] ADDR_LINES,missing,,ex_psearch
+ex,,ptag,:pt[ag] ADDR_OTHER,missing,,ex_ptag
+ex,,ptNext,:ptN[ext] ADDR_OTHER,missing,,ex_ptag
+ex,,ptfirst,:ptf[irst] ADDR_OTHER,missing,,ex_ptag
+ex,,ptjump,:ptj[ump] ADDR_NONE,missing,,ex_ptag
+ex,,ptlast,:ptl[ast] ADDR_NONE,missing,,ex_ptag
+ex,,ptnext,:ptn[ext] ADDR_OTHER,missing,,ex_ptag
+ex,,ptprevious,:ptp[revious] ADDR_OTHER,missing,,ex_ptag
+ex,,ptrewind,:ptr[ewind] ADDR_OTHER,missing,,ex_ptag
+ex,,ptselect,:pts[elect] ADDR_NONE,missing,,ex_ptag
+ex,,put,:pu[t] ADDR_LINES,missing,,ex_put
+ex,,pwd,:pw[d] ADDR_NONE,partial,present; not yet verified against nvim,ex_pwd
+ex,,python,:py[thon] ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_python3
+ex,,pydo,:pyd[o] ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_pydo3
+ex,,pyfile,:pyf[ile] ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_py3file
+ex,,py3,:py3 ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_python3
+ex,,py3do,:py3d[o] ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_pydo3
+ex,,python3,:python3 ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_python3
+ex,,py3file,:py3f[ile] ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_py3file
+ex,,pyx,:pyx ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_python3
+ex,,pyxdo,:pyxd[o] ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_pydo3
+ex,,pythonx,:pythonx ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_python3
+ex,,pyxfile,:pyxf[ile] ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_py3file
+ex,,quit,:q[uit] ADDR_WINDOWS,partial,present; not yet verified against nvim,ex_quit
+ex,,quitall,:quita[ll] ADDR_NONE,missing,,ex_quitall
+ex,,qall,:qa[ll] ADDR_NONE,missing,,ex_quitall
+ex,,read,:r[ead] ADDR_LINES,partial,present; not yet verified against nvim,ex_read
+ex,,recover,:rec[over] ADDR_NONE,missing,,ex_recover
+ex,,redo,:red[o] ADDR_NONE,missing,,ex_redo
+ex,,redir,:redi[r] ADDR_NONE,excluded,Vimscript language,ex_redir
+ex,,redraw,:redr[aw] ADDR_NONE,missing,,ex_redraw
+ex,,redrawstatus,:redraws[tatus] ADDR_NONE,missing,,ex_redrawstatus
+ex,,redrawtabline,redrawtabline ADDR_NONE,missing,,ex_redrawtabline
+ex,,registers,:reg[isters] ADDR_NONE,missing,,ex_display
+ex,,resize,:res[ize] ADDR_OTHER,missing,,ex_resize
+ex,,restart,:restart ADDR_NONE,excluded,"other languages, plugins and remote UI",ex_restart
+ex,,retab,:ret[ab] ADDR_LINES,missing,,ex_retab
+ex,,return,:retu[rn] ADDR_NONE,excluded,Vimscript language,ex_return
+ex,,rewind,:rew[ind] ADDR_NONE,missing,,ex_rewind
+ex,,right,:ri[ght] ADDR_LINES,missing,,ex_align
+ex,,rightbelow,:rightb[elow] ADDR_NONE,missing,,ex_wrongmodifier
+ex,,rshada,:rsh[ada] ADDR_NONE,deferred,"sessions, views and shada",ex_shada
+ex,,runtime,:ru[ntime] ADDR_NONE,excluded,Vimscript language,ex_runtime
+ex,,rundo,:rund[o] ADDR_NONE,missing,,ex_rundo
+ex,,ruby,:rub[y] ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_ruby
+ex,,rubydo,:rubyd[o] ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_rubydo
+ex,,rubyfile,:rubyf[ile] ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_rubyfile
+ex,,rviminfo,rviminfo ADDR_NONE,deferred,"sessions, views and shada",ex_shada
+ex,,substitute,:s[ubstitute] ADDR_LINES,partial,g flag only; Rust regex syntax,ex_substitute
+ex,,sNext,:sN[ext] ADDR_OTHER,missing,,ex_previous
+ex,,sargument,:sa[rgument] ADDR_ARGUMENTS,missing,,ex_argument
+ex,,sall,:sal[l] ADDR_OTHER,missing,,ex_all
+ex,,sandbox,:san[dbox] ADDR_NONE,excluded,Vimscript language,ex_wrongmodifier
+ex,,saveas,:sav[eas] ADDR_NONE,missing,,ex_write
+ex,,sbuffer,:sb[uffer] ADDR_BUFFERS,missing,,ex_buffer
+ex,,sbNext,:sbN[ext] ADDR_OTHER,missing,,ex_bprevious
+ex,,sball,:sba[ll] ADDR_OTHER,missing,,ex_buffer_all
+ex,,sbfirst,:sbf[irst] ADDR_NONE,missing,,ex_brewind
+ex,,sblast,:sbl[ast] ADDR_NONE,missing,,ex_blast
+ex,,sbmodified,:sbm[odified] ADDR_OTHER,missing,,ex_bmodified
+ex,,sbnext,:sbn[ext] ADDR_OTHER,missing,,ex_bnext
+ex,,sbprevious,:sbp[revious] ADDR_OTHER,missing,,ex_bprevious
+ex,,sbrewind,:sbr[ewind] ADDR_NONE,missing,,ex_brewind
+ex,,scriptnames,:scr[iptnames] ADDR_OTHER,excluded,Vimscript language,ex_scriptnames
+ex,,scriptencoding,scriptencoding ADDR_NONE,excluded,Vimscript language,ex_scriptencoding
+ex,,set,:se[t] ADDR_NONE,partial,"all argument forms; one-line display, no multi-line :set all yet",ex_set
+ex,,setfiletype,:setf[iletype] ADDR_NONE,missing,,ex_setfiletype
+ex,,setglobal,:setg[lobal] ADDR_NONE,partial,present; not yet verified against nvim,ex_set
+ex,,setlocal,:setl[ocal] ADDR_NONE,partial,buffer and window options per Editor until windows split,ex_set
+ex,,sfind,:sf[ind] ADDR_OTHER,missing,,ex_splitview
+ex,,sfirst,:sfir[st] ADDR_NONE,missing,,ex_rewind
+ex,,simalt,simalt ADDR_NONE,excluded,GUI,ex_ni
+ex,,sign,:sig[n] ADDR_OTHER,missing,,ex_sign
+ex,,silent,:sil[ent] ADDR_NONE,missing,,ex_wrongmodifier
+ex,,sleep,:sl[eep] ADDR_OTHER,missing,,ex_sleep
+ex,,slast,:sla[st] ADDR_NONE,missing,,ex_last
+ex,,smagic,:sm[agic] ADDR_LINES,missing,,ex_submagic
+ex,,smap,:smap ADDR_NONE,missing,,ex_map
+ex,,smapclear,:smapc[lear] ADDR_NONE,missing,,ex_mapclear
+ex,,smenu,:sme[nu] ADDR_OTHER,excluded,GUI,ex_menu
+ex,,snext,:sn[ext] ADDR_OTHER,missing,,ex_next
+ex,,snomagic,:sno[magic] ADDR_LINES,missing,,ex_submagic
+ex,,snoremap,:snor[emap] ADDR_NONE,missing,,ex_map
+ex,,snoremenu,:snoreme[nu] ADDR_OTHER,excluded,GUI,ex_menu
+ex,,source,:so[urce] ADDR_LINES,excluded,Vimscript language,ex_source
+ex,,sort,:sor[t] ADDR_LINES,missing,,ex_sort
+ex,,split,:sp[lit] ADDR_OTHER,missing,,ex_splitview
+ex,,spellgood,:spe[llgood] ADDR_OTHER,deferred,spell checking,ex_spell
+ex,,spelldump,:spelld[ump] ADDR_NONE,deferred,spell checking,ex_spelldump
+ex,,spellinfo,:spelli[nfo] ADDR_NONE,deferred,spell checking,ex_spellinfo
+ex,,spellrepall,:spellr[epall] ADDR_NONE,deferred,spell checking,ex_spellrepall
+ex,,spellrare,:spellra[re] ADDR_OTHER,deferred,spell checking,ex_spell
+ex,,spellundo,:spellu[ndo] ADDR_OTHER,deferred,spell checking,ex_spell
+ex,,spellwrong,:spellw[rong] ADDR_OTHER,deferred,spell checking,ex_spell
+ex,,sprevious,:spr[evious] ADDR_OTHER,missing,,ex_previous
+ex,,srewind,:sre[wind] ADDR_NONE,missing,,ex_rewind
+ex,,stop,:st[op] ADDR_NONE,missing,,ex_stop
+ex,,stag,:sta[g] ADDR_OTHER,missing,,ex_stag
+ex,,startinsert,:star[tinsert] ADDR_NONE,missing,,ex_startinsert
+ex,,startgreplace,startgreplace ADDR_NONE,missing,,ex_startinsert
+ex,,startreplace,:startr[eplace] ADDR_NONE,missing,,ex_startinsert
+ex,,stopinsert,:stopi[nsert] ADDR_NONE,missing,,ex_stopinsert
+ex,,stjump,:stj[ump] ADDR_NONE,missing,,ex_stag
+ex,,stselect,:sts[elect] ADDR_NONE,missing,,ex_stag
+ex,,sunhide,:sun[hide] ADDR_OTHER,missing,,ex_buffer_all
+ex,,sunmap,:sunm[ap] ADDR_NONE,missing,,ex_unmap
+ex,,sunmenu,:sunme[nu] ADDR_NONE,excluded,GUI,ex_menu
+ex,,suspend,:sus[pend] ADDR_NONE,missing,,ex_stop
+ex,,sview,:sv[iew] ADDR_OTHER,missing,,ex_splitview
+ex,,swapname,:sw[apname] ADDR_NONE,missing,,ex_swapname
+ex,,syntax,:sy[ntax] ADDR_NONE,missing,,ex_syntax
+ex,,syntime,:synti[me] ADDR_NONE,excluded,Vimscript language,ex_syntime
+ex,,syncbind,:sync[bind] ADDR_NONE,missing,,ex_syncbind
+ex,,t,:t ADDR_LINES,partial,present; not yet verified against nvim,ex_copymove
+ex,,tcd,:tc[d] ADDR_NONE,missing,,ex_cd
+ex,,tchdir,:tch[dir] ADDR_NONE,missing,,ex_cd
+ex,,tNext,:tN[ext] ADDR_OTHER,missing,,ex_tag
+ex,,tag,:ta[g] ADDR_OTHER,missing,,ex_tag
+ex,,tags,:tags ADDR_NONE,missing,,do_tags
+ex,,tab,:tab ADDR_TABS,missing,,ex_wrongmodifier
+ex,,tabclose,:tabc[lose] ADDR_TABS,missing,,ex_tabclose
+ex,,tabdo,:tabd[o] ADDR_TABS,missing,,ex_listdo
+ex,,tabedit,:tabe[dit] ADDR_TABS,missing,,ex_splitview
+ex,,tabfind,:tabf[ind] ADDR_TABS,missing,,ex_splitview
+ex,,tabfirst,:tabfir[st] ADDR_NONE,missing,,ex_tabnext
+ex,,tabmove,:tabm[ove] ADDR_TABS,missing,,ex_tabmove
+ex,,tablast,:tabl[ast] ADDR_NONE,missing,,ex_tabnext
+ex,,tabnext,:tabn[ext] ADDR_TABS,missing,,ex_tabnext
+ex,,tabnew,:tabnew ADDR_TABS,missing,,ex_splitview
+ex,,tabonly,:tabo[nly] ADDR_TABS,missing,,ex_tabonly
+ex,,tabprevious,:tabp[revious] ADDR_TABS_RELATIVE,missing,,ex_tabnext
+ex,,tabNext,:tabN[ext] ADDR_TABS_RELATIVE,missing,,ex_tabnext
+ex,,tabrewind,:tabr[ewind] ADDR_NONE,missing,,ex_tabnext
+ex,,tabs,:tabs ADDR_NONE,missing,,ex_tabs
+ex,,tcl,tcl ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_script_ni
+ex,,tcldo,tcldo ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_ni
+ex,,tclfile,tclfile ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_ni
+ex,,terminal,:te[rminal] ADDR_NONE,deferred,terminal,ex_terminal
+ex,,tfirst,:tf[irst] ADDR_OTHER,missing,,ex_tag
+ex,,throw,:th[row] ADDR_NONE,excluded,Vimscript language,ex_throw
+ex,,tjump,:tj[ump] ADDR_NONE,missing,,ex_tag
+ex,,tlast,:tl[ast] ADDR_NONE,missing,,ex_tag
+ex,,tlmenu,:tlm[enu] ADDR_OTHER,excluded,GUI,ex_menu
+ex,,tlnoremenu,:tln[oremenu] ADDR_OTHER,excluded,GUI,ex_menu
+ex,,tlunmenu,:tlu[nmenu] ADDR_NONE,excluded,GUI,ex_menu
+ex,,tmenu,:tm[enu] ADDR_OTHER,excluded,GUI,ex_menu
+ex,,tmap,:tma[p] ADDR_NONE,missing,,ex_map
+ex,,tmapclear,:tmapc[lear] ADDR_NONE,missing,,ex_mapclear
+ex,,tnext,:tn[ext] ADDR_OTHER,missing,,ex_tag
+ex,,tnoremap,:tno[remap] ADDR_NONE,missing,,ex_map
+ex,,topleft,:to[pleft] ADDR_NONE,missing,,ex_wrongmodifier
+ex,,tprevious,:tp[revious] ADDR_OTHER,missing,,ex_tag
+ex,,trewind,:tr[ewind] ADDR_OTHER,missing,,ex_tag
+ex,,trust,:trust ADDR_NONE,excluded,"other languages, plugins and remote UI",ex_trust
+ex,,try,:try ADDR_NONE,excluded,Vimscript language,ex_try
+ex,,tselect,:ts[elect] ADDR_NONE,missing,,ex_tag
+ex,,tunmenu,:tu[nmenu] ADDR_NONE,excluded,GUI,ex_menu
+ex,,tunmap,:tunma[p] ADDR_NONE,missing,,ex_unmap
+ex,,undo,:u[ndo] ADDR_OTHER,missing,,ex_undo
+ex,,undojoin,:undoj[oin] ADDR_NONE,missing,,ex_undojoin
+ex,,undolist,:undol[ist] ADDR_NONE,missing,,ex_undolist
+ex,,unabbreviate,:una[bbreviate] ADDR_NONE,missing,,ex_abbreviate
+ex,,unhide,:unh[ide] ADDR_OTHER,missing,,ex_buffer_all
+ex,,uniq,:uni[q] ADDR_LINES,missing,,ex_uniq
+ex,,unlet,:unl[et] ADDR_NONE,excluded,Vimscript language,ex_unlet
+ex,,unlockvar,:unlo[ckvar] ADDR_NONE,excluded,Vimscript language,ex_lockvar
+ex,,unmap,:unm[ap] ADDR_NONE,missing,,ex_unmap
+ex,,unmenu,:unme[nu] ADDR_NONE,excluded,GUI,ex_menu
+ex,,unsilent,:uns[ilent] ADDR_NONE,missing,,ex_wrongmodifier
+ex,,update,:up[date] ADDR_LINES,missing,,ex_update
+ex,,vglobal,:v[global] ADDR_LINES,partial,present; not yet verified against nvim,ex_global
+ex,,version,:ve[rsion] ADDR_NONE,missing,,ex_version
+ex,,verbose,:verb[ose] ADDR_OTHER,missing,,ex_wrongmodifier
+ex,,vertical,:vert[ical] ADDR_NONE,missing,,ex_wrongmodifier
+ex,,visual,:vi[sual] ADDR_NONE,missing,,ex_edit
+ex,,view,:vie[w] ADDR_NONE,missing,,ex_edit
+ex,,vimgrep,:vim[grep] ADDR_OTHER,missing,,ex_vimgrep
+ex,,vimgrepadd,:vimgrepa[dd] ADDR_OTHER,missing,,ex_vimgrep
+ex,,viusage,:viu[sage] ADDR_NONE,missing,,ex_viusage
+ex,,vmap,:vm[ap] ADDR_NONE,missing,,ex_map
+ex,,vmapclear,:vmapc[lear] ADDR_NONE,missing,,ex_mapclear
+ex,,vmenu,:vme[nu] ADDR_OTHER,excluded,GUI,ex_menu
+ex,,vnoremap,:vn[oremap] ADDR_NONE,missing,,ex_map
+ex,,vnew,:vne[w] ADDR_OTHER,missing,,ex_splitview
+ex,,vnoremenu,:vnoreme[nu] ADDR_OTHER,excluded,GUI,ex_menu
+ex,,vsplit,:vs[plit] ADDR_OTHER,missing,,ex_splitview
+ex,,vunmap,:vu[nmap] ADDR_NONE,missing,,ex_unmap
+ex,,vunmenu,:vunme[nu] ADDR_NONE,excluded,GUI,ex_menu
+ex,,write,:w[rite] ADDR_LINES,partial,present; not yet verified against nvim,ex_write
+ex,,wNext,:wN[ext] ADDR_OTHER,missing,,ex_wnext
+ex,,wall,:wa[ll] ADDR_NONE,missing,,do_wqall
+ex,,while,:wh[ile] ADDR_NONE,excluded,Vimscript language,ex_while
+ex,,winsize,:wi[nsize] ADDR_NONE,missing,,ex_winsize
+ex,,wincmd,:winc[md] ADDR_OTHER,missing,,ex_wincmd
+ex,,windo,:wind[o] ADDR_WINDOWS,missing,,ex_listdo
+ex,,winpos,:winp[os] ADDR_NONE,excluded,GUI,ex_ni
+ex,,wnext,:wn[ext] ADDR_OTHER,missing,,ex_wnext
+ex,,wprevious,:wp[revious] ADDR_OTHER,missing,,ex_wnext
+ex,,wq,:wq ADDR_LINES,partial,present; not yet verified against nvim,ex_exit
+ex,,wqall,:wqa[ll] ADDR_NONE,missing,,do_wqall
+ex,,wshada,:wsh[ada] ADDR_NONE,deferred,"sessions, views and shada",ex_shada
+ex,,wundo,:wu[ndo] ADDR_NONE,missing,,ex_wundo
+ex,,wviminfo,wviminfo ADDR_NONE,deferred,"sessions, views and shada",ex_shada
+ex,,xit,:x[it] ADDR_LINES,partial,present; not yet verified against nvim,ex_exit
+ex,,xall,:xa[ll] ADDR_NONE,missing,,do_wqall
+ex,,xmap,:xm[ap] ADDR_NONE,missing,,ex_map
+ex,,xmapclear,:xmapc[lear] ADDR_NONE,missing,,ex_mapclear
+ex,,xmenu,:xme[nu] ADDR_OTHER,excluded,GUI,ex_menu
+ex,,xnoremap,:xn[oremap] ADDR_NONE,missing,,ex_map
+ex,,xnoremenu,:xnoreme[nu] ADDR_OTHER,excluded,GUI,ex_menu
+ex,,xunmap,:xu[nmap] ADDR_NONE,missing,,ex_unmap
+ex,,xunmenu,:xunme[nu] ADDR_NONE,excluded,GUI,ex_menu
+ex,,yank,:y[ank] ADDR_LINES,missing,,ex_operators
+ex,,z,:z ADDR_LINES,missing,,ex_z
+ex,,!,:! ADDR_LINES,partial,present; not yet verified against nvim,ex_bang
+ex,,#,:# ADDR_LINES,missing,,ex_print
+ex,,&,:& ADDR_LINES,missing,,ex_substitute
+ex,,<,:< ADDR_LINES,missing,,ex_operators
+ex,,=,:= ADDR_LINES,missing,,ex_equal
+ex,,>,:> ADDR_LINES,missing,,ex_operators
+ex,,@,:@ ADDR_LINES,missing,,ex_at
+ex,,~,:~ ADDR_LINES,missing,,ex_substitute
+ex,,Next,:N[ext] ADDR_OTHER,missing,,ex_previous
+option,,aleph,al global number,deferred,right-to-left text and input methods,ASCII code of the letter Aleph (Hebrew)
+option,,allowrevins,ari global boolean,deferred,right-to-left text and input methods,allow CTRL-_ in Insert mode
+option,,ambiwidth,ambw global string,missing,,what to do with Unicode chars of ambiguous width
+option,,arabic,arab win boolean,deferred,right-to-left text and input methods,Arabic as a default second language
+option,,arabicshape,arshape global boolean,deferred,right-to-left text and input methods,do shaping for Arabic characters
+option,,autochdir,acd global boolean,missing,,change directory to the file in the current window
+option,,autocomplete,ac global+buf boolean,partial,"Fred default on; buffer, nearby-file and path words",automatic completion in insert mode
+option,,autocompletedelay,acl global number,missing,,delay in msec before menu appears after typing
+option,,autocompletetimeout,act global number,missing,,initial decay timeout for autocompletion algorithm
+option,,autoindent,ai buf boolean,missing,,take indent for new line from previous line
+option,,autoread,ar global+buf boolean,missing,,autom. read file when changed outside of Vim
+option,,autowrite,aw global boolean,missing,,automatically write file if changed
+option,,autowriteall,awa global boolean,missing,,"as 'autowrite', but works with more commands"
+option,,background,bg global string,missing,,"\""dark\"" or \""light\"", used for highlight colors"
+option,,backspace,bs global string,missing,,how backspace works at start of line
+option,,backup,bk global boolean,missing,,keep backup file after overwriting a file
+option,,backupcopy,bkc global+buf string,missing,,"make backup as a copy, don't rename the file"
+option,,backupdir,bdir global string,missing,,list of directories for the backup file
+option,,backupext,bex global string,missing,,extension used for the backup file
+option,,backupskip,bsk global string,missing,,no backup for files that match these patterns
+option,,belloff,bo global string,missing,,do not ring the bell for these reasons
+option,,binary,bin buf boolean,missing,,read/write/edit file in binary mode
+option,,bomb, buf boolean,missing,,a Byte Order Mark to the file
+option,,breakat,brk global string,missing,,characters that may cause a line break
+option,,breakindent,bri win boolean,missing,,wrapped line repeats indent
+option,,breakindentopt,briopt win string,missing,,settings for 'breakindent'
+option,,browsedir,bsdir global string,excluded,GUI,which directory to start browsing in
+option,,bufhidden,bh buf string,missing,,what to do when buffer is no longer in window
+option,,buflisted,bl buf boolean,missing,,whether the buffer shows up in the buffer list
+option,,buftype,bt buf string,missing,,special type of buffer
+option,,busy, buf number,excluded,"Vimscript, plugins and other languages",buffer is busy
+option,,casemap,cmp global string,missing,,specifies how case of letters is changed
+option,,cdhome,cdh global boolean,missing,,:cd without argument goes to the home directory
+option,,cdpath,cd global string,missing,,"list of directories searched with \"":cd\"""
+option,,cedit, global string,missing,,used to open the command-line window
+option,,channel, buf number,excluded,"Vimscript, plugins and other languages",Channel connected to the buffer
+option,,charconvert,ccv global string,missing,,expression for character encoding conversion
+option,,chistory,chi global number,missing,,number of quickfix lists stored in history
+option,,cindent,cin buf boolean,missing,,do C program indenting
+option,,cinkeys,cink buf string,missing,,keys that trigger indent when 'cindent' is set
+option,,cinoptions,cino buf string,missing,,how to do indenting when 'cindent' is set
+option,,cinscopedecls,cinsd buf string,missing,,words that are recognized by 'cino-g'
+option,,cinwords,cinw buf string,missing,,words where 'si' and 'cin' add an indent
+option,,clipboard,cb global string,partial,unnamed and unnamedplus both use the system clipboard; config clipboard = true sets unnamedplus,use the clipboard as the unnamed register
+option,,cmdheight,ch global number,missing,,number of lines to use for the command-line
+option,,cmdwinheight,cwh global number,missing,,height of the command-line window
+option,,colorcolumn,cc win string,missing,,columns to highlight
+option,,columns,co global number,missing,,number of columns in the display
+option,,comments,com buf string,missing,,patterns that can start a comment line
+option,,commentstring,cms buf string,missing,,template for comments; used for fold marker
+option,,compatible,cp global boolean,missing,,Deprecated
+option,,complete,cpt buf string,missing,,specify how Insert mode completion works
+option,,completefunc,cfu buf string,missing,,function to be used for Insert mode completion
+option,,completeitemalign,cia global string,missing,,Insert mode completion item align order
+option,,completeopt,cot global+buf string,missing,,options for Insert mode completion
+option,,completeslash,csl buf string,missing,,
+option,,completetimeout,cto global number,missing,,initial decay timeout for CTRL-N and CTRL-P
+option,,concealcursor,cocu win string,missing,,whether concealable text is hidden in cursor line
+option,,conceallevel,cole win number,missing,,whether concealable text is shown or hidden
+option,,confirm,cf global boolean,missing,,ask what to do about unsaved/read-only files
+option,,copyindent,ci buf boolean,missing,,make 'autoindent' use existing indent structure
+option,,cpoptions,cpo global string,missing,,flags for Vi-compatible behavior
+option,,cursorbind,crb win boolean,missing,,move cursor in window as it moves in other windows
+option,,cursorcolumn,cuc win boolean,missing,,highlight the screen column of the cursor
+option,,cursorline,cul win boolean,partial,config hl_line; dark-gray background,highlight the screen line of the cursor
+option,,cursorlineopt,culopt win string,missing,,settings for 'cursorline'
+option,,debug, global string,missing,,"to \""msg\"" to see all error messages"
+option,,define,def global+buf string,missing,,pattern to be used to find a macro definition
+option,,delcombine,deco global boolean,deferred,right-to-left text and input methods,delete combining characters on their own
+option,,dictionary,dict global+buf string,missing,,list of file names used for keyword completion
+option,,diff, win boolean,deferred,diff mode,diff mode for the current window
+option,,diffanchors,dia global+buf string,deferred,diff mode,list of addresses for anchoring a diff
+option,,diffexpr,dex global string,deferred,diff mode,expression used to obtain a diff file
+option,,diffopt,dip global string,deferred,diff mode,options for using diff mode
+option,,digraph,dg global boolean,missing,,enable the entering of digraphs in Insert mode
+option,,directory,dir global string,missing,,list of directory names for the swap file
+option,,display,dy global string,missing,,list of flags for how to display text
+option,,eadirection,ead global string,missing,,in which direction 'equalalways' works
+option,,edcompatible,ed global boolean,missing,,Deprecated
+option,,emoji,emo global boolean,missing,,No description
+option,,encoding,enc global string,missing,,encoding used internally
+option,,endoffile,eof buf boolean,missing,,write CTRL-Z for last line in file
+option,,endofline,eol buf boolean,missing,,write <EOL> for last line in file
+option,,equalalways,ea global boolean,missing,,windows are automatically made the same size
+option,,equalprg,ep global+buf string,missing,,"external program to use for \""=\"" command"
+option,,errorbells,eb global boolean,missing,,ring the bell for error messages
+option,,errorfile,ef global string,missing,,name of the errorfile for the QuickFix mode
+option,,errorformat,efm global+buf string,missing,,description of the lines in the error file
+option,,eventignore,ei global string,missing,,autocommand events that are ignored
+option,,eventignorewin,eiw win string,missing,,autocommand events that are ignored in a window
+option,,expandtab,et buf boolean,missing,,use spaces when <Tab> is inserted
+option,,exrc,ex global boolean,excluded,"Vimscript, plugins and other languages",read project-local configuration in parent directories
+option,,fileencoding,fenc buf string,missing,,file encoding for multi-byte text
+option,,fileencodings,fencs global string,missing,,automatically detected character encodings
+option,,fileformat,ff buf string,missing,,file format used for file I/O
+option,,fileformats,ffs global string,missing,,automatically detected values for 'fileformat'
+option,,fileignorecase,fic global boolean,missing,,ignore case when using file names
+option,,filetype,ft buf string,missing,,"type of file, used for autocommands"
+option,,fillchars,fcs global+win string,missing,,characters to use for displaying special items
+option,,findfunc,ffu global+buf string,missing,,function called for :find
+option,,fixendofline,fixeol buf boolean,missing,,make sure last line in file has <EOL>
+option,,foldclose,fcl global string,missing,,close a fold when the cursor leaves it
+option,,foldcolumn,fdc win string,missing,,width of the column used to indicate folds
+option,,foldenable,fen win boolean,missing,,set to display all folds open
+option,,foldexpr,fde win string,missing,,"expression used when 'foldmethod' is \""expr\"""
+option,,foldignore,fdi win string,missing,,"ignore lines when 'foldmethod' is \""indent\"""
+option,,foldlevel,fdl win number,missing,,close folds with a level higher than this
+option,,foldlevelstart,fdls global number,missing,,'foldlevel' when starting to edit a file
+option,,foldmarker,fmr win string,missing,,"markers used when 'foldmethod' is \""marker\"""
+option,,foldmethod,fdm win string,missing,,folding type
+option,,foldminlines,fml win number,missing,,minimum number of lines for a fold to be closed
+option,,foldnestmax,fdn win number,missing,,maximum fold depth
+option,,foldopen,fdo global string,missing,,for which commands a fold will be opened
+option,,foldtext,fdt win string,missing,,expression used to display for a closed fold
+option,,formatexpr,fex buf string,missing,,"expression used with \""gq\"" command"
+option,,formatlistpat,flp buf string,missing,,pattern used to recognize a list header
+option,,formatoptions,fo buf string,missing,,how automatic formatting is to be done
+option,,formatprg,fp global+buf string,missing,,"name of external program used with \""gq\"" command"
+option,,fsync,fs global+buf boolean,missing,,whether to invoke fsync() after file write
+option,,gdefault,gd global boolean,missing,,Deprecated
+option,,grepformat,gfm global+buf string,missing,,format of 'grepprg' output
+option,,grepprg,gp global+buf string,missing,,"program to use for \"":grep\"""
+option,,guicursor,gcr global string,missing,,GUI: settings for cursor shape and blinking
+option,,guifont,gfn global string,excluded,GUI,GUI: Name(s) of font(s) to be used
+option,,guifontwide,gfw global string,excluded,GUI,list of font names for double-wide characters
+option,,guioptions,go global string,excluded,GUI,GUI: Which components and options are used
+option,,guitablabel,gtl global string,excluded,GUI,GUI: custom label for a tabpage
+option,,guitabtooltip,gtt global string,excluded,GUI,GUI: custom tooltip for a tabpage
+option,,helpfile,hf global string,deferred,help system,full path name of the main help file
+option,,helpheight,hh global number,deferred,help system,minimum height of a new help window
+option,,helplang,hlg global string,deferred,help system,preferred help languages
+option,,hidden,hid global boolean,missing,,don't unload buffer when it is |abandon|ed
+option,,highlight,hl global string,missing,,sets highlighting mode for various occasions
+option,,history,hi global number,missing,,number of command-lines that are remembered
+option,,hkmap,hk global boolean,deferred,right-to-left text and input methods,Deprecated
+option,,hkmapp,hkp global boolean,deferred,right-to-left text and input methods,Deprecated
+option,,hlsearch,hls global boolean,missing,,highlight matches with last search pattern
+option,,icon, global boolean,excluded,GUI,Vim set the text of the window icon
+option,,iconstring, global string,excluded,GUI,to use for the Vim icon text
+option,,ignorecase,ic global boolean,missing,,ignore case in search patterns
+option,,imcmdline,imc global boolean,deferred,right-to-left text and input methods,use IM when starting to edit a command line
+option,,imdisable,imd global boolean,deferred,right-to-left text and input methods,do not use the IM in any mode
+option,,iminsert,imi buf number,deferred,right-to-left text and input methods,use :lmap or IM in Insert mode
+option,,imsearch,ims buf number,deferred,right-to-left text and input methods,use :lmap or IM when typing a search pattern
+option,,inccommand,icm global string,missing,,Live preview of substitution
+option,,include,inc global+buf string,missing,,pattern to be used to find an include file
+option,,includeexpr,inex buf string,missing,,expression used to process an include line
+option,,incsearch,is global boolean,missing,,highlight match while typing search pattern
+option,,indentexpr,inde buf string,missing,,expression used to obtain the indent of a line
+option,,indentkeys,indk buf string,missing,,keys that trigger indenting with 'indentexpr'
+option,,infercase,inf buf boolean,missing,,adjust case of match for keyword completion
+option,,insertmode,im global boolean,missing,,Deprecated
+option,,isfname,isf global string,missing,,characters included in file names and pathnames
+option,,isident,isi global string,missing,,characters included in identifiers
+option,,iskeyword,isk buf string,missing,,characters included in keywords
+option,,isprint,isp global string,missing,,printable characters
+option,,joinspaces,js global boolean,missing,,two spaces after a period with a join command
+option,,jumpoptions,jop global string,missing,,Controls the behavior of the jumplist
+option,,keymap,kmp buf string,deferred,right-to-left text and input methods,name of a keyboard mapping
+option,,keymodel,km global string,missing,,enable starting/stopping selection with keys
+option,,keywordprg,kp global+buf string,missing,,"program to use for the \""K\"" command"
+option,,langmap,lmap global string,deferred,right-to-left text and input methods,alphabetic characters for other language mode
+option,,langmenu,lm global string,deferred,right-to-left text and input methods,language to be used for the menus
+option,,langnoremap,lnr global boolean,deferred,right-to-left text and input methods,do not apply 'langmap' to mapped characters
+option,,langremap,lrm global boolean,deferred,right-to-left text and input methods,Deprecated
+option,,laststatus,ls global number,missing,,tells when last window has status lines
+option,,lazyredraw,lz global boolean,missing,,don't redraw while executing macros
+option,,lhistory,lhi win number,missing,,number of location lists stored in history
+option,,linebreak,lbr win boolean,missing,,wrap long lines at a blank
+option,,lines, global number,missing,,of lines in the display
+option,,linespace,lsp global number,excluded,GUI,number of pixel lines to use between characters
+option,,lisp, buf boolean,missing,,indenting for Lisp
+option,,lispoptions,lop buf string,missing,,options for lisp indenting
+option,,lispwords,lw global+buf string,missing,,words that change how lisp indenting works
+option,,list, win boolean,missing,,<Tab> and <EOL>
+option,,listchars,lcs global+win string,missing,,characters for displaying in list mode
+option,,loadplugins,lpl global boolean,excluded,"Vimscript, plugins and other languages",load plugin scripts when starting up
+option,,magic, global boolean,missing,,Deprecated
+option,,makeef,mef global string,missing,,"name of the errorfile for \"":make\"""
+option,,makeencoding,menc global+buf string,missing,,Converts the output of external commands
+option,,makeprg,mp global+buf string,missing,,"program to use for the \"":make\"" command"
+option,,matchpairs,mps buf string,missing,,"pairs of characters that \""%\"" can match"
+option,,matchtime,mat global number,missing,,tenths of a second to show matching paren
+option,,maxcombine,mco global number,missing,,maximum nr of combining characters displayed
+option,,maxfuncdepth,mfd global number,excluded,"Vimscript, plugins and other languages",maximum recursive depth for user functions
+option,,maxmapdepth,mmd global number,missing,,maximum recursive depth for mapping
+option,,maxmempattern,mmp global number,missing,,maximum memory (in Kbyte) used for pattern search
+option,,maxsearchcount,msc global number,missing,,maximum number for the search count feature
+option,,menuitems,mis global number,excluded,GUI,maximum number of items in a menu
+option,,messagesopt,mopt global string,missing,,options for outputting messages
+option,,mkspellmem,msm global string,deferred,spell checking,memory used before |:mkspell| compresses the tree
+option,,modeline,ml buf boolean,missing,,recognize modelines at start or end of file
+option,,modelineexpr,mle global boolean,excluded,"Vimscript, plugins and other languages",allow some options to be set in modeline
+option,,modelines,mls global number,missing,,number of lines checked for modelines
+option,,modifiable,ma buf boolean,missing,,changes to the text are not possible
+option,,modified,mod buf boolean,missing,,buffer has been modified
+option,,more, global boolean,missing,,listings when the whole screen is filled
+option,,mouse, global string,missing,,the use of mouse clicks
+option,,mousefocus,mousef global boolean,excluded,GUI,keyboard focus follows the mouse
+option,,mousehide,mh global boolean,excluded,GUI,hide mouse pointer while typing
+option,,mousemodel,mousem global string,missing,,changes meaning of mouse buttons
+option,,mousemoveevent,mousemev global boolean,missing,,deliver mouse move events to input queue
+option,,mousescroll, global string,missing,,amount to scroll by when scrolling with a mouse
+option,,mouseshape,mouses global string,missing,,shape of the mouse pointer in different modes
+option,,mousetime,mouset global number,missing,,max time between mouse double-click
+option,,nrformats,nf buf string,missing,,number formats recognized for CTRL-A command
+option,,number,nu win boolean,partial,Fred default on; wraps the gutter,print the line number in front of each line
+option,,numberwidth,nuw win number,missing,,number of columns used for the line number
+option,,omnifunc,ofu buf string,missing,,function for filetype-specific completion
+option,,opendevice,odev global boolean,missing,,allow reading/writing devices on MS-Windows
+option,,operatorfunc,opfunc global string,missing,,function to be called for |g@| operator
+option,,packpath,pp global string,excluded,"Vimscript, plugins and other languages",list of directories used for packages
+option,,paragraphs,para global string,missing,,nroff macros that separate paragraphs
+option,,paste, global boolean,missing,,Deprecated
+option,,pastetoggle,pt global string,missing,,Deprecated
+option,,patchexpr,pex global string,deferred,diff mode,expression used to patch a file
+option,,patchmode,pm global string,missing,,keep the oldest version of a file
+option,,path,pa global+buf string,missing,,"list of directories searched with \""gf\"" et.al."
+option,,preserveindent,pi buf boolean,missing,,preserve the indent structure when reindenting
+option,,previewheight,pvh global number,missing,,height of the preview window
+option,,previewwindow,pvw win boolean,missing,,identifies the preview window
+option,,prompt, global boolean,missing,,enable prompt in Ex mode
+option,,pumblend,pb global number,missing,,Controls transparency level of popup menu
+option,,pumborder, global string,missing,,border of popupmenu
+option,,pumheight,ph global number,missing,,maximum height of the popup menu
+option,,pummaxwidth,pmw global number,missing,,maximum width of the popup menu
+option,,pumwidth,pw global number,missing,,minimum width of the popup menu
+option,,pyxversion,pyx global number,excluded,"Vimscript, plugins and other languages",selects default python version to use
+option,,quickfixtextfunc,qftf global string,missing,,customize the quickfix window
+option,,quoteescape,qe buf string,missing,,escape characters used in a string
+option,,readonly,ro buf boolean,missing,,disallow writing the buffer
+option,,redrawdebug,rdb global string,missing,,Changes the way redrawing works (debug)
+option,,redrawtime,rdt global number,missing,,timeout for 'hlsearch' and |:match| highlighting
+option,,regexpengine,re global number,missing,,default regexp engine to use
+option,,relativenumber,rnu win boolean,partial,present,show relative line number in front of each line
+option,,remap, global boolean,missing,,Deprecated
+option,,report, global number,missing,,for reporting nr. of lines changed
+option,,revins,ri global boolean,deferred,right-to-left text and input methods,inserting characters will work backwards
+option,,rightleft,rl win boolean,deferred,right-to-left text and input methods,window is right-to-left oriented
+option,,rightleftcmd,rlc win string,deferred,right-to-left text and input methods,commands for which editing works right-to-left
+option,,ruler,ru global boolean,missing,,show cursor line and column in the status line
+option,,rulerformat,ruf global string,missing,,custom format for the ruler
+option,,runtimepath,rtp global string,excluded,"Vimscript, plugins and other languages",list of directories used for runtime files
+option,,scroll,scr win number,missing,,lines to scroll with CTRL-U and CTRL-D
+option,,scrollback,scbk buf number,deferred,terminal,lines to scroll with CTRL-U and CTRL-D
+option,,scrollbind,scb win boolean,missing,,scroll in window as other windows scroll
+option,,scrolljump,sj global number,missing,,minimum number of lines to scroll
+option,,scrolloff,so global+win number,missing,,minimum nr. of lines above and below cursor
+option,,scrollopt,sbo global string,missing,,how 'scrollbind' should behave
+option,,sections,sect global string,missing,,nroff macros that separate sections
+option,,secure, global boolean,excluded,"Vimscript, plugins and other languages",Deprecated
+option,,selection,sel global string,missing,,what type of selection to use
+option,,selectmode,slm global string,missing,,when to use Select mode instead of Visual mode
+option,,sessionoptions,ssop global string,deferred,"sessions, views and shada",options for |:mksession|
+option,,shada,sd global string,deferred,"sessions, views and shada",use .shada file upon startup and exiting
+option,,shadafile,sdf global string,deferred,"sessions, views and shada",overrides the filename used for shada
+option,,shell,sh global string,missing,,name of shell to use for external commands
+option,,shellcmdflag,shcf global string,missing,,flag to shell to execute one command
+option,,shellpipe,sp global string,missing,,"string to put output of \"":make\"" in error file"
+option,,shellquote,shq global string,missing,,quote character(s) for around shell command
+option,,shellredir,srr global string,missing,,string to put output of filter in a temp file
+option,,shellslash,ssl global boolean,missing,,use forward slash for shell file names
+option,,shelltemp,stmp global boolean,missing,,whether to use a temp file for shell commands
+option,,shellxescape,sxe global string,missing,,characters to escape when 'shellxquote' is (
+option,,shellxquote,sxq global string,missing,,"like 'shellquote', but include redirection"
+option,,shiftround,sr global boolean,missing,,round indent to multiple of shiftwidth
+option,,shiftwidth,sw buf number,missing,,number of spaces to use for (auto)indent step
+option,,shortmess,shm global string,missing,,"list of flags, reduce length of messages"
+option,,showbreak,sbr global+win string,missing,,string to use at the start of wrapped lines
+option,,showcmd,sc global boolean,missing,,show (partial) command in status line
+option,,showcmdloc,sloc global string,missing,,change location of partial command
+option,,showfulltag,sft global boolean,missing,,show full tag pattern when completing tag
+option,,showmatch,sm global boolean,missing,,briefly jump to matching bracket if insert one
+option,,showmode,smd global boolean,missing,,message on status line to show current mode
+option,,showtabline,stal global number,missing,,tells when the tabpages line is displayed
+option,,sidescroll,ss global number,missing,,minimum number of columns to scroll horizontal
+option,,sidescrolloff,siso global+win number,missing,,min. nr. of columns to left and right of cursor
+option,,signcolumn,scl win string,missing,,when to display the sign column
+option,,smartcase,scs global boolean,missing,,no ignore case when pattern has uppercase
+option,,smartindent,si buf boolean,missing,,smart autoindenting for C programs
+option,,smarttab,sta global boolean,missing,,use 'shiftwidth' when inserting <Tab>
+option,,smoothscroll,sms win boolean,missing,,scroll by screen lines when 'wrap' is set
+option,,softtabstop,sts buf number,missing,,number of spaces that <Tab> uses while editing
+option,,spell, win boolean,deferred,spell checking,spell checking
+option,,spellcapcheck,spc buf string,deferred,spell checking,pattern to locate end of a sentence
+option,,spellfile,spf buf string,deferred,spell checking,files where |zg| and |zw| store words
+option,,spelllang,spl buf string,deferred,spell checking,language(s) to do spell checking for
+option,,spelloptions,spo buf string,deferred,spell checking,
+option,,spellsuggest,sps global string,deferred,spell checking,method(s) used to suggest spelling corrections
+option,,splitbelow,sb global boolean,missing,,new window from split is below the current one
+option,,splitkeep,spk global string,missing,,determines scroll behavior for split windows
+option,,splitright,spr global boolean,missing,,new window is put right of the current one
+option,,startofline,sol global boolean,missing,,commands move cursor to first non-blank in line
+option,,statuscolumn,stc win string,missing,,custom format for the status column
+option,,statusline,stl global+win string,missing,,custom format for the status line
+option,,suffixes,su global string,missing,,suffixes that are ignored with multiple match
+option,,suffixesadd,sua buf string,missing,,suffixes added when searching for a file
+option,,swapfile,swf buf boolean,missing,,whether to use a swapfile for a buffer
+option,,switchbuf,swb global string,missing,,sets behavior when switching to another buffer
+option,,synmaxcol,smc buf number,missing,,maximum column to find syntax items
+option,,syntax,syn buf string,missing,,syntax to be loaded for current buffer
+option,,tabclose,tcl global string,missing,,which tabpage to focus when closing a tab
+option,,tabline,tal global string,missing,,custom format for the console tabpages line
+option,,tabpagemax,tpm global number,missing,,"maximum number of tabpages for |-p| and \""tab all\"""
+option,,tabstop,ts buf number,partial,oracle-checked with j below tabs,number of spaces that <Tab> in file uses
+option,,tagbsearch,tbs global boolean,missing,,use binary searching in tags files
+option,,tagcase,tc global+buf string,missing,,how to handle case when searching in tags files
+option,,tagfunc,tfu buf string,missing,,function used to perform tag searches
+option,,taglength,tl global number,missing,,number of significant characters for a tag
+option,,tagrelative,tr global boolean,missing,,file names in tag file are relative
+option,,tags,tag global+buf string,missing,,list of file names used by the tag command
+option,,tagstack,tgst global boolean,missing,,push tags onto the tag stack
+option,,termbidi,tbidi global boolean,deferred,right-to-left text and input methods,terminal takes care of bi-directionality
+option,,termencoding,tenc global string,missing,,Terminal encoding
+option,,termguicolors,tgc global boolean,missing,,Terminal true color support
+option,,termpastefilter,tpf global string,deferred,terminal,
+option,,termsync, global boolean,deferred,terminal,synchronize redraw output with the host terminal
+option,,terse, global boolean,missing,,Deprecated
+option,,textwidth,tw buf number,missing,,maximum width of text that is being inserted
+option,,thesaurus,tsr global+buf string,missing,,list of thesaurus files for keyword completion
+option,,thesaurusfunc,tsrfu global+buf string,missing,,function used for thesaurus completion
+option,,tildeop,top global boolean,missing,,"tilde command \""~\"" behaves like an operator"
+option,,timeout,to global boolean,missing,,time out on mappings and key codes
+option,,timeoutlen,tm global number,missing,,time out time in milliseconds
+option,,title, global boolean,missing,,set the title of the window
+option,,titlelen, global number,missing,,of 'columns' used for window title
+option,,titleold, global string,missing,,"title, restored when exiting"
+option,,titlestring, global string,missing,,to use for the Vim window title
+option,,ttimeout, global boolean,missing,,out on mappings
+option,,ttimeoutlen,ttm global number,missing,,time out time for key codes in milliseconds
+option,,ttyfast,tf global boolean,missing,,"assume terminal responds quickly, enabling more features"
+option,,undodir,udir global string,missing,,where to store undo files
+option,,undofile,udf buf boolean,missing,,save undo information in a file
+option,,undolevels,ul global+buf number,missing,,maximum number of changes that can be undone
+option,,undoreload,ur global number,missing,,max nr of lines to save for undo on a buffer reload
+option,,updatecount,uc global number,missing,,after this many characters flush swap file
+option,,updatetime,ut global number,missing,,after this many milliseconds flush swap file
+option,,varsofttabstop,vsts buf string,missing,,list of numbers of spaces that <Tab> uses while editing
+option,,vartabstop,vts buf string,missing,,list of numbers of spaces that <Tab> in file uses
+option,,verbose,vbs global number,missing,,give informative messages
+option,,verbosefile,vfile global string,missing,,file to write messages in
+option,,viewdir,vdir global string,deferred,"sessions, views and shada",directory where to store files with :mkview
+option,,viewoptions,vop global string,deferred,"sessions, views and shada",specifies what to save for :mkview
+option,,virtualedit,ve global+win string,missing,,when to use virtual editing
+option,,visualbell,vb global boolean,missing,,use visual bell instead of beeping
+option,,warn, global boolean,missing,,for shell command when buffer was changed
+option,,whichwrap,ww global string,missing,,allow specified keys to cross line boundaries
+option,,wildchar,wc global number,missing,,command-line character for wildcard expansion
+option,,wildcharm,wcm global number,missing,,like 'wildchar' but also works when mapped
+option,,wildignore,wig global string,missing,,files matching these patterns are not completed
+option,,wildignorecase,wic global boolean,missing,,ignore case when completing file names
+option,,wildmenu,wmnu global boolean,missing,,use menu for command line completion
+option,,wildmode,wim global string,missing,,mode for 'wildchar' command-line expansion
+option,,wildoptions,wop global string,missing,,specifies how command line completion is done
+option,,winaltkeys,wak global string,excluded,GUI,when the windows system handles ALT keys
+option,,winbar,wbr global+win string,missing,,custom format for the window bar
+option,,winblend,winbl win number,missing,,Controls transparency level for floating windows
+option,,winborder, global string,missing,,border of floating window
+option,,window,wi global number,missing,,nr of lines to scroll for CTRL-F and CTRL-B
+option,,winfixbuf,wfb win boolean,missing,,pin a window to a specific buffer
+option,,winfixheight,wfh win boolean,missing,,keep window height when opening/closing windows
+option,,winfixwidth,wfw win boolean,missing,,keep window width when opening/closing windows
+option,,winheight,wh global number,missing,,minimum number of lines for the current window
+option,,winhighlight,winhl win string,missing,,Setup window-local highlights
+option,,winminheight,wmh global number,missing,,minimum number of lines for any window
+option,,winminwidth,wmw global number,missing,,minimal number of columns for any window
+option,,winwidth,wiw global number,missing,,minimal number of columns for current window
+option,,wrap, win boolean,partial,Fred default off,lines wrap and continue on the next line
+option,,wrapmargin,wm buf number,missing,,chars from the right where wrapping starts
+option,,wrapscan,ws global boolean,missing,,searches wrap around the end of the file
+option,,write, global boolean,missing,,to a file is allowed
+option,,writeany,wa global boolean,missing,,"write to file with no need for \""!\"" override"
+option,,writebackup,wb global boolean,missing,,make a backup before overwriting a file
+option,,writedelay,wd global number,missing,,delay this many msec for each char (for debug)
+event,window,BufAdd,,missing,,after adding a buffer to the buffer list
+event,window,BufDelete,,missing,,deleting a buffer from the buffer list
+event,window,BufEnter,,missing,,after entering a buffer
+event,window,BufFilePost,,missing,,after renaming a buffer
+event,window,BufFilePre,,missing,,before renaming a buffer
+event,window,BufHidden,,missing,,just after buffer becomes hidden
+event,window,BufLeave,,missing,,before leaving a buffer
+event,window,BufModifiedSet,,missing,,after the 'modified' state of a buffer changes
+event,window,BufNew,,missing,,after creating any buffer
+event,window,BufNewFile,,missing,,when creating a buffer for a new file
+event,window,BufReadCmd,,missing,,read buffer using command
+event,window,BufReadPost,,missing,,after reading a buffer
+event,window,BufReadPre,,missing,,before reading a buffer
+event,window,BufUnload,,missing,,just before unloading a buffer
+event,window,BufWinEnter,,missing,,after showing a buffer in a window
+event,window,BufWinLeave,,missing,,just after buffer removed from window
+event,window,BufWipeout,,missing,,just before really deleting a buffer
+event,window,BufWriteCmd,,missing,,write buffer using command
+event,window,BufWritePost,,missing,,after writing a buffer
+event,window,BufWritePre,,missing,,before writing a buffer
+event,,ChanInfo,,excluded,"Vimscript, Lua, plugins and remote UI",info was received about channel
+event,,ChanOpen,,excluded,"Vimscript, Lua, plugins and remote UI",channel was opened
+event,,CmdUndefined,,missing,,command undefined
+event,,CmdlineChanged,,missing,,command line was modified
+event,,CmdlineEnter,,missing,,after entering cmdline mode
+event,,CmdlineLeave,,missing,,before leaving cmdline mode
+event,,CmdlineLeavePre,,missing,,just before leaving the command line
+event,,CmdwinEnter,,missing,,after entering the cmdline window
+event,,CmdwinLeave,,missing,,before leaving the cmdline window
+event,,ColorScheme,,missing,,after loading a colorscheme
+event,,ColorSchemePre,,missing,,before loading a colorscheme
+event,,CompleteChanged,,missing,,after popup menu changed
+event,,CompleteDone,,missing,,after finishing insert complete
+event,,CompleteDonePre,,missing,,"idem, before clearing info"
+event,window,CursorHold,,missing,,cursor in same position for a while
+event,window,CursorHoldI,,missing,,"idem, in Insert mode"
+event,window,CursorMoved,,missing,,cursor was moved
+event,window,CursorMovedC,,missing,,cursor was moved in Cmdline mode
+event,window,CursorMovedI,,missing,,cursor was moved in Insert mode
+event,,DiagnosticChanged,,missing,,diagnostics in a buffer were modified
+event,,DiffUpdated,,missing,,diffs have been updated
+event,,DirChanged,,missing,,directory changed
+event,,DirChangedPre,,missing,,directory is going to change
+event,,EncodingChanged,,missing,,after changing the 'encoding' option
+event,,ExitPre,,missing,,before exiting
+event,window,FileAppendCmd,,missing,,append to a file using command
+event,window,FileAppendPost,,missing,,after appending to a file
+event,window,FileAppendPre,,missing,,before appending to a file
+event,window,FileChangedRO,,missing,,before first change to read-only file
+event,window,FileChangedShell,,missing,,after shell command that changed file
+event,window,FileChangedShellPost,,missing,,after (not) reloading changed file
+event,window,FileReadCmd,,missing,,read from a file using command
+event,window,FileReadPost,,missing,,after reading a file
+event,window,FileReadPre,,missing,,before reading a file
+event,window,FileType,,missing,,new file type detected (user defined)
+event,window,FileWriteCmd,,missing,,write to a file using command
+event,window,FileWritePost,,missing,,after writing a file
+event,window,FileWritePre,,missing,,before writing a file
+event,window,FilterReadPost,,missing,,after reading from a filter
+event,window,FilterReadPre,,missing,,before reading from a filter
+event,window,FilterWritePost,,missing,,after writing to a filter
+event,window,FilterWritePre,,missing,,before writing to a filter
+event,,FocusGained,,missing,,got the focus
+event,,FocusLost,,missing,,lost the focus to another app
+event,,FuncUndefined,,excluded,"Vimscript, Lua, plugins and remote UI",if calling a function which doesn't exist
+event,,GUIEnter,,missing,,after starting the GUI
+event,,GUIFailed,,missing,,after starting the GUI failed
+event,window,InsertChange,,missing,,when changing Insert/Replace mode
+event,window,InsertCharPre,,missing,,before inserting a char
+event,window,InsertEnter,,missing,,when entering Insert mode
+event,window,InsertLeave,,missing,,just after leaving Insert mode
+event,window,InsertLeavePre,,missing,,just before leaving Insert mode
+event,,LspAttach,,excluded,"Vimscript, Lua, plugins and remote UI",after an LSP client attaches to a buffer
+event,,LspDetach,,excluded,"Vimscript, Lua, plugins and remote UI",after an LSP client detaches from a buffer
+event,,LspNotify,,excluded,"Vimscript, Lua, plugins and remote UI",after an LSP notice has been sent to the server
+event,,LspProgress,,excluded,"Vimscript, Lua, plugins and remote UI",after a LSP progress update
+event,,LspRequest,,excluded,"Vimscript, Lua, plugins and remote UI","after an LSP request is started, canceled, or completed"
+event,,LspTokenUpdate,,excluded,"Vimscript, Lua, plugins and remote UI",after a visible LSP token is updated
+event,,MarkSet,,missing,,after a mark is set
+event,,MenuPopup,,missing,,just before popup menu is displayed
+event,,ModeChanged,,missing,,after changing the mode
+event,,OptionSet,,missing,,after setting any option
+event,,QuickFixCmdPost,,missing,,"after :make, :grep etc."
+event,,QuickFixCmdPre,,missing,,"before :make, :grep etc."
+event,,QuitPre,,missing,,before :quit
+event,,PackChangedPre,,excluded,"Vimscript, Lua, plugins and remote UI",before trying to change state of `vim.pack` plugin
+event,,PackChanged,,excluded,"Vimscript, Lua, plugins and remote UI",after changing state of `vim.pack` plugin
+event,,Progress,,excluded,"Vimscript, Lua, plugins and remote UI",after showing/updating a progress message
+event,window,RecordingEnter,,missing,,when starting to record a macro
+event,window,RecordingLeave,,missing,,just before a macro stops recording
+event,,RemoteReply,,missing,,upon string reception from a remote vim
+event,,SafeState,,missing,,going to wait for a character
+event,window,SearchWrapped,,missing,,after the search wrapped around
+event,,SessionLoadPost,,missing,,after loading a session file
+event,,SessionLoadPre,,excluded,"Vimscript, Lua, plugins and remote UI",before loading a session file
+event,,SessionWritePost,,missing,,after writing a session file
+event,,ShellCmdPost,,missing,,"after "":!cmd"""
+event,window,ShellFilterPost,,missing,,"after "":1,2!cmd"", "":w !cmd"", "":r !cmd""."
+event,,Signal,,excluded,"Vimscript, Lua, plugins and remote UI",after nvim process received a signal
+event,,SourceCmd,,excluded,"Vimscript, Lua, plugins and remote UI",sourcing a Vim script using command
+event,,SourcePost,,excluded,"Vimscript, Lua, plugins and remote UI",after sourcing a Vim script
+event,,SourcePre,,excluded,"Vimscript, Lua, plugins and remote UI",before sourcing a Vim script
+event,,SpellFileMissing,,missing,,spell file missing
+event,,StdinReadPost,,missing,,after reading from stdin
+event,,StdinReadPre,,missing,,before reading from stdin
+event,,SwapExists,,missing,,found existing swap file
+event,,Syntax,,missing,,syntax selected
+event,,TabClosed,,missing,,after closing a tab page
+event,,TabClosedPre,,missing,,before closing a tab page
+event,,TabEnter,,missing,,after entering a tab page
+event,,TabLeave,,missing,,before leaving a tab page
+event,,TabNew,,missing,,when creating a new tab
+event,,TabNewEntered,,missing,,after entering a new tab
+event,,TermChanged,,missing,,after changing 'term'
+event,,TermClose,,missing,,after the process exits
+event,,TermEnter,,missing,,after entering Terminal mode
+event,,TermLeave,,missing,,after leaving Terminal mode
+event,,TermOpen,,missing,,after opening a terminal buffer
+event,,TermRequest,,missing,,after an unhandled OSC sequence is emitted
+event,,TermResponse,,missing,,"after setting ""v:termresponse"""
+event,window,TextChanged,,missing,,text was modified
+event,window,TextChangedI,,missing,,text was modified in Insert mode(no popup)
+event,window,TextChangedP,,missing,,text was modified in Insert mode(popup)
+event,window,TextChangedT,,missing,,text was modified in Terminal mode
+event,window,TextYankPost,,missing,,"after a yank or delete was done (y, d, c)"
+event,,UIEnter,,excluded,"Vimscript, Lua, plugins and remote UI",after UI attaches
+event,,UILeave,,excluded,"Vimscript, Lua, plugins and remote UI",after UI detaches
+event,,User,,excluded,"Vimscript, Lua, plugins and remote UI",user defined autocommand
+event,,VimEnter,,missing,,after starting Vim
+event,,VimLeave,,missing,,before exiting Vim
+event,,VimLeavePre,,missing,,before exiting Vim and writing ShaDa file
+event,,VimResized,,missing,,after Vim window was resized
+event,,VimResume,,missing,,after Nvim is resumed
+event,,VimSuspend,,missing,,before Nvim is suspended
+event,window,WinClosed,,missing,,after closing a window
+event,window,WinEnter,,missing,,after entering a window
+event,window,WinLeave,,missing,,before leaving a window
+event,,WinNewPre,,missing,,before creating a new window
+event,,WinNew,,missing,,after creating a new window
+event,window,WinResized,,missing,,after a window was resized
+event,window,WinScrolled,,missing,,after a window was scrolled or resized
+event,window,BufModifiedSet,,missing,,"DiagnosticChanged = true,"
+event,window,LspAttach,,excluded,"Vimscript, Lua, plugins and remote UI","LspDetach = true,"
+event,window,LspNotify,,excluded,"Vimscript, Lua, plugins and remote UI","LspProgress = true,"
+event,window,LspRequest,,excluded,"Vimscript, Lua, plugins and remote UI","LspTokenUpdate = true,"
+event,window,PackChangedPre,,excluded,"Vimscript, Lua, plugins and remote UI","PackChanged = true,"
+event,window,Progress,,excluded,"Vimscript, Lua, plugins and remote UI","RecordingEnter = true,"
+event,window,RecordingLeave,,missing,,"Signal = true,"
+event,window,TabNewEntered,,missing,,"TermClose = true,"
+event,window,TermOpen,,missing,,"TermRequest = true,"
+event,window,UIEnter,,excluded,"Vimscript, Lua, plugins and remote UI","UILeave = true,"

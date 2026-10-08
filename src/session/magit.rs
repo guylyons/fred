@@ -4897,7 +4897,7 @@ impl Session {
                 .with_file_name("magit-blobs")
                 .join(format!("{:016x}", h.finish()))
                 .join(blob.file.file_name().unwrap_or_default());
-            let mut ed = make_editor(Buffer::default(), &self.cfg);
+            let mut ed = make_editor(Buffer::default(), self.ed.opts.for_new_buffer(), &self.cfg);
             ed.path = Some(path);
             let swap = swap::swap_path_in(&self.swap_dir, ed.path.as_deref());
             self.switch_to(
@@ -4966,7 +4966,8 @@ impl Session {
                     .swap_dir
                     .with_file_name("magit-views")
                     .join(format!("{:016x}", h.finish()));
-                let mut ed = make_editor(Buffer::default(), &self.cfg);
+                let mut ed =
+                    make_editor(Buffer::default(), self.ed.opts.for_new_buffer(), &self.cfg);
                 ed.path = Some(path);
                 ed.magit = Some(Box::new(view.clone()));
                 ed.readonly = true;

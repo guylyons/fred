@@ -132,6 +132,23 @@ fn visual_line() {
 }
 
 #[test]
+fn visual_chars() {
+    assert_eq!(txt("hello world", "lvlld"), "ho world");
+    assert_eq!(txt("hello world", "wvbd"), "orld");
+    assert_eq!(txt("ab\ncd\nef", "lvjd"), "a\nef");
+    assert_eq!(txt("hello", "vlyP"), "hehello");
+    assert_eq!(txt("hello", "lvlcX<Esc>"), "hXlo");
+    assert_eq!(txt("hello", "lvlohd"), "lo");
+    assert_eq!(txt("a\n\nb", "jvd"), "a\nb");
+    assert_eq!(txt("a\nb\nc", "vjD"), "c");
+    assert_eq!(txt("a\nb\nc", "vjVd"), "c");
+    assert_eq!(txt("abc\nd", "lVvd"), "c\nd");
+    assert_eq!(ed("ab", "vl<Esc>").mode, Mode::Normal);
+    assert_eq!(ed("ab", "vlv").mode, Mode::Normal);
+    assert_eq!(txt("abc", "vlud"), "c");
+}
+
+#[test]
 fn marks_and_ex() {
     assert_eq!(txt("a\nb\nc\nd", "majjmb:'a,'bd<Enter>"), "d");
     assert_eq!(ed("a\nb", ":2<Enter>").cur.pos(), (1, 0));

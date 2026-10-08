@@ -138,12 +138,14 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     if d.editing || !ed.vim.pending.is_empty() || k.ctrl || k.alt {
         return false;
     }
+    let visual = ed.visual_lines().is_some();
     let (lo, hi) = match ed.mode {
-        Mode::VisualLine { anchor } => (anchor.min(ed.cur.line), anchor.max(ed.cur.line)),
         Mode::Normal => (ed.cur.line, ed.cur.line),
-        _ => return false,
+        _ => match ed.visual_lines() {
+            Some(r) => r,
+            None => return false,
+        },
     };
-    let visual = matches!(ed.mode, Mode::VisualLine { .. });
     match k.code {
         KeyCode::Enter => open_entry(ed),
         KeyCode::Char(c) => match c {

@@ -18,7 +18,11 @@ impl Session {
     /// Open a special Org buffer named `name` (`*Org Note*`) holding
     /// `text`, the cursor at `cursor`. `finish` runs on C-c C-c / C-c C-k.
     pub fn org_special(&mut self, name: &str, text: &str, cursor: (usize, usize), finish: Finish) {
-        let mut ed = make_editor(Buffer::from_text(text), &self.cfg);
+        let mut ed = make_editor(
+            Buffer::from_text(text),
+            self.ed.opts.for_new_buffer(),
+            &self.cfg,
+        );
         ed.org = Some(Box::default());
         ed.org_buffer_name = Some(name.to_owned());
         ed.org_finish = Some(crate::org::FinishSlot::new(finish));
@@ -43,7 +47,11 @@ impl Session {
     /// (with-output-to-temp-buffer: `*Org Entity Help*`); a buffer of that
     /// name is replaced. `org` turns Org mode on in it. Returns its index.
     pub fn org_temp_buffer(&mut self, name: &str, text: &str, org: bool) -> usize {
-        let mut ed = make_editor(Buffer::from_text(text), &self.cfg);
+        let mut ed = make_editor(
+            Buffer::from_text(text),
+            self.ed.opts.for_new_buffer(),
+            &self.cfg,
+        );
         if org {
             ed.org = Some(Box::default());
         }
@@ -133,7 +141,7 @@ impl Session {
         if let Some(i) = self.find(path) {
             return Ok(i);
         }
-        let o = open_file(Some(path), &self.cfg)?;
+        let o = open_file(Some(path), self.ed.opts.for_new_buffer(), &self.cfg)?;
         let swap = swap::swap_path_in(&self.swap_dir, Some(path));
         self.bufs.push(Some(Parked {
             ed: o.ed,
@@ -263,7 +271,11 @@ impl Session {
             self.show(i);
             return self.cur;
         }
-        let mut ed = make_editor(Buffer::from_text(""), &self.cfg);
+        let mut ed = make_editor(
+            Buffer::from_text(""),
+            self.ed.opts.for_new_buffer(),
+            &self.cfg,
+        );
         ed.readonly = true;
         ed.org_return = Some(self.cur);
         crate::org::agenda::install(&mut ed, v, false);

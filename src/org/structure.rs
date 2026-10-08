@@ -585,7 +585,7 @@ pub fn kill_new(ed: &mut Editor, text: &str) {
 
 /// The kill ring's head (the clipboard when it changed since).
 pub fn current_kill(ed: &mut Editor) -> String {
-    if ed.clipboard
+    if ed.clipboard()
         && let Some(c) = crate::clipboard::get()
         && c != crate::clipboard::to_clip(&ed.reg)
     {

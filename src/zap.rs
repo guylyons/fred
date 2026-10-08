@@ -42,9 +42,9 @@ fn words(ed: &Editor, vp: Viewport) -> Vec<Word> {
             0
         };
         let iter: Box<dyn Iterator<Item = Placed<'_>>> = if vp.wrap {
-            Box::new(Layout::new(&text, ed.tabstop, Some(vp.cols)))
+            Box::new(Layout::new(&text, ed.tabstop(), Some(vp.cols)))
         } else {
-            Box::new(Layout::from_col(&text, ed.tabstop, vp.view.left))
+            Box::new(Layout::from_col(&text, ed.tabstop(), vp.view.left))
         };
         let mut iter = iter.filter(|p| p.width > 0).peekable();
         let mut cells = vec![];
@@ -109,7 +109,7 @@ fn words(ed: &Editor, vp: Viewport) -> Vec<Word> {
             }
         }
         if vp.wrap && line == ed.cur.line {
-            last_row = last_row.max(wrap_cursor(&text, ed.cur.byte, ed.tabstop, vp.cols).0);
+            last_row = last_row.max(wrap_cursor(&text, ed.cur.byte, ed.tabstop(), vp.cols).0);
         }
         y += if vp.wrap {
             (last_row + 1).saturating_sub(skip)
