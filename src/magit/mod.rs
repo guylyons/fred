@@ -17,6 +17,7 @@ pub mod margin;
 pub mod merge;
 pub mod message;
 pub mod misc;
+pub mod names;
 pub mod network;
 pub mod notes;
 pub mod options;
@@ -1577,7 +1578,9 @@ fn direct_key(c: char) -> Option<Action> {
         'D' => Menu('D'),
         'f' => Menu('f'),
         'F' => Menu('P'),
-        'h' | '?' => Menu('*'),
+        // magit-dispatch (upstream's layout with evil-collection's keys);
+        // Space m keeps the user's layout.
+        'h' | '?' => Menu('?'),
         'i' => Menu('g'),
         'I' => Action::Init,
         'J' => Action::Status,
@@ -1842,7 +1845,7 @@ fn menu_help(menu: char) -> Option<&'static str> {
         }
         '>' => "Sparse checkout: e enable  d disable  r reapply  s set  a add; -i sparse index",
         'y' => {
-            "Refs: y HEAD  c current  o other  v commit counts; -c contains  -M/-m merged  -N/-n not merged  -s sort"
+            "Refs: y HEAD  c current  o other  r commit counts; -c contains  -M/-m merged  -N/-n not merged  -s sort"
         }
         'k' => "Clone: C regular  s shallow  d since  e excluding  > sparse  b bare  m mirror",
         'J' => "Bundle: c create  v verify  l list-heads",
@@ -1876,7 +1879,7 @@ fn menu_help(menu: char) -> Option<&'static str> {
         'x' => {
             "Cherry-pick: A pick  a apply  h harvest  m squash  d donate  n spinout  s spinoff; picking: A continue  s skip  a abort"
         }
-        'v' => "Revert: V revert commits  v revert changes; reverting: V continue  s skip  a abort",
+        'v' => "Revert: _ revert commits  v revert changes; reverting: _ continue  s skip  a abort",
         _ => return None,
     })
 }
@@ -2422,6 +2425,91 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
             ),
             ("x", "Actions", "Absorb", CommitEdit(commit::Op::Autofixup)),
         ],
+        // magit-dispatch with evil-collection-magit-popup-changes
+        // (o ', O \", V _, X O, v -, k x).
+        '?' => vec![
+            ("A", "Transient commands", "Apply", Menu('x')),
+            ("b", "Transient commands", "Branch", Menu('b')),
+            ("B", "Transient commands", "Bisect", Menu('G')),
+            ("c", "Transient commands", "Commit", Menu('C')),
+            ("C", "Transient commands", "Clone", clone_entry()),
+            ("d", "Transient commands", "Diff", Menu('d')),
+            ("D", "Transient commands", "Diff (change)", Menu('D')),
+            ("e", "Transient commands", "Ediff (dwim)", EdiffDwim),
+            ("E", "Transient commands", "Ediff", Menu('U')),
+            ("f", "Transient commands", "Fetch", Menu('f')),
+            ("F", "Transient commands", "Pull", Menu('P')),
+            ("h", "Transient commands", "Help", Info),
+            (
+                "H",
+                "Transient commands",
+                "Section info",
+                DescribeSection(true),
+            ),
+            ("i", "Transient commands", "Ignore", Menu('g')),
+            ("I", "Transient commands", "Init", Init),
+            ("j", "Transient commands", "Jump to section", Menu('h')),
+            ("J", "Transient commands", "Display buffer", Status),
+            ("l", "Transient commands", "Log", Menu('l')),
+            ("L", "Transient commands", "Log (change)", Menu('R')),
+            ("m", "Transient commands", "Merge", Menu('M')),
+            ("M", "Transient commands", "Remote", Menu('O')),
+            ("'", "Transient commands", "Submodule", Menu('o')),
+            ("\"", "Transient commands", "Subtree", Menu('u')),
+            ("P", "Transient commands", "Push", Menu('p')),
+            (
+                "Q",
+                "Transient commands",
+                "Command",
+                Misc(misc::Op::GitCommand { topdir: false }),
+            ),
+            ("r", "Transient commands", "Rebase", Menu('r')),
+            ("t", "Transient commands", "Tag", Menu('t')),
+            ("T", "Transient commands", "Note", Menu('N')),
+            ("_", "Transient commands", "Revert", Menu('v')),
+            ("w", "Transient commands", "Apply patches", Menu('w')),
+            ("W", "Transient commands", "Format patches", Menu('W')),
+            ("O", "Transient commands", "Reset", Menu('X')),
+            ("y", "Transient commands", "Show Refs", Menu('y')),
+            (
+                "Y",
+                "Transient commands",
+                "Cherries",
+                LogOp(log::Op::Cherry),
+            ),
+            ("z", "Transient commands", "Stash", Menu('z')),
+            ("Z", "Transient commands", "Worktree", Menu('Y')),
+            ("!", "Transient commands", "Run", Menu('!')),
+            ("a", "Applying changes", "Apply", ApplyDiff(false)),
+            ("s", "Applying changes", "Stage", Stage),
+            ("u", "Applying changes", "Unstage", Unstage),
+            (
+                "-",
+                "Applying changes",
+                "Reverse",
+                ApplyOp(apply::Kind::Reverse),
+            ),
+            (
+                "x",
+                "Applying changes",
+                "Discard",
+                ApplyOp(apply::Kind::Discard),
+            ),
+            (
+                "S",
+                "Applying changes",
+                "Stage all",
+                ApplyOp(apply::Kind::StageModified),
+            ),
+            (
+                "U",
+                "Applying changes",
+                "Unstage all",
+                ApplyOp(apply::Kind::UnstageAll),
+            ),
+            ("g", "Essential commands", "Refresh current buffer", Refresh),
+            ("q", "Essential commands", "Bury current buffer", Return),
+        ],
         '*' => vec![
             ("s", "Inspect", "Status", Status),
             ("l", "Inspect", "Log menu", Menu('l')),
@@ -2616,6 +2704,12 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
                     "Pull into current from",
                     "elsewhere",
                     Net(PullElsewhere),
+                ),
+                (
+                    "U",
+                    "Pull into @{upstream} from",
+                    "its upstream",
+                    Net(PullIntoUpstream),
                 ),
                 (
                     "-A",
@@ -3097,9 +3191,9 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
                 Refs(refs::Op::Other),
             ),
             (
-                "v",
+                "r",
                 "Actions",
-                "Change verbosity (commit counts)",
+                "Show refs, changing commit count display",
                 Refs(refs::Op::Count),
             ),
         ],
@@ -3887,8 +3981,9 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
             ("n", "Create", "new branch", Branch(branch::Op::Create)),
             ("S", "Create", "new spin-out", Branch(branch::Op::Spinout)),
             ("m", "Do", "rename", Branch(branch::Op::Rename)),
-            ("x", "Do", "reset", Branch(branch::Op::Reset)),
-            ("k", "Do", "delete", Branch(branch::Op::Delete)),
+            // evil-collection-magit-popup-changes: X reset, x delete.
+            ("X", "Do", "reset", Branch(branch::Op::Reset)),
+            ("x", "Do", "delete", Branch(branch::Op::Delete)),
             (
                 "o",
                 "Checkout",
@@ -3970,13 +4065,19 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
                     Configure(C::PushDefault),
                 ),
                 (
-                    "=m",
+                    "B",
+                    "Configure repository defaults",
+                    "Update default branch",
+                    Branch(branch::Op::UpdateDefault),
+                ),
+                (
+                    "am",
                     "Configure branch creation",
                     "branch.autoSetupMerge",
                     Configure(C::AutoSetupMerge),
                 ),
                 (
-                    "=r",
+                    "ar",
                     "Configure branch creation",
                     "branch.autoSetupRebase",
                     Configure(C::AutoSetupRebase),
@@ -4047,7 +4148,8 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
             ("-s", "Arguments", "Sign", ToggleOption(MenuOption::TagSign)),
             ("t", "Create", "tag", Action::Tag(tag::Op::Create)),
             ("r", "Create", "release", Action::Tag(tag::Op::Release)),
-            ("k", "Do", "delete", Action::Tag(tag::Op::Delete)),
+            // evil-collection: x deletes.
+            ("x", "Do", "delete", Action::Tag(tag::Op::Delete)),
             ("p", "Do", "prune", Action::Tag(tag::Op::Prune)),
             ("l", "Inspect", "List (Fred)", Tags),
             ("-u", "Arguments", "Sign as", ReadOption("--local-user=")),
@@ -4173,7 +4275,8 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
                 ),
                 ("a", "Actions", "Add", Action::Remote(O::Add)),
                 ("r", "Actions", "Rename", Action::Remote(O::Rename)),
-                ("k", "Actions", "Remove", Action::Remote(O::Remove)),
+                // evil-collection: x removes.
+                ("x", "Actions", "Remove", Action::Remote(O::Remove)),
                 (
                     "p",
                     "Actions",
@@ -4538,6 +4641,12 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
                 ),
                 ("s", "Rebase", "a subset / skip", Action::Rebase(O::Subset)),
                 (
+                    "t",
+                    "Rebase",
+                    "to change dates",
+                    Action::CommitEdit(commit::Op::ReshelveSince),
+                ),
+                (
                     "m",
                     "Rebase",
                     "to modify a commit",
@@ -4568,6 +4677,12 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
                     Action::Rebase(O::Continue),
                 ),
                 ("a", "Actions (rebasing)", "Abort", Action::Rebase(O::Abort)),
+                (
+                    "=X",
+                    "Arguments",
+                    "Diff algorithm",
+                    CycleOption("-Xdiff-algorithm="),
+                ),
                 (
                     "-f",
                     "Arguments",
@@ -4691,8 +4806,9 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
                     ToggleOption(MenuOption::RevertNoEdit),
                 ),
                 ("=s", "Arguments", "Strategy", CycleOption("--strategy=")),
+                // evil-collection: _ (V) reverts and commits, or continues.
                 (
-                    "V",
+                    "_",
                     "Actions",
                     "Revert commit(s) / continue",
                     Action::Sequence(O::Revert),

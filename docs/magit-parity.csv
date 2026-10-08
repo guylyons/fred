@@ -171,8 +171,8 @@ magit-branch.el,939,command,magit-branch.<branch>.description,partial,C d: git b
 magit-branch.el,,command,magit-branch.<branch>.merge/remote,partial,C u: upstream (empty unsets),runtime
 magit-branch.el,,command,magit-branch.<branch>.pushRemote,partial,C p cycles remotes,runtime
 magit-branch.el,,command,magit-branch.<branch>.rebase,partial,C r cycles,runtime
-magit-branch.el,,command,magit-branch.autoSetupMerge,partial,C =m (upstream a m),runtime
-magit-branch.el,,command,magit-branch.autoSetupRebase,partial,C =r (upstream a r),runtime
+magit-branch.el,,command,magit-branch.autoSetupMerge,partial,C a m,runtime
+magit-branch.el,,command,magit-branch.autoSetupRebase,partial,C a r,runtime
 magit-branch.el,,command,magit-pull.rebase,partial,C R cycles,runtime
 magit-branch.el,,command,magit-remote.pushDefault,partial,C P cycles remotes,runtime
 magit-branch.el,,command,transient:magit-branch:--merge,partial,branch -m; checkout/create-checkout pass it and it lifts the uncommitted-changes check,runtime
@@ -557,7 +557,7 @@ magit-log.el,,command,transient:magit-shortlog:--group=,partial,-g cycles author
 magit-log.el,,command,transient:magit-shortlog:--numbered,partial,menu S argument,runtime
 magit-log.el,,command,transient:magit-shortlog:--summary,partial,menu S argument,runtime
 magit-log.el,,command,transient:magit-shortlog:-w,partial,menu S argument,runtime
-magit-margin.el,76,command,magit-margin-settings,partial,L in reflog/refs/cherry buffers; :Magit; L l d (and v in refs),explicit
+magit-margin.el,76,command,magit-margin-settings,partial,L in reflog/refs/cherry buffers; :Magit; L l d (and r in refs),explicit
 magit-margin.el,85,command,magit-toggle-margin,partial,L in the margin menu and log refresh menu; right-aligned author and age per commit/stash row,explicit
 magit-margin.el,99,command,magit-cycle-margin-style,partial,"l: age, abbreviated age, %Y-%m-%d %H:%M",explicit
 magit-margin.el,118,command,magit-toggle-margin-details,partial,"d: author column (18 wide, ellipsis)",explicit
@@ -713,7 +713,7 @@ magit-reflog.el,120,command,magit-reflog-other,partial,Space m l O; prompted ref
 magit-reflog.el,126,command,magit-reflog-head,partial,Space m l H,explicit
 magit-refs.el,38,option,magit-refs-mode-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
 magit-refs.el,44,option,magit-refs-sections-hook,n/a,list of Lisp section inserters; Fred renders upstream's default sections,explicit
-magit-refs.el,55,option,magit-refs-show-commit-count,partial,"initial count display (""all"", ""branch"", false); v cycles",explicit
+magit-refs.el,55,option,magit-refs-show-commit-count,partial,"initial count display (""all"", ""branch"", false); y r cycles",explicit
 magit-refs.el,73,option,magit-refs-pad-commit-counts,partial,extra space beside upstream ahead/behind counts (push counts are not shown),explicit
 magit-refs.el,94,option,magit-refs-show-remote-prefix,partial,remote branches keep their remote/ prefix,explicit
 magit-refs.el,103,option,magit-refs-show-branch-descriptions,partial,first description line instead of the subject,explicit
@@ -727,7 +727,7 @@ magit-refs.el,336,command,magit-show-refs,partial,Space m y: -c -M -m -N -n -s; 
 magit-refs.el,394,command,magit-show-refs-head,partial,y y,explicit
 magit-refs.el,401,command,magit-show-refs-current,partial,y c,explicit
 magit-refs.el,408,command,magit-show-refs-other,partial,y o (no completion),explicit
-magit-refs.el,415,command,magit-refs-set-show-commit-count,partial,y v cycles nothing/branches/all in a refs buffer (no C-y),explicit
+magit-refs.el,415,command,magit-refs-set-show-commit-count,partial,y r cycles nothing/branches/all in a refs buffer (no C-y),explicit
 magit-refs.el,429,command,magit-visit-ref,partial,Enter on a ref shows its commit (default magit-visit-ref-behavior),explicit
 magit-refs.el,,command,magit-for-each-ref:--contains,partial,-c reads a value,runtime
 magit-refs.el,,command,magit-for-each-ref:--sort,partial,-s cycles upstream choices,runtime

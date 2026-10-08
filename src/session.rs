@@ -2091,7 +2091,7 @@ mod tests {
         magit_settle(&mut t);
         let text = t.s.ed.buf.text();
         assert!(text.contains("Branches") && text.contains("side"), "{text}");
-        t.keys(" myv");
+        t.keys(" myr");
         magit_settle(&mut t);
         assert!(matches!(
             t.s.ed.magit.as_ref().unwrap().kind,
@@ -2691,7 +2691,7 @@ mod tests {
             ("\"", 'u'),
             ("_", 'v'),
             ("O", 'X'),
-            ("h", '*'),
+            ("h", '?'),
             ("L", 'R'),
         ] {
             t.keys(key);

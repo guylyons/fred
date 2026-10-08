@@ -62,3 +62,9 @@ relocated p (push), O (reset), ' (submodule), " (subtree), _ (revert), X
 (untrack), x (discard), o (reset quickly), | (git command), ` (process), -
 (reverse / revert-no-commit) and = + (context). Vim keeps v V k n N g G : for
 itself. The Space m layout above is unchanged.
+
+Menus inside Magit buffers (October 8) follow evil-collection-magit's popup
+changes: h and ? open magit-dispatch in upstream's layout with dispatch keys
+' " _ O - x for submodule, subtree, revert, reset, reverse and discard;
+branch X resets and x deletes; tag x and remote x delete; revert _ reverts
+commits.

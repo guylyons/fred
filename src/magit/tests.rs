@@ -4683,3 +4683,321 @@ fn branches_at_point_and_hash_words() {
     assert!(!looks_like_hash("abc12"));
     assert!(!looks_like_hash("zzz1234"));
 }
+/// One upstream transient entry against Fred: its prefix, key, command,
+/// Fred's menu, and how it maps.
+#[derive(Debug)]
+struct UiRow {
+    prefix: String,
+    key: String,
+    command: String,
+    menu: Option<char>,
+    status: &'static str,
+    fred_key: String,
+    fred_desc: String,
+    desc: String,
+}
+/// A description for comparison: lower case, letters and digits only.
+fn norm(d: &str) -> String {
+    d.chars()
+        .filter(|c| c.is_alphanumeric())
+        .flat_map(char::to_lowercase)
+        .collect()
+}
+/// The baseline UI map: every entry of the runtime surface snapshot's
+/// transient prefixes, matched with Fred's menus by key and command.
+/// Entries whose upstream description is computed (so the map cannot
+/// compare it) and that were checked by hand against Fred's menu.
+const REVIEWED: &[(&str, &str, &str)] = &[
+    ("magit-fetch", "p", "magit-fetch-from-pushremote"),
+    ("magit-fetch", "u", "magit-fetch-from-upstream"),
+    ("magit-pull", "p", "magit-pull-from-pushremote"),
+    ("magit-pull", "u", "magit-pull-from-upstream"),
+    ("magit-push", "p", "magit-push-current-to-pushremote"),
+    ("magit-push", "u", "magit-push-current-to-upstream"),
+    ("magit-rebase", "p", "magit-rebase-onto-pushremote"),
+    ("magit-rebase", "u", "magit-rebase-onto-upstream"),
+    ("magit-gitignore", "g", "magit-gitignore-on-system"),
+    ("magit-gitignore", "p", "magit-gitignore-in-gitdir"),
+    ("magit-gitignore", "s", "magit-gitignore-in-subdir"),
+    ("magit-gitignore", "t", "magit-gitignore-in-topdir"),
+    (
+        "magit-status-jump",
+        "fp",
+        "magit-jump-to-unpulled-from-pushremote",
+    ),
+    (
+        "magit-status-jump",
+        "fu",
+        "magit-jump-to-unpulled-from-upstream",
+    ),
+    (
+        "magit-status-jump",
+        "pp",
+        "magit-jump-to-unpushed-to-pushremote",
+    ),
+    (
+        "magit-status-jump",
+        "pu",
+        "magit-jump-to-unpushed-to-upstream",
+    ),
+    ("magit-submodule", "a", "magit-submodule-add"),
+    ("magit-submodule", "d", "magit-submodule-unpopulate"),
+    ("magit-submodule", "p", "magit-submodule-populate"),
+    ("magit-submodule", "r", "magit-submodule-register"),
+    ("magit-submodule", "s", "magit-submodule-synchronize"),
+    ("magit-submodule", "u", "magit-submodule-update"),
+    ("magit-bisect", "s", "magit-bisect-run"),
+];
+fn ui_map() -> Vec<UiRow> {
+    use super::{Action, menu_entries};
+    let json: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/docs/magit-runtime-surfaces.json"
+        ))
+        .unwrap(),
+    )
+    .unwrap();
+    let menu_of = |prefix: &str| match prefix {
+        // magit-clone runs the regular clone unless always-transient.
+        "magit-clone" => Some('k'),
+        p => match super::commands::by_name(p) {
+            Some(Action::Menu(c)) => Some(c),
+            _ => None,
+        },
+    };
+    let arg_of = |a: &Action| -> Option<String> {
+        match a {
+            Action::ToggleOption(o) => Some(o.argument()),
+            Action::ReadOption(p) | Action::CycleOption(p) => Some((*p).to_owned()),
+            _ => None,
+        }
+    };
+    let mut out = vec![];
+    for e in json["menu_entries"].as_array().unwrap() {
+        let s = |k: &str| e[k].as_str().unwrap_or("").to_owned();
+        let (prefix, key, command) = (s("prefix"), s("key"), s("command"));
+        // evil-collection-magit-popup-changes (the user's baseline).
+        let key = match (prefix.as_str(), key.as_str(), command.as_str()) {
+            ("magit-dispatch", "o", _) => "'",
+            ("magit-dispatch", "O", _) => "\"",
+            ("magit-dispatch", "V", _) => "_",
+            ("magit-dispatch", "X", _) => "O",
+            ("magit-dispatch", "v", _) => "-",
+            ("magit-dispatch", "k", _) => "x",
+            ("magit-branch", "x", "magit-branch-reset") => "X",
+            ("magit-branch", "k", "magit-branch-delete") => "x",
+            ("magit-remote", "k", "magit-remote-remove") => "x",
+            ("magit-revert", "V", _) => "_",
+            ("magit-tag", "k", "magit-tag-delete") => "x",
+            (_, k, _) => k,
+        }
+        .replace(' ', "");
+        let menu = menu_of(&prefix);
+        let entries = menu.map(menu_entries).unwrap_or_default();
+        // An infix "transient:PREFIX:ARG" (or "PREFIX:ARG") is its argument.
+        let infix = command
+            .strip_prefix("transient:")
+            .unwrap_or(&command)
+            .split_once(':')
+            .map(|(_, arg)| arg.to_owned());
+        let matches = |a: &Action| match &infix {
+            Some(arg) => arg_of(a).is_some_and(|x| {
+                x == *arg || x.starts_with(arg.as_str()) || arg.starts_with(x.trim_end_matches('='))
+            }),
+            None => super::commands::by_name(&command).as_ref() == Some(a),
+        };
+        // Upstream's :description, compared loosely with Fred's.
+        let desc = s("properties")
+            .split_once(":description \"")
+            .and_then(|(_, r)| r.split_once('"'))
+            .map(|(d, _)| norm(d))
+            .unwrap_or_default();
+        // Fred joins state-dependent suffixes ("Pick / continue") and may
+        // say more ("Extend (keep message)").
+        let same_desc = |x: &(&str, &str, &str, Action)| {
+            !desc.is_empty() && x.2.split(" / ").any(|p| norm(p).starts_with(&desc))
+        };
+        // A configuration infix (magit-branch.<branch>.rebase,
+        // magit-global-core.notesRef) is labelled with its variable.
+        let variable = command
+            .strip_prefix("magit-global-")
+            .or_else(|| command.strip_prefix("magit-"))
+            .filter(|v| v.contains('.'))
+            .map(|v| v.to_lowercase());
+        let same_var = |x: &(&str, &str, &str, Action)| {
+            variable
+                .as_deref()
+                .is_some_and(|v| x.2.split(" / ").any(|p| p.to_lowercase() == v))
+        };
+        let reviewed = REVIEWED
+            .iter()
+            .any(|r| (r.0, r.1, r.2) == (&*prefix, &*key, &*command));
+        let at_key = entries.iter().find(|x| x.0 == key);
+        let fred_desc = at_key
+            .map(|x| format!("{}: {}", x.1, x.2))
+            .unwrap_or_default();
+        let (status, fred_key) = match (menu, at_key) {
+            // Level 0 suffixes are never available upstream.
+            _ if s("properties").starts_with("(:level 0 ") => ("disabled upstream", String::new()),
+            (None, _) => ("no menu", String::new()),
+            (_, Some(x)) if matches(&x.3) || same_desc(x) || same_var(x) => ("same", key.clone()),
+            (_, Some(_)) if reviewed => ("same (reviewed)", key.clone()),
+            (_, at) => match entries.iter().find(|x| matches(&x.3) || same_desc(x)) {
+                Some(x) => ("moved", x.0.to_owned()),
+                None if at.is_some() => ("key differs", key.clone()),
+                None => ("missing", String::new()),
+            },
+        };
+        out.push(UiRow {
+            prefix,
+            key,
+            command,
+            menu,
+            status,
+            fred_key,
+            fred_desc,
+            desc,
+        });
+    }
+    out
+}
+#[test]
+#[ignore = "prints the rows whose key does something else"]
+fn print_ui_map_differences() {
+    for r in ui_map().iter().filter(|r| r.status == "key differs") {
+        println!("{} | {} | {} | {}", r.prefix, r.key, r.command, r.fred_desc);
+    }
+}
+#[test]
+#[ignore = "writes docs/magit-ui-map.md"]
+fn write_ui_map() {
+    fs::write(
+        concat!(env!("CARGO_MANIFEST_DIR"), "/docs/magit-ui-map.md"),
+        ui_map_md(),
+    )
+    .unwrap();
+}
+#[test]
+fn ui_map_is_current() {
+    let file =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/docs/magit-ui-map.md")).unwrap();
+    assert!(
+        file == ui_map_md(),
+        "run cargo test write_ui_map -- --ignored"
+    );
+}
+fn ui_map_md() -> String {
+    let rows = ui_map();
+    let mut md = String::from(
+        "# Magit transient UI map\n\nGenerated by `cargo test write_ui_map -- --ignored` from\n\
+         `docs/magit-runtime-surfaces.json`: every upstream transient entry, Fred's\n\
+         menu (`:Magit NAME` opens it) and how the entry maps. `same`: same key\n\
+         and command or argument (keys after evil-collection-magit's changes);\n\
+         `moved`: another key; `key differs`: the key\n\
+         does something else; `missing`: not in Fred's menu.\n\n",
+    );
+    let mut counts = std::collections::BTreeMap::new();
+    for r in &rows {
+        *counts.entry(r.status).or_insert(0) += 1;
+    }
+    md.push_str("| Status | Entries |\n| --- | ---: |\n");
+    for (k, v) in &counts {
+        md.push_str(&format!("| {k} | {v} |\n"));
+    }
+    md.push_str("\n| Prefix | Key | Command | Fred menu | Fred key | Status |\n| --- | --- | --- | --- | --- | --- |\n");
+    for r in &rows {
+        md.push_str(&format!(
+            "| {} | `{}` | {} | {} | `{}` | {} |\n",
+            r.prefix,
+            r.key.replace('|', "\\|"),
+            r.command,
+            r.menu.map(|c| c.to_string()).unwrap_or_default(),
+            r.fred_key.replace('|', "\\|"),
+            r.status
+        ));
+    }
+    md.push_str(
+        "\n## Key-only commands\n\nPorted commands `:Magit NAME` cannot run: they are bound\n\
+         in a buffer's keymap only.\n\n",
+    );
+    for c in key_only_commands() {
+        md.push_str(&format!("- {c}\n"));
+    }
+    md
+}
+/// src/magit/names.rs: commands `:Magit NAME` runs through the menu entry
+/// the UI map found for them. State-dependent entries ("Pick / continue")
+/// only stand for their first command, and only entries that do not depend
+/// on options count.
+fn menu_names() -> String {
+    let mut seen = std::collections::HashSet::new();
+    let mut out = String::from(
+        "//! Generated by `cargo test write_menu_names -- --ignored` from the UI map\n\
+         //! (docs/magit-ui-map.md): upstream commands `:Magit NAME` runs through\n\
+         //! a menu entry, as (command, menu, key).\n\
+         pub const MENU_COMMANDS: &[(&str, char, &str)] = &[\n",
+    );
+    for r in ui_map() {
+        let Some(menu) = r.menu else { continue };
+        let label = r.fred_desc.split_once(": ").map_or("", |x| x.1);
+        let first = label.split(" / ").next().unwrap_or("");
+        if !r.status.starts_with("same") && r.status != "moved"
+            || r.command.contains(':')
+            || super::commands::explicit(&r.command).is_some()
+            || label.contains(" / ") && (r.desc.is_empty() || !norm(first).starts_with(&r.desc))
+            || !super::base_entries(menu).iter().any(|e| e.0 == r.fred_key)
+            || !seen.insert(r.command.clone())
+        {
+            continue;
+        }
+        out.push_str(&format!(
+            "    ({:?}, {:?}, {:?}),\n",
+            r.command, menu, r.fred_key
+        ));
+    }
+    out.push_str("];\n");
+    out
+}
+#[test]
+#[ignore = "writes src/magit/names.rs"]
+fn write_menu_names() {
+    fs::write(
+        concat!(env!("CARGO_MANIFEST_DIR"), "/src/magit/names.rs"),
+        menu_names(),
+    )
+    .unwrap();
+}
+#[test]
+fn menu_names_are_current() {
+    let file =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/magit/names.rs")).unwrap();
+    assert!(
+        file == menu_names(),
+        "run cargo test write_menu_names -- --ignored"
+    );
+}
+/// Ported commands `:Magit NAME` cannot run: the ones only bound in a
+/// buffer's keymap (section motion, todo editing, blame navigation).
+fn key_only_commands() -> Vec<String> {
+    let csv = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/docs/magit-parity.csv"
+    ))
+    .unwrap();
+    csv.lines()
+        .skip(1)
+        .map(|l| l.splitn(6, ',').collect::<Vec<_>>())
+        .filter(|f| f[2] == "command" && f[4] == "partial" && !f[3].contains(':'))
+        .filter(|f| super::commands::by_name(f[3]).is_none())
+        .map(|f| f[3].to_owned())
+        .collect()
+}
+#[test]
+#[ignore = "prints the menu named by MAGIT_MENU"]
+fn print_menu() {
+    let c = std::env::var("MAGIT_MENU").unwrap().chars().next().unwrap();
+    for e in super::menu_entries(c) {
+        println!("ENTRY {} | {} | {}", e.0, e.1, e.2);
+    }
+}

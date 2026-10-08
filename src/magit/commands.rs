@@ -3,12 +3,22 @@
 use super::Action::{self, *};
 use super::{Fold, apply, diff, ediff, log, misc, refs, wip};
 
-/// The action for an upstream command name.
+/// The action for an upstream command name: the table below, or the menu
+/// entry that runs it (names.rs).
 pub fn by_name(name: &str) -> Option<Action> {
+    explicit(name).or_else(|| {
+        super::names::MENU_COMMANDS
+            .iter()
+            .find(|c| c.0 == name)
+            .and_then(|&(_, m, k)| super::base_entries(m).into_iter().find(|e| e.0 == k))
+            .map(|e| e.3)
+    })
+}
+pub(super) fn explicit(name: &str) -> Option<Action> {
     let menu = |c| Some(Menu(c));
     match name {
         "magit" | "magit-status" | "magit-status-quick" | "magit-status-here" => Some(Status),
-        "magit-dispatch" => menu('*'),
+        "magit-dispatch" => menu('?'),
         "magit-branch" => menu('b'),
         "magit-branch-configure" => menu('c'),
         "magit-commit" => menu('C'),
@@ -128,7 +138,7 @@ pub fn by_name(name: &str) -> Option<Action> {
         "magit-repolist-fetch" => Some(RepolistFetch),
         "magit-repolist-find-file-other-frame" => Some(RepolistFindFile),
         // The Emacs menu-bar menus: Fred's transients list the same commands.
-        "magit-mode-menu" => menu('*'),
+        "magit-mode-menu" => menu('?'),
         "git-commit-mode-menu" => menu('C'),
         "git-rebase-mode-menu" => Some(TodoHelp),
         "magit-process-kill" => Some(ProcessKill),
@@ -154,7 +164,7 @@ pub fn by_name(name: &str) -> Option<Action> {
         "magit-zap-caches" => Some(ZapCaches),
         "magit-save-repository-buffers" => Some(SaveRepositoryBuffers),
         "magit-project-status" => Some(Status),
-        "magit-project-dispatch" => menu('*'),
+        "magit-project-dispatch" => menu('?'),
         "magit-next-reference" => Some(NextReference(false)),
         "magit-previous-reference" => Some(NextReference(true)),
         "magit-log-move-to-revision" => Some(LogMoveTo),
@@ -205,6 +215,37 @@ pub fn by_name(name: &str) -> Option<Action> {
         "magit-update-default-branch" => {
             Some(super::Action::Branch(super::branch::Op::UpdateDefault))
         }
+        "magit-section-toggle" | "magit-mouse-toggle-section" => Some(Toggle),
+        "magit-visit-thing" | "magit-diff-visit-file" => Some(Visit),
+        "magit-section-show" => Some(Fold(Fold::Show)),
+        "magit-section-hide" => Some(Fold(Fold::Hide)),
+        "magit-section-show-children" => Some(Fold(Fold::ShowChildren)),
+        "magit-section-hide-children" => Some(Fold(Fold::HideChildren)),
+        "magit-section-show-level-1" => Some(Fold(Fold::LevelHere(1))),
+        "magit-section-show-level-2" => Some(Fold(Fold::LevelHere(2))),
+        "magit-section-show-level-3" => Some(Fold(Fold::LevelHere(3))),
+        "magit-section-show-level-4" => Some(Fold(Fold::LevelHere(4))),
+        "magit-stash-clear" => Some(StashOp(super::stash::Op::Clear)),
+        "magit-log-select-pick" => Some(SelectPick),
+        "magit-log-select-quit" => Some(SelectQuit),
+        "magit-refresh-buffer" => Some(Refresh),
+        "magit-bury-buffer"
+        | "magit-log-bury-buffer"
+        | "magit-bury-or-kill-buffer"
+        | "magit-kill-this-buffer" => Some(Return),
+        "magit-stage-buffer-file" => Some(File(super::blob::FileOp::Stage)),
+        "magit-unstage-buffer-file" => Some(File(super::blob::FileOp::Unstage)),
+        "magit-fetch-modules" => menu('Z'),
+        "magit-git-mergetool" => menu('V'),
+        "magit-am-continue" => Some(Patch(super::patch::Op::AmContinue)),
+        "magit-am-abort" => Some(Patch(super::patch::Op::AmAbort)),
+        "magit-sequencer-continue" => Some(Sequence(super::sequence::Op::Continue)),
+        "magit-rebase-skip" => Some(Rebase(super::rebase::Op::Skip)),
+        "magit-rebase-edit" => Some(Rebase(super::rebase::Op::EditTodo)),
+        "magit-merge-abort" => Some(Merge(super::merge::Op::Abort)),
+        "magit-bisect-bad" => Some(Bisect(super::bisect::Op::Bad)),
+        "magit-notes-merge-commit" => Some(Notes(super::notes::Op::MergeCommit)),
+        "magit-core.notesRef" => Some(Notes(super::notes::Op::NotesRef(false))),
         "magit-pull-into-upstream" => Some(Net(super::network::Op::PullIntoUpstream)),
         "magit-push-to-remote" => Some(Net(super::network::Op::PushToRemote)),
         "magit-dired-jump" => Some(DiredJump),
@@ -213,9 +254,7 @@ pub fn by_name(name: &str) -> Option<Action> {
         "magit-dired-log" => Some(FileLog),
         "magit-ediff" => menu('U'),
         "magit-ediff-dwim" => Some(EdiffDwim),
-        "magit-ediff-resolve-rest" | "magit-ediff-resolve-all" | "magit-git-mergetool" => {
-            Some(Ediff(ediff::Op::Resolve))
-        }
+        "magit-ediff-resolve-rest" | "magit-ediff-resolve-all" => Some(Ediff(ediff::Op::Resolve)),
         "magit-ediff-show-unstaged" => Some(Ediff(ediff::Op::ShowUnstaged)),
         "magit-ediff-show-staged" => Some(Ediff(ediff::Op::ShowStaged)),
         "magit-ediff-show-working-tree" => Some(Ediff(ediff::Op::ShowWorktree)),

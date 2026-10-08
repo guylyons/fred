@@ -412,3 +412,19 @@ passed its five acceptance gates (source/option mapping, menus, behavior,
 real-Git/UI/error scenarios, independent review). Next: the baseline UI map
 and scenario matrix, then per-track acceptance reviews starting with
 status/diff/commit.
+
+October 8 checkpoint (user request): baseline UI map in progress.
+docs/magit-ui-map.md is generated from the runtime snapshot (cargo test
+write_ui_map -- --ignored) and guarded by ui_map_is_current: 523 of 565
+upstream transient entries match Fred's key and command; 9 moved, 13
+missing, 1 key differs, 18 in prefixes without a Fred menu, 1 disabled
+upstream. Added upstream magit-dispatch layout (h/? in Magit buffers) and
+evil-collection's menu keys (branch X/x, tag x, remote x, revert _), refs
+r (was v), branch-configure B / a m / a r, pull U, rebase t and =X.
+`:Magit NAME` now runs any command a menu offers (src/magit/names.rs,
+guarded by menu_names_are_current) plus in-progress continue/abort
+commands; 84 keymap-only commands are listed in the map. Open in this gate:
+transient set/save (diff/log refresh s/w; track 2 argument persistence),
+pull-or-fetch rows, pull r, remote d u, revision-jump and trailer menus,
+rebase -p (Git < 2.33 only), and the section map. Score remains 3%. Next:
+finish those rows, then the acceptance scenario matrix.
