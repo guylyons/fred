@@ -23,8 +23,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-/// Grep starts this long after the last keystroke.
-const DEBOUNCE: Duration = Duration::from_millis(100);
+/// How long a keystroke waits for its grep to finish before drawing.
+const SETTLE: Duration = Duration::from_millis(40);
+/// Until then (or a screenful), the last results stay up.
+const KEEP_OLD: Duration = Duration::from_millis(200);
+const SCREENFUL: usize = 100;
 /// Rows kept per query (more than any window shows).
 const LIMIT: usize = 500;
 
@@ -191,14 +194,14 @@ pub enum Kind {
     Def,
 }
 
-/// How `Space g` reads its pattern (`Ctrl-t` goes to the next).
+/// How `Space g` reads its pattern (`Shift-Tab` goes to the next), as fff.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum GrepMode {
-    /// A regex, as `/`.
-    #[default]
-    Regex,
     /// The text as typed.
+    #[default]
     Plain,
+    /// A regex, as `/`.
+    Regex,
     /// The text, give or take a typo or letters in between.
     Fuzzy,
 }
@@ -218,9 +221,17 @@ impl GrepMode {
 
     fn tag(self) -> &'static str {
         match self {
-            GrepMode::Regex => "",
             GrepMode::Plain => " [plain]",
+            GrepMode::Regex => " [regex]",
             GrepMode::Fuzzy => " [fuzzy]",
+        }
+    }
+
+    fn next(self) -> GrepMode {
+        match self {
+            GrepMode::Plain => GrepMode::Regex,
+            GrepMode::Regex => GrepMode::Fuzzy,
+            GrepMode::Fuzzy => GrepMode::Plain,
         }
     }
 }
@@ -608,8 +619,9 @@ impl Picker {
                         self.started = None;
                     }
                 }
-                if self.started.as_deref() != Some(&q) && now >= self.changed + DEBOUNCE {
+                if self.started.as_deref() != Some(&q) {
                     self.started = Some(q.clone());
+                    self.changed = now;
                     if q.is_empty() {
                         project.grep.cancel();
                         self.rows.clear();
@@ -638,7 +650,8 @@ impl Picker {
                     match search {
                         Ok(search) => {
                             self.err = false;
-                            project.grep.search(search, Arc::clone(&files));
+                            let g = project.grep.search(search, Arc::clone(&files));
+                            project.grep.settle(g, SETTLE);
                         }
                         Err(e) => {
                             // Keep the last results; say why they didn't change.
@@ -651,6 +664,12 @@ impl Picker {
                 }
                 let r = project.grep.results();
                 if self.err || r.generation == 0 || q.is_empty() {
+                    return changed;
+                }
+                // A new search keeps the last results up until it is done,
+                // has a screenful, or is slow: no empty flash per keystroke.
+                let fresh = r.generation != self.seen_grep.0 && self.seen_grep.0 != 0;
+                if fresh && !r.done && r.hits.len() < SCREENFUL && now < self.changed + KEEP_OLD {
                     return changed;
                 }
                 let now = (r.generation, r.hits.len(), r.done);
@@ -701,7 +720,7 @@ impl Picker {
                     (true, _) => format!("{n}+ {what}"),
                     (_, true) => format!("{n} {what}"),
                     _ => format!("{n} {what}…"),
-                } + self.grep_mode.tag()
+                } + if self.kind == Kind::Grep { self.grep_mode.tag() } else { "" }
                     + all_tag(&files);
                 self.sel = self.sel.min(self.rows.len().saturating_sub(1));
                 true
@@ -752,7 +771,6 @@ pub fn definition(ed: &mut Editor) {
         p.from = from;
         p.jump = true;
         // No debounce: the word is already typed.
-        p.changed = Instant::now() - DEBOUNCE;
         p.update(&ed.project, &ed.buf, Instant::now());
     }
 }
@@ -834,6 +852,10 @@ fn set_query(p: &mut Picker, q: String) {
 pub fn open(ed: &mut Editor, kind: Kind) {
     if matches!(kind, Kind::Files | Kind::Browse | Kind::Recent) {
         ed.project.reset_status();
+    }
+    if matches!(kind, Kind::Grep | Kind::Def) {
+        ed.project.grep.fresh();
+        ed.project.grep.warm(ed.project.files());
     }
     let mut p = Picker::new(kind, &ed.project, ed.cur.line);
     if kind == Kind::Recent {
@@ -1011,13 +1033,14 @@ pub fn pick_key(ed: &mut Editor, k: Key) {
                 });
             }
         }
-        // Regex, plain text, fuzzy, and around again.
+        // Plain text, regex, fuzzy, and around again (`Ctrl-t` too).
+        KeyCode::BackTab if p.kind == Kind::Grep => {
+            p.grep_mode = p.grep_mode.next();
+            p.started = None;
+            p.update(&ed.project, &ed.buf, Instant::now());
+        }
         KeyCode::Char('t') if k.ctrl && p.kind == Kind::Grep => {
-            p.grep_mode = match p.grep_mode {
-                GrepMode::Regex => GrepMode::Plain,
-                GrepMode::Plain => GrepMode::Fuzzy,
-                GrepMode::Fuzzy => GrepMode::Regex,
-            };
+            p.grep_mode = p.grep_mode.next();
             p.started = None;
             p.update(&ed.project, &ed.buf, Instant::now());
         }

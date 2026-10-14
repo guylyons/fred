@@ -122,16 +122,21 @@ Space is the leader key (`l` still moves right).
   `status:modified` / `status:untracked` / `status:unmodified`, and `!` in
   front of any of them for "not". `name:12` or `name:12:3` opens the file
   at that line and column.
-- `Space g` greps the project as you type, with the same regex rules as `/`.
-  `Enter` opens the file on the match, and `n` goes on to the next one.
-  `Ctrl-t` switches to plain text (`[plain]`: `a.b(c)` means just that),
-  then to fuzzy (`[fuzzy]`), then back. Fuzzy finds near misses too:
-  letters in between (`UserController` finds `UserAuthController`,
-  `flvencodepicture` finds `ff_flv_encode_picture_header`) and up to two
-  slips (`shcema` finds `schema`), as long as the letters stay close
-  together. It is the slowest of the three. The same
-  file filters work in front of or after the pattern (`fn main *.rs
-  !tests/`), and files you use often or have changed are searched first.
+- `Space g` greps the project as you type, as fff does. It starts in plain
+  text (`[plain]`: `a.b(c)` means just that); `Shift-Tab` (or `Ctrl-t`)
+  switches to a regex with the same rules as `/` (`[regex]`), then to fuzzy
+  (`[fuzzy]`), then back. Smart case in all three. `Enter` opens the file
+  on the match, and `n` goes on to the next one.
+- Fuzzy finds near misses too: letters in between (`UserController` finds
+  `UserAuthController`, `flvencodepicture` finds
+  `ff_flv_encode_picture_header`) and up to two slips (`shcema` finds
+  `schema`), as long as the letters stay close together. Lines with the
+  text itself come first.
+- File filters work in front of or after the pattern (`fn main *.rs
+  !tests/`), files you use often or have changed are searched first, and
+  no file gives more than 100 lines. Files are kept in memory while you
+  type (read again when grep next opens) and searched on every core: on a
+  12,000-file tree a keystroke takes under 30 ms, fuzzy up to about 200.
 - Both skip what `.gitignore` ignores. `Ctrl-o` in either one also searches
   ignored files (Drupal core, `vendor/`), marked `[all]`, until you press it
   again.

@@ -1,14 +1,20 @@
 //! Regex grep over the project's files on a background thread.
 
+use super::fff::Loose;
 use super::files::Files;
 use crate::complete::nearby::read_text;
 use regex::Regex;
-use std::collections::HashSet;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::path::Path;
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant, SystemTime};
 
 pub const MAX_HITS: usize = 1000;
+/// More from one file would crowd out the rest (fff's limit).
+const MAX_PER_FILE: usize = 100;
+/// File text kept in memory between searches.
+const MAX_CACHED: usize = 512 * 1024 * 1024;
 const MAX_FILE: u64 = 1024 * 1024;
 /// Longest line kept for display, in bytes.
 const MAX_TEXT: usize = 400;
@@ -40,6 +46,26 @@ pub struct Results {
 pub struct Grep {
     generation: AtomicU64,
     results: Mutex<Results>,
+    /// What files held when last read, so that each keystroke searches
+    /// memory, not the disk (fff keeps its files' contents too).
+    cache: Mutex<Cache>,
+}
+
+#[derive(Debug, Default)]
+struct Cache {
+    files: HashMap<String, Cached>,
+    /// Entries checked against the disk since `fresh` was last called.
+    epoch: u64,
+    bytes: usize,
+}
+
+#[derive(Debug)]
+struct Cached {
+    len: u64,
+    mtime: Option<SystemTime>,
+    epoch: u64,
+    /// None for binary or oversized files.
+    text: Option<Arc<str>>,
 }
 
 /// What to look for, in which files, and which of them to read first.
@@ -48,7 +74,7 @@ pub struct Search {
     /// Fuzzy: also lines with this pattern's letters close together, give
     /// or take a couple.
     pub fuzzy: Option<String>,
-    pub keep: Box<dyn Fn(&str) -> bool + Send>,
+    pub keep: Box<dyn Fn(&str) -> bool + Send + Sync>,
     /// Files most likely wanted (used often, changed): their matches lead.
     pub first: Vec<String>,
 }
@@ -81,6 +107,67 @@ impl Grep {
         g
     }
 
+    /// Check cached files against the disk again (a grep is opening).
+    pub fn fresh(&self) {
+        self.cache.lock().unwrap().epoch += 1;
+    }
+
+    /// The text of `rel`, from memory if it is unchanged.
+    fn text(&self, root: &Path, rel: &str) -> Option<Arc<str>> {
+        let path = root.join(rel);
+        let epoch = {
+            let c = self.cache.lock().unwrap();
+            match c.files.get(rel) {
+                Some(e) if e.epoch == c.epoch => return e.text.clone(),
+                _ => c.epoch,
+            }
+        };
+        let m = std::fs::metadata(&path).ok()?;
+        {
+            let mut c = self.cache.lock().unwrap();
+            if let Some(e) = c.files.get_mut(rel)
+                && m.len() == e.len
+                && m.modified().ok() == e.mtime
+            {
+                e.epoch = epoch;
+                return e.text.clone();
+            }
+        }
+        let text: Option<Arc<str>> = read_text(&path, MAX_FILE).map(Arc::from);
+        let size = text.as_ref().map_or(0, |t| t.len());
+        let mut c = self.cache.lock().unwrap();
+        if let Some(old) = c.files.remove(rel) {
+            c.bytes -= old.text.map_or(0, |t| t.len());
+        }
+        // shortcut: past the budget, files are read each time; evict if
+        // huge trees should stay fast too.
+        if c.bytes + size <= MAX_CACHED {
+            c.bytes += size;
+            let e = Cached {
+                len: m.len(),
+                mtime: m.modified().ok(),
+                epoch,
+                text: text.clone(),
+            };
+            c.files.insert(rel.to_string(), e);
+        }
+        text
+    }
+
+    /// Wait up to `max` for search `g` to finish: most do, and showing the
+    /// whole answer at once doesn't flicker.
+    pub fn settle(&self, g: u64, max: Duration) {
+        let start = Instant::now();
+        while start.elapsed() < max {
+            let r = self.results();
+            if r.generation != g || r.done {
+                return;
+            }
+            drop(r);
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    }
+
     pub fn cancel(&self) {
         self.generation.fetch_add(1, Ordering::SeqCst);
     }
@@ -89,8 +176,11 @@ impl Grep {
         self.generation.load(Ordering::SeqCst) == g
     }
 
+    /// Search on every core; results still come in file order.
     fn run(&self, g: u64, search: &Search, files: &Files) {
-        let mut loose = search.fuzzy.as_deref().and_then(super::fff::Loose::new);
+        // The whole text at once: `^` and `$` at each line's ends.
+        let re = Regex::new(&format!("(?mR){}", search.re.as_str()));
+        let re = re.as_ref().unwrap_or(&search.re);
         // Only listed files, so only once the list is whole.
         let first: Vec<String> = if files.done() {
             files.with(|l| {
@@ -102,66 +192,92 @@ impl Grep {
             vec![]
         };
         let led: HashSet<&str> = first.iter().map(String::as_str).collect();
-        let mut i = 0;
-        let mut found = 0;
-        loop {
-            if !self.current(g) {
-                return;
+        let next = AtomicUsize::new(0);
+        let stop = AtomicBool::new(false);
+        // Files searched, by position, until those before them are done:
+        // (published up to, waiting).
+        let waiting: Mutex<(usize, BTreeMap<usize, Vec<Hit>>)> = Mutex::default();
+        let gone = || stop.load(Ordering::Relaxed) || !self.current(g);
+        // The file list may still be growing: wait for position `i`.
+        let nth = |i: usize| loop {
+            if gone() {
+                return None;
             }
-            // The file list may still be growing.
-            let next = match first.get(i) {
+            let item = match first.get(i) {
                 Some(f) => Some(f.clone()),
                 None => files.with(|l| l.get(i - first.len()).cloned()),
             };
-            let Some(rel) = next else {
-                if files.done() && i - first.len() >= files.len() {
-                    break;
+            match item {
+                Some(rel) => return Some(rel),
+                None if files.done() => return None,
+                None => std::thread::sleep(Duration::from_millis(2)),
+            }
+        };
+        let work = || {
+            let mut loose = search.fuzzy.as_deref().and_then(Loose::new);
+            loop {
+                let i = next.fetch_add(1, Ordering::Relaxed);
+                let Some(rel) = nth(i) else { return };
+                let skip = (i >= first.len() && led.contains(rel.as_str())) || !(search.keep)(&rel);
+                let hits = match self.text(&files.root, &rel) {
+                    Some(text) if !skip => scan(&text, re, loose.as_mut(), &rel, MAX_PER_FILE),
+                    _ => vec![],
+                };
+                let mut w = waiting.lock().unwrap();
+                w.1.insert(i, hits);
+                let mut out = vec![];
+                let (done, ready) = &mut *w;
+                while let Some(h) = ready.remove(done) {
+                    *done += 1;
+                    out.extend(h);
                 }
-                std::thread::sleep(Duration::from_millis(5));
-                continue;
-            };
-            i += 1;
-            if (i > first.len() && led.contains(rel.as_str())) || !(search.keep)(&rel) {
-                continue;
-            }
-            let Some(text) = read_text(&files.root.join(&rel), MAX_FILE) else {
-                continue;
-            };
-            let mut hits = vec![];
-            for (n, line) in text.lines().enumerate() {
-                let exact = search.re.find(line).map(|m| (m.start(), m.end()));
-                let at = exact.or_else(|| {
-                    loose.as_mut()?.find(&line[..line.floor_char_boundary(MAX_TEXT)])
-                });
-                if let Some((col, end)) = at {
-                    hits.push(Hit {
-                        path: rel.clone(),
-                        line: n,
-                        col,
-                        end,
-                        text: line[..line.floor_char_boundary(MAX_TEXT)].to_string(),
-                        loose: exact.is_none(),
-                    });
-                    if found + hits.len() == MAX_HITS {
-                        break;
-                    }
+                if out.is_empty() {
+                    continue;
                 }
+                let mut r = self.results.lock().unwrap();
+                if r.generation != g {
+                    return stop.store(true, Ordering::Relaxed);
+                }
+                let room = MAX_HITS - r.hits.len();
+                if out.len() >= room {
+                    out.truncate(room);
+                    r.capped = true;
+                    stop.store(true, Ordering::Relaxed);
+                }
+                r.hits.append(&mut out);
             }
-            found += hits.len();
-            let mut r = self.results.lock().unwrap();
-            if r.generation != g {
-                return;
+        };
+        std::thread::scope(|s| {
+            for _ in 0..workers() {
+                s.spawn(work);
             }
-            r.hits.append(&mut hits);
-            if found == MAX_HITS {
-                r.capped = true;
-                break;
-            }
-        }
+        });
         let mut r = self.results.lock().unwrap();
         if r.generation == g {
             r.done = true;
         }
+    }
+
+    /// Read every file into memory ahead of the first search.
+    pub fn warm(self: &Arc<Self>, files: Arc<Files>) {
+        let me = Arc::clone(self);
+        std::thread::spawn(move || {
+            while !files.done() {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            let next = AtomicUsize::new(0);
+            std::thread::scope(|s| {
+                for _ in 0..workers() {
+                    s.spawn(|| {
+                        while let Some(rel) =
+                            files.with(|l| l.get(next.fetch_add(1, Ordering::Relaxed)).cloned())
+                        {
+                            me.text(&files.root, &rel);
+                        }
+                    });
+                }
+            });
+        });
     }
 
     pub fn results(&self) -> std::sync::MutexGuard<'_, Results> {
@@ -180,6 +296,64 @@ impl Grep {
             std::thread::sleep(Duration::from_millis(2));
         }
     }
+}
+
+/// The lines of `text` that match, at most `cap`: the regex over the whole
+/// text (as ripgrep: far faster than line by line), then for fuzzy grep the
+/// near misses, line by line.
+fn scan(text: &str, re: &Regex, loose: Option<&mut Loose>, rel: &str, cap: usize) -> Vec<Hit> {
+    let hit = |line: usize, text: &str, (col, end): (usize, usize), loose: bool| Hit {
+        path: rel.to_string(),
+        line,
+        col,
+        end,
+        text: text[..text.floor_char_boundary(MAX_TEXT)].to_string(),
+        loose,
+    };
+    let mut hits = vec![];
+    // Lines are counted only up to each match.
+    let (mut at, mut line, mut counted) = (0, 0, 0);
+    while hits.len() < cap && at <= text.len() {
+        let Some(m) = re.find_at(text, at) else {
+            break;
+        };
+        let start = text[..m.start()].rfind('\n').map_or(0, |i| i + 1);
+        let end = text[m.start()..].find('\n').map_or(text.len(), |i| m.start() + i);
+        line += text.as_bytes()[counted..start].iter().filter(|&&b| b == b'\n').count();
+        counted = start;
+        let l = text[start..end].trim_end_matches('\r');
+        // One that runs into the next line (`\s`, `[^x]`) is tried within this one.
+        let span = if m.end() <= start + l.len() {
+            Some((m.start() - start, m.end() - start))
+        } else {
+            re.find(l).map(|m| (m.start(), m.end()))
+        };
+        if let Some(span) = span {
+            hits.push(hit(line, l, span, false));
+        }
+        at = end + 1;
+    }
+    let Some(loose) = loose else {
+        return hits;
+    };
+    let exact: HashSet<usize> = hits.iter().map(|h| h.line).collect();
+    for (n, l) in text.lines().enumerate() {
+        if hits.len() >= cap {
+            break;
+        }
+        if !exact.contains(&n)
+            && let Some(span) = loose.find(&l[..l.floor_char_boundary(MAX_TEXT)])
+        {
+            hits.push(hit(n, l, span, true));
+        }
+    }
+    hits.sort_by_key(|h| h.line);
+    hits
+}
+
+/// Threads to search with: the cores, up to eight.
+fn workers() -> usize {
+    std::thread::available_parallelism().map_or(4, |n| n.get().min(8))
 }
 
 #[cfg(test)]
@@ -239,13 +413,52 @@ mod tests {
     }
 
     #[test]
+    fn scans_whole_texts_line_by_line_results() {
+        let re = |p: &str| Regex::new(&format!("(?mR){p}")).unwrap();
+        let text = "ab\r\nx foo\r\n\nfoo foo\nend";
+        let got = |p: &str| -> Vec<_> {
+            let hits = scan(text, &re(p), None, "f", 10);
+            hits.into_iter().map(|h| (h.line, h.col, h.end, h.text)).collect()
+        };
+        // One hit a line, the first match in it, lines counted from 0.
+        assert_eq!(
+            got("foo"),
+            [(1, 2, 5, "x foo".into()), (3, 0, 3, "foo foo".into())]
+        );
+        assert_eq!(got("^foo$"), []);
+        assert_eq!(got("foo$"), [(1, 2, 5, "x foo".into()), (3, 4, 7, "foo foo".into())]);
+        assert_eq!(got("^end$"), [(4, 0, 3, "end".into())]);
+        // Never across lines.
+        assert_eq!(got(r"b\s+x"), []);
+        assert_eq!(got(r"foo\s*"), [(1, 2, 5, "x foo".into()), (3, 0, 4, "foo foo".into())]);
+        assert_eq!(scan(text, &re("o"), None, "f", 1).len(), 1);
+    }
+
+    #[test]
     fn caps_hits() {
-        let text = "x\n".repeat(MAX_HITS + 50);
-        let (_d, files) = project(&[("a", &text), ("b", &text)]);
+        // At most 100 a file, 1000 in all.
+        let text = "x\n".repeat(MAX_PER_FILE + 50);
+        let names: Vec<String> = (0..12).map(|i| format!("f{i:02}")).collect();
+        let list: Vec<(&str, &str)> = names.iter().map(|n| (n.as_str(), text.as_str())).collect();
+        let (_d, files) = project(&list);
         let g = Arc::new(Grep::default());
         let r = g.wait(g.start(Regex::new("x").unwrap(), files));
         assert_eq!(r.hits.len(), MAX_HITS);
+        assert_eq!(r.hits.iter().filter(|h| h.path == "f00").count(), MAX_PER_FILE);
         assert!(r.capped);
+    }
+
+    #[test]
+    fn remembers_texts_until_they_change() {
+        let (d, files) = project(&[("a", "old\n")]);
+        let g = Arc::new(Grep::default());
+        assert_eq!(g.wait(g.start(Regex::new("old").unwrap(), Arc::clone(&files))).hits.len(), 1);
+        // Within one picker the cache answers; a new one checks the disk.
+        std::fs::write(d.path().join("a"), "new text\n").unwrap();
+        assert_eq!(g.wait(g.start(Regex::new("old").unwrap(), Arc::clone(&files))).hits.len(), 1);
+        g.fresh();
+        assert_eq!(g.wait(g.start(Regex::new("old").unwrap(), Arc::clone(&files))).hits.len(), 0);
+        assert_eq!(g.wait(g.start(Regex::new("new").unwrap(), files)).hits.len(), 1);
     }
 
     #[test]

@@ -182,28 +182,23 @@ fn grep_filters_and_modes() {
         ("src/a.md", "a.b(c) and axb(c)\n"),
         ("tests/t.rs", "a.b(c)\nUserAuthController\n"),
     ]);
-    // As a regex, `.` and the parentheses are not themselves.
+    // Plain text (the default, as fff): the files the filters leave.
     keys(&mut ed, " g");
     query(&mut ed, "a.b(c) *.rs !tests/");
-    std::thread::sleep(DEBOUNCE);
-    settle(&mut ed, |p| p.status.contains("matches") || p.err);
-    assert!(picker(&ed).rows.is_empty(), "{:?}", picker(&ed).rows);
-    // Plain text: the files the filters leave.
-    keys(&mut ed, "<C-t>");
     settle(&mut ed, |p| p.status == "1 matches [plain]");
     assert_eq!(picker(&ed).rows[0].text, "src/a.rs:1: let total = a.b(c);");
-    // Fuzzy: letters in between, or a typo.
+    // As a regex, `.` and the parentheses are not themselves.
+    keys(&mut ed, "<S-Tab>");
+    settle(&mut ed, |p| p.status == "0 matches [regex]");
+    // Fuzzy: letters in between, or a typo (`Ctrl-t` cycles too).
     keys(&mut ed, "<C-t>");
     query(&mut ed, "UserController");
-    std::thread::sleep(DEBOUNCE);
     settle(&mut ed, |p| p.status == "1 matches [fuzzy]");
     query(&mut ed, "toatl");
-    std::thread::sleep(DEBOUNCE);
     settle(&mut ed, |p| p.status == "1 matches [fuzzy]");
     assert!(picker(&ed).rows[0].text.starts_with("src/a.rs:1:"));
     // Filters alone are not a pattern.
     query(&mut ed, "*.rs");
-    std::thread::sleep(DEBOUNCE);
     settle(&mut ed, |p| p.err);
 }
 
@@ -213,8 +208,8 @@ fn grep_a_pattern() {
         ("a.rs", "use x;\n\n    fn main() {}\n"),
         ("b.rs", "nothing\n"),
     ]);
-    keys(&mut ed, " gfn \\w+");
-    settle(&mut ed, |p| p.status == "1 matches");
+    keys(&mut ed, " g<S-Tab>fn \\w+");
+    settle(&mut ed, |p| p.status == "1 matches [regex]");
     let p = picker(&ed);
     assert_eq!(p.rows[0].text, "a.rs:3: fn main() {}");
     let (a, b) = p.rows[0].hl[0];
@@ -239,9 +234,9 @@ fn ctrl_o_searches_ignored_files_too() {
         ("index.php", "boot();\n"),
     ]);
     keys(&mut ed, " gboot");
-    settle(&mut ed, |p| p.status == "1 matches");
+    settle(&mut ed, |p| p.status == "1 matches [plain]");
     keys(&mut ed, "<C-o>");
-    settle(&mut ed, |p| p.status == "2 matches [all]");
+    settle(&mut ed, |p| p.status == "2 matches [plain] [all]");
     keys(&mut ed, "<Esc> p");
     settle(&mut ed, |p| p.status == "2/2 [all]");
     keys(&mut ed, "<C-o>");
@@ -251,15 +246,18 @@ fn ctrl_o_searches_ignored_files_too() {
 #[test]
 fn bad_pattern_keeps_results() {
     let (_d, mut ed) = setup(&[("a", "foo(\n")]);
-    keys(&mut ed, " gfoo");
-    settle(&mut ed, |p| p.status == "1 matches");
+    keys(&mut ed, " g<S-Tab>foo");
+    settle(&mut ed, |p| p.status == "1 matches [regex]");
     keys(&mut ed, "(");
     settle(&mut ed, |p| p.err);
     let p = picker(&ed);
     assert!(p.status.starts_with("bad pattern"), "{}", p.status);
     assert_eq!(p.rows.len(), 1);
     keys(&mut ed, "<BS>\\(");
-    settle(&mut ed, |p| !p.err && p.status == "1 matches");
+    settle(&mut ed, |p| !p.err && p.status == "1 matches [regex]");
+    // Plain text has no bad patterns.
+    keys(&mut ed, "<S-Tab><S-Tab>");
+    settle(&mut ed, |p| !p.err && p.status == "0 matches [plain]");
 }
 
 #[test]
