@@ -302,11 +302,6 @@ impl Query {
             .all(|(not, x)| x.keeps(f, status) != *not)
     }
 
-    /// The pattern with one letter dropped or two swapped, for fuzzy grep.
-    pub fn typos(&self) -> Vec<String> {
-        typos(&self.text)
-    }
-
 }
 
 /// `name:12` → (`name`, (12, 1)); `name:12:3` → (`name`, (12, 3)).
@@ -415,31 +410,6 @@ pub struct Hit {
     pub typo: Option<String>,
 }
 
-/// `query` with one character dropped, or two neighbours swapped: what
-/// fuzzy grep also looks for.
-fn typos(query: &str) -> Vec<String> {
-    let c: Vec<char> = query.chars().collect();
-    // shortcut: one typo in patterns of 4 to 16 letters (lines are matched
-    // by regex, one alternative per variant). The file picker forgives more.
-    if !(4..=16).contains(&c.len()) || c.iter().any(|c| c.is_whitespace()) {
-        return vec![];
-    }
-    let mut out: Vec<String> = vec![];
-    for i in 0..c.len() {
-        let mut d = c.clone();
-        d.remove(i);
-        out.push(d.into_iter().collect());
-        if i + 1 < c.len() && c[i] != c[i + 1] {
-            let mut s = c.clone();
-            s.swap(i, i + 1);
-            out.push(s.into_iter().collect());
-        }
-    }
-    out.sort();
-    out.dedup();
-    out
-}
-
 /// Indices into `files`, best first, at most `limit`, and how many matched.
 /// With nothing to match, the files by frecency.
 pub fn rank(
@@ -526,7 +496,7 @@ pub fn rank(
         }
     }
     // Typos: files that lack a few of the query's letters, fewest first.
-    let mut slips: Vec<(u32, usize)> = match Lcs::new(&q.text) {
+    let mut slips: Vec<(u32, usize)> = match Lcs::for_names(&q.text) {
         Some(lcs) if hits.len() < TYPO_BELOW => {
             let near = missed.iter().map(|&i| (lcs.missing(&files[i]), i));
             near.filter(|&(m, _)| m <= lcs.allowed).collect()
@@ -569,12 +539,21 @@ struct Lcs {
 }
 
 impl Lcs {
-    /// None for queries that are matched only as typed.
-    fn new(query: &str) -> Option<Lcs> {
-        // shortcut: one ASCII word of up to 64 letters; split into words
-        // if multi-word queries should forgive typos too.
+    /// For file names: None for queries matched only as typed.
+    fn for_names(query: &str) -> Option<Lcs> {
+        // shortcut: one word; split into words if multi-word queries
+        // should forgive typos too.
         let n = query.len();
-        if !(4..=64).contains(&n) || !query.is_ascii() || query.contains(' ') {
+        if n < 4 || query.contains(' ') {
+            return None;
+        }
+        Lcs::new(query, if n < 6 { 1 } else { (n / 4).clamp(2, 6) as u32 })
+    }
+
+    /// None unless `query` is 1 to 64 ASCII characters.
+    fn new(query: &str, allowed: u32) -> Option<Lcs> {
+        let n = query.len();
+        if !(1..=64).contains(&n) || !query.is_ascii() {
             return None;
         }
         let mut masks = [0u64; 256];
@@ -584,7 +563,7 @@ impl Lcs {
         Some(Lcs {
             masks,
             len: n as u32,
-            allowed: if n < 6 { 1 } else { (n / 4).clamp(2, 6) as u32 },
+            allowed,
         })
     }
 
@@ -596,6 +575,57 @@ impl Lcs {
         }
         let all = !0u64 >> (64 - self.len);
         self.len - (!v & all).count_ones()
+    }
+}
+
+/// Fuzzy grep, by fff's rules: a line matches when it has the pattern's
+/// letters in order, give or take two, close together.
+pub struct Loose {
+    query: String,
+    lcs: Lcs,
+    /// One matcher per set of letters a line turned out to have.
+    fzs: HashMap<String, Fuzzy>,
+}
+
+impl Loose {
+    /// None for patterns that can only be matched as typed (not ASCII, or
+    /// over 64 characters).
+    pub fn new(query: &str) -> Option<Loose> {
+        // A third of the letters may be off, two at most.
+        let lcs = Lcs::new(query, (query.len() / 3).min(2) as u32)?;
+        Some(Loose {
+            query: query.to_string(),
+            lcs,
+            fzs: HashMap::new(),
+        })
+    }
+
+    /// The byte range of the match in `line`.
+    pub fn find(&mut self, line: &str) -> Option<(usize, usize)> {
+        let n = self.query.len();
+        let missing = self.lcs.missing(line);
+        if missing > self.lcs.allowed {
+            return None;
+        }
+        let had = if missing == 0 {
+            self.query.clone()
+        } else {
+            kept_letters(&self.query, line)
+        };
+        let fz = match self.fzs.get_mut(&had) {
+            Some(fz) => fz,
+            None => self.fzs.entry(had.clone()).or_insert(Fuzzy::literal(&had)),
+        };
+        let at = fz.ranges(line);
+        let (first, last) = (at.first()?.0, at.last()?.1);
+        // Not scattered: within three times the pattern's length, mostly
+        // unbroken (delimiters in `some_long_name` are allowed for), and
+        // denser when letters are missing.
+        let span = last - first;
+        let gaps = at.windows(2).filter(|w| w[1].0 != w[0].1).count();
+        let dense = if at.len() >= n { 45 } else { 65 };
+        let close = span <= n * 3 && at.len() * 100 / span >= dense && gaps <= (n / 3).max(2);
+        (at.len() + self.lcs.allowed as usize >= n && close).then_some((first, last))
     }
 }
 
@@ -789,14 +819,36 @@ mod tests {
     }
 
     #[test]
+    fn loose_lines() {
+        let find = |q: &str, line: &str| {
+            let at = Loose::new(q).unwrap().find(line)?;
+            Some(line[at.0..at.1].to_string())
+        };
+        // Letters in between, as long as they stay close.
+        assert_eq!(find("UserController", "x = UserAuthController::new()").unwrap(), "UserAuthController");
+        assert_eq!(find("flvencodepicture", "int ff_flv_encode_picture_header(void)").unwrap(), "flv_encode_picture");
+        assert_eq!(find("total", "t = (o, t); a = l"), None);
+        // Up to two slips: swapped, wrong or extra letters.
+        assert_eq!(find("shcema", "CREATE TABLE schema_info").unwrap(), "schema");
+        assert_eq!(find("recieve_mesage", "fn receive_message(&self)").unwrap(), "receive_message");
+        assert_eq!(find("!importnat", "color: red !important;").unwrap(), "!important");
+        assert_eq!(find("fn mian", "pub fn main() {").unwrap(), "fn main");
+        // Three are too many, and short patterns forgive less.
+        assert_eq!(find("rxcxevx_message", "fn receive_message(&self)"), None);
+        assert_eq!(find("ab", "b a"), None);
+        assert_eq!(find("fo", "foo").unwrap(), "fo");
+        assert!(Loose::new("naïve").is_none());
+    }
+
+    #[test]
     fn counts_missing_letters() {
-        let lcs = |q: &str, p: &str| Lcs::new(q).unwrap().missing(p);
+        let lcs = |q: &str, p: &str| Lcs::new(q, 0).unwrap().missing(p);
         assert_eq!(lcs("session", "src/session.rs"), 0);
         assert_eq!(lcs("SESISON", "src/session.rs"), 1);
         assert_eq!(lcs("zzzz", "src/session.rs"), 4);
         assert_eq!(lcs(&"a".repeat(64), &"a".repeat(70)), 0);
         assert_eq!(lcs(&"ab".repeat(32), "aaaa"), 60);
-        let allowed = |n: usize| Lcs::new(&"a".repeat(n)).map(|l| l.allowed);
+        let allowed = |n: usize| Lcs::for_names(&"a".repeat(n)).map(|l| l.allowed);
         assert_eq!(
             [3, 4, 5, 6, 11, 12, 24, 40].map(allowed),
             [None, Some(1), Some(1), Some(2), Some(2), Some(3), Some(6), Some(6)]

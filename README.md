@@ -125,8 +125,11 @@ Space is the leader key (`l` still moves right).
 - `Space g` greps the project as you type, with the same regex rules as `/`.
   `Enter` opens the file on the match, and `n` goes on to the next one.
   `Ctrl-t` switches to plain text (`[plain]`: `a.b(c)` means just that),
-  then to fuzzy (`[fuzzy]`: a typo, or letters in between, as
-  `UserController` finding `UserAuthController`), then back. The same
+  then to fuzzy (`[fuzzy]`), then back. Fuzzy finds near misses too:
+  letters in between (`UserController` finds `UserAuthController`,
+  `flvencodepicture` finds `ff_flv_encode_picture_header`) and up to two
+  slips (`shcema` finds `schema`), as long as the letters stay close
+  together. It is the slowest of the three. The same
   file filters work in front of or after the pattern (`fn main *.rs
   !tests/`), and files you use often or have changed are searched first.
 - Both skip what `.gitignore` ignores. `Ctrl-o` in either one also searches

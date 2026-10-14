@@ -204,21 +204,15 @@ pub enum GrepMode {
 }
 
 impl GrepMode {
-    /// The regex for `text`, and what `n` then searches for.
-    fn compile(self, text: &str, typos: &[String]) -> Result<regex::Regex, String> {
+    /// The regex for `text`.
+    fn compile(self, text: &str) -> Result<regex::Regex, String> {
         if text.trim().is_empty() {
             return Err("type what to grep for after the filters".into());
         }
         match self {
             GrepMode::Regex => crate::search::compile(text),
-            GrepMode::Plain => crate::search::compile(&regex::escape(text)),
-            GrepMode::Fuzzy => {
-                let all: Vec<String> = std::iter::once(text)
-                    .chain(typos.iter().map(String::as_str))
-                    .map(regex::escape)
-                    .collect();
-                crate::search::compile(&all.join("|"))
-            }
+            // Fuzzy looks for the text itself first, then for near misses.
+            GrepMode::Plain | GrepMode::Fuzzy => crate::search::compile(&regex::escape(text)),
         }
     }
 
@@ -631,7 +625,7 @@ impl Picker {
                         // files; the rest is the pattern.
                         let fq = fff::Query::parse_grep(&q);
                         let mode = self.grep_mode;
-                        mode.compile(&fq.text, &fq.typos()).map(|re| grep::Search {
+                        mode.compile(&fq.text).map(|re| grep::Search {
                             re,
                             fuzzy: (mode == GrepMode::Fuzzy).then(|| fq.text.clone()),
                             first: self.meta.likely(),
@@ -688,9 +682,11 @@ impl Picker {
                     self.ranks = hits.iter().map(|((t, away, _), _)| (*t, !away)).collect();
                     self.rows = hits.into_iter().map(|(_, row)| row).collect();
                 } else {
-                    self.rows = r
-                        .hits
-                        .iter()
+                    // Fuzzy: the pattern itself before its near misses.
+                    let mut hits: Vec<&grep::Hit> = r.hits.iter().collect();
+                    hits.sort_by_key(|h| h.loose);
+                    self.rows = hits
+                        .into_iter()
                         .take(LIMIT)
                         .map(|h| grep_row(h, &files.root))
                         .collect();

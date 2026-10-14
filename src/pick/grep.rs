@@ -23,6 +23,8 @@ pub struct Hit {
     pub end: usize,
     /// The line, cut to `MAX_TEXT` bytes.
     pub text: String,
+    /// Fuzzy: a near miss, not the pattern itself.
+    pub loose: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -43,7 +45,8 @@ pub struct Grep {
 /// What to look for, in which files, and which of them to read first.
 pub struct Search {
     pub re: Regex,
-    /// Fuzzy: also lines the query's letters run through nearly unbroken.
+    /// Fuzzy: also lines with this pattern's letters close together, give
+    /// or take a couple.
     pub fuzzy: Option<String>,
     pub keep: Box<dyn Fn(&str) -> bool + Send>,
     /// Files most likely wanted (used often, changed): their matches lead.
@@ -87,9 +90,7 @@ impl Grep {
     }
 
     fn run(&self, g: u64, search: &Search, files: &Files) {
-        let mut fz = search.fuzzy.as_deref().map(super::fuzzy::Fuzzy::new);
-        // Nearly unbroken: a run of the letters scores about 20 each.
-        let enough = search.fuzzy.as_ref().map_or(0, |q| 18 * q.chars().count()) as u32;
+        let mut loose = search.fuzzy.as_deref().and_then(super::fff::Loose::new);
         // Only listed files, so only once the list is whole.
         let first: Vec<String> = if files.done() {
             files.with(|l| {
@@ -128,12 +129,9 @@ impl Grep {
             };
             let mut hits = vec![];
             for (n, line) in text.lines().enumerate() {
-                let at = search.re.find(line).map(|m| (m.start(), m.end())).or_else(|| {
-                    let fz = fz.as_mut()?;
-                    let line = &line[..line.floor_char_boundary(MAX_TEXT)];
-                    fz.score(line).filter(|&s| s >= enough)?;
-                    let r = fz.ranges(line);
-                    Some((r.first()?.0, r.last()?.1))
+                let exact = search.re.find(line).map(|m| (m.start(), m.end()));
+                let at = exact.or_else(|| {
+                    loose.as_mut()?.find(&line[..line.floor_char_boundary(MAX_TEXT)])
                 });
                 if let Some((col, end)) = at {
                     hits.push(Hit {
@@ -142,6 +140,7 @@ impl Grep {
                         col,
                         end,
                         text: line[..line.floor_char_boundary(MAX_TEXT)].to_string(),
+                        loose: exact.is_none(),
                     });
                     if found + hits.len() == MAX_HITS {
                         break;
