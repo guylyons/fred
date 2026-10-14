@@ -409,17 +409,18 @@ fn entry_point(name: &str) -> bool {
     )
 }
 
-/// One result: the file, and the query it matched if not as typed.
+/// One result: the file, and what of the query it matched if not all.
 pub struct Hit {
     pub idx: usize,
     pub typo: Option<String>,
 }
 
-/// `query` with one character dropped, or two neighbours swapped.
+/// `query` with one character dropped, or two neighbours swapped: what
+/// fuzzy grep also looks for.
 fn typos(query: &str) -> Vec<String> {
     let c: Vec<char> = query.chars().collect();
-    // shortcut: one typo in queries of 4 to 16 letters; fff allows two to
-    // six. Widen if longer misspellings should still match.
+    // shortcut: one typo in patterns of 4 to 16 letters (lines are matched
+    // by regex, one alternative per variant). The file picker forgives more.
     if !(4..=16).contains(&c.len()) || c.iter().any(|c| c.is_whitespace()) {
         return vec![];
     }
@@ -516,40 +517,116 @@ pub fn rank(
         base + frecency + git + commits(f) + meta.distance(f) + filename + current + combo + aligned
     };
     let mut fz = Fuzzy::new(&q.text);
-    let mut hits: Vec<(i32, usize, Option<usize>)> = vec![];
+    let mut hits: Vec<(i32, usize)> = vec![];
     let mut missed = vec![];
     for i in kept {
         match fz.score(&files[i]) {
-            Some(s) => hits.push((score(s as i32, &files[i]), i, None)),
+            Some(s) => hits.push((score(s as i32, &files[i]), i)),
             None => missed.push(i),
         }
     }
-    let variants = if hits.len() < TYPO_BELOW {
-        typos(&q.text)
-    } else {
-        vec![]
+    // Typos: files that lack a few of the query's letters, fewest first.
+    let mut slips: Vec<(u32, usize)> = match Lcs::new(&q.text) {
+        Some(lcs) if hits.len() < TYPO_BELOW => {
+            let near = missed.iter().map(|&i| (lcs.missing(&files[i]), i));
+            near.filter(|&(m, _)| m <= lcs.allowed).collect()
+        }
+        _ => vec![],
     };
-    if !variants.is_empty() {
-        let mut fzs: Vec<Fuzzy> = variants.iter().map(|v| Fuzzy::new(v)).collect();
-        for i in missed {
-            let best = fzs
-                .iter_mut()
-                .enumerate()
-                .filter_map(|(v, fz)| fz.score(&files[i]).map(|s| (s, v)))
-                .max();
-            if let Some((s, v)) = best {
-                // A typo never outranks the same file matched as typed.
-                hits.push((score(s as i32 * 3 / 4, &files[i]), i, Some(v)));
-            }
+    slips.sort_unstable_by_key(|&(m, i)| (m, files[i].len(), i));
+    // shortcut: the 2000 nearest are scored; raise if a huge tree hides a
+    // better two-typo match behind that many.
+    slips.truncate(2000);
+    let mut hits: Vec<(i32, usize, Option<String>)> =
+        hits.into_iter().map(|(s, i)| (s, i, None)).collect();
+    let mut fzs: HashMap<String, Fuzzy> = HashMap::new();
+    for (m, i) in slips {
+        // Match what the file does have of the query, as a query.
+        let had = kept_letters(&q.text, &files[i]);
+        let fz = fzs.entry(had.clone()).or_insert_with(|| Fuzzy::new(&had));
+        if let Some(s) = fz.score(&files[i]) {
+            // Each typo costs: one never outranks the file matched as typed.
+            let base = s as i32 * 3 / (3 + m as i32);
+            hits.push((score(base, &files[i]), i, Some(had)));
         }
     }
     let n = hits.len();
-    hits.sort_unstable_by_key(|&(s, i, _)| (std::cmp::Reverse(s), rec(i), files[i].len(), i));
-    let hits = hits.into_iter().take(limit).map(|(_, idx, v)| Hit {
-        idx,
-        typo: v.map(|v| variants[v].clone()),
-    });
-    (hits.collect(), n)
+    hits.sort_unstable_by_key(|(s, i, _)| (std::cmp::Reverse(*s), rec(*i), files[*i].len(), *i));
+    let hits = hits.into_iter().take(limit);
+    (hits.map(|(_, idx, typo)| Hit { idx, typo }).collect(), n)
+}
+
+/// How many of a query's letters a path lacks, in order: the longest
+/// common subsequence, a machine word at a time (Hyyrö's bit-vectors).
+struct Lcs {
+    /// For each byte, the query positions holding it (letters as lowercase).
+    masks: [u64; 256],
+    len: u32,
+    /// Typos forgiven: fff's a quarter of the letters, two to six, but
+    /// one for four or five letters and none below (two typos in four
+    /// letters would match nearly anything).
+    allowed: u32,
+}
+
+impl Lcs {
+    /// None for queries that are matched only as typed.
+    fn new(query: &str) -> Option<Lcs> {
+        // shortcut: one ASCII word of up to 64 letters; split into words
+        // if multi-word queries should forgive typos too.
+        let n = query.len();
+        if !(4..=64).contains(&n) || !query.is_ascii() || query.contains(' ') {
+            return None;
+        }
+        let mut masks = [0u64; 256];
+        for (i, b) in query.bytes().enumerate() {
+            masks[b.to_ascii_lowercase() as usize] |= 1 << i;
+        }
+        Some(Lcs {
+            masks,
+            len: n as u32,
+            allowed: if n < 6 { 1 } else { (n / 4).clamp(2, 6) as u32 },
+        })
+    }
+
+    fn missing(&self, path: &str) -> u32 {
+        let mut v = !0u64;
+        for b in path.bytes() {
+            let u = v & self.masks[b.to_ascii_lowercase() as usize];
+            v = v.wrapping_add(u) | (v - u);
+        }
+        let all = !0u64 >> (64 - self.len);
+        self.len - (!v & all).count_ones()
+    }
+}
+
+/// The letters of `query` (ASCII) that `path` has, in order: one longest
+/// common subsequence, the latest letters preferred (the file's name).
+fn kept_letters(query: &str, path: &str) -> String {
+    let (q, p) = (query.as_bytes(), path.as_bytes());
+    let same = |i: usize, j: usize| q[i].eq_ignore_ascii_case(&p[j]);
+    // best[i][j]: the longest for q[i..] and p[j..].
+    let mut best = vec![vec![0u16; p.len() + 1]; q.len() + 1];
+    for i in (0..q.len()).rev() {
+        for j in (0..p.len()).rev() {
+            best[i][j] = if same(i, j) {
+                best[i + 1][j + 1] + 1
+            } else {
+                best[i + 1][j].max(best[i][j + 1])
+            };
+        }
+    }
+    let (mut i, mut j, mut out) = (0, 0, String::new());
+    while i < q.len() && j < p.len() {
+        if same(i, j) && best[i][j] == best[i + 1][j + 1] + 1 {
+            out.push(q[i] as char);
+            (i, j) = (i + 1, j + 1);
+        } else if best[i + 1][j] >= best[i][j + 1] {
+            i += 1;
+        } else {
+            j += 1;
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -685,14 +762,46 @@ mod tests {
     }
 
     #[test]
-    fn a_typo_still_finds_the_file() {
-        let files = v(&["src/session.rs", "src/search.rs", "README.md"]);
+    fn typos_still_find_the_file() {
+        let files = v(&["src/session.rs", "src/search.rs", "src/controller.rs", "README.md"]);
         let meta = Meta::default();
-        let (hits, n) = rank(&Query::parse("sesison"), &files, &meta, None, 10);
-        assert_eq!(n, 1);
-        assert_eq!(files[hits[0].idx], "src/session.rs");
-        assert!(hits[0].typo.is_some());
-        // Short queries are matched as typed.
-        assert_eq!(rank(&Query::parse("xq"), &files, &meta, None, 10).1, 0);
+        let found = |q: &str| {
+            let (hits, n) = rank(&Query::parse(q), &files, &meta, None, 10);
+            let top = hits.first().map(|h| (files[h.idx].as_str(), h.typo.clone()));
+            (n, top)
+        };
+        // Swapped letters: the file has all but one of them, in order.
+        assert_eq!(found("sesison"), (1, Some(("src/session.rs", Some("sesson".into())))));
+        // Two slips in a longer word.
+        let (n, top) = found("cnotrolelr");
+        assert_eq!((n, top.unwrap().0), (1, "src/controller.rs"));
+        // A wrong letter, and a doubled one.
+        assert_eq!(found("sezsion").1.unwrap().0, "src/session.rs");
+        assert_eq!(found("reaadme").1.unwrap().0, "README.md");
+        // Too far off, or too short to guess at.
+        assert_eq!(found("cxnxrxlxer").0, 0);
+        assert_eq!(found("xq").0, 0);
+        assert_eq!(found("sqz").0, 0);
+        // As typed wins over a slip.
+        let files = v(&["src/sesion.rs", "src/session.rs"]);
+        let (hits, n) = rank(&Query::parse("sesion"), &files, &meta, None, 10);
+        assert_eq!((n, hits[0].typo.is_none()), (2, true));
+    }
+
+    #[test]
+    fn counts_missing_letters() {
+        let lcs = |q: &str, p: &str| Lcs::new(q).unwrap().missing(p);
+        assert_eq!(lcs("session", "src/session.rs"), 0);
+        assert_eq!(lcs("SESISON", "src/session.rs"), 1);
+        assert_eq!(lcs("zzzz", "src/session.rs"), 4);
+        assert_eq!(lcs(&"a".repeat(64), &"a".repeat(70)), 0);
+        assert_eq!(lcs(&"ab".repeat(32), "aaaa"), 60);
+        let allowed = |n: usize| Lcs::new(&"a".repeat(n)).map(|l| l.allowed);
+        assert_eq!(
+            [3, 4, 5, 6, 11, 12, 24, 40].map(allowed),
+            [None, Some(1), Some(1), Some(2), Some(2), Some(3), Some(6), Some(6)]
+        );
+        assert_eq!(kept_letters("sesison", "src/session.rs"), "sesson");
+        assert_eq!(kept_letters("xyz", "abc"), "");
     }
 }

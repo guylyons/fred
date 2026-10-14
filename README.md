@@ -113,8 +113,10 @@ Space is the leader key (`l` still moves right).
     near the one you are editing rank higher; the one you are editing lower;
   - a match in the file's name beats one in its directories, and the exact
     name beats both;
-  - a slip still matches when little else does: `sesison` finds
-    `session.rs` (one dropped letter or swapped pair).
+  - slips still match when little else does: `sesison` finds `session.rs`
+    and `cnotrolelr` finds `controller.rs`. Swapped, wrong, extra and
+    missing letters all count; a quarter of the letters may be off (two to
+    six), one in a query of four or five, none in shorter ones.
 - Words in the query narrow the files: `*.rs` (extension), `src/` (a
   directory on the way), `**/*_test.go` (glob), `type:rust`,
   `status:modified` / `status:untracked` / `status:unmodified`, and `!` in
