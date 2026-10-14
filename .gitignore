@@ -1,3 +1,33 @@
-/target
-/.superpowers
-/.claude
+# Rust build output
+/target/
+**/*.rs.bk
+
+# macOS
+.DS_Store
+._*
+
+# The Mac app's compiled binary (the bundle's Info.plist is source)
+/macos/Fred.app/Contents/MacOS/
+
+# Editor leftovers
+*.swp
+*.swo
+*~
+\#*\#
+.\#*
+*.orig
+*.rej
+/.idea/
+/.vscode/
+
+# Local tooling state
+/.claude/
+/.superpowers/
+/.worktrees/
+/.jj/
+
+# Secrets and logs
+.env
+.env.*
+!.env.example
+*.log

@@ -309,8 +309,8 @@ fn browse_like_find_file() {
         (Kind::Browse, start.clone())
     );
     let names: Vec<&str> = p.rows.iter().map(|r| r.text.as_str()).collect();
-    // Directories first; dotfiles (`.git/`, `.hidden`) hidden.
-    assert_eq!(names, ["src/", "README.md"]);
+    // Directories first; dotfiles last (`.git/` is never listed).
+    assert_eq!(names, ["src/", "README.md", ".hidden"]);
     // Enter on a directory lists it (dired)...
     keys(&mut ed, "sr<Enter>");
     assert_eq!(
@@ -350,8 +350,11 @@ fn browse_like_find_file() {
     assert_eq!(picker(&ed).query.text, format!("{start}src/"));
     keys(&mut ed, "ma<Left>");
     assert_eq!(picker(&ed).query.text, start);
-    // Dotfiles once the name starts with a dot.
+    // A dotfile matches with or without its dot.
     keys(&mut ed, ".h");
+    assert_eq!(picker(&ed).rows[0].text, ".hidden");
+    query(&mut ed, &format!("{start}hidd"));
+    settle(&mut ed, |p| !p.searching);
     assert_eq!(picker(&ed).rows[0].text, ".hidden");
     // No match: Enter opens a new file of that name.
     query(&mut ed, &start);
@@ -382,7 +385,7 @@ fn browse_searches_below_and_honors_gitignore() {
     browse(&mut ed, d.path());
     // The listing itself hides ignored entries.
     let names: Vec<String> = picker(&ed).rows.iter().map(|r| r.text.clone()).collect();
-    assert_eq!(names, ["src/", "top.txt"]);
+    assert_eq!(names, ["src/", "top.txt", ".gitignore"]);
     keys(&mut ed, "brows");
     settle(&mut ed, |p| !p.searching);
     let p = picker(&ed);

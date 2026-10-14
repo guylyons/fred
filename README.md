@@ -145,7 +145,7 @@ Space is the leader key (`l` still moves right).
   `Tab` or `Right` on a directory goes in and `Enter` lists it (dired),
   `Left` (or `Backspace` after a `/`) goes up a directory, `~/` jumps home, and `Enter` on a name
   that doesn't exist starts a new file. It starts in the current file's
-  directory. Dotfiles show once you type a `.`.
+  directory. Dotfiles are listed too, below the rest (never `.git/`).
 - `Space O` shows the directory you are in (the current file's, or the one
   Dired lists) in Finder, or the system's file manager.
 - `Space b` lists the open buffers (like `:ls`); type to filter. `Ctrl-^`

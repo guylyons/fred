@@ -412,7 +412,8 @@ impl Picker {
                     .as_ref()
                     .is_none_or(|l| (&l.0, l.1) != (&dir, hidden))
                 {
-                    self.listing = Some((dir.clone(), hidden, browse::list(&dir, hidden)));
+                    // Dotfiles too, as Emacs's find-file shows them.
+                    self.listing = Some((dir.clone(), hidden, browse::list(&dir, true)));
                     let recent = project.recent_file.as_deref().map(recent::load);
                     self.recent = browse::history(&recent.unwrap_or_default(), &dir);
                 }
@@ -454,7 +455,12 @@ impl Picker {
                     .map(|e| format!("{}/", e.name))
                     .collect();
                 match &walk {
-                    Some(w) if !hidden => w.with(|l| cands.extend(l.iter().cloned())),
+                    Some(w) if !hidden => {
+                        w.with(|l| cands.extend(l.iter().cloned()));
+                        // The walk below skips dotfiles: this directory's own.
+                        let dots = entries.iter().filter(|e| !e.dir && e.name.starts_with('.'));
+                        cands.extend(dots.map(|e| e.name.clone()));
+                    }
                     _ => cands.extend(entries.iter().filter(|e| !e.dir).map(|e| e.name.clone())),
                 }
                 let mut fz = fuzzy::Fuzzy::new(name);
@@ -467,9 +473,12 @@ impl Picker {
                 // As vertico: recently opened first, then the best match,
                 // then shorter paths (nearer this directory), then by name.
                 let rec = |i: usize| self.recent.get(&cands[i]).copied().unwrap_or(usize::MAX);
+                // With nothing typed, dotfiles go below the rest.
+                let dot = |i: usize| name.is_empty() && cands[i].starts_with('.');
                 hits.sort_by(|&(s, i), &(t, j)| {
-                    (rec(i), std::cmp::Reverse(s), cands[i].len(), &cands[i]).cmp(&(
+                    (rec(i), dot(i), std::cmp::Reverse(s), cands[i].len(), &cands[i]).cmp(&(
                         rec(j),
+                        dot(j),
                         std::cmp::Reverse(t),
                         cands[j].len(),
                         &cands[j],
