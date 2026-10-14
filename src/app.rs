@@ -30,6 +30,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+/// How often the current file is checked for changes on disk.
+const AUTOREAD: Duration = Duration::from_secs(1);
+
 const TICK: Duration = Duration::from_millis(50);
 const HIGHLIGHT_BUDGET: Duration = Duration::from_millis(20);
 /// How long to wait for more pending input before drawing. Not zero: with
@@ -701,6 +704,7 @@ fn event_loop(
     // Draw only when something changed: an idle fred costs no CPU and sends
     // nothing to the terminal (which matters over SSH).
     let mut dirty = true;
+    let mut checked = Instant::now();
     loop {
         if dirty {
             ui.draw(s, hl, cfg)?;
@@ -757,6 +761,13 @@ fn event_loop(
         }
         if s.quit {
             return Ok(0);
+        }
+        if checked.elapsed() >= AUTOREAD {
+            checked = Instant::now();
+            if s.auto_read() {
+                hl.invalidate(0);
+                dirty = true;
+            }
         }
         if s.tick_magit() {
             dirty = true;

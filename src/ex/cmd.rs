@@ -22,6 +22,8 @@ pub enum ExEffect {
         then_quit: bool,
     },
     WriteIfModifiedQuit,
+    /// Show a directory in the system's file manager.
+    Reveal(std::path::PathBuf),
     Quit {
         force: bool,
     },

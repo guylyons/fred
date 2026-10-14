@@ -421,6 +421,7 @@ impl Session {
                 Err(e) => self.ed.set_err(fileio::err_msg(&e)),
             },
             ExEffect::Cd(dir) => self.cd(dir.as_deref()),
+            ExEffect::Reveal(dir) => self.browse(&dir.to_string_lossy()),
             ExEffect::Open {
                 path,
                 line,
@@ -574,6 +575,27 @@ impl Session {
         if force && self.cur != before && self.ed_at(before).buf.modified {
             self.buffer(BufCmd::Delete, &(before + 1).to_string(), true);
         }
+    }
+
+    /// Vim's 'autoread': reload the current file when it changed on disk and
+    /// the buffer has no unsaved changes. True when it reloaded.
+    pub fn auto_read(&mut self) -> bool {
+        let ed = &self.ed;
+        let stale = !ed.buf.modified
+            && !ed.generated()
+            && ed.commit_repo.is_none()
+            && ed.path.as_ref().is_some_and(|p| {
+                // A deleted file keeps its buffer.
+                p.is_file() && fileio::changed_on_disk(p, self.stamp.as_ref())
+            });
+        if !stale {
+            return false;
+        }
+        let (line, byte) = (self.ed.cur.line, self.ed.cur.byte);
+        self.edit(None, false);
+        self.ed.set_cursor(line, byte);
+        self.ed.set_msg("file changed on disk: reloaded");
+        true
     }
 
     /// `:cd [dir]`: change directory (home without one). Relative paths,
@@ -1332,6 +1354,23 @@ mod tests {
         let mut u = T::open(None, None);
         u.keys(":e!<Enter>");
         assert!(u.msg().contains("no file name"), "{}", u.msg());
+    }
+
+    #[test]
+    fn auto_read_reloads_unmodified_buffers_only() {
+        let mut t = T::open(Some("f"), Some("one\ntwo\n"));
+        assert!(!t.s.auto_read());
+        t.keys("j");
+        fs::write(t.dir.path().join("f"), "uno\ndos\ntres\n").unwrap();
+        assert!(t.s.auto_read());
+        assert_eq!(t.s.ed.buf.text(), "uno\ndos\ntres");
+        assert_eq!(t.s.ed.cur.line, 1);
+        assert!(!t.s.auto_read());
+        // Unsaved changes win: `:w` reports the conflict instead.
+        t.keys("x");
+        fs::write(t.dir.path().join("f"), "theirs\n").unwrap();
+        assert!(!t.s.auto_read());
+        assert_eq!(t.s.ed.buf.text(), "uno\nos\ntres");
     }
 
     #[test]

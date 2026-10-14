@@ -655,7 +655,8 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
         // `Space k` searches this file's lines, `Space j` browses files,
         // `Space r` lists recent files, `Space b` lists open buffers,
         // `Space B` searches their lines, `Space d` goes to a definition,
-        // `Space -` lists the file's directory (dired), `Space Enter` saves,
+        // `Space -` lists the file's directory (dired), `Space O` shows it in
+        // the file manager, `Space Enter` saves,
         // `Space ;` closes.
         (KeyCode::Char(' '), false) => match arg {
             Some('s') => crate::zap::open(ed),
@@ -692,20 +693,13 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
                         .map(|n| n.to_string_lossy().into_owned()),
                 });
             }
-            // Find-file from the listed directory, else the current file's
-            // directory, else the cwd.
+            // Find-file from the directory you are in.
             Some('j') => {
-                let dir = match &ed.dired {
-                    Some(d) => d.dir.clone(),
-                    None => ed
-                        .path
-                        .as_deref()
-                        .and_then(|p| std::path::absolute(p).ok())
-                        .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
-                        .unwrap_or_else(|| std::path::PathBuf::from(".")),
-                };
+                let dir = here(ed);
                 crate::pick::browse(ed, &dir);
             }
+            // That directory in the system's file manager (Finder).
+            Some('O') => ed.pending_effect = Some(ExEffect::Reveal(here(ed))),
             Some('\n') => {
                 ed.pending_effect = Some(ExEffect::Write {
                     path: None,
@@ -739,3 +733,17 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
 
 #[cfg(test)]
 mod tests;
+
+/// The directory you are in: the listed one (dired), else the current
+/// file's, else the working directory.
+fn here(ed: &Editor) -> std::path::PathBuf {
+    match &ed.dired {
+        Some(d) => d.dir.clone(),
+        None => ed
+            .path
+            .as_deref()
+            .and_then(|p| std::path::absolute(p).ok())
+            .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| ".".into())),
+    }
+}

@@ -4239,7 +4239,7 @@ impl Session {
         );
     }
     /// browse-url: the system's opener, detached.
-    fn browse(&mut self, url: &str) {
+    pub(super) fn browse(&mut self, url: &str) {
         let opener = if cfg!(target_os = "macos") {
             "open"
         } else {
