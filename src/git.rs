@@ -166,6 +166,35 @@ pub fn status(root: &Path) -> Option<HashMap<String, FileState>> {
     out.status.success().then(|| parse_status(&out.stdout))
 }
 
+/// How many of the last ten commits touched each file (paths relative to
+/// the top level). Merges and sweeping commits (over 50 files) don't count.
+pub fn recent_commits(root: &Path) -> HashMap<String, i16> {
+    let out = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["log", "-n", "50", "--no-merges", "--name-only", "-z"])
+        .arg("--format=%x01")
+        .env("GIT_OPTIONAL_LOCKS", "0")
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output();
+    let mut map = HashMap::new();
+    let Ok(out) = out else { return map };
+    let text = String::from_utf8_lossy(&out.stdout);
+    let commits = text.split('\x01').skip(1).map(|c| {
+        c.split('\0')
+            .map(|f| f.trim_start_matches('\n'))
+            .filter(|f| !f.is_empty())
+            .collect::<Vec<_>>()
+    });
+    for files in commits.filter(|f| f.len() <= 50).take(10) {
+        for f in files {
+            *map.entry(f.to_string()).or_insert(0) += 1;
+        }
+    }
+    map
+}
+
 /// `XY path\0` entries; a rename or copy is followed by its old path.
 fn parse_status(out: &[u8]) -> HashMap<String, FileState> {
     let mut map = HashMap::new();

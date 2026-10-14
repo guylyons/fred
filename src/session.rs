@@ -338,6 +338,9 @@ impl Session {
             self.ed.clamp_cursor();
         }
         crate::pick::recent::record(&rf, &p, None);
+        // Each open counts toward the file's frecency in `Space p`.
+        let now = crate::pick::fff::now();
+        crate::pick::fff::track(&rf.with_file_name("frecency"), &p, now);
     }
 
     /// Remember where the cursor is in this file, for next time.
@@ -697,10 +700,20 @@ impl Session {
     }
 
     /// A dired buffer for `dir` (the one already open, if any), the cursor
-    /// on the entry named `focus`.
+    /// on the entry named `focus`: else on the file (or subdirectory) you
+    /// came from, else where it already was.
     fn open_dired(&mut self, dir: &Path, focus: Option<&str>) {
+        let root = swap::canonical(dir);
+        let from = focus.map(str::to_owned).or_else(|| {
+            let p = swap::canonical(self.ed.path.as_deref()?);
+            let first = p.strip_prefix(&root).ok()?.components().next()?;
+            Some(first.as_os_str().to_string_lossy().into_owned())
+        });
+        let focus = from.as_deref();
         if let Some(i) = self.find(dir) {
             self.show(i);
+            let kept = from.clone().or_else(|| crate::dired::current(&self.ed));
+            let focus = kept.as_deref();
             if let Err(e) = crate::dired::visit(&mut self.ed, dir, focus) {
                 self.ed.set_err(e);
             }
@@ -1593,6 +1606,32 @@ mod tests {
             (info.pid, info.text.as_str()),
             (std::process::id(), "bbb recovered\n")
         );
+    }
+
+    #[test]
+    fn dired_opens_on_the_file_you_came_from() {
+        let mut t = T::open(Some("m.txt"), Some("hi\n"));
+        let dir = t.dir.path().to_path_buf();
+        for f in ["a.txt", "z.txt"] {
+            fs::write(dir.join(f), "x").unwrap();
+        }
+        fs::create_dir(dir.join("sub")).unwrap();
+        fs::write(dir.join("sub/inner.txt"), "x").unwrap();
+        let here = |t: &T| crate::dired::current(&t.s.ed).unwrap_or_default();
+        t.keys(&format!(":e {}<Enter>", dir.display()));
+        assert_eq!(here(&t), "m.txt");
+        // From deeper down: the subdirectory that leads there.
+        t.keys(&format!(":e {}<Enter>", dir.join("sub/inner.txt").display()));
+        t.keys(&format!(":e {}<Enter>", dir.display()));
+        assert_eq!(here(&t), "sub");
+        // From elsewhere: wherever the cursor was.
+        t.keys("k");
+        let was = here(&t);
+        let other = tempfile::tempdir().unwrap();
+        fs::write(other.path().join("o"), "x").unwrap();
+        t.keys(&format!(":e {}<Enter>", other.path().join("o").display()));
+        t.keys(&format!(":e {}<Enter>", dir.display()));
+        assert_eq!(here(&t), was);
     }
 
     #[test]

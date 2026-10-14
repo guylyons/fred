@@ -116,6 +116,97 @@ fn selection_moves_and_clamps() {
     assert_eq!(picker(&ed).sel, 0, "a new query selects the best match");
 }
 
+/// A project whose opens and picks are remembered (in its `state/`).
+fn remembering(files: &[(&str, &str)]) -> (tempfile::TempDir, Editor) {
+    let (d, mut ed) = setup(files);
+    let recent = d.path().join("state/recent");
+    ed.project = Arc::new(Project::new(Some(d.path().to_path_buf()), Some(recent)));
+    ed.project.set_all(true); // `state/` is not hidden by an ignore file
+    ed.project.files().wait();
+    (d, ed)
+}
+
+#[test]
+fn find_ranks_like_fff() {
+    let (d, mut ed) = remembering(&[
+        ("src/pick/model.rs", "one\ntwo\nthree\n"),
+        ("src/ui/model.rs", ""),
+        ("docs/model.md", ""),
+    ]);
+    let top = |ed: &Editor| picker(ed).rows[0].text.clone();
+    // Opened often lately: first, typed or not.
+    let frecency = d.path().join("state/frecency");
+    for _ in 0..10 {
+        fff::track(&frecency, &d.path().join("docs/model.md"), fff::now());
+    }
+    keys(&mut ed, " p");
+    assert_eq!(top(&ed), "docs/model.md");
+    keys(&mut ed, "model");
+    assert_eq!(top(&ed), "docs/model.md");
+    // Filters narrow it, and `:line:col` says where to land.
+    query(&mut ed, "model *.rs");
+    assert_eq!(picker(&ed).rows.len(), 2);
+    query(&mut ed, "*.rs !ui/ model:2:3");
+    assert_eq!(picker(&ed).rows.len(), 1);
+    keys(&mut ed, "<Enter>");
+    assert_eq!(
+        ed.pending_effect,
+        Some(ExEffect::Open {
+            path: d.path().join("src/pick/model.rs"),
+            line: 1,
+            col: 2,
+            pattern: None,
+        })
+    );
+    // What a query led to three times running leads next time.
+    for _ in 0..3 {
+        keys(&mut ed, "<Esc> p");
+        query(&mut ed, "model");
+        keys(&mut ed, "<C-n><C-n><C-p>");
+        let picked = picker(&ed).rows[picker(&ed).sel].text.clone();
+        assert_ne!(picked, "docs/model.md");
+        keys(&mut ed, "<Enter>");
+    }
+    keys(&mut ed, "<Esc> p");
+    query(&mut ed, "model");
+    assert_ne!(top(&ed), "docs/model.md");
+    // A slip of the fingers still finds it.
+    query(&mut ed, "mdoel.md");
+    assert_eq!(top(&ed), "docs/model.md");
+}
+
+#[test]
+fn grep_filters_and_modes() {
+    let (_d, mut ed) = setup(&[
+        ("src/a.rs", "let total = a.b(c);\n"),
+        ("src/a.md", "a.b(c) and axb(c)\n"),
+        ("tests/t.rs", "a.b(c)\nUserAuthController\n"),
+    ]);
+    // As a regex, `.` and the parentheses are not themselves.
+    keys(&mut ed, " g");
+    query(&mut ed, "a.b(c) *.rs !tests/");
+    std::thread::sleep(DEBOUNCE);
+    settle(&mut ed, |p| p.status.contains("matches") || p.err);
+    assert!(picker(&ed).rows.is_empty(), "{:?}", picker(&ed).rows);
+    // Plain text: the files the filters leave.
+    keys(&mut ed, "<C-t>");
+    settle(&mut ed, |p| p.status == "1 matches [plain]");
+    assert_eq!(picker(&ed).rows[0].text, "src/a.rs:1: let total = a.b(c);");
+    // Fuzzy: letters in between, or a typo.
+    keys(&mut ed, "<C-t>");
+    query(&mut ed, "UserController");
+    std::thread::sleep(DEBOUNCE);
+    settle(&mut ed, |p| p.status == "1 matches [fuzzy]");
+    query(&mut ed, "toatl");
+    std::thread::sleep(DEBOUNCE);
+    settle(&mut ed, |p| p.status == "1 matches [fuzzy]");
+    assert!(picker(&ed).rows[0].text.starts_with("src/a.rs:1:"));
+    // Filters alone are not a pattern.
+    query(&mut ed, "*.rs");
+    std::thread::sleep(DEBOUNCE);
+    settle(&mut ed, |p| p.err);
+}
+
 #[test]
 fn grep_a_pattern() {
     let (d, mut ed) = setup(&[

@@ -609,6 +609,11 @@ fn entry_at(ed: &Editor, line: usize) -> Option<&Entry> {
     line.checked_sub(HEADER).and_then(|i| d.entries.get(i))
 }
 
+/// The name of the entry under the cursor.
+pub fn current(ed: &Editor) -> Option<String> {
+    entry_at(ed, ed.cur.line).map(|e| e.name.clone())
+}
+
 fn line_of(ed: &Editor, name: &str) -> Option<usize> {
     let d = ed.dired.as_ref()?;
     d.entries

@@ -3,6 +3,7 @@
 use super::files::Files;
 use crate::complete::nearby::read_text;
 use regex::Regex;
+use std::collections::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -39,16 +40,41 @@ pub struct Grep {
     results: Mutex<Results>,
 }
 
+/// What to look for, in which files, and which of them to read first.
+pub struct Search {
+    pub re: Regex,
+    /// Fuzzy: also lines the query's letters run through nearly unbroken.
+    pub fuzzy: Option<String>,
+    pub keep: Box<dyn Fn(&str) -> bool + Send>,
+    /// Files most likely wanted (used often, changed): their matches lead.
+    pub first: Vec<String>,
+}
+
+impl Search {
+    pub fn regex(re: Regex) -> Search {
+        Search {
+            re,
+            fuzzy: None,
+            keep: Box::new(|_| true),
+            first: vec![],
+        }
+    }
+}
+
 impl Grep {
     /// Start grepping `files` for `re`; returns the new generation.
     pub fn start(self: &Arc<Self>, re: Regex, files: Arc<Files>) -> u64 {
+        self.search(Search::regex(re), files)
+    }
+
+    pub fn search(self: &Arc<Self>, search: Search, files: Arc<Files>) -> u64 {
         let g = self.generation.fetch_add(1, Ordering::SeqCst) + 1;
         *self.results.lock().unwrap() = Results {
             generation: g,
             ..Results::default()
         };
         let me = Arc::clone(self);
-        std::thread::spawn(move || me.run(g, &re, &files));
+        std::thread::spawn(move || me.run(g, &search, &files));
         g
     }
 
@@ -60,7 +86,21 @@ impl Grep {
         self.generation.load(Ordering::SeqCst) == g
     }
 
-    fn run(&self, g: u64, re: &Regex, files: &Files) {
+    fn run(&self, g: u64, search: &Search, files: &Files) {
+        let mut fz = search.fuzzy.as_deref().map(super::fuzzy::Fuzzy::new);
+        // Nearly unbroken: a run of the letters scores about 20 each.
+        let enough = search.fuzzy.as_ref().map_or(0, |q| 18 * q.chars().count()) as u32;
+        // Only listed files, so only once the list is whole.
+        let first: Vec<String> = if files.done() {
+            files.with(|l| {
+                let listed: HashSet<&str> = l.iter().map(String::as_str).collect();
+                let first = search.first.iter().filter(|f| listed.contains(f.as_str()));
+                first.cloned().collect()
+            })
+        } else {
+            vec![]
+        };
+        let led: HashSet<&str> = first.iter().map(String::as_str).collect();
         let mut i = 0;
         let mut found = 0;
         loop {
@@ -68,26 +108,39 @@ impl Grep {
                 return;
             }
             // The file list may still be growing.
-            let next = files.with(|l| l.get(i).cloned());
+            let next = match first.get(i) {
+                Some(f) => Some(f.clone()),
+                None => files.with(|l| l.get(i - first.len()).cloned()),
+            };
             let Some(rel) = next else {
-                if files.done() && i >= files.len() {
+                if files.done() && i - first.len() >= files.len() {
                     break;
                 }
                 std::thread::sleep(Duration::from_millis(5));
                 continue;
             };
             i += 1;
+            if (i > first.len() && led.contains(rel.as_str())) || !(search.keep)(&rel) {
+                continue;
+            }
             let Some(text) = read_text(&files.root.join(&rel), MAX_FILE) else {
                 continue;
             };
             let mut hits = vec![];
             for (n, line) in text.lines().enumerate() {
-                if let Some(m) = re.find(line) {
+                let at = search.re.find(line).map(|m| (m.start(), m.end())).or_else(|| {
+                    let fz = fz.as_mut()?;
+                    let line = &line[..line.floor_char_boundary(MAX_TEXT)];
+                    fz.score(line).filter(|&s| s >= enough)?;
+                    let r = fz.ranges(line);
+                    Some((r.first()?.0, r.last()?.1))
+                });
+                if let Some((col, end)) = at {
                     hits.push(Hit {
                         path: rel.clone(),
                         line: n,
-                        col: m.start(),
-                        end: m.end(),
+                        col,
+                        end,
                         text: line[..line.floor_char_boundary(MAX_TEXT)].to_string(),
                     });
                     if found + hits.len() == MAX_HITS {
@@ -162,6 +215,28 @@ mod tests {
             .collect();
         assert_eq!(got, [("a.rs", 0, 0, 7), ("a.rs", 2, 0, 8)]);
         assert!(r.done && !r.capped);
+    }
+
+    #[test]
+    fn filters_fuzzy_lines_and_likely_files_first() {
+        let (_d, files) = project(&[
+            ("a.rs", "struct UserAuthController;\nlet u = controller(user);\n"),
+            ("b.md", "the UserController\n"),
+            ("z.rs", "UserController::new()\n"),
+        ]);
+        files.wait();
+        let g = Arc::new(Grep::default());
+        let search = Search {
+            re: Regex::new("UserController").unwrap(),
+            fuzzy: Some("UserController".into()),
+            keep: Box::new(|f| f.ends_with(".rs")),
+            first: vec!["z.rs".into(), "gone.rs".into()],
+        };
+        let r = g.wait(g.search(search, files));
+        let got: Vec<_> = r.hits.iter().map(|h| (h.path.as_str(), h.line)).collect();
+        // The scattered letters on a.rs's second line are no match.
+        assert_eq!(got, [("z.rs", 0), ("a.rs", 0)]);
+        assert_eq!((r.hits[1].col, r.hits[1].end), (7, 25));
     }
 
     #[test]

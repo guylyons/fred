@@ -103,10 +103,30 @@ Space is the leader key (`l` still moves right).
   ignores case unless you type a capital. Only whole words visible in the text
   area participate, including wrapped rows and horizontally scrolled text.
 - `Space p` finds a file. Type a few letters of its path in any order that
-  follows the path: `sesrs` finds `src/session.rs`. With nothing typed you
-  see the files you opened most recently first.
+  follows the path: `sesrs` finds `src/session.rs`. It ranks as
+  [fff](https://github.com/dmtrKovalenko/fff) does:
+  - files you open often and lately come first (each open counts, halving
+    every ten days), with nothing typed too;
+  - the file a query led to before leads again, strongly from the third
+    time you pick it for that query;
+  - files git shows as changed, files in the last ten commits, and files
+    near the one you are editing rank higher; the one you are editing lower;
+  - a match in the file's name beats one in its directories, and the exact
+    name beats both;
+  - a slip still matches when little else does: `sesison` finds
+    `session.rs` (one dropped letter or swapped pair).
+- Words in the query narrow the files: `*.rs` (extension), `src/` (a
+  directory on the way), `**/*_test.go` (glob), `type:rust`,
+  `status:modified` / `status:untracked` / `status:unmodified`, and `!` in
+  front of any of them for "not". `name:12` or `name:12:3` opens the file
+  at that line and column.
 - `Space g` greps the project as you type, with the same regex rules as `/`.
   `Enter` opens the file on the match, and `n` goes on to the next one.
+  `Ctrl-t` switches to plain text (`[plain]`: `a.b(c)` means just that),
+  then to fuzzy (`[fuzzy]`: a typo, or letters in between, as
+  `UserController` finding `UserAuthController`), then back. The same
+  file filters work in front of or after the pattern (`fn main *.rs
+  !tests/`), and files you use often or have changed are searched first.
 - Both skip what `.gitignore` ignores. `Ctrl-o` in either one also searches
   ignored files (Drupal core, `vendor/`), marked `[all]`, until you press it
   again.

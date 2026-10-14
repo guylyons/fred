@@ -4,6 +4,7 @@
 
 pub mod browse;
 pub mod def;
+pub mod fff;
 pub mod files;
 pub mod fuzzy;
 pub mod grep;
@@ -74,22 +75,7 @@ impl Project {
         use crate::git::FileState;
         let root = crate::complete::nearby::repo_root(if dir { path } else { path.parent()? })?;
         let rel = path.strip_prefix(&root).ok()?.to_str()?.to_string();
-        let slot = {
-            let mut m = self.status.lock().ok()?;
-            let slot = m.entry(root.clone()).or_insert_with(|| {
-                let slot: Arc<Mutex<Option<Status>>> = Arc::default();
-                let (out, loaded) = (Arc::clone(&slot), Arc::clone(&self.status_loaded));
-                std::thread::spawn(move || {
-                    let st = crate::git::status(&root).unwrap_or_default();
-                    if let Ok(mut o) = out.lock() {
-                        *o = Some(st);
-                    }
-                    loaded.store(true, Ordering::Release);
-                });
-                slot
-            });
-            Arc::clone(slot)
-        };
+        let slot = self.status_slot(&root)?;
         let st = slot.lock().ok()?;
         let st = st.as_ref()?;
         if !dir {
@@ -112,6 +98,55 @@ impl Project {
                 FileState::New
             },
         )
+    }
+
+    /// `git status` for the repository at `root`, loading in the background.
+    fn status_slot(&self, root: &Path) -> Option<Arc<Mutex<Option<Status>>>> {
+        let root = root.to_path_buf();
+        let mut m = self.status.lock().ok()?;
+        let slot = m.entry(root.clone()).or_insert_with(|| {
+            let slot: Arc<Mutex<Option<Status>>> = Arc::default();
+            let (out, loaded) = (Arc::clone(&slot), Arc::clone(&self.status_loaded));
+            std::thread::spawn(move || {
+                let st = crate::git::status(&root).unwrap_or_default();
+                if let Ok(mut o) = out.lock() {
+                    *o = Some(st);
+                }
+                loaded.store(true, Ordering::Release);
+            });
+            slot
+        });
+        Some(Arc::clone(slot))
+    }
+
+    /// The whole of it, once loaded.
+    fn status_at(&self, root: &Path) -> Option<Status> {
+        self.status_slot(root)?.lock().ok()?.clone()
+    }
+
+    /// A state file beside the recent-files list (`frecency`, `queries`).
+    fn state_file(&self, name: &str) -> Option<PathBuf> {
+        Some(self.recent_file.as_ref()?.with_file_name(name))
+    }
+
+    /// What ranks the project's files, but for `git status` (still loading).
+    fn meta(&self) -> fff::Meta {
+        let root = self.files().root.clone();
+        fff::Meta {
+            access: self
+                .state_file("frecency")
+                .map(|f| fff::access_scores(&f, &root, fff::now()))
+                .unwrap_or_default(),
+            // shortcut: `git log` runs as the picker opens (milliseconds);
+            // move it to the status thread if a repository makes it felt.
+            commits: if root.join(".git").exists() {
+                crate::git::recent_commits(&root)
+            } else {
+                HashMap::new()
+            },
+            recent: self.recent(),
+            ..fff::Meta::default()
+        }
     }
 
     /// Forget `git status`: a file picker opening reads it fresh.
@@ -156,6 +191,46 @@ pub enum Kind {
     Def,
 }
 
+/// How `Space g` reads its pattern (`Ctrl-t` goes to the next).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum GrepMode {
+    /// A regex, as `/`.
+    #[default]
+    Regex,
+    /// The text as typed.
+    Plain,
+    /// The text, give or take a typo or letters in between.
+    Fuzzy,
+}
+
+impl GrepMode {
+    /// The regex for `text`, and what `n` then searches for.
+    fn compile(self, text: &str, typos: &[String]) -> Result<regex::Regex, String> {
+        if text.trim().is_empty() {
+            return Err("type what to grep for after the filters".into());
+        }
+        match self {
+            GrepMode::Regex => crate::search::compile(text),
+            GrepMode::Plain => crate::search::compile(&regex::escape(text)),
+            GrepMode::Fuzzy => {
+                let all: Vec<String> = std::iter::once(text)
+                    .chain(typos.iter().map(String::as_str))
+                    .map(regex::escape)
+                    .collect();
+                crate::search::compile(&all.join("|"))
+            }
+        }
+    }
+
+    fn tag(self) -> &'static str {
+        match self {
+            GrepMode::Regex => "",
+            GrepMode::Plain => " [plain]",
+            GrepMode::Fuzzy => " [fuzzy]",
+        }
+    }
+}
+
 /// One result: what to show and where it leads.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Row {
@@ -186,8 +261,14 @@ pub struct Picker {
     pub err: bool,
     /// Browse: files below are still being listed (no match isn't final).
     pub searching: bool,
-    /// Files, Browse: candidate → recent rank (0 = newest).
+    /// Browse: candidate → recent rank (0 = newest).
     recent: HashMap<String, usize>,
+    /// Files: what ranks them, whether `git status` is in it yet, and the
+    /// file this query led to before (and how many times running).
+    meta: fff::Meta,
+    seen_status: bool,
+    combo: Option<(String, u32)>,
+    pub grep_mode: GrepMode,
     /// What `rows` were built from. Files: query, file count, walk done.
     seen_files: Option<(String, usize, bool)>,
     /// Grep: generation, hits, done.
@@ -226,11 +307,15 @@ impl Picker {
             status: String::new(),
             err: false,
             searching: false,
-            recent: if kind == Kind::Files {
-                project.recent()
+            recent: HashMap::new(),
+            meta: if matches!(kind, Kind::Files | Kind::Grep) {
+                project.meta()
             } else {
-                HashMap::new()
+                fff::Meta::default()
             },
+            seen_status: false,
+            combo: None,
+            grep_mode: GrepMode::default(),
             seen_files: None,
             seen_grep: (0, 0, false),
             started: None,
@@ -451,29 +536,45 @@ impl Picker {
             Kind::Files => {
                 let files = project.files();
                 let n = files.len();
-                let q = &self.query.text;
-                let now = Some((q.clone(), n, files.done()));
+                if !self.seen_status
+                    && let Some(st) = project.status_at(&files.root)
+                {
+                    self.meta.set_status(&files.root, st, fff::now());
+                    self.seen_status = true;
+                    self.seen_files = None;
+                }
+                let now = Some((self.query.text.clone(), n, files.done()));
                 if now == self.seen_files {
                     return false;
                 }
-                if self.seen_files.as_ref().is_none_or(|s| s.0 != *q) {
+                if self.seen_files.as_ref().is_none_or(|s| s.0 != self.query.text) {
                     self.sel = 0;
+                    self.combo = project
+                        .state_file("queries")
+                        .and_then(|f| fff::last_query(&f, &files.root, &self.query.text));
                 }
                 self.seen_files = now;
-                let (idx, matched) = files.with(|l| fuzzy::rank(q, l, &self.recent, LIMIT));
-                let mut fz = fuzzy::Fuzzy::new(q);
+                let q = fff::Query::parse(&self.query.text);
+                let (hits, matched) =
+                    files.with(|l| fff::rank(&q, l, &self.meta, self.combo.as_ref(), LIMIT));
+                // `name:12:3` opens there.
+                let (line, col) = q.at.map_or((0, 0), |(l, c)| (l - 1, c - 1));
+                let mut fzs: HashMap<&str, fuzzy::Fuzzy> = HashMap::new();
                 self.rows = files.with(|l| {
-                    idx.iter()
-                        .map(|&i| Row {
-                            hl: if q.is_empty() {
+                    hits.iter()
+                        .map(|h| Row {
+                            hl: if q.text.is_empty() {
                                 vec![]
                             } else {
-                                fz.ranges(&l[i])
+                                let as_matched = h.typo.as_deref().unwrap_or(&q.text);
+                                fzs.entry(as_matched)
+                                    .or_insert_with(|| fuzzy::Fuzzy::new(as_matched))
+                                    .ranges(&l[h.idx])
                             },
-                            text: l[i].clone(),
-                            path: files.root.join(&l[i]),
-                            line: 0,
-                            col: 0,
+                            text: l[h.idx].clone(),
+                            path: files.root.join(&l[h.idx]),
+                            line,
+                            col,
                             code: None,
                         })
                         .collect()
@@ -493,6 +594,17 @@ impl Picker {
                 let files = project.files();
                 let q = self.query.text.clone();
                 let mut changed = false;
+                if self.kind == Kind::Grep
+                    && !self.seen_status
+                    && let Some(st) = project.status_at(&files.root)
+                {
+                    // Changed files are read first, and `status:` can filter.
+                    self.meta.set_status(&files.root, st, fff::now());
+                    self.seen_status = true;
+                    if q.contains("status:") || q.contains("git:") {
+                        self.started = None;
+                    }
+                }
                 if self.started.as_deref() != Some(&q) && now >= self.changed + DEBOUNCE {
                     self.started = Some(q.clone());
                     if q.is_empty() {
@@ -503,15 +615,27 @@ impl Picker {
                         self.seen_grep = (0, 0, false);
                         return true;
                     }
-                    let re = if self.kind == Kind::Def {
-                        def::regex(&q)
+                    let search = if self.kind == Kind::Def {
+                        def::regex(&q).map(grep::Search::regex)
                     } else {
-                        crate::search::compile(&q)
+                        // `*.rs`, `src/`, `type:rust` and the like pick the
+                        // files; the rest is the pattern.
+                        let fq = fff::Query::parse_grep(&q);
+                        let mode = self.grep_mode;
+                        mode.compile(&fq.text, &fq.typos()).map(|re| grep::Search {
+                            re,
+                            fuzzy: (mode == GrepMode::Fuzzy).then(|| fq.text.clone()),
+                            first: self.meta.likely(),
+                            keep: {
+                                let status = self.meta.status.clone();
+                                Box::new(move |f| fq.keeps(f, &status))
+                            },
+                        })
                     };
-                    match re {
-                        Ok(re) => {
+                    match search {
+                        Ok(search) => {
                             self.err = false;
-                            project.grep.start(re, Arc::clone(&files));
+                            project.grep.search(search, Arc::clone(&files));
                         }
                         Err(e) => {
                             // Keep the last results; say why they didn't change.
@@ -572,7 +696,8 @@ impl Picker {
                     (true, _) => format!("{n}+ {what}"),
                     (_, true) => format!("{n} {what}"),
                     _ => format!("{n} {what}…"),
-                } + all_tag(&files);
+                } + self.grep_mode.tag()
+                    + all_tag(&files);
                 self.sel = self.sel.min(self.rows.len().saturating_sub(1));
                 true
             }
@@ -721,6 +846,11 @@ pub fn open(ed: &mut Editor, kind: Kind) {
             .map(|f| (browse::tilde(&f), f, 0))
             .collect();
     }
+    if kind == Kind::Files {
+        let root = ed.project.files().root.clone();
+        let me = ed.path.as_deref().and_then(|p| std::path::absolute(p).ok());
+        p.meta.current = me.and_then(|p| Some(p.strip_prefix(&root).ok()?.to_str()?.to_string()));
+    }
     p.update(&ed.project, &ed.buf, Instant::now());
     ed.mode = Mode::Pick(Box::new(p));
 }
@@ -851,17 +981,40 @@ pub fn pick_key(ed: &mut Editor, k: Key) {
         }
         KeyCode::Enter => {
             if let Some(r) = p.rows.get(p.sel) {
+                // Remember what this query led to: it ranks first next time.
+                if p.kind == Kind::Files
+                    && let Some(f) = ed.project.state_file("queries")
+                {
+                    fff::track_query(&f, &ed.project.files().root, &p.query.text, &r.path);
+                }
                 ed.pending_effect = Some(ExEffect::Open {
                     path: r.path.clone(),
                     line: r.line,
                     col: r.col,
                     pattern: match p.kind {
-                        Kind::Grep => Some(p.query.text.clone()),
+                        // What `n` goes on to: the pattern without its filters.
+                        Kind::Grep => {
+                            let text = fff::Query::parse_grep(&p.query.text).text;
+                            Some(match p.grep_mode {
+                                GrepMode::Regex => text,
+                                _ => regex::escape(&text),
+                            })
+                        }
                         Kind::Def => Some(format!(r"\b{}\b", p.query.text)),
                         _ => None,
                     },
                 });
             }
+        }
+        // Regex, plain text, fuzzy, and around again.
+        KeyCode::Char('t') if k.ctrl && p.kind == Kind::Grep => {
+            p.grep_mode = match p.grep_mode {
+                GrepMode::Regex => GrepMode::Plain,
+                GrepMode::Plain => GrepMode::Fuzzy,
+                GrepMode::Fuzzy => GrepMode::Regex,
+            };
+            p.started = None;
+            p.update(&ed.project, &ed.buf, Instant::now());
         }
         // Search ignored files too (or stop): Drupal core, vendor/, ….
         KeyCode::Char('o') if k.ctrl && matches!(p.kind, Kind::Files | Kind::Grep | Kind::Def) => {
