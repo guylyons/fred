@@ -108,7 +108,7 @@ fn refresh_popup(ed: &mut Editor, manual: bool) {
             .collect()
     } else {
         ed.word_index.ensure(&ed.buf, false);
-        match ed.nearby.lock() {
+        match ed.nearby.words().lock() {
             Ok(nearby) => complete::candidates(&text, &ed.word_index, l, &nearby),
             Err(_) => complete::candidates(&text, &ed.word_index, l, &[]),
         }

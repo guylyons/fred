@@ -12,7 +12,7 @@ use crate::undo::Undo;
 use crate::vim;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Cursor {
@@ -189,8 +189,8 @@ pub struct Editor {
     pub explain: Option<(ex::addr::Range, String)>,
     /// The right-click menu, while it is open.
     pub menu: Option<crate::menu::Menu>,
-    /// Words from nearby files, filled in by a background thread.
-    pub nearby: Arc<Mutex<Vec<String>>>,
+    /// Words from nearby files, for completion.
+    pub nearby: crate::complete::nearby::Nearby,
     pub(crate) word_index: WordIndex,
     /// Lines changed against git's staging area.
     pub git: crate::git::Gutter,
@@ -259,7 +259,7 @@ impl Editor {
             popup: None,
             explain: None,
             menu: None,
-            nearby: Arc::default(),
+            nearby: Default::default(),
             word_index: WordIndex::default(),
             git: crate::git::Gutter::default(),
             project: Arc::default(),
@@ -403,6 +403,8 @@ impl Editor {
         }
         if self.mode == Mode::Insert && !was_insert {
             self.vim.insert_start = self.cur.pos();
+            // Start reading nearby files' words while there's typing to do.
+            self.nearby.words();
             self.word_index.ensure(&self.buf, true);
         }
         if self.mode != Mode::Insert {

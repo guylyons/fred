@@ -5,7 +5,7 @@ use crate::buffer::Buffer;
 use similar::{Algorithm, DiffOp};
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -43,20 +43,14 @@ impl Gutter {
         let branch = Arc::clone(&g.branch);
         let path = std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf());
         std::thread::spawn(move || {
-            if let Some(dir) = path.parent()
-                && let Ok(out) = Command::new("git")
-                    .arg("-C")
-                    .arg(dir)
-                    .args(["symbolic-ref", "--short", "HEAD"])
-                    .stdin(Stdio::null())
-                    .stderr(Stdio::null())
-                    .output()
-                && out.status.success()
+            let git_dir = path.parent().and_then(git_dir);
+            if let Some(d) = &git_dir
                 && let Ok(mut name) = branch.lock()
             {
-                *name = Some(String::from_utf8_lossy(&out.stdout).trim().to_string());
+                *name = head_branch(d);
             }
-            let staged = staged(&path);
+            // Outside a repository there's nothing to ask git.
+            let staged = git_dir.and_then(|_| staged(&path));
             if let Ok(mut b) = base.lock() {
                 *b = Some(staged);
             }
@@ -115,6 +109,29 @@ impl Gutter {
         self.seen = Some(buf.version);
         true
     }
+}
+
+/// The git directory for files in `dir`: the nearest `.git` above it, or
+/// where a `.git` file (a worktree or submodule) points.
+fn git_dir(dir: &Path) -> Option<PathBuf> {
+    let dot = dir
+        .ancestors()
+        .map(|d| d.join(".git"))
+        .find(|g| g.exists())?;
+    if dot.is_dir() {
+        return Some(dot);
+    }
+    let text = std::fs::read_to_string(&dot).ok()?;
+    let to = Path::new(text.trim().strip_prefix("gitdir: ")?);
+    Some(dot.parent()?.join(to))
+}
+
+/// The branch HEAD is on, as `git symbolic-ref --short HEAD` says but read
+/// from the HEAD file instead of running git; None when detached.
+fn head_branch(git_dir: &Path) -> Option<String> {
+    let head = std::fs::read_to_string(git_dir.join("HEAD")).ok()?;
+    let name = head.trim().strip_prefix("ref: ")?;
+    Some(name.strip_prefix("refs/heads/").unwrap_or(name).to_string())
 }
 
 /// `git show :./NAME`, run in the file's directory; None if it fails.
@@ -301,6 +318,31 @@ mod tests {
         assert_eq!(m.get("from.rs"), None);
         assert_eq!(m.get("gone.rs"), None);
         assert_eq!(m.get("both.rs"), Some(&FileState::Modified));
+    }
+
+    #[test]
+    fn branch_from_head_without_running_git() {
+        let d = tempfile::tempdir().unwrap();
+        // A worktree: `.git` is a file naming the real git directory.
+        let real = d.path().join("main/.git/worktrees/w");
+        std::fs::create_dir_all(&real).unwrap();
+        std::fs::create_dir_all(d.path().join("w/src")).unwrap();
+        std::fs::write(
+            d.path().join("w/.git"),
+            "gitdir: ../main/.git/worktrees/w\n",
+        )
+        .unwrap();
+        std::fs::write(real.join("HEAD"), "ref: refs/heads/feat/x\n").unwrap();
+        let gd = git_dir(&d.path().join("w/src")).unwrap();
+        assert_eq!(head_branch(&gd).as_deref(), Some("feat/x"));
+        // Detached.
+        std::fs::write(
+            real.join("HEAD"),
+            "4c5f534b5d6b466390c4f461b8b9bbd5a0e734ed\n",
+        )
+        .unwrap();
+        assert_eq!(head_branch(&gd), None);
+        assert_eq!(git_dir(Path::new("/")), None);
     }
 
     #[test]

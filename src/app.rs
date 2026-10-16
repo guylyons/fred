@@ -34,6 +34,10 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 const AUTOREAD: Duration = Duration::from_secs(1);
 
 const TICK: Duration = Duration::from_millis(50);
+/// After this long with nothing happening, check in every `IDLE_TICK`
+/// instead: an idle fred barely wakes.
+const IDLE_AFTER: Duration = Duration::from_secs(2);
+const IDLE_TICK: Duration = Duration::from_millis(250);
 const HIGHLIGHT_BUDGET: Duration = Duration::from_millis(20);
 /// How long to wait for more pending input before drawing. Not zero: with
 /// `use-dev-tty`, crossterm's poll reads nothing when given no time.
@@ -602,7 +606,7 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
     if let Some(e) = cfg_err {
         s.ed.set_err(e);
     }
-    s.ed.nearby = nearby::spawn(s.ed.path.clone());
+    s.ed.nearby = nearby::Nearby::new(s.ed.path.clone());
 
     let stop = Arc::new(AtomicBool::new(false));
     for sig in [signal_hook::consts::SIGTERM, signal_hook::consts::SIGHUP] {
@@ -705,6 +709,7 @@ fn event_loop(
     // nothing to the terminal (which matters over SSH).
     let mut dirty = true;
     let mut checked = Instant::now();
+    let mut active = Instant::now();
     loop {
         if dirty {
             ui.draw(s, hl, cfg)?;
@@ -718,7 +723,12 @@ fn event_loop(
             return Ok(1);
         }
         let mut resized = false;
-        if event::poll(TICK)? {
+        let busy = dirty
+            || active.elapsed() < IDLE_AFTER
+            || matches!(s.ed.mode, Mode::Pick(_))
+            || s.working();
+        if event::poll(if busy { TICK } else { IDLE_TICK })? {
+            active = Instant::now();
             dirty = true;
             loop {
                 let ev = event::read()?;
@@ -809,7 +819,7 @@ fn event_loop(
                 s.ed.path.as_deref().or(s.ed.syntax_path.as_deref()),
                 &s.ed.buf,
             );
-            s.ed.nearby = nearby::spawn(s.ed.path.clone());
+            s.ed.nearby = nearby::Nearby::new(s.ed.path.clone());
             ui.view = View::default();
             dirty = true;
         }

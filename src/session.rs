@@ -244,6 +244,11 @@ fn buf_name(ed: &Editor) -> String {
 }
 
 impl Session {
+    /// Git work is running in the background.
+    pub fn working(&self) -> bool {
+        self.magit_job.is_some() || self.git_busy
+    }
+
     /// Open `path` (or an unnamed buffer). Returns a leftover swap file, if any.
     pub fn open(
         path: Option<PathBuf>,

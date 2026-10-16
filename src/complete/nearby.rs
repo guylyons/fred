@@ -4,7 +4,7 @@ use super::index::words;
 use std::collections::HashSet;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 
 const MAX_FILES: usize = 200;
 const MAX_TOTAL: usize = 2 * 1024 * 1024;
@@ -123,8 +123,38 @@ pub fn collect(file: Option<&Path>) -> Vec<String> {
     out
 }
 
+/// Words from the files near one being edited, collected on a background
+/// thread the first time they are wanted (Insert mode), not at startup.
+#[derive(Default)]
+pub struct Nearby {
+    /// Whether `new` asked for collection (an `Editor::new` doesn't).
+    wanted: bool,
+    /// The file whose neighbors to read (None: the current directory's).
+    file: Option<PathBuf>,
+    words: OnceLock<Arc<Mutex<Vec<String>>>>,
+}
+
+impl Nearby {
+    pub fn new(file: Option<PathBuf>) -> Nearby {
+        Nearby {
+            wanted: true,
+            file,
+            words: OnceLock::new(),
+        }
+    }
+
+    /// The words so far: empty until the background collection is done.
+    pub fn words(&self) -> Arc<Mutex<Vec<String>>> {
+        let start = || match self.wanted {
+            true => spawn(self.file.clone()),
+            false => Arc::default(),
+        };
+        Arc::clone(self.words.get_or_init(start))
+    }
+}
+
 /// Collect on a background thread; the list fills in when it is done.
-pub fn spawn(file: Option<PathBuf>) -> Arc<Mutex<Vec<String>>> {
+fn spawn(file: Option<PathBuf>) -> Arc<Mutex<Vec<String>>> {
     let shared = Arc::new(Mutex::new(vec![]));
     let out = Arc::clone(&shared);
     std::thread::spawn(move || {
