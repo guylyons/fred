@@ -60,7 +60,7 @@ key,insert,<PageDown>,,missing,,one screenful forward
 key,insert,<F1>,,missing,,same as <Help>
 key,insert,<Help>,,missing,,stop insert mode and display help window
 key,insert,<Insert>,,missing,,toggle Insert/Replace mode
-key,insert,<LeftMouse>,,missing,,cursor at mouse click
+key,insert,<LeftMouse>,,partial,present; not yet verified against nvim,cursor at mouse click
 key,insert,<ScrollWheelDown>,,missing,,move window three lines down
 key,insert,<S-ScrollWheelDown>,,missing,,move window one page down
 key,insert,<ScrollWheelUp>,,missing,,move window three lines up
@@ -274,7 +274,7 @@ key,normal,<MiddleMouse>,change,missing,,"same as ""gP"" at the mouse click posi
 key,normal,<PageDown>,,partial,present; not yet verified against nvim,same as CTRL-F
 key,normal,<PageUp>,,partial,present; not yet verified against nvim,same as CTRL-B
 key,normal,<Right>,motion,partial,present; not yet verified against nvim,"same as ""l"""
-key,normal,<RightMouse>,,missing,,"start Visual mode, move cursor to the mouse"
+key,normal,<RightMouse>,,partial,"popup_setpos: the PopUp menu (src/menu.rs); no Inspect, diagnostics or help items","start Visual mode, move cursor to the mouse"
 key,normal,<S-Down>,motion,missing,,same as CTRL-F
 key,normal,<S-Left>,motion,missing,,"same as ""b"""
 key,normal,<S-LeftMouse>,,missing,,"same as ""*"" at the mouse click position"
@@ -1443,7 +1443,7 @@ option,,more, global boolean,missing,,listings when the whole screen is filled
 option,,mouse, global string,missing,,the use of mouse clicks
 option,,mousefocus,mousef global boolean,excluded,GUI,keyboard focus follows the mouse
 option,,mousehide,mh global boolean,excluded,GUI,hide mouse pointer while typing
-option,,mousemodel,mousem global string,missing,,changes meaning of mouse buttons
+option,,mousemodel,mousem global string,partial,fixed at popup_setpos (Neovim default); no option yet,changes meaning of mouse buttons
 option,,mousemoveevent,mousemev global boolean,missing,,deliver mouse move events to input queue
 option,,mousescroll, global string,missing,,amount to scroll by when scrolling with a mouse
 option,,mouseshape,mouses global string,missing,,shape of the mouse pointer in different modes

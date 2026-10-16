@@ -19,6 +19,8 @@ pub struct View {
     pub(crate) drag_from: Option<(usize, usize)>,
     /// Where the `:explain` box was last drawn, for clicks.
     pub(crate) explain_box: Option<ratatui::layout::Rect>,
+    /// Where the right-click menu was last drawn, for the mouse.
+    pub(crate) menu_box: Option<ratatui::layout::Rect>,
 }
 
 /// Total window rows (text + status + command) for a file of `file_lines`.

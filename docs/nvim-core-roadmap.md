@@ -126,3 +126,9 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
   numbers; `[set]` in config.toml; render reads options instead of
   `Config`. 7 options: number, relativenumber, wrap, cursorline, tabstop,
   clipboard, autocomplete. Oracle: 99 cases.
+- 2026-10-16: right-click menu (`src/menu.rs`): Neovim's PopUp menu from
+  `runtime/lua/vim/_core/defaults.lua` with 'mousemodel' popup_setpos, items
+  by mode (Open in web browser, Go to definition, Cut, Copy, Paste, Delete,
+  Select All), `"+` via the system clipboard and `"_` via
+  `ops::delete_black_hole`; keyboard and mouse selection. Unit tests now
+  use an in-process clipboard instead of the user's.

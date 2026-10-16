@@ -914,19 +914,7 @@ fn occur_in_agenda_files(ed: &mut Editor, link: bool) {
     }
 }
 
-/// Open an external URL with the system opener.
-fn browse(url: &str) -> Result<(), String> {
-    let opener = if cfg!(target_os = "macos") {
-        "open"
-    } else {
-        "xdg-open"
-    };
-    std::process::Command::new(opener)
-        .arg(url)
-        .spawn()
-        .map(|_| ())
-        .map_err(|e| e.to_string())
-}
+use crate::shell::browse;
 
 pub fn command(ed: &mut Editor, name: &str, arg: Prefix) -> Option<Result<(), String>> {
     let l = ed.cur.line;

@@ -305,6 +305,30 @@ const VISUAL: &[char] = &[
     'd', 'x', 'X', 'D', 'y', 'Y', 'c', 's', 'S', 'C', 'J', ':', 'V', 'v', 'o', 'K',
 ];
 
+/// What a Visual or Visual-line selection (`mode`) covers.
+pub(crate) fn selection(ed: &Editor, mode: &Mode) -> Option<ops::Span> {
+    match *mode {
+        Mode::VisualLine { anchor } => Some(ops::Span::Lines(
+            anchor.min(ed.cur.line),
+            anchor.max(ed.cur.line),
+        )),
+        Mode::Visual { anchor } => {
+            let (from, to) = (anchor.min(ed.cur.pos()), anchor.max(ed.cur.pos()));
+            let line = ed.buf.line(to.0);
+            // On an empty line the selection takes its line break.
+            let to = if to.1 < line.len() {
+                (to.0, crate::text::next_grapheme(&line, to.1))
+            } else if to.0 + 1 < ed.line_count() {
+                (to.0 + 1, 0)
+            } else {
+                (to.0, line.len())
+            };
+            Some(ops::Span::Chars(from, to))
+        }
+        _ => None,
+    }
+}
+
 /// A key in charwise Visual mode; the uppercase ones act on whole lines, as in vim.
 fn visual_chars(ed: &mut Editor, anchor: (usize, usize), c: char) {
     match c {
@@ -322,15 +346,8 @@ fn visual_chars(ed: &mut Editor, anchor: (usize, usize), c: char) {
                 ed.set_err("generated Git buffer is read-only");
                 return;
             }
-            let (from, to) = (anchor.min(ed.cur.pos()), anchor.max(ed.cur.pos()));
-            let line = ed.buf.line(to.0);
-            // On an empty line the selection takes its line break.
-            let to = if to.1 < line.len() {
-                (to.0, crate::text::next_grapheme(&line, to.1))
-            } else if to.0 + 1 < ed.line_count() {
-                (to.0 + 1, 0)
-            } else {
-                (to.0, line.len())
+            let Some(span) = selection(ed, &Mode::Visual { anchor }) else {
+                return;
             };
             let op = match c {
                 'x' => 'd',
@@ -338,7 +355,7 @@ fn visual_chars(ed: &mut Editor, anchor: (usize, usize), c: char) {
                 c => c,
             };
             ed.undo.begin(ed.cur.pos());
-            ops::apply_op(ed, op, ops::Span::Chars(from, to));
+            ops::apply_op(ed, op, span);
             if ed.mode != Mode::Insert {
                 ed.undo.end(ed.cur.pos());
             }

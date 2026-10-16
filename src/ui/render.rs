@@ -238,6 +238,39 @@ pub fn mouse(
         ed.handle_key(crate::key::Key::new(code));
         return;
     }
+    // The open right-click menu has the mouse: hovering highlights an
+    // item, a click on one chooses it and a click elsewhere closes it.
+    if let Some(m) = ed.menu.as_mut() {
+        let row = view
+            .menu_box
+            .filter(|b| b.contains((event.column, event.row).into()))
+            .map(|b| (event.row - b.y) as usize);
+        let item = row
+            .and_then(|r| m.items.get(r))
+            .map(|i| i.0)
+            .filter(|&i| i != crate::menu::Item::Separator);
+        match event.kind {
+            MouseEventKind::Moved | MouseEventKind::Drag(_) => {
+                m.sel = row.filter(|_| item.is_some());
+                return;
+            }
+            MouseEventKind::Down(MouseButton::Left) => {
+                match item {
+                    Some(i) => crate::menu::choose(ed, i),
+                    None if row.is_some() => {}
+                    None => ed.menu = None,
+                }
+                return;
+            }
+            // Another right-click opens it again where that one was.
+            MouseEventKind::Down(MouseButton::Right) => ed.menu = None,
+            MouseEventKind::Up(_) => return,
+            _ => {
+                ed.menu = None;
+                return;
+            }
+        }
+    }
     // A click elsewhere leaves the explain box open and does what it would.
     if ed.explain.is_some()
         && matches!(event.kind, MouseEventKind::Down(_))
@@ -335,6 +368,28 @@ pub fn mouse(
             }
         }
         MouseEventKind::Up(MouseButton::Left) => view.drag_from = None,
+        // 'mousemodel' popup_setpos: the click moves the cursor (ending a
+        // selection) unless it is inside the selection, then the menu opens.
+        MouseEventKind::Down(MouseButton::Right) => {
+            let Some((line, byte)) = text_pos(ed, view, area, event, gutter, cols) else {
+                return;
+            };
+            ed.popup = None;
+            ed.vim.pending.clear();
+            view.last_click = None;
+            let inside = match crate::vim::selection(ed, &ed.mode) {
+                Some(crate::vim::ops::Span::Lines(lo, hi)) => (lo..=hi).contains(&line),
+                Some(crate::vim::ops::Span::Chars(from, to)) => (from..to).contains(&(line, byte)),
+                None => false,
+            };
+            if !inside {
+                if matches!(ed.mode, Mode::Visual { .. } | Mode::VisualLine { .. }) {
+                    ed.mode = Mode::Normal;
+                }
+                ed.set_cursor(line, byte);
+            }
+            crate::menu::open(ed, (event.column, event.row));
+        }
         _ => {}
     }
 }
@@ -1022,6 +1077,7 @@ pub fn draw(
         };
         draw_popup(buf, area, ed, view, geom, (cx, cy));
     }
+    view.menu_box = ed.menu.as_ref().and_then(|m| draw_menu(buf, area, m));
     if let Mode::Command(cl) = &ed.mode {
         draw_ex_completion(buf, input_area, cl);
     }
@@ -1693,6 +1749,33 @@ struct Geom {
     gutter: usize,
     rows: usize,
     wrap_cols: usize,
+}
+
+/// The right-click menu, below and right of the click where it fits.
+fn draw_menu(buf: &mut Screen, area: Rect, m: &crate::menu::Menu) -> Option<Rect> {
+    let w = m.items.iter().map(|i| display_width(i.1, 1, 0)).max()? + 2;
+    let (w, h) = (
+        (w as u16).min(area.width),
+        (m.items.len() as u16).min(area.height),
+    );
+    let (cx, cy) = m.at;
+    let x = cx.min(area.right().saturating_sub(w)).max(area.x);
+    let y = if cy + 1 + h <= area.bottom() {
+        cy + 1
+    } else {
+        cy.saturating_sub(h).max(area.y)
+    };
+    let normal = Style::default().bg(Color::DarkGray).fg(Color::White);
+    let selected = Style::default().bg(Color::White).fg(Color::Black);
+    for (i, &(item, label)) in m.items.iter().take(h as usize).enumerate() {
+        let (text, style) = match item {
+            crate::menu::Item::Separator => ("─".repeat(w as usize), normal.fg(Color::Gray)),
+            _ if m.sel == Some(i) => (format!(" {label:<0$}", w as usize - 1), selected),
+            _ => (format!(" {label:<0$}", w as usize - 1), normal),
+        };
+        buf.set_stringn(x, y + i as u16, text, w as usize, style);
+    }
+    Some(Rect::new(x, y, w, h))
 }
 
 fn draw_popup(

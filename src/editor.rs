@@ -187,6 +187,8 @@ pub struct Editor {
     /// `:explain`: Claude's explanation of these lines, shown over them
     /// until Esc or a click outside it (or on its ✕).
     pub explain: Option<(ex::addr::Range, String)>,
+    /// The right-click menu, while it is open.
+    pub menu: Option<crate::menu::Menu>,
     /// Words from nearby files, filled in by a background thread.
     pub nearby: Arc<Mutex<Vec<String>>>,
     pub(crate) word_index: WordIndex,
@@ -256,6 +258,7 @@ impl Editor {
             vim: vim::State::default(),
             popup: None,
             explain: None,
+            menu: None,
             nearby: Arc::default(),
             word_index: WordIndex::default(),
             git: crate::git::Gutter::default(),
@@ -280,6 +283,10 @@ impl Editor {
 
     pub fn handle_key(&mut self, k: Key) {
         self.magit_input_generation = self.magit_input_generation.wrapping_add(1);
+        // The open right-click menu has the keys first.
+        if self.menu.is_some() && crate::menu::key(self, k) {
+            return;
+        }
         if crate::magit::key(self, k)
             || crate::org::key(self, k)
             || crate::magit::blame::key(self, k)

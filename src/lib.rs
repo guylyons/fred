@@ -13,6 +13,7 @@ pub mod git;
 pub mod highlight;
 pub mod key;
 pub mod magit;
+pub mod menu;
 pub mod options;
 pub mod org;
 pub mod pick;

@@ -1640,3 +1640,51 @@ fn mouse_drag_selects_and_double_click_selects_a_word() {
     assert_eq!(e.mode, Mode::Visual { anchor: (0, 6) });
     assert_eq!((e.cur.line, e.cur.byte), (0, 10));
 }
+
+#[test]
+fn right_click_opens_neovims_popup_menu() {
+    use ratatui::crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    let mut e = editor("hello world\nsecond line\n", "");
+    let mut s = Screen::new(40, 12);
+    s.draw(&e);
+    let area = ratatui::layout::Rect::new(0, 0, 40, 12);
+    let gutter = super::render::gutter_width(&e) as u16;
+    let at = |kind, col: u16, row| MouseEvent {
+        kind,
+        column: gutter + col,
+        row,
+        modifiers: KeyModifiers::NONE,
+    };
+    let right = MouseEventKind::Down(MouseButton::Right);
+    // popup_setpos: the click moves the cursor, then the menu opens below it.
+    super::render::mouse(&mut e, &mut s.view, area, at(right, 7, 1));
+    assert_eq!(e.cur.pos(), (1, 7));
+    s.draw(&e);
+    assert!(s.row(2).contains("Go to definition"), "{}", s.row(2));
+    assert!(s.row(4).contains("Paste") && s.row(5).contains("Select All"));
+    // Hovering highlights; a click chooses.
+    let b = s.view.menu_box.unwrap();
+    let on = |row| MouseEvent {
+        column: b.x + 1,
+        ..at(MouseEventKind::Moved, 0, row)
+    };
+    super::render::mouse(&mut e, &mut s.view, area, on(b.y + 3));
+    assert_eq!(e.menu.as_ref().unwrap().sel, Some(3));
+    let click = MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        ..on(b.y + 3)
+    };
+    super::render::mouse(&mut e, &mut s.view, area, click);
+    assert_eq!(e.mode, Mode::VisualLine { anchor: 0 }, "Select All");
+    assert!(e.menu.is_none());
+    // Inside a selection the cursor stays and the menu acts on it.
+    super::render::mouse(&mut e, &mut s.view, area, at(right, 2, 0));
+    assert_eq!(e.mode, Mode::VisualLine { anchor: 0 });
+    s.draw(&e);
+    assert!((0..12).any(|y| s.row(y).contains("Copy")));
+    // A click elsewhere only closes it.
+    let away = at(MouseEventKind::Down(MouseButton::Left), 30, 9);
+    super::render::mouse(&mut e, &mut s.view, area, away);
+    assert!(e.menu.is_none());
+    assert_eq!(e.mode, Mode::VisualLine { anchor: 0 });
+}

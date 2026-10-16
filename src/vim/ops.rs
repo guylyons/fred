@@ -166,15 +166,26 @@ fn word_class(g: &str, big: bool) -> u8 {
 
 /// Apply operator `op` (d, c, y) to a span.
 pub fn apply_op(ed: &mut Editor, op: char, sp: Span) {
+    apply(ed, op, sp, true);
+}
+
+/// `"_d`: delete into the black hole register, leaving the others alone.
+pub fn delete_black_hole(ed: &mut Editor, sp: Span) {
+    apply(ed, 'd', sp, false);
+}
+
+fn apply(ed: &mut Editor, op: char, sp: Span, to_reg: bool) {
     match sp {
         Span::Lines(lo, hi) => {
-            set_reg(
-                ed,
-                Register {
-                    text: lines_text(ed, lo, hi),
-                    linewise: true,
-                },
-            );
+            if to_reg {
+                set_reg(
+                    ed,
+                    Register {
+                        text: lines_text(ed, lo, hi),
+                        linewise: true,
+                    },
+                );
+            }
             match op {
                 'y' => {
                     if lo < ed.cur.line {
@@ -198,24 +209,28 @@ pub fn apply_op(ed: &mut Editor, op: char, sp: Span) {
             if op == 'y' {
                 let s = ed.buf.pos_to_char(from.0, from.1);
                 let e = ed.buf.pos_to_char(to.0, to.1);
-                set_reg(
-                    ed,
-                    Register {
-                        text: ed.buf.slice(s, e),
-                        linewise: false,
-                    },
-                );
+                if to_reg {
+                    set_reg(
+                        ed,
+                        Register {
+                            text: ed.buf.slice(s, e),
+                            linewise: false,
+                        },
+                    );
+                }
                 ed.set_cursor(from.0, from.1);
                 return;
             }
             let removed = delete_chars(ed, from, to);
-            set_reg(
-                ed,
-                Register {
-                    text: removed,
-                    linewise: false,
-                },
-            );
+            if to_reg {
+                set_reg(
+                    ed,
+                    Register {
+                        text: removed,
+                        linewise: false,
+                    },
+                );
+            }
             if op == 'c' {
                 ed.mode = Mode::Insert;
             }

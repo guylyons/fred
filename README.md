@@ -77,6 +77,14 @@ select, then `d x y c s`), `V` (visual-line mode, then `d c y J :`).
 Yanks and deletes go to the system clipboard too, and `p`/`P` put what
 another app copied since (`clipboard = false` keeps them to fred).
 
+**Mouse:** click to move the cursor, drag to select (double-click selects a
+word, Shift-click extends the selection) and scroll with the wheel. Right-click
+opens Neovim's menu: Cut, Copy, Paste and Delete on a selection (Cut, Copy and
+Paste use the system clipboard; Delete keeps your registers), Paste and Select
+All anywhere, Go to definition on a word and Open in web browser on a link.
+Right-clicking inside a selection keeps it; elsewhere it moves the cursor
+first. Pick with the mouse or with Up/Down and Enter; Esc closes the menu.
+
 **In Insert mode:** completions pop up as you type. `Tab`/`Ctrl-N` selects the
 next suggestion and `Shift-Tab`/`Ctrl-P` the previous one. `Enter` accepts a
 selected suggestion, or starts a new line when nothing is selected. `Esc`

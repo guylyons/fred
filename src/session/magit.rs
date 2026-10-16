@@ -4240,20 +4240,9 @@ impl Session {
     }
     /// browse-url: the system's opener, detached.
     pub(super) fn browse(&mut self, url: &str) {
-        let opener = if cfg!(target_os = "macos") {
-            "open"
-        } else {
-            "xdg-open"
-        };
-        match std::process::Command::new(opener)
-            .arg(url)
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-        {
-            Ok(_) => self.ed.set_msg(format!("Opened {url}")),
-            Err(e) => self.ed.set_err(format!("{opener}: {e}")),
+        match crate::shell::browse(url) {
+            Ok(()) => self.ed.set_msg(format!("Opened {url}")),
+            Err(e) => self.ed.set_err(e),
         }
     }
     /// magit-wip-after-save-local-mode: the saved file's worktree wip ref.
