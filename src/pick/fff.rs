@@ -179,7 +179,11 @@ pub fn last_query(file: &Path, root: &Path, query: &str) -> Option<(String, u32)
     let e = queries(file)
         .into_iter()
         .find(|e| e.1 == root_s && e.3 == query)?;
-    let rel = Path::new(&e.2).strip_prefix(root).ok()?.to_str()?.to_string();
+    let rel = Path::new(&e.2)
+        .strip_prefix(root)
+        .ok()?
+        .to_str()?
+        .to_string();
     Some((rel, e.0))
 }
 
@@ -230,7 +234,9 @@ impl Filter {
             return b.build().ok().map(Filter::Type);
         }
         let dir = t.strip_suffix('/')?.trim_matches('/');
-        let plain = dir.chars().all(|c| c.is_alphanumeric() || "/._-".contains(c));
+        let plain = dir
+            .chars()
+            .all(|c| c.is_alphanumeric() || "/._-".contains(c));
         (!dir.is_empty() && (plain || !grep)).then(|| Filter::Dir(dir.to_lowercase()))
     }
 
@@ -301,7 +307,6 @@ impl Query {
             .iter()
             .all(|(not, x)| x.keeps(f, status) != *not)
     }
-
 }
 
 /// `name:12` → (`name`, (12, 1)); `name:12:3` → (`name`, (12, 3)).
@@ -715,11 +720,17 @@ mod tests {
         assert_eq!(last_query(&f, root, "ses"), None);
         track_query(&f, root, "ses", Path::new("/p/src/session.rs"));
         track_query(&f, root, " ses ", Path::new("/p/src/session.rs"));
-        assert_eq!(last_query(&f, root, "ses"), Some(("src/session.rs".into(), 2)));
+        assert_eq!(
+            last_query(&f, root, "ses"),
+            Some(("src/session.rs".into(), 2))
+        );
         // Another project, another memory; another file starts over.
         assert_eq!(last_query(&f, Path::new("/q"), "ses"), None);
         track_query(&f, root, "ses", Path::new("/p/src/search.rs"));
-        assert_eq!(last_query(&f, root, "ses"), Some(("src/search.rs".into(), 1)));
+        assert_eq!(
+            last_query(&f, root, "ses"),
+            Some(("src/search.rs".into(), 1))
+        );
         track_query(&f, root, "", Path::new("/p/x"));
         assert_eq!(queries(&f).len(), 1);
     }
@@ -733,14 +744,18 @@ mod tests {
             "tests/session_test.rs",
         ]);
         let mut meta = Meta::default();
-        meta.status.insert("docs/session.md".into(), FileState::Modified);
+        meta.status
+            .insert("docs/session.md".into(), FileState::Modified);
         let t = |q: &str| {
             let mut t = top(q, &files, &meta, None);
             t.sort();
             t
         };
         assert_eq!(t("*.md"), ["docs/session.md"]);
-        assert_eq!(t("session *.rs"), ["src/session.rs", "tests/session_test.rs"]);
+        assert_eq!(
+            t("session *.rs"),
+            ["src/session.rs", "tests/session_test.rs"]
+        );
         assert_eq!(t("session !*.rs"), ["docs/session.md"]);
         assert_eq!(t("ui/"), ["src/ui/render.rs"]);
         assert_eq!(t("session !src/ !docs/"), ["tests/session_test.rs"]);
@@ -758,7 +773,10 @@ mod tests {
         let q = Query::parse_grep(r"fn \w+\(.*\) *.rs !tests/");
         assert_eq!(q.text, r"fn \w+\(.*\)");
         assert!(q.keeps("src/a.rs", &meta.status) && !q.keeps("tests/a.rs", &meta.status));
-        assert_eq!(Query::parse_grep("a  b? [x]* http://").text, "a  b? [x]* http://");
+        assert_eq!(
+            Query::parse_grep("a  b? [x]* http://").text,
+            "a  b? [x]* http://"
+        );
     }
 
     #[test]
@@ -786,22 +804,35 @@ mod tests {
         assert_eq!(top("", &files, &meta, None)[0], "docs/model.md");
         // Picked for this query three times running.
         let combo = ("src/ui/model.rs".to_string(), 3);
-        assert_eq!(top("model", &files, &meta, Some(&combo))[0], "src/ui/model.rs");
+        assert_eq!(
+            top("model", &files, &meta, Some(&combo))[0],
+            "src/ui/model.rs"
+        );
         let once = ("src/ui/model.rs".to_string(), 1);
         assert_eq!(top("model", &files, &meta, Some(&once))[0], "docs/model.md");
     }
 
     #[test]
     fn typos_still_find_the_file() {
-        let files = v(&["src/session.rs", "src/search.rs", "src/controller.rs", "README.md"]);
+        let files = v(&[
+            "src/session.rs",
+            "src/search.rs",
+            "src/controller.rs",
+            "README.md",
+        ]);
         let meta = Meta::default();
         let found = |q: &str| {
             let (hits, n) = rank(&Query::parse(q), &files, &meta, None, 10);
-            let top = hits.first().map(|h| (files[h.idx].as_str(), h.typo.clone()));
+            let top = hits
+                .first()
+                .map(|h| (files[h.idx].as_str(), h.typo.clone()));
             (n, top)
         };
         // Swapped letters: the file has all but one of them, in order.
-        assert_eq!(found("sesison"), (1, Some(("src/session.rs", Some("sesson".into())))));
+        assert_eq!(
+            found("sesison"),
+            (1, Some(("src/session.rs", Some("sesson".into()))))
+        );
         // Two slips in a longer word.
         let (n, top) = found("cnotrolelr");
         assert_eq!((n, top.unwrap().0), (1, "src/controller.rs"));
@@ -825,13 +856,28 @@ mod tests {
             Some(line[at.0..at.1].to_string())
         };
         // Letters in between, as long as they stay close.
-        assert_eq!(find("UserController", "x = UserAuthController::new()").unwrap(), "UserAuthController");
-        assert_eq!(find("flvencodepicture", "int ff_flv_encode_picture_header(void)").unwrap(), "flv_encode_picture");
+        assert_eq!(
+            find("UserController", "x = UserAuthController::new()").unwrap(),
+            "UserAuthController"
+        );
+        assert_eq!(
+            find("flvencodepicture", "int ff_flv_encode_picture_header(void)").unwrap(),
+            "flv_encode_picture"
+        );
         assert_eq!(find("total", "t = (o, t); a = l"), None);
         // Up to two slips: swapped, wrong or extra letters.
-        assert_eq!(find("shcema", "CREATE TABLE schema_info").unwrap(), "schema");
-        assert_eq!(find("recieve_mesage", "fn receive_message(&self)").unwrap(), "receive_message");
-        assert_eq!(find("!importnat", "color: red !important;").unwrap(), "!important");
+        assert_eq!(
+            find("shcema", "CREATE TABLE schema_info").unwrap(),
+            "schema"
+        );
+        assert_eq!(
+            find("recieve_mesage", "fn receive_message(&self)").unwrap(),
+            "receive_message"
+        );
+        assert_eq!(
+            find("!importnat", "color: red !important;").unwrap(),
+            "!important"
+        );
         assert_eq!(find("fn mian", "pub fn main() {").unwrap(), "fn main");
         // Three are too many, and short patterns forgive less.
         assert_eq!(find("rxcxevx_message", "fn receive_message(&self)"), None);
@@ -851,7 +897,16 @@ mod tests {
         let allowed = |n: usize| Lcs::for_names(&"a".repeat(n)).map(|l| l.allowed);
         assert_eq!(
             [3, 4, 5, 6, 11, 12, 24, 40].map(allowed),
-            [None, Some(1), Some(1), Some(2), Some(2), Some(3), Some(6), Some(6)]
+            [
+                None,
+                Some(1),
+                Some(1),
+                Some(2),
+                Some(2),
+                Some(3),
+                Some(6),
+                Some(6)
+            ]
         );
         assert_eq!(kept_letters("sesison", "src/session.rs"), "sesson");
         assert_eq!(kept_letters("xyz", "abc"), "");

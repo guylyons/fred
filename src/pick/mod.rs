@@ -481,13 +481,20 @@ impl Picker {
                 // With nothing typed, dotfiles go below the rest.
                 let dot = |i: usize| name.is_empty() && cands[i].starts_with('.');
                 hits.sort_by(|&(s, i), &(t, j)| {
-                    (rec(i), dot(i), std::cmp::Reverse(s), cands[i].len(), &cands[i]).cmp(&(
-                        rec(j),
-                        dot(j),
-                        std::cmp::Reverse(t),
-                        cands[j].len(),
-                        &cands[j],
-                    ))
+                    (
+                        rec(i),
+                        dot(i),
+                        std::cmp::Reverse(s),
+                        cands[i].len(),
+                        &cands[i],
+                    )
+                        .cmp(&(
+                            rec(j),
+                            dot(j),
+                            std::cmp::Reverse(t),
+                            cands[j].len(),
+                            &cands[j],
+                        ))
                 });
                 self.rows = hits
                     .iter()
@@ -561,7 +568,11 @@ impl Picker {
                 if now == self.seen_files {
                     return false;
                 }
-                if self.seen_files.as_ref().is_none_or(|s| s.0 != self.query.text) {
+                if self
+                    .seen_files
+                    .as_ref()
+                    .is_none_or(|s| s.0 != self.query.text)
+                {
                     self.sel = 0;
                     self.combo = project
                         .state_file("queries")
@@ -720,8 +731,11 @@ impl Picker {
                     (true, _) => format!("{n}+ {what}"),
                     (_, true) => format!("{n} {what}"),
                     _ => format!("{n} {what}…"),
-                } + if self.kind == Kind::Grep { self.grep_mode.tag() } else { "" }
-                    + all_tag(&files);
+                } + if self.kind == Kind::Grep {
+                    self.grep_mode.tag()
+                } else {
+                    ""
+                } + all_tag(&files);
                 self.sel = self.sel.min(self.rows.len().saturating_sub(1));
                 true
             }

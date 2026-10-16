@@ -202,7 +202,7 @@ pub fn mouse(
     area: Rect,
     event: ratatui::crossterm::event::MouseEvent,
 ) {
-    use ratatui::crossterm::event::{MouseButton, MouseEventKind};
+    use ratatui::crossterm::event::{KeyModifiers, MouseButton, MouseEventKind};
     if !area.contains((event.column, event.row).into()) {
         view.last_click = None;
         return;
@@ -270,76 +270,150 @@ pub fn mouse(
             );
         }
         MouseEventKind::Down(MouseButton::Left) => {
-            let mut y = (event.row - area.y) as usize + view.top_row;
-            let x = (event.column - area.x) as usize;
-            let x = x.saturating_sub(gutter);
-            for line in view.top..ed.line_count() {
-                let text = ed.buf.line(line);
-                let height = if line != ed.cur.line && ed.folds.hidden(line) {
-                    0
-                } else if ed.opts.bool(Opt::Wrap) {
-                    let height = super::layout::wrap_rows(&text, ed.tabstop(), cols);
-                    if line == ed.cur.line {
-                        height.max(wrap_cursor(&text, ed.cur.byte, ed.tabstop(), cols).0 + 1)
-                    } else {
-                        height
-                    }
-                } else {
-                    1
+            let Some((line, byte)) = text_pos(ed, view, area, event, gutter, cols) else {
+                return;
+            };
+            ed.popup = None;
+            ed.vim.pending.clear();
+            // Shift-click extends the selection (or starts one) to the click.
+            if event.modifiers.contains(KeyModifiers::SHIFT) && ed.dired.is_none() {
+                let anchor = match ed.mode {
+                    Mode::Visual { anchor } => anchor,
+                    _ => (ed.cur.line, ed.cur.byte),
                 };
-                if y >= height {
-                    y -= height;
-                    continue;
-                }
-                let target = if ed.opts.bool(Opt::Wrap) {
-                    x
-                } else {
-                    x + view.left
-                };
-                let byte =
-                    Layout::new(&text, ed.tabstop(), ed.opts.bool(Opt::Wrap).then_some(cols))
-                        .find(|p| p.row == y && p.x + p.width > target)
-                        .map_or_else(
-                            || {
-                                Layout::new(
-                                    &text,
-                                    ed.tabstop(),
-                                    ed.opts.bool(Opt::Wrap).then_some(cols),
-                                )
-                                .filter(|p| p.row == y)
-                                .last()
-                                .map_or(text.len(), |p| p.byte + p.text.len())
-                            },
-                            |p| p.byte,
-                        );
                 ed.set_cursor(line, byte);
-                ed.popup = None;
-                ed.vim.pending.clear();
-                // magit-mouse-toggle-section: a click on a section's v/>.
-                if ed.magit.is_some() {
-                    let indicator = text.len() - text.trim_start().len();
-                    if byte == indicator
-                        && matches!(text[indicator..].chars().next(), Some('v' | '>'))
-                        && text[indicator..].chars().nth(1) == Some(' ')
-                    {
-                        ed.handle_key(crate::key::Key::new(crate::key::KeyCode::Tab));
-                        return;
-                    }
-                }
-                if ed.dired.as_ref().is_some_and(|d| !d.editing) {
-                    view.detached = true;
-                    if view.double_click(false, line) {
-                        view.detached = false;
-                        ed.handle_key(crate::key::Key::new(crate::key::KeyCode::Enter));
-                    }
-                } else {
-                    view.last_click = None;
-                }
+                ed.mode = Mode::Visual { anchor };
+                view.drag_from = Some(anchor);
                 return;
             }
+            if matches!(ed.mode, Mode::Visual { .. } | Mode::VisualLine { .. }) {
+                ed.mode = Mode::Normal;
+            }
+            ed.set_cursor(line, byte);
+            view.drag_from = Some((line, ed.cur.byte));
+            let text = ed.buf.line(line);
+            // magit-mouse-toggle-section: a click on a section's v/>.
+            if ed.magit.is_some() {
+                let indicator = text.len() - text.trim_start().len();
+                if byte == indicator
+                    && matches!(text[indicator..].chars().next(), Some('v' | '>'))
+                    && text[indicator..].chars().nth(1) == Some(' ')
+                {
+                    ed.handle_key(crate::key::Key::new(crate::key::KeyCode::Tab));
+                    return;
+                }
+            }
+            if ed.dired.as_ref().is_some_and(|d| !d.editing) {
+                view.drag_from = None;
+                view.detached = true;
+                if view.double_click(false, line) {
+                    view.detached = false;
+                    ed.handle_key(crate::key::Key::new(crate::key::KeyCode::Enter));
+                }
+            } else if view.double_click(false, line) {
+                // Double-click selects the word (or run of punctuation) under it.
+                let (lo, hi) = word_at(&text, ed.cur.byte);
+                if hi > lo {
+                    ed.set_cursor(line, crate::text::prev_grapheme(&text, hi));
+                    ed.mode = Mode::Visual { anchor: (line, lo) };
+                }
+            }
         }
+        // Dragging selects charwise from where the button went down, as in vim.
+        MouseEventKind::Drag(MouseButton::Left) => {
+            let Some(anchor) = view.drag_from else {
+                return;
+            };
+            // ponytail: no autoscroll when dragging past the window edge.
+            let Some((line, byte)) = text_pos(ed, view, area, event, gutter, cols) else {
+                return;
+            };
+            view.last_click = None;
+            ed.set_cursor(line, byte);
+            if (line, ed.cur.byte) != anchor || matches!(ed.mode, Mode::Visual { .. }) {
+                ed.mode = Mode::Visual { anchor };
+            }
+        }
+        MouseEventKind::Up(MouseButton::Left) => view.drag_from = None,
         _ => {}
     }
+}
+
+/// The bytes of the word, or run of other non-blank characters, at `byte`.
+fn word_at(text: &str, byte: usize) -> (usize, usize) {
+    let class = |c: char| {
+        if c.is_alphanumeric() || c == '_' {
+            1
+        } else if c.is_whitespace() {
+            0
+        } else {
+            2
+        }
+    };
+    let Some(here) = text[byte..].chars().next().map(class) else {
+        return (byte, byte);
+    };
+    let lo = text[..byte]
+        .char_indices()
+        .rev()
+        .take_while(|&(_, c)| class(c) == here)
+        .last()
+        .map_or(byte, |(i, _)| i);
+    let hi = text[byte..]
+        .char_indices()
+        .find(|&(_, c)| class(c) != here)
+        .map_or(text.len(), |(i, _)| byte + i);
+    (lo, hi)
+}
+
+/// The buffer (line, byte) under a mouse event in the text area.
+fn text_pos(
+    ed: &Editor,
+    view: &View,
+    area: Rect,
+    event: ratatui::crossterm::event::MouseEvent,
+    gutter: usize,
+    cols: usize,
+) -> Option<(usize, usize)> {
+    let mut y = (event.row - area.y) as usize + view.top_row;
+    let x = ((event.column - area.x) as usize).saturating_sub(gutter);
+    let wrap = ed.opts.bool(Opt::Wrap);
+    for line in view.top..ed.line_count() {
+        let text = ed.buf.line(line);
+        let height = if line != ed.cur.line && ed.folds.hidden(line) {
+            0
+        } else if wrap {
+            let height = super::layout::wrap_rows(&text, ed.tabstop(), cols);
+            if line == ed.cur.line {
+                height.max(wrap_cursor(&text, ed.cur.byte, ed.tabstop(), cols).0 + 1)
+            } else {
+                height
+            }
+        } else {
+            1
+        };
+        if y >= height {
+            y -= height;
+            continue;
+        }
+        let target = if wrap { x } else { x + view.left };
+        let layout = || Layout::new(&text, ed.tabstop(), wrap.then_some(cols));
+        let byte = layout()
+            .find(|p| p.row == y && p.x + p.width > target)
+            .map_or_else(
+                || {
+                    layout()
+                        .filter(|p| p.row == y)
+                        .last()
+                        .map_or(text.len(), |p| p.byte + p.text.len())
+                },
+                |p| p.byte,
+            );
+        return Some((line, byte));
+    }
+    // Below the last line: its end, so drags past the text still select.
+    let last = ed.line_count().checked_sub(1)?;
+    Some((last, ed.buf.line(last).len()))
 }
 
 /// A Magit buffer line's colors: headings, and diff lines with

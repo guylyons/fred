@@ -1621,7 +1621,10 @@ mod tests {
         t.keys(&format!(":e {}<Enter>", dir.display()));
         assert_eq!(here(&t), "m.txt");
         // From deeper down: the subdirectory that leads there.
-        t.keys(&format!(":e {}<Enter>", dir.join("sub/inner.txt").display()));
+        t.keys(&format!(
+            ":e {}<Enter>",
+            dir.join("sub/inner.txt").display()
+        ));
         t.keys(&format!(":e {}<Enter>", dir.display()));
         assert_eq!(here(&t), "sub");
         // From elsewhere: wherever the cursor was.

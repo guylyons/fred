@@ -30,7 +30,12 @@ impl Fuzzy {
             AtomKind::Fuzzy,
             false,
         );
-        let mut pattern = Pattern::new("", CaseMatching::Smart, Normalization::Smart, AtomKind::Fuzzy);
+        let mut pattern = Pattern::new(
+            "",
+            CaseMatching::Smart,
+            Normalization::Smart,
+            AtomKind::Fuzzy,
+        );
         pattern.atoms.push(atom);
         Fuzzy {
             matcher: Matcher::new(Config::DEFAULT),

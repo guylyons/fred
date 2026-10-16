@@ -1604,3 +1604,39 @@ fn magit_diff_paints_trailing_whitespace_on_added_lines() {
     assert_ne!(buf[(4, 4)].bg, Color::Red);
     assert_ne!(buf[(2, 5)].bg, Color::Red);
 }
+
+#[test]
+fn mouse_drag_selects_and_double_click_selects_a_word() {
+    use ratatui::crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    let mut e = editor("hello world\nsecond line\n", "");
+    let mut s = Screen::new(80, 12);
+    s.draw(&e);
+    let area = ratatui::layout::Rect::new(0, 0, 80, 12);
+    let gutter = super::render::gutter_width(&e) as u16;
+    let at = |kind, col: u16, row| MouseEvent {
+        kind,
+        column: gutter + col,
+        row,
+        modifiers: KeyModifiers::NONE,
+    };
+    let down = MouseEventKind::Down(MouseButton::Left);
+    let drag = MouseEventKind::Drag(MouseButton::Left);
+    super::render::mouse(&mut e, &mut s.view, area, at(down, 2, 0));
+    assert_eq!(e.mode, Mode::Normal);
+    super::render::mouse(&mut e, &mut s.view, area, at(drag, 3, 1));
+    super::render::mouse(
+        &mut e,
+        &mut s.view,
+        area,
+        at(MouseEventKind::Up(MouseButton::Left), 3, 1),
+    );
+    assert_eq!(e.mode, Mode::Visual { anchor: (0, 2) });
+    assert_eq!((e.cur.line, e.cur.byte), (1, 3));
+    // A plain click ends the selection.
+    super::render::mouse(&mut e, &mut s.view, area, at(down, 7, 0));
+    assert_eq!(e.mode, Mode::Normal);
+    // A second click there selects "world".
+    super::render::mouse(&mut e, &mut s.view, area, at(down, 7, 0));
+    assert_eq!(e.mode, Mode::Visual { anchor: (0, 6) });
+    assert_eq!((e.cur.line, e.cur.byte), (0, 10));
+}

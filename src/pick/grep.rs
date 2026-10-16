@@ -318,8 +318,13 @@ fn scan(text: &str, re: &Regex, loose: Option<&mut Loose>, rel: &str, cap: usize
             break;
         };
         let start = text[..m.start()].rfind('\n').map_or(0, |i| i + 1);
-        let end = text[m.start()..].find('\n').map_or(text.len(), |i| m.start() + i);
-        line += text.as_bytes()[counted..start].iter().filter(|&&b| b == b'\n').count();
+        let end = text[m.start()..]
+            .find('\n')
+            .map_or(text.len(), |i| m.start() + i);
+        line += text.as_bytes()[counted..start]
+            .iter()
+            .filter(|&&b| b == b'\n')
+            .count();
         counted = start;
         let l = text[start..end].trim_end_matches('\r');
         // One that runs into the next line (`\s`, `[^x]`) is tried within this one.
@@ -393,7 +398,10 @@ mod tests {
     #[test]
     fn filters_fuzzy_lines_and_likely_files_first() {
         let (_d, files) = project(&[
-            ("a.rs", "struct UserAuthController;\nlet u = controller(user);\n"),
+            (
+                "a.rs",
+                "struct UserAuthController;\nlet u = controller(user);\n",
+            ),
             ("b.md", "the UserController\n"),
             ("z.rs", "UserController::new()\n"),
         ]);
@@ -418,7 +426,9 @@ mod tests {
         let text = "ab\r\nx foo\r\n\nfoo foo\nend";
         let got = |p: &str| -> Vec<_> {
             let hits = scan(text, &re(p), None, "f", 10);
-            hits.into_iter().map(|h| (h.line, h.col, h.end, h.text)).collect()
+            hits.into_iter()
+                .map(|h| (h.line, h.col, h.end, h.text))
+                .collect()
         };
         // One hit a line, the first match in it, lines counted from 0.
         assert_eq!(
@@ -426,11 +436,17 @@ mod tests {
             [(1, 2, 5, "x foo".into()), (3, 0, 3, "foo foo".into())]
         );
         assert_eq!(got("^foo$"), []);
-        assert_eq!(got("foo$"), [(1, 2, 5, "x foo".into()), (3, 4, 7, "foo foo".into())]);
+        assert_eq!(
+            got("foo$"),
+            [(1, 2, 5, "x foo".into()), (3, 4, 7, "foo foo".into())]
+        );
         assert_eq!(got("^end$"), [(4, 0, 3, "end".into())]);
         // Never across lines.
         assert_eq!(got(r"b\s+x"), []);
-        assert_eq!(got(r"foo\s*"), [(1, 2, 5, "x foo".into()), (3, 0, 4, "foo foo".into())]);
+        assert_eq!(
+            got(r"foo\s*"),
+            [(1, 2, 5, "x foo".into()), (3, 0, 4, "foo foo".into())]
+        );
         assert_eq!(scan(text, &re("o"), None, "f", 1).len(), 1);
     }
 
@@ -444,7 +460,10 @@ mod tests {
         let g = Arc::new(Grep::default());
         let r = g.wait(g.start(Regex::new("x").unwrap(), files));
         assert_eq!(r.hits.len(), MAX_HITS);
-        assert_eq!(r.hits.iter().filter(|h| h.path == "f00").count(), MAX_PER_FILE);
+        assert_eq!(
+            r.hits.iter().filter(|h| h.path == "f00").count(),
+            MAX_PER_FILE
+        );
         assert!(r.capped);
     }
 
@@ -452,13 +471,33 @@ mod tests {
     fn remembers_texts_until_they_change() {
         let (d, files) = project(&[("a", "old\n")]);
         let g = Arc::new(Grep::default());
-        assert_eq!(g.wait(g.start(Regex::new("old").unwrap(), Arc::clone(&files))).hits.len(), 1);
+        assert_eq!(
+            g.wait(g.start(Regex::new("old").unwrap(), Arc::clone(&files)))
+                .hits
+                .len(),
+            1
+        );
         // Within one picker the cache answers; a new one checks the disk.
         std::fs::write(d.path().join("a"), "new text\n").unwrap();
-        assert_eq!(g.wait(g.start(Regex::new("old").unwrap(), Arc::clone(&files))).hits.len(), 1);
+        assert_eq!(
+            g.wait(g.start(Regex::new("old").unwrap(), Arc::clone(&files)))
+                .hits
+                .len(),
+            1
+        );
         g.fresh();
-        assert_eq!(g.wait(g.start(Regex::new("old").unwrap(), Arc::clone(&files))).hits.len(), 0);
-        assert_eq!(g.wait(g.start(Regex::new("new").unwrap(), files)).hits.len(), 1);
+        assert_eq!(
+            g.wait(g.start(Regex::new("old").unwrap(), Arc::clone(&files)))
+                .hits
+                .len(),
+            0
+        );
+        assert_eq!(
+            g.wait(g.start(Regex::new("new").unwrap(), files))
+                .hits
+                .len(),
+            1
+        );
     }
 
     #[test]

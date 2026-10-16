@@ -722,7 +722,18 @@ fn event_loop(
             dirty = true;
             loop {
                 let ev = event::read()?;
-                let redraw_view = matches!(ev, Event::Mouse(_) | Event::Resize(..));
+                // A picker's wheel is just Up/Down: a burst of them is one
+                // frame, not one frame each lagging behind the wheel.
+                let picker_wheel = matches!(s.ed.mode, Mode::Pick(_))
+                    && matches!(
+                        ev,
+                        Event::Mouse(m) if matches!(
+                            m.kind,
+                            event::MouseEventKind::ScrollUp | event::MouseEventKind::ScrollDown
+                        )
+                    );
+                let redraw_view =
+                    !picker_wheel && matches!(ev, Event::Mouse(_) | Event::Resize(..));
                 if let Event::Key(k) = ev
                     && map_key(k) == Some(Key::ctrl('z'))
                 {
