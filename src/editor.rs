@@ -117,6 +117,8 @@ pub struct Editor {
     pub readonly: bool,
     /// This buffer lists a directory (see `dired`).
     pub dired: Option<Box<crate::dired::Dired>>,
+    /// This buffer lists another's matching lines (see `occur`).
+    pub occur: Option<Box<crate::occur::Occur>>,
     pub magit: Option<Box<crate::magit::View>>,
     /// Hidden line ranges (Org visibility).
     pub folds: crate::fold::Folds,
@@ -216,6 +218,7 @@ impl Editor {
             path: None,
             readonly: false,
             dired: None,
+            occur: None,
             magit: None,
             folds: crate::fold::Folds::default(),
             org: None,
@@ -382,7 +385,7 @@ impl Editor {
         let was_insert = self.mode == Mode::Insert;
         match self.mode {
             Mode::Normal | Mode::VisualLine { .. } | Mode::Visual { .. } => {
-                if !crate::dired::key(self, k) {
+                if !crate::dired::key(self, k) && !crate::occur::key(self, k) {
                     vim::normal_key(self, k)
                 }
             }

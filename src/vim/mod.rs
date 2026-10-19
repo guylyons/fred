@@ -673,7 +673,8 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
         // `Space r` lists recent files, `Space b` lists open buffers,
         // `Space B` searches their lines, `Space d` goes to a definition,
         // `Space -` lists the file's directory (dired), `Space O` shows it in
-        // the file manager, `Space Enter` saves,
+        // the file manager, `Space o` lists matching lines (occur),
+        // `Space Enter` saves,
         // `Space ;` closes.
         (KeyCode::Char(' '), false) => match arg {
             Some('s') => crate::zap::open(ed),
@@ -717,6 +718,8 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
             }
             // That directory in the system's file manager (Finder).
             Some('O') => ed.pending_effect = Some(ExEffect::Reveal(here(ed))),
+            // Occur: list this buffer's lines matching a regexp.
+            Some('o') => ed.open_cmdline(':', "occur "),
             Some('\n') => {
                 ed.pending_effect = Some(ExEffect::Write {
                     path: None,

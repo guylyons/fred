@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 mod magit;
+mod occur;
 mod org;
 pub use org::Finish;
 
@@ -235,6 +236,9 @@ fn buf_name(ed: &Editor) -> String {
     if let Some(v) = &ed.magit {
         return format!("[{}]", v.title());
     }
+    if ed.occur.is_some() {
+        return "[*Occur*]".into();
+    }
     if let Some(n) = &ed.org_buffer_name {
         return format!("[{n}]");
     }
@@ -385,6 +389,9 @@ impl Session {
                 }
             }
             ExEffect::Write { .. } if self.ed.dired.is_some() => crate::dired::save(&mut self.ed),
+            ExEffect::Write { .. } if self.ed.occur.is_some() => self.occur_write(),
+            ExEffect::Occur { pat, range } => self.occur(&pat, range),
+            ExEffect::OccurRevert => self.occur_revert(),
             ExEffect::Write {
                 path,
                 force,
@@ -1640,6 +1647,45 @@ mod tests {
         t.keys(&format!(":e {}<Enter>", other.path().join("o").display()));
         t.keys(&format!(":e {}<Enter>", dir.display()));
         assert_eq!(here(&t), was);
+    }
+
+    #[test]
+    fn occur_lists_visits_reverts_and_edits_back() {
+        let mut t = T::open(Some("f.txt"), Some("let foo = 1;\nbar\nfoo(foo);\n"));
+        t.keys(":occur foo<Enter>");
+        let lines: Vec<String> = (0..t.s.ed.line_count())
+            .map(|l| t.s.ed.buf.line(l))
+            .collect();
+        assert_eq!(
+            lines[0],
+            "3 matches in 2 lines for \"foo\" in buffer: f.txt"
+        );
+        assert_eq!(&lines[1..], ["      1:let foo = 1;", "      3:foo(foo);"]);
+        assert_eq!(buf_name(&t.s.ed), "[*Occur*]");
+        // Read-only until i; Enter goes to the match, n finds the next.
+        t.keys("dd");
+        assert_eq!(t.s.ed.line_count(), 3);
+        t.keys("j<Enter>");
+        assert!(t.s.ed.path.as_deref().is_some_and(|p| p.ends_with("f.txt")));
+        assert_eq!((t.s.ed.cur.line, t.s.ed.cur.byte), (2, 0));
+        t.keys("n");
+        assert_eq!((t.s.ed.cur.line, t.s.ed.cur.byte), (2, 4));
+        // A second :occur reuses the buffer; gr sees the file's new text.
+        t.keys("ggOfoo<Esc>:occur foo<Enter>");
+        assert_eq!(t.s.bufs.len(), 2);
+        assert_eq!(t.s.ed.buf.line(1), "      1:foo");
+        // occur-edit: i, change a line, :w puts it in the file's buffer.
+        t.keys("i");
+        t.keys("jA // hi<Esc>:w<Enter>");
+        assert!(t.msg().contains("changed 1 line"), "{}", t.msg());
+        assert!(!t.s.swap_path.exists());
+        t.keys(":b 1<Enter>");
+        assert_eq!(t.s.ed.buf.line(1), "let foo = 1; // hi");
+        assert!(t.s.ed.buf.modified);
+        t.keys("u");
+        assert_eq!(t.s.ed.buf.line(1), "let foo = 1;");
+        t.keys(":occur nothing<Enter>");
+        assert!(t.msg().contains("no matches"), "{}", t.msg());
     }
 
     #[test]

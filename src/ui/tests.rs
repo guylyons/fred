@@ -1688,3 +1688,21 @@ fn right_click_opens_neovims_popup_menu() {
     assert!(e.menu.is_none());
     assert_eq!(e.mode, Mode::VisualLine { anchor: 0 });
 }
+
+#[test]
+fn occur_shades_line_numbers_and_highlights_matches() {
+    use ratatui::style::Color;
+    let src = crate::buffer::Buffer::from_text("a foo b\nnone\n");
+    let (o, lines) = crate::occur::search(&src, "f".into(), "f", "foo", None).unwrap();
+    let mut e = editor("", "");
+    crate::occur::show(&mut e, o, &lines, None);
+    let mut s = Screen::new(60, 6);
+    e.run_ex("set nonumber");
+    s.draw(&e);
+    let b = s.term.backend().buffer();
+    let row: String = (0..15).map(|x| b[(x, 1)].symbol().to_string()).collect();
+    assert_eq!(row, "      1:a foo b");
+    assert_eq!(b[(3, 1)].fg, Color::DarkGray);
+    assert_eq!(b[(10, 1)].bg, Color::Yellow, "the match");
+    assert_ne!(b[(8, 1)].bg, Color::Yellow, "not the text around it");
+}

@@ -811,6 +811,8 @@ pub fn draw(
             Some(magit_styles(ed, hl, l, &line))
         } else if ed.dired.is_some() {
             Some(crate::dired::styles(ed, l))
+        } else if ed.occur.is_some() {
+            Some(crate::occur::styles(ed, l))
         } else if ed.org.is_some() {
             Some(crate::org::face::styles(ed, l, &org_settings))
         } else {

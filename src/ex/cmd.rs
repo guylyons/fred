@@ -42,6 +42,13 @@ pub enum ExEffect {
     },
     /// `:!cmd`: run it with the terminal handed over.
     Shell(String),
+    /// `:[range]occur {regexp}`: list the matching lines (see `occur`).
+    Occur {
+        pat: String,
+        range: Option<(usize, usize)>,
+    },
+    /// `gr` in an occur buffer: search again.
+    OccurRevert,
     /// `:pwd`.
     Pwd,
     /// `:cd [dir]` (home without one).
@@ -305,6 +312,12 @@ pub const COMMANDS: &[Command] = &[
     needs("read", 1, RANGE | FILE, "{file} or !{command}", |st, a| {
         let at = a.range.map_or(st.cur, |r| r.end);
         read(st, at, a.arg)
+    }),
+    needs("occur", 3, RANGE, "{regexp}", |_, a| {
+        Ok(ExEffect::Occur {
+            pat: a.arg.to_owned(),
+            range: a.range.map(|r| (r.start, r.end)),
+        })
     }),
     cmd("pwd", 2, 0, |_, _| Ok(ExEffect::Pwd)),
     cmd("set", 2, EXTRA | OPTION, |_, a| set(a, Level::Both)),
