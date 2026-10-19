@@ -2,7 +2,7 @@
 //! `*Occur*` buffer, as Emacs's occur-mode (lisp/replace.el), with
 //! evil-collection's keys.
 //!
-//! `:[range]occur {regexp}` (or `Space o`) lists the matching lines;
+//! `:[range]occur {regexp}` (or `M-s o`) lists the matching lines;
 //! a Visual selection limits it to the selected lines. In the listing,
 //! `Enter` goes to the match (and `n` finds the next one), `gr` runs the
 //! search again (revert-buffer), and `i` edits the listed lines;
@@ -125,6 +125,46 @@ pub fn show(ed: &mut Editor, o: Occur, lines: &[String], line: Option<usize>) {
 fn hit_at(ed: &Editor, line: usize) -> Option<&Hit> {
     let o = ed.occur.as_ref()?;
     line.checked_sub(HEADER).and_then(|i| o.hits.get(i))
+}
+
+const ALT_S: Key = Key {
+    code: KeyCode::Char('s'),
+    ctrl: false,
+    alt: true,
+    shift: false,
+};
+
+/// `M-s` reaches fred whole (not as Esc, s) in Normal and Visual mode.
+pub fn wants_alt(ed: &Editor, k: Key) -> bool {
+    k == ALT_S
+        && matches!(
+            ed.mode,
+            Mode::Normal | Mode::Visual { .. } | Mode::VisualLine { .. }
+        )
+}
+
+/// `M-s o` starts occur in any buffer, as Emacs; from Visual, on the
+/// selected lines. Runs before the other modes' keys.
+pub fn start_key(ed: &mut Editor, k: Key) -> bool {
+    if ed.vim.pending == [ALT_S] {
+        ed.vim.pending.clear();
+        if k == Key::ch('o') {
+            match ed.visual_lines() {
+                Some((lo, hi)) => {
+                    ed.marks.insert('<', lo);
+                    ed.marks.insert('>', hi);
+                    ed.open_cmdline(':', "'<,'>occur ");
+                }
+                None => ed.open_cmdline(':', "occur "),
+            }
+        }
+        return true;
+    }
+    if wants_alt(ed, k) && ed.vim.pending.is_empty() {
+        ed.vim.pending.push(k);
+        return true;
+    }
+    false
 }
 
 /// Occur's handling of `k` in Normal or Visual mode; false leaves it to vim.

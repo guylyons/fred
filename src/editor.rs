@@ -290,7 +290,8 @@ impl Editor {
         if self.menu.is_some() && crate::menu::key(self, k) {
             return;
         }
-        if crate::magit::key(self, k)
+        if crate::occur::start_key(self, k)
+            || crate::magit::key(self, k)
             || crate::org::key(self, k)
             || crate::magit::blame::key(self, k)
             || crate::magit::blob::key(self, k)

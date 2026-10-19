@@ -1650,6 +1650,23 @@ mod tests {
     }
 
     #[test]
+    fn occur_starts_on_m_s_o_and_on_a_selection() {
+        let mut t = T::open(Some("f.txt"), Some("foo\nbar\nfoo\n"));
+        t.keys("<M-s>ofoo<Enter>");
+        assert_eq!(buf_name(&t.s.ed), "[*Occur*]");
+        assert_eq!(t.s.ed.line_count(), 3);
+        // From Visual: only the selected lines.
+        t.keys(":b 1<Enter>jVj<M-s>ofoo<Enter>");
+        assert_eq!(
+            t.s.ed.buf.line(0),
+            "1 match for \"foo\" in buffer: f.txt within region: 2-3"
+        );
+        // Space o stays the Org prefix.
+        t.keys(":b 1<Enter> o");
+        assert_eq!(t.s.ed.vim.pending, [Key::ch(' '), Key::ch('o')]);
+    }
+
+    #[test]
     fn occur_lists_visits_reverts_and_edits_back() {
         let mut t = T::open(Some("f.txt"), Some("let foo = 1;\nbar\nfoo(foo);\n"));
         t.keys(":occur foo<Enter>");

@@ -239,7 +239,6 @@ clipboard alone.
 | `Space r` | recently opened files, from any project |
 | `Space -` | list this file's directory (Dired) |
 | `Space O` | show this directory in Finder or your file manager |
-| `Space o` | list this buffer's lines matching a regexp ([Occur](#matching-lines-occur)) |
 
 Pickers open as a panel at the bottom of the screen, only as tall as their
 results. Type to filter; `Up`/`Ctrl-P` and `Down`/`Ctrl-N` move, `Enter`
@@ -318,9 +317,9 @@ selection, or on the entries marked with `*`:
 
 ## Matching lines (Occur)
 
-`:occur REGEXP` (or `Space o`) lists the buffer's matching lines in an
+`:occur REGEXP` (or `M-s o`, as in Emacs: Alt-s, then o) lists the buffer's matching lines in an
 `*Occur*` buffer, as Emacs's `occur`: a summary line, then each line with its
-number. Select lines first (`V`, then `:`) to search only those. Case is
+number. Select lines first (`V`) to search only those. Case is
 ignored unless the regexp has a capital letter. In the listing, `Enter` goes
 to the match (`n` then finds the next one) and `gr` searches again. `i` makes
 the listed lines editable; `:w` puts your changes back into the original

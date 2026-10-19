@@ -363,7 +363,9 @@ fn step(s: &mut Session, hl: &mut Highlighter, ev: Event, resized: &mut bool) {
             match map_key(k) {
                 Some(key)
                     if key.alt
-                        && (crate::magit::wants_alt(&s.ed) || crate::org::wants_alt(&s.ed)) =>
+                        && (crate::magit::wants_alt(&s.ed)
+                            || crate::org::wants_alt(&s.ed)
+                            || crate::occur::wants_alt(&s.ed, key)) =>
                 {
                     s.handle_key(key)
                 }
