@@ -239,6 +239,9 @@ fn buf_name(ed: &Editor) -> String {
     if ed.occur.is_some() {
         return "[*Occur*]".into();
     }
+    if ed.claude.is_some() {
+        return "[*claude*]".into();
+    }
     if let Some(n) = &ed.org_buffer_name {
         return format!("[{n}]");
     }
@@ -250,7 +253,7 @@ fn buf_name(ed: &Editor) -> String {
 impl Session {
     /// Git work is running in the background.
     pub fn working(&self) -> bool {
-        self.magit_job.is_some() || self.git_busy
+        self.magit_job.is_some() || self.git_busy || crate::claude::busy(&self.ed)
     }
 
     /// Open `path` (or an unnamed buffer). Returns a leftover swap file, if any.
@@ -369,6 +372,10 @@ impl Session {
 
     pub fn handle_key(&mut self, k: Key) {
         self.ed.handle_key(k);
+        // A chat is never "unsaved".
+        if self.ed.claude.is_some() {
+            self.ed.buf.modified = false;
+        }
         // Effects can ask for more effects (Org work across buffers).
         for _ in 0..16 {
             match self.ed.pending_effect.take() {
@@ -392,6 +399,7 @@ impl Session {
             ExEffect::Write { .. } if self.ed.occur.is_some() => self.occur_write(),
             ExEffect::Occur { pat, range } => self.occur(&pat, range),
             ExEffect::OccurRevert => self.occur_revert(),
+            ExEffect::Claude => self.claude(),
             ExEffect::Write {
                 path,
                 force,
@@ -998,6 +1006,49 @@ impl Session {
                 }
             }
         }
+    }
+
+    /// `:claude`: show the chat (one per fred, as `*Occur*`), ready to type.
+    fn claude(&mut self) {
+        match (0..self.bufs.len()).find(|&i| self.ed_at(i).claude.is_some()) {
+            Some(i) => self.show(i),
+            None => {
+                let mut ed = make_editor(
+                    Buffer::from_text("> "),
+                    self.ed.opts.for_new_buffer(),
+                    &self.cfg,
+                );
+                ed.claude = Some(Box::new(crate::claude::Chat::new(&self.cfg.claude_command)));
+                ed.syntax_path = Some(PathBuf::from("claude.md"));
+                let swap = self.swap_dir.join(format!("claude-{}", self.bufs.len()));
+                self.bufs.push(Some(Parked {
+                    ed,
+                    stamp: None,
+                    swap_path: swap,
+                    lossy: false,
+                    no_swap: true,
+                    swap_state: SwapState::None,
+                    used: 0,
+                }));
+                self.show(self.bufs.len() - 1);
+            }
+        }
+        let last = self.ed.line_count() - 1;
+        self.ed.set_cursor(last, 0);
+        self.handle_key(Key::ch('A'));
+    }
+
+    /// Claude's replies, into every chat (shown or not); the spinner.
+    pub fn tick_claude(&mut self) -> bool {
+        let mut changed = false;
+        for ed in self.editors_mut() {
+            changed |= crate::claude::tick(ed);
+        }
+        if let Some(s) = crate::claude::status(&self.ed) {
+            self.ed.set_msg(s);
+            changed = true;
+        }
+        changed
     }
 
     /// `Space B`: search the lines of every buffer, this one first, then

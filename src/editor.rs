@@ -119,6 +119,8 @@ pub struct Editor {
     pub dired: Option<Box<crate::dired::Dired>>,
     /// This buffer lists another's matching lines (see `occur`).
     pub occur: Option<Box<crate::occur::Occur>>,
+    /// This buffer is a chat with Claude Code (see `claude`).
+    pub claude: Option<Box<crate::claude::Chat>>,
     pub magit: Option<Box<crate::magit::View>>,
     /// Hidden line ranges (Org visibility).
     pub folds: crate::fold::Folds,
@@ -219,6 +221,7 @@ impl Editor {
             readonly: false,
             dired: None,
             occur: None,
+            claude: None,
             magit: None,
             folds: crate::fold::Folds::default(),
             org: None,
@@ -290,7 +293,8 @@ impl Editor {
         if self.menu.is_some() && crate::menu::key(self, k) {
             return;
         }
-        if crate::occur::start_key(self, k)
+        if crate::claude::key(self, k)
+            || crate::occur::start_key(self, k)
             || crate::magit::key(self, k)
             || crate::org::key(self, k)
             || crate::magit::blame::key(self, k)

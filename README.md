@@ -50,8 +50,8 @@ completion, a Git client modeled on Emacs's Magit, and Org mode. It is one
   files.
 - **Careful with your files.** Atomic writes, a warning when the file changed
   on disk, crash recovery, and line endings and encodings kept as they were.
-- **Claude when you want it.** `:ai` rewrites the selected lines; `K` on a
-  selection explains it.
+- **Claude when you want it.** `Space c` chats with Claude Code in a buffer;
+  `:ai` rewrites the selected lines; `K` on a selection explains it.
 
 ```
 $ fred main.rs
@@ -234,6 +234,7 @@ clipboard alone.
 | `Space B` | search the lines of every open buffer |
 | `Space s` | jump to any word on screen |
 | `Space d` | go to definition (same as `gd`) |
+| `Space c` | chat with Claude Code (`:claude`) |
 | `Space j` | browse files from a path, like Emacs's find-file |
 | `Space b` | switch between open buffers |
 | `Space r` | recently opened files, from any project |
@@ -426,6 +427,16 @@ Org's options go in the `[org]` table of the config, by their Emacs names
 
 ## Claude
 
+`Space c` (or `:claude`) opens `*claude*`: Claude Code, laid out like its
+command line. Type after the `>` and press `Enter` to send (`Ctrl-J` for a
+new line). The reply streams in above the prompt, `⏺` for text and tool
+calls and `⎿` for their output, with a spinner on the status line. It's a
+plain buffer, so you can leave Insert mode, move around, yank and switch
+buffers while Claude works. `Ctrl-C` interrupts, and `/clear` starts a new
+conversation. Each prompt runs `claude_command` with `--resume`. By default
+it accepts file edits, and other tools follow your Claude Code permission
+settings. Anything denied is counted on the status line.
+
 Select lines and run `:'<,'>ai make this async` (or any request): Claude
 rewrites just those lines, seeing the whole file for context, and a spinner
 shows while it works. `K` on a Visual selection, or `:[range]explain
@@ -468,6 +479,7 @@ tabstop = 8
 autocomplete = true      # suggest completions while typing (Ctrl-N works anyway)
 icons = false            # file icons in pickers (needs a Nerd Font)
 clipboard = true         # share yanks and puts with the system clipboard
+claude_command = "claude -p --output-format stream-json --verbose --include-partial-messages --permission-mode acceptEdits"
 ai_command = "claude -p --tools '' --safe-mode"   # what :ai runs, prompt on stdin
 explain_command = "claude -p --tools '' --safe-mode --model sonnet"
 ai_rules = ""            # added to every :ai, e.g. "Smallest change that works."

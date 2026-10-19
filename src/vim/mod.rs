@@ -682,6 +682,7 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
             Some('k') => crate::pick::open(ed, crate::pick::Kind::Lines),
             Some('r') => crate::pick::open(ed, crate::pick::Kind::Recent),
             Some('d') => crate::pick::definition(ed),
+            Some('c') => ed.pending_effect = Some(ExEffect::Claude),
             Some(c @ ('b' | 'B')) => {
                 ed.pending_effect = Some(ExEffect::Buffer {
                     cmd: if c == 'b' {

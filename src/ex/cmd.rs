@@ -49,6 +49,8 @@ pub enum ExEffect {
     },
     /// `gr` in an occur buffer: search again.
     OccurRevert,
+    /// `:claude`, `Space c`: the chat with Claude Code.
+    Claude,
     /// `:pwd`.
     Pwd,
     /// `:cd [dir]` (home without one).
@@ -319,6 +321,7 @@ pub const COMMANDS: &[Command] = &[
             range: a.range.map(|r| (r.start, r.end)),
         })
     }),
+    cmd("claude", 3, 0, |_, _| Ok(ExEffect::Claude)),
     cmd("pwd", 2, 0, |_, _| Ok(ExEffect::Pwd)),
     cmd("set", 2, EXTRA | OPTION, |_, a| set(a, Level::Both)),
     cmd("setlocal", 4, EXTRA | OPTION, |_, a| set(a, Level::Local)),
