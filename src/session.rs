@@ -381,10 +381,9 @@ impl Session {
     }
 
     pub fn handle_key(&mut self, k: Key) {
-        // Claude's question is answered from whichever buffer you're in, but
-        // only in Normal mode with nothing pending: `n` while typing is text.
-        let idle = self.ed.mode == Mode::Normal && self.ed.vim.pending.is_empty();
-        if idle && self.editors_mut().any(|ed| crate::claude::answer(ed, k)) {
+        // The approval dialog takes `y` and `n` from whichever buffer and mode
+        // you're in. Never from Claude's own typing (it would approve itself).
+        if self.typing.is_none() && self.editors_mut().any(|ed| crate::claude::answer(ed, k)) {
             self.ed.msg = None;
             return;
         }
@@ -1309,12 +1308,24 @@ impl Session {
     /// Claude's replies, into every chat (shown or not); the spinner.
     pub fn tick_claude(&mut self) -> bool {
         let mut changed = false;
+        let mut finished = None;
         for ed in self.editors_mut() {
+            let was = crate::claude::busy(ed);
             changed |= crate::claude::tick(ed);
+            if was && !crate::claude::busy(ed) {
+                finished = Some(ed.msg.clone());
+            }
         }
-        let asked = self
-            .editors_mut()
-            .find_map(|ed| crate::claude::question(ed));
+        // The turn is over: back to the chat, where it says how it went.
+        if let Some(msg) = finished && self.ed.claude.is_none() {
+            self.claude();
+            self.ed.msg = msg;
+            changed = true;
+        }
+        let working = self.editors_mut().find_map(|ed| crate::claude::working(ed));
+        changed |= working.is_some();
+        self.ed.claude_working = working;
+        let asked = self.editors_mut().find_map(|ed| crate::claude::question(ed));
         if let Some(s) = asked.or_else(|| crate::claude::status(&self.ed)) {
             self.ed.set_msg(s);
             changed = true;
@@ -2273,17 +2284,40 @@ mod tests {
     }
 
     #[test]
-    fn claude_is_answered_only_from_normal_mode() {
+    fn claude_is_answered_from_any_mode_but_not_by_its_own_typing() {
         let mut t = T::open(Some("a"), Some("1\n"));
+        // The chat is in Insert mode at its prompt, as after sending one.
         t.keys(":claude<Enter>");
+        assert_eq!(t.s.ed.mode, Mode::Insert);
         let (tx, rx) = std::sync::mpsc::channel();
         let args = serde_json::json!({ "tool_name": "Bash", "input": { "command": "ls" } });
         crate::claude::ask(&mut t.s.ed, &args, tx);
-        t.keys("<Esc>:b 1<Enter>ion<Esc>");
-        assert_eq!(t.s.ed.buf.text(), "on1");
+        t.keys("y");
+        assert!(rx.try_recv().unwrap().unwrap().contains("allow"));
+        assert!(t.s.ed.buf.text().ends_with("Allowed\n\n> "), "{}", t.s.ed.buf.text());
+        let (tx, rx) = std::sync::mpsc::channel();
+        crate::claude::ask(&mut t.s.ed, &args, tx);
+        let (ktx, _krx) = std::sync::mpsc::channel();
+        t.s.typing = Some(Typing { keys: "n".chars().map(Key::ch).collect(), per_frame: 1, reply: ktx });
+        t.s.tick_typing();
         assert!(rx.try_recv().is_err());
-        t.keys("n");
-        assert!(rx.try_recv().unwrap().unwrap().contains("deny"));
+    }
+
+    #[test]
+    fn claude_shows_it_is_working_and_comes_back_to_the_chat_when_done() {
+        let mut t = T::open(Some("a"), Some("1\n"));
+        t.s.cfg.claude_command = r#"sleep 0.2; echo '{"type":"result","duration_ms":1000,"total_cost_usd":0}'"#.into();
+        t.keys(":claude<Enter>hi<Enter><Esc>:b 1<Enter>");
+        t.s.tick_claude();
+        assert!(t.s.ed.claude.is_none());
+        assert!(t.s.ed.claude_working.as_deref().unwrap().contains("Claude is working… 0s"));
+        let start = std::time::Instant::now();
+        while t.s.ed.claude.is_none() && start.elapsed().as_secs() < 5 {
+            t.s.tick_claude();
+        }
+        assert!(t.s.ed.claude.is_some());
+        assert_eq!(t.s.ed.claude_working, None);
+        assert_eq!(t.s.ed.msg.as_ref().unwrap().0, "done in 1s · $0.00");
     }
 
     #[test]

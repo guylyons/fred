@@ -125,15 +125,29 @@ pub fn styles(line: &str) -> Option<crate::highlight::LineStyles> {
     ])
 }
 
+/// The question on the message line as (tool, argument): `Allow Bash(ls)? y/n`
+/// is `("Bash", "ls")`. The approval box shows it.
+pub fn asked(msg: &str) -> Option<(&str, &str)> {
+    let call = msg.strip_prefix("Allow ")?.strip_suffix("? y/n")?;
+    let (name, arg) = call.split_once('(')?;
+    Some((name, arg.strip_suffix(')')?))
+}
+
 /// The CLI's spinner on the status line, while Claude works.
 pub fn status(ed: &Editor) -> Option<String> {
-    const SPIN: [char; 6] = ['·', '✢', '✳', '✶', '✻', '✽'];
     if let Some(q) = question(ed) {
         return Some(q);
     }
+    working(ed).map(|w| format!("{w} · C-c to interrupt"))
+}
+
+/// `✻ Claude is working… 12s`, its spinner turning, while a turn runs:
+/// every buffer's status bar shows it.
+pub fn working(ed: &Editor) -> Option<String> {
+    const SPIN: [char; 6] = ['·', '✢', '✳', '✶', '✻', '✽'];
     let t = ed.claude.as_ref()?.job.as_ref()?.start.elapsed();
     let c = SPIN[(t.as_millis() / 120) as usize % SPIN.len()];
-    Some(format!("{c} Working… {}s · C-c to interrupt", t.as_secs()))
+    Some(format!("{c} Claude is working… {}s", t.as_secs()))
 }
 
 pub fn busy(ed: &Editor) -> bool {
@@ -571,6 +585,8 @@ mod tests {
         assert_eq!(fg("Allow Read(x)? y/n")[0].1, "");
         assert_eq!(fg("  ⎿  Allowed")[1], (Some(Color::Green), "Allowed".into()));
         assert_eq!(fg("  ⎿  Denied")[1], (Some(Color::Red), "Denied".into()));
+        assert_eq!(asked("Allow Bash(ls -l)? y/n"), Some(("Bash", "ls -l")));
+        assert_eq!(asked("⏺ Allow Bash(ls)? y/n"), None);
         assert!(styles("  ⎿  ok").is_none() && styles("say Allow x? y/n").is_none());
     }
 
