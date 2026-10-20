@@ -795,9 +795,7 @@ fn event_loop(
                 match ev {
                     Event::Mouse(m) => {
                         if let Some(area) = ui.area {
-                            let mut view = s.win().view;
-                            ui::render::mouse(&mut s.ed, &mut view, area, m);
-                            s.win_mut().view = view;
+                            s.mouse(area, m);
                         }
                     }
                     ev => {

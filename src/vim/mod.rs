@@ -699,7 +699,7 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
         // `Space B` searches their lines, `Space d` goes to a definition,
         // `Space -` lists the file's directory (dired), `Space O` shows it in
         // the file manager, `Space Enter` saves,
-        // `Space ;` closes.
+        // `Space ;` closes, `Space w N` goes to window N.
         (KeyCode::Char(' '), false) => match arg {
             Some('s') => crate::zap::open(ed),
             Some('p') => crate::pick::open(ed, crate::pick::Kind::Files),
@@ -752,6 +752,8 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
                 })
             }
             Some(';') => ed.pending_effect = Some(ExEffect::Quit { force: false }),
+            // Number the windows; the next digit goes to one.
+            Some('w') => ed.pending_effect = Some(ExEffect::Window { cmd: '#', count: None }),
             _ => {}
         },
         (KeyCode::Char(c @ ('/' | '?')), false) => ed.open_cmdline(c, ""),

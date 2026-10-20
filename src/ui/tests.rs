@@ -1829,3 +1829,49 @@ fn other_window_cursor_clamped_after_delete() {
     s.handle_keys("<C-w>j");
     assert_eq!(s.ed.cur.line, 0);
 }
+
+#[test]
+fn space_w_numbers_and_dims_the_windows() {
+    let (mut s, mut sc, _d) = session_screen(40, 12, &[("a", "alpha\n")]);
+    s.handle_keys(":vsplit<Enter>:split<Enter> w");
+    sc.draw_session(&mut s);
+    let screen: Vec<String> = (0..12).map(|r| sc.row(r)).collect();
+    let text = screen.join("\n");
+    for n in ["│ 1 │", "│ 2 │", "│ 3 │"] {
+        assert!(text.contains(n), "{text}");
+    }
+    let b = sc.term.backend().buffer();
+    assert!(b[(0, 0)].modifier.contains(Modifier::DIM));
+    s.handle_keys("1");
+    sc.draw_session(&mut s);
+    assert!(!sc.term.backend().buffer()[(0, 0)].modifier.contains(Modifier::DIM));
+}
+
+#[test]
+fn clicking_a_window_focuses_it() {
+    use ratatui::crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    let click = |column, row| MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column,
+        row,
+        modifiers: KeyModifiers::NONE,
+    };
+    let (mut s, mut sc, d) = session_screen(41, 12, &[("a", "alpha\nalps\n"), ("b", "beta\nbest\n")]);
+    let screen = ratatui::layout::Rect::new(0, 0, 41, 12);
+    // Left: b (active). Right: a.
+    s.handle_keys(&format!(":vsplit {}<Enter>", d.path().join("b").display()));
+    sc.draw_session(&mut s);
+    let left = s.active;
+    s.mouse(screen, click(23, 1));
+    assert_ne!(s.active, left);
+    assert_eq!((s.ed.buf.text().as_str(), s.ed.cur.pos()), ("alpha\nalps", (1, 3)));
+    // And back, onto b's second line.
+    s.mouse(screen, click(1, 1));
+    assert_eq!((s.active, s.ed.buf.text().as_str(), s.ed.cur.pos()), (left, "beta\nbest", (1, 1)));
+    // The divider moves nothing; a status line focuses its window, as in Vim,
+    // leaving the cursor where it was.
+    s.mouse(screen, click(19, 1));
+    assert_eq!((s.active, s.ed.cur.pos()), (left, (1, 1)));
+    s.mouse(screen, click(25, 10));
+    assert_eq!((s.ed.buf.text().as_str(), s.ed.cur.pos()), ("alpha\nalps", (1, 3)));
+}

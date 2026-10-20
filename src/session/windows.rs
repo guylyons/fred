@@ -3,7 +3,10 @@
 use super::{Parked, Session, SwapState, make_editor};
 use crate::buffer::Buffer;
 use crate::ex::{BufCmd, ExEffect, SplitWhat};
+use crate::editor::Mode;
 use crate::window::Dir;
+use ratatui::crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+use ratatui::layout::Rect;
 
 impl Session {
     /// `:split` and friends: the active window divides, the new part (above,
@@ -122,6 +125,37 @@ impl Session {
         ok
     }
 
+    /// The mouse, on a `screen` this size. With windows split, clicking one
+    /// makes it active, and the click lands in it as with one window.
+    pub fn mouse(&mut self, screen: Rect, m: MouseEvent) {
+        let mut area = screen;
+        // The picker and the right-click menu are drawn over the whole screen.
+        if self.windows.len() > 1 && self.ed.menu.is_none() && !matches!(self.ed.mode, Mode::Pick(_)) {
+            let placed = self.tree.layout(self.area);
+            if m.kind == MouseEventKind::Down(MouseButton::Left)
+                && let Some(p) = placed.iter().find(|p| p.rect.contains((m.column, m.row).into()))
+                && p.id != self.active
+            {
+                // A click half-typed into the old window doesn't carry over.
+                self.ed.vim.pending.clear();
+                self.focus(p.id);
+                self.win_mut().view.last_click = None;
+            }
+            // Its text and status line, as `mouse` expects the whole screen
+            // to be (it leaves out the last two rows): outside it is ignored.
+            if let Some(p) = placed.iter().find(|p| p.id == self.active) {
+                area = Rect {
+                    width: p.rect.width - u16::from(p.divider),
+                    height: p.rect.height + 1,
+                    ..p.rect
+                };
+            }
+        }
+        let mut view = self.win().view;
+        crate::ui::render::mouse(&mut self.ed, &mut view, area, m);
+        self.win_mut().view = view;
+    }
+
     /// Make window `id` the active one, with its own cursor.
     pub fn focus(&mut self, id: usize) {
         if id == self.active || !self.windows.iter().any(|w| w.id == id) {
@@ -181,6 +215,8 @@ impl Session {
             }
             'w' => self.focus(count.map_or(order[(at + 1) % order.len()], nth)),
             'W' => self.focus(count.map_or(order[(at + order.len() - 1) % order.len()], nth)),
+            // Fred's own: `Space w` numbers the windows to pick one.
+            '#' if order.len() > 1 => self.picking_window = true,
             't' => self.focus(order[0]),
             'b' => self.focus(order[order.len() - 1]),
             'c' => self.close_active(),

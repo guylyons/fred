@@ -157,6 +157,8 @@ pub struct Session {
     pub active: usize,
     /// The window `CTRL-W p` goes back to.
     prev_win: Option<usize>,
+    /// `Space w`: the windows show their numbers until the next key.
+    pub picking_window: bool,
     next_win_id: usize,
     /// The windows' area on screen, set by the app every draw.
     pub area: Rect,
@@ -354,6 +356,7 @@ impl Session {
             tree: Node::Leaf(1),
             active: 1,
             prev_win: None,
+            picking_window: false,
             next_win_id: 2,
             area: Rect::new(0, 0, 80, 23),
             hl: Highlighter::new("ansi", false)?,
@@ -418,6 +421,15 @@ impl Session {
     }
 
     pub fn handle_key(&mut self, k: Key) {
+        if std::mem::take(&mut self.picking_window) {
+            // A digit picks a window; any other key just puts the numbers away.
+            if let Some(n) = k.char().and_then(|c| c.to_digit(10)).filter(|&n| n > 0)
+                && let Some(&id) = self.tree.order().get(n as usize - 1)
+            {
+                self.focus(id);
+            }
+            return;
+        }
         // The approval dialog takes `y` and `n` in Normal mode, from whichever
         // buffer you're in: typed text (Insert, `:`, `/`) never answers it. Never
         // from Claude's own typing either (it would approve itself).
@@ -1896,6 +1908,23 @@ mod tests {
         t.keys("3G:split<Enter>");
         assert_eq!(t.s.tree.order(), vec![t.s.active, t.s.windows[0].id]);
         assert_eq!(t.s.ed.cur.line, 2);
+    }
+
+    #[test]
+    fn space_w_number_picks_a_window() {
+        let mut t = T::open(Some("a"), Some("1\n2\n3\n"));
+        t.keys("<C-w>s<C-w>s");
+        let order = t.s.tree.order();
+        t.keys(" w");
+        assert!(t.s.picking_window);
+        t.keys("3");
+        assert_eq!((t.s.active, t.s.picking_window), (order[2], false));
+        // Any other key puts the numbers away and does nothing else.
+        t.keys(" wx");
+        assert_eq!((t.s.active, t.s.ed.buf.text().as_str()), (order[2], "1\n2\n3"));
+        // One window: nothing to pick.
+        t.keys("<C-w>o w");
+        assert!(!t.s.picking_window);
     }
 
     #[test]
