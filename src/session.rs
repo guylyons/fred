@@ -6,6 +6,10 @@ use crate::editor::{Editor, Mode};
 use crate::ex::addr::Range;
 use crate::ex::{BufCmd, ExEffect};
 use crate::fileio::{self, FileStamp};
+use crate::highlight::Highlighter;
+use crate::ui::View;
+use crate::window::{Node, Placed, Window};
+use ratatui::layout::Rect;
 use crate::key::Key;
 use crate::options::Options;
 use crate::swap::{self, SwapInfo};
@@ -15,6 +19,7 @@ use std::time::{Duration, Instant};
 pub(crate) mod magit;
 mod occur;
 mod org;
+mod windows;
 pub use org::Finish;
 
 const SWAP_IDLE: Duration = Duration::from_secs(1);
@@ -66,6 +71,10 @@ struct Parked {
     swap_state: SwapState,
     /// When it was last left ([`Session::clock`]).
     used: u64,
+    /// Its highlighting, kept while parked; None until first shown.
+    hl: Option<Highlighter>,
+    /// Its scroll when it was last left.
+    view: View,
 }
 
 /// Claude's `fred_keys` being typed, a few keys a frame, so you watch.
@@ -138,9 +147,23 @@ pub struct Session {
     /// Every open buffer, numbered from 1. The one being edited lives in
     /// the fields above; its slot (`cur`) is None.
     bufs: Vec<Option<Parked>>,
-    cur: usize,
+    pub cur: usize,
     /// Counts buffer switches, to order buffers by last use.
     clock: u64,
+    /// Every window, and how the screen is divided among them.
+    pub windows: Vec<Window>,
+    pub tree: Node,
+    /// The active window's id: it shows the live buffer, `ed`.
+    pub active: usize,
+    /// The window `CTRL-W p` goes back to.
+    prev_win: Option<usize>,
+    next_win_id: usize,
+    /// The windows' area on screen, set by the app every draw.
+    pub area: Rect,
+    /// The live buffer's highlighting (the app sets the theme).
+    pub hl: Highlighter,
+    /// A window's lines were left unhighlighted last frame: draw again.
+    pub hl_incomplete: bool,
 }
 
 fn make_editor(buf: Buffer, opts: Options, cfg: &Config) -> Editor {
@@ -321,6 +344,20 @@ impl Session {
             bufs: vec![None],
             cur: 0,
             clock: 0,
+            windows: vec![Window {
+                id: 1,
+                buf: 0,
+                cur: Default::default(),
+                view: View::default(),
+                prev: None,
+            }],
+            tree: Node::Leaf(1),
+            active: 1,
+            prev_win: None,
+            next_win_id: 2,
+            area: Rect::new(0, 0, 80, 23),
+            hl: Highlighter::new("ansi", false)?,
+            hl_incomplete: false,
         };
         let dir = browse.clone().or_else(|| {
             s.ed.path
@@ -381,9 +418,14 @@ impl Session {
     }
 
     pub fn handle_key(&mut self, k: Key) {
-        // The approval dialog takes `y` and `n` from whichever buffer and mode
-        // you're in. Never from Claude's own typing (it would approve itself).
-        if self.typing.is_none() && self.editors_mut().any(|ed| crate::claude::answer(ed, k)) {
+        // The approval dialog takes `y` and `n` in Normal mode, from whichever
+        // buffer you're in: typed text (Insert, `:`, `/`) never answers it. Never
+        // from Claude's own typing either (it would approve itself).
+        let normal = self.ed.mode == Mode::Normal && self.ed.vim.pending.is_empty();
+        if normal
+            && self.typing.is_none()
+            && self.editors_mut().any(|ed| crate::claude::answer(ed, k))
+        {
             self.ed.msg = None;
             return;
         }
@@ -429,7 +471,9 @@ impl Session {
                 then_quit,
             } => {
                 if self.write(path, force, range) && then_quit {
-                    if self.ed.buf.modified {
+                    if self.windows.len() > 1 {
+                        self.close_active();
+                    } else if self.ed.buf.modified {
                         // Wrote a copy; the buffer itself is still unsaved.
                         self.ed
                             .set_err("unsaved changes (q! to discard, wq to save)");
@@ -440,9 +484,15 @@ impl Session {
             }
             ExEffect::WriteIfModifiedQuit => {
                 if !self.ed.buf.modified || self.write(None, false, None) {
-                    self.quit_if_all_saved();
+                    if self.windows.len() > 1 {
+                        self.close_active();
+                    } else {
+                        self.quit_if_all_saved();
+                    }
                 }
             }
+            // In a split, `:q` closes the window; the buffer stays, hidden.
+            ExEffect::Quit { .. } if self.windows.len() > 1 => self.close_active(),
             ExEffect::Quit { force } => {
                 if force {
                     self.quit = true;
@@ -454,8 +504,26 @@ impl Session {
                 }
             }
             ExEffect::Buffer { cmd, arg, force } => self.buffer(cmd, &arg, force),
+            ExEffect::Window { cmd, count } => self.wincmd(cmd, count),
+            ExEffect::Close { .. } => self.close_active(),
+            ExEffect::Only => self.only(),
+            ExEffect::QuitAll { force, write } => {
+                if force {
+                    self.quit = true;
+                } else if !write || self.write_all() {
+                    self.quit_if_all_saved();
+                }
+            }
+            ExEffect::Split {
+                vertical,
+                what,
+                size,
+            } => self.split(vertical, what, size),
             ExEffect::Edit { path, force } => self.edit(path.as_deref(), force),
-            ExEffect::Shell(cmd) => self.pending_shell = Some(cmd),
+            ExEffect::Shell(cmd) => match crate::shell::guard() {
+                Ok(()) => self.pending_shell = Some(cmd),
+                Err(e) => self.ed.set_err(e),
+            },
             ExEffect::Ai {
                 range,
                 prompt,
@@ -788,7 +856,9 @@ impl Session {
     /// a new buffer, or in place of this one when reloading it (or when
     /// this one is an empty unnamed one).
     fn switch_to(&mut self, o: Opened, new_swap: PathBuf) {
+        let shown_elsewhere = self.windows.iter().any(|w| w.id != self.active && w.buf == self.cur);
         let blank = o.ed.magit.is_none()
+            && !shown_elsewhere
             && self.ed.path.is_none()
             && !self.ed.buf.modified
             && self.ed.buf.len_bytes() == 0;
@@ -804,6 +874,8 @@ impl Session {
             no_swap: false,
             swap_state: SwapState::None,
             used: 0,
+            hl: None,
+            view: View::default(),
         }));
         self.show(self.bufs.len() - 1);
         self.arrived();
@@ -829,6 +901,8 @@ impl Session {
         self.last_change = None;
         self.swap_path = new_swap;
         self.reloaded = true;
+        self.hl.set_file(self.ed.path.as_deref().or(self.ed.syntax_path.as_deref()), &self.ed.buf);
+        self.win_mut().view = View::default();
         self.attach_git_commit_mode();
     }
 
@@ -874,17 +948,43 @@ impl Session {
         buf_name(&self.ed)
     }
 
-    /// Show buffer `i`, leaving the current one open (and its unsaved
-    /// text in its swap file).
+    /// Show buffer `i` in the active window, leaving the current one open
+    /// (and its unsaved text in its swap file). The window keeps each
+    /// buffer's scroll.
     fn show(&mut self, i: usize) {
         if i == self.cur {
             // Picked from the buffer list: still close it.
             self.ed.mode = Mode::Normal;
             return;
         }
+        let from = self.cur;
+        let incoming = self.bufs[i].as_ref().map(|p| p.view).unwrap_or_default();
+        self.make_live(i);
+        let out = self.win().view;
+        if let Some(p) = self.bufs[from].as_mut() {
+            p.view = out;
+        }
+        let w = self.win_mut();
+        w.view = incoming;
+        w.prev = Some(from);
+        w.buf = i;
+    }
+
+    /// Make buffer `i` the live one, `ed`; nothing about windows.
+    fn make_live(&mut self, i: usize) {
         self.remember_place();
         self.write_swap();
         let mut p = self.bufs[i].take().expect("a parked buffer");
+        let hl = p.hl.take().unwrap_or_else(|| {
+            let mut h = self.hl.blank();
+            h.set_file(p.ed.path.as_deref().or(p.ed.syntax_path.as_deref()), &p.ed.buf);
+            h
+        });
+        p.hl = Some(std::mem::replace(&mut self.hl, hl));
+        // Text that changed while parked (Claude's replies, a refresh).
+        if let Some(d) = p.ed.buf.take_dirty_from() {
+            self.hl.invalidate(d);
+        }
         p.ed.inherit(&mut self.ed);
         self.ed.mode = Mode::Normal;
         std::mem::swap(&mut self.ed, &mut p.ed);
@@ -903,6 +1003,62 @@ impl Session {
         if self.ed.magit.as_ref().is_some_and(|view| view.dirty) {
             self.magit_action(crate::magit::Action::Refresh);
         }
+    }
+
+    /// Feed keys in Vim notation, as tests type them.
+    #[cfg(test)]
+    pub fn handle_keys(&mut self, k: &str) {
+        for key in crate::key::parse_keys(k) {
+            self.handle_key(key);
+        }
+    }
+
+    /// Each window on screen, the active one first: its buffer's editor
+    /// (with the window's cursor in it, clamped to the text), its view, its
+    /// buffer's highlighting, where it is, and whether it is active.
+    pub fn each_window(&mut self, mut f: impl FnMut(&Editor, &mut View, &mut Highlighter, Placed, bool)) {
+        let mut placed = self.tree.layout(self.area);
+        placed.sort_by_key(|p| p.id != self.active);
+        for p in placed {
+            let Some(w) = self.windows.iter_mut().find(|w| w.id == p.id) else {
+                continue;
+            };
+            let active = p.id == self.active;
+            let (ed, hl) = if w.buf == self.cur {
+                (&mut self.ed, &mut self.hl)
+            } else {
+                let Some(park) = self.bufs[w.buf].as_mut() else { continue };
+                let hl = park.hl.get_or_insert_with(|| {
+                    let mut h = self.hl.blank();
+                    h.set_file(park.ed.path.as_deref().or(park.ed.syntax_path.as_deref()), &park.ed.buf);
+                    h
+                });
+                if let Some(d) = park.ed.buf.take_dirty_from() {
+                    hl.invalidate(d);
+                }
+                (&mut park.ed, hl)
+            };
+            if active {
+                f(ed, &mut w.view, hl, p, true);
+                continue;
+            }
+            let saved = ed.cur;
+            ed.set_cursor(w.cur.line, w.cur.byte);
+            ed.cur.want_col = w.cur.want_col;
+            w.cur = ed.cur;
+            f(ed, &mut w.view, hl, p, false);
+            ed.cur = saved;
+        }
+    }
+
+    /// The active window.
+    pub fn win(&self) -> &Window {
+        self.windows.iter().find(|w| w.id == self.active).expect("the active window")
+    }
+
+    pub fn win_mut(&mut self) -> &mut Window {
+        let id = self.active;
+        self.windows.iter_mut().find(|w| w.id == id).expect("the active window")
     }
 
     /// The other buffer open on `path`.
@@ -1006,10 +1162,28 @@ impl Session {
             self.lock();
             return;
         }
+        self.close_windows_on(target);
         if target == self.cur {
             let to = self.buffer_arg("#").unwrap_or((target + 1) % n);
             self.show(to);
         }
+        self.drop_buffer(target);
+    }
+
+    /// Close the windows showing buffer `i`, except the last window.
+    fn close_windows_on(&mut self, i: usize) {
+        let on: Vec<usize> = self.windows.iter().filter(|w| w.buf == i).map(|w| w.id).collect();
+        for id in on {
+            if self.windows.len() > 1 {
+                let _ = self.close_window(id);
+            }
+        }
+    }
+
+    /// Forget parked buffer `target`: its windows close, and every buffer
+    /// number above it (windows', Magit's way back) shifts down.
+    fn drop_buffer(&mut self, target: usize) {
+        self.close_windows_on(target);
         if let Some(b) = self.bufs.remove(target)
             && !b.no_swap
         {
@@ -1017,6 +1191,12 @@ impl Session {
         }
         if target < self.cur {
             self.cur -= 1;
+        }
+        for w in &mut self.windows {
+            if w.buf > target {
+                w.buf -= 1;
+            }
+            w.prev = w.prev.filter(|&p| p != target).map(|p| if p > target { p - 1 } else { p });
         }
         self.clock += 1;
         for ed in self.editors_mut() {
@@ -1055,6 +1235,8 @@ impl Session {
                     no_swap: true,
                     swap_state: SwapState::None,
                     used: 0,
+                    hl: None,
+                    view: View::default(),
                 }));
                 self.show(self.bufs.len() - 1);
             }
@@ -1134,7 +1316,10 @@ impl Session {
         }
         if self.quit || self.typing.as_ref().is_some_and(|t| t.keys.is_empty()) {
             let t = self.typing.take().unwrap();
-            let _ = t.reply.send(Ok(self.state()));
+            // The lines around the cursor too, so a slipped edit shows at once.
+            let l = self.ed.cur.line + 1;
+            let near = self.read_buffer(&serde_json::json!({"start": l.saturating_sub(2).max(1), "end": l + 2}));
+            let _ = t.reply.send(Ok(self.state() + &near.unwrap_or_default()));
         }
         true
     }
@@ -1155,7 +1340,11 @@ impl Session {
         let was_insert = self.ed.mode == Mode::Insert;
         match text {
             Some(t) if was_insert && file => return self.ed.paste(&t),
-            _ => self.handle_key(k),
+            _ => {
+                crate::shell::CLAUDE_TYPING.set(true);
+                self.handle_key(k);
+                crate::shell::CLAUDE_TYPING.set(false);
+            }
         }
         // `o`, `O`, `cc`, `S` autoindent the new line; Claude sends its own.
         if file && !was_insert && self.ed.mode == Mode::Insert {
@@ -1330,7 +1519,7 @@ impl Session {
         changed |= working.is_some();
         self.ed.claude_working = working;
         let asked = self.editors_mut().find_map(|ed| crate::claude::question(ed));
-        if let Some(s) = asked.or_else(|| crate::claude::status(&self.ed)) {
+        if let Some(s) = asked {
             self.ed.set_msg(s);
             changed = true;
         }
@@ -1611,6 +1800,173 @@ mod tests {
                 other => panic!("no command line: {other:?}"),
             }
         }
+    }
+
+    #[test]
+    fn quit_in_split_closes_window_and_keeps_buffer() {
+        let mut t = T::open(Some("a"), Some("a\n"));
+        let b = t.dir.path().join("b");
+        fs::write(&b, "b\n").unwrap();
+        t.keys(&format!(":split {}<Enter>ix<Esc>:q<Enter>", b.display()));
+        assert!(!t.s.quit);
+        assert_eq!(t.s.windows.len(), 1);
+        assert_eq!(t.s.ed.buf.text(), "a");
+        assert!((0..t.s.bufs.len()).any(|i| t.s.ed_at(i).buf.text() == "xb"));
+    }
+
+    #[test]
+    fn close_last_window_errors() {
+        let mut t = T::open(Some("a"), Some("a\n"));
+        t.keys("<C-w>c");
+        assert_eq!(t.msg(), "? E444: Cannot close last window");
+        t.keys(":close<Enter>");
+        assert_eq!(t.msg(), "? E444: Cannot close last window");
+    }
+
+    #[test]
+    fn only_and_hide() {
+        let mut t = T::open(Some("a"), Some("a\n"));
+        t.keys(":split<Enter>:vsplit<Enter>:only<Enter>");
+        assert_eq!(t.s.windows.len(), 1);
+        assert_eq!(t.s.tree.order(), vec![t.s.active]);
+        t.keys(":split<Enter>:hide<Enter>");
+        assert_eq!(t.s.windows.len(), 1);
+    }
+
+    #[test]
+    fn qall_checks_every_buffer() {
+        let mut t = T::open(Some("a"), Some("a\n"));
+        let b = t.dir.path().join("b");
+        t.keys(&format!(":split {}<Enter>ix<Esc><C-w>j:qa<Enter>", b.display()));
+        assert!(!t.s.quit);
+        t.keys(":wqa<Enter>");
+        assert!(t.s.quit);
+        assert_eq!(t.file("b"), "x\n");
+    }
+
+    #[test]
+    fn bdelete_closes_its_windows() {
+        let mut t = T::open(Some("a"), Some("a\n"));
+        let b = t.dir.path().join("b");
+        fs::write(&b, "b\n").unwrap();
+        t.keys(&format!(":split {}<Enter>:bd<Enter>", b.display()));
+        assert_eq!(t.s.windows.len(), 1);
+        assert_eq!(t.s.ed.buf.text(), "a");
+    }
+
+    /// Every window shows a buffer that exists, and drawing them works.
+    fn windows_valid(t: &mut T) {
+        let n = t.s.bufs.len();
+        assert!(t.s.windows.iter().all(|w| w.buf < n), "{:?}", t.s.windows);
+        assert_eq!(t.s.win().buf, t.s.cur);
+        t.s.each_window(|_, _, _, _, _| {});
+    }
+
+    #[test]
+    fn org_finish_with_another_window_split() {
+        let mut t = T::open(Some("a"), Some("a\n"));
+        t.s.org_special("*Org Note*", "note\n", (0, 0), Box::new(|_, _, _| {}));
+        let c = t.dir.path().join("c");
+        t.keys(&format!(":split {}<Enter><C-w>j", c.display()));
+        t.s.org_finish(false);
+        windows_valid(&mut t);
+        assert_eq!(t.s.ed.buf.text(), "a");
+    }
+
+    #[test]
+    fn org_finish_shown_in_two_windows() {
+        let mut t = T::open(Some("a"), Some("a\n"));
+        t.s.org_special("*Org Note*", "note\n", (0, 0), Box::new(|_, _, _| {}));
+        t.keys(":split<Enter>");
+        t.s.org_finish(false);
+        windows_valid(&mut t);
+        assert_eq!(t.s.windows.len(), 1);
+    }
+
+    #[test]
+    fn focus_clamps_normal_cursor_to_the_line() {
+        let mut t = T::open(Some("a"), Some("abcdef\n"));
+        t.keys(":split<Enter>$<C-w>j0lld$<C-w>kx");
+        assert_eq!(t.s.ed.buf.text(), "a");
+    }
+
+    #[test]
+    fn split_opens_above_and_moves_there() {
+        let mut t = T::open(Some("a"), Some("1\n2\n3\n"));
+        t.keys("3G:split<Enter>");
+        assert_eq!(t.s.tree.order(), vec![t.s.active, t.s.windows[0].id]);
+        assert_eq!(t.s.ed.cur.line, 2);
+    }
+
+    #[test]
+    fn ctrl_w_moves_keep_each_cursor() {
+        let mut t = T::open(Some("a"), Some("1\n2\n3\n4\n5\n"));
+        t.keys("3G<C-w>s5G<C-w>j");
+        assert_eq!(t.s.ed.cur.line, 2);
+        t.keys("<C-w>k");
+        assert_eq!(t.s.ed.cur.line, 4);
+        t.keys("<C-w><C-j>");
+        assert_eq!(t.s.ed.cur.line, 2);
+        t.keys("<C-w>p");
+        assert_eq!(t.s.ed.cur.line, 4);
+    }
+
+    #[test]
+    fn vsplit_file_and_window_numbers() {
+        let mut t = T::open(Some("a"), Some("a\n"));
+        let b = t.dir.path().join("b");
+        fs::write(&b, "b\n").unwrap();
+        t.keys(&format!(":vsplit {}<Enter>", b.display()));
+        assert_eq!(t.s.ed.buf.text(), "b");
+        t.keys(":wincmd l<Enter>");
+        assert_eq!(t.s.ed.buf.text(), "a");
+        t.keys("1<C-w>w");
+        assert_eq!(t.s.ed.buf.text(), "b");
+    }
+
+    #[test]
+    fn split_count_sets_height() {
+        let mut t = T::open(Some("a"), Some("a\n"));
+        t.keys(":5split<Enter>");
+        let p = t.s.tree.layout(t.s.area);
+        assert_eq!(p[0].rect.height, 6); // 5 text rows + status line
+    }
+
+    #[test]
+    fn split_too_small() {
+        let mut t = T::open(Some("a"), Some("a\n"));
+        t.s.area = ratatui::layout::Rect::new(0, 0, 80, 3);
+        t.keys(":split<Enter>");
+        // fred marks every error with "? ".
+        assert_eq!(t.msg(), "? E36: Not enough room");
+        assert_eq!(t.s.windows.len(), 1);
+    }
+
+    #[test]
+    fn new_and_sbuffer() {
+        let mut t = T::open(Some("a"), Some("a\n"));
+        t.keys(":new<Enter>");
+        assert_eq!(t.s.ed.buf.text(), "");
+        t.keys(":sbuffer 1<Enter>");
+        assert_eq!(t.s.ed.buf.text(), "a");
+        assert_eq!(t.s.windows.len(), 3);
+    }
+
+    #[test]
+    fn scroll_survives_buffer_switch() {
+        let mut t = T::open(Some("a"), Some(&"x\n".repeat(200)));
+        t.keys("150G");
+        t.s.win_mut().view.top = 140;
+        t.keys(":e b<Enter>:b 1<Enter>");
+        assert_eq!(t.s.win().view.top, 140);
+        assert_eq!(t.s.ed.cur.line, 149);
+    }
+
+    #[test]
+    fn one_window_at_start() {
+        let t = T::open(Some("a"), Some("1\n"));
+        assert_eq!(t.s.tree.order(), vec![t.s.active]);
+        assert_eq!(t.s.win().buf, 0);
     }
 
     #[test]
@@ -2288,7 +2644,7 @@ mod tests {
     }
 
     #[test]
-    fn claude_is_answered_from_any_mode_but_not_by_its_own_typing() {
+    fn claude_is_answered_in_normal_mode_but_not_by_its_own_typing() {
         let mut t = T::open(Some("a"), Some("1\n"));
         // The chat is in Insert mode at its prompt, as after sending one.
         t.keys(":claude<Enter>");
@@ -2296,9 +2652,12 @@ mod tests {
         let (tx, rx) = std::sync::mpsc::channel();
         let args = serde_json::json!({ "tool_name": "Bash", "input": { "command": "ls" } });
         crate::claude::ask(&mut t.s.ed, &args, tx);
+        // Text being typed is not an answer: Esc first.
         t.keys("y");
+        assert!(rx.try_recv().is_err());
+        t.keys("<Esc>y");
         assert!(rx.try_recv().unwrap().unwrap().contains("allow"));
-        assert!(t.s.ed.buf.text().ends_with("Allowed\n\n> "), "{}", t.s.ed.buf.text());
+        assert!(t.s.ed.buf.text().contains("  ⎿  Allowed"), "{}", t.s.ed.buf.text());
         let (tx, rx) = std::sync::mpsc::channel();
         crate::claude::ask(&mut t.s.ed, &args, tx);
         let (ktx, _krx) = std::sync::mpsc::channel();
@@ -2342,7 +2701,7 @@ mod tests {
             "{state}"
         );
         assert!(
-            state.ends_with(&format!("*2 {d}/b:1\n 1 {d}/a:2, unsaved\n")),
+            state.ends_with(&format!("*2 {d}/b:1\n 1 {d}/a:2, unsaved\nbuffer 2: lines 1-2 of 2\n1\tx\n2\ty\n")),
             "{state}"
         );
         let mut read = |args| call(&mut t.s, "fred_read", args);
@@ -2399,6 +2758,21 @@ mod tests {
         t.s.stop_typing();
         assert!(!t.s.tick_typing());
         assert!(rx.recv().unwrap().unwrap_err().contains("3 keys short"));
+    }
+
+    #[test]
+    fn shell_commands_typed_by_claude_are_refused() {
+        let mut t = T::open(Some("a"), Some("1\n"));
+        let (tx, rx) = std::sync::mpsc::channel();
+        let keys = serde_json::json!({ "keys": ":!touch x<CR>:r !echo hi<CR>" });
+        t.s.remote("fred_keys", &keys, tx);
+        while t.s.tick_typing() {}
+        assert!(rx.recv().unwrap().unwrap().contains("refuses shell commands"));
+        assert!(t.s.pending_shell.is_none());
+        assert_eq!(t.s.ed.buf.text(), "1");
+        // The user's own are run.
+        t.keys(":r !echo hi<Enter>");
+        assert_eq!(t.s.ed.buf.text(), "1\nhi");
     }
 
     #[test]

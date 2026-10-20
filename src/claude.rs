@@ -61,7 +61,9 @@ impl Chat {
 /// Claude, through `--permission-prompt-tool`, asks to use a tool: the
 /// chat shows it, and the answer waits for `y` or `n` (see `answer`).
 pub fn ask(ed: &mut Editor, args: &Value, reply: Sender<Result<String, String>>) {
-    let what = tool(args["tool_name"].as_str().unwrap_or("?"), &args["input"]);
+    // All of it, on one line: the dialog shows everything being allowed.
+    let name = args["tool_name"].as_str().unwrap_or("?");
+    let what = format!("{name}({})", arg(&args["input"]).replace('\n', " ⏎ "));
     put(ed, &format!("\n\n⏺ Allow {what}? y/n"));
     ed.buf.modified = false;
     ed.claude.as_mut().unwrap().ask = Some((what, args["input"].clone(), reply));
@@ -131,14 +133,6 @@ pub fn asked(msg: &str) -> Option<(&str, &str)> {
     let call = msg.strip_prefix("Allow ")?.strip_suffix("? y/n")?;
     let (name, arg) = call.split_once('(')?;
     Some((name, arg.strip_suffix(')')?))
-}
-
-/// The CLI's spinner on the status line, while Claude works.
-pub fn status(ed: &Editor) -> Option<String> {
-    if let Some(q) = question(ed) {
-        return Some(q);
-    }
-    working(ed).map(|w| format!("{w} · C-c to interrupt"))
 }
 
 /// `✻ Claude is working… 12s`, its spinner turning, while a turn runs:
@@ -233,7 +227,7 @@ fn send(ed: &mut Editor) {
     match spawn(&cmd, prompt) {
         Ok(job) => {
             ed.claude.as_mut().unwrap().job = Some(job);
-            ed.msg = status(ed).map(|s| (s, false));
+            ed.msg = None;
         }
         Err(e) => put(ed, &format!("\n\n⏺ {e}")),
     }
@@ -272,7 +266,8 @@ fn spawn(cmd: &str, prompt: String) -> Result<Job, String> {
     // asks you (`-p` can't) before a tool your settings don't allow.
     if let Some(p) = crate::remote::SOCKET.get() {
         env = Some(p);
-        let is_claude = cmd.split_whitespace().next().is_some_and(|w| w.ends_with("claude"));
+        // `claude …`, or wrapped: `env X=1 claude …`, `/opt/bin/claude …`.
+        let is_claude = cmd.split_whitespace().any(|w| w == "claude" || w.ends_with("/claude"));
         if let Some(exe) = std::env::current_exe().ok().filter(|_| is_claude) {
             let servers = json!({ "mcpServers": { "fred": {
                 "command": exe, "args": ["--mcp"] } } });
@@ -444,19 +439,18 @@ pub fn parse(line: &str) -> Vec<Out> {
 
 /// `Bash(cargo test)`, as the CLI shows a tool call.
 fn tool(name: &str, input: &Value) -> String {
-    let arg = [
-        "file_path",
-        "command",
-        "pattern",
-        "path",
-        "url",
-        "query",
-        "description",
-    ]
-    .iter()
-    .find_map(|k| input[k].as_str())
-    .unwrap_or_default();
-    format!("{name}({})", clip(arg.lines().next().unwrap_or_default()))
+    format!("{name}({})", clip(arg(input).lines().next().unwrap_or_default()))
+}
+
+/// What a call works on: its command, path, pattern…, else its whole input,
+/// so an approval never hides what it allows.
+fn arg(input: &Value) -> String {
+    let keys = ["file_path", "command", "pattern", "path", "url", "query", "description"];
+    match keys.iter().find_map(|k| input[k].as_str()) {
+        Some(a) => a.into(),
+        None if input.as_object().is_none_or(|o| o.is_empty()) => String::new(),
+        None => input.to_string(),
+    }
 }
 
 /// A tool's output, in one line: its first, and how many more.
@@ -569,6 +563,19 @@ mod tests {
         assert_eq!(v, json!({ "behavior": "allow", "updatedInput": { "command": "ls" } }));
         assert_eq!(ed.buf.text(), "> go\n\n⏺ Allow Bash(ls)? y/n\n  ⎿  Allowed\n\n> ");
         assert!(question(&ed).is_none() && !answer(&mut ed, Key::ch('n')));
+    }
+
+    #[test]
+    fn an_approval_shows_all_it_allows() {
+        let mut ed = Editor::new(Buffer::from_text("> go\n\n> "));
+        ed.claude = Some(Box::new(Chat::new("true")));
+        let a = "a".repeat(90);
+        let cmd = json!({ "tool_name": "Bash", "input": { "command": format!("ls\n{a} | sh") } });
+        ask(&mut ed, &cmd, mpsc::channel().0);
+        assert_eq!(question(&ed).unwrap(), format!("Allow Bash(ls ⏎ {a} | sh)? y/n"));
+        let other = json!({ "tool_name": "mcp__db__run", "input": { "sql": "DROP t" } });
+        ask(&mut ed, &other, mpsc::channel().0);
+        assert_eq!(question(&ed).unwrap(), r#"Allow mcp__db__run({"sql":"DROP t"})? y/n"#);
     }
 
     #[test]

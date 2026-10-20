@@ -22,6 +22,9 @@ pub static SOCKET: OnceLock<PathBuf> = OnceLock::new();
 
 /// How long `fred --mcp` waits for an answer (but not for an approval).
 const WAIT: Duration = Duration::from_secs(60);
+/// A call that waited this long is refused: fred_keys takes a few seconds to
+/// type, and must answer within `WAIT`, or Claude retries keys that landed.
+const LATE: Duration = Duration::from_secs(50);
 
 pub struct Remote {
     rx: Receiver<(Request, Instant)>,
@@ -63,12 +66,12 @@ impl Remote {
 }
 
 impl Remote {
-    /// The tool calls waiting. One that waited past `WAIT` (fred was stuck in
-    /// a prompt) is refused: Claude has already been told it failed, and may
-    /// have tried again, so its keys must not land late.
+    /// The tool calls waiting. One that waited past `LATE` (fred was stuck in
+    /// a prompt) is refused: Claude is about to be told it failed, and may
+    /// try again, so its keys must not land late.
     pub fn take(&self) -> impl Iterator<Item = Request> + '_ {
         self.rx.try_iter().filter_map(|((tool, args, reply), at)| {
-            if tool != "fred_approve" && at.elapsed() >= WAIT {
+            if tool != "fred_approve" && at.elapsed() >= LATE {
                 let _ = reply.send(Err("fred was busy; nothing was done".into()));
                 return None;
             }
@@ -185,7 +188,7 @@ fn tools() -> Value {
         {
             "name": "fred_keys",
             "title": "Type into fred",
-            "description": "Type keys into fred as the user would; they watch them typed one by one (a few seconds at most), and their own keys wait. Text typed in Insert mode goes in exactly as sent: no autoindent, no completion. Vim notation: `<Esc>` `<CR>` `<BS>` `<Tab>` `<C-w>` `<M-x>` `<Up>`, and `<lt>` for `<`. fred is Vim-like: `:e src/main.rs<CR>`, `:b 2<CR>`, `42G`, `/foo<CR>`, `ciwbar<Esc>`, `:%s/a/b/g<CR>`, `u` to undo, `:w<CR>` to save. End in Normal mode (`<Esc>`) unless leaving the user mid-edit. Returns what fred_state would after.",
+            "description": "Type keys into fred as the user would; they watch them typed one by one (a few seconds at most), and their own keys wait. Text typed in Insert mode goes in exactly as sent: no autoindent, no completion. Vim notation: `<Esc>` `<CR>` `<BS>` `<Tab>` `<C-w>` `<M-x>` `<Up>`, and `<lt>` for `<`. fred is Vim-like: `:e src/main.rs<CR>`, `:b 2<CR>`, `42G`, `/foo<CR>`, `ciwbar<Esc>`, `:%s/a/b/g<CR>`, `u` to undo, `:w<CR>` to save. End in Normal mode (`<Esc>`) unless leaving the user mid-edit. Shell commands typed here (`:!`, `:r !`, filters) are refused: run them with your own tool. Returns what fred_state would after, and the lines around the cursor.",
             "inputSchema": {
                 "type": "object",
                 "properties": {

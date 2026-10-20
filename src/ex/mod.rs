@@ -3,4 +3,4 @@
 pub mod addr;
 pub mod cmd;
 
-pub use cmd::{BufCmd, ExEffect, ExState, run, unfence};
+pub use cmd::{BufCmd, ExEffect, ExState, SplitWhat, run, unfence};

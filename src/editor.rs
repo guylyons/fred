@@ -876,7 +876,7 @@ impl Editor {
             self.set_err("no previous pattern");
             return None;
         };
-        let re = match search::compile(&pat) {
+        let re = match search::compile_vim(&pat, true) {
             Ok(re) => re,
             Err(e) => {
                 self.set_err(e);

@@ -440,8 +440,9 @@ just in. Each prompt runs `claude_command` with `--resume`.
 `bypassPermissions`, no restrictions at all (it can run any command and edit
 any file). `acceptEdits`, `plan` and `default` are stricter, and `""` leaves
 it to your Claude Code settings. Where those would ask, fred asks:
-`⏺ Allow Bash(cargo test)? y/n` in the chat and on the status line, answered
-with `y` or `n` from any buffer (fred passes `claude` its own MCP server and
+`⏺ Allow Bash(cargo test)? y/n` in the chat, and in a box over the text
+showing all of the command. Answer with `y` or `n` in Normal mode, from any
+buffer (fred passes `claude` its own MCP server and
 `--permission-prompt-tool`). Anything denied is counted on the status line.
 
 Claude can also drive fred in front of you. Add fred's MCP server once with
@@ -451,7 +452,10 @@ cursor, and every open buffer with its line and whether it's unsaved),
 `fred_read` (a buffer's text, unsaved changes included; given a path, it
 opens the file in fred first) and `fred_keys` (typing into fred as you would,
 `:e src/main.rs<CR>42Gciwfoo<Esc>`, a key a frame so you watch each one,
-your own keys waiting until it's done; `Ctrl-C` stops it). Everything stays
+your own keys waiting until it's done and dropped if it moved you to another
+buffer or mode; `Ctrl-C` stops it). Shell commands it types (`:!`, `:r !`,
+filters, Org shell links) are refused: they go through its Bash tool and your
+permission settings instead. Everything stays
 undoable with `u`. The tools reach the fred most recently started, or the
 one in `$FRED_SOCKET`. Each fred listens on a socket only your user can open.
 

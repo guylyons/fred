@@ -38,6 +38,8 @@ impl Session {
                     no_swap: true,
                     swap_state: SwapState::None,
                     used: 0,
+                    hl: None,
+                    view: crate::ui::View::default(),
                 }));
                 self.show(self.bufs.len() - 1);
             }

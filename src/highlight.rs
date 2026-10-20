@@ -56,6 +56,18 @@ impl Highlighter {
         })
     }
 
+    /// A highlighter for another buffer: same theme, nothing cached.
+    pub fn blank(&self) -> Highlighter {
+        Highlighter {
+            theme: Arc::clone(&self.theme),
+            truecolor: self.truecolor,
+            syntax: "Plain Text".into(),
+            states: vec![],
+            disabled: None,
+            incomplete: false,
+        }
+    }
+
     /// Visible lines are still waiting to be highlighted: draw again soon.
     pub fn incomplete(&self) -> bool {
         self.incomplete

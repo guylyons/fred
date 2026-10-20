@@ -10,7 +10,7 @@ use crate::highlight::Highlighter;
 use crate::key::{Key, KeyCode};
 use crate::session::{Session, SwapChoice};
 use crate::swap::{self, SwapInfo};
-use crate::ui::{self, View, window_height};
+use crate::ui::{self, window_height};
 use anyhow::{Result, anyhow};
 use ratatui::backend::CrosstermBackend;
 use ratatui::crossterm::cursor::{self, MoveTo, SetCursorStyle};
@@ -72,7 +72,6 @@ struct Ui {
     full: bool,
     area: Option<Rect>,
     height: u16,
-    view: View,
     bar_cursor: bool,
 }
 
@@ -83,12 +82,11 @@ impl Ui {
             full,
             area: None,
             height,
-            view: View::default(),
             bar_cursor: false,
         })
     }
 
-    fn draw(&mut self, s: &mut Session, hl: &mut Highlighter, cfg: &Config) -> io::Result<()> {
+    fn draw(&mut self, s: &mut Session, cfg: &Config) -> io::Result<()> {
         // Test hook: debug builds panic while drawing a line containing
         // PANIC when FRED_DEBUG_PANIC is set (see tests/e2e.rs).
         #[cfg(debug_assertions)]
@@ -97,23 +95,27 @@ impl Ui {
         {
             panic!("debug panic while drawing");
         }
-        let view = &mut self.view;
         let done = self
             .term
-            .draw(|f| ui::draw(f, &s.ed, view, hl, cfg, HIGHLIGHT_BUDGET))?;
+            .draw(|f| ui::windows::draw_session(f, s, cfg, HIGHLIGHT_BUDGET))?;
         // `done.area` is the whole terminal; the buffer covers just the window.
         self.area = Some(done.buffer.area);
-        let area = done.buffer.area;
-        let gutter = ui::render::gutter_width(&s.ed).min(area.width as usize / 2);
+        // The active window: its text rows (above its status line) and columns.
+        let win = s.tree.layout(s.area).into_iter().find(|p| p.id == s.active);
+        let (rows, width) = win.map_or((0, 0), |p| {
+            let w = p.rect.width - u16::from(p.divider);
+            ((p.rect.height as usize).saturating_sub(1), w as usize)
+        });
+        let gutter = ui::render::gutter_width(&s.ed).min(width / 2);
         s.ed.viewport = Some(crate::zap::Viewport {
-            view: self.view,
-            rows: (area.height as usize).saturating_sub(2),
-            cols: (area.width as usize).saturating_sub(gutter).max(1),
+            view: s.win().view,
+            rows,
+            cols: width.saturating_sub(gutter).max(1),
             wrap: s.ed.opts.bool(crate::options::Opt::Wrap),
         });
-        // Paging scrolls by the text rows actually on screen (minus status
-        // and command lines), not the configured height, which may be "max".
-        s.ed.win_height = (done.buffer.area.height as usize).saturating_sub(2).max(1);
+        // Paging scrolls by the text rows actually on screen, not the
+        // configured height, which may be "max".
+        s.ed.win_height = rows.max(1);
         let bar = s.ed.mode == Mode::Insert;
         if bar != self.bar_cursor {
             self.bar_cursor = bar;
@@ -314,7 +316,6 @@ fn ago(saved_at: u64) -> String {
 fn ask_swap(
     ui: &mut Ui,
     s: &mut Session,
-    hl: &mut Highlighter,
     cfg: &Config,
     info: &SwapInfo,
     name: Option<&str>,
@@ -341,7 +342,7 @@ fn ask_swap(
     loop {
         if redraw {
             s.ed.msg = Some((prompt.clone(), false));
-            ui.draw(s, hl, cfg)?;
+            ui.draw(s, cfg)?;
         }
         // Poll rather than block, to notice a terminal that went away.
         redraw = event::poll(TICK)?;
@@ -369,7 +370,7 @@ fn ask_swap(
     }
 }
 
-fn step(s: &mut Session, hl: &mut Highlighter, ev: Event, resized: &mut bool) {
+fn step(s: &mut Session, ev: Event, resized: &mut bool) {
     match ev {
         Event::Key(k) => {
             // Magit-style buffers bind Alt keys (M-j, M-w, M-1 ...): they get
@@ -398,7 +399,7 @@ fn step(s: &mut Session, hl: &mut Highlighter, ev: Event, resized: &mut bool) {
         _ => {}
     }
     if let Some(d) = s.ed.buf.take_dirty_from() {
-        hl.invalidate(d);
+        s.hl.invalidate(d);
     }
 }
 
@@ -438,7 +439,6 @@ fn suspend(ui: &mut Ui, s: &mut Session) -> Result<()> {
 fn ask_claude(
     ui: &mut Ui,
     s: &mut Session,
-    hl: &mut Highlighter,
     cfg: &Config,
     r: Range,
     prompt: String,
@@ -465,7 +465,7 @@ fn ask_claude(
         let t = start.elapsed();
         let spin = SPIN[(t.as_millis() / 100) as usize % SPIN.len()];
         s.ed.set_msg(format!("{spin} Claude is {verb} {what}… {}s", t.as_secs()));
-        ui.draw(s, hl, cfg)?;
+        ui.draw(s, cfg)?;
         if event::poll(TICK)? {
             event::read()?;
         }
@@ -605,18 +605,18 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
         std::env::var("COLORTERM").as_deref(),
         Ok("truecolor" | "24bit")
     );
-    let mut hl = match Highlighter::new(&cfg.theme, truecolor) {
+    s.hl = match Highlighter::new(&cfg.theme, truecolor) {
         Ok(h) => h,
         Err(e) => {
             s.ed.set_err(e);
             Highlighter::new("ansi", truecolor).map_err(|e| anyhow!(e))?
         }
     };
-    hl.set_file(
+    s.hl.set_file(
         s.ed.path.as_deref().or(s.ed.syntax_path.as_deref()),
         &s.ed.buf,
     );
-    if let Some(r) = &hl.disabled {
+    if let Some(r) = &s.hl.disabled {
         s.ed.set_msg(r.clone());
     }
     if let Some(e) = cfg_err {
@@ -651,7 +651,7 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
 
     CATCHING.store(true, Ordering::SeqCst);
     let result = panic::catch_unwind(AssertUnwindSafe(|| {
-        event_loop(&mut ui, &mut s, &mut hl, &cfg, leftover, &stop, remote.as_ref())
+        event_loop(&mut ui, &mut s, &cfg, leftover, &stop, remote.as_ref())
     }));
     CATCHING.store(false, Ordering::SeqCst);
     let code = match result {
@@ -692,14 +692,13 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
 fn event_loop(
     ui: &mut Ui,
     s: &mut Session,
-    hl: &mut Highlighter,
     cfg: &Config,
     leftover: Option<SwapInfo>,
     stop: &AtomicBool,
     remote: Option<&crate::remote::Remote>,
 ) -> Result<i32> {
     if let Some(info) = leftover {
-        match ask_swap(ui, s, hl, cfg, &info, None)? {
+        match ask_swap(ui, s, cfg, &info, None)? {
             SwapChoice::Cancel => {
                 s.no_swap = true;
                 return Ok(0);
@@ -711,7 +710,7 @@ fn event_loop(
             }
             SwapChoice::Recover => {
                 s.recover(info);
-                hl.set_file(
+                s.hl.set_file(
                     s.ed.path.as_deref().or(s.ed.syntax_path.as_deref()),
                     &s.ed.buf,
                 );
@@ -731,11 +730,13 @@ fn event_loop(
     let mut active = Instant::now();
     // Your keys while Claude types, for after: the two never mix.
     let mut held: Vec<Event> = vec![];
+    // Where they were typed (buffer, mode): only replayed there.
+    let mut held_at = None;
     loop {
         if dirty {
-            ui.draw(s, hl, cfg)?;
+            ui.draw(s, cfg)?;
             // Keep drawing while visible lines are still being highlighted.
-            dirty = s.ed.magit.is_none() && hl.incomplete();
+            dirty = s.hl_incomplete;
         }
         // SIGTERM/SIGHUP, or a terminal that went away without a SIGHUP
         // (crossterm then spins reading end-of-file at 100% CPU).
@@ -773,7 +774,10 @@ fn event_loop(
                 if s.typing.is_some() && !matches!(ev, Event::Resize(..)) {
                     match ev {
                         Event::Key(k) if map_key(k) == Some(Key::ctrl('c')) => s.stop_typing(),
-                        Event::Key(_) | Event::Paste(_) => held.push(ev),
+                        Event::Key(_) | Event::Paste(_) => {
+                            held_at.get_or_insert((s.cur, std::mem::discriminant(&s.ed.mode)));
+                            held.push(ev);
+                        }
                         // shortcut: clicks and scrolls while Claude types are dropped.
                         _ => {}
                     }
@@ -791,7 +795,9 @@ fn event_loop(
                 match ev {
                     Event::Mouse(m) => {
                         if let Some(area) = ui.area {
-                            ui::render::mouse(&mut s.ed, &mut ui.view, area, m);
+                            let mut view = s.win().view;
+                            ui::render::mouse(&mut s.ed, &mut view, area, m);
+                            s.win_mut().view = view;
                         }
                     }
                     ev => {
@@ -799,15 +805,15 @@ fn event_loop(
                         let keyboard =
                             matches!(ev, Event::Key(_) | Event::Paste(_) | Event::Resize(..));
                         if keyboard {
-                            ui.view.last_click = None;
+                            s.win_mut().view.last_click = None;
                         }
-                        step(s, hl, ev, &mut resized);
+                        step(s, ev, &mut resized);
                         if keyboard
                             && !keep_view
                             && s.ed.zap.is_none()
                             && s.ed.vim.pending != [Key::ch(' ')]
                         {
-                            ui.view.detached = false;
+                            s.win_mut().view.detached = false;
                         }
                     }
                 }
@@ -824,7 +830,7 @@ fn event_loop(
         if checked.elapsed() >= AUTOREAD {
             checked = Instant::now();
             if s.auto_read() {
-                hl.invalidate(0);
+                s.hl.invalidate(0);
                 dirty = true;
             }
         }
@@ -846,16 +852,24 @@ fn event_loop(
         }
         if called | s.tick_typing() {
             if let Some(d) = s.ed.buf.take_dirty_from() {
-                hl.invalidate(d);
+                s.hl.invalidate(d);
             }
-            ui.view.last_click = None;
-            ui.view.detached = false;
+            s.win_mut().view.last_click = None;
+            s.win_mut().view.detached = false;
             active = Instant::now();
             dirty = true;
         }
         if s.typing.is_none() && !held.is_empty() {
-            for ev in std::mem::take(&mut held) {
-                step(s, hl, ev, &mut resized);
+            let keys = std::mem::take(&mut held);
+            // Claude moved you (another buffer, or out of Insert mode): keys meant
+            // for where you were would run as commands where it left you.
+            if held_at.take() == Some((s.cur, std::mem::discriminant(&s.ed.mode))) {
+                for ev in keys {
+                    step(s, ev, &mut resized);
+                }
+            } else {
+                let n = keys.len();
+                s.ed.set_err(format!("Claude moved you: {n} keys you typed meanwhile were dropped"));
             }
             dirty = true;
         }
@@ -870,23 +884,19 @@ fn event_loop(
             dirty = true;
         }
         if let Some((r, prompt, explain)) = s.pending_ai.take() {
-            ask_claude(ui, s, hl, cfg, r, prompt, explain)?;
+            ask_claude(ui, s, cfg, r, prompt, explain)?;
             dirty = true;
         }
         if let Some(pe) = s.pending_edit.clone() {
             let name = pe.path.display().to_string();
-            let choice = ask_swap(ui, s, hl, cfg, &pe.info, Some(&name))?;
+            let choice = ask_swap(ui, s, cfg, &pe.info, Some(&name))?;
             s.resolve_edit(choice);
             dirty = true;
         }
         if s.reloaded {
             s.reloaded = false;
-            hl.set_file(
-                s.ed.path.as_deref().or(s.ed.syntax_path.as_deref()),
-                &s.ed.buf,
-            );
+            // Highlighting and scroll belong to the buffer now (`Session::show`).
             s.ed.nearby = nearby::Nearby::new(s.ed.path.clone());
-            ui.view = View::default();
             dirty = true;
         }
         let rows = terminal::size()?.1;
@@ -905,7 +915,7 @@ fn event_loop(
         }
         // Picker results from background threads, or a grep due to start.
         if crate::pick::tick(&mut s.ed) {
-            ui.view.last_click = None;
+            s.win_mut().view.last_click = None;
             dirty = true;
         }
         // A definition search may have found where to jump.

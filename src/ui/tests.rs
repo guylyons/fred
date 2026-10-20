@@ -1759,3 +1759,73 @@ fn occur_shades_line_numbers_and_highlights_matches() {
     assert_eq!(b[(10, 1)].bg, Color::Yellow, "the match");
     assert_ne!(b[(8, 1)].bg, Color::Yellow, "not the text around it");
 }
+
+/// A session on the first of `files` (written to a temp dir), numbers off.
+fn session_screen(
+    w: u16,
+    h: u16,
+    files: &[(&str, &str)],
+) -> (crate::session::Session, Screen, tempfile::TempDir) {
+    let d = tempfile::tempdir().unwrap();
+    for (name, text) in files {
+        std::fs::write(d.path().join(name), text).unwrap();
+    }
+    let first = files.first().map(|f| d.path().join(f.0));
+    let (mut s, _) =
+        crate::session::Session::open(first, &Config::default(), &d.path().join("swap")).unwrap();
+    s.handle_keys(":set nonumber<Enter>");
+    let mut sc = Screen::new(w, h);
+    // As the app does: a draw sizes the windows before any keys.
+    sc.draw_session(&mut s);
+    (s, sc, d)
+}
+
+impl Screen {
+    fn draw_session(&mut self, s: &mut crate::session::Session) {
+        let cfg = &self.cfg;
+        self.term
+            .draw(|f| super::windows::draw_session(f, s, cfg, Duration::from_secs(1)))
+            .unwrap();
+    }
+}
+
+#[test]
+fn two_windows_two_status_lines() {
+    let (mut s, mut sc, d) = session_screen(40, 10, &[("a", "alpha\n"), ("b", "beta\n")]);
+    s.handle_keys(&format!(":split {}<Enter>", d.path().join("b").display()));
+    sc.draw_session(&mut s);
+    assert_eq!(sc.row(0), "beta");
+    assert!(sc.row(3).contains("b"), "{}", sc.row(3)); // status of the top window
+    assert_eq!(sc.row(4), "alpha");
+    assert!(sc.row(8).contains("a"), "{}", sc.row(8)); // status of the bottom window
+    assert_eq!(sc.cursor(), (0, 0)); // in the new, top window
+}
+
+#[test]
+fn vsplit_draws_divider() {
+    let (mut s, mut sc, _d) = session_screen(41, 6, &[("a", "alpha\n")]);
+    s.handle_keys(":vsplit<Enter>");
+    sc.draw_session(&mut s);
+    assert!(sc.row(0).starts_with("alpha"), "{}", sc.row(0));
+    assert_eq!(sc.row(0).chars().nth(19), Some('│')); // new window: 20 cols incl. divider
+}
+
+#[test]
+fn inactive_same_buffer_no_visual() {
+    let (mut s, mut sc, _d) = session_screen(40, 10, &[("a", "alpha\n")]);
+    s.handle_keys(":split<Enter>vl");
+    sc.draw_session(&mut s);
+    let b = sc.term.backend().buffer();
+    // Visual is reverse video; the cursor's own cell is left plain.
+    assert!(b[(0, 0)].modifier.contains(Modifier::REVERSED)); // top (active) shows Visual
+    assert!(!b[(0, 4)].modifier.contains(Modifier::REVERSED)); // bottom does not
+}
+
+#[test]
+fn other_window_cursor_clamped_after_delete() {
+    let (mut s, mut sc, _d) = session_screen(40, 10, &[("a", &"x\n".repeat(50))]);
+    s.handle_keys("50G:split<Enter>ggdG");
+    sc.draw_session(&mut s); // must not panic
+    s.handle_keys("<C-w>j");
+    assert_eq!(s.ed.cur.line, 0);
+}

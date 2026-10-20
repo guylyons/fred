@@ -1195,6 +1195,7 @@ fn shell_quote(s: &str) -> String {
 
 /// Run an external program without the terminal (detached).
 fn spawn(cmd: &str) -> Result<(), String> {
+    crate::shell::guard()?;
     std::process::Command::new("sh")
         .arg("-c")
         .arg(cmd)
@@ -1312,6 +1313,9 @@ pub fn open(ed: &mut Editor, lk: &Link, arg: Prefix) -> Result<(), String> {
         "elisp" => {
             let form = lk.path.clone();
             super::yes_or_no(ed, &format!("Execute \"{form}\" as elisp? "), move |ed| {
+                if let Err(e) = crate::shell::guard() {
+                    return ed.set_err(e);
+                }
                 let expr = if form.starts_with('(') {
                     format!("(prin1 {form})")
                 } else {

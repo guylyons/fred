@@ -73,6 +73,42 @@ pub enum ExEffect {
         arg: String,
         force: bool,
     },
+    /// `:close`, `:hide`: close the window, keeping its buffer.
+    Close {
+        force: bool,
+    },
+    /// `:only`: close every other window.
+    Only,
+    /// `:qall`, `:wqall` (`write`), `:xall`.
+    QuitAll {
+        force: bool,
+        write: bool,
+    },
+    /// A `CTRL-W` command (`:wincmd`), with its count.
+    Window {
+        cmd: char,
+        count: Option<usize>,
+    },
+    /// `:[N]split`, `:vsplit`, `:new`, `:vnew`, `:sbuffer`: `size` text rows
+    /// (columns when `vertical`) for the new window.
+    Split {
+        vertical: bool,
+        what: SplitWhat,
+        size: Option<usize>,
+    },
+}
+
+/// What a new window shows.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SplitWhat {
+    /// The current buffer.
+    Same,
+    /// A file, as `:e`.
+    File(String),
+    /// A new unnamed buffer.
+    Empty,
+    /// A buffer, as `:b`.
+    Buffer(String),
 }
 
 /// Which buffer command.
@@ -166,6 +202,10 @@ pub fn run(st: &mut ExState, line: &str) -> Result<ExEffect, String> {
 }
 
 fn run_one(st: &mut ExState, line: &str, in_global: bool) -> Result<ExEffect, String> {
+    if let Some((n, rest)) = count_prefix(line) {
+        let at = Range { start: n - 1, end: n - 1 };
+        return run_named(st, Some(at), rest, st.cur, in_global);
+    }
     let (range, rest) = {
         let mut ctx = st.addr_ctx();
         let r = parse_range(line, &mut ctx)?;
@@ -191,6 +231,28 @@ fn run_one(st: &mut ExState, line: &str, in_global: bool) -> Result<ExEffect, St
             None => Ok(ExEffect::Shell(cmd)),
         };
     }
+    run_named(st, range, rest, cur, in_global)
+}
+
+/// `:5split`: the number before a window command is a count, not a line,
+/// so it may be past the end. Returns the count (at least 1) and the rest.
+fn count_prefix(line: &str) -> Option<(usize, &str)> {
+    let t = line.trim_start();
+    let rest = t.trim_start_matches(|c: char| c.is_ascii_digit());
+    let n: usize = t[..t.len() - rest.len()].parse().ok()?;
+    let name_end = rest.find(|c: char| !c.is_ascii_alphabetic()).unwrap_or(rest.len());
+    let cmd = lookup(&rest[..name_end])?;
+    (cmd.flags & COUNT != 0).then_some((n.max(1), rest))
+}
+
+/// Run the named command at the start of `rest`, given its `range`.
+fn run_named(
+    st: &mut ExState,
+    range: Option<Range>,
+    rest: &str,
+    cur: usize,
+    in_global: bool,
+) -> Result<ExEffect, String> {
     let name_end = rest
         .find(|c: char| !c.is_ascii_alphabetic())
         .unwrap_or(rest.len());
@@ -242,6 +304,8 @@ pub const FILE: u8 = 8;
 pub const NEEDARG: u8 = 16;
 /// The argument is option names (Tab completes them).
 pub const OPTION: u8 = 32;
+/// A leading number is a count, not a line (`:5split`); it takes RANGE too.
+const COUNT: u8 = 64;
 
 /// A named command, as in vim's `ex_cmds.lua`: `min` is how short an
 /// abbreviation may be (`:w` for `:write`).
@@ -335,6 +399,34 @@ pub const COMMANDS: &[Command] = &[
     cmd("bNext", 2, BANG, |_, a| buffer(a, BufCmd::Prev)),
     cmd("bdelete", 2, BANG | EXTRA, |_, a| buffer(a, BufCmd::Delete)),
     cmd("ls", 2, BANG, |_, a| buffer(a, BufCmd::List)),
+    cmd("close", 3, BANG, |_, a| Ok(ExEffect::Close { force: a.force })),
+    cmd("only", 2, BANG, |_, _| Ok(ExEffect::Only)),
+    cmd("hide", 3, BANG, |_, a| Ok(ExEffect::Close { force: a.force })),
+    cmd("qall", 2, BANG, |_, a| quit_all(a, false)),
+    cmd("quitall", 5, BANG, |_, a| quit_all(a, false)),
+    cmd("wqall", 3, BANG, |_, a| quit_all(a, true)),
+    cmd("xall", 2, BANG, |_, a| quit_all(a, true)),
+    cmd("split", 2, RANGE | COUNT | EXTRA | FILE, |_, a| split(a, false, false)),
+    cmd("vsplit", 2, RANGE | COUNT | EXTRA | FILE, |_, a| split(a, true, false)),
+    cmd("new", 3, RANGE | COUNT | EXTRA | FILE, |_, a| split(a, false, true)),
+    cmd("vnew", 3, RANGE | COUNT | EXTRA | FILE, |_, a| split(a, true, true)),
+    cmd("sbuffer", 2, RANGE | COUNT | EXTRA, |_, a| {
+        Ok(ExEffect::Split {
+            vertical: false,
+            what: SplitWhat::Buffer(a.arg.to_owned()),
+            size: a.range.map(|r| r.end + 1),
+        })
+    }),
+    needs("wincmd", 4, RANGE | COUNT, "{arg}", |_, a| {
+        let mut c = a.arg.chars();
+        match (c.next(), c.next()) {
+            (Some(cmd), None) => Ok(ExEffect::Window {
+                cmd,
+                count: a.range.map(|r| r.end + 1),
+            }),
+            _ => Err("E471: Argument required".into()),
+        }
+    }),
     cmd("buffers", 7, BANG, |_, a| buffer(a, BufCmd::List)),
     cmd("files", 5, BANG, |_, a| buffer(a, BufCmd::List)),
     needs(
@@ -406,6 +498,28 @@ fn path_arg(arg: &str) -> Result<Option<String>, String> {
         return Err("shell commands are not supported here".into());
     }
     Ok((!arg.is_empty()).then(|| arg.to_string()))
+}
+
+fn quit_all(a: Args, write: bool) -> Result<ExEffect, String> {
+    Ok(ExEffect::QuitAll {
+        force: a.force,
+        write,
+    })
+}
+
+/// `:[N]split [file]` and friends: `empty` for `:new` without a file.
+fn split(a: Args, vertical: bool, empty: bool) -> Result<ExEffect, String> {
+    let what = match path_arg(a.arg)? {
+        Some(p) => SplitWhat::File(p),
+        None if empty => SplitWhat::Empty,
+        None => SplitWhat::Same,
+    };
+    Ok(ExEffect::Split {
+        vertical,
+        what,
+        // `:5split`: the count is the line number the range parsed.
+        size: a.range.map(|r| r.end + 1),
+    })
 }
 
 fn write(a: Args, then_quit: bool) -> Result<ExEffect, String> {
@@ -623,7 +737,7 @@ fn substitute(st: &mut ExState, r: Range, spec: &str) -> Result<ExEffect, String
         }
     }
     let pat = use_pattern(pat, st.last_pat)?;
-    let re = search::compile_exact(&pat)?;
+    let re = search::compile_vim(&pat, false)?;
     let mut last = None;
     for l in (r.start..=r.end).rev() {
         let line = st.buf.line(l);
@@ -664,7 +778,7 @@ fn global(st: &mut ExState, r: Range, spec: &str, want: bool) -> Result<ExEffect
         return Err("command expected".into());
     }
     let pat = use_pattern(pat, st.last_pat)?;
-    let re = search::compile_exact(&pat)?;
+    let re = search::compile_vim(&pat, false)?;
     let mut marked: Vec<bool> = (0..st.buf.len_lines())
         .map(|l| l >= r.start && l <= r.end && re.is_match(&st.buf.line(l)) == want)
         .collect();
@@ -749,7 +863,7 @@ mod tests {
         assert_eq!(ex(t, 0, "$d"), ("one\ntwo\nthree".into(), 2));
         assert_eq!(ex(t, 0, ",s/o/0/g"), ("0ne\ntw0\nthree\nf0ur".into(), 3));
         assert_eq!(
-            ex(t, 0, "s/(o)(n)/\\2\\1&/"),
+            ex(t, 0, "s/\\(o\\)\\(n\\)/\\2\\1&/"),
             ("noone\ntwo\nthree\nfour".into(), 0)
         );
         assert_eq!(ex(t, 0, "s/o/\\&/"), ("&ne\ntwo\nthree\nfour".into(), 0));
@@ -826,7 +940,7 @@ mod tests {
     fn ex_patterns_are_case_sensitive() {
         assert_eq!(ex("Foo foo", 0, "s/foo/x/g"), ("Foo x".into(), 0));
         assert_eq!(ex("Foo\nfoo", 0, "g/foo/d"), ("Foo".into(), 0));
-        assert_eq!(ex("Foo foo", 0, "s/(?i)foo/x/g"), ("x x".into(), 0));
+        assert_eq!(ex("Foo foo", 0, "s/\\cfoo/x/g"), ("x x".into(), 0));
     }
 
     #[test]

@@ -39,7 +39,7 @@ track.
 | 11 | Command-line editing keys | 3 | 0 | basics, history, Tab |
 | 12 | Marks, jumplist, changelist | 3 | 0 | `a-z` line marks |
 | 13 | Macros, `:normal`, `.`, CTRL-A/CTRL-X | 3 | 0 | `.` only |
-| 14 | Search and Vim regex, hlsearch, incsearch | 6 | 0 | Rust regex, `/ ? n N` |
+| 14 | Search and Vim regex, hlsearch, incsearch | 6 | 0 | Vim magic patterns (no `\zs`, `\@`, `\_`, back-references), `/ ? n N` |
 | 15 | `:substitute` and `:global` in full | 3 | 0 | `g` flag only |
 | 16 | Editing, file, buffer and argument-list ex commands | 5 | 0 | 26 commands |
 | 17 | Windows and tab pages (`CTRL-W`, `:split`, `:tab*`) | 6 | 0 | none |
@@ -109,9 +109,19 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
    (track 23). Done so far: the table (`src/options/`), `:set`,
    `:setlocal`, `:setglobal`, `[set]` in config.toml, Tab completion,
    7 options.
-2. Buffer / window separation (track 2).
+2. Buffer / window separation (track 2) and windows (track 17): split
+   windows part 2 (spec stages 3–7 of
+   `docs/superpowers/specs/2026-10-19-split-windows-design.md`): resizing
+   (`CTRL-W + - < > = _ |`, `:resize`, options, `equalalways`), mouse in
+   windows, special buffers opening below with quit-window, zap across
+   windows, `fred_state` windows and the `fred_read` reload fix, oracle
+   cases. Part 1 is done.
 3. Registers (track 5), then key tables (track 4).
 4. Tracks 6–13 (the editing grammar), each with oracle cases.
+5. Track 14 continued: `\zs`/`\ze`, `\@` look-around, `\_` multi-line
+   and back-references (the `regex` crate has none of them), `~`, hlsearch,
+   incsearch. Done so far: Vim pattern syntax for `/ ? :s :g` and range
+   addresses (`src/search.rs` `compile_vim`).
 
 ## Log
 
@@ -132,3 +142,16 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
   Select All), `"+` via the system clipboard and `"_` via
   `ops::delete_black_hole`; keyboard and mouse selection. Unit tests now
   use an in-process clipboard instead of the user's.
+- 2026-10-20: Vim patterns. `search::compile_vim` turns Vim's magic syntax
+  (`\v \m \M \V`, `\( \| \+ \= \{n,m} \{-}`, `\< \>`, `\%( \%d \%x \%u`,
+  `\c \C`, classes `\s \d \w \a \x`..., `[...]` with `[:alpha:]`) into Rust
+  regex for `/ ? :s :g` and addresses; a bare `( | + {` now matches
+  itself, as in Vim. `/` keeps Fred's smartcase. Oracle: 108 cases.
+- 2026-10-20: split windows part 1: layout tree (`src/window.rs`), windows
+  in `Session` (each with its own cursor and scroll; buffers keep their
+  scroll and highlighting across switches), per-window drawing with
+  active/inactive status lines and `│` dividers (`src/ui/windows.rs`),
+  `:split` family with counts, `CTRL-W` moves, closing (`:close`, `:only`,
+  `:hide`, `:q` in a split, `:qall` family, `:bd` closing its windows).
+  Tracks 2 and 17 stay at 0: tabs, resizing and the buffer/window struct
+  split remain.
