@@ -284,7 +284,7 @@ const LEADER: &[(char, &str)] = &[
     ('w', "pick a window"),
     ('i', "imenu: this file's functions, types…"),
     ('h', "help: search commands"),
-    ('c', "chat with Claude"),
+    ('c', "+claude"),
     ('m', "+magit"),
     ('o', "+org"),
     ('u', "universal argument"),
@@ -298,9 +298,11 @@ pub fn which_key(ed: &Editor) -> Option<(&'static str, Vec<(String, &'static str
     if ed.mode != Mode::Normal {
         return None;
     }
+    let claude: Vec<(char, &str)> = crate::claude::LEADER.iter().map(|l| (l.0, l.2)).collect();
     let (title, table) = match ed.vim.pending.as_slice() {
         [s] if *s == Key::ch(' ') => ("SPC", LEADER),
         [s, o] if *s == Key::ch(' ') && *o == Key::ch('o') => ("SPC o", crate::org::LEADER),
+        [s, c] if *s == Key::ch(' ') && *c == Key::ch('c') => ("SPC c", &claude[..]),
         _ => return None,
     };
     let name = |c: char| {
@@ -756,7 +758,6 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
             Some('k') => crate::pick::open(ed, crate::pick::Kind::Lines),
             Some('r') => crate::pick::open(ed, crate::pick::Kind::Recent),
             Some('d') => crate::pick::definition(ed),
-            Some('c') => ed.pending_effect = Some(ExEffect::Claude),
             Some('h') => ed.help(""),
             Some('i') => crate::pick::imenu::open(ed),
             Some(c @ ('b' | 'B')) => {

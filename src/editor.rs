@@ -305,6 +305,7 @@ impl Editor {
             return;
         }
         if crate::claude::key(self, k)
+            || crate::claude::leader(self, k)
             || crate::occur::start_key(self, k)
             || crate::magit::key(self, k)
             || crate::org::key(self, k)

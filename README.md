@@ -50,7 +50,7 @@ completion, a Git client modeled on Emacs's Magit, and Org mode. It is one
   files.
 - **Careful with your files.** Atomic writes, a warning when the file changed
   on disk, crash recovery, and line endings and encodings kept as they were.
-- **Claude when you want it.** `Space c` chats with Claude Code in a buffer;
+- **Claude when you want it.** `Space c c` chats with Claude Code in a buffer, and `Space c` drives it like Magit drives git;
   `:ai` rewrites the selected lines; `K` on a selection explains it.
 
 ```
@@ -237,7 +237,7 @@ clipboard alone.
 | `Space s` | jump to any word on screen, in any window |
 | `Space i` | list this file's functions, types, constants and variables (headings in Markdown and Org), as Emacs's imenu; search and jump |
 | `Space d` | go to definition (same as `gd`) |
-| `Space c` | chat with Claude Code (`:claude`) |
+| `Space c` then a key | Claude Code: `c` chat (`:claude`), `/` slash command, `m` model, `p` permission mode, `r` resume, `n` new, `x` context, `i` interrupt |
 | `Space j` | browse files from a path, like Emacs's find-file |
 | `Space b` | switch between open buffers |
 | `Space r` | recently opened files, from any project |
@@ -435,12 +435,13 @@ Org's options go in the `[org]` table of the config, by their Emacs names
 
 ## Claude
 
-`Space c` (or `:claude`) opens `*claude*`: Claude Code, laid out like its
+`Space c c` (or `:claude`) opens `*claude*`: Claude Code, laid out like its
 command line. Type after the `>` and press `Enter` to send (`Ctrl-J` for a
 new line). The reply streams in above the prompt, `⏺` for text and tool
 calls and `⎿` for their output, with a spinner on the status line. It's a
 plain buffer, so you can leave Insert mode, move around, yank and switch
-buffers while Claude works. `Ctrl-C` interrupts, and `/clear` starts a new
+buffers while Claude works. `Ctrl-C` interrupts, as `Esc` does in the CLI:
+the turn stops and the conversation goes on. `/clear` starts a new
 conversation. Each prompt tells Claude which files are open in fred and on
 what line, the one you used last first, so "this file" means the one you were
 just in. One `claude_command` runs for the chat and takes each prompt in
@@ -451,12 +452,31 @@ it finishes, Claude picks the answer up and replies on its own
 30 seconds).
 `claude_permissions` sets what Claude may do without asking: by default
 `bypassPermissions`, no restrictions at all (it can run any command and edit
-any file). `acceptEdits`, `plan` and `default` are stricter, and `""` leaves
+any file). `acceptEdits`, `plan`, `auto` and `manual` are stricter, and `""` leaves
 it to your Claude Code settings. Where those would ask, fred asks:
 `⏺ Allow Bash(cargo test)? y/n` in the chat, and in a box over the text
 showing all of the command. Answer with `y` or `n` in Normal mode, from any
 buffer (fred passes `claude` its own MCP server and
 `--permission-prompt-tool`). Anything denied is counted on the status line.
+
+Around the chat is a porcelain, as Magit is to git: `Space c` then a key,
+from any buffer (pause after `Space c` and the keys show). It drives Claude
+Code through its own control protocol (the one the Agent SDK uses), so
+everything comes from your `claude`, nothing is copied into fred:
+
+| `Space c` then | Does |
+|---|---|
+| `c` | the chat |
+| `/` | pick a slash command: your skills, plugins and Claude Code's own, each with what it does; one that takes an argument goes on the prompt for you to finish |
+| `m` | pick the model, from the ones your account has |
+| `p` | pick the permission mode (`manual`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`) |
+| `r` | resume one of this directory's conversations, newest first, by title; it reads back as the chat |
+| `n` | a new conversation (`/clear`) |
+| `x` | how full the context is (`/context`) |
+| `i` | interrupt (`Ctrl-C`) |
+
+The chat's status line shows the model and permission mode in use, and
+slash commands typed at the prompt (`/context`, `/compact`) show their output.
 
 Claude can also drive fred in front of you. Add fred's MCP server once with
 `claude mcp add fred -- fred --mcp`, and Claude Code, whether in another

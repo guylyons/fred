@@ -1407,6 +1407,7 @@ fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter, acti
         },
         |v| v.title(),
     );
+    let filename = ed.claude.as_ref().map_or(filename, |c| c.title());
     let flags_width = usize::from(ed.buf.modified) * 4 + usize::from(ed.readonly) * 5;
     let core_width =
         display_width(&label, 1, 0) + 4 + display_width(&filename, 1, 0).min(20) + flags_width + 1;

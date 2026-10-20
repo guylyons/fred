@@ -483,7 +483,10 @@ impl Session {
             ExEffect::Write { .. } if self.ed.occur.is_some() => self.occur_write(),
             ExEffect::Occur { pat, range } => self.occur(&pat, range),
             ExEffect::OccurRevert => self.occur_revert(),
-            ExEffect::Claude => self.claude(),
+            ExEffect::Claude(a) => {
+                self.claude();
+                crate::claude::act(&mut self.ed, a);
+            }
             ExEffect::Write {
                 path,
                 force,

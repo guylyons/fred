@@ -49,8 +49,8 @@ pub enum ExEffect {
     },
     /// `gr` in an occur buffer: search again.
     OccurRevert,
-    /// `:claude`, `Space c`: the chat with Claude Code.
-    Claude,
+    /// `:claude`, `Space c` then a key: show the chat and do that.
+    Claude(crate::claude::Action),
     /// `:pwd`.
     Pwd,
     /// `:cd [dir]` (home without one).
@@ -468,7 +468,10 @@ pub const COMMANDS: &[Command] = &[
         })
     })
     .about("list the matching lines in an editable buffer"),
-    cmd("claude", 3, 0, |_, _| Ok(ExEffect::Claude)).about("chat with Claude Code in a buffer"),
+    cmd("claude", 3, 0, |_, _| {
+        Ok(ExEffect::Claude(crate::claude::Action::Chat))
+    })
+    .about("chat with Claude Code in a buffer"),
     cmd("pwd", 2, 0, |_, _| Ok(ExEffect::Pwd)).about("show the working directory"),
     cmd("set", 2, EXTRA | OPTION, |_, a| set(a, Level::Both))
         .about("show or change options")
