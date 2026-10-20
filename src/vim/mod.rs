@@ -27,6 +27,9 @@ pub struct State {
     pub(crate) pending_op: Option<(char, Option<usize>)>,
     /// The last Insert-mode key was a typed `j` (a second one leaves Insert).
     pub(crate) after_j: bool,
+    /// Where this Insert session began: `CTRL-W` and `CTRL-U` stop there
+    /// once, as with Neovim's default 'backspace'.
+    pub(crate) insert_start: (usize, usize),
 }
 
 impl State {
@@ -157,10 +160,10 @@ fn parse_motion(keys: &[Key]) -> Parse<(Motion, usize)> {
 }
 
 /// Commands that take one character argument.
-const ARG_CMDS: &[char] = &['r', 'm', 'Z', ' ', 'g'];
+const ARG_CMDS: &[char] = &['r', 'm', 'Z', 'z', ' ', 'g'];
 const SIMPLE: &[char] = &[
-    'x', 'X', 's', 'S', 'J', 'p', 'P', 'o', 'O', 'i', 'a', 'I', 'A', 'u', 'D', 'C', 'Y', 'V', ':',
-    '/', '?', '.', 'r', 'm', 'Z', ' ', 'g',
+    'x', 'X', 's', 'S', 'J', 'p', 'P', 'o', 'O', 'i', 'a', 'I', 'A', 'u', 'D', 'C', 'Y', 'V', 'v',
+    ':', '/', '?', '.', 'r', 'm', 'Z', 'z', ' ', 'g',
 ];
 
 fn parse(keys: &[Key]) -> Parse<Cmd> {
@@ -248,9 +251,17 @@ fn parse(keys: &[Key]) -> Parse<Cmd> {
 pub fn normal_key(ed: &mut Editor, k: Key) {
     if k.is(KeyCode::Esc) || k == Key::ctrl('c') {
         ed.vim.pending.clear();
-        if matches!(ed.mode, Mode::VisualLine { .. }) {
+        if ed.visual_lines().is_some() {
             ed.mode = Mode::Normal;
         }
+        return;
+    }
+    if let Mode::Visual { anchor } = ed.mode
+        && ed.vim.pending.is_empty()
+        && let Some(c) = k.char()
+        && VISUAL.contains(&c)
+    {
+        visual_chars(ed, anchor, c);
         return;
     }
     if let Mode::VisualLine { anchor } = ed.mode
@@ -267,11 +278,13 @@ pub fn normal_key(ed: &mut Editor, k: Key) {
         Parse::Invalid => ed.vim.pending.clear(),
         Parse::Done(cmd) => {
             let keys = std::mem::take(&mut ed.vim.pending);
-            if matches!(ed.mode, Mode::VisualLine { .. }) {
+            if ed.visual_lines().is_some() {
                 let allowed = match &cmd {
                     Cmd::Move { .. } => true,
                     Cmd::Simple { key, .. } => {
-                        key.ctrl || key.char() == Some('m') || !matches!(key.code, KeyCode::Char(_))
+                        key.ctrl
+                            || matches!(key.char(), Some('m' | 'z'))
+                            || !matches!(key.code, KeyCode::Char(_))
                     }
                     Cmd::Op { .. } | Cmd::OpSearch { .. } => false,
                 };
@@ -287,13 +300,72 @@ pub fn normal_key(ed: &mut Editor, k: Key) {
 
 pub use insert::insert_key;
 
-/// Keys that act on the selection in Visual-line mode.
+/// Keys that act on the selection in Visual and Visual-line mode.
 const VISUAL: &[char] = &[
-    'd', 'x', 'X', 'D', 'y', 'Y', 'c', 's', 'S', 'C', 'J', ':', 'V', 'o', 'K',
+    'd', 'x', 'X', 'D', 'y', 'Y', 'c', 's', 'S', 'C', 'J', ':', 'V', 'v', 'o', 'K',
 ];
 
+/// What a Visual or Visual-line selection (`mode`) covers.
+pub(crate) fn selection(ed: &Editor, mode: &Mode) -> Option<ops::Span> {
+    match *mode {
+        Mode::VisualLine { anchor } => Some(ops::Span::Lines(
+            anchor.min(ed.cur.line),
+            anchor.max(ed.cur.line),
+        )),
+        Mode::Visual { anchor } => {
+            let (from, to) = (anchor.min(ed.cur.pos()), anchor.max(ed.cur.pos()));
+            let line = ed.buf.line(to.0);
+            // On an empty line the selection takes its line break.
+            let to = if to.1 < line.len() {
+                (to.0, crate::text::next_grapheme(&line, to.1))
+            } else if to.0 + 1 < ed.line_count() {
+                (to.0 + 1, 0)
+            } else {
+                (to.0, line.len())
+            };
+            Some(ops::Span::Chars(from, to))
+        }
+        _ => None,
+    }
+}
+
+/// A key in charwise Visual mode; the uppercase ones act on whole lines, as in vim.
+fn visual_chars(ed: &mut Editor, anchor: (usize, usize), c: char) {
+    match c {
+        'v' => ed.mode = Mode::Normal,
+        'V' => ed.mode = Mode::VisualLine { anchor: anchor.0 },
+        'o' => {
+            ed.mode = Mode::Visual {
+                anchor: ed.cur.pos(),
+            };
+            ed.set_cursor(anchor.0, anchor.1);
+        }
+        'd' | 'x' | 'y' | 'c' | 's' => {
+            ed.mode = Mode::Normal;
+            if ed.generated() && c != 'y' {
+                ed.set_err("generated Git buffer is read-only");
+                return;
+            }
+            let Some(span) = selection(ed, &Mode::Visual { anchor }) else {
+                return;
+            };
+            let op = match c {
+                'x' => 'd',
+                's' => 'c',
+                c => c,
+            };
+            ed.undo.begin(ed.cur.pos());
+            ops::apply_op(ed, op, span);
+            if ed.mode != Mode::Insert {
+                ed.undo.end(ed.cur.pos());
+            }
+        }
+        _ => visual(ed, anchor.0, c),
+    }
+}
+
 fn visual(ed: &mut Editor, anchor: usize, c: char) {
-    if ed.generated() && !matches!(c, 'y' | 'Y' | ':' | 'V' | 'o') {
+    if ed.generated() && !matches!(c, 'y' | 'Y' | ':' | 'V' | 'v' | 'o') {
         ed.mode = Mode::Normal;
         ed.set_err("generated Git buffer is read-only");
         return;
@@ -302,6 +374,11 @@ fn visual(ed: &mut Editor, anchor: usize, c: char) {
     ed.mode = Mode::Normal;
     match c {
         'V' => {}
+        'v' => {
+            ed.mode = Mode::Visual {
+                anchor: (anchor, 0),
+            }
+        }
         'o' => {
             ed.mode = Mode::VisualLine {
                 anchor: ed.cur.line,
@@ -569,6 +646,11 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
                 anchor: ed.cur.line,
             }
         }
+        (KeyCode::Char('v'), false) => {
+            ed.mode = Mode::Visual {
+                anchor: ed.cur.pos(),
+            }
+        }
         (KeyCode::Char('d'), true) | (KeyCode::PageDown, _) | (KeyCode::Char('f'), true) => {
             let n = count.unwrap_or(if matches!(key.code, KeyCode::Char('d')) {
                 half
@@ -590,7 +672,8 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
         // `Space k` searches this file's lines, `Space j` browses files,
         // `Space r` lists recent files, `Space b` lists open buffers,
         // `Space B` searches their lines, `Space d` goes to a definition,
-        // `Space -` lists the file's directory (dired), `Space Enter` saves,
+        // `Space -` lists the file's directory (dired), `Space O` shows it in
+        // the file manager, `Space Enter` saves,
         // `Space ;` closes.
         (KeyCode::Char(' '), false) => match arg {
             Some('s') => crate::zap::open(ed),
@@ -599,6 +682,7 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
             Some('k') => crate::pick::open(ed, crate::pick::Kind::Lines),
             Some('r') => crate::pick::open(ed, crate::pick::Kind::Recent),
             Some('d') => crate::pick::definition(ed),
+            Some('c') => ed.pending_effect = Some(ExEffect::Claude),
             Some(c @ ('b' | 'B')) => {
                 ed.pending_effect = Some(ExEffect::Buffer {
                     cmd: if c == 'b' {
@@ -627,20 +711,13 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
                         .map(|n| n.to_string_lossy().into_owned()),
                 });
             }
-            // Find-file from the listed directory, else the current file's
-            // directory, else the cwd.
+            // Find-file from the directory you are in.
             Some('j') => {
-                let dir = match &ed.dired {
-                    Some(d) => d.dir.clone(),
-                    None => ed
-                        .path
-                        .as_deref()
-                        .and_then(|p| std::path::absolute(p).ok())
-                        .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
-                        .unwrap_or_else(|| std::path::PathBuf::from(".")),
-                };
+                let dir = here(ed);
                 crate::pick::browse(ed, &dir);
             }
+            // That directory in the system's file manager (Finder).
+            Some('O') => ed.pending_effect = Some(ExEffect::Reveal(here(ed))),
             Some('\n') => {
                 ed.pending_effect = Some(ExEffect::Write {
                     path: None,
@@ -661,6 +738,8 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
             Some('Q') => ed.pending_effect = Some(ExEffect::Quit { force: true }),
             _ => {}
         },
+        // zz centres the cursor line in the window.
+        (KeyCode::Char('z'), false) if arg == Some('z') => ed.recenter.set(true),
         (KeyCode::Char('m'), false) => {
             if let Some(c) = arg.filter(char::is_ascii_lowercase) {
                 ed.marks.insert(c, ed.cur.line);
@@ -672,3 +751,17 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
 
 #[cfg(test)]
 mod tests;
+
+/// The directory you are in: the listed one (dired), else the current
+/// file's, else the working directory.
+fn here(ed: &Editor) -> std::path::PathBuf {
+    match &ed.dired {
+        Some(d) => d.dir.clone(),
+        None => ed
+            .path
+            .as_deref()
+            .and_then(|p| std::path::absolute(p).ok())
+            .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| ".".into())),
+    }
+}

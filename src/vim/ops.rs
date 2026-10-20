@@ -166,15 +166,26 @@ fn word_class(g: &str, big: bool) -> u8 {
 
 /// Apply operator `op` (d, c, y) to a span.
 pub fn apply_op(ed: &mut Editor, op: char, sp: Span) {
+    apply(ed, op, sp, true);
+}
+
+/// `"_d`: delete into the black hole register, leaving the others alone.
+pub fn delete_black_hole(ed: &mut Editor, sp: Span) {
+    apply(ed, 'd', sp, false);
+}
+
+fn apply(ed: &mut Editor, op: char, sp: Span, to_reg: bool) {
     match sp {
         Span::Lines(lo, hi) => {
-            set_reg(
-                ed,
-                Register {
-                    text: lines_text(ed, lo, hi),
-                    linewise: true,
-                },
-            );
+            if to_reg {
+                set_reg(
+                    ed,
+                    Register {
+                        text: lines_text(ed, lo, hi),
+                        linewise: true,
+                    },
+                );
+            }
             match op {
                 'y' => {
                     if lo < ed.cur.line {
@@ -198,24 +209,28 @@ pub fn apply_op(ed: &mut Editor, op: char, sp: Span) {
             if op == 'y' {
                 let s = ed.buf.pos_to_char(from.0, from.1);
                 let e = ed.buf.pos_to_char(to.0, to.1);
-                set_reg(
-                    ed,
-                    Register {
-                        text: ed.buf.slice(s, e),
-                        linewise: false,
-                    },
-                );
+                if to_reg {
+                    set_reg(
+                        ed,
+                        Register {
+                            text: ed.buf.slice(s, e),
+                            linewise: false,
+                        },
+                    );
+                }
                 ed.set_cursor(from.0, from.1);
                 return;
             }
             let removed = delete_chars(ed, from, to);
-            set_reg(
-                ed,
-                Register {
-                    text: removed,
-                    linewise: false,
-                },
-            );
+            if to_reg {
+                set_reg(
+                    ed,
+                    Register {
+                        text: removed,
+                        linewise: false,
+                    },
+                );
+            }
             if op == 'c' {
                 ed.mode = Mode::Insert;
             }
@@ -230,7 +245,7 @@ pub fn apply_op(ed: &mut Editor, op: char, sp: Span) {
 
 /// Set the register, and the system clipboard with it.
 pub(crate) fn set_reg(ed: &mut Editor, reg: Register) {
-    if ed.clipboard {
+    if ed.clipboard() {
         crate::clipboard::set(&reg);
     }
     ed.reg = reg;
@@ -238,7 +253,7 @@ pub(crate) fn set_reg(ed: &mut Editor, reg: Register) {
 
 pub fn put(ed: &mut Editor, count: usize, after: bool) {
     // Something copied in another app since our last yank wins.
-    if ed.clipboard
+    if ed.clipboard()
         && let Some(c) = crate::clipboard::get()
         && c != crate::clipboard::to_clip(&ed.reg)
     {
@@ -288,19 +303,8 @@ pub fn join(ed: &mut Editor, lo: usize, count: usize) -> bool {
             break;
         }
         let cur = ed.buf.line(lo);
-        let next = ed.buf.line(lo + 1);
-        let next = next.trim_start();
-        let sep = if cur.is_empty()
-            || next.is_empty()
-            || cur.ends_with([' ', '\t'])
-            || next.starts_with(')')
-        {
-            ""
-        } else {
-            " "
-        };
         col = cur.len();
-        let joined = format!("{cur}{sep}{next}");
+        let joined = crate::text::join_lines(&cur, &ed.buf.line(lo + 1));
         splice_lines(ed, lo, 2, &[joined]);
     }
     ed.set_cursor(lo, col);

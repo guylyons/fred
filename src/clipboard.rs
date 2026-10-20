@@ -18,9 +18,18 @@ fn tools() -> (&'static [&'static str], &'static [&'static str]) {
     }
 }
 
+// Unit tests get a clipboard of their own, never the user's.
+#[cfg(test)]
+thread_local! {
+    static TEST_CLIPBOARD: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+}
+
 /// Copy `reg` to the clipboard. Waits, so a `p` right after sees it
 /// (wl-copy and xclip go to the background to serve it).
 pub fn set(reg: &Register) {
+    #[cfg(test)]
+    return TEST_CLIPBOARD.with(|c| *c.borrow_mut() = Some(to_clip(reg)));
+    #[allow(unreachable_code)]
     let cmd = tools().0;
     let Ok(mut child) = Command::new(cmd[0])
         .args(&cmd[1..])
@@ -39,6 +48,9 @@ pub fn set(reg: &Register) {
 
 /// What the clipboard holds, if it can be read.
 pub fn get() -> Option<String> {
+    #[cfg(test)]
+    return TEST_CLIPBOARD.with(|c| c.borrow().clone());
+    #[allow(unreachable_code)]
     let cmd = tools().1;
     let out = Command::new(cmd[0])
         .args(&cmd[1..])

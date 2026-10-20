@@ -5,13 +5,14 @@ use crate::complete::index::WordIndex;
 use crate::complete::{self, Popup};
 use crate::ex::{self, ExEffect, ExState};
 use crate::key::{Key, KeyCode};
+use crate::options::Opt;
 use crate::search;
 use crate::text;
 use crate::undo::Undo;
 use crate::vim;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Cursor {
@@ -34,6 +35,10 @@ pub enum Mode {
     Insert,
     VisualLine {
         anchor: usize,
+    },
+    /// Charwise Visual (`v`): `anchor` is the (line, byte) it started at.
+    Visual {
+        anchor: (usize, usize),
     },
     Command(CmdLine),
     /// File or grep picker (`Space p`, `Space g`).
@@ -112,7 +117,40 @@ pub struct Editor {
     pub readonly: bool,
     /// This buffer lists a directory (see `dired`).
     pub dired: Option<Box<crate::dired::Dired>>,
+    /// This buffer lists another's matching lines (see `occur`).
+    pub occur: Option<Box<crate::occur::Occur>>,
+    /// This buffer is a chat with Claude Code (see `claude`).
+    pub claude: Option<Box<crate::claude::Chat>>,
     pub magit: Option<Box<crate::magit::View>>,
+    /// Hidden line ranges (Org visibility).
+    pub folds: crate::fold::Folds,
+    /// Org-mode state when this buffer visits an Org file.
+    pub org: Option<Box<crate::org::Org>>,
+    /// A generated Org buffer (agenda and other views).
+    pub org_view: Option<Box<crate::org::View>>,
+    /// An Org prompt or menu's continuation.
+    pub org_then: Option<crate::org::Then>,
+    pub org_require_match: bool,
+    /// The open Org menu's entries (keys, label) and keys typed so far.
+    pub org_menu: Vec<(String, String)>,
+    pub org_menu_typed: String,
+    /// An Org key sequence in progress (`C-c C-x`).
+    pub org_keys: Vec<Key>,
+    /// `zz`: the next draw puts the cursor line in the middle of the window.
+    pub recenter: std::cell::Cell<bool>,
+    /// The prefix argument for the next Org command (`Space u`).
+    pub org_arg: crate::org::Prefix,
+    /// The active region (Visual-line selection) for an Org command.
+    pub org_region: Option<(usize, usize)>,
+    /// A special Org buffer's name (`*Org Note*`), its C-c C-c action
+    /// and the buffer to return to.
+    pub org_buffer_name: Option<String>,
+    pub org_finish: Option<crate::org::FinishSlot>,
+    pub org_return: Option<usize>,
+    /// A path that only decides syntax highlighting (Org source edit buffers).
+    pub syntax_path: Option<PathBuf>,
+    /// The key Enter answers in the open Org menu (fast selection's RET).
+    pub org_menu_enter: Option<String>,
     pub magit_input_generation: u64,
     pub magit_options: std::collections::HashSet<crate::magit::MenuOption>,
     /// Free-form transient-option values by (menu, argument prefix).
@@ -141,7 +179,8 @@ pub struct Editor {
     pub win_height: usize,
     pub(crate) viewport: Option<crate::zap::Viewport>,
     pub(crate) zap: Option<crate::zap::Zap>,
-    pub tabstop: usize,
+    /// Option values (`:set`); see `crate::options`.
+    pub opts: crate::options::Options,
     /// Insert spaces for Tab, this many per indent level (0 = insert a tab).
     pub indent_spaces: usize,
     /// Undo state of the text as last saved; `u64::MAX` = never matches.
@@ -152,11 +191,10 @@ pub struct Editor {
     /// `:explain`: Claude's explanation of these lines, shown over them
     /// until Esc or a click outside it (or on its ✕).
     pub explain: Option<(ex::addr::Range, String)>,
-    pub autocomplete: bool,
-    /// Share yanks and puts with the system clipboard.
-    pub clipboard: bool,
-    /// Words from nearby files, filled in by a background thread.
-    pub nearby: Arc<Mutex<Vec<String>>>,
+    /// The right-click menu, while it is open.
+    pub menu: Option<crate::menu::Menu>,
+    /// Words from nearby files, for completion.
+    pub nearby: crate::complete::nearby::Nearby,
     pub(crate) word_index: WordIndex,
     /// Lines changed against git's staging area.
     pub git: crate::git::Gutter,
@@ -182,7 +220,25 @@ impl Editor {
             path: None,
             readonly: false,
             dired: None,
+            occur: None,
+            claude: None,
             magit: None,
+            folds: crate::fold::Folds::default(),
+            org: None,
+            org_view: None,
+            org_then: None,
+            org_require_match: false,
+            org_menu: vec![],
+            org_menu_typed: String::new(),
+            org_keys: vec![],
+            recenter: Default::default(),
+            org_arg: crate::org::Prefix::None,
+            org_region: None,
+            org_buffer_name: None,
+            org_finish: None,
+            org_return: None,
+            org_menu_enter: None,
+            syntax_path: None,
             magit_input_generation: 0,
             magit_options: std::collections::HashSet::new(),
             magit_values: std::collections::BTreeMap::new(),
@@ -202,15 +258,14 @@ impl Editor {
             win_height: 12,
             viewport: None,
             zap: None,
-            tabstop: 8,
+            opts: Default::default(),
             indent_spaces,
             saved_state: 0,
             vim: vim::State::default(),
             popup: None,
             explain: None,
-            autocomplete: true,
-            clipboard: false,
-            nearby: Arc::default(),
+            menu: None,
+            nearby: Default::default(),
             word_index: WordIndex::default(),
             git: crate::git::Gutter::default(),
             project: Arc::default(),
@@ -234,12 +289,23 @@ impl Editor {
 
     pub fn handle_key(&mut self, k: Key) {
         self.magit_input_generation = self.magit_input_generation.wrapping_add(1);
-        if crate::magit::key(self, k)
+        // The open right-click menu has the keys first.
+        if self.menu.is_some() && crate::menu::key(self, k) {
+            return;
+        }
+        if crate::claude::key(self, k)
+            || crate::occur::start_key(self, k)
+            || crate::magit::key(self, k)
+            || crate::org::key(self, k)
             || crate::magit::blame::key(self, k)
             || crate::magit::blob::key(self, k)
             || crate::magit::rebase::key(self, k)
         {
             return;
+        }
+        // A Shift key nothing took is the plain key.
+        if k.shift {
+            return self.handle_key(Key { shift: false, ..k });
         }
         // An Alt key nothing took: Fred's usual Esc, key.
         if k.alt {
@@ -323,8 +389,8 @@ impl Editor {
         }
         let was_insert = self.mode == Mode::Insert;
         match self.mode {
-            Mode::Normal | Mode::VisualLine { .. } => {
-                if !crate::dired::key(self, k) {
+            Mode::Normal | Mode::VisualLine { .. } | Mode::Visual { .. } => {
+                if !crate::dired::key(self, k) && !crate::occur::key(self, k) {
                     vim::normal_key(self, k)
                 }
             }
@@ -334,19 +400,51 @@ impl Editor {
         }
         self.clamp_cursor();
         // Undo/redo in Visual-line mode can delete the anchor's line.
-        if let Mode::VisualLine { anchor } = &mut self.mode {
-            *anchor = (*anchor).min(self.buf.len_lines() - 1);
+        let last = self.buf.len_lines() - 1;
+        match &mut self.mode {
+            Mode::VisualLine { anchor } => *anchor = (*anchor).min(last),
+            Mode::Visual { anchor } => {
+                anchor.0 = anchor.0.min(last);
+                anchor.1 = anchor.1.min(self.buf.line_len(anchor.0));
+            }
+            _ => {}
         }
         if self.mode == Mode::Insert && !was_insert {
+            self.vim.insert_start = self.cur.pos();
+            // Start reading nearby files' words while there's typing to do.
+            self.nearby.words();
             self.word_index.ensure(&self.buf, true);
         }
         if self.mode != Mode::Insert {
             self.popup = None;
         }
         self.sync_marks();
+        if self.folds.hidden(self.cur.line) {
+            self.reveal_cursor();
+        }
         if !self.undo.in_group() {
             self.buf.modified = self.undo.state_id() != self.saved_state;
         }
+    }
+
+    /// The lines a Visual or Visual-line selection covers, lowest first.
+    pub fn visual_lines(&self) -> Option<(usize, usize)> {
+        let a = match self.mode {
+            Mode::VisualLine { anchor } => anchor,
+            Mode::Visual { anchor } => anchor.0,
+            _ => return None,
+        };
+        Some((a.min(self.cur.line), a.max(self.cur.line)))
+    }
+
+    /// Columns a tab takes ('tabstop').
+    pub fn tabstop(&self) -> usize {
+        self.opts.num(Opt::Tabstop) as usize
+    }
+
+    /// Yanks and puts share the system clipboard ('clipboard').
+    pub fn clipboard(&self) -> bool {
+        !self.opts.str(Opt::Clipboard).is_empty()
     }
 
     /// Generated Git text (status/log/diff views and blobs) is never edited or saved.
@@ -360,7 +458,7 @@ impl Editor {
         if self.generated()
             && matches!(
                 self.mode,
-                Mode::Normal | Mode::Insert | Mode::VisualLine { .. }
+                Mode::Normal | Mode::Insert | Mode::VisualLine { .. } | Mode::Visual { .. }
             )
         {
             self.set_err("generated Git buffer is read-only");
@@ -396,14 +494,27 @@ impl Editor {
                     self.buf.modified = self.undo.state_id() != self.saved_state;
                 }
             }
-            Mode::VisualLine { .. } => {}
+            Mode::VisualLine { .. } | Mode::Visual { .. } => {}
         }
         self.sync_marks();
     }
 
     /// Move marks with their lines; a deleted line loses its mark.
-    fn sync_marks(&mut self) {
+    /// Show the hidden text the cursor moved into.
+    pub fn reveal_cursor(&mut self) {
+        if self.org.is_some() {
+            crate::org::fold::show_context(self, self.cur.line);
+        } else if let Some((s, e)) = self.folds.range_at(self.cur.line) {
+            self.folds.show(s, e);
+        }
+    }
+
+    pub(crate) fn sync_marks(&mut self) {
         for ch in self.buf.take_line_changes() {
+            self.folds.line_change(ch.at, ch.removed, ch.inserted);
+            if let Some(o) = &mut self.org {
+                o.specs.line_change(ch.at, ch.removed, ch.inserted);
+            }
             self.marks
                 .retain(|_, l| *l < ch.at || *l >= ch.at + ch.removed);
             for l in self.marks.values_mut() {
@@ -463,7 +574,7 @@ impl Editor {
         self.cur.line = line.min(self.line_count() - 1);
         let l = self.buf.line(self.cur.line);
         self.cur.byte = text::floor_grapheme(&l, byte);
-        self.cur.want_col = text::col_of_byte(&l, self.cur.byte, self.tabstop);
+        self.cur.want_col = text::col_of_byte(&l, self.cur.byte, self.tabstop());
     }
 
     /// Move to `line`, keeping the remembered screen column.
@@ -473,7 +584,7 @@ impl Editor {
         self.cur.byte = if self.cur.want_col == usize::MAX {
             text::prev_grapheme(&l, l.len())
         } else {
-            text::byte_of_col(&l, self.cur.want_col, self.tabstop)
+            text::byte_of_col(&l, self.cur.want_col, self.tabstop())
         };
     }
 
@@ -532,6 +643,7 @@ impl Editor {
             || (k.code == KeyCode::Backspace && cl.text.is_empty());
         if leaving {
             self.magit_prompt = None;
+            self.org_then = None;
             self.vim.pending_op = None;
         }
         let hist = if cl.kind == ':' {
@@ -621,6 +733,9 @@ impl Editor {
         if kind == '@' {
             return crate::dired::answer(self, text);
         }
+        if kind == 'o' {
+            return crate::org::answer(self, text);
+        }
         let hist = if kind == ':' {
             &mut self.cmd_history
         } else {
@@ -646,6 +761,9 @@ impl Editor {
 
     /// Run an ex command line.
     pub fn run_ex(&mut self, text: &str) {
+        if crate::org::ex(self, text) {
+            return;
+        }
         if self.generated() {
             let mut buf = self.buf.clone();
             let mut undo = Undo::default();
@@ -665,9 +783,7 @@ impl Editor {
             match result {
                 Ok(eff) => {
                     self.set_cursor(line.min(self.line_count() - 1), 0);
-                    if eff != ExEffect::None {
-                        self.pending_effect = Some(eff);
-                    }
+                    self.effect(eff);
                 }
                 Err(e) => self.set_err(e),
             }
@@ -691,11 +807,25 @@ impl Editor {
                     let b = self.first_nonblank(new_cur.min(self.line_count() - 1));
                     self.set_cursor(new_cur, b);
                 }
-                if eff != ExEffect::None {
-                    self.pending_effect = Some(eff);
-                }
+                self.effect(eff);
             }
             Err(e) => self.set_err(e),
+        }
+    }
+
+    /// What an ex command asks for: options are the editor's own; the rest
+    /// is for the session.
+    fn effect(&mut self, eff: ExEffect) {
+        match eff {
+            ExEffect::None => {}
+            ExEffect::Set { args, level } => {
+                match crate::options::set(&mut self.opts, &args, level) {
+                    Ok(shown) if !shown.is_empty() => self.set_msg(shown),
+                    Ok(_) => {}
+                    Err(e) => self.set_err(e),
+                }
+            }
+            eff => self.pending_effect = Some(eff),
         }
     }
 

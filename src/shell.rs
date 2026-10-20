@@ -4,6 +4,23 @@ use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
+/// Open `url` (or a file) with the system's opener, detached.
+pub fn browse(url: &str) -> Result<(), String> {
+    let opener = if cfg!(target_os = "macos") {
+        "open"
+    } else {
+        "xdg-open"
+    };
+    Command::new(opener)
+        .arg(url)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("{opener}: {e}"))
+}
+
 /// `$SHELL -c CMD` (or `/bin/sh`).
 pub fn command(cmd: &str) -> Command {
     let sh = std::env::var("SHELL")

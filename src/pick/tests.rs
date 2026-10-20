@@ -116,14 +116,100 @@ fn selection_moves_and_clamps() {
     assert_eq!(picker(&ed).sel, 0, "a new query selects the best match");
 }
 
+/// A project whose opens and picks are remembered (in its `state/`).
+fn remembering(files: &[(&str, &str)]) -> (tempfile::TempDir, Editor) {
+    let (d, mut ed) = setup(files);
+    let recent = d.path().join("state/recent");
+    ed.project = Arc::new(Project::new(Some(d.path().to_path_buf()), Some(recent)));
+    ed.project.set_all(true); // `state/` is not hidden by an ignore file
+    ed.project.files().wait();
+    (d, ed)
+}
+
+#[test]
+fn find_ranks_like_fff() {
+    let (d, mut ed) = remembering(&[
+        ("src/pick/model.rs", "one\ntwo\nthree\n"),
+        ("src/ui/model.rs", ""),
+        ("docs/model.md", ""),
+    ]);
+    let top = |ed: &Editor| picker(ed).rows[0].text.clone();
+    // Opened often lately: first, typed or not.
+    let frecency = d.path().join("state/frecency");
+    for _ in 0..10 {
+        fff::track(&frecency, &d.path().join("docs/model.md"), fff::now());
+    }
+    keys(&mut ed, " p");
+    assert_eq!(top(&ed), "docs/model.md");
+    keys(&mut ed, "model");
+    assert_eq!(top(&ed), "docs/model.md");
+    // Filters narrow it, and `:line:col` says where to land.
+    query(&mut ed, "model *.rs");
+    assert_eq!(picker(&ed).rows.len(), 2);
+    query(&mut ed, "*.rs !ui/ model:2:3");
+    assert_eq!(picker(&ed).rows.len(), 1);
+    keys(&mut ed, "<Enter>");
+    assert_eq!(
+        ed.pending_effect,
+        Some(ExEffect::Open {
+            path: d.path().join("src/pick/model.rs"),
+            line: 1,
+            col: 2,
+            pattern: None,
+        })
+    );
+    // What a query led to three times running leads next time.
+    for _ in 0..3 {
+        keys(&mut ed, "<Esc> p");
+        query(&mut ed, "model");
+        keys(&mut ed, "<C-n><C-n><C-p>");
+        let picked = picker(&ed).rows[picker(&ed).sel].text.clone();
+        assert_ne!(picked, "docs/model.md");
+        keys(&mut ed, "<Enter>");
+    }
+    keys(&mut ed, "<Esc> p");
+    query(&mut ed, "model");
+    assert_ne!(top(&ed), "docs/model.md");
+    // A slip of the fingers still finds it.
+    query(&mut ed, "mdoel.md");
+    assert_eq!(top(&ed), "docs/model.md");
+}
+
+#[test]
+fn grep_filters_and_modes() {
+    let (_d, mut ed) = setup(&[
+        ("src/a.rs", "let total = a.b(c);\n"),
+        ("src/a.md", "a.b(c) and axb(c)\n"),
+        ("tests/t.rs", "a.b(c)\nUserAuthController\n"),
+    ]);
+    // Plain text (the default, as fff): the files the filters leave.
+    keys(&mut ed, " g");
+    query(&mut ed, "a.b(c) *.rs !tests/");
+    settle(&mut ed, |p| p.status == "1 matches [plain]");
+    assert_eq!(picker(&ed).rows[0].text, "src/a.rs:1: let total = a.b(c);");
+    // As a regex, `.` and the parentheses are not themselves.
+    keys(&mut ed, "<S-Tab>");
+    settle(&mut ed, |p| p.status == "0 matches [regex]");
+    // Fuzzy: letters in between, or a typo (`Ctrl-t` cycles too).
+    keys(&mut ed, "<C-t>");
+    query(&mut ed, "UserController");
+    settle(&mut ed, |p| p.status == "1 matches [fuzzy]");
+    query(&mut ed, "toatl");
+    settle(&mut ed, |p| p.status == "1 matches [fuzzy]");
+    assert!(picker(&ed).rows[0].text.starts_with("src/a.rs:1:"));
+    // Filters alone are not a pattern.
+    query(&mut ed, "*.rs");
+    settle(&mut ed, |p| p.err);
+}
+
 #[test]
 fn grep_a_pattern() {
     let (d, mut ed) = setup(&[
         ("a.rs", "use x;\n\n    fn main() {}\n"),
         ("b.rs", "nothing\n"),
     ]);
-    keys(&mut ed, " gfn \\w+");
-    settle(&mut ed, |p| p.status == "1 matches");
+    keys(&mut ed, " g<S-Tab>fn \\w+");
+    settle(&mut ed, |p| p.status == "1 matches [regex]");
     let p = picker(&ed);
     assert_eq!(p.rows[0].text, "a.rs:3: fn main() {}");
     let (a, b) = p.rows[0].hl[0];
@@ -148,9 +234,9 @@ fn ctrl_o_searches_ignored_files_too() {
         ("index.php", "boot();\n"),
     ]);
     keys(&mut ed, " gboot");
-    settle(&mut ed, |p| p.status == "1 matches");
+    settle(&mut ed, |p| p.status == "1 matches [plain]");
     keys(&mut ed, "<C-o>");
-    settle(&mut ed, |p| p.status == "2 matches [all]");
+    settle(&mut ed, |p| p.status == "2 matches [plain] [all]");
     keys(&mut ed, "<Esc> p");
     settle(&mut ed, |p| p.status == "2/2 [all]");
     keys(&mut ed, "<C-o>");
@@ -160,15 +246,18 @@ fn ctrl_o_searches_ignored_files_too() {
 #[test]
 fn bad_pattern_keeps_results() {
     let (_d, mut ed) = setup(&[("a", "foo(\n")]);
-    keys(&mut ed, " gfoo");
-    settle(&mut ed, |p| p.status == "1 matches");
+    keys(&mut ed, " g<S-Tab>foo");
+    settle(&mut ed, |p| p.status == "1 matches [regex]");
     keys(&mut ed, "(");
     settle(&mut ed, |p| p.err);
     let p = picker(&ed);
     assert!(p.status.starts_with("bad pattern"), "{}", p.status);
     assert_eq!(p.rows.len(), 1);
     keys(&mut ed, "<BS>\\(");
-    settle(&mut ed, |p| !p.err && p.status == "1 matches");
+    settle(&mut ed, |p| !p.err && p.status == "1 matches [regex]");
+    // Plain text has no bad patterns.
+    keys(&mut ed, "<S-Tab><S-Tab>");
+    settle(&mut ed, |p| !p.err && p.status == "0 matches [plain]");
 }
 
 #[test]
@@ -218,8 +307,8 @@ fn browse_like_find_file() {
         (Kind::Browse, start.clone())
     );
     let names: Vec<&str> = p.rows.iter().map(|r| r.text.as_str()).collect();
-    // Directories first; dotfiles (`.git/`, `.hidden`) hidden.
-    assert_eq!(names, ["src/", "README.md"]);
+    // Directories first; dotfiles last (`.git/` is never listed).
+    assert_eq!(names, ["src/", "README.md", ".hidden"]);
     // Enter on a directory lists it (dired)...
     keys(&mut ed, "sr<Enter>");
     assert_eq!(
@@ -252,8 +341,18 @@ fn browse_like_find_file() {
     query(&mut ed, &format!("{start}src/"));
     keys(&mut ed, "<BS>");
     assert_eq!(picker(&ed).query.text, start);
-    // Dotfiles once the name starts with a dot.
+    // Right goes into the selected (here the first) directory, Left back
+    // up, even mid-name.
+    settle(&mut ed, |p| !p.searching);
+    keys(&mut ed, "<Right>");
+    assert_eq!(picker(&ed).query.text, format!("{start}src/"));
+    keys(&mut ed, "ma<Left>");
+    assert_eq!(picker(&ed).query.text, start);
+    // A dotfile matches with or without its dot.
     keys(&mut ed, ".h");
+    assert_eq!(picker(&ed).rows[0].text, ".hidden");
+    query(&mut ed, &format!("{start}hidd"));
+    settle(&mut ed, |p| !p.searching);
     assert_eq!(picker(&ed).rows[0].text, ".hidden");
     // No match: Enter opens a new file of that name.
     query(&mut ed, &start);
@@ -284,7 +383,7 @@ fn browse_searches_below_and_honors_gitignore() {
     browse(&mut ed, d.path());
     // The listing itself hides ignored entries.
     let names: Vec<String> = picker(&ed).rows.iter().map(|r| r.text.clone()).collect();
-    assert_eq!(names, ["src/", "top.txt"]);
+    assert_eq!(names, ["src/", "top.txt", ".gitignore"]);
     keys(&mut ed, "brows");
     settle(&mut ed, |p| !p.searching);
     let p = picker(&ed);

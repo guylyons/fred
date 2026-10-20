@@ -1,6 +1,6 @@
 //! Fuzzy ranking of file paths (nucleo, Helix's matcher).
 
-use nucleo_matcher::pattern::{CaseMatching, Normalization, Pattern};
+use nucleo_matcher::pattern::{Atom, AtomKind, CaseMatching, Normalization, Pattern};
 use nucleo_matcher::{Config, Matcher, Utf32Str};
 use std::collections::HashMap;
 
@@ -16,6 +16,30 @@ impl Fuzzy {
         Fuzzy {
             matcher: Matcher::new(Config::DEFAULT.match_paths()),
             pattern: Pattern::parse(query, CaseMatching::Smart, Normalization::Smart),
+            buf: vec![],
+        }
+    }
+
+    /// `text` as one run of letters to find in order: spaces, `!`, `^`
+    /// and `$` are themselves.
+    pub fn literal(text: &str) -> Fuzzy {
+        let atom = Atom::new(
+            text,
+            CaseMatching::Smart,
+            Normalization::Smart,
+            AtomKind::Fuzzy,
+            false,
+        );
+        let mut pattern = Pattern::new(
+            "",
+            CaseMatching::Smart,
+            Normalization::Smart,
+            AtomKind::Fuzzy,
+        );
+        pattern.atoms.push(atom);
+        Fuzzy {
+            matcher: Matcher::new(Config::DEFAULT),
+            pattern,
             buf: vec![],
         }
     }

@@ -269,13 +269,24 @@ pub fn target(ed: &mut Editor, m: Motion, count: Option<usize>) -> Option<Target
                 if l + 1 >= n {
                     return None;
                 }
-                (l + n_count).min(n - 1)
+                if ed.folds.is_empty() {
+                    (l + n_count).min(n - 1)
+                } else {
+                    ed.folds.down(l, n_count, n)
+                }
             } else {
                 if l == 0 {
                     return None;
                 }
-                l.saturating_sub(n_count)
+                if ed.folds.is_empty() {
+                    l.saturating_sub(n_count)
+                } else {
+                    ed.folds.up(l, n_count)
+                }
             };
+            if nl == l {
+                return None;
+            }
             let mut t = Target::at(nl, 0).linewise();
             t.keep_col = true;
             t

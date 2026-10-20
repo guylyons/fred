@@ -15,8 +15,12 @@ pub struct View {
     pub detached: bool,
     pub(crate) picker_offset: usize,
     pub(crate) last_click: Option<(std::time::Instant, bool, usize)>,
+    /// Where a left-button drag started, for mouse selection.
+    pub(crate) drag_from: Option<(usize, usize)>,
     /// Where the `:explain` box was last drawn, for clicks.
     pub(crate) explain_box: Option<ratatui::layout::Rect>,
+    /// Where the right-click menu was last drawn, for the mouse.
+    pub(crate) menu_box: Option<ratatui::layout::Rect>,
 }
 
 /// Total window rows (text + status + command) for a file of `file_lines`.
@@ -45,7 +49,7 @@ impl View {
 
     pub fn wheel(&mut self, ed: &Editor, rows: usize, cols: usize, wrap: bool, down: bool) {
         self.detached = true;
-        if !wrap {
+        if !wrap && ed.folds.is_empty() {
             self.top = if down {
                 self.top.saturating_add(3)
             } else {
@@ -56,10 +60,16 @@ impl View {
             return;
         }
         let rows_of = |l| {
+            if ed.folds.hidden(l) {
+                return 0;
+            }
+            if !wrap {
+                return 1;
+            }
             let line = ed.buf.line(l);
-            let height = wrap_rows(&line, ed.tabstop, cols);
+            let height = wrap_rows(&line, ed.tabstop(), cols);
             if l == ed.cur.line {
-                height.max(wrap_cursor(&line, ed.cur.byte, ed.tabstop, cols).0 + 1)
+                height.max(wrap_cursor(&line, ed.cur.byte, ed.tabstop(), cols).0 + 1)
             } else {
                 height
             }
@@ -69,23 +79,31 @@ impl View {
             for _ in 0..3 {
                 if top.1 + 1 < rows_of(top.0) {
                     top.1 += 1;
-                } else if top.0 + 1 < ed.line_count() {
-                    top = (top.0 + 1, 0);
+                } else {
+                    let next = ed.folds.down(top.0, 1, ed.line_count());
+                    if next != top.0 {
+                        top = (next, 0);
+                    }
                 }
             }
         } else {
             top = up(top, 3, &rows_of);
         }
-        let last = ed.line_count() - 1;
+        let last = ed.folds.prev_visible(ed.line_count() - 1);
         let max_top = up((last, rows_of(last) - 1), rows.saturating_sub(1), &rows_of);
         (self.top, self.top_row) = top.min(max_top);
-        self.left = 0;
+        if wrap {
+            self.left = 0;
+        }
     }
 
     /// Scroll so the cursor is visible with up to 2 lines of context.
     pub fn scroll(&mut self, ed: &Editor, rows: usize, cols: usize, wrap: bool) {
         if self.detached {
             return;
+        }
+        if ed.recenter.take() {
+            self.recenter(ed, rows.max(1), cols.max(1), wrap);
         }
         if wrap {
             self.scroll_wrapped(ed, rows.max(1), cols.max(1));
@@ -95,21 +113,27 @@ impl View {
         let n = ed.line_count();
         let c = ed.cur.line;
         let rows = rows.max(1);
-        let so = 2.min((rows - 1) / 2);
-        if c < self.top + so {
-            self.top = c.saturating_sub(so);
+        if !ed.folds.is_empty() {
+            // Hidden lines take no rows.
+            let rows_of = |l: usize| usize::from(!ed.folds.hidden(l));
+            self.scroll_rows(ed, rows, (c, 0), &rows_of);
+        } else {
+            let so = 2.min((rows - 1) / 2);
+            if c < self.top + so {
+                self.top = c.saturating_sub(so);
+            }
+            if c + so >= self.top + rows {
+                self.top = c + so + 1 - rows;
+            }
+            self.top = self.top.min(n.saturating_sub(rows)).min(c);
         }
-        if c + so >= self.top + rows {
-            self.top = c + so + 1 - rows;
-        }
-        self.top = self.top.min(n.saturating_sub(rows)).min(c);
         let line = ed.buf.line(c);
-        let cc = col_of_byte(&line, ed.cur.byte, ed.tabstop);
+        let cc = col_of_byte(&line, ed.cur.byte, ed.tabstop());
         let w = if ed.cur.byte < line.len() {
             grapheme_width(
                 &line[ed.cur.byte..next_grapheme(&line, ed.cur.byte)],
                 cc,
-                ed.tabstop,
+                ed.tabstop(),
             )
             .max(1)
         } else {
@@ -120,7 +144,7 @@ impl View {
         }
         // When text continues past the right edge, the last column shows the
         // `›` marker, so the cursor must stay left of it.
-        let line_w = display_width(&line, ed.tabstop, 0);
+        let line_w = display_width(&line, ed.tabstop(), 0);
         let room = |left: usize| {
             if line_w > left + cols {
                 cols.saturating_sub(1).max(1)
@@ -138,32 +162,70 @@ impl View {
         }
     }
 
+    /// `zz`: the cursor's screen row in the middle of the window (the
+    /// normal scroll then keeps the last line from rising off the bottom).
+    fn recenter(&mut self, ed: &Editor, rows: usize, cols: usize, wrap: bool) {
+        let c = ed.cur.line;
+        let cr = if wrap {
+            wrap_cursor(&ed.buf.line(c), ed.cur.byte, ed.tabstop(), cols).0
+        } else {
+            0
+        };
+        let rows_of = |l: usize| {
+            if l != c && ed.folds.hidden(l) {
+                0
+            } else if wrap {
+                let r = wrap_rows(&ed.buf.line(l), ed.tabstop(), cols);
+                if l == c { r.max(cr + 1) } else { r }
+            } else {
+                1
+            }
+        };
+        (self.top, self.top_row) = up((c, cr), (rows - 1) / 2, &rows_of);
+    }
+
     /// Wrap mode: scroll by screen rows (a line can be taller than the
     /// window), keeping up to 2 rows of context where there is any.
     fn scroll_wrapped(&mut self, ed: &Editor, rows: usize, cols: usize) {
         self.left = 0;
-        let n = ed.line_count();
         let c = ed.cur.line;
-        let (cr, _) = wrap_cursor(&ed.buf.line(c), ed.cur.byte, ed.tabstop, cols);
+        let (cr, _) = wrap_cursor(&ed.buf.line(c), ed.cur.byte, ed.tabstop(), cols);
         let rows_of = |l: usize| {
-            let r = wrap_rows(&ed.buf.line(l), ed.tabstop, cols);
+            if l != c && ed.folds.hidden(l) {
+                return 0;
+            }
+            let r = wrap_rows(&ed.buf.line(l), ed.tabstop(), cols);
             if l == c { r.max(cr + 1) } else { r }
         };
-        self.top = self.top.min(n - 1);
-        self.top_row = self.top_row.min(rows_of(self.top) - 1);
+        self.scroll_rows(ed, rows, (c, cr), &rows_of);
+    }
+
+    /// Scroll by screen rows so `cursor` (line, row) shows with up to 2
+    /// rows of context; `rows_of` is 0 for hidden lines.
+    fn scroll_rows(
+        &mut self,
+        ed: &Editor,
+        rows: usize,
+        cursor: (usize, usize),
+        rows_of: &impl Fn(usize) -> usize,
+    ) {
+        let n = ed.line_count();
+        let (c, cr) = cursor;
+        self.top = ed.folds.prev_visible(self.top.min(n - 1));
+        self.top_row = self.top_row.min(rows_of(self.top).max(1) - 1);
         let so = 2.min((rows - 1) / 2);
         let cursor = (c, cr);
-        let above = so.min(rows_before(cursor, so, &rows_of));
-        let below = so.min(rows_after(cursor, n, so, &rows_of));
+        let above = so.min(rows_before(cursor, so, rows_of));
+        let below = so.min(rows_after(cursor, n, so, rows_of));
         let top = (self.top, self.top_row);
         let new_top = if top > cursor {
-            Some(up(cursor, above, &rows_of))
+            Some(up(cursor, above, rows_of))
         } else {
-            let d = rows_between(top, cursor, rows, &rows_of);
+            let d = rows_between(top, cursor, rows, rows_of);
             if d < above {
-                Some(up(cursor, above, &rows_of))
+                Some(up(cursor, above, rows_of))
             } else if d + below >= rows {
-                Some(up(cursor, rows - 1 - below, &rows_of))
+                Some(up(cursor, rows - 1 - below, rows_of))
             } else {
                 None
             }
@@ -204,10 +266,18 @@ fn up(pos: (usize, usize), k: usize, rows_of: &impl Fn(usize) -> usize) -> (usiz
             return (l, r - k);
         }
         k -= r + 1;
-        if l == 0 {
-            return (0, 0);
+        // Hidden lines above take no rows.
+        let mut prev = l;
+        loop {
+            if prev == 0 {
+                return (l, 0);
+            }
+            prev -= 1;
+            if rows_of(prev) > 0 {
+                break;
+            }
         }
-        l -= 1;
+        l = prev;
         r = rows_of(l) - 1;
     }
     (l, r)

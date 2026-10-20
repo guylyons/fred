@@ -4,6 +4,7 @@
 
 pub mod browse;
 pub mod def;
+pub mod fff;
 pub mod files;
 pub mod fuzzy;
 pub mod grep;
@@ -22,8 +23,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-/// Grep starts this long after the last keystroke.
-const DEBOUNCE: Duration = Duration::from_millis(100);
+/// How long a keystroke waits for its grep to finish before drawing.
+const SETTLE: Duration = Duration::from_millis(40);
+/// Until then (or a screenful), the last results stay up.
+const KEEP_OLD: Duration = Duration::from_millis(200);
+const SCREENFUL: usize = 100;
 /// Rows kept per query (more than any window shows).
 const LIMIT: usize = 500;
 
@@ -74,22 +78,7 @@ impl Project {
         use crate::git::FileState;
         let root = crate::complete::nearby::repo_root(if dir { path } else { path.parent()? })?;
         let rel = path.strip_prefix(&root).ok()?.to_str()?.to_string();
-        let slot = {
-            let mut m = self.status.lock().ok()?;
-            let slot = m.entry(root.clone()).or_insert_with(|| {
-                let slot: Arc<Mutex<Option<Status>>> = Arc::default();
-                let (out, loaded) = (Arc::clone(&slot), Arc::clone(&self.status_loaded));
-                std::thread::spawn(move || {
-                    let st = crate::git::status(&root).unwrap_or_default();
-                    if let Ok(mut o) = out.lock() {
-                        *o = Some(st);
-                    }
-                    loaded.store(true, Ordering::Release);
-                });
-                slot
-            });
-            Arc::clone(slot)
-        };
+        let slot = self.status_slot(&root)?;
         let st = slot.lock().ok()?;
         let st = st.as_ref()?;
         if !dir {
@@ -112,6 +101,55 @@ impl Project {
                 FileState::New
             },
         )
+    }
+
+    /// `git status` for the repository at `root`, loading in the background.
+    fn status_slot(&self, root: &Path) -> Option<Arc<Mutex<Option<Status>>>> {
+        let root = root.to_path_buf();
+        let mut m = self.status.lock().ok()?;
+        let slot = m.entry(root.clone()).or_insert_with(|| {
+            let slot: Arc<Mutex<Option<Status>>> = Arc::default();
+            let (out, loaded) = (Arc::clone(&slot), Arc::clone(&self.status_loaded));
+            std::thread::spawn(move || {
+                let st = crate::git::status(&root).unwrap_or_default();
+                if let Ok(mut o) = out.lock() {
+                    *o = Some(st);
+                }
+                loaded.store(true, Ordering::Release);
+            });
+            slot
+        });
+        Some(Arc::clone(slot))
+    }
+
+    /// The whole of it, once loaded.
+    fn status_at(&self, root: &Path) -> Option<Status> {
+        self.status_slot(root)?.lock().ok()?.clone()
+    }
+
+    /// A state file beside the recent-files list (`frecency`, `queries`).
+    fn state_file(&self, name: &str) -> Option<PathBuf> {
+        Some(self.recent_file.as_ref()?.with_file_name(name))
+    }
+
+    /// What ranks the project's files, but for `git status` (still loading).
+    fn meta(&self) -> fff::Meta {
+        let root = self.files().root.clone();
+        fff::Meta {
+            access: self
+                .state_file("frecency")
+                .map(|f| fff::access_scores(&f, &root, fff::now()))
+                .unwrap_or_default(),
+            // shortcut: `git log` runs as the picker opens (milliseconds);
+            // move it to the status thread if a repository makes it felt.
+            commits: if root.join(".git").exists() {
+                crate::git::recent_commits(&root)
+            } else {
+                HashMap::new()
+            },
+            recent: self.recent(),
+            ..fff::Meta::default()
+        }
     }
 
     /// Forget `git status`: a file picker opening reads it fresh.
@@ -146,10 +184,56 @@ pub enum Kind {
     Buffers,
     Branches,
     MagitMenu,
+    /// An Org key menu (org-mks, dispatchers).
+    OrgMenu,
+    /// Org completing-read.
+    OrgChoice,
     /// Lines of every buffer (`Space B`).
     AllLines,
     /// Definitions of the word at the cursor (`Space d`, `gd`).
     Def,
+}
+
+/// How `Space g` reads its pattern (`Shift-Tab` goes to the next), as fff.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum GrepMode {
+    /// The text as typed.
+    #[default]
+    Plain,
+    /// A regex, as `/`.
+    Regex,
+    /// The text, give or take a typo or letters in between.
+    Fuzzy,
+}
+
+impl GrepMode {
+    /// The regex for `text`.
+    fn compile(self, text: &str) -> Result<regex::Regex, String> {
+        if text.trim().is_empty() {
+            return Err("type what to grep for after the filters".into());
+        }
+        match self {
+            GrepMode::Regex => crate::search::compile(text),
+            // Fuzzy looks for the text itself first, then for near misses.
+            GrepMode::Plain | GrepMode::Fuzzy => crate::search::compile(&regex::escape(text)),
+        }
+    }
+
+    fn tag(self) -> &'static str {
+        match self {
+            GrepMode::Plain => " [plain]",
+            GrepMode::Regex => " [regex]",
+            GrepMode::Fuzzy => " [fuzzy]",
+        }
+    }
+
+    fn next(self) -> GrepMode {
+        match self {
+            GrepMode::Plain => GrepMode::Regex,
+            GrepMode::Regex => GrepMode::Fuzzy,
+            GrepMode::Fuzzy => GrepMode::Plain,
+        }
+    }
 }
 
 /// One result: what to show and where it leads.
@@ -169,6 +253,8 @@ pub struct Row {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Picker {
     pub kind: Kind,
+    /// A prompt in place of the kind's own.
+    pub title: String,
     pub query: CmdLine,
     /// Best first.
     pub rows: Vec<Row>,
@@ -180,8 +266,14 @@ pub struct Picker {
     pub err: bool,
     /// Browse: files below are still being listed (no match isn't final).
     pub searching: bool,
-    /// Files, Browse: candidate → recent rank (0 = newest).
+    /// Browse: candidate → recent rank (0 = newest).
     recent: HashMap<String, usize>,
+    /// Files: what ranks them, whether `git status` is in it yet, and the
+    /// file this query led to before (and how many times running).
+    meta: fff::Meta,
+    seen_status: bool,
+    combo: Option<(String, u32)>,
+    pub grep_mode: GrepMode,
     /// What `rows` were built from. Files: query, file count, walk done.
     seen_files: Option<(String, usize, bool)>,
     /// Grep: generation, hits, done.
@@ -212,6 +304,7 @@ impl Picker {
     fn new(kind: Kind, project: &Project, origin: usize) -> Picker {
         Picker {
             kind,
+            title: String::new(),
             query: CmdLine::default(),
             rows: vec![],
             sel: 0,
@@ -219,11 +312,15 @@ impl Picker {
             status: String::new(),
             err: false,
             searching: false,
-            recent: if kind == Kind::Files {
-                project.recent()
+            recent: HashMap::new(),
+            meta: if matches!(kind, Kind::Files | Kind::Grep) {
+                project.meta()
             } else {
-                HashMap::new()
+                fff::Meta::default()
             },
+            seen_status: false,
+            combo: None,
+            grep_mode: GrepMode::default(),
             seen_files: None,
             seen_grep: (0, 0, false),
             started: None,
@@ -239,7 +336,10 @@ impl Picker {
         }
     }
 
-    pub fn prompt(&self) -> &'static str {
+    pub fn prompt(&self) -> &str {
+        if !self.title.is_empty() {
+            return &self.title;
+        }
         match self.kind {
             Kind::Files => "find> ",
             Kind::Grep => "grep> ",
@@ -249,6 +349,8 @@ impl Picker {
             Kind::Buffers => "buffer> ",
             Kind::Branches => "branch> ",
             Kind::MagitMenu => "Magit menu: ",
+            Kind::OrgMenu => "Org: ",
+            Kind::OrgChoice => "> ",
             Kind::AllLines => "all lines> ",
             Kind::Def => "definition> ",
         }
@@ -271,8 +373,8 @@ impl Picker {
     /// Bring `rows` up to date; true if anything shown changed.
     fn update(&mut self, project: &Project, buf: &Buffer, now: Instant) -> bool {
         match self.kind {
-            Kind::MagitMenu => false,
-            Kind::Recent | Kind::Buffers | Kind::Branches => {
+            Kind::MagitMenu | Kind::OrgMenu => false,
+            Kind::Recent | Kind::Buffers | Kind::Branches | Kind::OrgChoice => {
                 let q = &self.query.text;
                 if self.seen_files.as_ref().is_some_and(|s| s.0 == *q) {
                     return false;
@@ -315,7 +417,8 @@ impl Picker {
                     .as_ref()
                     .is_none_or(|l| (&l.0, l.1) != (&dir, hidden))
                 {
-                    self.listing = Some((dir.clone(), hidden, browse::list(&dir, hidden)));
+                    // Dotfiles too, as Emacs's find-file shows them.
+                    self.listing = Some((dir.clone(), hidden, browse::list(&dir, true)));
                     let recent = project.recent_file.as_deref().map(recent::load);
                     self.recent = browse::history(&recent.unwrap_or_default(), &dir);
                 }
@@ -357,7 +460,12 @@ impl Picker {
                     .map(|e| format!("{}/", e.name))
                     .collect();
                 match &walk {
-                    Some(w) if !hidden => w.with(|l| cands.extend(l.iter().cloned())),
+                    Some(w) if !hidden => {
+                        w.with(|l| cands.extend(l.iter().cloned()));
+                        // The walk below skips dotfiles: this directory's own.
+                        let dots = entries.iter().filter(|e| !e.dir && e.name.starts_with('.'));
+                        cands.extend(dots.map(|e| e.name.clone()));
+                    }
                     _ => cands.extend(entries.iter().filter(|e| !e.dir).map(|e| e.name.clone())),
                 }
                 let mut fz = fuzzy::Fuzzy::new(name);
@@ -370,13 +478,23 @@ impl Picker {
                 // As vertico: recently opened first, then the best match,
                 // then shorter paths (nearer this directory), then by name.
                 let rec = |i: usize| self.recent.get(&cands[i]).copied().unwrap_or(usize::MAX);
+                // With nothing typed, dotfiles go below the rest.
+                let dot = |i: usize| name.is_empty() && cands[i].starts_with('.');
                 hits.sort_by(|&(s, i), &(t, j)| {
-                    (rec(i), std::cmp::Reverse(s), cands[i].len(), &cands[i]).cmp(&(
-                        rec(j),
-                        std::cmp::Reverse(t),
-                        cands[j].len(),
-                        &cands[j],
-                    ))
+                    (
+                        rec(i),
+                        dot(i),
+                        std::cmp::Reverse(s),
+                        cands[i].len(),
+                        &cands[i],
+                    )
+                        .cmp(&(
+                            rec(j),
+                            dot(j),
+                            std::cmp::Reverse(t),
+                            cands[j].len(),
+                            &cands[j],
+                        ))
                 });
                 self.rows = hits
                     .iter()
@@ -439,29 +557,49 @@ impl Picker {
             Kind::Files => {
                 let files = project.files();
                 let n = files.len();
-                let q = &self.query.text;
-                let now = Some((q.clone(), n, files.done()));
+                if !self.seen_status
+                    && let Some(st) = project.status_at(&files.root)
+                {
+                    self.meta.set_status(&files.root, st, fff::now());
+                    self.seen_status = true;
+                    self.seen_files = None;
+                }
+                let now = Some((self.query.text.clone(), n, files.done()));
                 if now == self.seen_files {
                     return false;
                 }
-                if self.seen_files.as_ref().is_none_or(|s| s.0 != *q) {
+                if self
+                    .seen_files
+                    .as_ref()
+                    .is_none_or(|s| s.0 != self.query.text)
+                {
                     self.sel = 0;
+                    self.combo = project
+                        .state_file("queries")
+                        .and_then(|f| fff::last_query(&f, &files.root, &self.query.text));
                 }
                 self.seen_files = now;
-                let (idx, matched) = files.with(|l| fuzzy::rank(q, l, &self.recent, LIMIT));
-                let mut fz = fuzzy::Fuzzy::new(q);
+                let q = fff::Query::parse(&self.query.text);
+                let (hits, matched) =
+                    files.with(|l| fff::rank(&q, l, &self.meta, self.combo.as_ref(), LIMIT));
+                // `name:12:3` opens there.
+                let (line, col) = q.at.map_or((0, 0), |(l, c)| (l - 1, c - 1));
+                let mut fzs: HashMap<&str, fuzzy::Fuzzy> = HashMap::new();
                 self.rows = files.with(|l| {
-                    idx.iter()
-                        .map(|&i| Row {
-                            hl: if q.is_empty() {
+                    hits.iter()
+                        .map(|h| Row {
+                            hl: if q.text.is_empty() {
                                 vec![]
                             } else {
-                                fz.ranges(&l[i])
+                                let as_matched = h.typo.as_deref().unwrap_or(&q.text);
+                                fzs.entry(as_matched)
+                                    .or_insert_with(|| fuzzy::Fuzzy::new(as_matched))
+                                    .ranges(&l[h.idx])
                             },
-                            text: l[i].clone(),
-                            path: files.root.join(&l[i]),
-                            line: 0,
-                            col: 0,
+                            text: l[h.idx].clone(),
+                            path: files.root.join(&l[h.idx]),
+                            line,
+                            col,
                             code: None,
                         })
                         .collect()
@@ -481,8 +619,20 @@ impl Picker {
                 let files = project.files();
                 let q = self.query.text.clone();
                 let mut changed = false;
-                if self.started.as_deref() != Some(&q) && now >= self.changed + DEBOUNCE {
+                if self.kind == Kind::Grep
+                    && !self.seen_status
+                    && let Some(st) = project.status_at(&files.root)
+                {
+                    // Changed files are read first, and `status:` can filter.
+                    self.meta.set_status(&files.root, st, fff::now());
+                    self.seen_status = true;
+                    if q.contains("status:") || q.contains("git:") {
+                        self.started = None;
+                    }
+                }
+                if self.started.as_deref() != Some(&q) {
                     self.started = Some(q.clone());
+                    self.changed = now;
                     if q.is_empty() {
                         project.grep.cancel();
                         self.rows.clear();
@@ -491,15 +641,28 @@ impl Picker {
                         self.seen_grep = (0, 0, false);
                         return true;
                     }
-                    let re = if self.kind == Kind::Def {
-                        def::regex(&q)
+                    let search = if self.kind == Kind::Def {
+                        def::regex(&q).map(grep::Search::regex)
                     } else {
-                        crate::search::compile(&q)
+                        // `*.rs`, `src/`, `type:rust` and the like pick the
+                        // files; the rest is the pattern.
+                        let fq = fff::Query::parse_grep(&q);
+                        let mode = self.grep_mode;
+                        mode.compile(&fq.text).map(|re| grep::Search {
+                            re,
+                            fuzzy: (mode == GrepMode::Fuzzy).then(|| fq.text.clone()),
+                            first: self.meta.likely(),
+                            keep: {
+                                let status = self.meta.status.clone();
+                                Box::new(move |f| fq.keeps(f, &status))
+                            },
+                        })
                     };
-                    match re {
-                        Ok(re) => {
+                    match search {
+                        Ok(search) => {
                             self.err = false;
-                            project.grep.start(re, Arc::clone(&files));
+                            let g = project.grep.search(search, Arc::clone(&files));
+                            project.grep.settle(g, SETTLE);
                         }
                         Err(e) => {
                             // Keep the last results; say why they didn't change.
@@ -512,6 +675,12 @@ impl Picker {
                 }
                 let r = project.grep.results();
                 if self.err || r.generation == 0 || q.is_empty() {
+                    return changed;
+                }
+                // A new search keeps the last results up until it is done,
+                // has a screenful, or is slow: no empty flash per keystroke.
+                let fresh = r.generation != self.seen_grep.0 && self.seen_grep.0 != 0;
+                if fresh && !r.done && r.hits.len() < SCREENFUL && now < self.changed + KEEP_OLD {
                     return changed;
                 }
                 let now = (r.generation, r.hits.len(), r.done);
@@ -543,9 +712,11 @@ impl Picker {
                     self.ranks = hits.iter().map(|((t, away, _), _)| (*t, !away)).collect();
                     self.rows = hits.into_iter().map(|(_, row)| row).collect();
                 } else {
-                    self.rows = r
-                        .hits
-                        .iter()
+                    // Fuzzy: the pattern itself before its near misses.
+                    let mut hits: Vec<&grep::Hit> = r.hits.iter().collect();
+                    hits.sort_by_key(|h| h.loose);
+                    self.rows = hits
+                        .into_iter()
                         .take(LIMIT)
                         .map(|h| grep_row(h, &files.root))
                         .collect();
@@ -560,6 +731,10 @@ impl Picker {
                     (true, _) => format!("{n}+ {what}"),
                     (_, true) => format!("{n} {what}"),
                     _ => format!("{n} {what}…"),
+                } + if self.kind == Kind::Grep {
+                    self.grep_mode.tag()
+                } else {
+                    ""
                 } + all_tag(&files);
                 self.sel = self.sel.min(self.rows.len().saturating_sub(1));
                 true
@@ -610,7 +785,6 @@ pub fn definition(ed: &mut Editor) {
         p.from = from;
         p.jump = true;
         // No debounce: the word is already typed.
-        p.changed = Instant::now() - DEBOUNCE;
         p.update(&ed.project, &ed.buf, Instant::now());
     }
 }
@@ -693,6 +867,10 @@ pub fn open(ed: &mut Editor, kind: Kind) {
     if matches!(kind, Kind::Files | Kind::Browse | Kind::Recent) {
         ed.project.reset_status();
     }
+    if matches!(kind, Kind::Grep | Kind::Def) {
+        ed.project.grep.fresh();
+        ed.project.grep.warm(ed.project.files());
+    }
     let mut p = Picker::new(kind, &ed.project, ed.cur.line);
     if kind == Kind::Recent {
         // Not the file being edited, and not files since deleted.
@@ -708,6 +886,11 @@ pub fn open(ed: &mut Editor, kind: Kind) {
             .filter(|f| Some(f) != me.as_ref() && f.is_file())
             .map(|f| (browse::tilde(&f), f, 0))
             .collect();
+    }
+    if kind == Kind::Files {
+        let root = ed.project.files().root.clone();
+        let me = ed.path.as_deref().and_then(|p| std::path::absolute(p).ok());
+        p.meta.current = me.and_then(|p| Some(p.strip_prefix(&root).ok()?.to_str()?.to_string()));
     }
     p.update(&ed.project, &ed.buf, Instant::now());
     ed.mode = Mode::Pick(Box::new(p));
@@ -795,6 +978,26 @@ pub fn pick_key(ed: &mut Editor, k: Key) {
                 pattern: None,
             });
         }
+        // Left goes up a directory; Right goes into the selected one, or
+        // the first listed while the prompt is selected.
+        KeyCode::Left if p.kind == Kind::Browse => {
+            if let Some(q) = browse::up(browse::split(&p.query.text).0) {
+                set_query(p, q);
+                p.update(&ed.project, &ed.buf, Instant::now());
+            }
+        }
+        KeyCode::Right if p.kind == Kind::Browse => {
+            let dir = if p.prompt {
+                p.rows.iter().find(|r| r.text.ends_with('/'))
+            } else {
+                p.rows.get(p.sel).filter(|r| r.text.ends_with('/'))
+            };
+            if let Some(name) = dir.map(|r| r.text.clone()) {
+                let d = browse::split(&p.query.text).0.to_string();
+                set_query(p, format!("{d}{name}"));
+                p.update(&ed.project, &ed.buf, Instant::now());
+            }
+        }
         KeyCode::Backspace if p.kind == Kind::Browse && browse::up(&p.query.text).is_some() => {
             let q = browse::up(&p.query.text).unwrap();
             set_query(p, q);
@@ -819,17 +1022,41 @@ pub fn pick_key(ed: &mut Editor, k: Key) {
         }
         KeyCode::Enter => {
             if let Some(r) = p.rows.get(p.sel) {
+                // Remember what this query led to: it ranks first next time.
+                if p.kind == Kind::Files
+                    && let Some(f) = ed.project.state_file("queries")
+                {
+                    fff::track_query(&f, &ed.project.files().root, &p.query.text, &r.path);
+                }
                 ed.pending_effect = Some(ExEffect::Open {
                     path: r.path.clone(),
                     line: r.line,
                     col: r.col,
                     pattern: match p.kind {
-                        Kind::Grep => Some(p.query.text.clone()),
+                        // What `n` goes on to: the pattern without its filters.
+                        Kind::Grep => {
+                            let text = fff::Query::parse_grep(&p.query.text).text;
+                            Some(match p.grep_mode {
+                                GrepMode::Regex => text,
+                                _ => regex::escape(&text),
+                            })
+                        }
                         Kind::Def => Some(format!(r"\b{}\b", p.query.text)),
                         _ => None,
                     },
                 });
             }
+        }
+        // Plain text, regex, fuzzy, and around again (`Ctrl-t` too).
+        KeyCode::BackTab if p.kind == Kind::Grep => {
+            p.grep_mode = p.grep_mode.next();
+            p.started = None;
+            p.update(&ed.project, &ed.buf, Instant::now());
+        }
+        KeyCode::Char('t') if k.ctrl && p.kind == Kind::Grep => {
+            p.grep_mode = p.grep_mode.next();
+            p.started = None;
+            p.update(&ed.project, &ed.buf, Instant::now());
         }
         // Search ignored files too (or stop): Drupal core, vendor/, ….
         KeyCode::Char('o') if k.ctrl && matches!(p.kind, Kind::Files | Kind::Grep | Kind::Def) => {
@@ -892,6 +1119,52 @@ pub fn tick(ed: &mut Editor) -> bool {
 mod tests;
 
 /// A command panel: rows retain their suffix key rather than a source-file path.
+/// An Org key menu: `ed.org_menu` entries, headings for empty keys.
+pub fn org_menu(ed: &mut Editor, title: &str) {
+    let mut picker = Picker::new(Kind::OrgMenu, &ed.project, ed.cur.line);
+    picker.title = format!("{title} ");
+    picker.rows = ed
+        .org_menu
+        .iter()
+        .enumerate()
+        .map(|(index, (key, label))| Row {
+            text: if key.is_empty() {
+                label.clone()
+            } else {
+                format!("[{key}]  {label}")
+            },
+            hl: if key.is_empty() {
+                vec![]
+            } else {
+                vec![(1, 1 + key.len())]
+            },
+            path: PathBuf::new(),
+            line: index,
+            col: 0,
+            code: None,
+        })
+        .collect();
+    picker.sel = picker
+        .rows
+        .iter()
+        .position(|r| !ed.org_menu[r.line].0.is_empty())
+        .unwrap_or(0);
+    picker.status = "key, or arrows + Enter; C-g or q quits".into();
+    ed.mode = Mode::Pick(Box::new(picker));
+}
+
+/// Org completing-read over `candidates`.
+pub fn org_choice(ed: &mut Editor, title: &str, candidates: Vec<String>) {
+    let mut p = Picker::new(Kind::OrgChoice, &ed.project, ed.cur.line);
+    p.title = title.to_owned();
+    p.recent_files = candidates
+        .into_iter()
+        .map(|name| (name, PathBuf::new(), 0))
+        .collect();
+    p.update(&ed.project, &ed.buf, Instant::now());
+    ed.mode = Mode::Pick(Box::new(p));
+}
+
 pub fn magit_menu(ed: &mut Editor, menu: char) {
     let mut picker = Picker::new(Kind::MagitMenu, &ed.project, ed.cur.line);
     picker.rows = crate::magit::menu_entries(menu)

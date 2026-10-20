@@ -1,4 +1,11 @@
 <p align="center"><img src="docs/dr-fred-head.png" alt="Dr. Fred" width="160"></p>
+
+<h1 align="center">fred</h1>
+
+<p align="center">
+  <b>A fast, small terminal editor: Vim keys, ed commands, and Git, Org mode and fuzzy finding built in.</b>
+</p>
+
 <p align="center">
   <img src="https://img.shields.io/badge/Rust-2024_edition-b7410e?logo=rust&logoColor=white" alt="Rust 2024 edition">
   <a href="https://ratatui.rs"><img src="https://img.shields.io/badge/Built_With_Ratatui-000?logo=ratatui&logoColor=fff" alt="Built with Ratatui"></a>
@@ -7,20 +14,44 @@
   <a href="https://github.com/guylyons/fred/commits/main"><img src="https://img.shields.io/github/last-commit/guylyons/fred" alt="Last commit"></a>
 </p>
 
-# fred
+<p align="center">
+  <a href="#install">Install</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#performance">Performance</a> ·
+  <a href="#keys">Keys</a> ·
+  <a href="#finding-files-and-text">Finding things</a> ·
+  <a href="#git">Git</a> ·
+  <a href="#configuration">Configuration</a> ·
+  <a href="#roadmap">Roadmap</a>
+</p>
 
-`fred` started from wanting to make my own verson of `ed`.
+fred began as my own take on `ed`, the original Unix editor, and grew into
+an everyday editor. You move and edit with Vim keys, and `:` takes ed's
+commands with all of its line addresses. The things other editors need
+plugins for are already inside: a fuzzy file finder, project grep,
+completion, a Git client modeled on Emacs's Magit, and Org mode. It is one
+8.6 MB binary with nothing else to install or configure.
 
-Use `fred -i README.md` to quickly inline edit in place. Think of it as the `ed` that
-Dr. Fred himself would have wanted.
+## Highlights
 
-A text editor for quick edits. You move and edit with vim keys, and `:` takes
-ed-style commands with full ed addresses. Completion, syntax highlighting, a
-fuzzy file finder and project grep are built in.
-
-fred runs fullscreen, like vim. Like `ed`, it can instead live in your shell
-prompt (`-i`, or `fullscreen = false` in the config): a small window right
-under the prompt:
+- **Vim keys, ed commands.** Normal, Insert, Visual and Visual-line modes;
+  `:s`, `:g`, `:m`, `:t` with ranges and marks; `:set` for Neovim's options.
+- **Fast and light.** Opening a file and quitting takes a fraction of the CPU
+  Neovim needs (as little as a quarter), and about half the memory. Sitting idle, fred uses
+  almost no CPU. [See the numbers.](#performance)
+- **Inline or fullscreen.** `fred -i` opens a small window under your shell
+  prompt and leaves your scrollback as it was.
+- **Finds things.** A file finder that forgives typos, grep across the project
+  as you type, and go to definition in any language without a language server.
+- **Git built in.** Changed lines are marked in the gutter as you type, and
+  `Space m` opens Magit's status, staging, commits, branches, stashes, rebases,
+  log and blame.
+- **Org mode.** Folding, TODO states, agenda, capture and clocking in `.org`
+  files.
+- **Careful with your files.** Atomic writes, a warning when the file changed
+  on disk, crash recovery, and line endings and encodings kept as they were.
+- **Claude when you want it.** `Space c` chats with Claude Code in a buffer;
+  `:ai` rewrites the selected lines; `K` on a selection explains it.
 
 ```
 $ fred main.rs
@@ -32,8 +63,8 @@ $ fred main.rs
  INSERT  main.rs [+]                                   rust  5:16
 ```
 
-When you quit, either way, the screen is back as it was and your scrollback is
-untouched. If you saved, fred leaves one line behind:
+When you quit, the screen is back as it was. If you saved, fred leaves one
+line behind:
 
 ```
 $ fred main.rs
@@ -43,9 +74,70 @@ $
 
 ## Install
 
+You need [Rust](https://rustup.rs) 1.88 or newer, on macOS or Linux.
+
+```sh
+cargo install --git https://github.com/guylyons/fred
 ```
-cargo install --path .
+
+Or from a clone: `cargo install --path .`
+
+Optional, for the features that use them:
+
+| For | Install |
+|---|---|
+| Git gutter and `Space m` | `git` |
+| System clipboard | nothing on macOS; `wl-clipboard` (Wayland) or `xclip` (X11) on Linux |
+| `:ai` and `:explain` | the [Claude Code](https://claude.com/claude-code) CLI (`claude`) |
+| File icons in pickers | a [Nerd Font](https://www.nerdfonts.com), then `icons = true` |
+
+## Quick start
+
+```sh
+fred notes.md           # edit a file (a new one is created on the first :w)
+fred -i notes.md        # edit in a small window under your prompt
+fred +42 src/main.rs    # start on line 42 (+ alone: the last line)
+fred .                  # browse a directory
 ```
+
+Inside, press `i` to type and `Esc` to stop. `:w` saves and `:q` quits (`ZZ`
+does both). `Space p` finds a file, `Space g` searches the project and
+`Space m s` shows Git status. Files you open again start where you left the
+cursor.
+
+## Performance
+
+fred aims to start instantly and cost nothing while it waits for you.
+Opening a file and quitting straight away:
+
+| | fred | Neovim |
+|---|---:|---:|
+| 460-line Markdown file | **22 ms** | 92 ms |
+| the same, inside a git repository | **32 ms** | 92 ms |
+| 5,900-line Rust file | **20 ms** | 64 ms |
+| the same, inside a git repository | **38 ms** | 65 ms |
+| open the Rust file, wait 6 seconds, quit | **31 ms** | 68 ms |
+| peak memory | **10–11 MB** | 17–20 MB |
+| install size | **8.6 MB**, one file | 33 MB |
+
+Times are CPU time (user plus system), including every process the editor
+starts: Neovim's server process, and the `git` fred runs inside a repository
+to mark changed lines. Medians of 15 runs on an Apple M5 with macOS 27,
+against Neovim 0.12.6 started with `--clean` (no config or plugins). To
+measure on your machine:
+
+```sh
+tools/bench.py fred FILE
+tools/bench.py nvim --clean FILE
+tools/bench.py --wait 6 fred FILE
+```
+
+How fred stays light: words for completion from nearby files are read the
+first time you type, not at startup; the branch name is read from `.git`
+directly, and outside a repository fred starts no `git` at all; and after two
+seconds without input it checks for background work four times a second
+instead of twenty. Inside a repository, most of the extra time is the one
+`git show` that fetches the staged file for the gutter.
 
 ## Usage
 
@@ -53,345 +145,420 @@ cargo install --path .
 fred [-i | -f] [--height N] [+LINE] [FILE | DIR]
 ```
 
-- `FILE` doesn't have to exist; it's created on the first `:w`.
-- `+LINE` starts on that line; `+` alone starts on the last line.
-- `DIR` (say `fred .`) lists that directory (dired) instead of a file.
-- `-i`/`--inline` opens the window under your prompt; `-f`/`--fullscreen`
-  takes over the terminal even if the config says otherwise.
-- A file you've opened before opens where you left the cursor (unless you
-  give `+LINE`), as do files picked with `Space p`, `Space r` or `Space j`.
-- `--height N` (inline) shows N lines of text (default 12); `--height max`
-  uses the whole terminal, leaving your prompt visible. The window starts as
-  small as the file and grows as the file gets longer.
+| | |
+|---|---|
+| `FILE` | the file to edit; it doesn't have to exist yet |
+| `DIR` | list a directory instead (see [Dired](#directory-browser-dired)) |
+| `+LINE` | start on that line; `+` alone starts on the last line |
+| `-i`, `--inline` | open in a window under your prompt |
+| `-f`, `--fullscreen` | take over the terminal, whatever the config says |
+| `--height N` | inline: show N lines of text (default 12), or `max` for the whole terminal. The window starts as small as the file and grows with it |
 
 ## Keys
 
-**Moving:** `h j k l`, `w b e W B E`, `0 ^ $`, `gg G` / `{n}G`, `{ }`,
-`f F t T ; ,`, `/` `?` `n N`, `'a` (go to mark), `Ctrl-D Ctrl-U` (half a window),
-`Ctrl-F Ctrl-B`, arrow keys, Home and End. Counts work: `3w`, `5j`.
+Counts work as in Vim: `3w`, `5j`, `2dd`.
 
-**Editing:** `d c y` combined with any motion (including searches: `d/foo<Enter>`), plus `dd cc yy D C Y`,
-`x X s S r{c} J`, `p P`, `o O i a I A`, `u` (undo) and `Ctrl-R` (redo), `.`
-(repeat the last change), `m{a-z}` (set a mark), `V` (visual-line mode, then
-`d c y J :`).
-Yanks and deletes go to the system clipboard too, and `p`/`P` put what
-another app copied since (`clipboard = false` keeps them to fred).
+### Moving
 
-**In Insert mode:** completions pop up as you type. `Tab`/`Ctrl-N` selects the
-next suggestion and `Shift-Tab`/`Ctrl-P` the previous one. `Enter` accepts a
-selected suggestion, or starts a new line when nothing is selected. `Esc`
-closes the popup and leaves Insert mode; so does typing `jj`. `Ctrl-W` deletes the word before the
-cursor and `Ctrl-U` deletes to the start of the line. Pasted text goes in
-exactly as pasted.
-
-`Ctrl-G` cancels, like `Esc`: a picker, the `:` line, a half-typed command.
-
-`ZZ` saves (if there are changes) and quits; `ZQ` quits without saving.
-`Space Enter` saves (`:w`) and `Space ;` closes (`:q`).
-`Ctrl-Z` suspends fred; `fg` brings it back.
-
-## Finding files and grepping
-
-Space is the leader key (`l` still moves right).
-
-- `Space s` zaps to a visible word. Type its prefix to highlight matches;
-  a unique exact word jumps straight to its start. Otherwise type the letter
-  label shown at the word. Labels avoid letters that can continue your search;
-  `Enter` switches to label selection if all letters are needed for searching.
-  Larger sets use multiple letters, showing the remaining keys as you select.
-  `Backspace` shortens the search and `Esc`/`Ctrl-G` cancels. Like `/`, matching
-  ignores case unless you type a capital. Only whole words visible in the text
-  area participate, including wrapped rows and horizontally scrolled text.
-- `Space p` finds a file. Type a few letters of its path in any order that
-  follows the path: `sesrs` finds `src/session.rs`. With nothing typed you
-  see the files you opened most recently first.
-- `Space g` greps the project as you type, with the same regex rules as `/`.
-  `Enter` opens the file on the match, and `n` goes on to the next one.
-- Both skip what `.gitignore` ignores. `Ctrl-o` in either one also searches
-  ignored files (Drupal core, `vendor/`), marked `[all]`, until you press it
-  again.
-- `Space d` (or `gd`) goes to the definition of the word under the cursor,
-  in any language, without a language server: it greps the project for
-  lines that define it (`fn`, `def`, `class`, `func`, `const`, `let`, JS
-  arrow functions, C-style declarations, `#define`, shell functions,
-  Makefile targets, CSS selectors, …). Keyword definitions rank above
-  variables, this file above others, and files of the same type above the
-  rest. When one stands out it jumps straight there; otherwise pick from the
-  list (edit the name to search for another).
-- `Space j` browses files like Emacs's find-file with vertico and consult:
-  the prompt is a path, and what you type after the last `/` fuzzy-matches
-  every file below that directory (plus its subdirectories, to go into),
-  honoring `.gitignore`. With nothing typed you see the directory itself.
-  `Tab` on a directory goes in and `Enter` lists it (dired), `Backspace`
-  after a `/` goes up a directory, `~/` jumps home, and `Enter` on a name
-  that doesn't exist starts a new file. It starts in the current file's
-  directory. Dotfiles show once you type a `.`.
-- `Space b` lists the open buffers (like `:ls`); type to filter. `Ctrl-^`
-  (`Ctrl-6`) goes straight back to the one you were in before.
-- `Space B` searches the lines of every open buffer, like `Space k`: this
-  buffer's matches nearest the prompt, then the others'. `Enter` goes to
-  that buffer and line.
-- `Space r` lists recently opened files (any project), newest first;
-  type to filter.
-- `Space k` searches the lines of the file you're editing, like swiper:
-  every space-separated word must appear in the line, in any order (each is
-  a regex). Matches are listed in file order, starting at the cursor; `Enter`
-  jumps there and `n` finds the next line with the first word.
-
-Pickers open as a panel at the bottom, only as tall as their results (up
-to half the screen); the file stays where it was above. The status line sits above the
-prompt, with candidates listed downward beneath it, best match first;
-`Up`/`Ctrl-P` and `Down`/`Ctrl-N` move the selection, `Enter` opens it and
-`Esc` goes back. The project is the enclosing git repo (or the current
-directory), `.gitignore` is respected, and grep skips binary files and files
-over 1 MB. Opening another file keeps this one open as a buffer, unsaved
-changes and all.
-
-## Dired
-
-In pickers and Dired, click a row to select it and double-click to open it.
-The mouse wheel scrolls without opening an entry.
-
-A directory opens as a listing, as in Emacs's dired: `fred DIR`, `:e DIR`,
-`Enter` on a directory in `Space j`, or `Space -` for the current file's
-directory (cursor on the file). It's a read-only buffer, so every vim motion,
-count and search moves around it; these keys act on the entry under the
-cursor, on a `V` range, or on the `*` marked entries:
-
-Listings use Dired+-style field colors: cyan directories, blue symlinks,
-green executables and file extensions, magenta compressed extensions, and
-subdued dotfiles. Permissions, sizes, and dates have distinct colors;
-marked entries have a bold yellow `*`, and deletion flags and filenames
-turn red. Colors work with compact listings, wrapping, and current-line
-highlighting. Editing names with `i` temporarily disables field coloring.
-
-| Key | |
+| Keys | Moves |
 |---|---|
-| `Enter` | open a file (as a buffer) or go into a directory |
+| `h j k l`, arrows | by character and line |
+| `w b e`, `W B E` | by word, or by WORD (anything but spaces) |
+| `0 ^ $`, Home, End | to the line's start, first character, end |
+| `gg`, `G`, `{n}G` | to the first, last or nth line |
+| `{ }` | by paragraph |
+| `f F t T`, `; ,` | to a character on the line, and again |
+| `/` `?`, `n N` | search forward or back, next or previous match |
+| `m{a-z}`, `'{a-z}` | set a mark, go to it |
+| `Ctrl-D Ctrl-U`, `Ctrl-F Ctrl-B` | half a window, a whole window |
+| `zz` | put the cursor's line in the middle of the window |
+| `gd` | go to the definition of the word under the cursor |
+
+### Editing
+
+| Keys | Does |
+|---|---|
+| `d c y` + motion | delete, change or copy (yank) over any motion, even a search: `d/foo<Enter>` |
+| `dd cc yy`, `D C Y` | the same for whole lines, or to the end of the line |
+| `x X s S r{c} J` | delete a character, substitute, replace, join lines |
+| `p P` | put after or before the cursor |
+| `i a I A o O` | start inserting |
+| `u`, `Ctrl-R` | undo, redo |
+| `.` | repeat the last change |
+| `v`, `V` | Visual mode (select by character) and Visual-line mode (by line) |
+
+In Visual mode, move to grow the selection, then `d x y c s` act on it,
+`D X Y C S J :` act on its whole lines, `o` jumps to the other end and `K`
+asks Claude to explain it.
+
+Yanks and deletes also go to the system clipboard, and `p` puts what another
+app copied since (`clipboard = false` keeps them inside fred).
+
+### Insert mode
+
+Completions pop up as you type: `Tab` or `Ctrl-N` picks the next, `Shift-Tab`
+or `Ctrl-P` the previous, and `Enter` accepts one (or starts a new line when
+none is picked). `Ctrl-W` deletes the word before the cursor and `Ctrl-U`
+deletes back to the indent; both stop first where you started typing, as in
+Neovim. `Esc` leaves Insert mode, and so does typing `jj`. Pasted text goes
+in exactly as pasted.
+
+### Mouse
+
+Click to move the cursor, drag to select, double-click to select a word,
+Shift-click to extend a selection, and scroll with the wheel. **Right-click**
+opens Neovim's menu: Cut, Copy, Paste and Delete for a selection, Paste and
+Select All anywhere, Go to definition on a word and Open in web browser on a
+link. Cut, Copy and Paste use the system clipboard; Delete leaves your
+clipboard alone.
+
+### Everywhere
+
+| Keys | Does |
+|---|---|
+| `Esc`, `Ctrl-G` | cancel: a picker, the `:` line, a half-typed command |
+| `ZZ`, `ZQ` | save (if changed) and quit; quit without saving |
+| `Space Enter`, `Space ;` | save (`:w`), close (`:q`) |
+| `Ctrl-^` | back to the buffer you were in before |
+| `Ctrl-Z` | suspend fred (`fg` brings it back) |
+
+## Finding files and text
+
+`Space` is the leader key (`l` still moves right).
+
+| Keys | Opens |
+|---|---|
+| `Space p` | find a file in the project |
+| `Space g` | grep the project as you type |
+| `Space k` | search the lines of this file |
+| `Space B` | search the lines of every open buffer |
+| `Space s` | jump to any word on screen |
+| `Space d` | go to definition (same as `gd`) |
+| `Space c` | chat with Claude Code (`:claude`) |
+| `Space j` | browse files from a path, like Emacs's find-file |
+| `Space b` | switch between open buffers |
+| `Space r` | recently opened files, from any project |
+| `Space -` | list this file's directory (Dired) |
+| `Space O` | show this directory in Finder or your file manager |
+
+Pickers open as a panel at the bottom of the screen, only as tall as their
+results. Type to filter; `Up`/`Ctrl-P` and `Down`/`Ctrl-N` move, `Enter`
+opens and `Esc` goes back. Click a row to select it and double-click to open
+it. The project is the git repository you're in (or the current directory),
+and anything `.gitignore` ignores is skipped; `Ctrl-O` in `Space p` or
+`Space g` includes ignored files (`vendor/`, Drupal core) until you press it
+again. Opening
+another file keeps this one open as a buffer, unsaved changes and all.
+
+**Finding files** (`Space p`). Type a few letters in the order they appear in
+the path: `sesrs` finds `src/session.rs`. Ranking follows
+[fff](https://github.com/dmtrKovalenko/fff):
+
+- Files you open often and recently come first, even before you type.
+- The file a query led to before leads again, strongly from the third time.
+- Changed files, files in the last ten commits and files near this one rank
+  higher; the file you're editing ranks lower.
+- A match in the file's name beats one in its directories.
+- Typos are forgiven when little else matches: `sesison` finds `session.rs`
+  and `cnotrolelr` finds `controller.rs`. Up to a quarter of the letters may
+  be swapped, wrong, extra or missing.
+
+Words in the query narrow the files: `*.rs`, `src/`, `**/*_test.go`,
+`type:rust` and `status:modified` (or `untracked`, `unmodified`), with `!` in
+front for "not". `name:12` or `name:12:3` opens the file at that line and
+column.
+
+**Grepping** (`Space g`). It starts in plain text (`[plain]`: `a.b(c)` means
+exactly that); `Shift-Tab` switches to a regular expression (`[regex]`), then
+to fuzzy (`[fuzzy]`), then back. All three ignore case unless you type a
+capital. Fuzzy finds near misses: `UserController` finds
+`UserAuthController`, and `shcema` finds `schema`. The same file filters work
+before or after the pattern (`fn main *.rs !tests/`). `Enter` opens the match
+and `n` goes on to the next. Files stay in memory while you type and are
+searched on every core: on a 12,000-file project a keystroke takes under
+30 ms (fuzzy, about 200).
+
+**Go to definition** (`gd`, `Space d`) needs no language server. It greps the
+project for lines that define the word (`fn`, `def`, `class`, `func`,
+`const`, `let`, JavaScript arrow functions, C declarations, `#define`, shell
+functions, Makefile targets, CSS selectors and more) and jumps straight there
+when one stands out, or lets you pick.
+
+**Browsing** (`Space j`). The prompt is a path; what you type after the last
+`/` fuzzy-matches the files below it. `Tab` or `Right` goes into a directory,
+`Left` (or `Backspace` after a `/`) goes up, `~/` jumps home, `Enter` on a
+directory lists it in Dired, and `Enter` on a name that doesn't exist starts a
+new file.
+
+**Jumping** (`Space s`). Type the start of a word you can see; a unique match
+jumps there, otherwise type the label shown on the word you want.
+
+## Directory browser (Dired)
+
+A directory opens as a listing, as in Emacs's Dired: `fred DIR`, `:e DIR`,
+`Space -`, or `Enter` on a directory in `Space j`. Every Vim motion and search
+works in it. These keys act on the entry under the cursor, on a `V`
+selection, or on the entries marked with `*`:
+
+| Key | Does |
+|---|---|
+| `Enter` | open a file, or go into a directory |
 | `-`, `^` | up to the parent directory |
 | `m`, `u`, `U`, `t` | mark, unmark, unmark all, toggle marks |
-| `%` | mark names matching a regexp |
+| `%` | mark names matching a regular expression |
 | `d`, `x` | flag for deletion; delete the flagged (asks first) |
-| `D` | delete (asks first; directories recursively) |
-| `R`, `C` | rename/move, copy (`cp -R`); several marked go into a directory. Never over an existing file |
-| `+` | create a directory (`a/b/c` makes them all) |
-| `M`, `T` | chmod (octal), touch |
-| `!` | run a shell command on the files, in the directory (`*` stands for them) |
-| `s`, `(`, `gh` | sort by name/time, hide details, hide dotfiles |
-| `gr` | re-read the directory |
-| `i` | edit the names in place (wdired); `:w` renames them all, `gr` discards |
+| `D` | delete now (asks first; directories with everything in them) |
+| `R`, `C` | rename or move, copy; several marked go into a directory. Never overwrites |
+| `+` | create a directory (`a/b/c` creates all three) |
+| `M`, `T` | change permissions (octal), touch |
+| `!` | run a shell command on the files (`*` stands for them) |
+| `s`, `(`, `gh` | sort by name or time, hide details, hide dotfiles |
+| `gr` | read the directory again |
+| `i` | edit the names in place; `:w` renames them all, `gr` cancels |
+
+## Matching lines (Occur)
+
+`:occur REGEXP` (or `M-s o`, as in Emacs: Alt-s, then o) lists the buffer's matching lines in an
+`*Occur*` buffer, as Emacs's `occur`: a summary line, then each line with its
+number. Select lines first (`V`) to search only those. Case is
+ignored unless the regexp has a capital letter. In the listing, `Enter` goes
+to the match (`n` then finds the next one) and `gr` searches again. `i` makes
+the listed lines editable; `:w` puts your changes back into the original
+buffer as one undoable change (not saved to disk), and `gr` throws them away.
 
 ## `:` commands
 
-Addresses work as in ed: `N . $ +n -n /re/ ?re? 'a`, `,` or `%` (the whole
-file) and `;`. In visual-line mode, `:` starts with `'<,'>` filled in. Marks
-follow their lines as you edit.
+Lines are addressed as in ed: `N`, `.`, `$`, `+n`, `-n`, `/re/`, `?re?`, `'a`,
+`%` for the whole file, joined with `,` or `;`. In Visual mode `:` starts with
+`'<,'>` filled in. Commands can be shortened as in Vim (`:w`, `:s`, `:bn`),
+`Tab` completes command names, file names and option names, and `Up`/`Down`
+go through the history. Each command is one undo step, even a `:g` that
+changes 500 lines.
 
-| command | does |
+| Command | Does |
 |---|---|
-| `w [file]`, `w!` | write (`w!` overrides change detection) |
-| `wq`, `x` | write and quit (`x` writes only if there are changes) |
-| `q`, `q!` | quit; `q` refuses while any buffer has unsaved changes, `q!` discards them |
-| `e[!] [file]` | edit another file (this one stays open as a buffer); with no file, reload this one. `e!` discards this file's changes |
-| `b N`, `b name`, `b#` | go to buffer N, the one whose name contains `name`, or the one before (`b2` works too) |
-| `bn`, `bp` | next, previous buffer |
-| `bd[!] [N]` | close a buffer (`bd!` discards its changes) |
-| `ls` | pick a buffer, the one you were in last first |
-| `[range]s/re/rep/[g]` | substitute; `&` and `\1`–`\9` in `rep`, `\n` or `\r` splits the line |
-| `[range]d` | delete lines |
-| `[range]j` | join lines |
-| `[range]m addr`, `[range]t addr` | move, copy (`0` means before the first line) |
-| `[range]g/re/cmd`, `v/re/cmd` | run `cmd` on matching / non-matching lines |
-| `N` | go to line N |
-| `[range]w file` | write just those lines to another file |
-| `!cmd` | run a shell command (`$SHELL`), then press Enter to come back |
-| `[range]!cmd` | filter lines through a command: `%!sort`, `'<,'>!column -t` |
-| `[range]ai ask` | have Claude rewrite the lines (it sees the whole file): `'<,'>ai make this async`. A spinner holds the editor until it answers. See `ai_command` and `ai_rules` below |
-| `r file`, `r !cmd` | insert a file, or a command's output, below the line |
-| `pwd`, `cd [dir]` | show or change the directory (`cd` alone goes home); `Space p` and `Space g` follow it |
+| `:w [file]`, `:w!` | write (`!` writes even if the file changed on disk) |
+| `:[range]w file` | write just those lines to another file |
+| `:wq`, `:x` | write and quit (`:x` only writes if there are changes) |
+| `:q`, `:q!` | quit (refuses while a buffer has unsaved changes); quit anyway |
+| `:e [file]`, `:e!` | edit another file, keeping this one as a buffer; reload; discard changes |
+| `:b N`, `:b name`, `:b#` | go to buffer N, the one whose name contains `name`, or the one before |
+| `:bn`, `:bp`, `:bd[!] [N]`, `:ls` | next, previous, close a buffer; pick one |
+| `:[range]s/re/rep/[g]` | substitute; `&` and `\1`–`\9` in `rep`, `\n` or `\r` splits the line |
+| `:[range]g/re/cmd`, `:g!`, `:v` | run `cmd` on matching (or not matching) lines |
+| `:[range]d`, `:[range]j[!]` | delete lines; join them (`!` keeps spaces as they are) |
+| `:[range]m addr`, `:[range]t addr` | move, copy lines (`0` means before the first line) |
+| `:N` | go to line N |
+| `:r file`, `:r !cmd` | insert a file, or a command's output, below the line |
+| `:!cmd`, `:[range]!cmd` | run a shell command; filter lines through it (`:%!sort`) |
+| `:pwd`, `:cd [dir]` | show or change the directory (`:cd` alone goes home) |
+| `:set`, `:setlocal`, `:setglobal` | change options, as in Neovim ([below](#options-and-set)) |
+| `:[range]ai ask` | have Claude rewrite the lines: `:'<,'>ai make this async` |
+| `:[range]explain [question]` | have Claude explain the lines in a box over them |
+| `:Magit NAME` | run a Magit command by name, e.g. `:Magit magit-fetch-all-prune` |
 
-Patterns use Rust's [`regex`](https://docs.rs/regex) syntax, which is like
-extended regular expressions (ERE). `/` and `?` searches ignore case unless
-the pattern has a capital letter. `:` commands match case exactly, as in ed,
-so a substitution never changes text you didn't spell; add `(?i)` to ignore
-case. `Tab` shows command-name and file-path candidates above the command
-line and cycles forward; `Shift-Tab` cycles backward. `Enter` runs the completed
-command. The first `Esc` dismisses the candidate menu; a second leaves the command
-line. `Up`/`Down` go through the command history.
-
+Patterns use Rust's [`regex`](https://docs.rs/regex) syntax, which is close
+to extended regular expressions. `/` and `?` ignore case unless the pattern
+has a capital letter; `:` commands match case exactly, as ed does, so a
+substitution never touches text you didn't spell. Add `(?i)` to ignore case.
 In shell commands `%` is the current file's name (`\%` for a literal `%`).
-
-Each `:` command is a single undo step, even a `g` that changes 500 lines.
 
 ## Completion
 
 Suggestions come from three places:
 
-1. Words in the file you're editing, closest to the cursor first.
-2. Words in nearby files: the same directory, plus files with the same
-   extension in the git repo. `.gitignore` is respected, and binary or large
-   files are skipped. This runs in the background, so start-up never waits for it.
+1. Words in this file, nearest the cursor first.
+2. Words in nearby files: the same directory, then files with the same
+   extension in the repository (skipping ignored, binary and large files).
+   They're read in the background the first time you type.
 3. File paths, once the text before the cursor contains `/` or starts with `~`.
 
 ## Git
 
-In a git repository, lines that differ from the staging area (what `git
-diff` shows) are marked in the gutter as you type: a green bar for added
-lines, yellow for changed ones, and a red mark where lines were removed.
-The line number takes the same color. Staging a file elsewhere (`git add`)
-shows up the next time you open it.
+In a git repository, lines that differ from the staged version are marked in
+the gutter as you type: green for added, yellow for changed and red where
+lines were removed. The status line shows the branch.
 
-`Space m` opens a command panel. Suffix keys select commands; arrow keys and
-Enter also work. Escape or Ctrl-G cancels. Submenus group commands and display
-argument switches, including their on/off state:
+`Space m` opens a command panel modeled on
+[Magit](https://magit.vc). Press the letter shown to run a command or open a
+submenu; arrows and `Enter` work too, and `Esc` cancels. Submenus show their
+switches and whether each is on.
 
-| Keys | Action |
+| Keys | Opens |
 |---|---|
-| `Space m s` | repository status: headers, files, stashes, unpushed/unpulled sections; `gz gn gu gs gpu gfu` jump |
-| `Space m p` | push menu (pushRemote, upstream, elsewhere, other, refspecs, matching, tags) |
-| `Space m P` | pull menu (pushRemote, upstream, elsewhere; `-r` rebase choices) |
-| `Space m f` | fetch menu (pushRemote, current remote, elsewhere, all, branch, refspec, submodules) |
-| `Space m c` | commit menu; `c` creates or submits a draft |
-| `Space m d` | diff menu: dwim, range, paths, unstaged, staged, worktree, commit, stash |
-| `Space m l` | log menu: `l` current, `o` other, `h` HEAD, `u` related, `L`/`b`/`a`/`R` branches, all, reflog objects, `B`/`T` matching, `m` merged; Magit's log arguments (values are typed); `=`/`+` change the limit in a log |
-| `:Magit NAME` | run an upstream Magit command by name (e.g. `:Magit magit-fetch-all-prune`), Fred's M-x for Magit |
-| `Space m L` | current file history; `Enter` inspects a commit, `gr` refreshes, `q` returns |
-| `Space m B` | blame menu: addition, removal/reverse (blob buffers), echo, styles, chunk keys |
-| `Space m F` | file menu: stage, unstage, untrack, rename, delete, checkout, blobs, blame |
-| `Space m i` | initialize a repository |
-| `Space m b` | branch menu: checkout, local, create, spin-off/out, rename, reset, delete |
-| `Space m m` | merge menu: merge, edit message, no commit, absorb, preview, squash, dissolve |
-| `Space m M` | remote menu: add, rename, remove, prune branches/refspecs |
-| `Space m X` | reset menu: branch, file, mixed, soft, hard, keep, index, worktree |
-| `Space m z` | stash menu: save/index/keep index, apply/pop/drop, list/inspect |
-| `Space m t` | tag menu: create, release, delete, prune |
-| `Space m C` | commit menu: create, amend, extend, reword, fixup and argument switches |
-| `Space m r` / `V` / `v` | revert menu: revert commits or changes; continue, skip, abort |
-| `Space m R` | rebase menu: onto revision, continue, skip, abort |
-| `Space m x` / `A` | cherry-pick menu: pick, apply, harvest, squash, donate, spinout, spinoff |
+| `Space m s` | status: untracked, unstaged, staged and conflicted files, stashes, unpushed and unpulled commits |
+| `Space m c`, `Space m C` | commit, amend, extend, reword, fixup |
+| `Space m d` | diff: unstaged, staged, a range, a commit, a stash |
+| `Space m l`, `Space m L` | log (current, other, all, reflog…); this file's history |
+| `Space m b` | branches: checkout, create, spin off, rename, reset, delete |
+| `Space m p`, `P`, `f` | push, pull, fetch |
+| `Space m m`, `R` | merge, rebase |
+| `Space m x`, `r` | cherry-pick, revert |
+| `Space m z` | stash: save, apply, pop, drop, list |
+| `Space m t`, `M`, `X` | tags, remotes, reset |
+| `Space m B`, `F` | blame; file actions (stage, untrack, rename, blobs) |
+| `Space m i` | create a repository |
 
-Status is a read-only buffer with separate untracked, unstaged, staged, and
-conflict sections. `Tab` collapses a section or expands a tracked file's diff.
-On a file or hunk, `s` stages it and `u` unstages it; use the unstaged side
-for staging and the staged side for unstaging. Binary changes, renames, and
-conflicts use whole-file operations. `gr` refreshes, `Enter` visits a file or
-diff location, and `q` returns to the previous buffer. Vim movement and search
-work in these views, and your other buffers keep their unsaved edits.
+In status, `Tab` folds a section or shows a file's diff, `s` and `u` stage and
+unstage a file or hunk, `Enter` visits it, `gr` refreshes and `q` goes back.
+Git works on saved files and the index; it never saves your buffers for you.
+Commit messages are drafts you can leave and come back to (`:w` keeps one,
+`Space m c c` commits). Commands that may need a password or run hooks
+(push, pull, fetch, commit, checkout) hand the terminal to Git and then come
+back. Push never forces, and pull refuses histories that have diverged.
 
-Git operations use **saved files and the index**; they do not automatically
-save source buffers. In a commit draft, `:w` saves the message for later and
-`Space m c c` commits staged changes by default. In the commit menu, `-a` includes
-saved tracked changes, `-e` allows an empty commit, `-n` disables hooks, `-R`
-resets the author and `+s` adds a Signed-off-by trailer. Options selected before
-opening a draft remain attached to that draft across buffer switches and
-in-session swap recovery. Crash-restart option metadata is not yet persisted;
-that remaining work is recorded in the parity notes. Drafts are stored in Fred's
-state directory and support swap recovery; a failed commit keeps the message.
-Push, pull, fetch, branch switches, and commits hand the terminal to Git for
-credentials or hooks, then return to Fred. Push never forces or automatically
-creates an upstream, and pull refuses divergent history.
+## Org mode
 
-`Space m C a` opens an editable amendment initialized from HEAD. `e` extends
-HEAD without editing its message; `w` edits only the message and keeps HEAD's
-tree, preserving staged changes. Amend/reword drafts have separate identities
-from ordinary commit drafts and reject submission if HEAD has moved.
+`.org` files open in Org mode: `Tab` folds headings, and Org's keys work for
+TODO states, tags, properties, lists, tables, timestamps and links.
+`Space o` opens Org commands from anywhere:
 
-The stash menu follows upstream keys: `z` saves both sides, `i` saves the index,
-`w` saves the worktree only, `x` keeps the index, `a` applies, `p` pops,
-`k` drops, and `l` lists. `Z`, `I`, and `W` create snapshots of both sides,
-the index, or the worktree without cleaning files. `-u` includes
-untracked files and `-a` includes untracked and ignored files. In the list,
-`a` applies the selected entry, `p` pops it, `d` or `x` asks for `yes` to drop it,
-Enter inspects, `gr` refreshes and `q` returns. Stash inspection separates notes,
-unstaged, staged and untracked changes. Apply/pop first restore the saved index;
-if index restoration fails, the fallback always retains the stash. Conflicted
-applications retain the stash and report that status needs resolution. Pop/drop
-check the selected object's identity against its reflog position before removing
-it. Source buffers keep unsaved edits throughout.
+| Keys | Does |
+|---|---|
+| `Space o a`, `Space o c` | agenda, capture |
+| `Space o t`, `Space o h` | new TODO heading, new heading |
+| `Space o i`, `Space o s` | insert a link, store a link to here |
+| `Space o I`, `Space o O` | clock in, clock out |
+| `Space o f` | list your Org directory |
 
-The binding goal is full menu and behavior parity with upstream Magit, adapted
-from Emacs to Fred. Current coverage is still partial. The pinned source baseline,
-command/option inventory and remaining work are tracked in
-[the percentage roadmap](docs/magit-roadmap.md),
-[the parity ledger](docs/magit-parity.md) and
-[continuation notes](docs/magit-port-notes.md).
+Org's options go in the `[org]` table of the config, by their Emacs names
+(`org-todo-keywords = …`). Coverage is still partial; see the
+[Org roadmap](docs/org-roadmap.md).
 
-## Highlighting
+## Claude
 
-Highlighting uses [syntect](https://github.com/trishume/syntect) with
-[bat](https://github.com/sharkdp/bat)'s language definitions. The default
-`ansi` theme uses your terminal's own 16 colors, so it matches your
-terminal's color scheme. It turns off for files over 10 MB or lines longer
-than 20,000 characters.
+`Space c` (or `:claude`) opens `*claude*`: Claude Code, laid out like its
+command line. Type after the `>` and press `Enter` to send (`Ctrl-J` for a
+new line). The reply streams in above the prompt, `⏺` for text and tool
+calls and `⎿` for their output, with a spinner on the status line. It's a
+plain buffer, so you can leave Insert mode, move around, yank and switch
+buffers while Claude works. `Ctrl-C` interrupts, and `/clear` starts a new
+conversation. Each prompt tells Claude which files are open in fred and on
+what line, the one you used last first, so "this file" means the one you were
+just in. Each prompt runs `claude_command` with `--resume`. By default
+it accepts file edits, and other tools follow your Claude Code permission
+settings. Where those would ask, fred asks: `⏺ Allow Bash(cargo test)? y/n`
+in the chat and on the status line, answered with `y` or `n` from any buffer
+(fred passes `claude` its own MCP server and `--permission-prompt-tool`).
+Anything denied is counted on the status line.
+
+Claude can also drive fred in front of you. Add fred's MCP server once with
+`claude mcp add fred -- fred --mcp`, and Claude Code, whether in another
+terminal or in the chat, gets three tools: `fred_state` (the mode, the
+cursor, and every open buffer with its line and whether it's unsaved),
+`fred_read` (a buffer's text, unsaved changes included; given a path, it
+opens the file in fred first) and `fred_keys` (typing into fred as you would,
+`:e src/main.rs<CR>42Gciwfoo<Esc>`, a key a frame so you watch each one,
+your own keys waiting until it's done; `Ctrl-C` stops it). Everything stays
+undoable with `u`. The tools reach the fred most recently started, or the
+one in `$FRED_SOCKET`. Each fred listens on a socket only your user can open.
+
+In the chat, fred is Claude's editor: its own Read, Edit and Write tools are
+off, so it opens every file in fred and makes every change with Vim keys in
+front of you, saving with `:w` before it builds or runs tests. It still
+searches and runs commands itself.
+
+Select lines and run `:'<,'>ai make this async` (or any request): Claude
+rewrites just those lines, seeing the whole file for context, and a spinner
+shows while it works. `K` on a Visual selection, or `:[range]explain
+[question]`, shows an explanation in a box over the lines; it stays until you
+press `Esc` or click its ✕. Both run the `claude` command line; see
+`ai_command`, `explain_command` and `ai_rules` in the config.
 
 ## Your files are safe
 
-- **Writes are atomic.** fred writes a temporary file in the same directory,
-  syncs it to disk, and renames it over the original, keeping the original's
-  permissions. Symlinks are followed, and hard-linked files or files owned by
-  someone else are written in place so the links and the owner are kept.
-- **Changes by others are detected.** If the file changed on disk since you
-  opened it, `:w` refuses and asks you to use `:w!`.
-- **Crash recovery.** While a file is open, fred keeps a swap file for it in
-  `~/.local/state/fred/swap/` (or `$XDG_STATE_HOME/fred/swap/`). Unsaved changes
-  are written there after you pause for a second or after 200 edits, and also
-  if the terminal closes, fred is killed, or it crashes. The next time you
-  open the file (at startup or with `:e`), fred offers to **r**ecover or
-  **d**elete them. If the file is already open in another fred, it offers a
-  read-only view instead, and the two never touch each other's swap file.
-- **Formats are preserved.** CRLF line endings, a missing final newline, and a
-  UTF-8 byte-order mark are all kept as they were. Files that aren't valid
-  UTF-8 open read-only and fred never writes them.
+- **Atomic writes.** fred writes a temporary file beside yours, syncs it to
+  disk and renames it over the original, keeping its permissions. Symlinks are
+  followed; hard-linked files and files owned by someone else are written in
+  place so the links and owner are kept.
+- **Changes on disk are noticed.** If the file changed since you opened it,
+  `:w` refuses and suggests `:w!`.
+- **Crash recovery.** Unsaved changes go to a swap file
+  (`~/.local/state/fred/swap/`) when you pause for a second, after 200 edits,
+  and if the terminal closes, fred is killed or it crashes. Open the file
+  again and fred offers to **r**ecover or **d**elete them. If another fred
+  already has the file open, you get a read-only view instead.
+- **Formats are kept.** CRLF line endings, a missing final newline and a UTF-8
+  byte-order mark stay as they were. Files that aren't valid UTF-8 open
+  read-only, so fred never mangles them.
 
-Select lines with `V` and press `K`, or use `:[range]explain [question]`, to
-show an AI explanation in a dismissible overlay. Press Escape to close it.
-The selected text stays unchanged.
+## Configuration
 
-## Config
-
-`~/.config/fred/config.toml` (or `$XDG_CONFIG_HOME/fred/config.toml`). Every
-key is optional:
+Settings live in `~/.config/fred/config.toml` (or under `$XDG_CONFIG_HOME`).
+Every key is optional; these are the defaults:
 
 ```toml
 fullscreen = true        # false: inline; "auto": inline unless the file is
                          # longer than the inline window
 height = 12              # inline: lines of text in the window, or "max"
-wrap = false             # wrap long lines (otherwise the view scrolls sideways)
+wrap = false             # wrap long lines (otherwise scroll sideways)
 numbers = true           # line numbers
 relative_numbers = false
-hl_line = false          # highlight the current line (including wrapped rows)
-theme = "ansi"           # any bat theme name, e.g. "Nord", "Dracula", "gruvbox-dark"
+hl_line = false          # highlight the cursor's line
+theme = "ansi"           # any bat theme: "Nord", "Dracula", "gruvbox-dark", …
 tabstop = 8
-autocomplete = true      # pop up completions while typing (Ctrl-N works either way)
-icons = false            # file-type icons in the file pickers (needs a Nerd Font)
-clipboard = true         # yank, delete and put use the system clipboard
-ai_command = "claude -p --tools '' --safe-mode"  # what :ai runs (prompt on stdin);
-                         # --safe-mode skips your Claude plugins, hooks and
-                         # CLAUDE.md: faster, and far fewer tokens
+autocomplete = true      # suggest completions while typing (Ctrl-N works anyway)
+icons = false            # file icons in pickers (needs a Nerd Font)
+clipboard = true         # share yanks and puts with the system clipboard
+claude_command = "claude -p --output-format stream-json --verbose --include-partial-messages --permission-mode acceptEdits"
+ai_command = "claude -p --tools '' --safe-mode"   # what :ai runs, prompt on stdin
 explain_command = "claude -p --tools '' --safe-mode --model sonnet"
-                         # what :explain runs (prompt on stdin)
-ai_rules = ""            # extra instructions for every :ai, e.g.
-                         # "Smallest change that works. No new abstractions."
+ai_rules = ""            # added to every :ai, e.g. "Smallest change that works."
 ```
 
-Set `hl_line = true` for a subtle, full-width dark-gray highlight (`#262626`).
-Syntax colors stay visible, and visual selections take priority.
+The default `ansi` theme uses your terminal's own colors, so it matches your
+terminal. Highlighting uses [syntect](https://github.com/trishume/syntect)
+with [bat](https://github.com/sharkdp/bat)'s language definitions, and turns
+off for files over 10 MB or lines over 20,000 characters.
+
+### Options and `:set`
+
+`wrap`, `numbers`, `relative_numbers`, `hl_line`, `tabstop`, `autocomplete`
+and `clipboard` above are Neovim's `wrap`, `number`, `relativenumber`,
+`cursorline`, `tabstop`, `autocomplete` and `clipboard`. A `[set]` table sets
+any option by its Neovim name or abbreviation:
+
+```toml
+[set]
+ts = 4
+cursorline = true
+```
+
+While editing, `:set` works as in Neovim: `:set ts=4`, `:set nowrap`,
+`:set invnu`, `:set rnu!`, `:set ts?`, `:set ts&`, `:set cb+=unnamed`, and
+`:set` alone lists what you've changed. `:setlocal` changes only this buffer,
+`:setglobal` only what new buffers start with, and `Tab` completes option
+names.
+
+## Roadmap
+
+fred is working toward full parity with three projects, each tracked by
+percentage against a pinned upstream version, with every command, option
+and key listed in a ledger:
+
+| Goal | Plan | Ledger |
+|---|---|---|
+| Neovim's editing core (no Vimscript) | [roadmap](docs/nvim-core-roadmap.md) | [nvim-parity.csv](docs/nvim-parity.csv) |
+| Emacs's Magit | [roadmap](docs/magit-roadmap.md) | [magit-parity.md](docs/magit-parity.md) |
+| Emacs's Org mode | [roadmap](docs/org-roadmap.md) | [org-parity.csv](docs/org-parity.csv) |
+
+Behavior is checked against the real thing: `tests/nvim_oracle.rs` types the
+same keys into fred and a headless Neovim and compares the results.
 
 ## Development
 
-```
-cargo test            # unit, randomized (fuzz) and pseudo-terminal tests
-cargo test --test e2e show_screen -- --ignored --nocapture   # print real screens
+```sh
+cargo test                       # unit, fuzz, pseudo-terminal and Neovim-oracle tests
+cargo test --test e2e show_screen -- --ignored --nocapture        # print real screens
 FRED_FUZZ_ITERS=400000 FRED_FUZZ_THREADS=8 cargo test --release --test fuzz
-cargo build --release && cargo test --test explore perf_ -- --ignored --nocapture --test-threads=1
+tools/bench.py fred FILE         # startup CPU and memory
 ```
 
-`tests/fuzz.rs` feeds generated buffers and key sequences to the editor and
-checks the cursor, undo/redo and file-format invariants after every key;
-`tests/explore.rs` drives the real binary in a pseudo-terminal (suspend,
-resizes, two freds on one file, long lines, wrap mode, performance).
-
-The design spec is in `docs/superpowers/specs/2026-10-01-fred-design.md`.
+`tests/fuzz.rs` feeds random buffers and keys to the editor and checks the
+cursor, undo and file-format invariants after every key. `tests/explore.rs`
+drives the real binary in a pseudo-terminal: suspending, resizing, two freds
+on one file, long lines, wrapping. The original design is in
+[docs/superpowers/specs/2026-10-01-fred-design.md](docs/superpowers/specs/2026-10-01-fred-design.md).
 
 ## License
 

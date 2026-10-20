@@ -4,6 +4,21 @@ use unicode_segmentation::{GraphemeCursor, UnicodeSegmentation};
 use unicode_width::UnicodeWidthStr;
 
 /// Byte offset of the grapheme boundary after `byte` (or `s.len()`).
+/// `next` joined onto `cur` as `J` and `:join` do: its indent dropped and
+/// one space between, unless either side is empty, `cur` ends in white
+/// space or `next` starts with `)`.
+pub fn join_lines(cur: &str, next: &str) -> String {
+    let next = next.trim_start();
+    let sep =
+        if cur.is_empty() || next.is_empty() || cur.ends_with([' ', '\t']) || next.starts_with(')')
+        {
+            ""
+        } else {
+            " "
+        };
+    format!("{cur}{sep}{next}")
+}
+
 pub fn next_grapheme(s: &str, byte: usize) -> usize {
     if byte >= s.len() {
         return s.len();

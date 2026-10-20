@@ -84,8 +84,8 @@ fn zap_highlights_only_the_typed_prefix() {
         ("e\u{301}lan", "e\u{301}l", 1, 2),
     ] {
         let mut s = Screen::new(20, 3);
-        s.cfg.numbers = false;
         let mut e = editor(text, "");
+        e.run_ex("set nonumber");
         s.draw(&e);
         e.viewport = Some(crate::zap::Viewport {
             view: s.view,
@@ -111,8 +111,8 @@ fn zap_highlights_only_the_typed_prefix() {
 #[test]
 fn zap_labels_at_a_narrow_edge_reveal_the_next_selection_key() {
     let mut s = Screen::new(8, 62);
-    s.cfg.numbers = false;
     let mut e = editor(&vec!["       x"; 60].join("\n"), "");
+    e.run_ex("set nonumber");
     s.draw(&e);
     e.viewport = Some(crate::zap::Viewport {
         view: s.view,
@@ -202,11 +202,12 @@ fn ex_completion_popup_cycles_and_esc_dismisses_it() {
         s.term.backend().buffer()[(0, ai_y)].bg,
         ratatui::style::Color::Cyan
     );
-    assert_eq!(s.cursor(), (3, 11));
+    // `:ai` needs an argument, so it comes with the space before it.
+    assert_eq!(s.cursor(), (4, 11));
     e.handle_key(crate::key::Key::new(crate::key::KeyCode::Tab));
     assert!(matches!(&e.mode, Mode::Command(cl) if cl.text == "bdelete"));
     e.handle_key(crate::key::Key::new(crate::key::KeyCode::BackTab));
-    assert!(matches!(&e.mode, Mode::Command(cl) if cl.text == "ai"));
+    assert!(matches!(&e.mode, Mode::Command(cl) if cl.text == "ai "));
     e.handle_key(crate::key::Key::new(crate::key::KeyCode::Esc));
     assert!(
         matches!(&e.mode, Mode::Command(_)),
@@ -288,10 +289,37 @@ fn scrolloff_keeps_context() {
 }
 
 #[test]
+fn zz_centers_the_cursor_line() {
+    // 10 text rows: zz puts the cursor on the fifth.
+    let mut s = Screen::new(20, 12);
+    let text = (1..=40)
+        .map(|i| i.to_string())
+        .collect::<Vec<_>>()
+        .join("\n");
+    let mut e = editor(&text, "10G");
+    s.draw(&e);
+    assert_eq!(
+        s.view.top, 2,
+        "scrolloff alone leaves line 10 near the bottom"
+    );
+    for k in crate::key::parse_keys("zz") {
+        e.handle_key(k);
+    }
+    s.draw(&e);
+    assert_eq!(s.view.top, 5);
+    assert_eq!(s.cursor().1, 4);
+    for k in crate::key::parse_keys("2Gzz") {
+        e.handle_key(k);
+    }
+    s.draw(&e);
+    assert_eq!(s.view.top, 0, "no scrolling above the first line");
+}
+
+#[test]
 fn wrap_mode() {
     let mut s = Screen::new(20, 5);
-    s.cfg.wrap = true;
-    let e = editor(&format!("{}\nb", "x".repeat(40)), "");
+    let mut e = editor(&format!("{}\nb", "x".repeat(40)), "");
+    e.run_ex("set wrap");
     s.draw(&e);
     assert_eq!(s.row(0), format!("  1 {}", "x".repeat(16)));
     assert_eq!(s.row(1), format!("    {}", "x".repeat(16)));
@@ -301,8 +329,8 @@ fn wrap_mode() {
 #[test]
 fn wrap_mode_cursor_on_continuation_row() {
     let mut s = Screen::new(20, 5);
-    s.cfg.wrap = true;
-    let e = editor(&"x".repeat(40), "$");
+    let mut e = editor(&"x".repeat(40), "$");
+    e.run_ex("set wrap");
     s.draw(&e);
     assert_eq!(s.cursor(), (4 + 7, 2));
 }
@@ -376,15 +404,38 @@ fn visual_selection_is_reversed() {
     s.draw(&e);
     let b = s.term.backend().buffer();
     assert!(b[(4, 0)].modifier.contains(Modifier::REVERSED));
-    assert!(b[(4, 1)].modifier.contains(Modifier::REVERSED));
+    // The cursor's cell (c) is left to the terminal's cursor to invert.
+    assert!(!b[(4, 1)].modifier.contains(Modifier::REVERSED));
+    assert!(b[(5, 1)].modifier.contains(Modifier::REVERSED));
     assert!(!b[(4, 2)].modifier.contains(Modifier::REVERSED));
+}
+
+#[test]
+fn charwise_visual_reverses_just_the_selection() {
+    let mut s = Screen::new(20, 5);
+    let e = editor("abcd\nefgh\nij", "lvj");
+    s.draw(&e);
+    let b = s.term.backend().buffer();
+    let rev = |x, y| b[(x, y)].modifier.contains(Modifier::REVERSED);
+    // Text starts at column 4: b-d of the first line, e-f of the second,
+    // except the cursor's cell (f), left to the terminal's cursor to invert.
+    assert_eq!(
+        (4..8).map(|x| rev(x, 0)).collect::<Vec<_>>(),
+        [false, true, true, true]
+    );
+    assert_eq!(
+        (4..8).map(|x| rev(x, 1)).collect::<Vec<_>>(),
+        [true, false, false, false]
+    );
+    assert!(!rev(4, 2));
+    assert!(s.row(4).contains("VISUAL") || s.row(3).contains("VISUAL"));
 }
 
 #[test]
 fn relative_numbers() {
     let mut s = Screen::new(20, 5);
-    s.cfg.relative_numbers = true;
-    let e = editor("a\nb\nc", "j");
+    let mut e = editor("a\nb\nc", "j");
+    e.run_ex("set relativenumber");
     s.draw(&e);
     assert_eq!(s.row(0), "  1 a");
     assert_eq!(s.row(1), "  2 b");
@@ -449,8 +500,8 @@ fn wrap_moves_a_wide_char_that_does_not_fit_and_the_cursor_follows() {
         ("$", (28, 1)),
     ] {
         let mut s = Screen::new(40, 8);
-        s.cfg.wrap = true;
-        let e = editor(&text, keys);
+        let mut e = editor(&text, keys);
+        e.run_ex("set wrap");
         s.draw(&e);
         assert_eq!(s.row(1), format!("    {}", "漢".repeat(13)));
         assert_eq!(s.cursor(), want, "{keys}");
@@ -463,15 +514,14 @@ fn wrap_scrolls_inside_a_line_taller_than_the_window() {
     let long: String = ('a'..='y').cycle().take(300).collect::<String>() + "Z";
     let text = format!("{long}\nb\nc\nd");
     let mut s = Screen::new(40, 6); // 4 text rows of 36 columns
-    s.cfg.wrap = true;
-    let e = editor(&text, "$");
+    let e = editor(&text, ":set wrap<CR>$");
     s.draw(&e);
     assert_eq!(cell_at_cursor(&mut s), "Z");
-    let e = editor(&text, "$0");
+    let e = editor(&text, ":set wrap<CR>$0");
     s.draw(&e);
     assert_eq!(s.cursor(), (4, 0), "back at the start of the line");
     assert_eq!(s.row(0), format!("  1 {}", &long[..36]));
-    let e = editor(&text, "$j");
+    let e = editor(&text, ":set wrap<CR>$j");
     s.draw(&e);
     assert_eq!(cell_at_cursor(&mut s), "b");
 }
@@ -609,10 +659,10 @@ fn mouse_click_selects_picker_row_and_double_click_opens_it() {
         row: 11,
         modifiers: KeyModifiers::NONE,
     };
-    super::render::mouse(&mut e, &mut s.view, &s.cfg, area, click);
+    super::render::mouse(&mut e, &mut s.view, area, click);
     assert!(matches!(&e.mode, Mode::Pick(p) if p.sel == 2));
     assert_eq!(e.cur.pos(), (0, 0));
-    super::render::mouse(&mut e, &mut s.view, &s.cfg, area, click);
+    super::render::mouse(&mut e, &mut s.view, area, click);
     assert_eq!(e.mode, Mode::Normal);
     assert_eq!(e.cur.pos(), (2, 0));
 }
@@ -635,14 +685,14 @@ fn double_click_after_scrolling_opens_the_row_that_was_clicked() {
         modifiers: KeyModifiers::NONE,
     };
     let area = ratatui::layout::Rect::new(0, 0, 40, 10);
-    super::render::mouse(&mut e, &mut s.view, &s.cfg, area, click);
+    super::render::mouse(&mut e, &mut s.view, area, click);
     s.draw(&e);
     assert_eq!(
         &s.row(7)[1..],
         &before[1..],
         "selection must not move the clicked row"
     );
-    super::render::mouse(&mut e, &mut s.view, &s.cfg, area, click);
+    super::render::mouse(&mut e, &mut s.view, area, click);
     assert_eq!(e.mode, Mode::Normal);
     assert_eq!(e.cur.line, 8);
 }
@@ -666,7 +716,7 @@ fn dired_colors_file_kinds_fields_and_marks() {
     let mut e = editor("", "");
     crate::dired::visit(&mut e, dir.path(), None).unwrap();
     let mut s = Screen::new(100, 12);
-    s.cfg.numbers = false;
+    e.run_ex("set nonumber");
     s.draw(&e);
     // Names start where the `.` entry's does.
     let col = e.buf.line(1).len() - 1;
@@ -758,9 +808,7 @@ fn dired_colors_survive_compact_wrap_and_yield_to_name_editing() {
     crate::dired::visit(&mut e, dir.path(), Some("漢字folder")).unwrap();
     e.handle_key(crate::key::Key::ch('('));
     let mut s = Screen::new(8, 16);
-    s.cfg.numbers = false;
-    s.cfg.wrap = true;
-    s.cfg.hl_line = true;
+    e.run_ex("set nonumber wrap cursorline");
     s.draw(&e);
     let b = s.term.backend().buffer();
     let cells: Vec<_> = b
@@ -822,14 +870,13 @@ fn dired_double_click_opens_an_entry_and_slow_clicks_only_select() {
     super::render::mouse(
         &mut e,
         &mut s.view,
-        &s.cfg,
         area,
         MouseEvent {
             kind: MouseEventKind::ScrollDown,
             ..click
         },
     );
-    super::render::mouse(&mut e, &mut s.view, &s.cfg, area, click);
+    super::render::mouse(&mut e, &mut s.view, area, click);
     assert_eq!(e.cur.line, line);
     assert!(e.pending_effect.is_none());
     s.view.last_click = Some((
@@ -837,12 +884,12 @@ fn dired_double_click_opens_an_entry_and_slow_clicks_only_select() {
         false,
         line,
     ));
-    super::render::mouse(&mut e, &mut s.view, &s.cfg, area, click);
+    super::render::mouse(&mut e, &mut s.view, area, click);
     assert!(
         e.pending_effect.is_none(),
         "slow clicks must not open an entry"
     );
-    super::render::mouse(&mut e, &mut s.view, &s.cfg, area, click);
+    super::render::mouse(&mut e, &mut s.view, area, click);
     assert!(
         matches!(&e.pending_effect, Some(crate::ex::ExEffect::Open { path: target, .. }) if *target == path)
     );
@@ -863,7 +910,7 @@ fn dired_edge_click_keeps_the_entry_under_the_pointer() {
     let mut e = editor("", "");
     crate::dired::visit(&mut e, dir.path(), None).unwrap();
     let mut s = Screen::new(80, 12);
-    s.cfg.wrap = false;
+    e.run_ex("set nowrap");
     s.draw(&e);
     let before = s.row(9);
     let name = (0..24)
@@ -878,14 +925,14 @@ fn dired_edge_click_keeps_the_entry_under_the_pointer() {
         row: 9,
         modifiers: KeyModifiers::NONE,
     };
-    super::render::mouse(&mut e, &mut s.view, &s.cfg, area, click);
+    super::render::mouse(&mut e, &mut s.view, area, click);
     s.draw(&e);
     assert_eq!(
         s.row(9),
         before,
         "clicking an edge entry must not shift the view"
     );
-    super::render::mouse(&mut e, &mut s.view, &s.cfg, area, click);
+    super::render::mouse(&mut e, &mut s.view, area, click);
     assert!(
         matches!(&e.pending_effect, Some(crate::ex::ExEffect::Open { path: target, .. }) if *target == path)
     );
@@ -901,7 +948,6 @@ fn mouse_wheel_scrolls_picker_matches() {
         super::render::mouse(
             e,
             &mut s.view,
-            &s.cfg,
             area,
             MouseEvent {
                 kind,
@@ -938,7 +984,6 @@ fn mouse_wheel_scrolls_picker_matches() {
 fn mouse_scroll_and_click_use_screen_coordinates() {
     use ratatui::crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
     let mut s = Screen::new(20, 6);
-    s.cfg.wrap = false;
     let mut e = editor("a\nb\nc\nd\ne\nf\ng\nh", "");
     let area = ratatui::layout::Rect::new(2, 3, 20, 6);
     let mouse = |kind, column, row| MouseEvent {
@@ -947,10 +992,10 @@ fn mouse_scroll_and_click_use_screen_coordinates() {
         row,
         modifiers: KeyModifiers::NONE,
     };
+    e.run_ex("set nowrap");
     super::render::mouse(
         &mut e,
         &mut s.view,
-        &s.cfg,
         area,
         mouse(MouseEventKind::ScrollDown, 8, 3),
     );
@@ -964,19 +1009,17 @@ fn mouse_scroll_and_click_use_screen_coordinates() {
     super::render::mouse(
         &mut e,
         &mut s.view,
-        &s.cfg,
         area,
         mouse(MouseEventKind::Down(MouseButton::Left), 6, 4),
     );
     assert_eq!(e.cur.line, 4);
     e = editor("ab漢x\n\tz", "");
     s.view = View::default();
-    s.cfg.wrap = true;
     let area = ratatui::layout::Rect::new(0, 0, 9, 6);
+    e.run_ex("set wrap");
     super::render::mouse(
         &mut e,
         &mut s.view,
-        &s.cfg,
         area,
         mouse(MouseEventKind::Down(MouseButton::Left), 7, 0),
     );
@@ -987,17 +1030,15 @@ fn mouse_scroll_and_click_use_screen_coordinates() {
     super::render::mouse(
         &mut e,
         &mut s.view,
-        &s.cfg,
         area,
         mouse(MouseEventKind::Down(MouseButton::Left), 4, 1),
     );
     assert_eq!(e.cur.pos(), (1, 0), "a tab selects its source byte");
-    e = editor(&"abcdefghij\n".repeat(10), "");
+    e = editor(&"abcdefghij\n".repeat(10), ":set wrap<CR>");
     s.view = View::default();
     super::render::mouse(
         &mut e,
         &mut s.view,
-        &s.cfg,
         area,
         mouse(MouseEventKind::ScrollDown, 5, 0),
     );
@@ -1005,7 +1046,6 @@ fn mouse_scroll_and_click_use_screen_coordinates() {
     super::render::mouse(
         &mut e,
         &mut s.view,
-        &s.cfg,
         area,
         mouse(MouseEventKind::Down(MouseButton::Left), 6, 0),
     );
@@ -1013,18 +1053,16 @@ fn mouse_scroll_and_click_use_screen_coordinates() {
     super::render::mouse(
         &mut e,
         &mut s.view,
-        &s.cfg,
         area,
         mouse(MouseEventKind::ScrollUp, 5, 0),
     );
     assert_eq!((s.view.top, s.view.top_row), (0, 0));
     e = editor("abcdefghijklmnopqrstuvwxyz", "");
-    s.cfg.wrap = false;
     s.view.left = 10;
+    e.run_ex("set nowrap");
     super::render::mouse(
         &mut e,
         &mut s.view,
-        &s.cfg,
         area,
         mouse(MouseEventKind::Down(MouseButton::Left), 6, 0),
     );
@@ -1153,7 +1191,7 @@ fn hl_line_follows_cursor_and_preserves_syntax() {
     s.hl.set_file(e.path.as_deref(), &e.buf);
     s.draw(&e);
     let plain = s.term.backend().buffer().clone();
-    s.cfg = Config::parse("hl_line = true").0;
+    e.run_ex("set cursorline");
     s.draw(&e);
     let highlighted = s.term.backend().buffer();
     let bg = highlighted[(29, 0)].bg;
@@ -1175,8 +1213,7 @@ fn hl_line_follows_cursor_and_preserves_syntax() {
 #[test]
 fn hl_line_covers_wrapped_rows_and_empty_lines() {
     let mut s = Screen::new(8, 6);
-    s.cfg = Config::parse("hl_line = true\nwrap = true\nnumbers = false").0;
-    let mut e = editor("漢字abcde\n\nlast", "");
+    let mut e = editor("漢字abcde\n\nlast", ":set cul wrap nonu<CR>");
     s.draw(&e);
     let b = s.term.backend().buffer();
     let bg = b[(7, 1)].bg;
@@ -1273,7 +1310,7 @@ fn magit_status_uses_title_and_diff_colors() {
     e.magit = Some(Box::new(v));
     e.readonly = true;
     let mut screen = Screen::new(70, 6);
-    screen.cfg.numbers = false;
+    e.run_ex("set nonumber");
     screen.draw(&e);
     assert_eq!(screen.term.backend().buffer()[(0, 1)].fg, Color::Green);
     assert_eq!(screen.term.backend().buffer()[(0, 2)].fg, Color::Red);
@@ -1312,19 +1349,18 @@ fn explain_box_sits_above_the_selection_until_closed() {
     };
     let area = ratatui::layout::Rect::new(0, 0, 40, 10);
     // Inside the box: stays.
-    super::render::mouse(&mut e, &mut s.view, &s.cfg, area, click(10, 2));
+    super::render::mouse(&mut e, &mut s.view, area, click(10, 2));
     assert!(e.explain.is_some());
     // The ✕ closes it.
     let b = s.view.explain_box.unwrap();
-    super::render::mouse(&mut e, &mut s.view, &s.cfg, area, click(b.right() - 2, b.y));
+    super::render::mouse(&mut e, &mut s.view, area, click(b.right() - 2, b.y));
     assert!(e.explain.is_none());
-    // A click away closes it and moves the cursor; so does Esc.
+    // A click away moves the cursor but leaves it open; only Esc closes it.
     e.explain = Some((crate::ex::addr::Range { start: 4, end: 5 }, "x".into()));
     s.draw(&e);
-    super::render::mouse(&mut e, &mut s.view, &s.cfg, area, click(6, 7));
-    assert!(e.explain.is_none());
+    super::render::mouse(&mut e, &mut s.view, area, click(6, 7));
+    assert!(e.explain.is_some(), "clicks away leave it open");
     assert_eq!(e.cur.line, 7);
-    e.explain = Some((crate::ex::addr::Range { start: 4, end: 5 }, "x".into()));
     e.handle_key(Key::ch('j'));
     assert!(e.explain.is_some(), "other keys leave it open");
     e.handle_key(Key::new(KeyCode::Esc));
@@ -1389,7 +1425,7 @@ fn blame_margin_headings_and_lines_shift_text_and_show_message() {
         was_readonly: false,
     });
     let mut screen = Screen::new(100, 6);
-    screen.cfg.numbers = false;
+    e.run_ex("set nonumber");
     screen.draw(&e);
     assert!(
         screen.row(0).starts_with(&format!(
@@ -1415,7 +1451,7 @@ fn magit_menus_render_as_transient_popups() {
     e.magit_options
         .insert(crate::magit::MenuOption::PushForceWithLease);
     let mut screen = Screen::new(120, 30);
-    screen.cfg.numbers = false;
+    e.run_ex("set nonumber");
     screen.draw(&e);
     let rows: Vec<String> = (0..30).map(|y| screen.row(y)).collect();
     let find = |needle: &str| rows.iter().position(|r| r.contains(needle));
@@ -1443,6 +1479,43 @@ fn magit_menus_render_as_transient_popups() {
     );
     // The source text stays visible above the popup.
     assert!(rows[0].contains("source line"));
+}
+
+#[test]
+fn org_buffers_fold_conceal_links_and_style_headings() {
+    let mut e = Editor::new(Buffer::from_text(
+        "* TODO Task :work:\nbody [[https://x.org][site]]\n** Child\n* Other [[https://y.org][y]]",
+    ));
+    e.path = Some("t.org".into());
+    crate::org::attach(&mut e);
+    let mut s = Screen::new(60, 8);
+    e.run_ex("set nonumber");
+    s.draw(&e);
+    assert_eq!(
+        s.row(0).split_whitespace().collect::<Vec<_>>(),
+        vec!["*", "TODO", "Task", ":work:"]
+    );
+    assert_eq!(s.row(1), "body site");
+    for k in parse_keys("j") {
+        e.handle_key(k);
+    }
+    s.draw(&e);
+    assert_eq!(
+        s.row(1),
+        "body [[https://x.org][site]]",
+        "the cursor line is literal"
+    );
+    assert_eq!(s.row(3), "* Other y");
+    for k in parse_keys("k<Tab>") {
+        e.handle_key(k);
+    }
+    s.draw(&e);
+    assert!(s.row(0).starts_with("* TODO Task"));
+    assert!(s.row(0).ends_with(":work:..."), "{:?}", s.row(0));
+    assert_eq!(s.row(1), "* Other y");
+    // TODO keyword face: org-todo (red, bold).
+    let cell = &s.term.backend().buffer()[(2, 0)];
+    assert!(cell.modifier.contains(Modifier::BOLD));
 }
 
 #[test]
@@ -1483,7 +1556,7 @@ fn magit_log_margin_and_hunk_styles() {
     e.magit = Some(Box::new(v));
     e.readonly = true;
     let mut screen = Screen::new(80, 9);
-    screen.cfg.numbers = false;
+    e.run_ex("set nonumber");
     screen.draw(&e);
     let row = screen.row(0);
     assert!(row.starts_with("abc12345 subject"), "{row}");
@@ -1523,11 +1596,113 @@ fn magit_diff_paints_trailing_whitespace_on_added_lines() {
     e.magit = Some(Box::new(v));
     e.readonly = true;
     let mut screen = Screen::new(40, 8);
-    screen.cfg.numbers = false;
+    e.run_ex("set nonumber");
     screen.draw(&e);
     let buf = screen.term.backend().buffer();
     // Added line: trailing spaces painted; removed line: not (t = added only).
     assert_eq!(buf[(4, 5)].bg, Color::Red);
     assert_ne!(buf[(4, 4)].bg, Color::Red);
     assert_ne!(buf[(2, 5)].bg, Color::Red);
+}
+
+#[test]
+fn mouse_drag_selects_and_double_click_selects_a_word() {
+    use ratatui::crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    let mut e = editor("hello world\nsecond line\n", "");
+    let mut s = Screen::new(80, 12);
+    s.draw(&e);
+    let area = ratatui::layout::Rect::new(0, 0, 80, 12);
+    let gutter = super::render::gutter_width(&e) as u16;
+    let at = |kind, col: u16, row| MouseEvent {
+        kind,
+        column: gutter + col,
+        row,
+        modifiers: KeyModifiers::NONE,
+    };
+    let down = MouseEventKind::Down(MouseButton::Left);
+    let drag = MouseEventKind::Drag(MouseButton::Left);
+    super::render::mouse(&mut e, &mut s.view, area, at(down, 2, 0));
+    assert_eq!(e.mode, Mode::Normal);
+    super::render::mouse(&mut e, &mut s.view, area, at(drag, 3, 1));
+    super::render::mouse(
+        &mut e,
+        &mut s.view,
+        area,
+        at(MouseEventKind::Up(MouseButton::Left), 3, 1),
+    );
+    assert_eq!(e.mode, Mode::Visual { anchor: (0, 2) });
+    assert_eq!((e.cur.line, e.cur.byte), (1, 3));
+    // A plain click ends the selection.
+    super::render::mouse(&mut e, &mut s.view, area, at(down, 7, 0));
+    assert_eq!(e.mode, Mode::Normal);
+    // A second click there selects "world".
+    super::render::mouse(&mut e, &mut s.view, area, at(down, 7, 0));
+    assert_eq!(e.mode, Mode::Visual { anchor: (0, 6) });
+    assert_eq!((e.cur.line, e.cur.byte), (0, 10));
+}
+
+#[test]
+fn right_click_opens_neovims_popup_menu() {
+    use ratatui::crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    let mut e = editor("hello world\nsecond line\n", "");
+    let mut s = Screen::new(40, 12);
+    s.draw(&e);
+    let area = ratatui::layout::Rect::new(0, 0, 40, 12);
+    let gutter = super::render::gutter_width(&e) as u16;
+    let at = |kind, col: u16, row| MouseEvent {
+        kind,
+        column: gutter + col,
+        row,
+        modifiers: KeyModifiers::NONE,
+    };
+    let right = MouseEventKind::Down(MouseButton::Right);
+    // popup_setpos: the click moves the cursor, then the menu opens below it.
+    super::render::mouse(&mut e, &mut s.view, area, at(right, 7, 1));
+    assert_eq!(e.cur.pos(), (1, 7));
+    s.draw(&e);
+    assert!(s.row(2).contains("Go to definition"), "{}", s.row(2));
+    assert!(s.row(4).contains("Paste") && s.row(5).contains("Select All"));
+    // Hovering highlights; a click chooses.
+    let b = s.view.menu_box.unwrap();
+    let on = |row| MouseEvent {
+        column: b.x + 1,
+        ..at(MouseEventKind::Moved, 0, row)
+    };
+    super::render::mouse(&mut e, &mut s.view, area, on(b.y + 3));
+    assert_eq!(e.menu.as_ref().unwrap().sel, Some(3));
+    let click = MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        ..on(b.y + 3)
+    };
+    super::render::mouse(&mut e, &mut s.view, area, click);
+    assert_eq!(e.mode, Mode::VisualLine { anchor: 0 }, "Select All");
+    assert!(e.menu.is_none());
+    // Inside a selection the cursor stays and the menu acts on it.
+    super::render::mouse(&mut e, &mut s.view, area, at(right, 2, 0));
+    assert_eq!(e.mode, Mode::VisualLine { anchor: 0 });
+    s.draw(&e);
+    assert!((0..12).any(|y| s.row(y).contains("Copy")));
+    // A click elsewhere only closes it.
+    let away = at(MouseEventKind::Down(MouseButton::Left), 30, 9);
+    super::render::mouse(&mut e, &mut s.view, area, away);
+    assert!(e.menu.is_none());
+    assert_eq!(e.mode, Mode::VisualLine { anchor: 0 });
+}
+
+#[test]
+fn occur_shades_line_numbers_and_highlights_matches() {
+    use ratatui::style::Color;
+    let src = crate::buffer::Buffer::from_text("a foo b\nnone\n");
+    let (o, lines) = crate::occur::search(&src, "f".into(), "f", "foo", None).unwrap();
+    let mut e = editor("", "");
+    crate::occur::show(&mut e, o, &lines, None);
+    let mut s = Screen::new(60, 6);
+    e.run_ex("set nonumber");
+    s.draw(&e);
+    let b = s.term.backend().buffer();
+    let row: String = (0..15).map(|x| b[(x, 1)].symbol().to_string()).collect();
+    assert_eq!(row, "      1:a foo b");
+    assert_eq!(b[(3, 1)].fg, Color::DarkGray);
+    assert_eq!(b[(10, 1)].bg, Color::Yellow, "the match");
+    assert_ne!(b[(8, 1)].bg, Color::Yellow, "not the text around it");
 }

@@ -681,9 +681,10 @@ fn space_g_greps_and_lands_on_the_line() {
     env.write("b.txt", &format!("{body}    let needle = 1;\n"));
     let mut p = env.fred(&["a.txt"]);
     p.wait_text("NORMAL");
-    p.keys(&[" g", "need.e"]);
+    // Plain text by default, as fff.
+    p.keys(&[" g", "needle"]);
     p.wait_text("b.txt:51: let needle = 1;");
-    p.wait_text("1 matches");
+    p.wait_text("1 matches [plain]");
     p.keys(&["\r"]);
     p.wait_text("51:9");
     // The pattern is the last search: n finds it again (wrapping around).

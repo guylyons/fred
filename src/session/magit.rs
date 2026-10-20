@@ -4239,21 +4239,10 @@ impl Session {
         );
     }
     /// browse-url: the system's opener, detached.
-    fn browse(&mut self, url: &str) {
-        let opener = if cfg!(target_os = "macos") {
-            "open"
-        } else {
-            "xdg-open"
-        };
-        match std::process::Command::new(opener)
-            .arg(url)
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-        {
-            Ok(_) => self.ed.set_msg(format!("Opened {url}")),
-            Err(e) => self.ed.set_err(format!("{opener}: {e}")),
+    pub(super) fn browse(&mut self, url: &str) {
+        match crate::shell::browse(url) {
+            Ok(()) => self.ed.set_msg(format!("Opened {url}")),
+            Err(e) => self.ed.set_err(e),
         }
     }
     /// magit-wip-after-save-local-mode: the saved file's worktree wip ref.
@@ -4897,7 +4886,7 @@ impl Session {
                 .with_file_name("magit-blobs")
                 .join(format!("{:016x}", h.finish()))
                 .join(blob.file.file_name().unwrap_or_default());
-            let mut ed = make_editor(Buffer::default(), &self.cfg);
+            let mut ed = make_editor(Buffer::default(), self.ed.opts.for_new_buffer(), &self.cfg);
             ed.path = Some(path);
             let swap = swap::swap_path_in(&self.swap_dir, ed.path.as_deref());
             self.switch_to(
@@ -4966,7 +4955,8 @@ impl Session {
                     .swap_dir
                     .with_file_name("magit-views")
                     .join(format!("{:016x}", h.finish()));
-                let mut ed = make_editor(Buffer::default(), &self.cfg);
+                let mut ed =
+                    make_editor(Buffer::default(), self.ed.opts.for_new_buffer(), &self.cfg);
                 ed.path = Some(path);
                 ed.magit = Some(Box::new(view.clone()));
                 ed.readonly = true;

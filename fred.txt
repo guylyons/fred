@@ -1,0 +1,129 @@
+
+                  ▒▒▓▓██▒▒▒▒  ▓▓▓▓▓▓▓▓
+                  ██▒▒        ▒▒░░░░░░░░▓▓
+                ▒▒▒▒            ▒▒░░░░░░░░░░▓▓
+                ▒▒      ██▓▓▒▒  ▒▒░░░░░░░░░░░░▓▓
+                  ▒▒            ▒▒████████████████
+                  ██▒▒        ▒▒██████████████████
+                  ▓▓▓▓▒▒▒▒▒▒▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+                ▓▓░░░░░░░░░░░░░░░░░░░░▓▓▓▓▓▓▓▓░░░░▓▓
+                ▓▓░░░░░░▓▓▓▓▓▓░░░░░░▓▓▓▓░░░░░░░░░░▓▓
+                ▓▓░░░░▓▓████████░░▓▓████████▓▓░░░░▓▓
+            ████████████        ▒▒▒▒        ████████████
+            ░░░░▓▓▓▓░░██        ████        ██░░▓▓▓▓▓▓▓▓
+          ░░░░░░░░▓▓░░▓▓████████▓▓▓▓████████▓▓░░▓▓░░░░░░░░
+          ░░░░▓▓▓▓▓▓░░░░▓▓▓▓▓▓▓▓░░▓▓▓▓▓▓▓▓▓▓▓▓░░▓▓▓▓▓▓░░░░
+            ░░▓▓░░░░░░░░░░░░░░░░░░▓▓▓▓▓▓░░░░░░░░░░░░▓▓░░
+            ░░░░▓▓▓▓░░░░░░░░░░░░░░░░░░▓▓░░░░░░░░▓▓▓▓░░░░
+              ░░░░▓▓░░░░░░░░░░██▓▓░░▓▓██░░░░░░░░▓▓░░░░
+                  ▓▓░░░░░░░░░░░░▓▓▓▓▓▓▓▓░░░░░░░░▓▓
+                  ▓▓▓▓░░▓▓██░░░░░░░░░░░░░░░░░░▓▓▓▓
+                    ▓▓░░░░░░▓▓████████▓▓░░░░░░▓▓
+                    ▓▓░░░░░░░░░░░░░░░░░░██▓▓░░▓▓
+                    ▓▓▓▓░░░░░░░░████░░░░░░░░▓▓▒▒
+                        ▓▓░░░░▓▓▓▓▓▓▓▓░░░░▓▓░░
+                        ▓▓░░▓▓░░░░░░░░▓▓░░▓▓
+                        ▓▓░░░░░░░░░░░░░░░░▒▒
+                          ▓▓░░░░░░░░░░░░▓▓▒▒
+                          ██▓▓▓▓▓▓▓▓▓▓▓▓██▒▒
+                          ██▒▒▒▒████▒▒▒▒████
+
+                              f r e d
+
+                 Vim keys. ed commands. One binary.
+
+
+================================================================================
+ ABOUT
+================================================================================
+
+fred is a fast, small terminal editor written in Rust (v0.2.0).
+
+It began as a take on ed, the original Unix editor, and grew into an everyday
+editor. You move and edit with Vim keys, and ":" takes ed's commands with all
+of its line addresses. The things other editors need plugins for are built
+in: a fuzzy file finder, project grep, completion, go-to-definition without a
+language server, a Git client modeled on Emacs's Magit, and Org mode.
+
+It is one 8.6 MB binary with nothing else to install or configure. Opening a
+file and quitting takes as little as a quarter of Neovim's CPU and about half
+its memory. Runs on macOS and Linux.
+
+Install:
+    cargo install --git https://github.com/guylyons/fred
+
+================================================================================
+ USAGE
+================================================================================
+
+    fred [-i | -f] [--height N] [+LINE] [FILE | DIR]
+
+    FILE              file to edit (doesn't have to exist yet)
+    DIR               browse a directory (Dired)
+    +LINE             start on that line; "+" alone starts on the last line
+    -i, --inline      open in a small window under your prompt
+    -f, --fullscreen  take over the terminal
+    --height N        inline: lines of text to show (default 12, or "max")
+
+================================================================================
+ COMMANDS
+================================================================================
+
+Basics
+    i / Esc           start / stop typing
+    :w  :q  ZZ  ZQ    save, quit, save and quit, quit without saving
+    u  Ctrl-R  .      undo, redo, repeat last change
+    v  V              Visual, Visual-line mode
+
+Finding things (Space is the leader)
+    Space p           find a file in the project
+    Space g           grep the project as you type
+    Space k           search lines of this file
+    Space j           browse files from a path
+    Space b           switch buffers
+    Space r           recent files
+    Space s           jump to any word on screen
+    gd, Space d       go to definition
+    Space -           list this file's directory (Dired)
+
+Git (Magit)
+    Space m s         status
+    Space m c         commit
+    Space m d         diff
+    Space m l         log
+    Space m b         branches
+    Space m p/P/f     push, pull, fetch
+    Space m z         stash
+    Space m B         blame
+
+Org mode
+    Space o a         agenda
+    Space o c         capture
+    Space o t         new TODO heading
+
+: commands (ed-style ranges: N . $ +n -n /re/ 'a %)
+    :e file           edit another file
+    :b N  :bn  :bp    switch buffers
+    :[range]s/re/rep/[g]     substitute
+    :[range]g/re/cmd         run cmd on matching lines (:v for non-matching)
+    :[range]d  :[range]j     delete, join lines
+    :[range]m addr / t addr  move, copy lines
+    :r file  :r !cmd         insert a file or command output
+    :[range]!cmd             filter lines through a shell command
+    :set opt                 change options, as in Neovim
+    :occur REGEXP            list matching lines (also M-s o)
+    :[range]ai ask           have Claude rewrite the lines
+    :[range]explain          have Claude explain the lines
+    :Magit NAME              run a Magit command by name
+
+Config lives in ~/.config/fred/config.toml.
+
+================================================================================
+ LICENSE
+================================================================================
+
+MIT License
+
+Copyright (c) 2026 Guy Lyons
+
+See the LICENSE file for the full text.

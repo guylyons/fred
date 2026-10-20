@@ -7,6 +7,7 @@ use crate::editor::{CmdLine, Editor, Mode};
 use crate::git::FileState;
 use crate::git::Mark;
 use crate::highlight::{Highlighter, LineStyles};
+use crate::options::Opt;
 use crate::pick::{Kind, Picker, Row};
 use crate::text::{col_of_byte, display_width, is_control};
 use ratatui::Frame;
@@ -109,15 +110,39 @@ fn reversed(spans: &mut Vec<Span<'static>>) {
     }
 }
 
+/// `st` with the bytes in `r` reversed.
+fn reverse_bytes(st: &Option<LineStyles>, r: std::ops::Range<usize>) -> Option<LineStyles> {
+    let mut cuts: Vec<usize> = st
+        .iter()
+        .flatten()
+        .flat_map(|(_, s)| [s.start, s.end])
+        .chain([r.start, r.end])
+        .collect();
+    cuts.sort_unstable();
+    cuts.dedup();
+    let mut styler = Styler::new(st);
+    let spans = cuts.windows(2).map(|w| {
+        let s = styler.at(w[0]);
+        let s = if r.contains(&w[0]) {
+            s.add_modifier(Modifier::REVERSED)
+        } else {
+            s
+        };
+        (s, w[0]..w[1])
+    });
+    Some(spans.collect())
+}
+
 fn digits(n: usize) -> usize {
     n.to_string().len()
 }
 
-pub fn gutter_width(ed: &Editor, cfg: &Config) -> usize {
+pub fn gutter_width(ed: &Editor) -> usize {
     // magit-section-disable-line-numbers.
     let magit_off = ed.magit.is_some()
         && crate::magit::options::flag("magit-section-disable-line-numbers", true);
-    let numbers = if (cfg.numbers || cfg.relative_numbers) && !magit_off {
+    let numbers = if (ed.opts.bool(Opt::Number) || ed.opts.bool(Opt::Relativenumber)) && !magit_off
+    {
         digits(ed.line_count()).max(3) + 1
     } else {
         0
@@ -148,11 +173,12 @@ fn git_sign(m: Mark) -> (&'static str, Color) {
     }
 }
 
-fn mode_name(m: &Mode) -> &'static str {
+pub(crate) fn mode_name(m: &Mode) -> &'static str {
     match m {
         Mode::Normal => "NORMAL",
         Mode::Insert => "INSERT",
         Mode::VisualLine { .. } => "V-LINE",
+        Mode::Visual { .. } => "VISUAL",
         Mode::Command(_) => "COMMAND",
         Mode::Pick(p) => match p.kind {
             Kind::Files => "FIND",
@@ -164,6 +190,7 @@ fn mode_name(m: &Mode) -> &'static str {
             Kind::Def => "DEFINITION",
             Kind::Branches => "BRANCHES",
             Kind::MagitMenu => "MAGIT MENU",
+            Kind::OrgMenu | Kind::OrgChoice => "ORG",
         },
     }
 }
@@ -172,11 +199,10 @@ fn mode_name(m: &Mode) -> &'static str {
 pub fn mouse(
     ed: &mut Editor,
     view: &mut View,
-    cfg: &Config,
     area: Rect,
     event: ratatui::crossterm::event::MouseEvent,
 ) {
-    use ratatui::crossterm::event::{MouseButton, MouseEventKind};
+    use ratatui::crossterm::event::{KeyModifiers, MouseButton, MouseEventKind};
     if !area.contains((event.column, event.row).into()) {
         view.last_click = None;
         return;
@@ -212,25 +238,57 @@ pub fn mouse(
         ed.handle_key(crate::key::Key::new(code));
         return;
     }
-    if ed.explain.is_some() && matches!(event.kind, MouseEventKind::Down(_)) {
-        if let Some(b) = view.explain_box
-            && b.contains((event.column, event.row).into())
-        {
-            // Its ✕ closes it; other clicks inside leave it be.
-            if event.row == b.y && event.column + 4 >= b.right() {
-                ed.explain = None;
+    // The open right-click menu has the mouse: hovering highlights an
+    // item, a click on one chooses it and a click elsewhere closes it.
+    if let Some(m) = ed.menu.as_mut() {
+        let row = view
+            .menu_box
+            .filter(|b| b.contains((event.column, event.row).into()))
+            .map(|b| (event.row - b.y) as usize);
+        let item = row
+            .and_then(|r| m.items.get(r))
+            .map(|i| i.0)
+            .filter(|&i| i != crate::menu::Item::Separator);
+        match event.kind {
+            MouseEventKind::Moved | MouseEventKind::Drag(_) => {
+                m.sel = row.filter(|_| item.is_some());
+                return;
             }
-            return;
+            MouseEventKind::Down(MouseButton::Left) => {
+                match item {
+                    Some(i) => crate::menu::choose(ed, i),
+                    None if row.is_some() => {}
+                    None => ed.menu = None,
+                }
+                return;
+            }
+            // Another right-click opens it again where that one was.
+            MouseEventKind::Down(MouseButton::Right) => ed.menu = None,
+            MouseEventKind::Up(_) => return,
+            _ => {
+                ed.menu = None;
+                return;
+            }
         }
-        // A click elsewhere closes it, and still does what it would.
-        ed.explain = None;
+    }
+    // A click elsewhere leaves the explain box open and does what it would.
+    if ed.explain.is_some()
+        && matches!(event.kind, MouseEventKind::Down(_))
+        && let Some(b) = view.explain_box
+        && b.contains((event.column, event.row).into())
+    {
+        // Its ✕ closes it; other clicks inside leave it be.
+        if event.row == b.y && event.column + 4 >= b.right() {
+            ed.explain = None;
+        }
+        return;
     }
     if event.row >= area.bottom().saturating_sub(2) || matches!(ed.mode, Mode::Command(_)) {
         view.last_click = None;
         return;
     }
     ed.zap = None;
-    let gutter = gutter_width(ed, cfg).min(area.width as usize / 2);
+    let gutter = gutter_width(ed).min(area.width as usize / 2);
     let cols = (area.width as usize).saturating_sub(gutter).max(1);
     let rows = (area.height as usize).saturating_sub(2).max(1);
     match event.kind {
@@ -240,70 +298,177 @@ pub fn mouse(
                 ed,
                 rows,
                 cols,
-                cfg.wrap,
+                ed.opts.bool(Opt::Wrap),
                 event.kind == MouseEventKind::ScrollDown,
             );
         }
         MouseEventKind::Down(MouseButton::Left) => {
-            let mut y = (event.row - area.y) as usize + view.top_row;
-            let x = (event.column - area.x) as usize;
-            let x = x.saturating_sub(gutter);
-            for line in view.top..ed.line_count() {
-                let text = ed.buf.line(line);
-                let height = if cfg.wrap {
-                    let height = super::layout::wrap_rows(&text, ed.tabstop, cols);
-                    if line == ed.cur.line {
-                        height.max(wrap_cursor(&text, ed.cur.byte, ed.tabstop, cols).0 + 1)
-                    } else {
-                        height
-                    }
-                } else {
-                    1
+            let Some((line, byte)) = text_pos(ed, view, area, event, gutter, cols) else {
+                return;
+            };
+            ed.popup = None;
+            ed.vim.pending.clear();
+            // Shift-click extends the selection (or starts one) to the click.
+            if event.modifiers.contains(KeyModifiers::SHIFT) && ed.dired.is_none() {
+                let anchor = match ed.mode {
+                    Mode::Visual { anchor } => anchor,
+                    _ => (ed.cur.line, ed.cur.byte),
                 };
-                if y >= height {
-                    y -= height;
-                    continue;
-                }
-                let target = if cfg.wrap { x } else { x + view.left };
-                let byte = Layout::new(&text, ed.tabstop, cfg.wrap.then_some(cols))
-                    .find(|p| p.row == y && p.x + p.width > target)
-                    .map_or_else(
-                        || {
-                            Layout::new(&text, ed.tabstop, cfg.wrap.then_some(cols))
-                                .filter(|p| p.row == y)
-                                .last()
-                                .map_or(text.len(), |p| p.byte + p.text.len())
-                        },
-                        |p| p.byte,
-                    );
                 ed.set_cursor(line, byte);
-                ed.popup = None;
-                ed.vim.pending.clear();
-                // magit-mouse-toggle-section: a click on a section's v/>.
-                if ed.magit.is_some() {
-                    let indicator = text.len() - text.trim_start().len();
-                    if byte == indicator
-                        && matches!(text[indicator..].chars().next(), Some('v' | '>'))
-                        && text[indicator..].chars().nth(1) == Some(' ')
-                    {
-                        ed.handle_key(crate::key::Key::new(crate::key::KeyCode::Tab));
-                        return;
-                    }
-                }
-                if ed.dired.as_ref().is_some_and(|d| !d.editing) {
-                    view.detached = true;
-                    if view.double_click(false, line) {
-                        view.detached = false;
-                        ed.handle_key(crate::key::Key::new(crate::key::KeyCode::Enter));
-                    }
-                } else {
-                    view.last_click = None;
-                }
+                ed.mode = Mode::Visual { anchor };
+                view.drag_from = Some(anchor);
                 return;
             }
+            if matches!(ed.mode, Mode::Visual { .. } | Mode::VisualLine { .. }) {
+                ed.mode = Mode::Normal;
+            }
+            ed.set_cursor(line, byte);
+            view.drag_from = Some((line, ed.cur.byte));
+            let text = ed.buf.line(line);
+            // magit-mouse-toggle-section: a click on a section's v/>.
+            if ed.magit.is_some() {
+                let indicator = text.len() - text.trim_start().len();
+                if byte == indicator
+                    && matches!(text[indicator..].chars().next(), Some('v' | '>'))
+                    && text[indicator..].chars().nth(1) == Some(' ')
+                {
+                    ed.handle_key(crate::key::Key::new(crate::key::KeyCode::Tab));
+                    return;
+                }
+            }
+            if ed.dired.as_ref().is_some_and(|d| !d.editing) {
+                view.drag_from = None;
+                view.detached = true;
+                if view.double_click(false, line) {
+                    view.detached = false;
+                    ed.handle_key(crate::key::Key::new(crate::key::KeyCode::Enter));
+                }
+            } else if view.double_click(false, line) {
+                // Double-click selects the word (or run of punctuation) under it.
+                let (lo, hi) = word_at(&text, ed.cur.byte);
+                if hi > lo {
+                    ed.set_cursor(line, crate::text::prev_grapheme(&text, hi));
+                    ed.mode = Mode::Visual { anchor: (line, lo) };
+                }
+            }
+        }
+        // Dragging selects charwise from where the button went down, as in vim.
+        MouseEventKind::Drag(MouseButton::Left) => {
+            let Some(anchor) = view.drag_from else {
+                return;
+            };
+            // ponytail: no autoscroll when dragging past the window edge.
+            let Some((line, byte)) = text_pos(ed, view, area, event, gutter, cols) else {
+                return;
+            };
+            view.last_click = None;
+            ed.set_cursor(line, byte);
+            if (line, ed.cur.byte) != anchor || matches!(ed.mode, Mode::Visual { .. }) {
+                ed.mode = Mode::Visual { anchor };
+            }
+        }
+        MouseEventKind::Up(MouseButton::Left) => view.drag_from = None,
+        // 'mousemodel' popup_setpos: the click moves the cursor (ending a
+        // selection) unless it is inside the selection, then the menu opens.
+        MouseEventKind::Down(MouseButton::Right) => {
+            let Some((line, byte)) = text_pos(ed, view, area, event, gutter, cols) else {
+                return;
+            };
+            ed.popup = None;
+            ed.vim.pending.clear();
+            view.last_click = None;
+            let inside = match crate::vim::selection(ed, &ed.mode) {
+                Some(crate::vim::ops::Span::Lines(lo, hi)) => (lo..=hi).contains(&line),
+                Some(crate::vim::ops::Span::Chars(from, to)) => (from..to).contains(&(line, byte)),
+                None => false,
+            };
+            if !inside {
+                if matches!(ed.mode, Mode::Visual { .. } | Mode::VisualLine { .. }) {
+                    ed.mode = Mode::Normal;
+                }
+                ed.set_cursor(line, byte);
+            }
+            crate::menu::open(ed, (event.column, event.row));
         }
         _ => {}
     }
+}
+
+/// The bytes of the word, or run of other non-blank characters, at `byte`.
+fn word_at(text: &str, byte: usize) -> (usize, usize) {
+    let class = |c: char| {
+        if c.is_alphanumeric() || c == '_' {
+            1
+        } else if c.is_whitespace() {
+            0
+        } else {
+            2
+        }
+    };
+    let Some(here) = text[byte..].chars().next().map(class) else {
+        return (byte, byte);
+    };
+    let lo = text[..byte]
+        .char_indices()
+        .rev()
+        .take_while(|&(_, c)| class(c) == here)
+        .last()
+        .map_or(byte, |(i, _)| i);
+    let hi = text[byte..]
+        .char_indices()
+        .find(|&(_, c)| class(c) != here)
+        .map_or(text.len(), |(i, _)| byte + i);
+    (lo, hi)
+}
+
+/// The buffer (line, byte) under a mouse event in the text area.
+fn text_pos(
+    ed: &Editor,
+    view: &View,
+    area: Rect,
+    event: ratatui::crossterm::event::MouseEvent,
+    gutter: usize,
+    cols: usize,
+) -> Option<(usize, usize)> {
+    let mut y = (event.row - area.y) as usize + view.top_row;
+    let x = ((event.column - area.x) as usize).saturating_sub(gutter);
+    let wrap = ed.opts.bool(Opt::Wrap);
+    for line in view.top..ed.line_count() {
+        let text = ed.buf.line(line);
+        let height = if line != ed.cur.line && ed.folds.hidden(line) {
+            0
+        } else if wrap {
+            let height = super::layout::wrap_rows(&text, ed.tabstop(), cols);
+            if line == ed.cur.line {
+                height.max(wrap_cursor(&text, ed.cur.byte, ed.tabstop(), cols).0 + 1)
+            } else {
+                height
+            }
+        } else {
+            1
+        };
+        if y >= height {
+            y -= height;
+            continue;
+        }
+        let target = if wrap { x } else { x + view.left };
+        let layout = || Layout::new(&text, ed.tabstop(), wrap.then_some(cols));
+        let byte = layout()
+            .find(|p| p.row == y && p.x + p.width > target)
+            .map_or_else(
+                || {
+                    layout()
+                        .filter(|p| p.row == y)
+                        .last()
+                        .map_or(text.len(), |p| p.byte + p.text.len())
+                },
+                |p| p.byte,
+            );
+        return Some((line, byte));
+    }
+    // Below the last line: its end, so drags past the text still select.
+    let last = ed.line_count().checked_sub(1)?;
+    Some((last, ed.buf.line(last).len()))
 }
 
 /// A Magit buffer line's colors: headings, and diff lines with
@@ -571,7 +736,7 @@ pub fn draw(
     } else {
         view.picker_offset = 0;
     }
-    let gutter = gutter_width(ed, cfg).min(area.width as usize / 2);
+    let gutter = gutter_width(ed).min(area.width as usize / 2);
     let blame_w = blame_column(ed).min(gutter);
     let sign = git_column(ed).min(gutter - blame_w);
     let blame = ed.blame.as_ref().filter(|b| b.version == ed.buf.version);
@@ -583,17 +748,32 @@ pub fn draw(
     let cols = cols - margin_w;
     let now = crate::magit::margin::now();
     if panel == 0 && ed.zap.is_none() {
-        view.scroll(ed, rows.max(1), cols, cfg.wrap);
+        view.scroll(ed, rows.max(1), cols, ed.opts.bool(Opt::Wrap));
     }
     let n = ed.line_count();
-    let last = (view.top + rows).min(n);
-    let styles = if ed.magit.is_some() {
+    // Hidden lines take no rows, so the screen can reach further.
+    let last = if ed.folds.is_empty() {
+        (view.top + rows).min(n)
+    } else {
+        (ed.folds.down(view.top, rows, n) + 1).min(n)
+    };
+    let org_settings = if ed.org.is_some() {
+        crate::org::settings(ed)
+    } else {
+        std::rc::Rc::default()
+    };
+    let styles = if ed.magit.is_some() || ed.org.is_some() {
         vec![]
     } else {
         hl.styles(&ed.buf, view.top..last, budget)
     };
+    // Charwise Visual: its first and last positions, both included.
+    let chars = match ed.mode {
+        Mode::Visual { anchor } => Some((anchor.min(ed.cur.pos()), anchor.max(ed.cur.pos()))),
+        _ => None,
+    };
     let sel = match ed.mode {
-        Mode::VisualLine { anchor } => Some((anchor.min(ed.cur.line), anchor.max(ed.cur.line))),
+        Mode::VisualLine { .. } | Mode::Visual { .. } => ed.visual_lines(),
         Mode::Command(ref cl) if cl.kind == ':' && cl.text.starts_with("'<,'>") => ed
             .marks
             .get(&'<')
@@ -618,15 +798,54 @@ pub fn draw(
     let mut y = 0usize;
     let mut l = view.top;
     while y < rows && l < n {
-        let line = ed.buf.line(l);
+        if l != ed.cur.line && ed.folds.hidden(l) {
+            l += 1;
+            continue;
+        }
+        let mut line = ed.buf.line(l);
+        // org-ellipsis after a line whose following lines are folded.
+        if ed.folds.folded_after(l) {
+            line.push_str("...");
+        }
         let st = if ed.magit.is_some() {
             Some(magit_styles(ed, hl, l, &line))
         } else if ed.dired.is_some() {
             Some(crate::dired::styles(ed, l))
+        } else if ed.occur.is_some() {
+            Some(crate::occur::styles(ed, l))
+        } else if ed.org.is_some() {
+            Some(crate::org::face::styles(ed, l, &org_settings))
+        } else if let Some(st) = ed.claude.as_ref().and_then(|_| crate::claude::styles(&line)) {
+            Some(st)
         } else {
             styles.get(l - view.top).cloned().flatten()
         };
-        let selected = sel.is_some_and(|(a, b)| l >= a && l <= b);
+        let in_sel = sel.is_some_and(|(a, b)| l >= a && l <= b);
+        let mut selected = in_sel;
+        // A charwise selection's partial first or last line reverses just its bytes.
+        let st = match chars {
+            Some((a, b)) if in_sel => {
+                let lo = if l == a.0 { a.1 } else { 0 };
+                let hi = if l == b.0 && b.1 < line.len() {
+                    crate::text::next_grapheme(&line, b.1)
+                } else {
+                    line.len() + 1
+                };
+                if lo == 0 && hi > line.len() {
+                    st
+                } else {
+                    selected = false;
+                    reverse_bytes(&st, lo..hi)
+                }
+            }
+            _ => st,
+        };
+        // Org: descriptive links and hidden markers, except on the cursor line.
+        let (line, st) = if ed.org.is_some() && l != ed.cur.line {
+            crate::org::face::conceal(line, st, &org_settings)
+        } else {
+            (line, st)
+        };
         // Rows of this line already scrolled off the top.
         let skip = if l == view.top { view.top_row } else { 0 };
         let first_y = y;
@@ -652,7 +871,7 @@ pub fn draw(
             }
             if gutter > 0 && row == 0 {
                 let mark = ed.git.mark(l).map(git_sign);
-                let num = if cfg.relative_numbers && l != ed.cur.line {
+                let num = if ed.opts.bool(Opt::Relativenumber) && l != ed.cur.line {
                     l.abs_diff(ed.cur.line)
                 } else {
                     l + 1
@@ -714,7 +933,7 @@ pub fn draw(
                     Style::default().bg(Color::Indexed(237)),
                 );
             }
-            if cfg.hl_line && l == ed.cur.line && !selected && !splash {
+            if ed.opts.bool(Opt::Cursorline) && l == ed.cur.line && !in_sel && !splash {
                 buf.set_style(
                     Rect::new(ox + gutter as u16, oy + *y as u16, cols as u16, 1),
                     Style::default().bg(Color::Indexed(235)),
@@ -722,11 +941,11 @@ pub fn draw(
             }
             *y += 1;
         };
-        if cfg.wrap {
+        if ed.opts.bool(Opt::Wrap) {
             let mut styler = Styler::new(&st);
             let mut row = 0;
             let mut spans = vec![];
-            for p in Layout::new(&line, ed.tabstop, Some(cols)) {
+            for p in Layout::new(&line, ed.tabstop(), Some(cols)) {
                 if p.row != row {
                     if row >= skip {
                         emit(&mut y, row, std::mem::take(&mut spans));
@@ -746,7 +965,7 @@ pub fn draw(
                 emit(&mut y, row, spans);
             }
             if l == ed.cur.line {
-                let (cr, cx) = wrap_cursor(&line, ed.cur.byte, ed.tabstop, cols);
+                let (cr, cx) = wrap_cursor(&line, ed.cur.byte, ed.tabstop(), cols);
                 // The end of a full row puts the cursor on a row of its own.
                 if cr > row && y < rows {
                     emit(&mut y, cr, vec![]);
@@ -756,9 +975,13 @@ pub fn draw(
                 }
             }
         } else {
-            emit(&mut y, 0, visible(&line, &st, ed.tabstop, view.left, cols));
+            emit(
+                &mut y,
+                0,
+                visible(&line, &st, ed.tabstop(), view.left, cols),
+            );
             if l == ed.cur.line {
-                let cc = col_of_byte(&line, ed.cur.byte, ed.tabstop);
+                let cc = col_of_byte(&line, ed.cur.byte, ed.tabstop());
                 if cc >= view.left && cc - view.left < cols {
                     cursor = Some((gutter + cc - view.left, first_y));
                 }
@@ -777,6 +1000,14 @@ pub fn draw(
     while y < rows {
         buf.set_stringn(ox, oy + y as u16, "~", 1, num_style);
         y += 1;
+    }
+    // The terminal's block cursor inverts its cell: a selected one would go unreadable.
+    if ed.visual_lines().is_some()
+        && let Some((x, y)) = cursor
+    {
+        buf[(ox + x as u16, oy + y as u16)]
+            .modifier
+            .remove(Modifier::REVERSED);
     }
     if let Some(zap) = &ed.zap {
         for (word, label) in zap.choices() {
@@ -846,10 +1077,11 @@ pub fn draw(
         let geom = Geom {
             gutter,
             rows,
-            wrap_cols: if cfg.wrap { cols } else { 0 },
+            wrap_cols: if ed.opts.bool(Opt::Wrap) { cols } else { 0 },
         };
         draw_popup(buf, area, ed, view, geom, (cx, cy));
     }
+    view.menu_box = ed.menu.as_ref().and_then(|m| draw_menu(buf, area, m));
     if let Mode::Command(cl) = &ed.mode {
         draw_ex_completion(buf, input_area, cl);
     }
@@ -903,7 +1135,7 @@ fn mode_color(m: &Mode) -> Color {
     match m {
         Mode::Normal => Color::Blue,
         Mode::Insert => Color::Green,
-        Mode::VisualLine { .. } => Color::Magenta,
+        Mode::VisualLine { .. } | Mode::Visual { .. } => Color::Magenta,
         Mode::Command(_) => Color::Yellow,
         Mode::Pick(_) => Color::Cyan,
     }
@@ -941,7 +1173,7 @@ fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter) {
         return;
     }
     let line = ed.buf.line(ed.cur.line);
-    let col = col_of_byte(&line, ed.cur.byte, ed.tabstop) + 1;
+    let col = col_of_byte(&line, ed.cur.byte, ed.tabstop()) + 1;
     let mut right = vec![Span::styled(format!(" {}:{col} ", ed.cur.line + 1), bold)];
     if w >= 50 {
         let percent = (ed.cur.line + 1) * 100 / ed.line_count().max(1);
@@ -1088,7 +1320,11 @@ fn draw_command_row(buf: &mut Screen, area: Rect, ed: &Editor) -> Option<usize> 
         Mode::Command(cl) if !cl.prompt.is_empty() => Some(draw_input(buf, area, &cl.prompt, cl)),
         Mode::Command(cl) => Some(draw_input(buf, area, cl.kind.encode_utf8(&mut [0; 4]), cl)),
         _ => {
-            if let Some((m, err)) = &ed.msg {
+            if let Some(st) = ed.msg.as_ref().and_then(|(m, _)| crate::claude::styles(m)) {
+                let m = &ed.msg.as_ref().unwrap().0;
+                let spans: Vec<_> = st.into_iter().map(|(s, r)| Span::styled(&m[r], s)).collect();
+                buf.set_line(area.x, y, &Line::from(spans), area.width);
+            } else if let Some((m, err)) = &ed.msg {
                 let style = if *err {
                     Style::default().fg(Color::Red)
                 } else {
@@ -1523,6 +1759,33 @@ struct Geom {
     wrap_cols: usize,
 }
 
+/// The right-click menu, below and right of the click where it fits.
+fn draw_menu(buf: &mut Screen, area: Rect, m: &crate::menu::Menu) -> Option<Rect> {
+    let w = m.items.iter().map(|i| display_width(i.1, 1, 0)).max()? + 2;
+    let (w, h) = (
+        (w as u16).min(area.width),
+        (m.items.len() as u16).min(area.height),
+    );
+    let (cx, cy) = m.at;
+    let x = cx.min(area.right().saturating_sub(w)).max(area.x);
+    let y = if cy + 1 + h <= area.bottom() {
+        cy + 1
+    } else {
+        cy.saturating_sub(h).max(area.y)
+    };
+    let normal = Style::default().bg(Color::DarkGray).fg(Color::White);
+    let selected = Style::default().bg(Color::White).fg(Color::Black);
+    for (i, &(item, label)) in m.items.iter().take(h as usize).enumerate() {
+        let (text, style) = match item {
+            crate::menu::Item::Separator => ("─".repeat(w as usize), normal.fg(Color::Gray)),
+            _ if m.sel == Some(i) => (format!(" {label:<0$}", w as usize - 1), selected),
+            _ => (format!(" {label:<0$}", w as usize - 1), normal),
+        };
+        buf.set_stringn(x, y + i as u16, text, w as usize, style);
+    }
+    Some(Rect::new(x, y, w, h))
+}
+
 fn draw_popup(
     buf: &mut Screen,
     area: Rect,
@@ -1563,11 +1826,11 @@ fn draw_popup(
     let line = ed.buf.line(ed.cur.line);
     let start = p.start.min(line.len());
     let start_col = if wrap_cols > 0 {
-        let (sr, sx) = wrap_cursor(&line, start, ed.tabstop, wrap_cols);
-        let (cr, _) = wrap_cursor(&line, ed.cur.byte, ed.tabstop, wrap_cols);
+        let (sr, sx) = wrap_cursor(&line, start, ed.tabstop(), wrap_cols);
+        let (cr, _) = wrap_cursor(&line, ed.cur.byte, ed.tabstop(), wrap_cols);
         gutter + if sr == cr { sx } else { 0 }
     } else {
-        gutter + col_of_byte(&line, start, ed.tabstop).saturating_sub(view.left)
+        gutter + col_of_byte(&line, start, ed.tabstop()).saturating_sub(view.left)
     };
     let x0 = start_col.saturating_sub(1).min(area.width as usize - width);
     let normal = Style::default().bg(Color::DarkGray).fg(Color::White);

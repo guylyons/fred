@@ -11,11 +11,14 @@ pub const USAGE: &str = "usage: fred [-i | -f] [--height N] [+LINE] [FILE | DIR]
   -f, --fullscreen  take over the terminal (the default, unless the
                     config says otherwise)
   --height N        inline, showing N lines of text, or `max` (default 12)
+  --mcp             be the MCP server that lets Claude Code drive the
+                    running fred (claude mcp add fred -- fred --mcp)
   -h, --help        show this help
   -V, --version     show the version
 
 Config: ~/.config/fred/config.toml (fullscreen, height, wrap, numbers,
-relative_numbers, theme, tabstop, autocomplete, icons, clipboard)";
+relative_numbers, theme, tabstop, autocomplete, icons, clipboard, and
+Neovim options by name under [set])";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LineArg {
