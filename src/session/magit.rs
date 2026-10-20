@@ -135,10 +135,11 @@ impl Session {
             input_generation: self.ed.magit_input_generation,
             slot: self.cur,
             clock: self.clock,
-            work: std::thread::spawn(work),
+            work: spawn_like_this_thread(work),
         });
     }
     pub fn magit_action(&mut self, action: Action) {
+        crate::magit::coverage::record("action", &format!("{action:?}"));
         if action == Action::Return {
             if let Some(v) = &self.ed.magit {
                 let slot = v.return_to;
@@ -6075,4 +6076,22 @@ fn list_repo(view: &crate::magit::View, action: Option<&RowAction>) -> Option<Pa
         RowAction::Module(m) => Some(view.repo.root.join(m)),
         _ => None,
     }
+}
+
+/// A worker with this thread's name (the test, for coverage) and, in tests,
+/// its Magit option override.
+fn spawn_like_this_thread<T: Send + 'static>(
+    work: impl FnOnce() -> T + Send + 'static,
+) -> JoinHandle<T> {
+    let options = crate::magit::options::test_snapshot();
+    let mut builder = std::thread::Builder::new();
+    if let Some(name) = std::thread::current().name() {
+        builder = builder.name(name.to_owned());
+    }
+    builder
+        .spawn(move || {
+            crate::magit::options::test_install(options);
+            work()
+        })
+        .expect("spawn a Git worker")
 }

@@ -262,15 +262,54 @@ pub fn set(table: toml::Table) -> Vec<String> {
         .filter(|k| !NAMES.contains(&k.as_str()))
         .map(|k| format!("config: unknown Magit option {k}"))
         .collect();
+    for k in table.keys() {
+        super::coverage::record("set", k);
+    }
     if let Ok(mut o) = OPTIONS.write() {
         *o = Some(table);
     }
     unknown
 }
 
+#[cfg(test)]
+thread_local! {
+    /// A test's own options (this thread and its Git workers), so tests can
+    /// configure Magit without racing each other on the global table.
+    static TEST: std::cell::RefCell<Option<toml::Table>> = const { std::cell::RefCell::new(None) };
+}
+/// Configure options for this test thread (and its workers) only.
+#[cfg(test)]
+pub fn set_for_test(toml_text: &str) {
+    let table: toml::Table = toml_text.parse().expect("test options");
+    for k in table.keys() {
+        assert!(NAMES.contains(&k.as_str()), "not an upstream option: {k}");
+        super::coverage::record("set", k);
+    }
+    TEST.with(|t| *t.borrow_mut() = Some(table));
+}
+/// This thread's test options, to carry into a worker thread.
+pub fn test_snapshot() -> Option<toml::Table> {
+    #[cfg(test)]
+    return TEST.with(|t| t.borrow().clone());
+    #[cfg(not(test))]
+    None
+}
+/// Install test options taken with test_snapshot (no-op outside tests).
+pub fn test_install(table: Option<toml::Table>) {
+    #[cfg(test)]
+    TEST.with(|t| *t.borrow_mut() = table);
+    #[cfg(not(test))]
+    let _ = table;
+}
+
 /// The configured value of an option.
 pub fn value(name: &str) -> Option<Value> {
     debug_assert!(NAMES.contains(&name), "not an upstream option: {name}");
+    super::coverage::record("option", name);
+    #[cfg(test)]
+    if let Some(table) = TEST.with(|t| t.borrow().clone()) {
+        return table.get(name).cloned();
+    }
     OPTIONS.read().ok()?.as_ref()?.get(name).cloned()
 }
 

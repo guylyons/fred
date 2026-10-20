@@ -2779,6 +2779,37 @@ mod tests {
     }
 
     #[test]
+    fn magit_options_configured_per_test_reach_git_workers() {
+        // magit-status-file-list-limit is read where the status is built,
+        // on the Git worker thread.
+        crate::magit::options::set_for_test(
+            "magit-status-file-list-limit = 1\nmagit-section-initial-visibility-alist = { untracked = \"show\" }",
+        );
+        let mut t = T::open(Some("f.txt"), Some("one\n"));
+        magit_repo(&t);
+        for f in ["a", "b", "c"] {
+            fs::write(t.dir.path().join(f), f).unwrap();
+        }
+        t.keys(" ms");
+        magit_settle(&mut t);
+        let text = t.s.ed.buf.text();
+        // Shown (not hidden) by the visibility option, one file listed.
+        let n: usize = text
+            .lines()
+            .find_map(|l| {
+                l.strip_prefix("Untracked files (")?
+                    .strip_suffix(')')?
+                    .parse()
+                    .ok()
+            })
+            .expect(&text);
+        assert!(
+            text.contains(&format!("{} files not listed", n - 1)),
+            "{text}"
+        );
+    }
+
+    #[test]
     fn magit_diff_buffer_folds_files_like_upstream() {
         let mut t = T::open(Some("f.txt"), Some("one\n"));
         magit_repo(&t);

@@ -9,6 +9,7 @@ pub mod clone;
 pub mod commands;
 pub mod commit;
 pub mod configure;
+pub mod coverage;
 pub mod diff;
 pub mod ediff;
 pub mod ignore;
@@ -1045,6 +1046,7 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
                 _ => None,
             };
             if let Some(action) = found.map(|e| e.3).or(transient) {
+                coverage::record("action", &format!("{action:?}"));
                 if let Action::TransientSet(save) = action {
                     ed.mode = Mode::Normal;
                     ed.magit_menu = None;
@@ -2429,6 +2431,7 @@ pub fn answer(ed: &mut Editor, text: &str) {
 }
 
 pub(crate) fn open_menu(ed: &mut Editor, menu: char) {
+    coverage::record("action", &format!("{:?}", Action::Menu(menu)));
     // transient-values: saved arguments replace a menu's defaults.
     let am = arg_menu(menu);
     if !ed.magit_seeded.contains(&am)

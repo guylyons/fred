@@ -6,7 +6,7 @@ Nothing below is excluded from the port.
 
 ## Percentage and accounting
 
-**Verified roadmap completion: 3 / 100 points = 3%. Remaining: 97%.**
+**Verified roadmap completion: 5 / 100 points = 5%. Remaining: 95%.**
 This deliberately measures accepted deliverables, not elapsed effort, lines of
 code, or how many familiar Git verbs run. Existing partial functionality is
 listed below but earns no full-family credit. This is a conservative completion
@@ -15,8 +15,9 @@ them only with an explicit explanation and preserve the prior score.
 
 The baseline's five one-point deliverables are: pinned source checkout (done),
 explicit command/customization inventory (done), generated commands and companion
-mode inventory (done; runtime snapshot and extractor), complete menu/key/section mapping (open), and an
-acceptance scenario matrix linked to every ledger entry (open).
+mode inventory (done; runtime snapshot and extractor), complete menu/key/section mapping (done;
+docs/magit-ui-map.md, docs/magit-key-map.md, tests/magit-golden), and an acceptance scenario matrix
+linked to every ledger entry (done; docs/magit-scenarios.md).
 
 For every other row, its points are awarded together only when all five gates
 pass: full upstream source/option mapping; navigable menus and contextual keys;
@@ -27,7 +28,7 @@ additional behavior reopens its row and lowers the score until it is covered.
 
 | Order | Track | Points | Accepted | Existing partial work / remaining acceptance |
 | --- | --- | ---: | ---: | --- |
-| 1 | Source and acceptance baseline | 5 | 3 | Pin, expanded command/option and companion-mode inventory done; full Fred UI map and scenario matrix open |
+| 1 | Source and acceptance baseline | 5 | 5 | Pin, inventories, menu/key/section maps (guarded) and the coverage-generated scenario matrix |
 | 2 | Transient menus and section framework | 7 | 0 | Basic panels/toggles; remaining arguments, persistence, help, navigation, selection and context |
 | 3 | Status and refresh | 7 | 0 | Basic status/conflicts; all upstream sections, hooks, contextual operations, auto-refresh |
 | 4 | Diff, staging, discard, reset and blobs | 10 | 0 | File/hunk stage/unstage; region operations, diff variants/options, reverse/discard/reset, revision/blob navigation |
@@ -43,15 +44,17 @@ additional behavior reopens its row and lowers the score until it is covered.
 | 14 | Repository/file dispatch and maintenance | 3 | 0 | Clone/init, repository lists, ignore, sparse checkout, file actions and maintenance |
 | 15 | Patches, mail and bundles | 3 | 0 | Format/apply/export, mail-related editor equivalents, bundles and interruption handling |
 | 16 | Configuration, process UI and integrations | 5 | 0 | 237 options plus hooks; process/history diagnostics, companion modes, WIP, autorevert and Fred equivalents |
-| | Total | 100 | 3 | |
+| | Total | 100 | 5 | |
 
 ## Execution queue
 
-Customization configuration is wired for 21 upstream options (all partial).
-Next: repository-list commands and their directory/column options, then remaining
-customization behavior, complete menu/section mapping and the source-linked
-acceptance scenario matrix. Keep incomplete command behavior and safety/recovery
-gaps open; command-name coverage alone does not close a family.
+The baseline is accepted (5/5). Next: per-track acceptance in roadmap order,
+starting with track 2 (menus and sections) and track 3 (status). For each
+track, close its "gap:" notes (docs/magit-key-map.md), its "none" and
+"default only" rows in docs/magit-scenarios.md (options are now testable per
+test with options::set_for_test), then an independent review. Keep
+incomplete command behavior and safety/recovery gaps open; command-name
+coverage alone does not close a family.
 
 At every implementation commit, update the command ledger and this queue. Report
 the same score even when useful partial functionality lands but no acceptance
@@ -488,3 +491,11 @@ upstream: the full shell message, the rest as an aligned log without
 refs/bisect labels, and the log grouped by "git bisect" command (items
 folded; expanding them is a gap). Process and shortlog buffers remain
 outside the oracle.
+
+October 19: baseline accepted, score 5%. docs/magit-scenarios.md comes from a
+coverage run (FRED_MAGIT_COVERAGE): each ported ledger entry with the tests
+that dispatch its action or set/read its option. Dispatch-level only (a key,
+menu or :Magit path), so library-level tests do not count. 159 commands are
+exercised, 82 keys are covered by the key map, 560 entries have no scenario
+yet and options were never configured by any test until options::set_for_test
+(a per-test override carried into Git worker threads).
