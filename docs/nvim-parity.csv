@@ -318,28 +318,28 @@ key,textobject,it,,missing,,"""inner tag block"""
 key,textobject,iw,,missing,,"""inner word"""
 key,textobject,i{,,missing,,same as iB
 key,textobject,i},,missing,,same as iB
-key,ctrl-w,CTRL-W CTRL-B,,missing,,"same as ""CTRL-W b"""
+key,ctrl-w,CTRL-W CTRL-B,,partial,present; not yet verified against nvim,"same as ""CTRL-W b"""
 key,ctrl-w,CTRL-W CTRL-C,,missing,,no-op
 key,ctrl-w,CTRL-W CTRL-D,,missing,,"same as ""CTRL-W d"""
 key,ctrl-w,CTRL-W CTRL-F,,missing,,"same as ""CTRL-W f"""
-key,ctrl-w,CTRL-W CTRL-H,,missing,,"same as ""CTRL-W h"""
+key,ctrl-w,CTRL-W CTRL-H,,partial,present; not yet verified against nvim,"same as ""CTRL-W h"""
 key,ctrl-w,CTRL-W CTRL-I,,missing,,"same as ""CTRL-W i"""
-key,ctrl-w,CTRL-W CTRL-J,,missing,,"same as ""CTRL-W j"""
-key,ctrl-w,CTRL-W CTRL-K,,missing,,"same as ""CTRL-W k"""
-key,ctrl-w,CTRL-W CTRL-L,,missing,,"same as ""CTRL-W l"""
-key,ctrl-w,CTRL-W CTRL-N,,missing,,"same as ""CTRL-W n"""
-key,ctrl-w,CTRL-W CTRL-O,,missing,,"same as ""CTRL-W o"""
-key,ctrl-w,CTRL-W CTRL-P,,missing,,"same as ""CTRL-W p"""
-key,ctrl-w,CTRL-W CTRL-Q,,missing,,"same as ""CTRL-W q"""
+key,ctrl-w,CTRL-W CTRL-J,,partial,present; not yet verified against nvim,"same as ""CTRL-W j"""
+key,ctrl-w,CTRL-W CTRL-K,,partial,present; not yet verified against nvim,"same as ""CTRL-W k"""
+key,ctrl-w,CTRL-W CTRL-L,,partial,present; not yet verified against nvim,"same as ""CTRL-W l"""
+key,ctrl-w,CTRL-W CTRL-N,,partial,present; not yet verified against nvim,"same as ""CTRL-W n"""
+key,ctrl-w,CTRL-W CTRL-O,,partial,present; not yet verified against nvim,"same as ""CTRL-W o"""
+key,ctrl-w,CTRL-W CTRL-P,,partial,present; not yet verified against nvim,"same as ""CTRL-W p"""
+key,ctrl-w,CTRL-W CTRL-Q,,partial,present; not yet verified against nvim,"same as ""CTRL-W q"""
 key,ctrl-w,CTRL-W CTRL-R,,missing,,"same as ""CTRL-W r"""
-key,ctrl-w,CTRL-W CTRL-S,,missing,,"same as ""CTRL-W s"""
-key,ctrl-w,CTRL-W CTRL-T,,missing,,"same as ""CTRL-W t"""
-key,ctrl-w,CTRL-W CTRL-V,,missing,,"same as ""CTRL-W v"""
-key,ctrl-w,CTRL-W CTRL-W,,missing,,"same as ""CTRL-W w"""
+key,ctrl-w,CTRL-W CTRL-S,,partial,present; not yet verified against nvim,"same as ""CTRL-W s"""
+key,ctrl-w,CTRL-W CTRL-T,,partial,present; not yet verified against nvim,"same as ""CTRL-W t"""
+key,ctrl-w,CTRL-W CTRL-V,,partial,present; not yet verified against nvim,"same as ""CTRL-W v"""
+key,ctrl-w,CTRL-W CTRL-W,,partial,present; not yet verified against nvim,"same as ""CTRL-W w"""
 key,ctrl-w,CTRL-W CTRL-X,,missing,,"same as ""CTRL-W x"""
 key,ctrl-w,CTRL-W CTRL-Z,,missing,,"same as ""CTRL-W z"""
 key,ctrl-w,CTRL-W CTRL-],,missing,,"same as ""CTRL-W ]"""
-key,ctrl-w,CTRL-W CTRL-^,,missing,,"same as ""CTRL-W ^"""
+key,ctrl-w,CTRL-W CTRL-^,,partial,present; not yet verified against nvim,"same as ""CTRL-W ^"""
 key,ctrl-w,CTRL-W CTRL-_,,missing,,"same as ""CTRL-W _"""
 key,ctrl-w,CTRL-W +,,missing,,increase current window height N lines
 key,ctrl-w,CTRL-W -,,missing,,decrease current window height N lines
@@ -352,14 +352,14 @@ key,ctrl-w,CTRL-W K,,missing,,move current window to the very top
 key,ctrl-w,CTRL-W L,,missing,,move current window to the far right
 key,ctrl-w,CTRL-W P,,missing,,go to preview window
 key,ctrl-w,CTRL-W R,,missing,,rotate windows upwards N times
-key,ctrl-w,CTRL-W S,,missing,,"same as ""CTRL-W s"""
+key,ctrl-w,CTRL-W S,,partial,present; not yet verified against nvim,"same as ""CTRL-W s"""
 key,ctrl-w,CTRL-W T,,missing,,move current window to a new tabpage
-key,ctrl-w,CTRL-W W,,missing,,go to N previous window (wrap around)
+key,ctrl-w,CTRL-W W,,partial,present; not yet verified against nvim,go to N previous window (wrap around)
 key,ctrl-w,CTRL-W ],,missing,,split window and jump to tag under cursor
-key,ctrl-w,CTRL-W ^,,missing,,split current window and edit alternate
+key,ctrl-w,CTRL-W ^,,partial,present; not yet verified against nvim,split current window and edit alternate
 key,ctrl-w,CTRL-W _,,missing,,set current window height to N (default:
-key,ctrl-w,CTRL-W b,,missing,,go to bottom window
-key,ctrl-w,CTRL-W c,,missing,,close current window (like |:close|)
+key,ctrl-w,CTRL-W b,,partial,present; not yet verified against nvim,go to bottom window
+key,ctrl-w,CTRL-W c,,partial,present; not yet verified against nvim,close current window (like |:close|)
 key,ctrl-w,CTRL-W d,,missing,,split window and jump to definition under
 key,ctrl-w,CTRL-W f,,missing,,split window and edit file name under the
 key,ctrl-w,CTRL-W F,,missing,,split window and edit file name under the
@@ -370,27 +370,27 @@ key,ctrl-w,CTRL-W g F,,missing,,edit file name under the cursor in a new
 key,ctrl-w,CTRL-W g t,,missing,,same as `gt`: go to next tabpage
 key,ctrl-w,CTRL-W g T,,missing,,same as `gT`: go to previous tabpage
 key,ctrl-w,CTRL-W g <Tab>,,missing,,same as |g<Tab>|: go to last accessed tab
-key,ctrl-w,CTRL-W h,,missing,,go to Nth left window (stop at first window)
+key,ctrl-w,CTRL-W h,,partial,present; not yet verified against nvim,go to Nth left window (stop at first window)
 key,ctrl-w,CTRL-W i,,missing,,split window and jump to declaration of
-key,ctrl-w,CTRL-W j,,missing,,go N windows down (stop at last window)
-key,ctrl-w,CTRL-W k,,missing,,go N windows up (stop at first window)
-key,ctrl-w,CTRL-W l,,missing,,go to Nth right window (stop at last window)
-key,ctrl-w,CTRL-W n,,missing,,"open new window, N lines high"
-key,ctrl-w,CTRL-W o,,missing,,close all but current window (like |:only|)
-key,ctrl-w,CTRL-W p,,missing,,go to previous (last accessed) window
-key,ctrl-w,CTRL-W q,,missing,,quit current window (like |:quit|)
+key,ctrl-w,CTRL-W j,,partial,present; not yet verified against nvim,go N windows down (stop at last window)
+key,ctrl-w,CTRL-W k,,partial,present; not yet verified against nvim,go N windows up (stop at first window)
+key,ctrl-w,CTRL-W l,,partial,present; not yet verified against nvim,go to Nth right window (stop at last window)
+key,ctrl-w,CTRL-W n,,partial,present; not yet verified against nvim,"open new window, N lines high"
+key,ctrl-w,CTRL-W o,,partial,present; not yet verified against nvim,close all but current window (like |:only|)
+key,ctrl-w,CTRL-W p,,partial,present; not yet verified against nvim,go to previous (last accessed) window
+key,ctrl-w,CTRL-W q,,partial,present; not yet verified against nvim,quit current window (like |:quit|)
 key,ctrl-w,CTRL-W r,,missing,,rotate windows downwards N times
-key,ctrl-w,CTRL-W s,,missing,,"split current window in two parts, new"
-key,ctrl-w,CTRL-W t,,missing,,go to top window
-key,ctrl-w,CTRL-W v,,missing,,"split current window vertically, new window"
-key,ctrl-w,CTRL-W w,,missing,,go to N next window (wrap around)
+key,ctrl-w,CTRL-W s,,partial,present; not yet verified against nvim,"split current window in two parts, new"
+key,ctrl-w,CTRL-W t,,partial,present; not yet verified against nvim,go to top window
+key,ctrl-w,CTRL-W v,,partial,present; not yet verified against nvim,"split current window vertically, new window"
+key,ctrl-w,CTRL-W w,,partial,present; not yet verified against nvim,go to N next window (wrap around)
 key,ctrl-w,CTRL-W x,,missing,,exchange current window with window N
 key,ctrl-w,CTRL-W z,,missing,,close preview window
 key,ctrl-w,CTRL-W |,,missing,,set window width to N columns
 key,ctrl-w,CTRL-W },,missing,,show tag under cursor in preview window
-key,ctrl-w,CTRL-W <Down>,,missing,,"same as ""CTRL-W j"""
-key,ctrl-w,CTRL-W <Up>,,missing,,"same as ""CTRL-W k"""
-key,ctrl-w,CTRL-W <Left>,,missing,,"same as ""CTRL-W h"""
+key,ctrl-w,CTRL-W <Down>,,partial,present; not yet verified against nvim,"same as ""CTRL-W j"""
+key,ctrl-w,CTRL-W <Up>,,partial,present; not yet verified against nvim,"same as ""CTRL-W k"""
+key,ctrl-w,CTRL-W <Left>,,partial,present; not yet verified against nvim,"same as ""CTRL-W h"""
 key,bracket,[ CTRL-D,,missing,,jump to first #define found in current and
 key,bracket,[ CTRL-I,,missing,,jump to first line in current and included
 key,bracket,[#,motion,missing,,"cursor to N previous unmatched #if, #else"
@@ -765,7 +765,7 @@ ex,,checktime,:checkt[ime] ADDR_OTHER,missing,,ex_checktime
 ex,,chistory,:chi[story] ADDR_UNSIGNED,missing,,qf_history
 ex,,clist,:cl[ist] ADDR_NONE,missing,,qf_list
 ex,,clast,:cla[st] ADDR_UNSIGNED,missing,,ex_cc
-ex,,close,:clo[se] ADDR_WINDOWS,missing,,ex_close
+ex,,close,:clo[se] ADDR_WINDOWS,partial,present; not yet verified against nvim,ex_close
 ex,,clearjumps,:cle[arjumps] ADDR_NONE,missing,,ex_clearjumps
 ex,,cmap,:cm[ap] ADDR_NONE,missing,,ex_map
 ex,,cmapclear,:cmapc[lear] ADDR_NONE,missing,,ex_mapclear
@@ -867,7 +867,7 @@ ex,,helpclose,:helpc[lose] ADDR_NONE,deferred,help system,ex_helpclose
 ex,,helpgrep,:helpg[rep] ADDR_NONE,deferred,help system,ex_helpgrep
 ex,,helptags,:helpt[ags] ADDR_NONE,deferred,help system,ex_helptags
 ex,,highlight,:hi[ghlight] ADDR_NONE,missing,,ex_highlight
-ex,,hide,:hid[e] ADDR_WINDOWS,missing,,ex_hide
+ex,,hide,:hid[e] ADDR_WINDOWS,partial,present; not yet verified against nvim,ex_hide
 ex,,history,:his[tory] ADDR_NONE,missing,,ex_history
 ex,,horizontal,:hor[izontal] ADDR_NONE,missing,,ex_wrongmodifier
 ex,,insert,:i[nsert] ADDR_LINES,missing,,ex_append
@@ -977,7 +977,7 @@ ex,,mode,:mod[e] ADDR_NONE,missing,,ex_mode
 ex,,mzscheme,mzscheme ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_script_ni
 ex,,mzfile,mzfile ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_ni
 ex,,next,:n[ext] ADDR_OTHER,missing,,ex_next
-ex,,new,:new ADDR_OTHER,missing,,ex_splitview
+ex,,new,:new ADDR_OTHER,partial,present; not yet verified against nvim,ex_splitview
 ex,,nmap,:nm[ap] ADDR_NONE,missing,,ex_map
 ex,,nmapclear,:nmapc[lear] ADDR_NONE,missing,,ex_mapclear
 ex,,nmenu,:nme[nu] ADDR_OTHER,excluded,GUI,ex_menu
@@ -997,7 +997,7 @@ ex,,oldfiles,:ol[dfiles] ADDR_NONE,missing,,ex_oldfiles
 ex,,omap,:om[ap] ADDR_NONE,missing,,ex_map
 ex,,omapclear,:omapc[lear] ADDR_NONE,missing,,ex_mapclear
 ex,,omenu,:ome[nu] ADDR_OTHER,excluded,GUI,ex_menu
-ex,,only,:on[ly] ADDR_WINDOWS,missing,,ex_only
+ex,,only,:on[ly] ADDR_WINDOWS,partial,present; not yet verified against nvim,ex_only
 ex,,onoremap,:ono[remap] ADDR_NONE,missing,,ex_map
 ex,,onoremenu,:onoreme[nu] ADDR_OTHER,excluded,GUI,ex_menu
 ex,,options,:opt[ions] ADDR_NONE,missing,,ex_options
@@ -1044,8 +1044,8 @@ ex,,pyxdo,:pyxd[o] ADDR_LINES,excluded,"other languages, plugins and remote UI",
 ex,,pythonx,:pythonx ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_python3
 ex,,pyxfile,:pyxf[ile] ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_py3file
 ex,,quit,:q[uit] ADDR_WINDOWS,partial,present; not yet verified against nvim,ex_quit
-ex,,quitall,:quita[ll] ADDR_NONE,missing,,ex_quitall
-ex,,qall,:qa[ll] ADDR_NONE,missing,,ex_quitall
+ex,,quitall,:quita[ll] ADDR_NONE,partial,present; not yet verified against nvim,ex_quitall
+ex,,qall,:qa[ll] ADDR_NONE,partial,present; not yet verified against nvim,ex_quitall
 ex,,read,:r[ead] ADDR_LINES,partial,present; not yet verified against nvim,ex_read
 ex,,recover,:rec[over] ADDR_NONE,missing,,ex_recover
 ex,,redo,:red[o] ADDR_NONE,missing,,ex_redo
@@ -1074,7 +1074,7 @@ ex,,sargument,:sa[rgument] ADDR_ARGUMENTS,missing,,ex_argument
 ex,,sall,:sal[l] ADDR_OTHER,missing,,ex_all
 ex,,sandbox,:san[dbox] ADDR_NONE,excluded,Vimscript language,ex_wrongmodifier
 ex,,saveas,:sav[eas] ADDR_NONE,missing,,ex_write
-ex,,sbuffer,:sb[uffer] ADDR_BUFFERS,missing,,ex_buffer
+ex,,sbuffer,:sb[uffer] ADDR_BUFFERS,partial,present; not yet verified against nvim,ex_buffer
 ex,,sbNext,:sbN[ext] ADDR_OTHER,missing,,ex_bprevious
 ex,,sball,:sba[ll] ADDR_OTHER,missing,,ex_buffer_all
 ex,,sbfirst,:sbf[irst] ADDR_NONE,missing,,ex_brewind
@@ -1106,7 +1106,7 @@ ex,,snoremap,:snor[emap] ADDR_NONE,missing,,ex_map
 ex,,snoremenu,:snoreme[nu] ADDR_OTHER,excluded,GUI,ex_menu
 ex,,source,:so[urce] ADDR_LINES,excluded,Vimscript language,ex_source
 ex,,sort,:sor[t] ADDR_LINES,missing,,ex_sort
-ex,,split,:sp[lit] ADDR_OTHER,missing,,ex_splitview
+ex,,split,:sp[lit] ADDR_OTHER,partial,present; not yet verified against nvim,ex_splitview
 ex,,spellgood,:spe[llgood] ADDR_OTHER,deferred,spell checking,ex_spell
 ex,,spelldump,:spelld[ump] ADDR_NONE,deferred,spell checking,ex_spelldump
 ex,,spellinfo,:spelli[nfo] ADDR_NONE,deferred,spell checking,ex_spellinfo
@@ -1203,9 +1203,9 @@ ex,,vmap,:vm[ap] ADDR_NONE,missing,,ex_map
 ex,,vmapclear,:vmapc[lear] ADDR_NONE,missing,,ex_mapclear
 ex,,vmenu,:vme[nu] ADDR_OTHER,excluded,GUI,ex_menu
 ex,,vnoremap,:vn[oremap] ADDR_NONE,missing,,ex_map
-ex,,vnew,:vne[w] ADDR_OTHER,missing,,ex_splitview
+ex,,vnew,:vne[w] ADDR_OTHER,partial,present; not yet verified against nvim,ex_splitview
 ex,,vnoremenu,:vnoreme[nu] ADDR_OTHER,excluded,GUI,ex_menu
-ex,,vsplit,:vs[plit] ADDR_OTHER,missing,,ex_splitview
+ex,,vsplit,:vs[plit] ADDR_OTHER,partial,present; not yet verified against nvim,ex_splitview
 ex,,vunmap,:vu[nmap] ADDR_NONE,missing,,ex_unmap
 ex,,vunmenu,:vunme[nu] ADDR_NONE,excluded,GUI,ex_menu
 ex,,write,:w[rite] ADDR_LINES,partial,present; not yet verified against nvim,ex_write
@@ -1213,18 +1213,18 @@ ex,,wNext,:wN[ext] ADDR_OTHER,missing,,ex_wnext
 ex,,wall,:wa[ll] ADDR_NONE,missing,,do_wqall
 ex,,while,:wh[ile] ADDR_NONE,excluded,Vimscript language,ex_while
 ex,,winsize,:wi[nsize] ADDR_NONE,missing,,ex_winsize
-ex,,wincmd,:winc[md] ADDR_OTHER,missing,,ex_wincmd
+ex,,wincmd,:winc[md] ADDR_OTHER,partial,present; not yet verified against nvim,ex_wincmd
 ex,,windo,:wind[o] ADDR_WINDOWS,missing,,ex_listdo
 ex,,winpos,:winp[os] ADDR_NONE,excluded,GUI,ex_ni
 ex,,wnext,:wn[ext] ADDR_OTHER,missing,,ex_wnext
 ex,,wprevious,:wp[revious] ADDR_OTHER,missing,,ex_wnext
 ex,,wq,:wq ADDR_LINES,partial,present; not yet verified against nvim,ex_exit
-ex,,wqall,:wqa[ll] ADDR_NONE,missing,,do_wqall
+ex,,wqall,:wqa[ll] ADDR_NONE,partial,present; not yet verified against nvim,do_wqall
 ex,,wshada,:wsh[ada] ADDR_NONE,deferred,"sessions, views and shada",ex_shada
 ex,,wundo,:wu[ndo] ADDR_NONE,missing,,ex_wundo
 ex,,wviminfo,wviminfo ADDR_NONE,deferred,"sessions, views and shada",ex_shada
 ex,,xit,:x[it] ADDR_LINES,partial,present; not yet verified against nvim,ex_exit
-ex,,xall,:xa[ll] ADDR_NONE,missing,,do_wqall
+ex,,xall,:xa[ll] ADDR_NONE,partial,present; not yet verified against nvim,do_wqall
 ex,,xmap,:xm[ap] ADDR_NONE,missing,,ex_map
 ex,,xmapclear,:xmapc[lear] ADDR_NONE,missing,,ex_mapclear
 ex,,xmenu,:xme[nu] ADDR_OTHER,excluded,GUI,ex_menu

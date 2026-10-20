@@ -109,7 +109,13 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
    (track 23). Done so far: the table (`src/options/`), `:set`,
    `:setlocal`, `:setglobal`, `[set]` in config.toml, Tab completion,
    7 options.
-2. Buffer / window separation (track 2).
+2. Buffer / window separation (track 2) and windows (track 17): split
+   windows part 2 (spec stages 3–7 of
+   `docs/superpowers/specs/2026-10-19-split-windows-design.md`): resizing
+   (`CTRL-W + - < > = _ |`, `:resize`, options, `equalalways`), mouse in
+   windows, special buffers opening below with quit-window, zap across
+   windows, `fred_state` windows and the `fred_read` reload fix, oracle
+   cases. Part 1 is done.
 3. Registers (track 5), then key tables (track 4).
 4. Tracks 6–13 (the editing grammar), each with oracle cases.
 5. Track 14 continued: `\zs`/`\ze`, `\@` look-around, `\_` multi-line
@@ -141,3 +147,11 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
   `\c \C`, classes `\s \d \w \a \x`..., `[...]` with `[:alpha:]`) into Rust
   regex for `/ ? :s :g` and addresses; a bare `( | + {` now matches
   itself, as in Vim. `/` keeps Fred's smartcase. Oracle: 108 cases.
+- 2026-10-20: split windows part 1: layout tree (`src/window.rs`), windows
+  in `Session` (each with its own cursor and scroll; buffers keep their
+  scroll and highlighting across switches), per-window drawing with
+  active/inactive status lines and `│` dividers (`src/ui/windows.rs`),
+  `:split` family with counts, `CTRL-W` moves, closing (`:close`, `:only`,
+  `:hide`, `:q` in a split, `:qall` family, `:bd` closing its windows).
+  Tracks 2 and 17 stay at 0: tabs, resizing and the buffer/window struct
+  split remain.

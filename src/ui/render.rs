@@ -719,18 +719,8 @@ fn emphasize(spans: LineStyles, changed: &[std::ops::Range<usize>], shift: usize
 }
 
 /// Draw the editor; the frame area is the whole inline window.
-pub fn draw(
-    f: &mut Frame,
-    ed: &Editor,
-    view: &mut View,
-    hl: &mut Highlighter,
-    cfg: &Config,
-    budget: Duration,
-) {
-    let area = f.area();
-    if area.height == 0 || area.width == 0 {
-        return;
-    }
+/// The picker or Magit menu panel's height, below the command row.
+fn panel_height(ed: &Editor, area: Rect) -> usize {
     // Text rows; a terminal under 3 rows tall keeps only the bottom rows.
     let text_rows = (area.height as usize).saturating_sub(2);
     // A picker takes a panel at the bottom; the file stays as it was above.
@@ -743,17 +733,64 @@ pub fn draw(
         Mode::Pick(ref p) => panel_rows(text_rows, p.rows.len()),
         _ => 0,
     };
-    let rows = text_rows - panel;
-    if let Mode::Pick(p) = &ed.mode {
-        view.picker_offset = view.picker_offset.min(p.rows.len().saturating_sub(panel));
-        if p.sel < view.picker_offset {
-            view.picker_offset = p.sel;
-        } else if p.sel >= view.picker_offset + panel {
-            view.picker_offset = (p.sel + 1).saturating_sub(panel);
-        }
-    } else {
-        view.picker_offset = 0;
+    panel.min(text_rows)
+}
+
+/// Rows below the windows: the command row and any picker panel.
+pub fn chrome_rows(ed: &Editor, area: Rect) -> u16 {
+    1 + panel_height(ed, area) as u16
+}
+
+/// One window, the whole screen but the command row and panel.
+pub fn draw(
+    f: &mut Frame,
+    ed: &Editor,
+    view: &mut View,
+    hl: &mut Highlighter,
+    cfg: &Config,
+    budget: Duration,
+) {
+    let area = f.area();
+    if area.height == 0 || area.width == 0 {
+        return;
     }
+    let win = Rect {
+        height: area.height.saturating_sub(chrome_rows(ed, area)),
+        ..area
+    };
+    let cursor = draw_window(f.buffer_mut(), win, ed, view, hl, cfg, budget, true, false);
+    draw_chrome(f, area, ed, view, hl, cfg, budget, cursor);
+}
+
+/// One window in `rect`: its text, then its status line on the last row,
+/// with the `│` divider in the last column when `divider`. An inactive
+/// window shows no selection, popup, zap labels or explain box, and a dim
+/// status line. Returns the cursor's cell when `active`.
+#[allow(clippy::too_many_arguments)]
+pub fn draw_window(
+    buf: &mut Screen,
+    rect: Rect,
+    ed: &Editor,
+    view: &mut View,
+    hl: &mut Highlighter,
+    cfg: &Config,
+    budget: Duration,
+    active: bool,
+    divider: bool,
+) -> Option<(u16, u16)> {
+    if rect.height == 0 || rect.width <= u16::from(divider) {
+        return None;
+    }
+    let area = Rect {
+        width: rect.width - u16::from(divider),
+        height: rect.height - 1,
+        ..rect
+    };
+    let rows = area.height as usize;
+    let normal = Mode::Normal;
+    let mode = if active { &ed.mode } else { &normal };
+    let picking = matches!(mode, Mode::Pick(_));
+    let zap = ed.zap.as_ref().filter(|_| active);
     let gutter = gutter_width(ed).min(area.width as usize / 2);
     let blame_w = blame_column(ed).min(gutter);
     let sign = git_column(ed).min(gutter - blame_w);
@@ -765,7 +802,7 @@ pub fn draw(
     let margin_w = if cols >= margin_w * 2 { margin_w } else { 0 };
     let cols = cols - margin_w;
     let now = crate::magit::margin::now();
-    if panel == 0 && ed.zap.is_none() {
+    if !picking && zap.is_none() {
         view.scroll(ed, rows.max(1), cols, ed.opts.bool(Opt::Wrap));
     }
     let n = ed.line_count();
@@ -786,11 +823,11 @@ pub fn draw(
         hl.styles(&ed.buf, view.top..last, budget)
     };
     // Charwise Visual: its first and last positions, both included.
-    let chars = match ed.mode {
+    let chars = match *mode {
         Mode::Visual { anchor } => Some((anchor.min(ed.cur.pos()), anchor.max(ed.cur.pos()))),
         _ => None,
     };
-    let sel = match ed.mode {
+    let sel = match *mode {
         Mode::VisualLine { .. } | Mode::Visual { .. } => ed.visual_lines(),
         Mode::Command(ref cl) if cl.kind == ':' && cl.text.starts_with("'<,'>") => ed
             .marks
@@ -801,10 +838,9 @@ pub fn draw(
     };
     let splash = ed.path.is_none()
         && ed.buf.len_bytes() == 0
-        && matches!(ed.mode, Mode::Normal | Mode::Command(_));
+        && matches!(mode, Mode::Normal | Mode::Command(_));
     let num_style = Style::default().fg(Color::DarkGray);
     let cur_num_style = Style::default().add_modifier(Modifier::BOLD);
-    let buf = f.buffer_mut();
     let (ox, oy) = (area.x, area.y);
     let mut cursor = None;
     // The explained lines' first row and the row after them, if on screen.
@@ -1044,14 +1080,15 @@ pub fn draw(
         y += 1;
     }
     // The terminal's block cursor inverts its cell: a selected one would go unreadable.
-    if ed.visual_lines().is_some()
+    if active
+        && ed.visual_lines().is_some()
         && let Some((x, y)) = cursor
     {
         buf[(ox + x as u16, oy + y as u16)]
             .modifier
             .remove(Modifier::REVERSED);
     }
-    if let Some(zap) = &ed.zap {
+    if let Some(zap) = zap {
         for (word, label) in zap.choices() {
             if !label.starts_with(&zap.label_prefix) {
                 continue;
@@ -1090,10 +1127,63 @@ pub fn draw(
             cfg.icons,
         );
     }
-    view.explain_box = ed.explain.as_ref().and_then(|(_, text)| {
+    view.explain_box = ed.explain.as_ref().filter(|_| active).and_then(|(_, text)| {
         let text_area = Rect::new(ox, oy, area.width, rows as u16);
         draw_explain(buf, text_area, gutter, text, ex_top, ex_end)
     });
+    draw_status(buf, Rect::new(ox, oy + rows as u16, area.width, 1), ed, hl, active);
+    if divider {
+        let dim = Style::default().fg(Color::Indexed(240));
+        for y in rect.y..rect.bottom() {
+            buf.set_stringn(rect.right() - 1, y, "│", 1, dim);
+        }
+    }
+    let (cx, cy) = cursor.filter(|_| active && rows > 0)?;
+    if cy < rows {
+        let geom = Geom {
+            gutter,
+            rows,
+            wrap_cols: if ed.opts.bool(Opt::Wrap) { cols } else { 0 },
+        };
+        draw_popup(buf, area, ed, view, geom, (cx, cy));
+    }
+    let x = cx.min(area.width as usize - 1) as u16;
+    let y = cy.min(rows - 1) as u16;
+    Some((ox + x, oy + y))
+}
+
+/// What belongs to fred rather than a window: the command row and the
+/// picker or Magit menu panel at the bottom of `area`, the approval dialog,
+/// the right-click menu and ex completion; then the terminal cursor
+/// (`cursor`, the active window's, unless a command is being typed).
+#[allow(clippy::too_many_arguments)]
+pub fn draw_chrome(
+    f: &mut Frame,
+    area: Rect,
+    ed: &Editor,
+    view: &mut View,
+    hl: &mut Highlighter,
+    cfg: &Config,
+    budget: Duration,
+    cursor: Option<(u16, u16)>,
+) {
+    if area.height == 0 || area.width == 0 {
+        return;
+    }
+    let panel = panel_height(ed, area);
+    let rows = (area.height as usize).saturating_sub(2) - panel;
+    if let Mode::Pick(p) = &ed.mode {
+        view.picker_offset = view.picker_offset.min(p.rows.len().saturating_sub(panel));
+        if p.sel < view.picker_offset {
+            view.picker_offset = p.sel;
+        } else if p.sel >= view.picker_offset + panel {
+            view.picker_offset = (p.sel + 1).saturating_sub(panel);
+        }
+    } else {
+        view.picker_offset = 0;
+    }
+    let buf = f.buffer_mut();
+    let (ox, oy) = (area.x, area.y);
     // Claude asking to use a tool: a dialog over the text until y or n.
     if let Some(q) = ed.msg.as_ref().and_then(|(m, _)| crate::claude::asked(m)) {
         // `y` and `n` answer in Normal mode only (see `Session::handle_key`).
@@ -1101,7 +1191,7 @@ pub fn draw(
         draw_approval(buf, Rect::new(ox, oy, area.width, rows as u16), q, typing);
     }
     if let Mode::Pick(p) = &ed.mode {
-        let list = Rect::new(ox, oy + rows as u16 + 2, area.width, panel as u16);
+        let list = Rect::new(ox, oy + area.height - panel as u16, area.width, panel as u16);
         if p.kind == Kind::MagitMenu {
             for (i, line) in transient_lines(ed, p.sel, area.width as usize)
                 .into_iter()
@@ -1115,31 +1205,14 @@ pub fn draw(
         }
     }
     let input_area = Rect::new(ox, oy, area.width, area.height - panel as u16);
-    if area.height >= 2 {
-        draw_status(buf, input_area, ed, hl);
-    }
     let cmd_cursor = draw_command_row(buf, input_area, ed);
-    if let Some((cx, cy)) = cursor
-        && cy < rows
-    {
-        let geom = Geom {
-            gutter,
-            rows,
-            wrap_cols: if ed.opts.bool(Opt::Wrap) { cols } else { 0 },
-        };
-        draw_popup(buf, area, ed, view, geom, (cx, cy));
-    }
     view.menu_box = ed.menu.as_ref().and_then(|m| draw_menu(buf, area, m));
     if let Mode::Command(cl) = &ed.mode {
         draw_ex_completion(buf, input_area, cl);
     }
     match (cmd_cursor, cursor) {
         (Some(x), _) => f.set_cursor_position((ox + x as u16, oy + input_area.height - 1)),
-        (None, Some((x, y))) if rows > 0 => {
-            let x = x.min(area.width as usize - 1) as u16;
-            let y = y.min(rows - 1) as u16;
-            f.set_cursor_position((ox + x, oy + y));
-        }
+        (None, Some(at)) => f.set_cursor_position(at),
         _ => {}
     }
 }
@@ -1189,8 +1262,10 @@ fn mode_color(m: &Mode) -> Color {
     }
 }
 
-fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter) {
-    let y = area.y + area.height - 2;
+/// The status line in `area`'s first row; dim and without the mode for an
+/// inactive window.
+fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter, active: bool) {
+    let y = area.y;
     let w = area.width as usize;
     let bar = Style::default()
         .bg(Color::Indexed(235))
@@ -1204,15 +1279,21 @@ fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter) {
         (m, _) => mode_name(m).to_string(),
     };
     buf.set_stringn(area.x, y, " ".repeat(w), w, bar);
-    let mut left = vec![
-        Span::styled("▎", mode),
-        Span::styled(format!(" {label} "), mode),
-    ];
+    let mut left = if active {
+        vec![
+            Span::styled("▎", mode),
+            Span::styled(format!(" {label} "), mode),
+        ]
+    } else {
+        vec![Span::styled(" ", bar)]
+    };
     // Claude at work, in whichever buffer you're watching it in.
     if let Some(w) = &ed.claude_working {
         left.push(Span::styled(format!(" {w} "), bold.fg(Color::LightMagenta)));
     }
-    if let Mode::Pick(p) = &ed.mode {
+    if let Mode::Pick(p) = &ed.mode
+        && active
+    {
         let (text, err) = match &ed.msg {
             Some((m, true)) => (m.as_str().into(), true),
             _ => (p.status_text(), p.err),
@@ -1327,6 +1408,11 @@ fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter) {
     buf.set_line(area.x, y, &Line::from(left), lw as u16);
     if rw <= w {
         buf.set_line(area.x + lw as u16, y, &Line::from(right), rw as u16);
+    }
+    if !active {
+        // Neovim's StatusLineNC.
+        let dim = Style::default().bg(Color::Indexed(236)).fg(Color::Indexed(244));
+        buf.set_style(Rect::new(area.x, y, area.width, 1), dim);
     }
 }
 

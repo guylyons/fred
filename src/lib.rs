@@ -28,4 +28,5 @@ pub mod text;
 pub mod ui;
 pub mod undo;
 pub mod vim;
+pub mod window;
 mod zap;

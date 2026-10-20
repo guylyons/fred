@@ -199,6 +199,26 @@ fn parse(keys: &[Key]) -> Parse<Cmd> {
             Parse::Invalid => Parse::Invalid,
         };
     }
+    // CTRL-W and one more key: CTRL-W CTRL-J is CTRL-W j, arrows are h j k l.
+    if *k == Key::ctrl('w') {
+        let Some(a) = keys.get(i + 1) else {
+            return Parse::Incomplete;
+        };
+        let c = match a.code {
+            KeyCode::Left => 'h',
+            KeyCode::Down => 'j',
+            KeyCode::Up => 'k',
+            KeyCode::Right => 'l',
+            KeyCode::Char('6') if a.ctrl => '^',
+            KeyCode::Char(c) => c,
+            _ => return Parse::Invalid,
+        };
+        return Parse::Done(Cmd::Simple {
+            count: c1,
+            key: *k,
+            arg: Some(c),
+        });
+    }
     match parse_motion(&keys[i..]) {
         Parse::Done((motion, _)) => return Parse::Done(Cmd::Move { count: c1, motion }),
         Parse::Incomplete => return Parse::Incomplete,
@@ -567,6 +587,11 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
     match (key.code, key.ctrl) {
         // Undo/redo would corrupt the history while a change is open.
         (KeyCode::Char('r'), true) | (KeyCode::Char('u'), false) if ed.undo.in_group() => {}
+        (KeyCode::Char('w'), true) => {
+            if let Some(cmd) = arg {
+                ed.pending_effect = Some(ExEffect::Window { cmd, count });
+            }
+        }
         // Ctrl-^ (Ctrl-6 on most terminals): the buffer before this one.
         (KeyCode::Char('^' | '6'), true) => {
             ed.pending_effect = Some(ExEffect::Buffer {

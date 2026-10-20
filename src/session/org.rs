@@ -32,6 +32,8 @@ impl Session {
             no_swap: true,
             swap_state: SwapState::None,
             used: 0,
+            hl: None,
+            view: crate::ui::View::default(),
         }));
         self.show(self.bufs.len() - 1);
     }
@@ -49,11 +51,7 @@ impl Session {
         }
         // Drop a special buffer (a capture's file buffer stays).
         if self.cur != me && self.ed_at(me).path.is_none() {
-            self.bufs.remove(me);
-            if me < self.cur {
-                self.cur -= 1;
-            }
-            self.clock += 1;
+            self.drop_buffer(me);
         }
         if let Some(f) = slot.take() {
             f(self, text, abort);
@@ -78,6 +76,8 @@ impl Session {
             no_swap: false,
             swap_state: SwapState::None,
             used: 0,
+            hl: None,
+            view: crate::ui::View::default(),
         }));
         Ok(self.bufs.len() - 1)
     }
