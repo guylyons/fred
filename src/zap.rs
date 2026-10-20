@@ -1,6 +1,7 @@
-//! Flash-style jumps to words wholly visible in the editor's text area.
+//! Flash-style jumps to words wholly visible in the text area of any window.
 
 use crate::editor::Editor;
+use crate::ex::ExEffect;
 use crate::key::{Key, KeyCode};
 use crate::ui::View;
 use crate::ui::layout::{Layout, Placed, wrap_cursor};
@@ -15,17 +16,37 @@ pub(crate) struct Viewport {
     pub wrap: bool,
 }
 
+impl Viewport {
+    /// The text area of a window `rect` (with its status line, and divider
+    /// when `divider`) showing `ed` from `view`.
+    pub fn of(rect: ratatui::layout::Rect, divider: bool, ed: &Editor, view: View) -> Self {
+        let width = (rect.width - u16::from(divider)) as usize;
+        let gutter = crate::ui::render::gutter_width(ed).min(width / 2);
+        Viewport {
+            view,
+            rows: (rect.height as usize).saturating_sub(1),
+            cols: width.saturating_sub(gutter).max(1),
+            wrap: ed.opts.bool(crate::options::Opt::Wrap),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub(crate) struct Word {
     pub text: String,
     pub point: (usize, usize),
     /// Text-area coordinates and width of each grapheme.
     pub cells: Vec<(usize, usize, usize)>,
+    /// The other window it's in; `None` for the editor's own.
+    pub win: Option<usize>,
 }
+
+/// Where a jump goes: a window (`None`: this one) and a point.
+type Target = (Option<usize>, (usize, usize));
 
 /// Scan only the visible byte slice of each on-screen line. The same Layout
 /// and right-edge cut-marker rule as rendering determine that slice.
-fn words(ed: &Editor, vp: Viewport) -> Vec<Word> {
+pub(crate) fn words(ed: &Editor, vp: Viewport) -> Vec<Word> {
     static WORD: OnceLock<Regex> = OnceLock::new();
     let re = WORD.get_or_init(|| Regex::new(r"\w+").unwrap());
     let word_char = |c: char| re.is_match(c.encode_utf8(&mut [0; 4]));
@@ -105,6 +126,7 @@ fn words(ed: &Editor, vp: Viewport) -> Vec<Word> {
                             )
                         })
                         .collect(),
+                    win: None,
                 });
             }
         }
@@ -126,7 +148,7 @@ pub(crate) struct Zap {
     pub label_prefix: String,
     selecting: bool,
     force_labels: bool,
-    words: Vec<Word>,
+    pub(crate) words: Vec<Word>,
 }
 
 impl Zap {
@@ -203,7 +225,7 @@ impl Zap {
             .collect()
     }
 
-    fn exact(&self) -> Option<(usize, usize)> {
+    fn exact(&self) -> Option<Target> {
         if self.query.is_empty() {
             return None;
         }
@@ -218,7 +240,7 @@ impl Zap {
                 }
             })
             .collect();
-        (exact.len() == 1).then(|| exact[0].point)
+        (exact.len() == 1).then(|| (exact[0].win, exact[0].point))
     }
 }
 
@@ -257,7 +279,7 @@ pub(crate) fn key(ed: &mut Editor, k: Key) {
                 target = choices
                     .iter()
                     .find(|(_, label)| *label == prefix)
-                    .map(|(w, _)| w.point);
+                    .map(|(w, _)| (w.win, w.point));
                 zap.selecting = true;
                 zap.label_prefix = prefix;
             }
@@ -266,10 +288,17 @@ pub(crate) fn key(ed: &mut Editor, k: Key) {
             target = zap.exact();
         }
     }
-    if let Some((line, byte)) = target {
-        ed.set_cursor(line, byte);
-    } else {
-        ed.zap = Some(zap);
+    match target {
+        Some(t) => jump(ed, t),
+        None => ed.zap = Some(zap),
+    }
+}
+
+/// Go to `target`; the session moves to another window.
+fn jump(ed: &mut Editor, (win, (line, byte)): Target) {
+    match win {
+        None => ed.set_cursor(line, byte),
+        Some(win) => ed.pending_effect = Some(ExEffect::ZapTo { win, line, byte }),
     }
 }
 
@@ -279,9 +308,9 @@ pub(crate) fn paste(ed: &mut Editor, text: &str) {
     zap.label_prefix.clear();
     zap.selecting = false;
     zap.force_labels = false;
-    if let Some((line, byte)) = zap.exact() {
-        ed.set_cursor(line, byte);
+    if let Some(t) = zap.exact() {
         ed.zap = None;
+        jump(ed, t);
     }
 }
 

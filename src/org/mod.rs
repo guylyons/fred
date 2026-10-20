@@ -657,6 +657,19 @@ pub fn wants_alt(ed: &Editor) -> bool {
     ed.org.is_some() || ed.org_view.is_some()
 }
 
+/// The user's `Space o` keys, and the Org command each runs.
+pub const LEADER: &[(char, &str)] = &[
+    ('a', "org-agenda"),
+    ('c', "org-capture"),
+    ('f', "gl/org-folder"),
+    ('h', "org-insert-heading"),
+    ('i', "org-insert-link"),
+    ('s', "org-store-link"),
+    ('t', "org-insert-todo-heading"),
+    ('I', "org-clock-in"),
+    ('O', "org-clock-out"),
+];
+
 /// Org keys before Vim: menus, the `Space o` leader and org-mode-map.
 pub fn key(ed: &mut Editor, k: Key) -> bool {
     if time::prompt_key(ed, k) || picker_key(ed, k) {
@@ -687,20 +700,9 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     }
     if normal && ed.vim.pending == [Key::ch(' '), Key::ch('o')] {
         ed.vim.pending.clear();
-        let cmd = match k.char() {
-            Some('a') => "org-agenda",
-            Some('c') => "org-capture",
-            Some('f') => "gl/org-folder",
-            Some('h') => "org-insert-heading",
-            Some('i') => "org-insert-link",
-            Some('s') => "org-store-link",
-            Some('t') => "org-insert-todo-heading",
-            Some('I') => "org-clock-in",
-            Some('O') => "org-clock-out",
-            _ => {
-                ed.set_err(format!("SPC o {} is undefined", describe(&[k])));
-                return true;
-            }
+        let Some(&(_, cmd)) = LEADER.iter().find(|l| Some(l.0) == k.char()) else {
+            ed.set_err(format!("SPC o {} is undefined", describe(&[k])));
+            return true;
         };
         let arg = std::mem::take(&mut ed.org_arg);
         run(ed, cmd, arg);

@@ -220,6 +220,7 @@ clipboard alone.
 | `ZZ`, `ZQ` | save (if changed) and quit; quit without saving |
 | `Space Enter`, `Space ;` | save (`:w`), close (`:q`) |
 | `Ctrl-^` | back to the buffer you were in before |
+| `Space`, then wait a second | show every `Space` key and what it does (as Emacs's which-key) |
 | `Space w` then `1`–`9` | jump to a split window: each one shows its number until you pick (or click the window) |
 | `Ctrl-Z` | suspend fred (`fg` brings it back) |
 
@@ -233,7 +234,7 @@ clipboard alone.
 | `Space g` | grep the project as you type |
 | `Space k` | search the lines of this file |
 | `Space B` | search the lines of every open buffer |
-| `Space s` | jump to any word on screen |
+| `Space s` | jump to any word on screen, in any window |
 | `Space d` | go to definition (same as `gd`) |
 | `Space c` | chat with Claude Code (`:claude`) |
 | `Space j` | browse files from a path, like Emacs's find-file |

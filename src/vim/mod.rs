@@ -267,6 +267,44 @@ fn parse(keys: &[Key]) -> Parse<Cmd> {
     }
 }
 
+/// What the `Space` keys do, for the which-key popup. Keep it in step with
+/// the `Space` arm of `simple` (and Org's `Space o`, Magit's `Space m`).
+const LEADER: &[(char, &str)] = &[
+    ('s', "zap to a word"),
+    ('p', "find a file"),
+    ('j', "browse files here"),
+    ('r', "recent files"),
+    ('g', "grep"),
+    ('k', "search this file's lines"),
+    ('b', "switch buffer"),
+    ('B', "search all buffers' lines"),
+    ('d', "go to definition"),
+    ('-', "dired this directory"),
+    ('O', "show in the file manager"),
+    ('w', "pick a window"),
+    ('c', "chat with Claude"),
+    ('m', "+magit"),
+    ('o', "+org"),
+    ('u', "universal argument"),
+    ('\n', "save"),
+    (';', "close"),
+];
+
+/// After `Space` (or `Space o`), its keys and what they do, for the
+/// which-key popup: the prefix's name and the entries.
+pub fn which_key(ed: &Editor) -> Option<(&'static str, Vec<(String, &'static str)>)> {
+    if ed.mode != Mode::Normal {
+        return None;
+    }
+    let (title, table) = match ed.vim.pending.as_slice() {
+        [s] if *s == Key::ch(' ') => ("SPC", LEADER),
+        [s, o] if *s == Key::ch(' ') && *o == Key::ch('o') => ("SPC o", crate::org::LEADER),
+        _ => return None,
+    };
+    let name = |c: char| if c == '\n' { "RET".into() } else { c.to_string() };
+    Some((title, table.iter().map(|&(c, what)| (name(c), what)).collect()))
+}
+
 /// Handle a key in Normal or Visual-line mode.
 pub fn normal_key(ed: &mut Editor, k: Key) {
     if k.is(KeyCode::Esc) || k == Key::ctrl('c') {

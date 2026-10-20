@@ -1875,3 +1875,50 @@ fn clicking_a_window_focuses_it() {
     s.mouse(screen, click(25, 10));
     assert_eq!((s.ed.buf.text().as_str(), s.ed.cur.pos()), ("alpha\nalps", (1, 3)));
 }
+
+#[test]
+fn zap_reaches_every_window() {
+    let (mut s, mut sc, d) = session_screen(41, 8, &[("a", "apple zed\n"), ("b", "zoo plum\n")]);
+    s.handle_keys(&format!(":vsplit {}<Enter>", d.path().join("b").display()));
+    sc.draw_session(&mut s);
+    // As the app does after a draw.
+    let p = s.tree.layout(s.area).into_iter().find(|p| p.id == s.active).unwrap();
+    s.ed.viewport = Some(crate::zap::Viewport::of(p.rect, p.divider, &s.ed, s.win().view));
+    let left = s.active;
+    s.handle_keys(" sz");
+    sc.draw_session(&mut s);
+    // `zoo` here and `zed` in the right window (from column 20) are labelled.
+    let b = sc.term.backend().buffer();
+    assert_eq!(b[(0, 0)].bg, ratatui::style::Color::Magenta);
+    assert_eq!(b[(26, 0)].bg, ratatui::style::Color::Magenta, "{}", sc.row(0));
+    let label = b[(26, 0)].symbol().to_string();
+    s.handle_keys(&label);
+    assert_ne!(s.active, left);
+    assert_eq!((s.ed.buf.text().as_str(), s.ed.cur.pos()), ("apple zed", (0, 6)));
+    // A word only the other window has jumps straight there.
+    s.handle_keys(" splum");
+    assert_eq!((s.active, s.ed.cur.pos()), (left, (0, 4)));
+}
+
+#[test]
+fn which_key_lists_the_leader_keys() {
+    let (mut s, mut sc, _d) = session_screen(80, 20, &[("a", "alpha\n")]);
+    s.handle_keys(" ");
+    s.which_key = true; // The app sets it after a second.
+    sc.draw_session(&mut s);
+    let text: String = (0..20).map(|r| sc.row(r) + "\n").collect();
+    assert!(text.contains(" SPC "), "{text}");
+    assert!(text.contains("s → zap to a word"), "{text}");
+    assert!(text.contains("o → +org"), "{text}");
+    // `Space o` shows Org's.
+    s.handle_keys("o");
+    assert!(!s.which_key);
+    s.which_key = true;
+    sc.draw_session(&mut s);
+    let text: String = (0..20).map(|r| sc.row(r) + "\n").collect();
+    assert!(text.contains("a → org-agenda"), "{text}");
+    // A key ends it.
+    s.handle_keys("<Esc>");
+    sc.draw_session(&mut s);
+    assert!(!(0..20).any(|r| sc.row(r).contains("org-agenda")));
+}

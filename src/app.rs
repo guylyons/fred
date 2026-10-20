@@ -39,6 +39,8 @@ const TICK: Duration = Duration::from_millis(50);
 /// instead: an idle fred barely wakes.
 const IDLE_AFTER: Duration = Duration::from_secs(2);
 const IDLE_TICK: Duration = Duration::from_millis(250);
+/// How long `Space` waits before showing its keys (as Emacs's which-key).
+const WHICH_KEY: Duration = Duration::from_secs(1);
 const HIGHLIGHT_BUDGET: Duration = Duration::from_millis(20);
 /// How long to wait for more pending input before drawing. Not zero: with
 /// `use-dev-tty`, crossterm's poll reads nothing when given no time.
@@ -102,17 +104,8 @@ impl Ui {
         self.area = Some(done.buffer.area);
         // The active window: its text rows (above its status line) and columns.
         let win = s.tree.layout(s.area).into_iter().find(|p| p.id == s.active);
-        let (rows, width) = win.map_or((0, 0), |p| {
-            let w = p.rect.width - u16::from(p.divider);
-            ((p.rect.height as usize).saturating_sub(1), w as usize)
-        });
-        let gutter = ui::render::gutter_width(&s.ed).min(width / 2);
-        s.ed.viewport = Some(crate::zap::Viewport {
-            view: s.win().view,
-            rows,
-            cols: width.saturating_sub(gutter).max(1),
-            wrap: s.ed.opts.bool(crate::options::Opt::Wrap),
-        });
+        s.ed.viewport = win.map(|p| crate::zap::Viewport::of(p.rect, p.divider, &s.ed, s.win().view));
+        let rows = s.ed.viewport.map_or(0, |v| v.rows);
         // Paging scrolls by the text rows actually on screen, not the
         // configured height, which may be "max".
         s.ed.win_height = rows.max(1);
@@ -733,6 +726,11 @@ fn event_loop(
     // Where they were typed (buffer, mode): only replayed there.
     let mut held_at = None;
     loop {
+        // A `Space` left waiting shows what can follow it.
+        if !s.which_key && active.elapsed() >= WHICH_KEY && crate::vim::which_key(&s.ed).is_some() {
+            s.which_key = true;
+            dirty = true;
+        }
         if dirty {
             ui.draw(s, cfg)?;
             // Keep drawing while visible lines are still being highlighted.

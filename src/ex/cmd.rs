@@ -84,6 +84,12 @@ pub enum ExEffect {
         force: bool,
         write: bool,
     },
+    /// Zap picked a word in another window: go there.
+    ZapTo {
+        win: usize,
+        line: usize,
+        byte: usize,
+    },
     /// A `CTRL-W` command (`:wincmd`), with its count.
     Window {
         cmd: char,

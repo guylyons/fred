@@ -156,6 +156,32 @@ impl Session {
         self.win_mut().view = view;
     }
 
+    /// Zap just opened on the active window: add the words in every other.
+    pub(super) fn zap_windows(&mut self) {
+        let placed = self.tree.layout(self.area);
+        let mut more = vec![];
+        for w in &self.windows {
+            let Some(p) = placed.iter().find(|p| p.id == w.id && p.id != self.active) else {
+                continue;
+            };
+            let ed = match self.bufs[w.buf].as_ref() {
+                _ if w.buf == self.cur => &self.ed,
+                Some(park) => &park.ed,
+                None => continue,
+            };
+            // ponytail: a wrapped line under the live cursor counts that
+            // cursor, not this window's; off by a row at worst, near it.
+            let vp = crate::zap::Viewport::of(p.rect, p.divider, ed, w.view);
+            more.extend(crate::zap::words(ed, vp).into_iter().map(|mut x| {
+                x.win = Some(w.id);
+                x
+            }));
+        }
+        if let Some(z) = &mut self.ed.zap {
+            z.words.extend(more);
+        }
+    }
+
     /// Make window `id` the active one, with its own cursor.
     pub fn focus(&mut self, id: usize) {
         if id == self.active || !self.windows.iter().any(|w| w.id == id) {

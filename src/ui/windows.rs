@@ -1,9 +1,10 @@
 //! The whole screen: every window, then what belongs to fred.
 
-use super::render::{chrome_rows, draw_chrome, draw_window};
+use super::render::{chrome_rows, draw_chrome, draw_window, draw_zap, gutter_width};
 use crate::config::Config;
 use crate::session::Session;
 use ratatui::Frame;
+use ratatui::widgets::{Block, Borders, Clear, Widget};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
@@ -24,16 +25,28 @@ pub fn draw_session(f: &mut Frame, s: &mut Session, cfg: &Config, budget: Durati
     let mut cursor = None;
     let mut incomplete = false;
     let buf = f.buffer_mut();
+    // Other windows' text areas, for zap's labels on their words.
+    let mut zap_areas = vec![];
+    let zapping = s.ed.zap.is_some();
     s.each_window(|ed, view, hl, p, active| {
         let left = budget.saturating_sub(start.elapsed());
         let at = draw_window(buf, p.rect, ed, view, hl, cfg, left, active, p.divider);
         if active {
             cursor = at;
+        } else if zapping {
+            let vp = crate::zap::Viewport::of(p.rect, p.divider, ed, *view);
+            let gutter = gutter_width(ed).min((p.rect.width - u16::from(p.divider)) as usize / 2);
+            zap_areas.push((p.id, (p.rect.x, p.rect.y), gutter, vp.cols, vp.rows));
         }
         // Magit draws without the highlighter: its flag means nothing.
         incomplete |= ed.magit.is_none() && hl.incomplete();
     });
     s.hl_incomplete = incomplete;
+    if let Some(zap) = &s.ed.zap {
+        for (id, origin, gutter, cols, rows) in zap_areas {
+            draw_zap(buf, zap, Some(id), origin, gutter, cols, rows);
+        }
+    }
     if s.picking_window {
         let order = s.tree.order();
         for p in s.tree.layout(s.area) {
@@ -41,6 +54,11 @@ pub fn draw_session(f: &mut Frame, s: &mut Session, cfg: &Config, budget: Durati
                 number(buf, p.rect, i + 1);
             }
         }
+    }
+    if s.which_key
+        && let Some((title, keys)) = crate::vim::which_key(&s.ed)
+    {
+        which_key(buf, s.area, title, &keys);
     }
     let mut view = s.win().view;
     draw_chrome(f, area, &s.ed, &mut view, &mut s.hl, cfg, budget, cursor);
@@ -61,4 +79,45 @@ fn number(buf: &mut Buffer, rect: Rect, n: usize) {
     buf.set_string(x, y, format!("╭{bar}╮"), style);
     buf.set_string(x, y + 1, format!("│ {label} │"), style);
     buf.set_string(x, y + 2, format!("╰{bar}╯"), style);
+}
+
+/// The keys that can follow `title`, in columns, along the bottom of `area`.
+fn which_key(buf: &mut Buffer, area: Rect, title: &str, keys: &[(String, &str)]) {
+    let width = keys.iter().map(|(k, what)| k.len() + what.len() + 5).max().unwrap_or(1);
+    let inner = area.width.saturating_sub(2) as usize;
+    let cols = (inner / width).max(1);
+    let rows = keys.len().div_ceil(cols);
+    let height = (rows as u16 + 2).min(area.height);
+    let rect = Rect {
+        y: area.bottom() - height,
+        height,
+        ..area
+    };
+    Clear.render(rect, buf);
+    let block = Block::default()
+        .borders(Borders::TOP)
+        .title(format!(" {title} "))
+        .border_style(Style::default().fg(Color::DarkGray));
+    let text = block.inner(rect);
+    block.render(rect, buf);
+    for (i, (key, what)) in keys.iter().enumerate() {
+        let (col, row) = (i / rows, i % rows);
+        let (x, y) = (text.x + 1 + (col * width) as u16, text.y + row as u16);
+        if y >= text.bottom() || x >= text.right() {
+            continue;
+        }
+        let room = (text.right() - x) as usize;
+        let key_style = Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD);
+        buf.set_stringn(x, y, key, room, key_style);
+        let x = x + key.len() as u16;
+        if x < text.right() {
+            let line = format!(" → {what}");
+            let what_style = if what.starts_with('+') {
+                Style::default().fg(Color::Magenta)
+            } else {
+                Style::default()
+            };
+            buf.set_stringn(x, y, line, (text.right() - x) as usize, what_style);
+        }
+    }
 }

@@ -159,6 +159,8 @@ pub struct Session {
     prev_win: Option<usize>,
     /// `Space w`: the windows show their numbers until the next key.
     pub picking_window: bool,
+    /// The which-key popup is up: `Space` was pressed a while ago.
+    pub which_key: bool,
     next_win_id: usize,
     /// The windows' area on screen, set by the app every draw.
     pub area: Rect,
@@ -357,6 +359,7 @@ impl Session {
             active: 1,
             prev_win: None,
             picking_window: false,
+            which_key: false,
             next_win_id: 2,
             area: Rect::new(0, 0, 80, 23),
             hl: Highlighter::new("ansi", false)?,
@@ -421,6 +424,7 @@ impl Session {
     }
 
     pub fn handle_key(&mut self, k: Key) {
+        self.which_key = false;
         if std::mem::take(&mut self.picking_window) {
             // A digit picks a window; any other key just puts the numbers away.
             if let Some(n) = k.char().and_then(|c| c.to_digit(10)).filter(|&n| n > 0)
@@ -447,7 +451,11 @@ impl Session {
                 c.files = files;
             }
         }
+        let zapping = self.ed.zap.is_some();
         self.ed.handle_key(k);
+        if !zapping && self.ed.zap.is_some() {
+            self.zap_windows();
+        }
         // A chat is never "unsaved".
         if self.ed.claude.is_some() {
             self.ed.buf.modified = false;
@@ -517,6 +525,10 @@ impl Session {
             }
             ExEffect::Buffer { cmd, arg, force } => self.buffer(cmd, &arg, force),
             ExEffect::Window { cmd, count } => self.wincmd(cmd, count),
+            ExEffect::ZapTo { win, line, byte } => {
+                self.focus(win);
+                self.ed.set_cursor(line, byte);
+            }
             ExEffect::Close { .. } => self.close_active(),
             ExEffect::Only => self.only(),
             ExEffect::QuitAll { force, write } => {

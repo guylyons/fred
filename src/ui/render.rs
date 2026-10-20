@@ -1089,34 +1089,7 @@ pub fn draw_window(
             .remove(Modifier::REVERSED);
     }
     if let Some(zap) = zap {
-        for (word, label) in zap.choices() {
-            if !label.starts_with(&zap.label_prefix) {
-                continue;
-            }
-            let highlight = Style::default().bg(Color::Yellow).fg(Color::Black);
-            for &(x, y, width) in word.cells.iter().take(zap.query.graphemes(true).count()) {
-                for dx in 0..width {
-                    if x + dx < cols && y < rows {
-                        buf[(ox + (gutter + x + dx) as u16, oy + y as u16)].set_style(highlight);
-                    }
-                }
-            }
-            if let Some(&(x, y, _)) = word.cells.first()
-                && x < cols
-                && y < rows
-            {
-                buf.set_stringn(
-                    ox + (gutter + x) as u16,
-                    oy + y as u16,
-                    &label[zap.label_prefix.len()..],
-                    cols - x,
-                    Style::default()
-                        .bg(Color::Magenta)
-                        .fg(Color::Black)
-                        .add_modifier(Modifier::BOLD),
-                );
-            }
-        }
+        draw_zap(buf, zap, None, (ox, oy), gutter, cols, rows);
     }
     // `fred` with no file: the start screen, until there's text.
     if splash {
@@ -2040,5 +2013,46 @@ fn draw_popup(
             width,
             style,
         );
+    }
+}
+
+/// Zap's labels on the words in window `win` (`None`: the zapping editor's
+/// own), whose text starts at `origin` + `gutter`.
+pub(crate) fn draw_zap(
+    buf: &mut Screen,
+    zap: &crate::zap::Zap,
+    win: Option<usize>,
+    (ox, oy): (u16, u16),
+    gutter: usize,
+    cols: usize,
+    rows: usize,
+) {
+    for (word, label) in zap.choices() {
+        if word.win != win || !label.starts_with(&zap.label_prefix) {
+            continue;
+        }
+        let highlight = Style::default().bg(Color::Yellow).fg(Color::Black);
+        for &(x, y, width) in word.cells.iter().take(zap.query.graphemes(true).count()) {
+            for dx in 0..width {
+                if x + dx < cols && y < rows {
+                    buf[(ox + (gutter + x + dx) as u16, oy + y as u16)].set_style(highlight);
+                }
+            }
+        }
+        if let Some(&(x, y, _)) = word.cells.first()
+            && x < cols
+            && y < rows
+        {
+            buf.set_stringn(
+                ox + (gutter + x) as u16,
+                oy + y as u16,
+                &label[zap.label_prefix.len()..],
+                cols - x,
+                Style::default()
+                    .bg(Color::Magenta)
+                    .fg(Color::Black)
+                    .add_modifier(Modifier::BOLD),
+            );
+        }
     }
 }
