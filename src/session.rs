@@ -1590,6 +1590,12 @@ mod tests {
         fn msg(&self) -> String {
             self.s.ed.msg.clone().map(|m| m.0).unwrap_or_default()
         }
+        fn cmdline_text(&self) -> String {
+            match &self.s.ed.mode {
+                Mode::Command(cl) => cl.text.clone(),
+                other => panic!("no command line: {other:?}"),
+            }
+        }
     }
 
     #[test]
@@ -2776,6 +2782,22 @@ mod tests {
             t.s.ed.magit.as_ref().map(|v| &v.kind),
             t.s.ed.msg
         );
+    }
+
+    #[test]
+    fn magit_prompts_keep_a_history_per_question() {
+        let mut t = T::open(Some("f.txt"), Some("one\n"));
+        magit_repo(&t);
+        t.keys(" ml-Ffirst<Enter><Esc>");
+        t.keys(" ml-Fsecond<Enter><Esc>");
+        // The next --grep= reading offers them, newest first (M-p, M-n).
+        t.keys(" ml-F<M-p>");
+        assert_eq!(t.cmdline_text(), "second");
+        t.keys("<M-p>");
+        assert_eq!(t.cmdline_text(), "first");
+        t.keys("<M-n><M-n>");
+        assert_eq!(t.cmdline_text(), "");
+        t.keys("<Esc>");
     }
 
     #[test]

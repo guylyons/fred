@@ -204,6 +204,8 @@ pub struct Editor {
     /// The project the pickers search; outlives `:e`.
     pub project: Arc<crate::pick::Project>,
     cmd_history: Vec<String>,
+    /// Answers given to each Magit prompt, newest last (by prompt text).
+    prompt_history: std::collections::HashMap<String, Vec<String>>,
     search_history: Vec<String>,
 }
 
@@ -274,6 +276,7 @@ impl Editor {
             git: crate::git::Gutter::default(),
             project: Arc::default(),
             cmd_history: vec![],
+            prompt_history: std::collections::HashMap::new(),
             search_history: vec![],
         }
     }
@@ -287,6 +290,7 @@ impl Editor {
         self.last_search_fwd = old.last_search_fwd;
         self.project = Arc::clone(&old.project);
         self.cmd_history = std::mem::take(&mut old.cmd_history);
+        self.prompt_history = std::mem::take(&mut old.prompt_history);
         self.search_history = std::mem::take(&mut old.search_history);
         self.win_height = old.win_height;
     }
@@ -311,8 +315,11 @@ impl Editor {
         if k.shift {
             return self.handle_key(Key { shift: false, ..k });
         }
-        // An Alt key nothing took: Fred's usual Esc, key.
-        if k.alt {
+        // An Alt key nothing took: Fred's usual Esc, key (except a Magit
+        // prompt's M-p / M-n history keys).
+        let prompt_history = matches!(&self.mode, Mode::Command(cl) if cl.kind == '=')
+            && matches!(k.code, KeyCode::Char('p' | 'n'));
+        if k.alt && !prompt_history {
             self.handle_key(Key::new(KeyCode::Esc));
             return self.handle_key(Key { alt: false, ..k });
         }
@@ -650,10 +657,18 @@ impl Editor {
             self.org_then = None;
             self.vim.pending_op = None;
         }
-        let hist = if cl.kind == ':' {
-            &self.cmd_history
-        } else {
-            &self.search_history
+        // Magit prompts keep a history per question (transient-history,
+        // the minibuffer's): M-p / M-n as well as Up / Down.
+        let empty = vec![];
+        let hist = match cl.kind {
+            ':' => &self.cmd_history,
+            '=' => self.prompt_history.get(&cl.prompt).unwrap_or(&empty),
+            _ => &self.search_history,
+        };
+        let k = match k.code {
+            KeyCode::Char('p') if k.alt && cl.kind == '=' => Key::new(KeyCode::Up),
+            KeyCode::Char('n') if k.alt && cl.kind == '=' => Key::new(KeyCode::Down),
+            _ => k,
         };
         match k.code {
             KeyCode::Esc => self.mode = Mode::Normal,
@@ -661,10 +676,16 @@ impl Editor {
             KeyCode::Enter => {
                 let cl = std::mem::take(cl);
                 self.mode = Mode::Normal;
+                if cl.kind == '=' && !cl.text.is_empty() {
+                    let h = self.prompt_history.entry(cl.prompt.clone()).or_default();
+                    if h.last() != Some(&cl.text) {
+                        h.push(cl.text.clone());
+                    }
+                }
                 self.run_cmdline(cl.kind, &cl.text);
             }
             KeyCode::Backspace if cl.text.is_empty() => self.mode = Mode::Normal,
-            KeyCode::Up | KeyCode::Down if cl.kind != '=' => {
+            KeyCode::Up | KeyCode::Down => {
                 let len = hist.len();
                 let next = match (k.code, cl.hist) {
                     (KeyCode::Up, None) if len > 0 => Some(len - 1),
