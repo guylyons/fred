@@ -84,6 +84,8 @@ pub enum ExEffect {
         force: bool,
         write: bool,
     },
+    /// `:help`: the commands, in a picker searching for this.
+    Help(String),
     /// Zap picked a word in another window: go there.
     ZapTo {
         win: usize,
@@ -319,8 +321,11 @@ pub struct Command {
     pub name: &'static str,
     pub min: usize,
     pub flags: u8,
-    /// What its argument looks like, for the error when it's missing.
+    /// What its argument looks like, for `:help` and the error when it's
+    /// missing.
     usage: &'static str,
+    /// What it does, in a line, for `:help`.
+    pub about: &'static str,
     run: fn(&mut ExState, Args) -> Result<ExEffect, String>,
 }
 
@@ -338,6 +343,59 @@ struct Args<'a> {
     in_global: bool,
 }
 
+impl Command {
+    const fn about(self, about: &'static str) -> Self {
+        Command { about, ..self }
+    }
+
+    /// What an optional argument looks like, for `:help`.
+    const fn takes(self, usage: &'static str) -> Self {
+        Command { usage, ..self }
+    }
+
+    /// How to write it, as in `:help`: `:[range]s[ubstitute]/pattern/…`.
+    pub fn synopsis(&self) -> String {
+        let mut s = String::from(":");
+        if self.flags & COUNT != 0 {
+            s += "[N]";
+        } else if self.flags & RANGE != 0 {
+            s += "[range]";
+        }
+        s += &self.name[..self.min];
+        if self.min < self.name.len() {
+            s += &format!("[{}]", &self.name[self.min..]);
+        }
+        if self.flags & BANG != 0 {
+            s += "[!]";
+        }
+        let arg = match self.usage {
+            "" if self.flags & FILE != 0 => "[file]",
+            "" if self.flags & EXTRA != 0 => "[arg]",
+            u => u,
+        };
+        if !arg.is_empty() && !arg.starts_with('/') {
+            s.push(' ');
+        }
+        s + arg
+    }
+}
+
+/// The command being typed on the `:` line, after any range: for the help
+/// shown beside it.
+pub fn typed(line: &str) -> Option<&'static Command> {
+    let mut rest = line;
+    loop {
+        rest = rest.trim_start_matches(|c: char| c.is_ascii_digit() || " .$%,;+-".contains(c));
+        // A mark (`:'a,'bd`): the quote and its letter.
+        match rest.strip_prefix('\'') {
+            Some(r) => rest = r.get(1..).unwrap_or(""),
+            None => break,
+        }
+    }
+    let name = &rest[..rest.find(|c: char| !c.is_ascii_alphabetic()).unwrap_or(rest.len())];
+    lookup(name)
+}
+
 /// Every named command. A prefix runs the first entry it abbreviates, so
 /// order decides ties, as in vim (`:s` is `:substitute`).
 pub const COMMANDS: &[Command] = &[
@@ -347,82 +405,128 @@ pub const COMMANDS: &[Command] = &[
         RANGE,
         "/pattern/replacement/[g]",
         |st, a| substitute(st, a.at, a.raw),
-    ),
+    )
+    .about("replace a pattern in lines"),
     needs("global", 1, RANGE | BANG, "/pattern/command", |st, a| {
         global_cmd(st, a, !a.force)
-    }),
+    })
+    .about("run a command on every line matching a pattern (! for the rest)"),
     needs("vglobal", 1, RANGE, "/pattern/command", |st, a| {
         global_cmd(st, a, false)
-    }),
+    })
+    .about("run a command on every line not matching a pattern"),
     cmd("delete", 1, RANGE, |st, a| {
         st.splice(a.at.start, a.at.end - a.at.start + 1, vec![]);
         st.cur = a.at.start.min(st.buf.len_lines() - 1);
         Ok(ExEffect::None)
-    }),
-    cmd("join", 1, RANGE | BANG, join),
+    })
+    .about("delete lines"),
+    cmd("join", 1, RANGE | BANG, join)
+    .about("join lines (! without adding spaces)"),
     needs("move", 1, RANGE, "{address}", |st, a| {
         move_copy(st, a, false)
-    }),
-    needs("t", 1, RANGE, "{address}", |st, a| move_copy(st, a, true)),
+    })
+    .about("move lines to below a line"),
+    needs("t", 1, RANGE, "{address}", |st, a| move_copy(st, a, true))
+    .about("copy lines to below a line, as :copy"),
     needs("copy", 2, RANGE, "{address}", |st, a| {
         move_copy(st, a, true)
-    }),
+    })
+    .about("copy lines to below a line"),
     cmd("write", 1, RANGE | BANG | EXTRA | FILE, |_, a| {
         write(a, false)
-    }),
-    cmd("wq", 2, RANGE | BANG | EXTRA | FILE, |_, a| write(a, true)),
-    cmd("xit", 1, 0, |_, _| Ok(ExEffect::WriteIfModifiedQuit)),
+    })
+    .about("save the buffer, or lines, to its file or another"),
+    cmd("wq", 2, RANGE | BANG | EXTRA | FILE, |_, a| write(a, true))
+    .about("save, then close"),
+    cmd("xit", 1, 0, |_, _| Ok(ExEffect::WriteIfModifiedQuit))
+    .about("save if changed, then close"),
     cmd("quit", 1, BANG, |_, a| {
         Ok(ExEffect::Quit { force: a.force })
-    }),
+    })
+    .about("close the window; the last one quits (! drops changes)"),
     cmd("edit", 1, BANG | EXTRA | FILE, |_, a| {
         Ok(ExEffect::Edit {
             path: path_arg(a.arg)?,
             force: a.force,
         })
-    }),
+    })
+    .about("open a file; alone, reload this one"),
     needs("read", 1, RANGE | FILE, "{file} or !{command}", |st, a| {
         let at = a.range.map_or(st.cur, |r| r.end);
         read(st, at, a.arg)
-    }),
+    })
+    .about("insert a file, or a command's output, below the line"),
     needs("occur", 3, RANGE, "{regexp}", |_, a| {
         Ok(ExEffect::Occur {
             pat: a.arg.to_owned(),
             range: a.range.map(|r| (r.start, r.end)),
         })
-    }),
-    cmd("claude", 3, 0, |_, _| Ok(ExEffect::Claude)),
-    cmd("pwd", 2, 0, |_, _| Ok(ExEffect::Pwd)),
-    cmd("set", 2, EXTRA | OPTION, |_, a| set(a, Level::Both)),
-    cmd("setlocal", 4, EXTRA | OPTION, |_, a| set(a, Level::Local)),
-    cmd("setglobal", 4, EXTRA | OPTION, |_, a| set(a, Level::Global)),
+    })
+    .about("list the matching lines in an editable buffer"),
+    cmd("claude", 3, 0, |_, _| Ok(ExEffect::Claude))
+    .about("chat with Claude Code in a buffer"),
+    cmd("pwd", 2, 0, |_, _| Ok(ExEffect::Pwd))
+    .about("show the working directory"),
+    cmd("set", 2, EXTRA | OPTION, |_, a| set(a, Level::Both))
+    .about("show or change options")
+    .takes("[option...]"),
+    cmd("setlocal", 4, EXTRA | OPTION, |_, a| set(a, Level::Local))
+    .about("change an option for this buffer or window only")
+    .takes("[option...]"),
+    cmd("setglobal", 4, EXTRA | OPTION, |_, a| set(a, Level::Global))
+    .about("change an option's global value")
+    .takes("[option...]"),
     cmd("cd", 2, EXTRA | FILE, |_, a| {
         Ok(ExEffect::Cd(path_arg(a.arg)?))
-    }),
-    cmd("buffer", 1, BANG | EXTRA, |_, a| buffer(a, BufCmd::Go)),
-    cmd("bnext", 2, BANG, |_, a| buffer(a, BufCmd::Next)),
-    cmd("bprevious", 2, BANG, |_, a| buffer(a, BufCmd::Prev)),
-    cmd("bNext", 2, BANG, |_, a| buffer(a, BufCmd::Prev)),
-    cmd("bdelete", 2, BANG | EXTRA, |_, a| buffer(a, BufCmd::Delete)),
-    cmd("ls", 2, BANG, |_, a| buffer(a, BufCmd::List)),
-    cmd("close", 3, BANG, |_, a| Ok(ExEffect::Close { force: a.force })),
-    cmd("only", 2, BANG, |_, _| Ok(ExEffect::Only)),
-    cmd("hide", 3, BANG, |_, a| Ok(ExEffect::Close { force: a.force })),
-    cmd("qall", 2, BANG, |_, a| quit_all(a, false)),
-    cmd("quitall", 5, BANG, |_, a| quit_all(a, false)),
-    cmd("wqall", 3, BANG, |_, a| quit_all(a, true)),
-    cmd("xall", 2, BANG, |_, a| quit_all(a, true)),
-    cmd("split", 2, RANGE | COUNT | EXTRA | FILE, |_, a| split(a, false, false)),
-    cmd("vsplit", 2, RANGE | COUNT | EXTRA | FILE, |_, a| split(a, true, false)),
-    cmd("new", 3, RANGE | COUNT | EXTRA | FILE, |_, a| split(a, false, true)),
-    cmd("vnew", 3, RANGE | COUNT | EXTRA | FILE, |_, a| split(a, true, true)),
+    })
+    .about("change the working directory")
+    .takes("[dir]"),
+    cmd("buffer", 1, BANG | EXTRA, |_, a| buffer(a, BufCmd::Go))
+    .about("go to a buffer by number or name")
+    .takes("[N|name]"),
+    cmd("bnext", 2, BANG, |_, a| buffer(a, BufCmd::Next))
+    .about("go to the next buffer"),
+    cmd("bprevious", 2, BANG, |_, a| buffer(a, BufCmd::Prev))
+    .about("go to the previous buffer"),
+    cmd("bNext", 2, BANG, |_, a| buffer(a, BufCmd::Prev))
+    .about("go to the previous buffer, as :bprevious"),
+    cmd("bdelete", 2, BANG | EXTRA, |_, a| buffer(a, BufCmd::Delete))
+    .about("close a buffer")
+    .takes("[N|name]"),
+    cmd("ls", 2, BANG, |_, a| buffer(a, BufCmd::List))
+    .about("list the open buffers"),
+    cmd("close", 3, BANG, |_, a| Ok(ExEffect::Close { force: a.force }))
+    .about("close this window"),
+    cmd("only", 2, BANG, |_, _| Ok(ExEffect::Only))
+    .about("close every other window"),
+    cmd("hide", 3, BANG, |_, a| Ok(ExEffect::Close { force: a.force }))
+    .about("close this window, as :close"),
+    cmd("qall", 2, BANG, |_, a| quit_all(a, false))
+    .about("quit fred (! drops changes)"),
+    cmd("quitall", 5, BANG, |_, a| quit_all(a, false))
+    .about("quit fred, as :qall"),
+    cmd("wqall", 3, BANG, |_, a| quit_all(a, true))
+    .about("save every changed buffer, then quit"),
+    cmd("xall", 2, BANG, |_, a| quit_all(a, true))
+    .about("save every changed buffer, then quit, as :wqall"),
+    cmd("split", 2, RANGE | COUNT | EXTRA | FILE, |_, a| split(a, false, false))
+    .about("split the window, optionally opening a file"),
+    cmd("vsplit", 2, RANGE | COUNT | EXTRA | FILE, |_, a| split(a, true, false))
+    .about("split the window side by side"),
+    cmd("new", 3, RANGE | COUNT | EXTRA | FILE, |_, a| split(a, false, true))
+    .about("split, with a new empty buffer"),
+    cmd("vnew", 3, RANGE | COUNT | EXTRA | FILE, |_, a| split(a, true, true))
+    .about("split side by side, with a new empty buffer"),
     cmd("sbuffer", 2, RANGE | COUNT | EXTRA, |_, a| {
         Ok(ExEffect::Split {
             vertical: false,
             what: SplitWhat::Buffer(a.arg.to_owned()),
             size: a.range.map(|r| r.end + 1),
         })
-    }),
+    })
+    .about("split, showing a buffer")
+    .takes("[N|name]"),
     needs("wincmd", 4, RANGE | COUNT, "{arg}", |_, a| {
         let mut c = a.arg.chars();
         match (c.next(), c.next()) {
@@ -432,19 +536,25 @@ pub const COMMANDS: &[Command] = &[
             }),
             _ => Err("E471: Argument required".into()),
         }
-    }),
-    cmd("buffers", 7, BANG, |_, a| buffer(a, BufCmd::List)),
-    cmd("files", 5, BANG, |_, a| buffer(a, BufCmd::List)),
+    })
+    .about("run a Ctrl-W window command"),
+    cmd("buffers", 7, BANG, |_, a| buffer(a, BufCmd::List))
+    .about("list the open buffers, as :ls"),
+    cmd("files", 5, BANG, |_, a| buffer(a, BufCmd::List))
+    .about("list the open buffers, as :ls"),
     needs(
         "ai",
         2,
         RANGE,
-        "what to change: :ai make this async",
+        "{instruction}",
         |st, a| ai(st, a.at, a.arg, false),
-    ),
+    )
+    .about("have Claude change the lines"),
     cmd("explain", 3, RANGE | EXTRA, |st, a| {
         ai(st, a.at, a.arg, true)
-    }),
+    })
+    .about("have Claude explain the lines")
+    .takes("[question]"),
     // :Magit NAME runs an upstream Magit command by name (like M-x);
     // alone, magit-status.
     cmd("Magit", 5, EXTRA, |_, a| {
@@ -456,7 +566,12 @@ pub const COMMANDS: &[Command] = &[
         crate::magit::commands::by_name(name)
             .map(ExEffect::Magit)
             .ok_or_else(|| format!("unknown Magit command: {}", a.arg))
-    }),
+    })
+    .about("run a Magit command by name; alone, magit-status")
+    .takes("[command]"),
+    cmd("help", 1, EXTRA, |_, a| Ok(ExEffect::Help(a.arg.to_owned())))
+        .about("list the commands; with a name, find it")
+        .takes("[command]"),
 ];
 
 const fn cmd(
@@ -470,6 +585,7 @@ const fn cmd(
         min,
         flags,
         usage: "",
+        about: "",
         run,
     }
 }
@@ -487,6 +603,7 @@ const fn needs(
         min,
         flags: flags | EXTRA | NEEDARG,
         usage,
+        about: "",
         run,
     }
 }
@@ -928,6 +1045,39 @@ mod tests {
                 assert!(e.starts_with(&format!(":{} needs", c.name)), "{e}");
             }
         }
+    }
+
+    /// What `:` completes and `:help` lists is what runs: each name, and its
+    /// shortest abbreviation, runs that command, and each says what it does.
+    #[test]
+    fn every_command_is_reachable_and_described() {
+        for c in COMMANDS {
+            assert_eq!(lookup(c.name).map(|l| l.name), Some(c.name));
+            assert_eq!(lookup(&c.name[..c.min]).map(|l| l.name), Some(c.name), "{}", c.name);
+            if c.min > 1 {
+                let short = lookup(&c.name[..c.min - 1]).map(|l| l.name);
+                assert_ne!(short, Some(c.name), "{} runs shorter than its min", c.name);
+            }
+            assert!(!c.about.is_empty(), "{} has no help", c.name);
+        }
+    }
+
+    #[test]
+    fn synopsis_and_typed() {
+        let syn = |n: &str| lookup(n).unwrap().synopsis();
+        assert_eq!(syn("s"), ":[range]s[ubstitute]/pattern/replacement/[g]");
+        assert_eq!(syn("q"), ":q[uit][!]");
+        assert_eq!(syn("sp"), ":[N]sp[lit] [file]");
+        assert_eq!(syn("b"), ":b[uffer][!] [N|name]");
+        assert_eq!(syn("ai"), ":[range]ai {instruction}");
+        assert_eq!(syn("t"), ":[range]t {address}");
+        let name = |l: &str| typed(l).map(|c| c.name);
+        assert_eq!(name("sp"), Some("split"));
+        assert_eq!(name("1,$s/a/b/"), Some("substitute"));
+        assert_eq!(name("'a,'bd"), Some("delete"));
+        assert_eq!(name(".,+3 j"), Some("join"));
+        assert_eq!(name("%"), None);
+        assert_eq!(name("zz"), None);
     }
 
     #[test]

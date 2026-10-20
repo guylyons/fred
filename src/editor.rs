@@ -853,8 +853,25 @@ impl Editor {
                     Err(e) => self.set_err(e),
                 }
             }
+            ExEffect::Help(query) => self.help(&query),
             eff => self.pending_effect = Some(eff),
         }
+    }
+
+    /// `:help`: every command and what it does, to search; the one picked
+    /// goes on the `:` line.
+    fn help(&mut self, query: &str) {
+        use crate::ex::cmd::{COMMANDS, NEEDARG};
+        let w = COMMANDS.iter().map(|c| c.synopsis().len()).max().unwrap_or(0);
+        let row = move |c: &crate::ex::cmd::Command| format!("{:<w$}  {}", c.synopsis(), c.about);
+        crate::pick::choose(self, "commands", COMMANDS.iter().map(row).collect(), query);
+        self.org_require_match = true;
+        self.org_then = Some(Box::new(move |ed, picked| {
+            if let Some(c) = COMMANDS.iter().find(|&c| row(c) == picked) {
+                let space = if c.flags & NEEDARG != 0 { " " } else { "" };
+                ed.open_cmdline(':', &format!("{}{space}", c.name));
+            }
+        }));
     }
 
     /// Jump to the next match of the last pattern (`reverse` flips direction).

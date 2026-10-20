@@ -195,9 +195,11 @@ fn ex_completion_popup_cycles_and_esc_dismisses_it() {
     let mut e = editor("text", ":<Tab>");
     s.draw(&e);
     let rows: Vec<_> = (0..11).map(|y| s.row(y)).collect();
-    assert!(rows.iter().any(|r| r.trim() == "ai"), "{rows:?}");
-    assert!(rows.iter().any(|r| r.trim() == "buffer"), "{rows:?}");
-    let ai_y = (0..11).find(|&y| s.row(y).trim() == "ai").unwrap();
+    // Each name, then what it does.
+    let name = |r: &str| r.split_whitespace().next().unwrap_or("").to_string();
+    assert!(rows.iter().any(|r| name(r) == "ai" && r.contains("have Claude")), "{rows:?}");
+    assert!(rows.iter().any(|r| name(r) == "buffer"), "{rows:?}");
+    let ai_y = (0..11).find(|&y| name(&s.row(y)) == "ai").unwrap();
     assert_eq!(
         s.term.backend().buffer()[(0, ai_y)].bg,
         ratatui::style::Color::Cyan
@@ -214,7 +216,7 @@ fn ex_completion_popup_cycles_and_esc_dismisses_it() {
         "first Esc only closes completion"
     );
     s.draw(&e);
-    assert!(!(0..11).any(|y| s.row(y).trim() == "buffer"));
+    assert!(!(0..11).any(|y| name(&s.row(y)) == "buffer"));
     e.handle_key(crate::key::Key::new(crate::key::KeyCode::Esc));
     assert_eq!(e.mode, Mode::Normal);
 }
@@ -1921,4 +1923,40 @@ fn which_key_lists_the_leader_keys() {
     s.handle_keys("<Esc>");
     sc.draw_session(&mut s);
     assert!(!(0..20).any(|r| sc.row(r).contains("org-agenda")));
+}
+
+#[test]
+fn colon_line_shows_help_for_the_command() {
+    let mut s = Screen::new(80, 12);
+    let e = editor("a", ":sp");
+    s.draw(&e);
+    let text: String = (0..12).map(|r| s.row(r) + "\n").collect();
+    assert!(text.contains(":[N]sp[lit] [file]"), "{text}");
+    assert!(text.contains("split the window, optionally opening a file"), "{text}");
+    // Tab's names say what they do too.
+    let e = editor("a", ":clo<Tab>");
+    s.draw(&e);
+    let text: String = (0..12).map(|r| s.row(r) + "\n").collect();
+    assert!(text.contains("close this window"), "{text}");
+    // No command, no box.
+    let e = editor("a", ":%");
+    s.draw(&e);
+    assert!(!(0..12).any(|r| s.row(r).contains('╭')));
+}
+
+#[test]
+fn help_lists_commands_and_puts_the_pick_on_the_colon_line() {
+    let mut e = editor("a", "");
+    e.run_ex("help vsplit");
+    let Mode::Pick(p) = &e.mode else { panic!("{:?}", e.mode) };
+    assert!(p.rows[0].text.starts_with(":[N]vs[plit] [file]"), "{}", p.rows[0].text);
+    e.handle_key(crate::key::Key::new(crate::key::KeyCode::Enter));
+    let Mode::Command(cl) = &e.mode else { panic!("{:?}", e.mode) };
+    assert_eq!(cl.text, "vsplit");
+    // One that needs an argument comes with the space for it.
+    let mut e = editor("a", "");
+    e.run_ex("help move lines");
+    e.handle_key(crate::key::Key::new(crate::key::KeyCode::Enter));
+    let Mode::Command(cl) = &e.mode else { panic!("{:?}", e.mode) };
+    assert_eq!(cl.text, "move ");
 }

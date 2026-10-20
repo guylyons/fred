@@ -862,7 +862,7 @@ ex,,grep,:gr[ep] ADDR_OTHER,missing,,ex_make
 ex,,grepadd,:grepa[dd] ADDR_OTHER,missing,,ex_make
 ex,,gui,:gu[i] ADDR_NONE,excluded,GUI,ex_nogui
 ex,,gvim,:gv[im] ADDR_NONE,excluded,GUI,ex_nogui
-ex,,help,:h[elp] ADDR_NONE,deferred,help system,ex_help
+ex,,help,:h[elp] ADDR_NONE,partial,"searchable list of fred's commands (usage and one line each); no help files or tags",ex_help
 ex,,helpclose,:helpc[lose] ADDR_NONE,deferred,help system,ex_helpclose
 ex,,helpgrep,:helpg[rep] ADDR_NONE,deferred,help system,ex_helpgrep
 ex,,helptags,:helpt[ags] ADDR_NONE,deferred,help system,ex_helptags

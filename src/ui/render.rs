@@ -200,6 +200,8 @@ pub(crate) fn mode_name(m: &Mode) -> &'static str {
             Kind::Def => "DEFINITION",
             Kind::Branches => "BRANCHES",
             Kind::MagitMenu => "MAGIT MENU",
+            // `:help` borrows Org's chooser.
+            Kind::OrgChoice if p.title == "commands" => "HELP",
             Kind::OrgMenu | Kind::OrgChoice => "ORG",
         },
     }
@@ -1192,36 +1194,80 @@ pub fn draw_chrome(
 
 /// Ex candidates grow upward from the command line, best first.
 fn draw_ex_completion(buf: &mut Screen, area: Rect, cl: &CmdLine) {
-    let Some((items, selected, _)) = &cl.comp else {
-        return;
-    };
+    // What the command being typed does, beside the completions (if any).
+    let mut room = area;
+    if let Some((items, selected, _)) = &cl.comp {
+        room.height -= draw_completions(buf, area, items, *selected, cl.kind == ':');
+    }
+    if cl.kind == ':'
+        && let Some(c) = crate::ex::cmd::typed(&cl.text)
+    {
+        draw_command_help(buf, room, c);
+    }
+}
+
+/// The Tab completions, above the command line; command names say what
+/// they do. Returns the rows taken.
+fn draw_completions(buf: &mut Screen, area: Rect, items: &[String], selected: usize, ex: bool) -> u16 {
     let height = items.len().min(area.height.saturating_sub(1) as usize);
     if height == 0 || area.width == 0 {
-        return;
+        return 0;
     }
-    let width = (items
-        .iter()
-        .map(|s| display_width(s, 1, 0))
-        .max()
-        .unwrap_or(0)
-        + 2)
-    .min(area.width as usize);
+    let about = |item: &String| {
+        let name = item.trim_end();
+        ex.then(|| crate::ex::cmd::COMMANDS.iter().find(|c| c.name == name))
+            .flatten()
+            .map(|c| c.about)
+    };
+    let name_w = items.iter().map(|s| display_width(s, 1, 0)).max().unwrap_or(0);
+    let about_w = items.iter().filter_map(about).map(str::len).max().map_or(0, |w| w + 2);
+    let width = (name_w + about_w + 2).min(area.width as usize);
     let off = (selected + 1)
         .saturating_sub(height)
         .min(items.len() - height);
     let top = area.bottom() - 1 - height as u16;
-    for (row, item) in items.iter().skip(off).take(height).enumerate() {
-        let style = if row + off == *selected {
+    for (row, item) in items.iter().enumerate().skip(off).take(height) {
+        let style = if row == selected {
             Style::default().bg(Color::Cyan).fg(Color::Black)
         } else {
             Style::default()
                 .bg(Color::Indexed(235))
                 .fg(Color::Indexed(250))
         };
-        let y = top + row as u16;
+        let y = top + (row - off) as u16;
         buf.set_stringn(area.x, y, " ".repeat(width), width, style);
         buf.set_stringn(area.x + 1, y, item, width.saturating_sub(2), style);
+        if let Some(a) = about(item)
+            && name_w + 3 < width
+        {
+            let dim = if row == selected { style } else { style.fg(Color::Indexed(244)) };
+            buf.set_stringn(area.x + 3 + name_w as u16, y, a, width - name_w - 3, dim);
+        }
     }
+    height as u16
+}
+
+/// Command `c`'s usage and what it does, in a box at the bottom of `area`,
+/// above the command line.
+fn draw_command_help(buf: &mut Screen, area: Rect, c: &crate::ex::cmd::Command) {
+    use ratatui::widgets::Widget;
+    let usage = c.synopsis();
+    let inner = usage.chars().count().max(c.about.len()) as u16;
+    let width = (inner + 4).min(area.right().saturating_sub(area.x));
+    // On a short screen it would hide most of the text.
+    if width < 8 || area.height < 10 {
+        return;
+    }
+    let rect = Rect::new(area.x, area.bottom() - 5, width, 4);
+    ratatui::widgets::Clear.render(rect, buf);
+    let block = ratatui::widgets::Block::bordered()
+        .border_type(ratatui::widgets::BorderType::Rounded)
+        .border_style(Style::default().fg(Color::DarkGray));
+    let text = block.inner(rect);
+    block.render(rect, buf);
+    let w = text.width as usize;
+    buf.set_stringn(text.x + 1, text.y, &usage, w - 1, Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD));
+    buf.set_stringn(text.x + 1, text.y + 1, c.about, w - 1, Style::default());
 }
 
 /// The mode's colour on the status line (the terminal's own palette).

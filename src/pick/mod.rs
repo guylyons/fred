@@ -1155,8 +1155,16 @@ pub fn org_menu(ed: &mut Editor, title: &str) {
 
 /// Org completing-read over `candidates`.
 pub fn org_choice(ed: &mut Editor, title: &str, candidates: Vec<String>) {
+    choose(ed, title, candidates, "");
+}
+
+/// Pick one of `candidates`, searching for `query` to begin with; Enter
+/// hands it to `ed.org_then`.
+pub fn choose(ed: &mut Editor, title: &str, candidates: Vec<String>, query: &str) {
     let mut p = Picker::new(Kind::OrgChoice, &ed.project, ed.cur.line);
     p.title = title.to_owned();
+    p.query.text = query.to_owned();
+    p.query.cursor = query.len();
     p.recent_files = candidates
         .into_iter()
         .map(|name| (name, PathBuf::new(), 0))

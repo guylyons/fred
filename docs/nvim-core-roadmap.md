@@ -155,3 +155,9 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
   `:hide`, `:q` in a split, `:qall` family, `:bd` closing its windows).
   Tracks 2 and 17 stay at 0: tabs, resizing and the buffer/window struct
   split remain.
+- 2026-10-20: `:help` (partial): every `COMMANDS` entry now carries a
+  one-line description, and its usage is generated from the table. `:help
+  [query]` searches them in a picker; the `:` line shows the typed
+  command's usage in a box, and Tab's names say what each does. A test
+  checks every name and shortest abbreviation runs its own command. No
+  help files or tags.

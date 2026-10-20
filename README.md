@@ -337,6 +337,11 @@ Lines are addressed as in ed: `N`, `.`, `$`, `+n`, `-n`, `/re/`, `?re?`, `'a`,
 go through the history. Each command is one undo step, even a `:g` that
 changes 500 lines.
 
+`:help` lists every command with how to write it and what it does; search it,
+and `Enter` puts the one you pick on the `:` line. `:help split` starts the
+search for you. While you type a command, a box above the `:` line shows its
+usage, and `Tab`'s list of names says what each one does.
+
 | Command | Does |
 |---|---|
 | `:w [file]`, `:w!` | write (`!` writes even if the file changed on disk) |
