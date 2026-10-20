@@ -240,32 +240,15 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         if k == Key::ctrl('d') {
             ed.pending_effect = Some(ExEffect::Magit(Action::DiffWhileCommitting));
         } else if k == Key::ctrl('i') || k.is(KeyCode::Tab) {
-            ed.magit_prompt = Some(super::Prompt::Trailer(None));
-            ed.open_cmdline('=', "");
-            if let Mode::Command(cl) = &mut ed.mode {
-                // git-commit-trailers: the known keys.
-                let keys = super::options::strings(
-                    "git-commit-trailers",
-                    &[
-                        "Acked-by",
-                        "Modified-by",
-                        "Reviewed-by",
-                        "Signed-off-by",
-                        "Tested-by",
-                        "Cc",
-                        "Reported-by",
-                        "Suggested-by",
-                        "Co-authored-by",
-                        "Co-developed-by",
-                    ],
-                );
-                cl.prompt = format!("Insert trailer ({}) Key: value: ", keys.join(" "));
-            }
-        } else if k == Key::ctrl('s') {
-            insert_trailer(ed, "Signed-off-by", "");
+            ed.pending_effect = Some(ExEffect::Magit(Action::Menu('&')));
+        } else if let Some(key) = trailer_for(k)
+            && !matches!(key, "Cc" | "Reported-by" | "Suggested-by")
+        {
+            // git-commit-get-ident: your own name and email.
+            insert_trailer(ed, key, "");
         } else if let Some(key) = trailer_for(k) {
             let me = ed.commit_repo.as_ref().map(ident).unwrap_or_default();
-            ed.magit_prompt = Some(super::Prompt::Trailer(Some(key)));
+            ed.magit_prompt = Some(super::Prompt::Trailer(key));
             ed.open_cmdline('=', "");
             if let Mode::Command(cl) = &mut ed.mode {
                 cl.prompt = format!("{key} (default {me}): ");

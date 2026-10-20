@@ -1430,8 +1430,14 @@ impl Session {
             if self.ed.commit_repo.is_none() {
                 return self.ed.set_err("Not in a commit message draft");
             }
-            crate::magit::prompt(&mut self.ed, crate::magit::Prompt::Trailer(Some(key)));
+            crate::magit::prompt(&mut self.ed, crate::magit::Prompt::Trailer(key));
             return;
+        }
+        if let Action::TrailerSelf(key) = action {
+            if self.ed.commit_repo.is_none() {
+                return self.ed.set_err("Not in a commit message draft");
+            }
+            return crate::magit::message::insert_trailer(&mut self.ed, key, "");
         }
         if let Action::Answered(repo, Question::Ediff(op), answers, defaults) = action {
             let (origin, args) = (self.cur, crate::magit::menu_arguments(&self.ed, 'V'));

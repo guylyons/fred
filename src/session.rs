@@ -1087,7 +1087,11 @@ impl Session {
                 Ok(keys) => {
                     // All typed in about 3s (100 frames), however many.
                     let per_frame = keys.len().div_ceil(100).max(1);
-                    self.typing = Some(Typing { keys, per_frame, reply });
+                    self.typing = Some(Typing {
+                        keys,
+                        per_frame,
+                        reply,
+                    });
                     return;
                 }
                 Err(e) => Err(e),
@@ -1099,7 +1103,10 @@ impl Session {
         let _ = reply.send(now);
     }
 
-    fn start_typing(&self, args: &serde_json::Value) -> Result<std::collections::VecDeque<Key>, String> {
+    fn start_typing(
+        &self,
+        args: &serde_json::Value,
+    ) -> Result<std::collections::VecDeque<Key>, String> {
         let keys = args["keys"].as_str().ok_or("keys is required")?;
         // Else a `y` typed by Claude would approve Claude.
         if self.asking() {
@@ -1153,7 +1160,11 @@ impl Session {
             if !line.is_empty() && line.trim().is_empty() && self.ed.cur.byte == line.len() {
                 let start = self.ed.buf.line_to_char(self.ed.cur.line);
                 let end = start + line.chars().count();
-                self.ed.apply(crate::buffer::Edit { start, end, text: String::new() });
+                self.ed.apply(crate::buffer::Edit {
+                    start,
+                    end,
+                    text: String::new(),
+                });
                 self.ed.cur.byte = 0;
             }
         }
@@ -1163,14 +1174,20 @@ impl Session {
     pub fn stop_typing(&mut self) {
         if let Some(t) = self.typing.take() {
             let left = t.keys.len();
-            let msg = format!("the user stopped you (Ctrl-C), {left} keys short; fred_state shows where fred is");
+            let msg = format!(
+                "the user stopped you (Ctrl-C), {left} keys short; fred_state shows where fred is"
+            );
             let _ = t.reply.send(Err(msg));
         }
     }
 
     /// `fred_approve`: Claude, in a chat, asks to use a tool. The answer
     /// waits for `y` or `n`.
-    pub fn approve(&mut self, args: &serde_json::Value, reply: std::sync::mpsc::Sender<Result<String, String>>) {
+    pub fn approve(
+        &mut self,
+        args: &serde_json::Value,
+        reply: std::sync::mpsc::Sender<Result<String, String>>,
+    ) {
         match self.editors_mut().find(|ed| crate::claude::busy(ed)) {
             Some(ed) => crate::claude::ask(ed, args, reply),
             None => {
@@ -1181,12 +1198,15 @@ impl Session {
 
     fn asking(&self) -> bool {
         let parked = self.bufs.iter().flatten().map(|b| &b.ed);
-        std::iter::once(&self.ed).chain(parked).any(|ed| crate::claude::question(ed).is_some())
+        std::iter::once(&self.ed)
+            .chain(parked)
+            .any(|ed| crate::claude::question(ed).is_some())
     }
 
     /// What fred shows, for Claude: mode, this buffer, message, buffers.
     fn state(&self) -> String {
-        let label = |ed: &Editor| match ed.path.as_deref().and_then(|p| std::path::absolute(p).ok()) {
+        let label = |ed: &Editor| match ed.path.as_deref().and_then(|p| std::path::absolute(p).ok())
+        {
             Some(p) if !ed.generated() => p.display().to_string(),
             _ => buf_name(ed),
         };
@@ -1206,12 +1226,20 @@ impl Session {
             out += &format!("message: {m}\n");
         }
         let mut list: Vec<usize> = (0..self.bufs.len()).collect();
-        list.sort_by_key(|&i| std::cmp::Reverse(self.bufs[i].as_ref().map_or(u64::MAX, |b| b.used)));
+        list.sort_by_key(|&i| {
+            std::cmp::Reverse(self.bufs[i].as_ref().map_or(u64::MAX, |b| b.used))
+        });
         out += "buffers, most recently used first:\n";
         for i in list {
             let ed = self.ed_at(i);
             let here = if i == self.cur { "*" } else { " " };
-            out += &format!("{here}{} {}:{}{}\n", i + 1, label(ed), ed.cur.line + 1, unsaved(ed));
+            out += &format!(
+                "{here}{} {}:{}{}\n",
+                i + 1,
+                label(ed),
+                ed.cur.line + 1,
+                unsaved(ed)
+            );
         }
         out
     }
@@ -1227,15 +1255,30 @@ impl Session {
             let line = args["start"].as_u64().unwrap_or(1).max(1) as usize - 1;
             let path = PathBuf::from(p);
             if !path.is_file() {
-                return Err(format!("{p} isn't a file (to make one: fred_keys `:e {p}<CR>`)"));
+                return Err(format!(
+                    "{p} isn't a file (to make one: fred_keys `:e {p}<CR>`)"
+                ));
             }
             self.ed.mode = Mode::Normal;
-            self.edit_path(path.clone(), Some(Goto { line, col: 0, pattern: None }));
+            self.edit_path(
+                path.clone(),
+                Some(Goto {
+                    line,
+                    col: 0,
+                    pattern: None,
+                }),
+            );
             if self.pending_edit.is_some() {
-                return Err(format!("{p} has a swap file; the user is being asked what to do"));
+                return Err(format!(
+                    "{p} has a swap file; the user is being asked what to do"
+                ));
             }
             if !self.is_own_file(&path) {
-                return Err(self.ed.msg.clone().map_or(format!("can't open {p}"), |m| m.0));
+                return Err(self
+                    .ed
+                    .msg
+                    .clone()
+                    .map_or(format!("can't open {p}"), |m| m.0));
             }
         }
         let i = match args["buffer"].as_u64() {
@@ -1269,7 +1312,9 @@ impl Session {
         for ed in self.editors_mut() {
             changed |= crate::claude::tick(ed);
         }
-        let asked = self.editors_mut().find_map(|ed| crate::claude::question(ed));
+        let asked = self
+            .editors_mut()
+            .find_map(|ed| crate::claude::question(ed));
         if let Some(s) = asked.or_else(|| crate::claude::status(&self.ed)) {
             self.ed.set_msg(s);
             changed = true;
@@ -2239,14 +2284,31 @@ mod tests {
     fn claude_drives_fred_through_the_remote_tools() {
         let mut t = T::open(Some("a"), Some("1\n2\n3\n"));
         fs::write(t.dir.path().join("b"), "x\ny\n").unwrap();
-        let d = std::path::absolute(t.dir.path()).unwrap().display().to_string();
+        let d = std::path::absolute(t.dir.path())
+            .unwrap()
+            .display()
+            .to_string();
         let keys = serde_json::json!({ "keys": format!("jdd:e {d}/b<CR>") });
         let state = call(&mut t.s, "fred_keys", keys).unwrap();
-        assert!(state.starts_with(&format!("mode: NORMAL\nbuffer 2: {d}/b, line 1 col 1 of 2 lines\n")), "{state}");
-        assert!(state.ends_with(&format!("*2 {d}/b:1\n 1 {d}/a:2, unsaved\n")), "{state}");
+        assert!(
+            state.starts_with(&format!(
+                "mode: NORMAL\nbuffer 2: {d}/b, line 1 col 1 of 2 lines\n"
+            )),
+            "{state}"
+        );
+        assert!(
+            state.ends_with(&format!("*2 {d}/b:1\n 1 {d}/a:2, unsaved\n")),
+            "{state}"
+        );
         let mut read = |args| call(&mut t.s, "fred_read", args);
-        assert_eq!(read(serde_json::json!({ "buffer": 1 })).unwrap(), "buffer 1: lines 1-2 of 2\n1\t1\n2\t3\n");
-        assert_eq!(read(serde_json::json!({ "start": 2, "end": 9 })).unwrap(), "buffer 2: lines 2-2 of 2\n2\ty\n");
+        assert_eq!(
+            read(serde_json::json!({ "buffer": 1 })).unwrap(),
+            "buffer 1: lines 1-2 of 2\n1\t1\n2\t3\n"
+        );
+        assert_eq!(
+            read(serde_json::json!({ "start": 2, "end": 9 })).unwrap(),
+            "buffer 2: lines 2-2 of 2\n2\ty\n"
+        );
         assert!(read(serde_json::json!({ "buffer": 3 })).is_err());
         assert!(read(serde_json::json!({ "start": 5 })).is_err());
         assert!(call(&mut t.s, "nope", serde_json::json!({})).is_err());
@@ -2275,7 +2337,10 @@ mod tests {
         while t.s.tick_typing() {}
         assert!(rx.recv().unwrap().unwrap().starts_with("mode: NORMAL"));
         // The indent as sent, not doubled by autoindent.
-        assert_eq!(t.s.ed.buf.text(), "fn x() {\n    w();\n    y();\n    z();\n}");
+        assert_eq!(
+            t.s.ed.buf.text(),
+            "fn x() {\n    w();\n    y();\n    z();\n}"
+        );
         t.keys("u");
         assert_eq!(t.s.ed.buf.text(), "fn x() {\n    w();\n}");
     }
@@ -2296,12 +2361,23 @@ mod tests {
         let mut t = T::open(Some("a"), Some("1\n"));
         fs::write(t.dir.path().join("b"), "x\ny\nz\n").unwrap();
         let b = t.dir.path().join("b").display().to_string();
-        let got = call(&mut t.s, "fred_read", serde_json::json!({ "path": b, "start": 2 }));
+        let got = call(
+            &mut t.s,
+            "fred_read",
+            serde_json::json!({ "path": b, "start": 2 }),
+        );
         assert_eq!(got.unwrap(), "buffer 2: lines 2-3 of 3\n2\ty\n3\tz\n");
         assert!(t.s.is_own_file(Path::new(&b)));
         assert_eq!(t.s.ed.cur.line, 1);
         let missing = t.dir.path().join("nope").display().to_string();
-        assert!(call(&mut t.s, "fred_read", serde_json::json!({ "path": missing })).is_err());
+        assert!(
+            call(
+                &mut t.s,
+                "fred_read",
+                serde_json::json!({ "path": missing })
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -2620,6 +2696,48 @@ mod tests {
                 .get(&('l', "--grep="))
                 .map(String::as_str),
             Some("commit")
+        );
+    }
+
+    #[test]
+    fn magit_menus_take_key_sequences_and_save_their_arguments() {
+        let mut t = T::open(Some("f.txt"), Some("one\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "first"]).unwrap();
+        // magit-branch-configure's "a m" is two keys.
+        t.keys(":Magit magit-branch-configure<Enter>am");
+        magit_settle(&mut t);
+        let merge = repo.read(&["config", "branch.autoSetupMerge"]).unwrap();
+        assert_eq!(String::from_utf8_lossy(&merge).trim(), "always");
+        // C-x C-s saves the log menu's arguments; a later session starts
+        // from them instead of the defaults.
+        t.keys(" ml-n");
+        t.keys("<Esc>");
+        t.keys(" ml<C-x><C-s>");
+        assert_eq!(t.s.ed.msg.as_ref().map(|m| m.0.as_str()), Some("Saved"));
+        let saved = crate::magit::menu_arguments(&t.s.ed, 'l');
+        t.s.ed.magit_options.clear();
+        t.s.ed.magit_values.clear();
+        t.s.ed.magit_seeded.clear();
+        t.keys(" ml<Esc>");
+        assert_eq!(crate::magit::menu_arguments(&t.s.ed, 'l'), saved);
+        // magit-revision-jump replaces the status jump menu in a commit.
+        t.keys(" mdc");
+        magit_settle(&mut t);
+        t.keys("HEAD<Enter>");
+        magit_settle(&mut t);
+        t.keys(":Magit magit-status-jump<Enter>");
+        assert_eq!(
+            t.s.ed.magit_menu,
+            Some('^'),
+            "{:?} {:?}",
+            t.s.ed.magit.as_ref().map(|v| &v.kind),
+            t.s.ed.msg
         );
     }
 
@@ -3003,7 +3121,7 @@ mod tests {
         magit_settle(&mut t);
         assert!(t.s.ed.commit_repo.is_some());
         t.keys("inew message<Esc>");
-        // C-c C-s signs off; C-c C-r asks, defaulting to you.
+        // C-c C-s signs off and C-c C-r reviews as you (git-commit-get-ident).
         t.keys("<C-c><C-s>");
         assert!(
             t.s.ed
@@ -3013,7 +3131,7 @@ mod tests {
             "{}",
             t.s.ed.buf.text()
         );
-        t.keys("<C-c><C-r><Enter>");
+        t.keys("<C-c><C-r>");
         assert!(
             t.s.ed
                 .buf
@@ -3022,9 +3140,12 @@ mod tests {
             "{}",
             t.s.ed.buf.text()
         );
-        t.keys("<C-c><Tab>Fixes: #12<Enter>");
+        // C-c C-i: git-commit-insert-trailer; C-c there asks who to Cc.
+        t.keys("<C-c><Tab>");
+        assert_eq!(t.s.ed.magit_menu, Some('&'));
+        t.keys("<C-c>Ann <ann@example.test><Enter>");
         assert!(
-            t.s.ed.buf.text().contains("Fixes: #12"),
+            t.s.ed.buf.text().contains("Cc: Ann <ann@example.test>"),
             "{}",
             t.s.ed.buf.text()
         );

@@ -4705,6 +4705,77 @@ fn norm(d: &str) -> String {
 }
 /// The baseline UI map: every entry of the runtime surface snapshot's
 /// transient prefixes, matched with Fred's menus by key and command.
+/// Why an entry that does not match stays that way.
+const UI_NOTES: &[(&str, &str, &str)] = &[
+    (
+        "magit-dispatch",
+        "<return>",
+        "Enter runs the highlighted menu row; RET visits in the buffer",
+    ),
+    (
+        "magit-dispatch",
+        "<tab>",
+        "TAB toggles in the buffer; menus list it nowhere",
+    ),
+    (
+        "magit-dispatch",
+        "C-xm",
+        "no describe-mode; the menu itself lists the buffer's keys",
+    ),
+    ("magit-dispatch", "j", "j moves down (evil); J opens status"),
+    (
+        "magit-file-dispatch",
+        "c",
+        "c commits and r blames here, so the , forms are the only ones",
+    ),
+    (
+        "magit-file-dispatch",
+        "k",
+        "kept with its , form, like c and r",
+    ),
+    (
+        "magit-file-dispatch",
+        "r",
+        "c commits and r blames here, so the , forms are the only ones",
+    ),
+    (
+        "magit-file-dispatch",
+        "x",
+        "kept with its , form, like c and r",
+    ),
+    ("magit-patch-create", "C-ml", "terminals send C-m as Enter"),
+    ("magit-patch-create", "C-mr", "terminals send C-m as Enter"),
+    (
+        "magit-pull",
+        "m",
+        "shown when magit-pull-or-fetch is true (as upstream)",
+    ),
+    (
+        "magit-pull",
+        "o",
+        "shown when magit-pull-or-fetch is true (as upstream)",
+    ),
+    (
+        "magit-pull",
+        "s",
+        "shown when magit-pull-or-fetch is true (as upstream)",
+    ),
+    (
+        "magit-rebase",
+        "-p",
+        "upstream offers it only for Git older than 2.33",
+    ),
+    (
+        "magit-revision-jump",
+        "j",
+        "no imenu; the menu's other keys jump to each part",
+    ),
+    (
+        "magit-status-jump",
+        "j",
+        "no imenu; the menu's other keys jump to each section",
+    ),
+];
 /// Entries whose upstream description is computed (so the map cannot
 /// compare it) and that were checked by hand against Fred's menu.
 const REVIEWED: &[(&str, &str, &str)] = &[
@@ -4795,12 +4866,18 @@ fn ui_map() -> Vec<UiRow> {
         .replace(' ', "");
         let menu = menu_of(&prefix);
         let entries = menu.map(menu_entries).unwrap_or_default();
-        // An infix "transient:PREFIX:ARG" (or "PREFIX:ARG") is its argument.
+        // An infix "transient:PREFIX:ARG" (or "PREFIX:ARG") is its
+        // :argument, else the name's ARG.
         let infix = command
             .strip_prefix("transient:")
             .unwrap_or(&command)
             .split_once(':')
-            .map(|(_, arg)| arg.to_owned());
+            .map(|(_, arg)| {
+                s("properties")
+                    .split_once(":argument \"")
+                    .and_then(|(_, r)| r.split_once('"'))
+                    .map_or(arg.to_owned(), |(a, _)| a.to_owned())
+            });
         let matches = |a: &Action| match &infix {
             Some(arg) => arg_of(a).is_some_and(|x| {
                 x == *arg || x.starts_with(arg.as_str()) || arg.starts_with(x.trim_end_matches('='))
@@ -4886,6 +4963,13 @@ fn ui_map_is_current() {
         file == ui_map_md(),
         "run cargo test write_ui_map -- --ignored"
     );
+    // Every entry that does not match says why.
+    for r in ui_map() {
+        let known = r.status.starts_with("same")
+            || r.status == "disabled upstream"
+            || UI_NOTES.iter().any(|n| (n.0, n.1) == (&*r.prefix, &*r.key));
+        assert!(known, "{} {} {}: {}", r.prefix, r.key, r.command, r.status);
+    }
 }
 fn ui_map_md() -> String {
     let rows = ui_map();
@@ -4905,10 +4989,14 @@ fn ui_map_md() -> String {
     for (k, v) in &counts {
         md.push_str(&format!("| {k} | {v} |\n"));
     }
-    md.push_str("\n| Prefix | Key | Command | Fred menu | Fred key | Status |\n| --- | --- | --- | --- | --- | --- |\n");
+    md.push_str("\n| Prefix | Key | Command | Fred menu | Fred key | Status | Note |\n| --- | --- | --- | --- | --- | --- | --- |\n");
     for r in &rows {
+        let note = UI_NOTES
+            .iter()
+            .find(|n| (n.0, n.1) == (&*r.prefix, &*r.key) && r.status != "same")
+            .map_or("", |n| n.2);
         md.push_str(&format!(
-            "| {} | `{}` | {} | {} | `{}` | {} |\n",
+            "| {} | `{}` | {} | {} | `{}` | {} | {note} |\n",
             r.prefix,
             r.key.replace('|', "\\|"),
             r.command,

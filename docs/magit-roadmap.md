@@ -428,3 +428,14 @@ transient set/save (diff/log refresh s/w; track 2 argument persistence),
 pull-or-fetch rows, pull r, remote d u, revision-jump and trailer menus,
 rebase -p (Git < 2.33 only), and the section map. Score remains 3%. Next:
 finish those rows, then the acceptance scenario matrix.
+
+October 19 (merged main): menus take any key sequence an entry names
+(including C-x keys), so branch-configure a m / a r work; C-x s / C-x C-s
+set or save a menu's arguments in every menu (saved to
+~/.local/state/fred/transient-values and used instead of the defaults),
+and the diff/log refresh menus have s/w. New menus: git-commit-insert-trailer
+(C-c C-i; a m r s t insert your identity at once) and magit-revision-jump
+(the jump menu in commit buffers). Pull r, remote d u. UI map: 548 of 565
+entries match; the 16 others carry a reason (ui_map_is_current fails on
+an unexplained one). Remaining in the gate: the section map. Score remains
+3%. Next: section map, then the acceptance scenario matrix.

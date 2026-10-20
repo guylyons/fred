@@ -167,6 +167,11 @@ pub enum Action {
     ProcessBuffer,
     /// A git-commit trailer by key, read for the current draft.
     Trailer(&'static str),
+    /// A trailer with the user's own identity (git-commit-get-ident).
+    TrailerSelf(&'static str),
+    /// transient-set (C-x s) or, when true, transient-save (C-x C-s): the
+    /// menu's arguments become its defaults (saved: in later sessions too).
+    TransientSet(bool),
     /// A magit-ediff.el command (difftool / mergetool in the terminal).
     Ediff(ediff::Op),
     /// magit-ediff-dwim: by the thing at point.
@@ -936,26 +941,40 @@ impl View {
 pub fn wants_alt(ed: &Editor) -> bool {
     ed.magit.is_some() || ed.blame.is_some() || ed.rebase_todo.is_some() || ed.commit_repo.is_some()
 }
+/// A menu key as entries spell it: "a", or "C-a" for a control key.
+fn menu_key_name(k: &Key) -> String {
+    match k.code {
+        KeyCode::Char(c) if k.ctrl => format!("C-{c}"),
+        KeyCode::Char(c) => c.to_string(),
+        _ => String::new(),
+    }
+}
 /// Intercept the extra prefix and component-local keys before Vim editing.
 pub fn key(ed: &mut Editor, k: Key) -> bool {
     if let Mode::Pick(picker) = &ed.mode
         && picker.kind == crate::pick::Kind::MagitMenu
     {
-        if k.is(KeyCode::Esc) || k == Key::ctrl('g') || k == Key::ctrl('c') {
+        let entries = menu_entries(ed.magit_menu.unwrap_or('*'));
+        // C-c cancels unless the menu binds it (git-commit-insert-trailer).
+        let cancel_c = k == Key::ctrl('c') && !entries.iter().any(|e| e.0 == "C-c");
+        if k.is(KeyCode::Esc) || k == Key::ctrl('g') || cancel_c {
             ed.mode = Mode::Normal;
             ed.magit_menu = None;
             ed.vim.pending.clear();
             ed.msg = None;
             return true;
         }
-        let entries = menu_entries(ed.magit_menu.unwrap_or('*'));
-        // Menu h (status jump) has fu fp pu pp.
-        let jump_prefix = ed.magit_menu == Some('h') && matches!(k.char(), Some('f' | 'p'));
-        if !k.ctrl
-            && ed.vim.pending.is_empty()
-            && (jump_prefix || matches!(k.char(), Some('-' | '+' | '=' | ',' | '/')))
+        // Keys typed so far: "-f", "am", "C-a" (control keys spelled C-x).
+        let typed = matches!(k.code, KeyCode::Char(_) if !k.alt).then(|| {
+            let mut s: String = ed.vim.pending.iter().map(menu_key_name).collect();
+            s.push_str(&menu_key_name(&k));
+            s
+        });
+        if let Some(t) = &typed
+            && !entries.iter().any(|e| e.0 == t)
+            && (t == "C-x" || entries.iter().any(|e| e.0.starts_with(t.as_str())))
         {
-            ed.vim.pending = vec![k];
+            ed.vim.pending.push(k);
             return true;
         }
         let suffix = if k.is(KeyCode::Enter) {
@@ -964,29 +983,41 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
                 .get(picker.sel)
                 .and_then(|r| entries.get(r.line))
                 .map(|entry| entry.0.to_owned())
-        } else if !k.ctrl && !k.alt {
-            k.char().map(|c| {
-                format!(
-                    "{}{c}",
-                    match ed.vim.pending.as_slice() {
-                        [key] if *key == Key::ch('-') => "-",
-                        [key] if *key == Key::ch('+') => "+",
-                        [key] if *key == Key::ch('=') => "=",
-                        [key] if *key == Key::ch(',') => ",",
-                        [key] if *key == Key::ch('/') => "/",
-                        [key] if *key == Key::ch('f') => "f",
-                        [key] if *key == Key::ch('p') => "p",
-                        _ => "",
-                    }
-                )
-            })
         } else {
-            None
+            typed
         };
         if let Some(suffix) = suffix {
             let menu = ed.magit_menu.unwrap_or('*');
             ed.vim.pending.clear();
-            if let Some((_, _, _, action)) = entries.into_iter().find(|(key, ..)| *key == suffix) {
+            let found = entries.into_iter().find(|(key, ..)| *key == suffix);
+            let transient = match suffix.as_str() {
+                "C-xs" => Some(Action::TransientSet(false)),
+                "C-xC-s" => Some(Action::TransientSet(true)),
+                _ => None,
+            };
+            if let Some(action) = found.map(|e| e.3).or(transient) {
+                if let Action::TransientSet(save) = action {
+                    ed.mode = Mode::Normal;
+                    ed.magit_menu = None;
+                    let am = arg_menu(menu);
+                    match save.then(|| save_values(am, &menu_arguments(ed, am))) {
+                        Some(Err(e)) => {
+                            return {
+                                ed.set_err(e);
+                                true
+                            };
+                        }
+                        Some(Ok(())) => ed.set_msg("Saved"),
+                        None => ed.set_msg("Set"),
+                    }
+                    // magit-diff-refresh and magit-log-refresh also refresh.
+                    ed.pending_effect = match menu {
+                        'D' => Some(ExEffect::Magit(Action::DiffRefresh(diff::Refresh::Buffer))),
+                        'R' => Some(ExEffect::Magit(Action::LogRefresh)),
+                        _ => None,
+                    };
+                    return true;
+                }
                 if let Action::CycleOption(prefix) = action {
                     cycle_choice(ed, arg_menu(menu), prefix);
                     // magit-pull :incompatible --ff-only with rebasing choices.
@@ -1911,8 +1942,8 @@ pub enum Prompt {
     /// A todo line to add below point: its verb (exec, label, reset, merge,
     /// pick) and prompt.
     RebaseLine(&'static str, &'static str),
-    /// git-commit-insert-trailer: the trailer key, or None to read "Key: value".
-    Trailer(Option<&'static str>),
+    /// A trailer by someone: its key.
+    Trailer(&'static str),
     /// A transient-option value for (menu, argument prefix); returns to the menu.
     OptionValue(char, &'static str),
     /// git-commit-check-style-conventions: the remaining "Commit anyway?"
@@ -2046,9 +2077,7 @@ pub fn prompt(ed: &mut Editor, question: Prompt) {
         Prompt::Ask(_, _, _, prompts, answers) => prompts[answers.len()].clone(),
         Prompt::InitDir(_) => "Create repository in: ".into(),
         Prompt::RebaseLine(_, prompt) => (*prompt).into(),
-        Prompt::Trailer(key) => {
-            key.map_or("Insert trailer (Key: value): ".into(), |k| format!("{k}: "))
-        }
+        Prompt::Trailer(key) => format!("{key}: "),
         // The reader's choices: magit-push-options, the default signing key.
         Prompt::OptionValue(_, "--push-option=") => format!(
             "--push-option= ({}) ",
@@ -2147,13 +2176,7 @@ pub fn answer(ed: &mut Editor, text: &str) {
             }
         }
         Some(Prompt::RebaseLine(verb, _)) => rebase::insert_line(ed, verb, text),
-        Some(Prompt::Trailer(Some(key))) => message::insert_trailer(ed, key, text),
-        Some(Prompt::Trailer(None)) => match text.split_once(':') {
-            Some((key, value)) if !key.trim().is_empty() && !key.contains(char::is_whitespace) => {
-                message::insert_trailer(ed, key.trim(), value)
-            }
-            _ => ed.set_err("Type a trailer as Key: value"),
-        },
+        Some(Prompt::Trailer(key)) => message::insert_trailer(ed, key, text),
         Some(Prompt::OptionValue(menu, prefix)) => {
             // magit-openpgp-default-signing-key answers an empty key prompt.
             let default_key = (prefix == "--gpg-sign=")
@@ -2186,6 +2209,27 @@ pub fn answer(ed: &mut Editor, text: &str) {
 }
 
 pub(crate) fn open_menu(ed: &mut Editor, menu: char) {
+    // transient-values: saved arguments replace a menu's defaults.
+    let am = arg_menu(menu);
+    if !ed.magit_seeded.contains(&am)
+        && let Some(args) = saved_values(am)
+    {
+        ed.magit_seeded.insert(am);
+        set_menu_arguments(ed, am, &args);
+    }
+    // magit-revision-jump replaces magit-status-jump in commit buffers.
+    let menu = match ed.magit.as_ref() {
+        Some(v)
+            if menu == 'h'
+                && matches!(
+                    v.kind,
+                    Kind::Patch(_) | Kind::Diff(diff::Target::Commit(_), _)
+                ) =>
+        {
+            '^'
+        }
+        _ => menu,
+    };
     if menu == 'C' && ed.commit_repo.is_some() {
         sync_commit_options(ed);
     }
@@ -2376,6 +2420,74 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
     use Action::*;
     use workflows::{Operation::*, StashAction};
     match menu {
+        // magit-revision-jump.
+        '^' => vec![
+            ("h", "Jump to", "Headers", RevisionJump("headers")),
+            ("m", "Jump to", "Message", RevisionJump("message")),
+            ("n", "Jump to", "Notes", RevisionJump("notes")),
+            ("s", "Jump to", "Diffstat", RevisionJump("diffstat")),
+            ("d", "Jump to", "Diff", RevisionJump("diff")),
+        ],
+        // git-commit-insert-trailer (C-c C-i in a commit draft).
+        '&' => vec![
+            (
+                "a",
+                "Insert trailer ... by yourself",
+                "Ack",
+                TrailerSelf("Acked-by"),
+            ),
+            (
+                "m",
+                "Insert trailer ... by yourself",
+                "Modified",
+                TrailerSelf("Modified-by"),
+            ),
+            (
+                "r",
+                "Insert trailer ... by yourself",
+                "Reviewed",
+                TrailerSelf("Reviewed-by"),
+            ),
+            (
+                "s",
+                "Insert trailer ... by yourself",
+                "Signed-off",
+                TrailerSelf("Signed-off-by"),
+            ),
+            (
+                "t",
+                "Insert trailer ... by yourself",
+                "Tested",
+                TrailerSelf("Tested-by"),
+            ),
+            ("C-c", "Insert trailer ... by someone", "Cc", Trailer("Cc")),
+            (
+                "C-r",
+                "Insert trailer ... by someone",
+                "Reported",
+                Trailer("Reported-by"),
+            ),
+            (
+                "C-i",
+                "Insert trailer ... by someone",
+                "Suggested",
+                Trailer("Suggested-by"),
+            ),
+            (
+                "C-a",
+                "Insert trailer ... by someone",
+                "Co-authored",
+                Trailer("Co-authored-by"),
+            ),
+            (
+                "C-d",
+                "Insert trailer ... by someone",
+                "Co-developed",
+                Trailer("Co-developed-by"),
+            ),
+            ("lg", "Insert changelog", "GNU-style", Changelog(true)),
+            ("lp", "Insert changelog", "plain", Changelog(false)),
+        ],
         // magit-fetch-modules.
         'Z' => vec![
             (
@@ -2440,6 +2552,7 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
             ("f", "Transient commands", "Fetch", Menu('f')),
             ("F", "Transient commands", "Pull", Menu('P')),
             ("h", "Transient commands", "Help", Info),
+            ("C-xi", "Transient commands", "Info", Info),
             (
                 "H",
                 "Transient commands",
@@ -2712,6 +2825,12 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
                     Net(PullIntoUpstream),
                 ),
                 (
+                    "r",
+                    "Configure",
+                    "branch.<branch>.rebase",
+                    Configure(configure::Op::BranchRebase),
+                ),
+                (
                     "-A",
                     "Arguments",
                     "Autostash",
@@ -2847,6 +2966,18 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
                 .collect();
             v.extend([
                 ("g", "Refresh", "buffer", DiffRefresh(diff::Refresh::Buffer)),
+                (
+                    "s",
+                    "Refresh",
+                    "buffer and set defaults",
+                    TransientSet(false),
+                ),
+                (
+                    "w",
+                    "Refresh",
+                    "buffer and save defaults",
+                    TransientSet(true),
+                ),
                 (
                     "r",
                     "Do",
@@ -3471,6 +3602,18 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
                 .filter(|e| !matches!(e.1, "Log" | "Reflog" | "Other" | "Wiplog"))
                 .collect();
             v.push(("g", "Refresh", "buffer", LogRefresh));
+            v.push((
+                "s",
+                "Refresh",
+                "buffer and set defaults",
+                TransientSet(false),
+            ));
+            v.push((
+                "w",
+                "Refresh",
+                "buffer and save defaults",
+                TransientSet(true),
+            ));
             v.extend(margin_entries());
             v.push(("x", "Margin", "Toggle shortstat", Margin('x')));
             v.push(("b", "Toggle", "buffer lock", BufferLock));
@@ -4291,8 +4434,8 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
                 ),
                 ("C", "Actions", "Configure...", Menu('e')),
                 (
-                    "B",
-                    "Configure repository defaults",
+                    "du",
+                    "Actions",
                     "Update default branch",
                     Branch(branch::Op::UpdateDefault),
                 ),
@@ -5031,6 +5174,43 @@ impl MenuOption {
     }
 }
 /// Menus that share another menu's arguments (magit-diff-refresh uses magit-diff's).
+/// transient-values-file: arguments saved with C-x C-s, a line per menu
+/// (menu id, then its arguments, tab-separated).
+fn values_file() -> PathBuf {
+    if cfg!(test) {
+        return std::env::temp_dir().join(format!("fred-transient-values-{}", std::process::id()));
+    }
+    crate::swap::swap_dir().with_file_name("transient-values")
+}
+fn saved_values(menu: char) -> Option<Vec<String>> {
+    let text = std::fs::read_to_string(values_file()).ok()?;
+    text.lines().find_map(|l| {
+        let mut f = l.split('\t');
+        (f.next()? == menu.to_string()).then(|| f.map(str::to_owned).collect())
+    })
+}
+fn save_values(menu: char, args: &[String]) -> Result<(), String> {
+    if args.iter().any(|a| a.contains(['\t', '\n'])) {
+        return Err("Cannot save arguments containing tabs or newlines".into());
+    }
+    let file = values_file();
+    let old = std::fs::read_to_string(&file).unwrap_or_default();
+    let mut lines: Vec<String> = old
+        .lines()
+        .filter(|l| l.split('\t').next() != Some(&menu.to_string()))
+        .map(str::to_owned)
+        .collect();
+    lines.push(
+        std::iter::once(menu.to_string())
+            .chain(args.iter().cloned())
+            .collect::<Vec<_>>()
+            .join("\t"),
+    );
+    if let Some(dir) = file.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&file, lines.join("\n") + "\n").map_err(|e| format!("{}: {e}", file.display()))
+}
 pub fn arg_menu(menu: char) -> char {
     match menu {
         'D' => 'd',

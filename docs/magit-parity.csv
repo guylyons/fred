@@ -4,7 +4,7 @@ git-commit.el,169,option,git-commit-setup-hook,n/a,Emacs mode/setup hook of Lisp
 git-commit.el,194,option,git-commit-finish-query-functions,partial,only git-commit-check-style-conventions (Lisp functions cannot run),explicit
 git-commit.el,211,option,git-commit-style-convention-checks,partial,non-empty-second-line and overlong-summary-line ask before a draft is finished,explicit
 git-commit.el,220,option,git-commit-summary-max-length,partial,limit for overlong-summary-line (no highlighting),explicit
-git-commit.el,233,option,git-commit-trailers,partial,listed in the C-c C-i prompt (no completion),explicit
+git-commit.el,233,option,git-commit-trailers,partial,n/a in Fred: upstream only uses it to highlight trailers; Fred does not highlight them,explicit
 git-commit.el,253,option,git-commit-use-local-message-ring,partial,nil (default): one ring in Fred's config directory; t: per repository,explicit
 git-commit.el,262,option,git-commit-cd-to-toplevel,n/a,"Emacs-specific (default-directory, windows, Info, minor modes, tab-width, buffer names, global keymaps or Lisp githook bridge); Fred's equivalent is fixed or uses Space m",explicit
 git-commit.el,758,command,git-commit-prev-message,partial,M-k / gk (evil-collection) in a draft: recent commit messages from the log (upstream: session comment ring),explicit
@@ -14,13 +14,13 @@ git-commit.el,803,command,git-commit-search-message-forward,partial,C-c M-n step
 git-commit.el,814,command,git-commit-save-message,partial,"C-c M-s in a draft; per-repository ring file, newest first, 32 entries, consulted by M-p/M-k before the log",explicit
 git-commit.el,872,command,git-commit-insert-changelog-gnu,partial,:Magit name; defuns from Git hunk-header function context (no which-function),explicit
 git-commit.el,890,command,git-commit-insert-changelog-plain,partial,:Magit name; same defun source,explicit
-git-commit.el,909,command,git-commit-insert-trailer,partial,"C-c C-i / C-c Tab: ""Key: value"" through git interpret-trailers",explicit
-git-commit.el,933,command,git-commit-ack,partial,C-c C-a (default your ident),explicit
+git-commit.el,909,command,git-commit-insert-trailer,partial,"C-c C-i / C-c Tab menu (a m r s t yourself; C-c C-r C-i C-a C-d someone; l g / l p changelog), git interpret-trailers",explicit
+git-commit.el,933,command,git-commit-ack,partial,C-c C-a and trailer menu a: your ident at once,explicit
 git-commit.el,938,command,git-commit-modified,partial,C-c C-m,explicit
 git-commit.el,943,command,git-commit-review,partial,C-c C-r,explicit
 git-commit.el,950,command,git-commit-signoff,partial,C-c C-s (your ident at once),explicit
 git-commit.el,956,command,git-commit-test,partial,C-c C-t,explicit
-git-commit.el,962,command,git-commit-cc,partial,C-c C-o,explicit
+git-commit.el,962,command,git-commit-cc,partial,C-c C-o and trailer menu C-c: asks for the person (default you),explicit
 git-commit.el,967,command,git-commit-reported,partial,C-c C-p,explicit
 git-commit.el,972,command,git-commit-suggested,partial,C-c M-i,explicit
 git-commit.el,977,command,git-commit-co-authored,partial,:Magit git-commit-co-authored in a draft (or C-c C-i),explicit
@@ -315,7 +315,7 @@ magit-diff.el,1932,command,magit-diff-visit-worktree-file-other-frame,partial,Fr
 magit-diff.el,2179,command,magit-diff-show-or-scroll-up,partial,Enter shows the commit at point (no scrolling of another window),explicit
 magit-diff.el,2190,command,magit-diff-show-or-scroll-down,partial,Enter shows the commit at point (no scrolling of another window),explicit
 magit-diff.el,2256,command,magit-section-cycle-diffs,partial,"M-Tab in status: every staged/unstaged file diff, or none",explicit
-magit-diff.el,2288,command,magit-revision-jump,partial,:Magit: headers (no transient),explicit
+magit-diff.el,2288,command,magit-revision-jump,partial,h/j menu in a commit buffer: h m n s d (no imenu),explicit
 magit-diff.el,2316,command,magit-jump-to-revision-diffstat,partial,:Magit (also gd),explicit
 magit-diff.el,2335,command,magit-jump-to-revision-diff,partial,:Magit (also gd),explicit
 magit-diff.el,2349,command,magit-jump-to-diffstat-or-diff,partial,gd in diff and commit buffers (evil-collection),explicit
@@ -381,7 +381,7 @@ magit-extras.el,351,command,magit-add-change-log-entry-other-window,partial,:Mag
 magit-extras.el,364,command,magit-edit-line-commit,partial,"F e: blame the line, rebase edit its commit (or check it out when not on HEAD)",explicit
 magit-extras.el,405,command,magit-diff-edit-hunk-commit,partial,"C-c C-e on a hunk; blames the shown side's line, then rebase-edits that commit",explicit
 magit-extras.el,432,option,magit-reshelve-since-committer-only,partial,keeps author dates,explicit
-magit-extras.el,440,command,magit-reshelve-since,partial,":Magit name; log-select the first commit, read its date; rewritten with commit-tree (no filter-branch), --gpg-sign from the rebase menu",explicit
+magit-extras.el,440,command,magit-reshelve-since,partial,"rebase t; log-select the first commit, read its date; rewritten with commit-tree (no filter-branch), --gpg-sign from the rebase menu",explicit
 magit-extras.el,530,option,magit-pop-revision-stack-format,partial,[POINT EOB INDEX-REGEXP] with %N; Emacs regexp groups translated,explicit
 magit-extras.el,577,option,magit-copy-revision-abbreviated,partial,ys/yb copy and stack the short hash,explicit
 magit-extras.el,584,command,magit-pop-revision-stack,partial,"C-c C-w in drafts; ys/yb push commits; default format (point and end entries, numbered); empty stack errors instead of reading a revision",explicit
@@ -679,7 +679,7 @@ magit-pull.el,33,option,magit-pull-or-fetch,partial,pull menu gains f F o s m fe
 magit-pull.el,42,command,magit-pull,partial,"Space m P menu; -f/-r/-F arguments and p/u/e suffixes; -A, U, r/C configure, magit-pull-or-fetch missing",explicit
 magit-pull.el,95,command,magit-pull-from-pushremote,partial,Space m P p; sets pushRemote when unusable,explicit
 magit-pull.el,123,command,magit-pull-from-upstream,partial,Space m P u; sets upstream via branch --set-upstream-to when unset,explicit
-magit-pull.el,165,command,magit-pull-into-upstream,partial,:Magit name; one forced fetch refspec = upstream's fetch + update-ref,explicit
+magit-pull.el,165,command,magit-pull-into-upstream,partial,:Magit name and pull U; one forced fetch refspec = upstream's fetch + update-ref,explicit
 magit-pull.el,195,command,magit-pull-branch,partial,Space m P e; local or remote-tracking source,explicit
 magit-pull.el,,command,magit-pull:--rebase,partial,-r cycles true/merges/interactive/false/off; incompatible with --ff-only,runtime
 magit-pull.el,,command,transient:magit-pull:--autostash,partial,-A,runtime
@@ -746,7 +746,7 @@ magit-remote.el,153,command,magit-remote-prune,partial,Space m M p (remote prune
 magit-remote.el,159,command,magit-remote-prune-refspecs,partial,"Space m M P; ls-remote comparison, confirm stale refspecs and their branches, all-stale default/remove/abort",explicit
 magit-remote.el,237,command,magit-remote-set-head,partial,:Magit magit-remote-set-head (--auto),explicit
 magit-remote.el,252,command,magit-remote-unset-head,partial,:Magit magit-remote-unset-head,explicit
-magit-remote.el,259,command,magit-update-default-branch,partial,"branch/remote B; fetch --prune, set-head --auto, rename and re-point upstreams",explicit
+magit-remote.el,259,command,magit-update-default-branch,partial,"branch B, branch-configure B, remote d u; fetch --prune, set-head --auto, rename and re-point upstreams",explicit
 magit-remote.el,291,command,magit-remote-unshallow,partial,M z: offers the standard refspec for a single non-wildcard one,explicit
 magit-remote.el,311,command,magit-remote-configure,partial,Space m M C: current remote,explicit
 magit-remote.el,,command,magit-remote.<remote>.fetch,partial,e U,runtime

@@ -63,6 +63,8 @@ pub const MENU_COMMANDS: &[(&str, char, &str)] = &[
     ("magit-commit-squash", 'C', "s"),
     ("magit-diff-flip-revs", 'D', "f"),
     ("magit-diff-switch-range-type", 'D', "r"),
+    ("transient-set-and-exit", 'D', "s"),
+    ("transient-save-and-exit", 'D', "w"),
     ("magit-apply", '?', "a"),
     ("magit-mode-bury-buffer", '?', "q"),
     ("magit-stage", '?', "s"),
