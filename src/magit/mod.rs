@@ -296,6 +296,8 @@ pub enum Action {
     Toggle,
     Stage,
     Unstage,
+    /// git add --intent-to-add on an untracked file (evil-collection's I).
+    StageIntent,
     Visit,
     Return,
 }
@@ -1116,11 +1118,39 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     if ed.magit.is_none() {
         return false;
     }
+    // magit-repolist-mode (and magit-submodule-list-mode, derived from it)
+    // under evil-collection: RET m u f and g r; Vim has every other key.
+    if ed
+        .magit
+        .as_ref()
+        .is_some_and(|v| matches!(v.kind, Kind::Repos | Kind::Modules))
+    {
+        let action = match (ed.vim.pending.as_slice(), k.code, k.ctrl || k.alt) {
+            ([g], KeyCode::Char('r'), false) if *g == Key::ch('g') => Some(Action::Refresh),
+            ([], KeyCode::Enter, false) => Some(Action::Visit),
+            ([], KeyCode::Char('m'), false) => Some(Action::RepolistMark(true)),
+            ([], KeyCode::Char('u'), false) => Some(Action::RepolistMark(false)),
+            ([], KeyCode::Char('f'), false) => Some(Action::RepolistFetch),
+            ([], KeyCode::Char('q'), false) => Some(Action::Return),
+            _ => None,
+        };
+        let Some(action) = action else {
+            return false;
+        };
+        ed.vim.pending.clear();
+        ed.pending_effect = Some(ExEffect::Magit(action));
+        return true;
+    }
     // evil-collection's status jumpers: gz gn gu gs, gfu gfp, gpu gpp.
     if ed.magit.as_ref().is_some_and(|v| v.kind == Kind::Status) && !k.ctrl && !k.alt {
         let target = match (ed.vim.pending.as_slice(), k.char()) {
             ([g], Some(c @ ('f' | 'p'))) if *g == Key::ch('g') => {
                 ed.vim.pending.push(Key::ch(c));
+                return true;
+            }
+            ([g], Some('t')) if *g == Key::ch('g') => {
+                ed.vim.pending.clear();
+                ed.pending_effect = Some(ExEffect::Magit(Action::Jump("Tracked files")));
                 return true;
             }
             ([g], Some('z')) if *g == Key::ch('g') => Some(Section::Stashes),
@@ -1168,33 +1198,22 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     if !k.ctrl || matches!(code, Some('j' | 'k')) {
         let pending = ed.vim.pending.clone();
         let mv = match (pending.as_slice(), code, k.ctrl, k.alt) {
-            ([], Some('j'), true, false) => {
-                // C-j on a file or hunk visits the worktree file (section maps).
-                let on_file = ed.magit.as_ref().is_some_and(|v| {
-                    matches!(
-                        v.action_at(ed.cur.line),
-                        Some(RowAction::File(..) | RowAction::Hunk(..))
-                    )
-                });
-                if on_file {
-                    ed.pending_effect = Some(ExEffect::Magit(Action::Visit));
-                    return true;
-                }
-                // Diff, commit and stash buffers: lines are in file/hunk sections.
-                if ed.magit.as_ref().is_some_and(|v| {
-                    matches!(
-                        v.kind,
-                        Kind::Diff(..) | Kind::Patch(_) | Kind::StashPatch(_)
-                    )
-                }) {
-                    ed.pending_effect = Some(ExEffect::Magit(Action::VisitWorktree));
-                    return true;
-                }
-                Some(Move::Next)
-            }
+            // evil-collection takes C-j back from the file and hunk maps.
+            ([], Some('j'), true, false) => Some(Move::Next),
             ([], Some('k'), true, false) => Some(Move::Prev),
-            ([], Some('j'), false, true) | ([], Some(']'), false, false) => Some(Move::NextSibling),
-            ([], Some('k'), false, true) | ([], Some('['), false, false) => Some(Move::PrevSibling),
+            ([], Some('[' | ']'), false, false) => {
+                ed.vim.pending = vec![k];
+                return true;
+            }
+            ([b], Some(']'), false, false) if *b == Key::ch(']') => Some(Move::NextSibling),
+            ([b], Some('['), false, false) if *b == Key::ch('[') => Some(Move::PrevSibling),
+            // Vim's other [ and ] keys mean nothing in a Magit buffer.
+            ([b], _, _, _) if *b == Key::ch('[') || *b == Key::ch(']') => {
+                ed.vim.pending.clear();
+                return true;
+            }
+            ([], Some('j' | 'n'), false, true) => Some(Move::NextSibling),
+            ([], Some('k' | 'p'), false, true) => Some(Move::PrevSibling),
             ([g], Some('j'), false, false) if *g == Key::ch('g') => Some(Move::NextSibling),
             ([g], Some('k'), false, false) if *g == Key::ch('g') => Some(Move::PrevSibling),
             ([g], Some('h'), false, false) if *g == Key::ch('g') => Some(Move::Up),
@@ -1209,11 +1228,8 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         // magit-section-show-level-N (1-4, around point) and -all (M-1..M-4);
         // evil-collection's z fold keys are off by default (use-z-for-folds).
         let fold = match (pending.as_slice(), code, k.ctrl, k.alt) {
-            // ponytail: status buffers only, so counts (12G) keep working
-            // in diff and log buffers.
-            ([], Some(c @ '1'..='4'), false, alt)
-                if ed.magit.as_ref().is_some_and(|v| v.kind == Kind::Status) =>
-            {
+            // magit-mode-map binds 1-4 in every Magit buffer (no counts).
+            ([], Some(c @ '1'..='4'), false, alt) => {
                 let n = c as u8 - b'0';
                 Some(Action::Fold(if alt {
                     Fold::Level(n)
@@ -1230,10 +1246,17 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     }
     // evil-collection (use-y-for-yank): ys copies the section value, yb the
     // buffer's revision, yr shows refs.
-    if ed.vim.pending == [Key::ch('y')] && matches!(k.char(), Some('s' | 'b' | 'r')) {
+    let yank = match (ed.vim.pending.as_slice(), k.code) {
+        ([y], KeyCode::Char(c @ ('s' | 'b' | 'r'))) if *y == Key::ch('y') && !k.ctrl && !k.alt => {
+            Some(c)
+        }
+        ([], KeyCode::Char('w')) if k.alt && !k.ctrl => Some('b'),
+        _ => None,
+    };
+    if yank.is_some() {
         ed.vim.pending.clear();
         // A commit also goes on magit-revision-stack (magit-pop-revision-stack).
-        let value = match k.char() {
+        let value = match yank {
             Some('r') => {
                 open_menu(ed, 'y');
                 return true;
@@ -1281,10 +1304,12 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     // magit-jump-to-diffstat-or-diff (gd in diff and commit buffers).
     if ed.vim.pending == [Key::ch('g')]
         && k.char() == Some('d')
-        && ed
-            .magit
-            .as_ref()
-            .is_some_and(|v| matches!(v.kind, Kind::Diff(..) | Kind::Patch(_)))
+        && ed.magit.as_ref().is_some_and(|v| {
+            matches!(
+                v.kind,
+                Kind::Diff(..) | Kind::Patch(_) | Kind::StashPatch(_)
+            )
+        })
     {
         ed.vim.pending.clear();
         let view = ed.magit.as_ref().unwrap();
@@ -1332,6 +1357,8 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
                 ed.pending_effect = Some(ExEffect::Magit(Action::Go(k == Key::ctrl('b'))));
             } else if selecting && k == Key::ctrl('c') {
                 ed.pending_effect = Some(ExEffect::Magit(Action::SelectPick));
+            } else if let Some(a) = c_c_key(ed, k) {
+                ed.pending_effect = Some(ExEffect::Magit(a));
             } else if selecting && k == Key::ctrl('k') {
                 ed.pending_effect = Some(ExEffect::Magit(Action::SelectQuit));
             }
@@ -1377,13 +1404,46 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             {
                 Some(Action::Thing(c))
             } else {
-                None
+                c_c_key(ed, k)
             };
             if let Some(a) = action {
                 ed.pending_effect = Some(ExEffect::Magit(a));
             }
             return true;
         }
+    }
+    // Emacs's C-x keys that Magit binds: g status, M-g dispatch, C-j dired,
+    // C-w save the diff as a patch.
+    if ed.vim.pending.is_empty() && k == Key::ctrl('x') {
+        ed.vim.pending = vec![k];
+        return true;
+    }
+    if ed.vim.pending == [Key::ctrl('x')] {
+        ed.vim.pending.clear();
+        let action = match (k.code, k.ctrl, k.alt) {
+            (KeyCode::Char('g'), false, false) => Some(Action::Status),
+            (KeyCode::Char('g'), false, true) => Some(Action::Menu('?')),
+            (KeyCode::Char('j'), true, _) => Some(Action::DiredJump),
+            (KeyCode::Char('w'), true, _) if diff_like(ed) => Some(Action::Patch(patch::Op::Save)),
+            _ => None,
+        };
+        match action {
+            Some(Action::Menu(m)) => open_menu(ed, m),
+            Some(a) => ed.pending_effect = Some(ExEffect::Magit(a)),
+            None => {}
+        }
+        return true;
+    }
+    // magit-section-cycle-global: collapse everything, else expand it all.
+    // shortcut: two states, not upstream's three (headings only between).
+    if ed.vim.pending.is_empty() && k.code == KeyCode::BackTab {
+        let open = ed.magit.as_ref().is_some_and(|v| v.closed.is_empty());
+        ed.pending_effect = Some(ExEffect::Magit(Action::Fold(Fold::Level(if open {
+            1
+        } else {
+            4
+        }))));
+        return true;
     }
     if ed.magit.is_some() && k.alt && k.code == KeyCode::Tab {
         ed.pending_effect = Some(ExEffect::Magit(Action::CycleDiffs));
@@ -1432,15 +1492,16 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         ed.pending_effect = Some(ExEffect::Magit(Action::Refresh));
         return true;
     }
-    if ed
-        .magit
-        .as_ref()
-        .is_some_and(|v| matches!(v.kind, Kind::Stashes | Kind::StashPatch(_)))
-    {
+    // magit-stash-section-map: magit-cherry-apply, magit-cherry-pick and
+    // magit-delete-thing become apply, pop and drop.
+    if ed.magit.as_ref().is_some_and(|v| {
+        matches!(v.kind, Kind::Stashes | Kind::StashPatch(_))
+            || matches!(v.action_at(ed.cur.line), Some(RowAction::Stash(_)))
+    }) {
         let action = match k.char() {
-            Some('a') if !k.ctrl => Some(workflows::StashAction::Apply),
-            Some('p') if !k.ctrl => Some(workflows::StashAction::Pop),
-            Some('d' | 'x') if !k.ctrl => Some(workflows::StashAction::Drop),
+            Some('a') => Some(workflows::StashAction::Apply),
+            Some('A') => Some(workflows::StashAction::Pop),
+            Some('x') => Some(workflows::StashAction::Drop),
             _ => None,
         };
         if let Some(action) = action {
@@ -1448,20 +1509,25 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             return true;
         }
     }
+    if k.alt && matches!(k.code, KeyCode::Char(_)) {
+        return false;
+    }
     let action = match k.code {
         KeyCode::Tab => Some(Action::Toggle),
-        KeyCode::Enter => Some(Action::Visit),
-        KeyCode::Char('j')
+        // evil-collection-magit-visit-worktree-file-on-return: in a file's
+        // diff RET visits the worktree file, S-RET the blob.
+        KeyCode::Enter if !k.shift && in_file_diff(ed) => Some(Action::VisitWorktree),
+        // magit-refs-set-show-commit-count.
+        KeyCode::Char('y')
             if k.ctrl
-                && ed.magit.as_ref().is_some_and(|v| {
-                    matches!(
-                        v.kind,
-                        Kind::Diff(..) | Kind::Patch(_) | Kind::StashPatch(_)
-                    )
-                }) =>
+                && ed
+                    .magit
+                    .as_ref()
+                    .is_some_and(|v| matches!(v.kind, Kind::Refs(..))) =>
         {
-            Some(Action::VisitWorktree)
+            Some(Action::Refs(refs::Op::Count))
         }
+        KeyCode::Enter => Some(Action::Visit),
         // magit-repolist-mode-map: m u f 5 (RET visits, as in every list).
         KeyCode::Char(c @ ('m' | 'u' | 'f' | '5'))
             if !k.ctrl && !k.alt && ed.magit.as_ref().is_some_and(|v| v.kind == Kind::Repos) =>
@@ -1478,13 +1544,17 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             if !k.ctrl
                 && !k.alt
                 && ed.magit.as_ref().is_some_and(|v| {
-                    matches!(v.kind, Kind::Reflog(_) | Kind::Refs(..) | Kind::Cherry(..))
+                    matches!(
+                        v.kind,
+                        Kind::Reflog(_) | Kind::Refs(..) | Kind::Cherry(..) | Kind::Stashes
+                    )
                 }) =>
         {
             open_menu(ed, 'L');
             return true;
         }
-        // magit-diff-section-map: & runs a shell command on the file.
+        // magit-file- and hunk-section-map: & runs a shell command on the file
+        // (elsewhere it is Vim's).
         KeyCode::Char('&')
             if !k.ctrl
                 && !k.alt
@@ -1492,7 +1562,7 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
                     matches!(
                         v.action_at(ed.cur.line),
                         Some(RowAction::File(..) | RowAction::Hunk(..))
-                    ) || matches!(v.kind, Kind::Diff(..) | Kind::Patch(_))
+                    )
                 }) =>
         {
             Some(Action::AsyncShell)
@@ -1501,19 +1571,13 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         KeyCode::Char('C')
             if !k.ctrl
                 && !k.alt
-                && ed.magit.as_ref().is_some_and(|v| {
-                    matches!(
-                        v.action_at(ed.cur.line),
-                        Some(RowAction::File(..) | RowAction::Hunk(..))
-                    ) || (matches!(
-                        v.kind,
-                        Kind::Diff(..) | Kind::Patch(_) | Kind::StashPatch(_)
-                    ) && v
-                        .rows
-                        .iter()
-                        .take(ed.cur.line + 1)
-                        .any(|r| r.text.starts_with("diff ")))
-                }) =>
+                && (in_file_diff(ed)
+                    || ed.magit.as_ref().is_some_and(|v| {
+                        matches!(
+                            v.action_at(ed.cur.line),
+                            Some(RowAction::File(..) | RowAction::Hunk(..))
+                        )
+                    })) =>
         {
             Some(Action::CommitAddLog)
         }
@@ -1523,8 +1587,29 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         {
             Some(Action::ReverseInIndex)
         }
-        KeyCode::Char('s') if !k.ctrl => Some(Action::Stage),
-        KeyCode::Char('u') if !k.ctrl => Some(Action::Unstage),
+        // magit-stage / magit-unstage on a file, hunk or section, else
+        // magit-stage-files / magit-unstage-files read the files.
+        KeyCode::Char('s') if !k.ctrl => Some(
+            if on_changes(ed, &[Section::Unstaged, Section::Untracked]) {
+                Action::Stage
+            } else {
+                Action::Misc(misc::Op::StageFiles(false))
+            },
+        ),
+        KeyCode::Char('u') if !k.ctrl => Some(if on_changes(ed, &[Section::Staged]) {
+            Action::Unstage
+        } else {
+            Action::Misc(misc::Op::UnstageFiles)
+        }),
+        // evil-collection: I stages an untracked file with intent to add.
+        KeyCode::Char('I')
+            if !k.ctrl
+                && ed.magit.as_ref().is_some_and(|v| {
+                    matches!(v.action_at(ed.cur.line), Some(RowAction::File(..)))
+                }) =>
+        {
+            Some(Action::StageIntent)
+        }
         // evil-collection: o reset quickly, ! run, | git command.
         KeyCode::Char('o') if !k.ctrl && !k.alt => Some(Action::Misc(misc::Op::ResetQuickly)),
         KeyCode::Char('!') if !k.ctrl && !k.alt => {
@@ -1538,23 +1623,71 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         }
         // evil-collection: x discard (magit-delete-thing), - reverse,
         // S stage all modified, U unstage all.
-        KeyCode::Char(c @ ('x' | '-' | 'S' | 'U'))
-            if !k.ctrl && ed.magit.as_ref().is_some_and(|v| v.kind == Kind::Status) =>
+        // magit-branch-section-map remaps magit-file-rename to magit-branch-rename.
+        KeyCode::Char('R')
+            if !k.ctrl
+                && ed
+                    .magit
+                    .as_ref()
+                    .and_then(|v| v.refnames.get(&ed.cur.line))
+                    .is_some_and(|r| r.starts_with("refs/heads/")) =>
         {
-            Some(Action::ApplyOp(match c {
-                'x' => apply::Kind::Discard,
-                '-' => apply::Kind::Reverse,
-                'S' => apply::Kind::StageModified,
-                _ => apply::Kind::UnstageAll,
-            }))
+            Some(Action::Branch(branch::Op::Rename))
         }
-        // On a commit, - is magit-revert-no-commit and a magit-cherry-apply.
+        // magit-stashes-section-map: magit-delete-thing is magit-stash-clear.
+        KeyCode::Char('x')
+            if !k.ctrl
+                && ed.magit.as_ref().is_some_and(|v| {
+                    v.action_at(ed.cur.line) == Some(RowAction::Section(Section::Stashes))
+                }) =>
+        {
+            Some(Action::StashOp(stash::Op::Clear))
+        }
+        // magit-process-kill.
+        KeyCode::Char('x')
+            if !k.ctrl && ed.magit.as_ref().is_some_and(|v| v.kind == Kind::Process) =>
+        {
+            Some(Action::ProcessKill)
+        }
+        // magit-delete-thing on a branch or tag (magit-branch-section-map,
+        // magit-tag-section-map).
+        KeyCode::Char('x')
+            if !k.ctrl
+                && ed
+                    .magit
+                    .as_ref()
+                    .is_some_and(|v| v.refnames.contains_key(&ed.cur.line)) =>
+        {
+            let tag = ed
+                .magit
+                .as_ref()
+                .and_then(|v| v.refnames.get(&ed.cur.line))
+                .is_some_and(|r| r.starts_with("refs/tags/"));
+            Some(if tag {
+                Action::Tag(tag::Op::Delete)
+            } else {
+                Action::Branch(branch::Op::Delete)
+            })
+        }
+        KeyCode::Char(c @ ('x' | 'S' | 'U')) if !k.ctrl => Some(Action::ApplyOp(match c {
+            'x' => apply::Kind::Discard,
+            'S' => apply::Kind::StageModified,
+            _ => apply::Kind::UnstageAll,
+        })),
+        // magit-reverse on staged changes in status.
+        KeyCode::Char('-')
+            if !k.ctrl
+                && ed.magit.as_ref().is_some_and(|v| v.kind == Kind::Status)
+                && on_changes(ed, &[Section::Staged]) =>
+        {
+            Some(Action::ApplyOp(apply::Kind::Reverse))
+        }
+        // Off changes, - is magit-revert-no-commit and a magit-cherry-apply
+        // (the commit at point is the default).
         KeyCode::Char(c @ ('-' | 'a'))
             if !k.ctrl
                 && !k.alt
-                && ed.magit.as_ref().is_some_and(|v| {
-                    matches!(v.action_at(ed.cur.line), Some(RowAction::Commit(_)))
-                }) =>
+                && !on_changes(ed, if c == '-' { &[Section::Staged] } else { &[] }) =>
         {
             Some(Action::Sequence(if c == '-' {
                 sequence::Op::RevertNoCommit
@@ -1592,6 +1725,17 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     }
     false
 }
+/// magit-mode-map's C-c keys: C-c C-c dispatch, C-c M-g file dispatch,
+/// C-c TAB cycles the section, C-c C-d diffs what a commit would.
+fn c_c_key(ed: &Editor, k: Key) -> Option<Action> {
+    match (k.code, k.ctrl, k.alt) {
+        (KeyCode::Char('c'), true, false) => Some(Action::Menu('?')),
+        (KeyCode::Char('g'), false, true) => Some(Action::Menu('F')),
+        (KeyCode::Tab, ..) | (KeyCode::Char('i'), true, false) => Some(Action::Toggle),
+        (KeyCode::Char('d'), true, false) if diff_like(ed) => Some(Action::DiffWhileCommitting),
+        _ => None,
+    }
+}
 /// magit-mode-map under evil-collection's defaults: upstream's single keys,
 /// with p push, O reset, ' submodule, " subtree, _ revert and X untrack where
 /// evil keeps v V P x k K n N g G : for itself.
@@ -1619,7 +1763,9 @@ fn direct_key(c: char) -> Option<Action> {
         'L' => Menu('R'),
         'm' => Menu('M'),
         'M' => Menu('O'),
-        'p' => Menu('p'),
+        'p' | 'P' => Menu('p'),
+        'H' => Action::DescribeSection(true),
+        'K' => Action::File(blob::FileOp::Untrack),
         'Q' => Action::Misc(misc::Op::GitCommand { topdir: false }),
         'r' => Menu('r'),
         'R' => Action::File(blob::FileOp::Rename),
@@ -1634,7 +1780,7 @@ fn direct_key(c: char) -> Option<Action> {
         '_' => Menu('v'),
         'Y' => Action::LogOp(log::Op::Cherry),
         'z' => Menu('z'),
-        'Z' | '%' => Menu('Y'),
+        '%' => Menu('Y'),
         _ => return None,
     })
 }
@@ -1715,6 +1861,37 @@ pub fn looks_like_hash(word: &str) -> bool {
 /// a range other than HEAD against the worktree or index.
 /// magit-diff-section-map applies: a diff, commit or stash buffer, or a
 /// file or hunk in status.
+/// Point on changes magit-stage and friends act on: a file, hunk, a line of
+/// a diff, or one of SECTIONS.
+fn on_changes(ed: &Editor, sections: &[Section]) -> bool {
+    in_file_diff(ed)
+        || ed
+            .magit
+            .as_ref()
+            .is_some_and(|v| match v.action_at(ed.cur.line) {
+                Some(RowAction::File(..) | RowAction::Hunk(..)) => true,
+                Some(RowAction::Section(s)) => sections.contains(&s),
+                _ => false,
+            })
+}
+/// Point on a file or hunk section: a status file row, or a line below a
+/// "diff" header in a diff, commit or stash buffer.
+fn in_file_diff(ed: &Editor) -> bool {
+    ed.magit.as_ref().is_some_and(|v| {
+        matches!(
+            v.action_at(ed.cur.line),
+            Some(RowAction::File(..) | RowAction::Hunk(..))
+        ) && v.kind != Kind::Status
+            || matches!(
+                v.kind,
+                Kind::Diff(..) | Kind::Patch(_) | Kind::StashPatch(_)
+            ) && v
+                .rows
+                .iter()
+                .take(ed.cur.line + 1)
+                .any(|r| r.text.starts_with("diff "))
+    })
+}
 fn diff_like(ed: &Editor) -> bool {
     ed.magit.as_ref().is_some_and(|v| {
         matches!(

@@ -439,3 +439,16 @@ and the diff/log refresh menus have s/w. New menus: git-commit-insert-trailer
 entries match; the 16 others carry a reason (ui_map_is_current fails on
 an unexplained one). Remaining in the gate: the section map. Score remains
 3%. Next: section map, then the acceptance scenario matrix.
+
+October 19 key map: docs/magit-key-map.md compares Fred with the user's
+evil-collection keys in every Magit mode and on each section kind (from a
+batch Emacs, tools/magit-evil-keys.el); key_map_is_current fails on an
+unexplained difference. 5000+ keys match, are a section remap or an
+equivalent; 23 (key, command) pairs carry notes, nine marked "gap:"
+(diff context outside diff buffers, log limit outside logs, a on status
+changes, submodule stage/unstage, text-mode toggle). Fixed on the way:
+[ ] and Z, stash d/p/A/x, Alt keys, P H K S U x 1-4 in every buffer,
+C-c C-c / C-c M-g / C-x keys, S-Tab, RET vs S-RET in diffs, staging a
+whole section from its heading, s/u/-/a prompting off changes, I
+(intent to add), list buffers' keys. Menu and key maps done; section map
+(buffer layout) remains in the baseline gate. Score remains 3%.

@@ -242,10 +242,15 @@ impl Session {
         }
         if let Action::RepolistMark(mark) = action {
             let line = self.ed.cur.line;
-            let Some(view) = self.ed.magit.as_mut().filter(|v| v.kind == Kind::Repos) else {
+            let Some(view) = self
+                .ed
+                .magit
+                .as_mut()
+                .filter(|v| matches!(v.kind, Kind::Repos | Kind::Modules))
+            else {
                 return self.ed.set_err("Not in a repository list");
             };
-            let Some(RowAction::Repo(p)) = view.action_at(line) else {
+            let Some(p) = list_repo(view, view.action_at(line).as_ref()) else {
                 return;
             };
             if mark {
@@ -266,17 +271,20 @@ impl Session {
             return;
         }
         if matches!(action, Action::RepolistFetch | Action::RepolistFindFile) {
-            let Some(view) = self.ed.magit.as_deref().filter(|v| v.kind == Kind::Repos) else {
+            let Some(view) = self
+                .ed
+                .magit
+                .as_deref()
+                .filter(|v| matches!(v.kind, Kind::Repos | Kind::Modules))
+            else {
                 return self.ed.set_err("Not in a repository list");
             };
             // magit-repolist--get-repos: the marked ones, else all (confirmed).
             let mut repos: Vec<PathBuf> = view
                 .rows
                 .iter()
-                .filter_map(|r| match &r.action {
-                    Some(RowAction::Repo(p)) if view.marked.contains(p) => Some(p.clone()),
-                    _ => None,
-                })
+                .filter_map(|r| list_repo(view, r.action.as_ref()))
+                .filter(|p| view.marked.contains(p))
                 .collect();
             if repos.is_empty() {
                 if crate::magit::options::confirm("repolist-all") {
@@ -304,10 +312,7 @@ impl Session {
                 repos = view
                     .rows
                     .iter()
-                    .filter_map(|r| match &r.action {
-                        Some(RowAction::Repo(p)) => Some(p.clone()),
-                        _ => None,
-                    })
+                    .filter_map(|r| list_repo(view, r.action.as_ref()))
                     .collect();
             }
             return self.repolist_act(action == Action::RepolistFetch, repos);
@@ -3276,6 +3281,7 @@ impl Session {
             Action::Toggle
                 | Action::Stage
                 | Action::Unstage
+                | Action::StageIntent
                 | Action::Visit
                 | Action::VisitWorktree
                 | Action::Refresh
@@ -3450,6 +3456,13 @@ impl Session {
             }
             self.start_magit(move || {
                 let operation: Result<(),String> = (|| {
+                // evil-collection-magit-stage-untracked-file-with-intent.
+                if action == Action::StageIntent {
+                    let Some(RowAction::File(path, Section::Untracked)) = &selected else {
+                        return Err("select an untracked file".into());
+                    };
+                    view.repo.run(&view.repo.path_args(&["add", "--intent-to-add"], path), None)?;
+                }
                 if matches!(action,Action::Stage|Action::Unstage) {
                     match &selected {
                         Some(RowAction::File(path,section)) => {
@@ -3460,6 +3473,20 @@ impl Session {
                         Some(RowAction::Hunk(path,staged,hunk,_)) if *staged == (action == Action::Unstage) => {
                             let diff = view.diffs.get(&(path.clone(),*staged)).ok_or("refresh the diff first")?;
                             view.repo.apply_hunk(diff,*hunk)?;
+                        }
+                        // A section heading: every file it lists (magit-stage /
+                        // magit-unstage on the section).
+                        Some(RowAction::Section(s @ (Section::Unstaged | Section::Untracked)))
+                            if action == Action::Stage =>
+                        {
+                            for e in view.snapshot.entries.iter().filter(|e| s.contains(e)) {
+                                view.repo.stage_file(&e.path)?;
+                            }
+                        }
+                        Some(RowAction::Section(Section::Staged)) if action == Action::Unstage => {
+                            for e in view.snapshot.entries.iter().filter(|e| Section::Staged.contains(e)) {
+                                view.repo.unstage_file(&e.path)?;
+                            }
                         }
                         _ => return Err("select a file or hunk for this operation".into()),
                     }
@@ -5946,5 +5973,14 @@ fn op_verb(op: &crate::magit::commit::Op) -> &'static str {
         C::Alter => "alter",
         C::Augment => "augment",
         _ => "revise",
+    }
+}
+
+/// A repository-list row's repository (submodule lists are repository lists).
+fn list_repo(view: &crate::magit::View, action: Option<&RowAction>) -> Option<PathBuf> {
+    match action? {
+        RowAction::Repo(p) => Some(p.clone()),
+        RowAction::Module(m) => Some(view.repo.root.join(m)),
+        _ => None,
     }
 }

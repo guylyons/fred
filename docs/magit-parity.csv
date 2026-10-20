@@ -70,11 +70,11 @@ magit-apply.el,82,option,magit-reverse-atomically,partial,nil reverses with --re
 magit-apply.el,94,option,magit-post-stage-hook,partial,hook adapted: a list of shell commands run in the repository toplevel,explicit
 magit-apply.el,102,option,magit-post-unstage-hook,partial,hook adapted: a list of shell commands run in the repository toplevel,explicit
 magit-apply.el,113,command,magit-apply,partial,a on a hunk or file in diff/commit/stash buffers: git apply to the worktree (a on a commit: cherry-apply),explicit
-magit-apply.el,285,command,magit-stage,partial,s; file/hunk only; region and section staging missing,explicit
-magit-apply.el,312,command,magit-stage-files,partial,"Space m F s without a visited file; :Magit; comma-separated files, default the file at point",explicit
+magit-apply.el,285,command,magit-stage,partial,"s on a file, hunk, or the unstaged/untracked section; elsewhere magit-stage-files; region staging and submodule sections missing",explicit
+magit-apply.el,312,command,magit-stage-files,partial,s off changes (as upstream) and Space m F s; comma-separated files,explicit
 magit-apply.el,331,command,magit-stage-modified,partial,S: git add -u,explicit
-magit-apply.el,410,command,magit-unstage,partial,u; file/hunk only; region and section unstaging missing,explicit
-magit-apply.el,437,command,magit-unstage-files,partial,Space m F u without a visited file; rm --cached before the first commit,explicit
+magit-apply.el,410,command,magit-unstage,partial,"u on a file, hunk or the staged section; elsewhere magit-unstage-files; region unstaging and submodule sections missing",explicit
+magit-apply.el,437,command,magit-unstage-files,partial,u off changes and Space m F u; rm --cached before the first commit,explicit
 magit-apply.el,463,command,magit-unstage-all,partial,"U: confirms, reset (or rm --cached when unborn)",explicit
 magit-apply.el,488,command,magit-discard,partial,"x in status (evil-collection): hunk, file, section; untracked deleted via git clean; always confirms",explicit
 magit-apply.el,686,command,magit-reverse,partial,- in status (staged changes) and on hunks/files in diff/commit/stash buffers; on a commit: revert-no-commit,explicit
@@ -163,7 +163,7 @@ magit-branch.el,517,command,magit-branch-spinout,partial,"Space m b S; stays on 
 magit-branch.el,527,command,magit-branch-spinoff,partial,"Space m b s; new branch tracks old, old moves back to merge-base; region FROM missing",explicit
 magit-branch.el,602,command,magit-branch-reset,partial,"Space m b x; non-current via update-ref, current via reset --hard after yes when dirty; prefix set-upstream missing",explicit
 magit-branch.el,643,command,magit-branch-delete,partial,"Space m b k; merged/unmerged confirm, current branch detach/checkout-target choice, remote-tracking delete on remote or locally; multi-branch region, PR remote cleanup missing",explicit
-magit-branch.el,818,command,magit-branch-rename,partial,Space m b m; keeps pushRemote; remote push-target rename and force missing,explicit
+magit-branch.el,818,command,magit-branch-rename,partial,Space m b m and R on a branch in refs; keeps pushRemote; remote push-target rename and force missing,explicit
 magit-branch.el,864,command,magit-branch-shelve,partial,"b h (refs/shelved/DATE-NAME, reflog moved)",explicit
 magit-branch.el,879,command,magit-branch-unshelve,partial,b H (date prefix dropped),explicit
 magit-branch.el,906,command,magit-branch-configure,partial,b C: current branch; choices cycle on the key (no live values in the menu),explicit
@@ -306,10 +306,10 @@ magit-diff.el,1748,command,magit-diff-more-context,partial,+ in a diff buffer,ex
 magit-diff.el,1753,command,magit-diff-default-context,partial,~ in a diff buffer (evil-collection),explicit
 magit-diff.el,1798,command,magit-diff-toggle-refine-hunk,partial,t in the diff refresh menu; word-level reverse video for paired -/+ lines (all hunks at once),explicit
 magit-diff.el,1820,command,magit-diff-toggle-fontify-hunk,partial,T in the diff refresh menu; syntax colors by file extension over an added/removed tint,explicit
-magit-diff.el,1845,command,magit-diff-visit-file,partial,"Enter on a diff line: the blob at that revision (old side for removed lines) or the worktree file, at the line",explicit
+magit-diff.el,1845,command,magit-diff-visit-file,partial,S-RET on a diff line (evil-collection): the blob at that revision (old side for removed lines),explicit
 magit-diff.el,1887,command,magit-diff-visit-file-other-window,partial,Fred has no windows: same as Enter,explicit
 magit-diff.el,1896,command,magit-diff-visit-file-other-frame,partial,Fred has no frames: same as Enter,explicit
-magit-diff.el,1907,command,magit-diff-visit-worktree-file,partial,"C-j in diff, commit and stash buffers: the worktree file at the line",explicit
+magit-diff.el,1907,command,magit-diff-visit-worktree-file,partial,RET on a diff line (evil-collection-magit-visit-worktree-file-on-return),explicit
 magit-diff.el,1926,command,magit-diff-visit-worktree-file-other-window,partial,Fred has no windows: same as C-j,explicit
 magit-diff.el,1932,command,magit-diff-visit-worktree-file-other-frame,partial,Fred has no frames: same as C-j,explicit
 magit-diff.el,2179,command,magit-diff-show-or-scroll-up,partial,Enter shows the commit at point (no scrolling of another window),explicit
@@ -423,7 +423,7 @@ magit-files.el,363,command,magit-update-index,partial,:Magit name in an {index} 
 magit-files.el,401,command,magit-find-git-config-file,partial,:Magit: visits the repository config file,explicit
 magit-files.el,417,command,magit-find-git-config-file-other-window,partial,Fred has no windows: same as magit-find-git-config-file,explicit
 magit-files.el,433,command,magit-find-git-config-file-other-frame,partial,Fred has no frames: same as magit-find-git-config-file,explicit
-magit-files.el,452,command,magit-file-dispatch,partial,"Space m F; file actions, inspect/log/blame/navigate groups and status/commit; t trace, e edit line, G, dired variants missing",explicit
+magit-files.el,452,command,magit-file-dispatch,partial,Space m F and C-c M-g in Magit buffers; file actions,explicit
 magit-files.el,536,command,magit-bury-buffer,partial,q in blob buffers returns (magit-bury-buffer),explicit
 magit-files.el,548,command,magit-bury-or-kill-buffer,partial,q in blob buffers kills the buffer,explicit
 magit-files.el,564,command,magit-kill-this-buffer,partial,q in blob buffers closes them,explicit
@@ -673,7 +673,7 @@ magit-process.el,255,option,magit-show-process-buffer-hint,partial,Git errors en
 magit-process.el,277,option,magit-process-apply-ansi-colors,n/a,the terminal shows Git's own colors while a command runs,explicit
 magit-process.el,295,option,magit-process-timestamp-format,partial,strftime prefix of process buffer entries,explicit
 magit-process.el,367,command,magit-process-buffer,partial,"` in Magit buffers (evil-collection), Space m $: this repository's terminal Git commands and errors (output itself goes to the terminal)",explicit
-magit-process.el,404,command,magit-process-kill,partial,:Magit name; SIGTERM to the repository's running background Git processes (terminal ones stop with C-c),explicit
+magit-process.el,404,command,magit-process-kill,partial,x in the process buffer and :Magit; SIGTERM to the repository's running background Git processes,explicit
 magit-process.el,429,command,magit-toggle-subprocess-record,partial,:Magit name; every background Git call listed,explicit
 magit-pull.el,33,option,magit-pull-or-fetch,partial,pull menu gains f F o s m fetch suffixes,explicit
 magit-pull.el,42,command,magit-pull,partial,"Space m P menu; -f/-r/-F arguments and p/u/e suffixes; -A, U, r/C configure, magit-pull-or-fetch missing",explicit
@@ -786,7 +786,7 @@ magit-section.el,322,option,magit-section-disable-line-numbers,partial,Magit buf
 magit-section.el,803,command,magit-section-forward,partial,"C-j (on a file/hunk C-j visits the worktree file, as evil-collection section maps)",explicit
 magit-section.el,822,command,magit-section-backward,partial,C-k,explicit
 magit-section.el,860,command,magit-section-up,partial,gh in status,explicit
-magit-section.el,867,command,magit-section-forward-sibling,partial,gj ] M-j,explicit
+magit-section.el,867,command,magit-section-forward-sibling,partial,gj ]] M-j M-n,explicit
 magit-section.el,879,command,magit-section-backward-sibling,partial,gk [ M-k,explicit
 magit-section.el,891,command,magit-mouse-set-point,partial,click sets point (Fred's mouse support),explicit
 magit-section.el,945,command,magit-section-show,partial,via levels; evil z keys are off by default,explicit
@@ -797,8 +797,8 @@ magit-section.el,996,command,magit-section-show-children,partial,zO,explicit
 magit-section.el,1013,command,magit-section-hide-children,partial,zC,explicit
 magit-section.el,1018,command,magit-section-show-headings,partial,M-1 shows headings only,explicit
 magit-section.el,1033,command,magit-section-cycle,partial,Tab toggles the section at point,explicit
-magit-section.el,1064,command,magit-section-cycle-global,partial,M-1 / M-4 for all sections,explicit
-magit-section.el,1124,command,magit-section-show-level-1,partial,1 in status (top-level section at point),explicit
+magit-section.el,1064,command,magit-section-cycle-global,partial,"S-Tab: collapse all, else expand all (no headings-only step); M-1 / M-4",explicit
+magit-section.el,1124,command,magit-section-show-level-1,partial,"1 in every Magit buffer (no counts there, as upstream)",explicit
 magit-section.el,1129,command,magit-section-show-level-1-all,partial,M-1 in status,explicit
 magit-section.el,1134,command,magit-section-show-level-2,partial,2 in status,explicit
 magit-section.el,1139,command,magit-section-show-level-2-all,partial,M-2,explicit
@@ -808,7 +808,7 @@ magit-section.el,1154,command,magit-section-show-level-4,partial,4 in status,exp
 magit-section.el,1159,command,magit-section-show-level-4-all,partial,M-4,explicit
 magit-section.el,1164,command,magit-mouse-toggle-section,partial,click on a section's v/> indicator,explicit
 magit-section.el,1182,command,magit-describe-section-briefly,partial,:Magit name,explicit
-magit-section.el,1219,command,magit-describe-section,partial,:Magit name; section value and buffer in the echo area,explicit
+magit-section.el,1219,command,magit-describe-section,partial,H and :Magit; section value and buffer in the echo area,explicit
 magit-sequence.el,96,command,magit-sequencer-continue,partial,Space m x/v c; guarded continuation,explicit
 magit-sequence.el,108,command,magit-sequencer-skip,partial,Space m x/v s; guarded skip,explicit
 magit-sequence.el,117,command,magit-sequencer-abort,partial,Space m x/v a; guarded abort,explicit
@@ -886,10 +886,10 @@ magit-stash.el,206,command,magit-snapshot-both,partial,Space m z Z; source tree/
 magit-stash.el,215,command,magit-snapshot-index,partial,Space m z I; saves index-only tree without worktree cleanup; customization/context/error parity remains open,explicit
 magit-stash.el,222,command,magit-snapshot-worktree,partial,Space m z W; source pre-stash-index base and unstaged tree; customization/context/error parity remains open,explicit
 magit-stash.el,238,command,magit-stash-push,partial,Space m z P: menu with -- -u -a -k -K; P runs git stash push,explicit
-magit-stash.el,265,command,magit-stash-apply,partial,selected a; index restoration then plain fallback retaining stash; 3way/reject negotiation still missing,explicit
-magit-stash.el,288,command,magit-stash-pop,partial,"selected p; index restoration, guarded reflog deletion, conflicts retained; additional fallbacks missing",explicit
-magit-stash.el,370,command,magit-stash-drop,partial,selected d/k; yes confirmation and stale identity guard; multi-selection still missing,explicit
-magit-stash.el,387,command,magit-stash-clear,partial,Space m z C with y/n; deletes refs/stash,explicit
+magit-stash.el,265,command,magit-stash-apply,partial,a on a stash; index restoration then plain fallback retaining stash; 3way/reject negotiation still missing,explicit
+magit-stash.el,288,command,magit-stash-pop,partial,A on a stash (magit-cherry-pick remap); index restoration,explicit
+magit-stash.el,370,command,magit-stash-drop,partial,x on a stash; yes confirmation and stale identity guard; multi-selection still missing,explicit
+magit-stash.el,387,command,magit-stash-clear,partial,x on the Stashes heading and Space m z C with y/n; deletes refs/stash,explicit
 magit-stash.el,396,command,magit-stash-branch,partial,Space m z b; git stash branch (drops when clean),explicit
 magit-stash.el,405,command,magit-stash-branch-here,partial,"Space m z B; new branch here, then index-preserving apply (keeps stash, as upstream code)",explicit
 magit-stash.el,417,command,magit-stash-format-patch,partial,Space m z f; 0001-<subject>.patch at the repository root; refuses to overwrite,explicit
@@ -991,7 +991,7 @@ magit-wip.el,,option,magit-wip-mode,partial,[magit] TOML configuration; source d
 magit-wip.el,,option,magit-wip-mode-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,runtime
 magit-worktree.el,33,option,magit-read-worktree-directory-function,n/a,value is an Emacs Lisp function; Fred's built-in equivalent behavior is fixed,explicit
 magit-worktree.el,46,option,magit-read-worktree-offsite-directory,n/a,"only read by magit-read-worktree-directory-offsite, a value of the Lisp-function option magit-read-worktree-directory-function",explicit
-magit-worktree.el,128,command,magit-worktree,partial,Space m Z (magit-dispatch key) with b/c/m/k/g,explicit
+magit-worktree.el,128,command,magit-worktree,partial,% in Magit buffers (Z stays Vim's ZZ/ZQ); Space m Z with b/c/m/k/g,explicit
 magit-worktree.el,140,command,magit-worktree-checkout,partial,Space m Z b; sibling directory default (magit-read-worktree-directory-sibling); opens its status,explicit
 magit-worktree.el,155,command,magit-worktree-branch,partial,"Space m Z c; new branch, start point, directory",explicit
 magit-worktree.el,169,command,magit-worktree-move,partial,Space m Z m; refuses the main worktree,explicit
@@ -999,7 +999,7 @@ magit-worktree.el,191,command,magit-worktree-delete,partial,Space m Z k; refuses
 magit-worktree.el,234,command,magit-worktree-status,partial,Space m Z g; status of another worktree,explicit
 magit.el,77,option,magit-openpgp-default-signing-key,partial,default for --gpg-sign= prompts,explicit
 magit.el,247,option,magit-define-global-key-bindings,n/a,"Emacs-specific (default-directory, windows, Info, minor modes, tab-width, buffer names, global keymaps or Lisp githook bridge); Fred's equivalent is fixed or uses Space m",explicit
-magit.el,327,command,magit-dispatch,partial,Space m; navigable command panels; full groups/options still missing,explicit
+magit.el,327,command,magit-dispatch,partial,"h ? C-c C-c C-x M-g in Magit buffers (upstream layout), Space m (user layout)",explicit
 magit.el,407,option,magit-shell-command-verbose-prompt,partial,prompt names the directory,explicit
 magit.el,418,command,magit-run,partial,Space m ! / ! in Magit buffers: git subcommand in root or working directory (shell and GUI launchers not ported),explicit
 magit.el,434,command,magit-git-command,partial,"| in Magit buffers (evil-collection), Space m Q: quote-aware words, terminal Git",explicit

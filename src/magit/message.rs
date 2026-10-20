@@ -269,14 +269,15 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         ed.vim.pending = vec![k];
         return true;
     }
-    // evil-collection: M-k / gk previous message, M-j / gj next.
+    // gk previous message, gj next (evil-collection).
     let c = match k.code {
         KeyCode::Char(c) => Some(c),
         _ => None,
     };
     let older = match (ed.vim.pending.as_slice(), c, k.alt) {
-        ([], Some('k'), true) => Some(true),
-        ([], Some('j'), true) => Some(false),
+        // git-commit-mode-map's M-p / M-n, evil-collection's M-k / M-j.
+        ([], Some('k' | 'p'), true) => Some(true),
+        ([], Some('j' | 'n'), true) => Some(false),
         ([g], Some('k'), false) if *g == Key::ch('g') => Some(true),
         ([g], Some('j'), false) if *g == Key::ch('g') => Some(false),
         _ => None,

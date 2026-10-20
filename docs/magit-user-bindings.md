@@ -68,3 +68,15 @@ changes: h and ? open magit-dispatch in upstream's layout with dispatch keys
 ' " _ O - x for submodule, subtree, revert, reset, reverse and discard;
 branch X resets and x deletes; tag x and remote x delete; revert _ reverts
 commits.
+
+Buffer keys (October 19) are checked key by key against the user's Emacs:
+`tools/magit-evil-keys.el` loads the pinned Magit with every evil-collection
+mode and the user's gl-evil.el settings (no C-i jump) in a batch Emacs and
+records each mode's normal-state keys (and, with point on a section, the
+section's), in `docs/magit-evil-keys.tsv`; `docs/magit-key-map.md` compares
+Fred. Following it: `[[`/`]]` (not `[`/`]`) move between siblings, `Z` is
+Vim's (`%` is worktree), stash buffers keep d diff / p push and act on
+stashes with a apply, A pop, x drop, `1`-`4` are section levels in every
+Magit buffer (no counts), RET in a diff visits the worktree file and S-RET
+the blob, C-j moves to the next section, and repository/submodule lists
+have only RET m u f g r q.

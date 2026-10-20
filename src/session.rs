@@ -2666,7 +2666,7 @@ mod tests {
         assert!(crate::magit::log::limit(args).is_none(), "{args:?}");
         // C-c C-n moves to the parent commit's row.
         let row = |t: &T, c: &str| t.s.ed.buf.text().lines().position(|l| l.contains(c));
-        t.keys(&format!("{}G", row(&t, "commit 2").unwrap() + 1));
+        t.keys(&format!(":{}<Enter>", row(&t, "commit 2").unwrap() + 1));
         t.keys("<C-c><C-n>");
         assert_eq!(Some(t.s.ed.cur.line), row(&t, "commit 1"));
         // + with no limit sets the default limit (magit-log-set-commit-limit).
@@ -2696,6 +2696,40 @@ mod tests {
                 .get(&('l', "--grep="))
                 .map(String::as_str),
             Some("commit")
+        );
+    }
+
+    #[test]
+    fn magit_stage_and_unstage_a_whole_section_from_its_heading() {
+        let mut t = T::open(Some("f.txt"), Some("one\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        fs::write(t.dir.path().join("g.txt"), "g\n").unwrap();
+        repo.read(&["add", "."]).unwrap();
+        repo.read(&["commit", "-qm", "base"]).unwrap();
+        fs::write(t.dir.path().join("f.txt"), "two\n").unwrap();
+        fs::write(t.dir.path().join("g.txt"), "h\n").unwrap();
+        t.keys(" ms");
+        magit_settle(&mut t);
+        let heading = |t: &T, name: &str| {
+            let text = t.s.ed.buf.text();
+            text.lines()
+                .position(|l| l.get(2..).is_some_and(|r| r.starts_with(name)))
+                .unwrap_or_else(|| panic!("{name}: {text}"))
+        };
+        t.keys(&format!(":{}<Enter>s", heading(&t, "Unstaged changes") + 1));
+        magit_settle(&mut t);
+        let staged = repo.read(&["diff", "--cached", "--name-only"]).unwrap();
+        assert_eq!(String::from_utf8_lossy(&staged), "f.txt\ng.txt\n");
+        t.keys(&format!(":{}<Enter>u", heading(&t, "Staged changes") + 1));
+        magit_settle(&mut t);
+        assert!(
+            repo.read(&["diff", "--cached", "--name-only"])
+                .unwrap()
+                .is_empty()
         );
     }
 
@@ -2874,7 +2908,8 @@ mod tests {
                 .lines()
                 .position(|l| l == "+five")
                 .unwrap();
-        t.keys(&format!("{}G<Enter>", row + 1));
+        // evil-collection: S-RET visits the blob, RET the worktree file.
+        t.keys(&format!(":{}<Enter><S-Enter>", row + 1));
         magit_settle(&mut t);
         let blob = t.s.ed.blob.as_ref().expect("blob buffer");
         assert_eq!(blob.file, Path::new("f.txt"));
@@ -2882,10 +2917,9 @@ mod tests {
             (t.s.ed.cur.line, t.s.ed.buf.line(t.s.ed.cur.line)),
             (4, "five".to_owned())
         );
-        // C-j visits the worktree file at that line.
         t.keys("q");
         magit_settle(&mut t);
-        t.keys(&format!("{}G<C-j>", row + 1));
+        t.keys(&format!(":{}<Enter><Enter>", row + 1));
         magit_settle(&mut t);
         assert!(t.s.ed.blob.is_none() && t.s.ed.magit.is_none());
         assert_eq!(t.s.ed.cur.line, 4);
@@ -3072,7 +3106,7 @@ mod tests {
         magit_settle(&mut t);
         goto(&mut t, RowAction::Section(Section::Unstaged));
         // ] moves to the next section heading.
-        t.keys("]");
+        t.keys("]]");
         assert_eq!(at(&t), Some(RowAction::Section(Section::Staged)));
         // M-4 expands every file; 1 closes the section at point; M-1 closes all.
         t.keys("<M-4>");
@@ -3391,20 +3425,20 @@ mod tests {
         magit_settle(&mut t);
         let row = t.s.ed.buf.text().lines().position(|l| l == "+two").unwrap();
         // Reversing asks first (magit-confirm 'reverse).
-        t.keys(&format!("{}G-y<Enter>", row + 1));
+        t.keys(&format!(":{}<Enter>-y<Enter>", row + 1));
         magit_settle(&mut t);
         assert_eq!(
             fs::read_to_string(t.dir.path().join("f.txt")).unwrap(),
             "1\n2\n3\n"
         );
-        t.keys(&format!("{}Ga", row + 1));
+        t.keys(&format!(":{}<Enter>a", row + 1));
         magit_settle(&mut t);
         assert_eq!(
             fs::read_to_string(t.dir.path().join("f.txt")).unwrap(),
             "1\ntwo\n3\n"
         );
         // Applying it twice is refused by git apply --check.
-        t.keys(&format!("{}Ga", row + 1));
+        t.keys(&format!(":{}<Enter>a", row + 1));
         magit_settle(&mut t);
         assert!(
             t.msg().contains("patch") || t.msg().contains("error"),
@@ -3448,7 +3482,7 @@ mod tests {
         assert!(t.s.ed.reg.text.contains("+    2"), "{:?}", t.s.ed.reg.text);
         assert!(t.s.ed.reg.text.starts_with("diff --git"));
         // u reverses the committed change in the index only (confirmed).
-        t.keys(&format!("{}Guy<Enter>", row + 1));
+        t.keys(&format!(":{}<Enter>uy<Enter>", row + 1));
         magit_settle(&mut t);
         let staged = repo.read(&["diff", "--cached"]).unwrap();
         assert!(String::from_utf8_lossy(&staged).contains("+    1"));
@@ -3457,7 +3491,7 @@ mod tests {
             "fn a() {\n    2\n}\n"
         );
         // C adds a changelog stub for the hunk to a new commit draft.
-        t.keys(&format!("{}GC", row + 1));
+        t.keys(&format!(":{}<Enter>C", row + 1));
         magit_settle(&mut t);
         assert!(t.s.ed.commit_repo.is_some());
         assert!(
@@ -3702,7 +3736,7 @@ mod tests {
                 .lines()
                 .position(|l| l == "+    2")
                 .unwrap();
-        t.keys(&format!("{}G<C-c><C-t>", row + 1));
+        t.keys(&format!(":{}<Enter><C-c><C-t>", row + 1));
         magit_settle(&mut t);
         let kind = t.s.ed.magit.as_ref().map(|v| v.kind.clone());
         let Some(crate::magit::Kind::Log(_, args)) = kind else {
@@ -3757,7 +3791,7 @@ mod tests {
                 .lines()
                 .position(|l| l.ends_with(" a"))
                 .unwrap();
-        t.keys(&format!("{}Gm", row + 1));
+        t.keys(&format!(":{}<Enter>m", row + 1));
         t.keys(" mFs");
         magit_settle(&mut t);
         let staged = repo.read(&["diff", "--cached", "--name-only"]).unwrap();
@@ -3904,7 +3938,7 @@ mod tests {
                 .lines()
                 .position(|l| l.starts_with("v Staged"))
                 .unwrap();
-        t.keys(&format!("{}G mdd", staged + 1));
+        t.keys(&format!(":{}<Enter> mdd", staged + 1));
         magit_settle(&mut t);
         assert!(matches!(
             &t.s.ed.magit.as_ref().unwrap().kind,
@@ -4361,7 +4395,7 @@ mod tests {
                 .lines()
                 .position(|l| l.ends_with(" first"))
                 .unwrap();
-        t.keys(&format!("{}G.", row + 1));
+        t.keys(&format!(":{}<Enter>.", row + 1));
         magit_settle(&mut t);
         assert!(t.s.ed.rebase_todo.is_some(), "{}", t.msg());
         let verb = |t: &T, l: usize| t.s.ed.buf.line(l);
@@ -4443,7 +4477,7 @@ mod tests {
                 .lines()
                 .position(|l| l.ends_with(" second"))
                 .unwrap();
-        t.keys(&format!("{}G.", row + 1));
+        t.keys(&format!(":{}<Enter>.", row + 1));
         magit_settle(&mut t);
         assert!(t.s.ed.rebase_todo.is_some(), "{}", t.msg());
         assert!(
@@ -4804,12 +4838,12 @@ mod tests {
         let mut t = T::open(Some("f.txt"), Some("base\n"));
         t.keys("iunsaved <Esc>");
         let repo = magit_stash_fixture(&mut t);
-        t.keys("d");
+        t.keys("x");
         assert!(matches!(t.s.ed.mode, Mode::Command(_)));
         t.keys("no<Enter>");
         magit_settle(&mut t);
         assert_eq!(repo.stashes().unwrap().len(), 1);
-        t.keys("dyes<Enter>");
+        t.keys("xyes<Enter>");
         magit_settle(&mut t);
         assert!(repo.stashes().unwrap().is_empty());
         assert!(
@@ -4831,7 +4865,7 @@ mod tests {
         assert!(t.s.ed.buf.to_bytes().windows(8).any(|b| b == b"+stashed"));
         t.keys("q");
         t.s.ed.set_cursor(1, 0);
-        t.keys("p");
+        t.keys("A");
         magit_settle(&mut t);
         assert!(repo.stashes().unwrap().is_empty());
         assert_eq!(
@@ -4843,7 +4877,7 @@ mod tests {
     fn magit_stash_drop_rejects_stale_confirmation() {
         let mut t = T::open(Some("f.txt"), Some("base\n"));
         let repo = magit_stash_fixture(&mut t);
-        t.keys("d");
+        t.keys("x");
         fs::write(t.dir.path().join("f.txt"), "new stash\n").unwrap();
         repo.read(&["stash", "push", "-qm", "new"]).unwrap();
         t.keys("yes<Enter>");

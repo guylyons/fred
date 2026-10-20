@@ -237,6 +237,7 @@ pub(super) fn explicit(name: &str) -> Option<Action> {
         "magit-stage-buffer-file" => Some(File(super::blob::FileOp::Stage)),
         "magit-unstage-buffer-file" => Some(File(super::blob::FileOp::Unstage)),
         "git-commit-insert-trailer" | "git-commit-insert-pseudo-header" => menu('&'),
+        "evil-collection-magit-stage-untracked-file-with-intent" => Some(StageIntent),
         "magit-fetch-modules" => menu('Z'),
         "magit-git-mergetool" => menu('V'),
         "magit-am-continue" => Some(Patch(super::patch::Op::AmContinue)),

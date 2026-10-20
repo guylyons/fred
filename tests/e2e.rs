@@ -1260,9 +1260,9 @@ fn magit_stash_pop_restores_index_and_drop_cancel_in_both_modes() {
         p.wait_for("editor", |s| s.contains("NORMAL"));
         p.keys(&["iunsaved \x1b", " mzl"]);
         p.wait_for("stash list", |s| s.contains("stash@{0}"));
-        p.keys(&["j", "d"]);
+        p.keys(&["j", "x"]);
         p.wait_for("drop confirmation", |s| s.contains("Type yes:"));
-        p.keys(&["\x1b", "p"]);
+        p.keys(&["\x1b", "A"]);
         p.wait_for("popped stash", |s| s.contains("No entries"));
         p.keys(&["q"]);
         p.wait_for("preserved source", |s| s.contains("unsaved base"));

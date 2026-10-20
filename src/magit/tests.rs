@@ -5089,3 +5089,470 @@ fn print_menu() {
         println!("ENTRY {} | {} | {}", e.0, e.1, e.2);
     }
 }
+
+/// What Fred does with a key sequence in a Magit buffer.
+#[derive(Debug, PartialEq)]
+enum KeyOutcome {
+    /// Passed on to Vim.
+    Vim,
+    Act(super::Action),
+    /// Consumed with no action to compare (done in place, or ignored).
+    Handled,
+}
+/// docs/magit-evil-keys.tsv's Emacs key → Fred's key notation.
+fn fred_key_notation(k: &str) -> Option<String> {
+    k.split(' ')
+        .map(|p| {
+            Some(match p {
+                "SPC" => " ".into(),
+                "TAB" => "<Tab>".into(),
+                "RET" => "<Enter>".into(),
+                "DEL" => "<BS>".into(),
+                "<backtab>" => "<S-Tab>".into(),
+                "C-<return>" => "<C-Enter>".into(),
+                // What a terminal sends for them.
+                "C-i" => "<Tab>".into(),
+                "C-m" => "<Enter>".into(),
+                "S-SPC" | "<" | ">" => return None,
+                _ if p.starts_with("C-") || p.starts_with("M-") => format!("<{p}>"),
+                _ => p.into(),
+            })
+        })
+        .collect()
+}
+/// The editor state upstream's mode (or section map) runs in.
+fn editor_for(mode: &str, repo: &Repo) -> Option<crate::editor::Editor> {
+    use super::{Kind, RowAction as R, Section as S, View, diff::Target};
+    use crate::{buffer::Buffer, editor::Editor};
+    let mut e = Editor::new(Buffer::from_text("one\ntwo\nthree\n"));
+    // "status@hunk": point on that kind of section.
+    let (mode, section) = mode.split_once('@').unwrap_or((mode, ""));
+    let mode = match mode {
+        "status" | "log" | "refs" | "revision" | "diff" => format!("magit-{mode}-mode"),
+        m => m.to_owned(),
+    };
+    let row = match section {
+        "hunk" => Some(R::Hunk("f".into(), false, 1, 1)),
+        "file" => Some(R::File("f".into(), S::Unstaged)),
+        "staged" => Some(R::Section(S::Staged)),
+        "unstaged" => Some(R::Section(S::Unstaged)),
+        "untracked" => Some(R::Section(S::Untracked)),
+        "stashes" => Some(R::Section(S::Stashes)),
+        "stash" => Some(R::Stash(super::workflows::Stash {
+            id: "0".repeat(40),
+            selector: "stash@{0}".into(),
+            subject: "s".into(),
+        })),
+        "module" => Some(R::Module("m".into())),
+        "commit" | "branch" | "tag" => Some(R::Commit("HEAD".into())),
+        "" => None,
+        _ => return None,
+    };
+    let kind = match mode.as_str() {
+        "git-commit-mode" => {
+            e.commit_repo = Some(repo.clone());
+            return Some(e);
+        }
+        "magit-status-mode" => Kind::Status,
+        "magit-log-mode" | "magit-log-select-mode" => Kind::Log(vec!["HEAD".into()], vec![]),
+        "magit-revision-mode" => Kind::Patch("HEAD".into()),
+        "magit-diff-mode" => Kind::Diff(Target::Unstaged, vec![]),
+        "magit-refs-mode" => Kind::Refs("HEAD".into(), vec![], Default::default()),
+        "magit-stashes-mode" => Kind::Stashes,
+        "magit-stash-mode" => Kind::StashPatch(super::workflows::Stash {
+            id: "0".repeat(40),
+            selector: "stash@{0}".into(),
+            subject: "s".into(),
+        }),
+        "magit-reflog-mode" => Kind::Reflog("HEAD".into()),
+        "magit-cherry-mode" => Kind::Cherry("HEAD".into(), "HEAD".into()),
+        "magit-process-mode" => Kind::Process,
+        "magit-repolist-mode" => Kind::Repos,
+        "magit-submodule-list-mode" => Kind::Modules,
+        _ => return None,
+    };
+    let mut view = View::status(repo.clone(), Snapshot::default());
+    // Commit keys (a, -, A) act on a commit at point.
+    if matches!(
+        kind,
+        Kind::Log(..) | Kind::Reflog(_) | Kind::Cherry(..) | Kind::Refs(..)
+    ) {
+        view.rows = vec![super::Row {
+            text: "one".into(),
+            action: Some(super::RowAction::Commit("HEAD".into())),
+        }];
+    }
+    view.kind = kind;
+    if let Some(row) = row {
+        view.rows = vec![super::Row {
+            text: "one".into(),
+            action: Some(row),
+        }];
+    }
+    match section {
+        "branch" => drop(view.refnames.insert(0, "refs/heads/main".into())),
+        "tag" => drop(view.refnames.insert(0, "refs/tags/v1".into())),
+        _ => {}
+    }
+    if mode == "magit-log-select-mode" {
+        view.select = Some(Box::new(super::Select {
+            question: super::Question::Branch(super::branch::Op::Create),
+            answers: vec![],
+            defaults: vec![],
+            message: String::new(),
+        }));
+    }
+    e.magit = Some(Box::new(view));
+    Some(e)
+}
+fn key_outcome(mut e: crate::editor::Editor, keys: &str) -> KeyOutcome {
+    use crate::editor::Mode;
+    let keys = crate::key::parse_keys(keys);
+    for (i, &k) in keys.iter().enumerate() {
+        // Earlier keys may be Vim prefixes (g, z) whose second key Magit takes.
+        if i + 1 < keys.len() {
+            e.handle_key(k);
+        } else if e.mode == Mode::Normal && !super::key(&mut e, k) {
+            return KeyOutcome::Vim;
+        }
+        if let Mode::Pick(_) = e.mode
+            && let Some(menu) = e.magit_menu
+        {
+            return KeyOutcome::Act(super::Action::Menu(menu));
+        }
+    }
+    match e.pending_effect.take() {
+        Some(crate::ex::ExEffect::Magit(a)) => KeyOutcome::Act(a),
+        _ => KeyOutcome::Handled,
+    }
+}
+/// Fred actions that do an upstream command's job under another name: the
+/// visits RET dispatches by row, arguments changed in place, and so on.
+const KEY_EQUIVALENTS: &[(&str, &str)] = &[
+    ("magit-reverse", "ApplyDiff(true)"),
+    ("magit-revert-no-commit", "ApplyDiff(true)"),
+    ("magit-edit-thing", "DiffEditHunk"),
+    ("magit-list-repositories", "Refresh"),
+    ("magit-list-submodules", "Refresh"),
+    ("magit-mode-bury-buffer", "SelectQuit"),
+    ("magit-unstage", "ReverseInIndex"),
+    ("magit-unstage-files", "ReverseInIndex"),
+    ("magit-diff-more-context", "Refresh"),
+    ("magit-diff-less-context", "Refresh"),
+    ("magit-diff-default-context", "Refresh"),
+    ("magit-log-double-commit-limit", "Refresh"),
+    ("magit-log-toggle-commit-limit", "Refresh"),
+    ("magit-section-cycle", "Toggle"),
+    ("magit-section-cycle-global", "Fold(Level("),
+    ("magit-diff-staged", "Visit"),
+    ("magit-diff-unstaged", "Visit"),
+    ("magit-show-commit", "Visit"),
+    ("magit-stash-show", "Visit"),
+    ("magit-stash-list", "Visit"),
+    ("magit-visit-ref", "Visit"),
+    ("magit-submodule-visit", "Visit"),
+    ("magit-diff-visit-worktree-file", "VisitWorktree"),
+    // In status the file is the worktree file.
+    ("magit-diff-visit-worktree-file", "Visit"),
+    // magit-stash-section-map's remaps, which Fred runs as stash actions.
+    ("magit-cherry-apply", "Stash(Apply)"),
+    ("magit-cherry-pick", "Stash(Pop)"),
+    ("magit-delete-thing", "Stash(Drop)"),
+];
+struct KeyRow {
+    mode: String,
+    key: String,
+    command: String,
+    status: &'static str,
+    got: String,
+}
+/// docs/magit-evil-keys.tsv against what Fred's keys do.
+fn key_map() -> Vec<KeyRow> {
+    let (_d, repo) = setup();
+    let tsv = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/docs/magit-evil-keys.tsv"
+    ))
+    .unwrap();
+    // Section maps remap generic commands (magit-delete-thing becomes
+    // magit-discard on a hunk): Fred's key may run any of the targets.
+    let mut remaps: std::collections::HashMap<&str, Vec<&str>> = Default::default();
+    for l in tsv.lines() {
+        if let [_, key, to] = l.split('\t').collect::<Vec<_>>()[..]
+            && let Some(from) = key.strip_prefix("<remap> ")
+        {
+            remaps.entry(from).or_default().push(to);
+        }
+    }
+    let mut rows = vec![];
+    for l in tsv.lines() {
+        let [mode, key, command] = l.split('\t').collect::<Vec<_>>()[..] else {
+            continue;
+        };
+        let Some(keys) = fred_key_notation(key) else {
+            continue;
+        };
+        let Some(e) = editor_for(mode, &repo) else {
+            continue;
+        };
+        let vimish = !["magit", "git-", "evil-collection-magit"]
+            .iter()
+            .any(|p| command.starts_with(p));
+        // Window, help and Emacs prefixes belong to Fred's editor.
+        if vimish
+            && ["C-h ", "C-w ", "C-x ", "M-g "]
+                .iter()
+                .any(|p| key.starts_with(p))
+        {
+            continue;
+        }
+        let got = key_outcome(e, &keys);
+        let shown = match &got {
+            KeyOutcome::Act(a) => format!("{a:?}"),
+            other => format!("{other:?}"),
+        };
+        let status = match (&got, super::commands::by_name(command)) {
+            (KeyOutcome::Vim, _) if vimish => "same",
+            (KeyOutcome::Act(a), Some(b)) if *a == b => "same",
+            (KeyOutcome::Act(a), _)
+                if remaps.get(command).is_some_and(|ts| {
+                    ts.iter()
+                        .any(|t| super::commands::by_name(t).as_ref() == Some(a))
+                }) =>
+            {
+                "same (section remap)"
+            }
+            (KeyOutcome::Act(_), _)
+                if KEY_EQUIVALENTS
+                    .iter()
+                    .any(|(c, a)| *c == command && shown.starts_with(a)) =>
+            {
+                "equivalent"
+            }
+            // Fred's Vim has no such key either.
+            (KeyOutcome::Handled, _) if vimish => "same",
+            (_, _) if vimish => "vim key taken",
+            (KeyOutcome::Vim, _) => "unbound",
+            (KeyOutcome::Handled, _) => "done in place",
+            (KeyOutcome::Act(_), None) => "no name",
+            (KeyOutcome::Act(_), Some(_)) => "differs",
+        };
+        rows.push(KeyRow {
+            mode: mode.into(),
+            key: key.into(),
+            command: command.into(),
+            status,
+            got: shown,
+        });
+    }
+    rows
+}
+/// Why a (key, command) that does not match stays that way; "gap:" marks
+/// missing behavior still to port.
+const KEY_NOTES: &[(&str, &str, &str)] = &[
+    (
+        "+",
+        "magit-diff-more-context",
+        "gap: context changes in diff buffers only",
+    ),
+    (
+        "=",
+        "magit-diff-less-context",
+        "gap: context changes in diff buffers only",
+    ),
+    (
+        "~",
+        "magit-diff-default-context",
+        "gap: context changes in diff buffers only",
+    ),
+    (
+        "+",
+        "magit-log-double-commit-limit",
+        "gap: the limit changes in log buffers only",
+    ),
+    (
+        "=",
+        "magit-log-toggle-commit-limit",
+        "gap: the limit changes in log buffers only",
+    ),
+    (
+        "C-c M-g",
+        "magit-file-dispatch",
+        "C-c is Vim's in drafts and lists; :Magit magit-file-dispatch",
+    ),
+    (
+        "C-x C-j",
+        "magit-dired-jump",
+        "C-x is Vim's in lists; :Magit magit-dired-jump",
+    ),
+    (
+        "C-x M-g",
+        "magit-dispatch",
+        "C-x is Vim's in drafts and lists; Space m opens the dispatch",
+    ),
+    (
+        "C-x g",
+        "magit-status",
+        "C-x is Vim's in drafts and lists; Space m s opens status",
+    ),
+    (
+        "SPC",
+        "magit-diff-show-or-scroll-up",
+        "Space is Fred's leader key; RET shows the commit",
+    ),
+    (
+        "DEL",
+        "magit-diff-show-or-scroll-down",
+        "no second window to scroll; RET shows the commit",
+    ),
+    ("M-m", "magit-back-to-indentation", "Vim's ^"),
+    (
+        "[ f",
+        "find-file-at-point",
+        "Fred's Vim has no [f; f fetches here",
+    ),
+    (
+        "] f",
+        "find-file-at-point",
+        "Fred's Vim has no ]f; f fetches here",
+    ),
+    ("a", "magit-apply", "gap: a on status changes does nothing"),
+    (
+        "g r",
+        "undefined",
+        "Fred refreshes the process buffer as well",
+    ),
+    (
+        "q",
+        "quit-window",
+        "q returns to the previous buffer, as quit-window",
+    ),
+    (
+        "s",
+        "magit-stage",
+        "gap: staging a submodule from its section",
+    ),
+    (
+        "u",
+        "magit-unstage",
+        "gap: unstaging a submodule from its section",
+    ),
+    (
+        "x",
+        "magit-delete-thing",
+        "nothing to delete there; Fred's discard says so",
+    ),
+    (
+        "y y",
+        "evil-collection-magit-yank-whole-line",
+        "Vim's yy yanks the line",
+    ),
+    (
+        "C-t",
+        "evil-collection-magit-toggle-text-mode",
+        "gap: no text-mode toggle (Vim visual and yank work)",
+    ),
+    (
+        "\\",
+        "evil-collection-magit-toggle-text-mode",
+        "gap: no text-mode toggle (Vim visual and yank work)",
+    ),
+];
+fn key_map_md() -> String {
+    let rows = key_map();
+    let mut md = String::from(
+        "# Magit key map\n\nGenerated by `cargo test write_key_map -- --ignored`: every key\n\
+         `docs/magit-evil-keys.tsv` lists (the user's evil-collection setup over the\n\
+         pinned Magit, from `tools/magit-evil-keys.el`; `mode@section` rows have\n\
+         point on that section), pressed in the matching Fred buffer. `same`: the\n\
+         same command (or Vim key); `section remap`: the command a section map\n\
+         remaps it to; `equivalent`: Fred's action does that command's job;\n\
+         `done in place`: Fred moves, folds or copies without an action to\n\
+         compare. Window, help and Emacs prefixes (C-h, C-w, C-x, M-g) of\n\
+         non-Magit commands are left out.\n\n",
+    );
+    let mut counts = std::collections::BTreeMap::new();
+    for r in &rows {
+        *counts.entry(r.status).or_insert(0) += 1;
+    }
+    md.push_str("| Status | Keys |\n| --- | ---: |\n");
+    for (k, v) in &counts {
+        md.push_str(&format!("| {k} | {v} |\n"));
+    }
+    md.push_str("\n## Differences\n\n| Key | Command | Fred | Modes | Note |\n| --- | --- | --- | --- | --- |\n");
+    let mut grouped: std::collections::BTreeMap<(String, String, String), Vec<String>> =
+        Default::default();
+    for r in rows.iter().filter(|r| !key_matches(r.status)) {
+        grouped
+            .entry((r.key.clone(), r.command.clone(), r.got.clone()))
+            .or_default()
+            .push(r.mode.clone());
+    }
+    for ((key, command, got), modes) in grouped {
+        let note = KEY_NOTES
+            .iter()
+            .find(|n| (n.0, n.1) == (&*key, &*command))
+            .map_or("", |n| n.2);
+        md.push_str(&format!(
+            "| `{}` | {command} | {} | {} | {note} |\n",
+            key.replace('|', "\\|"),
+            got.replace('|', "\\|"),
+            modes.join(", ")
+        ));
+    }
+    md
+}
+fn key_matches(status: &str) -> bool {
+    status.starts_with("same") || status == "equivalent" || status == "done in place"
+}
+#[test]
+#[ignore = "writes docs/magit-key-map.md"]
+fn write_key_map() {
+    fs::write(
+        concat!(env!("CARGO_MANIFEST_DIR"), "/docs/magit-key-map.md"),
+        key_map_md(),
+    )
+    .unwrap();
+}
+#[test]
+fn key_map_is_current() {
+    let file = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/docs/magit-key-map.md"
+    ))
+    .unwrap();
+    assert!(
+        file == key_map_md(),
+        "run cargo test write_key_map -- --ignored"
+    );
+    // Every key that does not do upstream's command says why.
+    for r in key_map().iter().filter(|r| !key_matches(r.status)) {
+        assert!(
+            KEY_NOTES
+                .iter()
+                .any(|n| (n.0, n.1) == (&*r.key, &*r.command)),
+            "{} {} {}: {} ({})",
+            r.mode,
+            r.key,
+            r.command,
+            r.status,
+            r.got
+        );
+    }
+}
+#[test]
+#[ignore = "prints how Fred's keys compare with evil-collection's"]
+fn print_key_map() {
+    let mut counts = std::collections::BTreeMap::new();
+    for r in key_map() {
+        *counts.entry(r.status).or_insert(0) += 1;
+        if !r.status.starts_with("same") && r.status != "equivalent" && r.status != "done in place"
+        {
+            println!(
+                "KEY {} | {} | {} | {} | {}",
+                r.status, r.mode, r.key, r.command, r.got
+            );
+        }
+    }
+    println!("COUNTS {counts:?}");
+}
