@@ -40,7 +40,7 @@ const TICK: Duration = Duration::from_millis(50);
 const IDLE_AFTER: Duration = Duration::from_secs(2);
 const IDLE_TICK: Duration = Duration::from_millis(250);
 /// How long `Space` waits before showing its keys (as Emacs's which-key).
-const WHICH_KEY: Duration = Duration::from_secs(1);
+const WHICH_KEY: Duration = Duration::from_millis(400);
 const HIGHLIGHT_BUDGET: Duration = Duration::from_millis(20);
 /// How long to wait for more pending input before drawing. Not zero: with
 /// `use-dev-tty`, crossterm's poll reads nothing when given no time.

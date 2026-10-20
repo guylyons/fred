@@ -220,7 +220,7 @@ clipboard alone.
 | `ZZ`, `ZQ` | save (if changed) and quit; quit without saving |
 | `Space Enter`, `Space ;` | save (`:w`), close (`:q`) |
 | `Ctrl-^` | back to the buffer you were in before |
-| `Space`, then wait a second | show every `Space` key and what it does (as Emacs's which-key) |
+| `Space`, then a short pause | show every `Space` key and what it does (as Emacs's which-key) |
 | `Space w` then `1`–`9` | jump to a split window: each one shows its number until you pick (or click the window) |
 | `Ctrl-Z` | suspend fred (`fg` brings it back) |
 

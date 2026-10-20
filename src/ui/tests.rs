@@ -1906,7 +1906,7 @@ fn zap_reaches_every_window() {
 fn which_key_lists_the_leader_keys() {
     let (mut s, mut sc, _d) = session_screen(80, 20, &[("a", "alpha\n")]);
     s.handle_keys(" ");
-    s.which_key = true; // The app sets it after a second.
+    s.which_key = true; // The app sets it after a short pause.
     sc.draw_session(&mut s);
     let text: String = (0..20).map(|r| sc.row(r) + "\n").collect();
     assert!(text.contains(" SPC "), "{text}");
