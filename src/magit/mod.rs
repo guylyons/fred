@@ -1051,7 +1051,9 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
                     ed.mode = Mode::Normal;
                     ed.magit_menu = None;
                     let am = arg_menu(menu);
-                    match save.then(|| save_values(am, &menu_arguments(ed, am))) {
+                    let args = menu_arguments(ed, am);
+                    ed.magit_set.insert(am, args.clone());
+                    match save.then(|| save_values(am, &args)) {
                         Some(Err(e)) => {
                             return {
                                 ed.set_err(e);
@@ -2432,14 +2434,6 @@ pub fn answer(ed: &mut Editor, text: &str) {
 
 pub(crate) fn open_menu(ed: &mut Editor, menu: char) {
     coverage::record("action", &format!("{:?}", Action::Menu(menu)));
-    // transient-values: saved arguments replace a menu's defaults.
-    let am = arg_menu(menu);
-    if !ed.magit_seeded.contains(&am)
-        && let Some(args) = saved_values(am)
-    {
-        ed.magit_seeded.insert(am);
-        set_menu_arguments(ed, am, &args);
-    }
     // magit-revision-jump replaces magit-status-jump in commit buffers.
     let menu = match ed.magit.as_ref() {
         Some(v)
@@ -2453,107 +2447,48 @@ pub(crate) fn open_menu(ed: &mut Editor, menu: char) {
         }
         _ => menu,
     };
+    // transient--init-value: each invocation starts from the value set this
+    // session (C-x s), else the saved one (C-x C-s), else the prefix's
+    // :value; what an earlier invocation changed without setting is gone.
+    let am = arg_menu(menu);
+    let start = ed
+        .magit_set
+        .get(&am)
+        .cloned()
+        .or_else(|| saved_values(am))
+        .unwrap_or_else(|| default_arguments(am));
+    set_menu_arguments(ed, am, &start);
     if menu == 'C' && ed.commit_repo.is_some() {
         sync_commit_options(ed);
     }
-    // magit-prefix-use-buffer-arguments: a log buffer's own arguments seed its menu.
-    if menu == 'l'
-        && let Some(Kind::FileLog(_, follow)) = ed.magit.as_ref().map(|v| &v.kind)
-    {
-        if *follow {
-            ed.magit_options.insert(MenuOption::LogFollow);
-        } else {
-            ed.magit_options.remove(&MenuOption::LogFollow);
-        }
-    }
-    // magit-log-buffer arguments, else the default ("-n256" "--graph" "--decorate").
-    if menu == 'l' || menu == 'R' {
-        if let Some(Kind::Log(_, args)) = ed.magit.as_ref().map(|v| &v.kind) {
-            let args = args.clone();
-            let follow = ed.magit_options.contains(&MenuOption::LogFollow);
-            set_menu_arguments(ed, 'l', &args);
-            if follow {
+    // magit-prefix-use-buffer-arguments: a log, diff or refs buffer's own
+    // arguments seed its menu.
+    match ed.magit.as_ref().map(|v| &v.kind) {
+        Some(Kind::FileLog(_, follow)) if menu == 'l' => {
+            if *follow {
                 ed.magit_options.insert(MenuOption::LogFollow);
+            } else {
+                ed.magit_options.remove(&MenuOption::LogFollow);
             }
-        } else if ed.magit_seeded.insert('l') {
-            ed.magit_values.insert(('l', "-n"), "256".into());
-            ed.magit_options.insert(MenuOption::Switch('l', "--graph"));
-            ed.magit_options
-                .insert(MenuOption::Switch('l', "--decorate"));
         }
-    }
-    // magit-show-refs in a refs buffer uses the buffer's arguments.
-    if menu == 'y'
-        && let Some(Kind::Refs(_, args, _)) = ed.magit.as_ref().map(|v| &v.kind)
-    {
-        let args = args.clone();
-        set_menu_arguments(ed, 'y', &args);
-    }
-    // magit-commit :value '("--verbose").
-    if menu == 'C' && ed.commit_repo.is_none() && ed.magit_seeded.insert('C') {
-        ed.magit_options
-            .insert(MenuOption::Switch('C', "--verbose"));
-    }
-    // magit-fetch-modules :value '("--verbose" "--jobs=4").
-    if menu == 'Z' && ed.magit_seeded.insert('Z') {
-        ed.magit_options
-            .insert(MenuOption::Switch('Z', "--verbose"));
-        ed.magit_values.insert(('Z', "--jobs="), "4".into());
-    }
-    // magit-commit-absorb :value '("-v"), magit-commit-autofixup '("-vv").
-    if menu == 'A' && ed.magit_seeded.insert('A') {
-        ed.magit_options
-            .insert(MenuOption::Switch('A', "--verbose"));
-    }
-    if menu == 'H' && ed.magit_seeded.insert('H') {
-        ed.magit_options.insert(MenuOption::Switch('H', "-vv"));
-    }
-    // magit-am :value '("--3way").
-    if menu == 'w' && ed.magit_seeded.insert('w') {
-        ed.magit_options.insert(MenuOption::Switch('w', "--3way"));
-    }
-    // magit-shortlog :value '("--numbered" "--summary").
-    if menu == 'S' && ed.magit_seeded.insert('S') {
-        ed.magit_options
-            .insert(MenuOption::Switch('S', "--numbered"));
-        ed.magit_options
-            .insert(MenuOption::Switch('S', "--summary"));
-    }
-    // magit-rebase :value '("--autostash").
-    if menu == 'r' && ed.magit_seeded.insert('r') {
-        ed.magit_options.insert(MenuOption::RebaseAutostash);
-    }
-    // magit-cherry-pick :value '("--ff") and magit-revert :value '("--edit").
-    if menu == 'x' && ed.magit_seeded.insert('x') {
-        ed.magit_options.insert(MenuOption::CherryFf);
-    }
-    if menu == 'v' && ed.magit_seeded.insert('v') {
-        ed.magit_options.insert(MenuOption::RevertEdit);
-    }
-    // magit-remote :value '("-f").
-    if menu == 'O' && ed.magit_seeded.insert('O') {
-        ed.magit_options.insert(MenuOption::RemoteFetch);
-    }
-    // magit-blame :value '("-w").
-    if menu == 'B' && ed.magit_seeded.insert('B') {
-        ed.magit_options.insert(MenuOption::BlameWhitespace);
-    }
-    if menu == 'd' || menu == 'D' {
-        let args = match ed.magit.as_ref().map(|v| &v.kind) {
-            // A buffer's file limit stays with that buffer.
-            Some(Kind::Diff(_, args)) => Some(
-                args.iter()
-                    .filter(|a| !a.starts_with("-- ") && *a != "--cached")
-                    .cloned()
-                    .collect(),
-            ),
-            // magit-diff-mode's default arguments, applied once per buffer.
-            _ if ed.magit_seeded.insert('d') => Some(vec!["--stat".into(), "--no-ext-diff".into()]),
-            _ => None,
-        };
-        if let Some(args) = args {
+        Some(Kind::Log(_, args)) if menu == 'l' || menu == 'R' => {
+            let args = args.clone();
+            set_menu_arguments(ed, 'l', &args);
+        }
+        Some(Kind::Refs(_, args, _)) if menu == 'y' => {
+            let args = args.clone();
+            set_menu_arguments(ed, 'y', &args);
+        }
+        // A buffer's file limit stays with that buffer.
+        Some(Kind::Diff(_, args)) if menu == 'd' || menu == 'D' => {
+            let args: Vec<String> = args
+                .iter()
+                .filter(|a| !a.starts_with("-- ") && *a != "--cached")
+                .cloned()
+                .collect();
             set_menu_arguments(ed, 'd', &args);
         }
+        _ => {}
     }
     ed.magit_menu = Some(menu);
     crate::pick::magit_menu(ed, menu);
@@ -5454,6 +5389,29 @@ impl MenuOption {
     }
 }
 /// Menus that share another menu's arguments (magit-diff-refresh uses magit-diff's).
+/// A prefix's :value, the arguments a fresh invocation starts with.
+fn default_arguments(menu: char) -> Vec<String> {
+    let args: &[&str] = match menu {
+        // magit-log-arguments' default.
+        'l' => &["-n256", "--graph", "--decorate"],
+        // magit-diff-mode's default arguments.
+        'd' => &["--stat", "--no-ext-diff"],
+        'C' => &["--verbose"],
+        'Z' => &["--verbose", "--jobs=4"],
+        // magit-commit-absorb and magit-commit-autofixup.
+        'A' => &["--verbose"],
+        'H' => &["-vv"],
+        'w' => &["--3way"],
+        'S' => &["--numbered", "--summary"],
+        'r' => &["--autostash"],
+        'x' => &["--ff"],
+        'v' => &["--edit"],
+        'O' => &["-f"],
+        'B' => &["-w"],
+        _ => &[],
+    };
+    args.iter().map(|a| a.to_string()).collect()
+}
 /// transient-values-file: arguments saved with C-x C-s, a line per menu
 /// (menu id, then its arguments, tab-separated).
 fn values_file() -> PathBuf {

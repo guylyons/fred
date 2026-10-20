@@ -2760,7 +2760,6 @@ mod tests {
         let saved = crate::magit::menu_arguments(&t.s.ed, 'l');
         t.s.ed.magit_options.clear();
         t.s.ed.magit_values.clear();
-        t.s.ed.magit_seeded.clear();
         t.keys(" ml<Esc>");
         assert_eq!(crate::magit::menu_arguments(&t.s.ed, 'l'), saved);
         // magit-revision-jump replaces the status jump menu in a commit.
@@ -2776,6 +2775,26 @@ mod tests {
             t.s.ed.magit.as_ref().map(|v| &v.kind),
             t.s.ed.msg
         );
+    }
+
+    #[test]
+    fn magit_menu_values_last_one_invocation_unless_set() {
+        let mut t = T::open(Some("f.txt"), Some("one\n"));
+        magit_repo(&t);
+        let args = |t: &T| crate::magit::menu_arguments(&t.s.ed, 'p');
+        // A toggled argument is gone when the menu opens again.
+        t.keys(" mp-F");
+        assert!(args(&t).contains(&"--force".to_owned()));
+        t.keys("<Esc> mp");
+        assert!(!args(&t).contains(&"--force".to_owned()));
+        // C-x s sets it for the session.
+        t.keys("-F<C-x>s");
+        t.keys(" mp");
+        assert!(args(&t).contains(&"--force".to_owned()));
+        t.keys("<Esc>");
+        // The commit menu's :value (--verbose) is where it starts.
+        t.keys(" mc");
+        assert_eq!(crate::magit::menu_arguments(&t.s.ed, 'C'), ["--verbose"]);
     }
 
     #[test]
