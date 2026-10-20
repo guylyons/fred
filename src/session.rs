@@ -2779,6 +2779,44 @@ mod tests {
     }
 
     #[test]
+    fn magit_refs_tab_shows_a_refs_cherries() {
+        let mut t = T::open(Some("f.txt"), Some("one\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        repo.stage_file(Path::new("f.txt")).unwrap();
+        repo.read(&["commit", "-qm", "base"]).unwrap();
+        repo.read(&["checkout", "-qb", "side"]).unwrap();
+        repo.read(&["commit", "-q", "--allow-empty", "-m", "on side"])
+            .unwrap();
+        repo.read(&["checkout", "-q", "main"]).unwrap();
+        t.keys(" myy");
+        magit_settle(&mut t);
+        let row =
+            t.s.ed
+                .buf
+                .text()
+                .lines()
+                .position(|l| l.contains("side "))
+                .unwrap();
+        assert!(
+            t.s.ed.buf.line(row).ends_with('…'),
+            "{}",
+            t.s.ed.buf.line(row)
+        );
+        t.keys(&format!(":{}<Enter><Tab>", row + 1));
+        magit_settle(&mut t);
+        assert!(!t.s.ed.buf.line(row).ends_with('…'));
+        let cherry = t.s.ed.buf.line(row + 1);
+        assert!(
+            cherry.starts_with("+ ") && cherry.ends_with(" on side"),
+            "{cherry}"
+        );
+    }
+
+    #[test]
     fn magit_refs_view_opens_from_dispatch_and_cycles_counts() {
         let mut t = T::open(Some("f.txt"), Some("one\n"));
         magit_repo(&t);
@@ -4806,8 +4844,8 @@ mod tests {
             t.s.ed
                 .buf
                 .to_bytes()
-                .windows(10)
-                .any(|b| b == b"No entries")
+                .windows(11)
+                .any(|b| b == b"Stashes (0)")
         );
     }
     #[test]
@@ -4865,8 +4903,8 @@ mod tests {
             t.s.ed
                 .buf
                 .to_bytes()
-                .windows(10)
-                .any(|b| b == b"No entries")
+                .windows(11)
+                .any(|b| b == b"Stashes (0)")
         );
         t.keys("q");
         assert_eq!(t.s.ed.buf.line(0), "unsaved base");

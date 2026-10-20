@@ -3418,6 +3418,20 @@ impl Session {
                 }
                 return;
             }
+            // A ref in a refs buffer shows or hides its cherries.
+            if action == Action::Toggle
+                && matches!(view.kind, Kind::Refs(..))
+                && let Some(name) = view.refnames.get(&self.ed.cur.line).cloned()
+            {
+                if !view.open_refs.remove(&name) {
+                    view.open_refs.insert(name);
+                }
+                self.start_magit(move || {
+                    refresh_view(&mut view)?;
+                    Ok(Outcome::View(Box::new(view), selected, fallback))
+                });
+                return;
+            }
             if action == Action::Toggle {
                 match &selected {
                     Some(RowAction::Section(s)) => {
@@ -5594,22 +5608,48 @@ fn refresh_rows(view: &mut View) -> Result<(), String> {
         return Ok(());
     }
     if let Kind::Refs(focus, args, count) = &view.kind {
-        let mut rows = vec![Row {
-            text: format!(
-                "References compared with {} (Enter visit, Space m y menu, gr refresh, q return)",
-                label(Path::new(focus))
-            ),
-            action: None,
-        }];
+        // magit-refs-mode: each ref is a section whose body, its cherries
+        // against the focus, shows when expanded ("…" until then).
+        let mut rows = vec![];
         view.refnames.clear();
         for (text, id, name) in view.repo.refs_rows_named(focus, args, *count)? {
-            if let Some(n) = name {
-                view.refnames.insert(rows.len(), n);
+            let open = name.as_ref().is_some_and(|n| view.open_refs.contains(n));
+            let more = if name.is_some() && !open { "…" } else { "" };
+            if let Some(n) = &name {
+                view.refnames.insert(rows.len(), n.clone());
             }
             rows.push(Row {
-                text: label(Path::new(&text)),
+                text: format!("{}{more}", label(Path::new(&text))),
                 action: id.map(RowAction::Commit),
             });
+            if let Some(n) = name.filter(|_| open) {
+                // magit-refs--insert-cherry-commits: git cherry, newest first.
+                let indent = if *count == crate::magit::refs::Count::Nothing {
+                    String::new()
+                } else {
+                    " ".repeat(
+                        crate::magit::options::int("magit-refs-focus-column-width", 5).max(1)
+                            as usize
+                            - 1,
+                    )
+                };
+                let out = view.repo.read(&["cherry", "-v", focus, &n])?;
+                for line in String::from_utf8_lossy(&out).lines().rev() {
+                    let mut f = line.splitn(3, ' ');
+                    let (sign, id, msg) = (
+                        f.next().unwrap_or(""),
+                        f.next().unwrap_or(""),
+                        f.next().unwrap_or(""),
+                    );
+                    rows.push(Row {
+                        text: label(Path::new(&format!(
+                            "{indent}{sign} {} {msg}",
+                            &id[..id.len().min(7)]
+                        ))),
+                        action: Some(RowAction::Commit(id.to_owned())),
+                    });
+                }
+            }
         }
         view.rows = rows;
         return Ok(());
@@ -5870,27 +5910,17 @@ fn display_patch(bytes: &[u8]) -> Vec<Row> {
 
 fn refresh_refs(view: &mut View) -> Result<(), String> {
     if view.kind == Kind::Stashes {
+        // magit-stashes-refresh-buffer: the heading with its count, then
+        // magit-log-wash-rev's stash lines.
+        let stashes = view.repo.stashes()?;
         view.rows = vec![Row {
-            text: "a apply  p pop  d drop  Enter inspect  gr refresh  q return".into(),
-            action: None,
+            text: format!("Stashes ({})", stashes.len()),
+            action: Some(RowAction::Section(Section::Stashes)),
         }];
-        for stash in view.repo.stashes()? {
+        for stash in stashes {
             view.rows.push(Row {
                 text: format!("{} {}", stash.selector, label(Path::new(&stash.subject))),
                 action: Some(RowAction::Stash(stash)),
-            });
-        }
-        if view.rows.len() == 1 {
-            view.rows.push(Row {
-                text: "No entries".into(),
-                action: None,
-            });
-        }
-        let conflicts = view.snapshot.entries.iter().filter(|e| e.conflict).count();
-        if conflicts > 0 {
-            view.rows.push(Row {
-                text: format!("Conflicts: {conflicts}; Space m s to resolve"),
-                action: None,
             });
         }
         return Ok(());

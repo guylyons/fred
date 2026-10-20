@@ -170,15 +170,39 @@ impl Repo {
             "--format=%(HEAD)%00%(refname:short)%00%(objectname)%00%(upstream:short)%00%(upstream:track)%00%(subject)",
             "refs/heads",
         ])?;
+        let pad_counts = super::options::flag("magit-refs-pad-commit-counts", false);
+        // magit-refs--format-local-branch's counts: "N>" after the name and
+        // "<N" before the upstream (padded with a space on the outer side).
+        let (lp, rp) = if pad_counts { (" ", " ") } else { ("", "") };
+        let counts = |track: &str| {
+            let num = |key: &str| {
+                track
+                    .split(['[', ']', ','])
+                    .find_map(|p| p.trim().strip_prefix(key).map(|n| n.trim().to_owned()))
+            };
+            (
+                num("ahead")
+                    .map(|n| format!("{lp}{n}>"))
+                    .unwrap_or_default(),
+                num("behind")
+                    .map(|n| format!("<{n}{rp}"))
+                    .unwrap_or_default(),
+            )
+        };
+        // magit-refs-primary-column-width (MIN . MAX): the widest local
+        // branch with its counts, plus one.
         let width = local
             .iter()
-            .map(|f| f.get(1).map_or(0, |b| b.chars().count() + 1))
+            .map(|f| {
+                let (a, b) = counts(f.get(4).map_or("", String::as_str));
+                f.get(1).map_or(0, |n| n.chars().count()) + a.len() + b.len() + 1
+            })
             .max()
             .unwrap_or(0)
             .clamp(primary().0, primary().1.max(primary().0));
-        let pad_counts = super::options::flag("magit-refs-pad-commit-counts", false);
         let descriptions = super::options::flag("magit-refs-show-branch-descriptions", false);
-        rows.push(("Branches".into(), None, None));
+        let branches_at = rows.len();
+        rows.push((String::new(), None, None));
         if current.is_none()
             && let Ok(head) = self.read(&["rev-parse", "HEAD"])
         {
@@ -201,42 +225,29 @@ impl Repo {
             let get = |i: usize| f.get(i).map(String::as_str).unwrap_or("");
             let (head, branch, id, upstream, track) =
                 (get(0) == "*", get(1), get(2), get(3), get(4));
-            let num = |key: &str| {
-                track
-                    .split(['[', ']', ','])
-                    .find_map(|p| p.trim().strip_prefix(key).map(|n| n.trim().to_owned()))
-            };
-            // magit-refs-pad-commit-counts adds a space on the other side.
-            let (lp, rp) = if pad_counts { (" ", " ") } else { ("", "") };
-            let ahead = num("ahead")
-                .map(|n| format!(" {lp}{n}>"))
-                .unwrap_or_default();
-            let behind = num("behind")
-                .map(|n| format!("<{n}{rp} "))
-                .unwrap_or_default();
+            let (ahead, behind) = counts(track);
             // magit-refs-show-branch-descriptions.
             let subject = descriptions
                 .then(|| self.config(&format!("branch.{branch}.description")))
                 .flatten()
                 .and_then(|d| d.lines().next().map(str::to_owned))
                 .unwrap_or_else(|| get(5).to_owned());
-            let name = format!("{branch}{ahead}");
             let upstream = match upstream {
                 "" => String::new(),
-                u if track == "[gone]" => format!("{u} (gone) "),
                 u => format!("{u} "),
             };
+            let used = branch.chars().count() + ahead.len() + behind.len();
             rows.push((
                 format!(
-                    "{}{}{behind}{upstream}{}",
+                    "{}{branch}{ahead}{}{behind}{upstream}{subject}",
                     self.focus_column(focus, branch, head, count != Count::Nothing),
-                    pad(&name, width),
-                    subject
+                    " ".repeat(width.saturating_sub(used).max(1)),
                 ),
                 Some(id.to_owned()),
                 Some(format!("refs/heads/{branch}")),
             ));
         }
+        rows[branches_at].0 = format!("Branches ({})", rows.len() - branches_at - 1);
         rows.push((String::new(), None, None));
         // magit-insert-remote-branches.
         for remote in self.remotes()? {
@@ -247,16 +258,13 @@ impl Repo {
                 .flatten()
                 .collect::<Vec<_>>()
                 .join(", ");
-            rows.push((format!("Remote {remote} ({urls}):"), None, None));
+            let heading_at = rows.len();
+            rows.push((format!("Remote {remote} ({urls})"), None, None));
             let refs = lines(&[
                 "--format=%(symref:short)%00%(refname:short)%00%(refname)%00%(objectname)%00%(subject)",
                 &format!("refs/remotes/{remote}"),
             ])?;
             let head_ref = format!("refs/remotes/{remote}/HEAD");
-            let head = refs
-                .iter()
-                .find(|f| f.get(2) == Some(&head_ref) && !f[0].is_empty())
-                .map(|f| f[0].clone());
             for f in refs
                 .iter()
                 .filter(|f| f.get(2) != Some(&head_ref) && f.get(1).is_some_and(|n| shown(n)))
@@ -268,22 +276,19 @@ impl Repo {
                 } else {
                     get(1).strip_prefix(&format!("{remote}/")).unwrap_or(get(1))
                 };
-                let marker = if head.as_deref() == Some(get(1)) {
-                    " (HEAD)"
-                } else {
-                    ""
-                };
                 rows.push((
                     format!(
                         "{}{}{}",
                         self.focus_column(focus, get(1), false, count != Count::Nothing),
-                        pad(&format!("{short}{marker}"), width),
+                        pad(short, width),
                         get(4)
                     ),
                     Some(get(3).to_owned()),
                     Some(get(2).to_owned()),
                 ));
             }
+            let n = rows.len() - heading_at - 1;
+            rows[heading_at].0.push_str(&format!(" ({n})"));
             rows.push((String::new(), None, None));
         }
         // magit-insert-tags: git tag --list -n.

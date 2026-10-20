@@ -1264,7 +1264,7 @@ fn magit_stash_pop_restores_index_and_drop_cancel_in_both_modes() {
         p.keys(&["j", "x"]);
         p.wait_for("drop confirmation", |s| s.contains("Type yes:"));
         p.keys(&["\x1b", "A"]);
-        p.wait_for("popped stash", |s| s.contains("No entries"));
+        p.wait_for("popped stash", |s| s.contains("Stashes (0)"));
         p.keys(&["q"]);
         p.wait_for("preserved source", |s| s.contains("unsaved base"));
         p.keys(&[":q!\r"]);
