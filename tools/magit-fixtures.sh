@@ -50,3 +50,14 @@ cd "$root" && g init -q modules && cd modules
 printf 'top\n' > top && g add top && g commit -qm 'Top'
 g -c protocol.file.allow=always submodule add -q ../upstream lib 2>/dev/null
 g commit -qm 'Add lib'
+
+# bisect: a bisect between a good and a bad commit, one step in.
+cd "$root" && g init -q bisect && cd bisect
+for n in 1 2 3 4; do printf '%s\n' "$n" > f && g add f && g commit -qm "Step $n"; done
+g bisect start HEAD HEAD~3 >/dev/null 2>&1
+
+# blame: a file whose lines come from two commits.
+cd "$root" && g init -q blame && cd blame
+printf 'one\ntwo\nthree\n' > f && g add f && g commit -qm 'First lines'
+GIT_AUTHOR_DATE='2021-02-03T04:05:06Z' GIT_COMMITTER_DATE='2021-02-03T04:05:06Z' \
+  sh -c "printf 'one\nTWO\nthree\nfour\n' > f && git -c init.defaultBranch=main add f && git commit -qm 'Change two, add four'"

@@ -304,63 +304,74 @@ impl Repo {
         }
         // Bisecting: output, the rest to test, and the log.
         if file("BISECT_LOG").is_some() {
-            let output = file("BISECT_CMD_OUTPUT");
-            let mut lines: Vec<String> = match &output {
+            // magit-insert-bisect-output.
+            let mut lines: Vec<String> = match file("BISECT_CMD_OUTPUT") {
                 Some(o) => o.lines().map(str::to_owned).collect(),
-                None => vec![
-                    "Bisecting: (no saved bisect output)".into(),
-                    "It appears you have invoked \"git bisect\" from a shell.".into(),
-                ],
+                None => [
+                    "Bisecting: (no saved bisect output)",
+                    "It appears you have invoked \"git bisect\" from a shell.",
+                    "There is nothing wrong with that, we just cannot display",
+                    "anything useful here.  Consult the shell output instead.",
+                ]
+                .map(String::from)
+                .to_vec(),
             };
-            let heading = if lines.is_empty() {
-                String::new()
-            } else {
-                lines.remove(0)
+            let done = lines
+                .iter()
+                .position(|l| l.ends_with(" is the first bad commit"));
+            let heading = match done {
+                Some(k) => lines.remove(k),
+                None if !lines.is_empty() => lines.remove(0),
+                None => String::new(),
             };
             out.push((
                 Section::BisectOutput,
                 heading,
                 lines.into_iter().map(|l| (l, None)).collect(),
             ));
-            let mut argv = vec![
-                "bisect",
-                "visualize",
-                "git",
-                "log",
-                "--format=%H%x00%h %D %s",
-            ];
+            // magit-insert-bisect-rest: git bisect visualize as a log.
+            let goods: Vec<String> = self
+                .read(&["for-each-ref", "--format=%(refname)", "refs/bisect/good-*"])
+                .map(|o| {
+                    String::from_utf8_lossy(&o)
+                        .lines()
+                        .map(str::to_owned)
+                        .collect()
+                })
+                .unwrap_or_default();
+            let mut revs = vec!["refs/bisect/bad".to_owned(), "--not".to_owned()];
+            revs.extend(goods);
+            let mut args = vec!["--decorate".to_owned()];
             if super::options::flag("magit-bisect-show-graph", true) {
-                argv.push("--graph");
+                args.push("--graph".into());
             }
-            let rest = self
-                .read(&argv)
-                .map(|o| {
-                    String::from_utf8_lossy(&o)
-                        .lines()
-                        .map(|l| match l.split_once('\0') {
-                            Some((pre, text)) => {
-                                // The graph, then the full hash.
-                                let split = pre.len().saturating_sub(40);
-                                let (graph, full) = pre.split_at(split);
-                                (format!("{graph}{text}"), Some(full.to_owned()))
-                            }
-                            None => (l.to_owned(), None),
-                        })
-                        .collect()
-                })
+            let rest: Vec<(String, Option<String>)> = self
+                .log_lines(&revs, &args, &[])
+                .map(|lines| lines.into_iter().map(|l| (l.text, l.commit)).collect())
                 .unwrap_or_default();
-            out.push((Section::BisectRest, "Bisect Rest".into(), rest));
-            let log = self
-                .read(&["bisect", "log"])
-                .map(|o| {
-                    String::from_utf8_lossy(&o)
-                        .lines()
-                        .filter(|l| !l.starts_with("# status:"))
-                        .map(|l| (l.trim_start_matches("# ").to_owned(), None))
-                        .collect()
-                })
-                .unwrap_or_default();
-            out.push((Section::BisectLog, "Bisect Log".into(), log));
+            let n = rest.iter().filter(|r| r.1.is_some()).count();
+            out.push((Section::BisectRest, format!("Bisect Rest ({n})"), rest));
+            // magit-wash-bisect-log: each "git bisect" command, its "# good:"
+            // and "# bad:" lines (hidden) above it.
+            let mut log = vec![];
+            if let Ok(o) = self.read(&["bisect", "log"]) {
+                for l in String::from_utf8_lossy(&o).lines() {
+                    if l.starts_with("git bisect ") {
+                        log.push((format!("{l}…"), None));
+                    } else if let Some(rest) = l.strip_prefix("# first bad commit: [") {
+                        let hash = rest.split(']').next().unwrap_or("");
+                        log.push((
+                            format!("{hash} is the first bad commit"),
+                            Some(hash.to_owned()),
+                        ));
+                    }
+                }
+            }
+            let n = log
+                .iter()
+                .filter(|r| r.0.starts_with("git bisect "))
+                .count();
+            out.push((Section::BisectLog, format!("Bisect Log ({n})"), log));
         }
         out
     }

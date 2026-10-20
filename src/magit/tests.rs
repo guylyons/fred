@@ -1127,12 +1127,13 @@ fn blame_attributes_chunks_and_commit_info() {
         version: 0,
         was_readonly: false,
     };
-    let (w, heading) = blame.margin(1).unwrap();
-    assert_eq!(w, super::blame::HEADING_WIDTH);
+    // The headings style: a heading line above each chunk, no gutter.
+    let heading = blame.heading_above(1).unwrap();
     assert!(
         heading.starts_with("Fred Test") && heading.ends_with("second"),
         "{heading}"
     );
+    assert!(blame.margin(1).is_none() && blame.width() == 0);
     assert!(
         r.blame(
             Path::new("missing"),
@@ -1179,7 +1180,7 @@ fn blame_time_uses_the_local_zone() {
     );
     blame.info.insert("a".repeat(40), info(0, "-0230"));
     assert!(blame.heading(&blame.chunks[0]).contains(&local(0)));
-    assert_eq!(blame.margin(1).unwrap().1, "");
+    assert_eq!(blame.margin(1), None);
     blame.style = 2;
     assert_eq!(blame.margin(0).unwrap(), (1, "┌".into()));
     blame.kind = super::blame::Kind::Echo;
@@ -5602,6 +5603,34 @@ fn fred_render(fixture: &str, buffer: &str) -> Option<String> {
     use super::{Kind, View, diff::Target};
     let dir = render_fixtures().join(fixture);
     let repo = Repo::discover(&dir).ok()?;
+    if buffer == "blame" {
+        // magit-blame-addition on f: each chunk's heading, then its lines.
+        let file = std::path::Path::new("f");
+        let (chunks, info) = repo
+            .blame(file, None, super::blame::Kind::Addition, &[])
+            .ok()?;
+        let blame = super::blame::Blame {
+            repo: repo.clone(),
+            file: file.into(),
+            args: vec![],
+            chunks,
+            info,
+            style: 0,
+            kind: super::blame::Kind::Addition,
+            rev: None,
+            version: 0,
+            was_readonly: false,
+        };
+        let text = fs::read_to_string(dir.join(file)).ok()?;
+        let mut out = String::new();
+        for (l, line) in text.lines().enumerate() {
+            if let Some(h) = blame.heading_above(l) {
+                out.push_str(&format!("{}\n", h.trim_end()));
+            }
+            out.push_str(&format!("{line}\n"));
+        }
+        return Some(out);
+    }
     let stat = || vec!["--no-ext-diff".to_owned(), "--stat".to_owned()];
     let mut view = match buffer {
         "status" => View::new_status(repo.clone(), repo.status().ok()?),
@@ -5704,6 +5733,29 @@ fn render_pairs() -> Vec<(String, String, String)> {
                 }
             }
             let mut fred = fred_render(fixture, buffer).unwrap_or_else(|| "(no render)".into());
+            // Blame dates show in the local time zone on both sides.
+            if name == "blame.blame.txt" {
+                let dates = |t: &str| {
+                    t.lines()
+                        .map(|l| {
+                            let mut w: Vec<&str> = l.split(' ').collect();
+                            for x in w.iter_mut() {
+                                if x.len() == 10
+                                    && x.as_bytes()[4] == b'-'
+                                    && x.as_bytes()[7] == b'-'
+                                {
+                                    *x = "DATE";
+                                } else if x.len() == 5 && x.as_bytes()[2] == b':' {
+                                    *x = "TIME";
+                                }
+                            }
+                            format!("{}\n", w.join(" "))
+                        })
+                        .collect::<String>()
+                };
+                up = dates(&up);
+                fred = dates(&fred);
+            }
             if RENDER_HEADER_LINE.contains(&name.as_str()) {
                 fred = fred
                     .split_once('\n')

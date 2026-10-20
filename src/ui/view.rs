@@ -1,6 +1,14 @@
 //! Which part of the buffer is on screen.
 
 use super::layout::{wrap_cursor, wrap_rows};
+use super::render::virtual_rows;
+
+/// Some lines have rows above them that are not text (blame headings).
+fn has_virtual_rows(ed: &Editor) -> bool {
+    ed.blame
+        .as_ref()
+        .is_some_and(|b| b.version == ed.buf.version && b.style() == "headings" && !b.echo())
+}
 use crate::editor::Editor;
 use crate::text::{col_of_byte, display_width, grapheme_width, next_grapheme};
 
@@ -49,7 +57,7 @@ impl View {
 
     pub fn wheel(&mut self, ed: &Editor, rows: usize, cols: usize, wrap: bool, down: bool) {
         self.detached = true;
-        if !wrap && ed.folds.is_empty() {
+        if !wrap && ed.folds.is_empty() && !has_virtual_rows(ed) {
             self.top = if down {
                 self.top.saturating_add(3)
             } else {
@@ -63,12 +71,13 @@ impl View {
             if ed.folds.hidden(l) {
                 return 0;
             }
+            let virt = virtual_rows(ed, l);
             if !wrap {
-                return 1;
+                return 1 + virt;
             }
             let line = ed.buf.line(l);
             let height = wrap_rows(&line, ed.tabstop(), cols);
-            if l == ed.cur.line {
+            virt + if l == ed.cur.line {
                 height.max(wrap_cursor(&line, ed.cur.byte, ed.tabstop(), cols).0 + 1)
             } else {
                 height
@@ -113,10 +122,16 @@ impl View {
         let n = ed.line_count();
         let c = ed.cur.line;
         let rows = rows.max(1);
-        if !ed.folds.is_empty() {
-            // Hidden lines take no rows.
-            let rows_of = |l: usize| usize::from(!ed.folds.hidden(l));
-            self.scroll_rows(ed, rows, (c, 0), &rows_of);
+        if !ed.folds.is_empty() || has_virtual_rows(ed) {
+            // Hidden lines take no rows; blame headings take one more.
+            let rows_of = |l: usize| {
+                if ed.folds.hidden(l) && l != c {
+                    0
+                } else {
+                    1 + virtual_rows(ed, l)
+                }
+            };
+            self.scroll_rows(ed, rows, (c, virtual_rows(ed, c)), &rows_of);
         } else {
             let so = 2.min((rows - 1) / 2);
             if c < self.top + so {
@@ -176,11 +191,12 @@ impl View {
                 0
             } else if wrap {
                 let r = wrap_rows(&ed.buf.line(l), ed.tabstop(), cols);
-                if l == c { r.max(cr + 1) } else { r }
+                virtual_rows(ed, l) + if l == c { r.max(cr + 1) } else { r }
             } else {
-                1
+                1 + virtual_rows(ed, l)
             }
         };
+        let cr = cr + virtual_rows(ed, c);
         (self.top, self.top_row) = up((c, cr), (rows - 1) / 2, &rows_of);
     }
 
@@ -195,9 +211,9 @@ impl View {
                 return 0;
             }
             let r = wrap_rows(&ed.buf.line(l), ed.tabstop(), cols);
-            if l == c { r.max(cr + 1) } else { r }
+            virtual_rows(ed, l) + if l == c { r.max(cr + 1) } else { r }
         };
-        self.scroll_rows(ed, rows, (c, cr), &rows_of);
+        self.scroll_rows(ed, rows, (c, cr + virtual_rows(ed, c)), &rows_of);
     }
 
     /// Scroll by screen rows so `cursor` (line, row) shows with up to 2

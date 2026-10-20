@@ -107,5 +107,16 @@
           #'magit-list-submodules)
   (let ((magit-repository-directories (list (cons fixtures 1))))
     (render fixtures out "changes" "repolist"
-            (lambda () (magit-list-repositories) (set-buffer (listing))))))
-  (kill-emacs 0))
+            (lambda () (magit-list-repositories) (set-buffer (listing)))))
+  (render fixtures out "bisect" "status"
+          (lambda () (set-buffer (magit-status-setup-buffer default-directory))))
+  ;; magit-blame-addition's default style (headings) on a file buffer;
+  ;; blame runs Git asynchronously.
+  (render fixtures out "blame" "blame"
+          (lambda ()
+            (find-file "f")
+            (magit-blame-addition nil)
+            (while (and magit-blame-process (process-live-p magit-blame-process))
+              (accept-process-output magit-blame-process 0.1))
+            (accept-process-output nil 0.2)))
+  (kill-emacs 0)))

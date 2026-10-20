@@ -150,6 +150,16 @@ pub fn gutter_width(ed: &Editor) -> usize {
     numbers + git_column(ed) + blame_column(ed)
 }
 
+/// Rows drawn above buffer line L that are not text: magit-blame's
+/// headings style puts each chunk's heading on its own line (as upstream
+/// does in a terminal).
+pub(crate) fn virtual_rows(ed: &Editor, l: usize) -> usize {
+    ed.blame
+        .as_ref()
+        .filter(|b| b.version == ed.buf.version && b.heading_above(l).is_some())
+        .map_or(0, |_| 1)
+}
+
 /// magit-blame's margin, when the current style draws one.
 fn blame_column(ed: &Editor) -> usize {
     ed.blame
@@ -447,10 +457,17 @@ fn text_pos(
         } else {
             1
         };
-        if y >= height {
-            y -= height;
+        // A blame heading row above the line counts as the line.
+        let virt = if height > 0 {
+            virtual_rows(ed, line)
+        } else {
+            0
+        };
+        if y >= height + virt {
+            y -= height + virt;
             continue;
         }
+        let y = y.saturating_sub(virt);
         let target = if wrap { x } else { x + view.left };
         let layout = || Layout::new(&text, ed.tabstop(), wrap.then_some(cols));
         let byte = layout()
@@ -851,8 +868,28 @@ pub fn draw(
         } else {
             (line, st)
         };
-        // Rows of this line already scrolled off the top.
-        let skip = if l == view.top { view.top_row } else { 0 };
+        // Rows of this line already scrolled off the top: a blame heading
+        // above it first, then its own.
+        let top_skip = if l == view.top { view.top_row } else { 0 };
+        let virt = virtual_rows(ed, l);
+        if virt > 0 && top_skip == 0 {
+            if let Some(text) = blame.and_then(|b| b.heading_above(l)) {
+                let width = cols + gutter;
+                let text: String = text.chars().take(width).collect();
+                buf.set_stringn(
+                    ox,
+                    oy + y as u16,
+                    format!("{text:<width$}"),
+                    width,
+                    Style::default().bg(Color::DarkGray).fg(Color::White),
+                );
+            }
+            y += 1;
+            if y >= rows {
+                break;
+            }
+        }
+        let skip = top_skip.saturating_sub(virt);
         let first_y = y;
         let mut emit = |y: &mut usize, row: usize, mut spans: Vec<Span<'static>>| {
             if selected {

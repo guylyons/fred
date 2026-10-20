@@ -476,7 +476,7 @@ pub struct Commit {
 pub fn ref_labels(decoration: &str) -> String {
     decoration
         .split(", ")
-        .filter(|d| !d.is_empty() && !d.ends_with("/HEAD"))
+        .filter(|d| !d.is_empty() && !d.ends_with("/HEAD") && !d.starts_with("refs/bisect/"))
         .map(|d| match d {
             "HEAD" => "@",
             d => d

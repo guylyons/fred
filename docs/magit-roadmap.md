@@ -479,3 +479,12 @@ is Fred's first row, standing in for Emacs's header line). Reflog rows
 use magit-reflog-format-subject labels; push columns count only a
 configured push remote; list tag columns appear once something is marked.
 Still outside the oracle: process, blame, bisect and shortlog buffers.
+
+Blame and bisect join the oracle (27 goldens, all matching). Blame's
+headings style now draws each chunk's heading on its own row above the
+chunk, as upstream does in a terminal (virtual rows counted by scrolling
+and the mouse), instead of a 48-column gutter. Bisect sections follow
+upstream: the full shell message, the rest as an aligned log without
+refs/bisect labels, and the log grouped by "git bisect" command (items
+folded; expanding them is a gap). Process and shortlog buffers remain
+outside the oracle.
