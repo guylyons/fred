@@ -32,8 +32,24 @@ pub fn command(cmd: &str) -> Command {
     c
 }
 
+thread_local! {
+    /// Set while Claude's keys (`fred_keys`) are being typed.
+    pub static CLAUDE_TYPING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Refuses a shell command Claude typed into fred: its Bash tool runs
+/// commands under the user's Claude Code permissions, and fred_keys must not
+/// get around them.
+pub fn guard() -> Result<(), String> {
+    match CLAUDE_TYPING.get() {
+        true => Err("fred refuses shell commands typed by Claude: use the Bash tool".into()),
+        false => Ok(()),
+    }
+}
+
 /// Run `cmd` with `input` on stdin (or none); its output, or why it failed.
 pub fn capture(cmd: &str, input: Option<String>) -> Result<String, String> {
+    guard()?;
     let mut child = command(cmd)
         .stdin(if input.is_some() {
             Stdio::piped()

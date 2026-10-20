@@ -148,7 +148,7 @@ key,normal,",",motion,partial,present; not yet verified against nvim,"repeat lat
 key,normal,-,motion,partial,present; not yet verified against nvim,cursor to the first CHAR N lines higher
 key,normal,<S-->,motion,missing,,same as CTRL-B
 key,normal,.,change,partial,present; not yet verified against nvim,repeat last change with count replaced with
-key,normal,/{pattern}<CR>,motion,partial,present; not yet verified against nvim,search forward for the Nth occurrence of
+key,normal,/{pattern}<CR>,motion,partial,Vim pattern syntax and smartcase; no \zs \@ \_ or back-references,search forward for the Nth occurrence of
 key,normal,/<CR>,motion,missing,,search forward for {pattern} of last search
 key,normal,0,motion,partial,present; not yet verified against nvim,cursor to the first char of the line
 key,normal,1,,partial,present; not yet verified against nvim,prepend to command to give a count
@@ -168,7 +168,7 @@ key,normal,={motion},change,missing,,"filter Nmove lines through ""indent"""
 key,normal,==,change,missing,,"filter N lines through ""indent"""
 key,normal,>{motion},change,missing,,shift Nmove lines one 'shiftwidth'
 key,normal,>>,change,missing,,shift N lines one 'shiftwidth' rightwards
-key,normal,?{pattern}<CR>,motion,partial,present; not yet verified against nvim,search backward for the Nth previous
+key,normal,?{pattern}<CR>,motion,partial,Vim pattern syntax and smartcase; no \zs \@ \_ or back-references,search backward for the Nth previous
 key,normal,?<CR>,motion,missing,,search backward for {pattern} of last search
 key,normal,@{a-z},change,missing,,execute the contents of register {a-z}
 key,normal,@:,,missing,,"repeat the previous "":"" command N times"
@@ -1068,7 +1068,7 @@ ex,,ruby,:rub[y] ADDR_LINES,excluded,"other languages, plugins and remote UI",ex
 ex,,rubydo,:rubyd[o] ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_rubydo
 ex,,rubyfile,:rubyf[ile] ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_rubyfile
 ex,,rviminfo,rviminfo ADDR_NONE,deferred,"sessions, views and shada",ex_shada
-ex,,substitute,:s[ubstitute] ADDR_LINES,partial,g flag only; Rust regex syntax,ex_substitute
+ex,,substitute,:s[ubstitute] ADDR_LINES,partial,g flag only; Vim pattern syntax; no \zs \@ \_ or back-references,ex_substitute
 ex,,sNext,:sN[ext] ADDR_OTHER,missing,,ex_previous
 ex,,sargument,:sa[rgument] ADDR_ARGUMENTS,missing,,ex_argument
 ex,,sall,:sal[l] ADDR_OTHER,missing,,ex_all

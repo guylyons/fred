@@ -138,7 +138,7 @@ pub struct Session {
     /// Every open buffer, numbered from 1. The one being edited lives in
     /// the fields above; its slot (`cur`) is None.
     bufs: Vec<Option<Parked>>,
-    cur: usize,
+    pub cur: usize,
     /// Counts buffer switches, to order buffers by last use.
     clock: u64,
 }
@@ -381,9 +381,14 @@ impl Session {
     }
 
     pub fn handle_key(&mut self, k: Key) {
-        // The approval dialog takes `y` and `n` from whichever buffer and mode
-        // you're in. Never from Claude's own typing (it would approve itself).
-        if self.typing.is_none() && self.editors_mut().any(|ed| crate::claude::answer(ed, k)) {
+        // The approval dialog takes `y` and `n` in Normal mode, from whichever
+        // buffer you're in: typed text (Insert, `:`, `/`) never answers it. Never
+        // from Claude's own typing either (it would approve itself).
+        let normal = self.ed.mode == Mode::Normal && self.ed.vim.pending.is_empty();
+        if normal
+            && self.typing.is_none()
+            && self.editors_mut().any(|ed| crate::claude::answer(ed, k))
+        {
             self.ed.msg = None;
             return;
         }
@@ -455,7 +460,10 @@ impl Session {
             }
             ExEffect::Buffer { cmd, arg, force } => self.buffer(cmd, &arg, force),
             ExEffect::Edit { path, force } => self.edit(path.as_deref(), force),
-            ExEffect::Shell(cmd) => self.pending_shell = Some(cmd),
+            ExEffect::Shell(cmd) => match crate::shell::guard() {
+                Ok(()) => self.pending_shell = Some(cmd),
+                Err(e) => self.ed.set_err(e),
+            },
             ExEffect::Ai {
                 range,
                 prompt,
@@ -1130,7 +1138,10 @@ impl Session {
         }
         if self.quit || self.typing.as_ref().is_some_and(|t| t.keys.is_empty()) {
             let t = self.typing.take().unwrap();
-            let _ = t.reply.send(Ok(self.state()));
+            // The lines around the cursor too, so a slipped edit shows at once.
+            let l = self.ed.cur.line + 1;
+            let near = self.read_buffer(&serde_json::json!({"start": l.saturating_sub(2).max(1), "end": l + 2}));
+            let _ = t.reply.send(Ok(self.state() + &near.unwrap_or_default()));
         }
         true
     }
@@ -1151,7 +1162,11 @@ impl Session {
         let was_insert = self.ed.mode == Mode::Insert;
         match text {
             Some(t) if was_insert && file => return self.ed.paste(&t),
-            _ => self.handle_key(k),
+            _ => {
+                crate::shell::CLAUDE_TYPING.set(true);
+                self.handle_key(k);
+                crate::shell::CLAUDE_TYPING.set(false);
+            }
         }
         // `o`, `O`, `cc`, `S` autoindent the new line; Claude sends its own.
         if file && !was_insert && self.ed.mode == Mode::Insert {
@@ -1326,7 +1341,7 @@ impl Session {
         changed |= working.is_some();
         self.ed.claude_working = working;
         let asked = self.editors_mut().find_map(|ed| crate::claude::question(ed));
-        if let Some(s) = asked.or_else(|| crate::claude::status(&self.ed)) {
+        if let Some(s) = asked {
             self.ed.set_msg(s);
             changed = true;
         }
@@ -2284,7 +2299,7 @@ mod tests {
     }
 
     #[test]
-    fn claude_is_answered_from_any_mode_but_not_by_its_own_typing() {
+    fn claude_is_answered_in_normal_mode_but_not_by_its_own_typing() {
         let mut t = T::open(Some("a"), Some("1\n"));
         // The chat is in Insert mode at its prompt, as after sending one.
         t.keys(":claude<Enter>");
@@ -2292,9 +2307,12 @@ mod tests {
         let (tx, rx) = std::sync::mpsc::channel();
         let args = serde_json::json!({ "tool_name": "Bash", "input": { "command": "ls" } });
         crate::claude::ask(&mut t.s.ed, &args, tx);
+        // Text being typed is not an answer: Esc first.
         t.keys("y");
+        assert!(rx.try_recv().is_err());
+        t.keys("<Esc>y");
         assert!(rx.try_recv().unwrap().unwrap().contains("allow"));
-        assert!(t.s.ed.buf.text().ends_with("Allowed\n\n> "), "{}", t.s.ed.buf.text());
+        assert!(t.s.ed.buf.text().contains("  ⎿  Allowed"), "{}", t.s.ed.buf.text());
         let (tx, rx) = std::sync::mpsc::channel();
         crate::claude::ask(&mut t.s.ed, &args, tx);
         let (ktx, _krx) = std::sync::mpsc::channel();
@@ -2337,7 +2355,7 @@ mod tests {
             "{state}"
         );
         assert!(
-            state.ends_with(&format!("*2 {d}/b:1\n 1 {d}/a:2, unsaved\n")),
+            state.ends_with(&format!("*2 {d}/b:1\n 1 {d}/a:2, unsaved\nbuffer 2: lines 1-2 of 2\n1\tx\n2\ty\n")),
             "{state}"
         );
         let mut read = |args| call(&mut t.s, "fred_read", args);
@@ -2394,6 +2412,21 @@ mod tests {
         t.s.stop_typing();
         assert!(!t.s.tick_typing());
         assert!(rx.recv().unwrap().unwrap_err().contains("3 keys short"));
+    }
+
+    #[test]
+    fn shell_commands_typed_by_claude_are_refused() {
+        let mut t = T::open(Some("a"), Some("1\n"));
+        let (tx, rx) = std::sync::mpsc::channel();
+        let keys = serde_json::json!({ "keys": ":!touch x<CR>:r !echo hi<CR>" });
+        t.s.remote("fred_keys", &keys, tx);
+        while t.s.tick_typing() {}
+        assert!(rx.recv().unwrap().unwrap().contains("refuses shell commands"));
+        assert!(t.s.pending_shell.is_none());
+        assert_eq!(t.s.ed.buf.text(), "1");
+        // The user's own are run.
+        t.keys(":r !echo hi<Enter>");
+        assert_eq!(t.s.ed.buf.text(), "1\nhi");
     }
 
     #[test]

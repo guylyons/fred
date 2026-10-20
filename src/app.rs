@@ -731,6 +731,8 @@ fn event_loop(
     let mut active = Instant::now();
     // Your keys while Claude types, for after: the two never mix.
     let mut held: Vec<Event> = vec![];
+    // Where they were typed (buffer, mode): only replayed there.
+    let mut held_at = None;
     loop {
         if dirty {
             ui.draw(s, hl, cfg)?;
@@ -773,7 +775,10 @@ fn event_loop(
                 if s.typing.is_some() && !matches!(ev, Event::Resize(..)) {
                     match ev {
                         Event::Key(k) if map_key(k) == Some(Key::ctrl('c')) => s.stop_typing(),
-                        Event::Key(_) | Event::Paste(_) => held.push(ev),
+                        Event::Key(_) | Event::Paste(_) => {
+                            held_at.get_or_insert((s.cur, std::mem::discriminant(&s.ed.mode)));
+                            held.push(ev);
+                        }
                         // shortcut: clicks and scrolls while Claude types are dropped.
                         _ => {}
                     }
@@ -854,8 +859,16 @@ fn event_loop(
             dirty = true;
         }
         if s.typing.is_none() && !held.is_empty() {
-            for ev in std::mem::take(&mut held) {
-                step(s, hl, ev, &mut resized);
+            let keys = std::mem::take(&mut held);
+            // Claude moved you (another buffer, or out of Insert mode): keys meant
+            // for where you were would run as commands where it left you.
+            if held_at.take() == Some((s.cur, std::mem::discriminant(&s.ed.mode))) {
+                for ev in keys {
+                    step(s, hl, ev, &mut resized);
+                }
+            } else {
+                let n = keys.len();
+                s.ed.set_err(format!("Claude moved you: {n} keys you typed meanwhile were dropped"));
             }
             dirty = true;
         }

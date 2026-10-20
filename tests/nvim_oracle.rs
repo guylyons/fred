@@ -109,6 +109,16 @@ const CASES: &[(&str, &str)] = &[
     ("a\nb\nc", ":g/b/d<CR>"),
     ("a\nb\nc", ":1m$<CR>"),
     ("a\nb\nc", ":1t.<CR>"),
+    // Vim patterns: a bare ( | + { is literal, \( \| \+ \{ are not.
+    ("f(x) || g", ":s/(x) ||/[y]/<CR>"),
+    ("foo bar baz", ":s/\\(foo\\|baz\\) \\(\\w\\+\\)/\\2 \\1/<CR>"),
+    ("aaa+b", ":s/a\\{2}+/X/<CR>"),
+    ("is this is", ":s/\\<is\\>/X/g<CR>"),
+    ("a.b axb", ":s/\\Va.b/X/g<CR>"),
+    ("ab ab", ":s/\\v(a)(b)/\\2\\1/g<CR>"),
+    ("x^y$z", ":s/^x^y$z$/ok/<CR>"),
+    ("one\nTwo\nthree", "/\\ctwo<CR>x"),
+    ("one\ntwo (2)\nthree", "/(2)<CR>x"),
     // Options: 'tabstop' decides the column `j` keeps below a tab.
     ("\tx\n12345678y", "$j"),
     ("\tx\n12345678y", ":set ts=4<CR>$j"),

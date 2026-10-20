@@ -84,7 +84,7 @@ pub fn parse_addr<'i>(input: &'i str, ctx: &mut AddrCtx) -> Result<(Option<i64>,
         Some(d @ ('/' | '?')) => {
             let (pat, r) = read_delimited(&s[1..], d);
             let pat = use_pattern(pat, ctx.last_pat)?;
-            let re = search::compile_exact(&pat)?;
+            let re = search::compile_vim(&pat, false)?;
             let line = search::find_line(ctx.buf, &re, ctx.cur, d == '/').ok_or("no match")?;
             (Some(line as i64 + 1), r)
         }

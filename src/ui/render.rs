@@ -1096,7 +1096,9 @@ pub fn draw(
     });
     // Claude asking to use a tool: a dialog over the text until y or n.
     if let Some(q) = ed.msg.as_ref().and_then(|(m, _)| crate::claude::asked(m)) {
-        draw_approval(buf, Rect::new(ox, oy, area.width, rows as u16), q);
+        // `y` and `n` answer in Normal mode only (see `Session::handle_key`).
+        let typing = ed.mode != Mode::Normal || !ed.vim.pending.is_empty();
+        draw_approval(buf, Rect::new(ox, oy, area.width, rows as u16), q, typing);
     }
     if let Mode::Pick(p) = &ed.mode {
         let list = Rect::new(ox, oy + rows as u16 + 2, area.width, panel as u16);
@@ -1785,15 +1787,34 @@ fn draw_explain(
 }
 
 /// Claude's question as a dialog in the middle of the text, like Claude
-/// Code's: the tool, what it would run, and the keys that answer.
-fn draw_approval(buf: &mut Screen, area: Rect, (name, arg): (&str, &str)) {
+/// Code's: the tool, all of what it would run, and the keys that answer.
+fn draw_approval(buf: &mut Screen, area: Rect, (name, arg): (&str, &str), typing: bool) {
     use ratatui::widgets::{Block, BorderType, Clear, Widget};
     let width = area.width.min(72);
     if width < 24 || area.height < 6 {
         return;
     }
+    let w = width as usize - 4;
+    let arg = if arg.is_empty() { "(no arguments)" } else { arg };
+    // Broken anywhere, not at spaces: no character of what is being allowed
+    // may go unseen.
+    let mut lines = vec![String::new()];
+    for c in arg.chars().map(|c| if c == '\t' { ' ' } else { c }) {
+        let cw = display_width(c.encode_utf8(&mut [0; 4]), 1, 0);
+        if display_width(lines.last().unwrap(), 1, 0) + cw > w {
+            lines.push(String::new());
+        }
+        lines.last_mut().unwrap().push(c);
+    }
+    let room = area.height as usize - 5;
+    if lines.len() > room {
+        let more = lines.len() - room + 1;
+        lines.truncate(room - 1);
+        lines.push(format!("… {more} more lines: read all of it in *claude*"));
+    }
+    let h = lines.len() as u16 + 5;
     let x0 = area.x + (area.width - width) / 2;
-    let rect = Rect::new(x0, area.y + (area.height - 6) / 2, width, 6);
+    let rect = Rect::new(x0, area.y + (area.height - h) / 2, width, h);
     let bold = Style::default().add_modifier(Modifier::BOLD);
     Clear.render(rect, buf);
     Block::bordered()
@@ -1804,17 +1825,17 @@ fn draw_approval(buf: &mut Screen, area: Rect, (name, arg): (&str, &str)) {
             Span::styled(format!("{name} "), bold.fg(Color::Cyan)),
         ]))
         .render(rect, buf);
-    let arg = if arg.is_empty() { "(no arguments)" } else { arg };
-    let w = width as usize - 4;
-    buf.set_stringn(x0 + 2, rect.y + 2, arg, w, Style::default().fg(Color::White));
+    for (i, l) in lines.iter().enumerate() {
+        buf.set_stringn(x0 + 2, rect.y + 2 + i as u16, l, w, Style::default().fg(Color::White));
+    }
     let keys = Line::from(vec![
-        Span::styled("Allow?   ", Style::default().fg(Color::DarkGray)),
+        Span::styled(if typing { "Esc, then" } else { "Allow?   " }, Style::default().fg(Color::DarkGray)),
         Span::styled(" y ", bold.fg(Color::Black).bg(Color::Green)),
         Span::raw(" Yes    "),
         Span::styled(" n ", bold.fg(Color::Black).bg(Color::Red)),
         Span::raw(" No"),
     ]);
-    buf.set_line(x0 + 2, rect.y + 4, &keys, width - 4);
+    buf.set_line(x0 + 2, rect.y + h - 2, &keys, width - 4);
 }
 
 /// `text` broken at spaces into lines at most `width` columns wide.

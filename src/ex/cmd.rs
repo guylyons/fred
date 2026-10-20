@@ -623,7 +623,7 @@ fn substitute(st: &mut ExState, r: Range, spec: &str) -> Result<ExEffect, String
         }
     }
     let pat = use_pattern(pat, st.last_pat)?;
-    let re = search::compile_exact(&pat)?;
+    let re = search::compile_vim(&pat, false)?;
     let mut last = None;
     for l in (r.start..=r.end).rev() {
         let line = st.buf.line(l);
@@ -664,7 +664,7 @@ fn global(st: &mut ExState, r: Range, spec: &str, want: bool) -> Result<ExEffect
         return Err("command expected".into());
     }
     let pat = use_pattern(pat, st.last_pat)?;
-    let re = search::compile_exact(&pat)?;
+    let re = search::compile_vim(&pat, false)?;
     let mut marked: Vec<bool> = (0..st.buf.len_lines())
         .map(|l| l >= r.start && l <= r.end && re.is_match(&st.buf.line(l)) == want)
         .collect();
@@ -749,7 +749,7 @@ mod tests {
         assert_eq!(ex(t, 0, "$d"), ("one\ntwo\nthree".into(), 2));
         assert_eq!(ex(t, 0, ",s/o/0/g"), ("0ne\ntw0\nthree\nf0ur".into(), 3));
         assert_eq!(
-            ex(t, 0, "s/(o)(n)/\\2\\1&/"),
+            ex(t, 0, "s/\\(o\\)\\(n\\)/\\2\\1&/"),
             ("noone\ntwo\nthree\nfour".into(), 0)
         );
         assert_eq!(ex(t, 0, "s/o/\\&/"), ("&ne\ntwo\nthree\nfour".into(), 0));
@@ -826,7 +826,7 @@ mod tests {
     fn ex_patterns_are_case_sensitive() {
         assert_eq!(ex("Foo foo", 0, "s/foo/x/g"), ("Foo x".into(), 0));
         assert_eq!(ex("Foo\nfoo", 0, "g/foo/d"), ("Foo".into(), 0));
-        assert_eq!(ex("Foo foo", 0, "s/(?i)foo/x/g"), ("x x".into(), 0));
+        assert_eq!(ex("Foo foo", 0, "s/\\cfoo/x/g"), ("x x".into(), 0));
     }
 
     #[test]
