@@ -230,6 +230,7 @@ clipboard alone.
 | `Ctrl-^` | back to the buffer you were in before |
 | `Space`, then a short pause | show every `Space` key and what it does (as Emacs's which-key) |
 | `Space w` then `1`–`9` | jump to a split window: each one shows its number until you pick (or click the window) |
+| `Space w c` then `1`–`9` | start over with that many windows in as even a grid as fits: `4` is 2×2, `9` is 3×3, `3` is two above one |
 | `Ctrl-Z` | suspend fred (`fg` brings it back) |
 
 ## Finding files and text

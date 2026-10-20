@@ -160,6 +160,8 @@ pub struct Session {
     prev_win: Option<usize>,
     /// `Space w`: the windows show their numbers until the next key.
     pub picking_window: bool,
+    /// `Space w c`: the next digit is how many windows to lay out.
+    grid_pending: bool,
     /// The which-key popup is up: `Space` was pressed a while ago.
     pub which_key: bool,
     next_win_id: usize,
@@ -363,6 +365,7 @@ impl Session {
             active: 1,
             prev_win: None,
             picking_window: false,
+            grid_pending: false,
             which_key: false,
             next_win_id: 2,
             area: Rect::new(0, 0, 80, 23),
@@ -434,7 +437,19 @@ impl Session {
         if self.in_terminal() {
             return;
         }
+        if std::mem::take(&mut self.grid_pending) {
+            match k.char().and_then(|c| c.to_digit(10)).filter(|&n| n > 0) {
+                Some(n) => self.grid(n as usize),
+                None => self.ed.msg = None,
+            }
+            return;
+        }
         if std::mem::take(&mut self.picking_window) {
+            self.ed.msg = None;
+            if k == Key::ch('c') {
+                self.grid_pending = true;
+                return self.ed.set_msg("how many windows? 1-9");
+            }
             // A digit picks a window; any other key just puts the numbers away.
             if let Some(n) = k.char().and_then(|c| c.to_digit(10)).filter(|&n| n > 0)
                 && let Some(&id) = self.tree.order().get(n as usize - 1)
@@ -2035,9 +2050,47 @@ mod tests {
             (t.s.active, t.s.ed.buf.text().as_str()),
             (order[2], "1\n2\n3")
         );
-        // One window: nothing to pick.
-        t.keys("<C-w>o w");
-        assert!(!t.s.picking_window);
+    }
+
+    #[test]
+    fn space_w_c_lays_out_a_grid() {
+        let mut t = T::open(Some("a"), Some("1\n"));
+        let rects = |t: &T| {
+            let mut r: Vec<_> =
+                t.s.tree
+                    .layout(t.s.area)
+                    .into_iter()
+                    .map(|p| p.rect)
+                    .collect();
+            r.sort_by_key(|r| (r.y, r.x));
+            r
+        };
+        // 4: two rows of two, the same size near enough.
+        t.keys(" wc4");
+        let r = rects(&t);
+        assert_eq!(r.len(), 4);
+        assert_eq!((r[0].y, r[1].y, r[2].y, r[3].y), (0, 0, r[2].y, r[2].y));
+        assert!(r[2].y > 0 && r[0].width.abs_diff(r[1].width) <= 1);
+        assert!(r[0].height.abs_diff(r[2].height) <= 1);
+        // It starts over: 3 is two above one, then 9 is three by three.
+        t.keys(" wc3");
+        let r = rects(&t);
+        assert_eq!(r.len(), 3);
+        assert_eq!(r[2].width, t.s.area.width);
+        t.keys(" wc9");
+        let r = rects(&t);
+        assert_eq!(r.len(), 9);
+        let widths: Vec<u16> = r.iter().map(|r| r.width).collect();
+        assert!(
+            widths.iter().max().unwrap() - widths.iter().min().unwrap() <= 1,
+            "{widths:?}"
+        );
+        let tops: std::collections::BTreeSet<u16> = r.iter().map(|r| r.y).collect();
+        assert_eq!(tops.len(), 3);
+        // Anything but a digit: nothing changes.
+        t.keys(" wcx");
+        assert_eq!(rects(&t).len(), 9);
+        assert_eq!(t.s.ed.buf.text(), "1");
     }
 
     #[test]

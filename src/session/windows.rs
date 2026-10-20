@@ -57,6 +57,53 @@ impl Session {
         }
     }
 
+    /// `Space w c N`: start over with `n` windows in as even a grid as fits,
+    /// each showing this buffer: rows of `ceil(sqrt(n))`, the extra ones in
+    /// the top rows (3 is two above one).
+    pub fn grid(&mut self, n: usize) {
+        self.only();
+        let cols = (1..=n).find(|c| c * c >= n).unwrap_or(1);
+        let rows = n.div_ceil(cols);
+        let per_row: Vec<usize> = (0..rows)
+            .map(|r| n / rows + usize::from(r < n % rows))
+            .collect();
+        // Each split leaves the window its share and gives the new one the rest.
+        let size = |s: &Session, vertical: bool, left: usize| {
+            let r = s
+                .tree
+                .layout(s.area)
+                .into_iter()
+                .find(|p| p.id == s.active)?
+                .rect;
+            let len = usize::from(if vertical { r.width } else { r.height });
+            Some((len - len / left).saturating_sub(1))
+        };
+        let mut heads = vec![self.active];
+        for left in (2..=rows).rev() {
+            let Some(rest) = size(self, false, left) else {
+                break;
+            };
+            self.split_at(false, true, SplitWhat::Same, Some(rest));
+            heads.push(self.active);
+        }
+        for (head, count) in heads.iter().zip(&per_row) {
+            self.focus(*head);
+            for left in (2..=*count).rev() {
+                let Some(rest) = size(self, true, left) else {
+                    break;
+                };
+                self.split_at(true, true, SplitWhat::Same, Some(rest));
+            }
+        }
+        self.focus(heads[0]);
+        match self.windows.len() {
+            made if made < n => self
+                .ed
+                .set_err(format!("E36: room for {made} windows, not {n}")),
+            _ => self.ed.msg = None,
+        }
+    }
+
     /// A new unnamed buffer in the active window.
     fn new_buffer(&mut self) {
         let opts = self.ed.opts.for_new_buffer();
@@ -284,7 +331,11 @@ impl Session {
             'w' => self.focus(count.map_or(order[(at + 1) % order.len()], nth)),
             'W' => self.focus(count.map_or(order[(at + order.len() - 1) % order.len()], nth)),
             // Fred's own: `Space w` numbers the windows to pick one.
-            '#' if order.len() > 1 => self.picking_window = true,
+            '#' => {
+                self.picking_window = true;
+                self.ed
+                    .set_msg("window number, or c then how many for a grid");
+            }
             't' => self.focus(order[0]),
             'b' => self.focus(order[order.len() - 1]),
             'c' => self.close_active(),

@@ -281,7 +281,7 @@ const LEADER: &[(char, &str)] = &[
     ('d', "go to definition"),
     ('-', "dired this directory"),
     ('O', "show in the file manager"),
-    ('w', "pick a window"),
+    ('w', "pick a window; c N: N windows in a grid"),
     ('i', "imenu: this file's functions, types…"),
     ('h', "help: search commands"),
     ('t', "terminal in a new pane"),
