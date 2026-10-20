@@ -456,8 +456,9 @@ Org's options go in the `[org]` table of the config, by their Emacs names
 
 ## Claude
 
-`Space c c` (or `:claude`) opens `*claude*`: Claude Code, laid out like its
-command line. Type after the `>` and press `Enter` to send (`Ctrl-J` for a
+`Space c c` (or `:claude`) opens `*claude*` in a pane below the one you're
+on (or goes to its pane, if it's open): Claude Code, laid out like its
+command line; `jj` or `Esc` leaves the prompt. Type after the `>` and press `Enter` to send (`Ctrl-J` for a
 new line). The reply streams in above the prompt, `⏺` for text and tool
 calls and `⎿` for their output, with a spinner on the status line. It's a
 plain buffer, so you can leave Insert mode, move around, yank and switch

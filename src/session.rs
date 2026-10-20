@@ -1283,7 +1283,16 @@ impl Session {
 
     /// `:claude`: show the chat (one per fred, as `*Occur*`), ready to type.
     fn claude(&mut self) {
-        match (0..self.bufs.len()).find(|&i| self.ed_at(i).claude.is_some()) {
+        let chat = (0..self.bufs.len()).find(|&i| self.ed_at(i).claude.is_some());
+        // Its own pane, below the one you're in: the one it has, if it's open.
+        if chat != Some(self.cur) {
+            match self.windows.iter().find(|w| Some(w.buf) == chat) {
+                Some(w) => self.focus(w.id),
+                None => self.split_at(false, true, crate::ex::SplitWhat::Same, None),
+            }
+        }
+        match chat {
+            Some(i) if i == self.cur => {}
             Some(i) => self.show(i),
             None => {
                 let mut ed = make_editor(
@@ -2830,6 +2839,36 @@ mod tests {
         assert!(t.s.ed.claude.is_some());
         assert_eq!(t.s.ed.claude_working, None);
         assert_eq!(t.s.ed.msg.as_ref().unwrap().0, "done in 1s · $0.00");
+    }
+
+    #[test]
+    fn the_chat_opens_in_a_pane_below_and_jj_leaves_insert() {
+        let mut t = T::open(Some("a"), Some("1\n"));
+        t.s.cfg.claude_command = "true".into();
+        t.s.cfg.claude_permissions = String::new();
+        let file_win = t.s.active;
+        t.keys(" cc");
+        assert_eq!(t.s.windows.len(), 2);
+        assert!(t.s.ed.claude.is_some());
+        let chat_win = t.s.active;
+        // Below the file.
+        let rect = |t: &T, id| {
+            t.s.tree
+                .layout(t.s.area)
+                .into_iter()
+                .find(|p| p.id == id)
+                .unwrap()
+                .rect
+        };
+        assert!(rect(&t, chat_win).y > rect(&t, file_win).y);
+        assert_eq!(t.s.ed.mode, Mode::Insert);
+        t.keys("jj");
+        assert_eq!(t.s.ed.mode, Mode::Normal);
+        assert_eq!(t.s.ed.buf.text(), "> ");
+        // From the file again: back to the chat's pane, not a third one.
+        t.s.focus(file_win);
+        t.keys(" cc");
+        assert_eq!((t.s.windows.len(), t.s.active), (2, chat_win));
     }
 
     fn claude_settle(t: &mut T) {
