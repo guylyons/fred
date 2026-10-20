@@ -1367,7 +1367,7 @@ impl Session {
         let n = t.per_frame.min(t.keys.len());
         let keys: Vec<Key> = t.keys.drain(..n).collect();
         for k in keys {
-            if self.quit {
+            if self.quit || self.typing.is_none() {
                 break;
             }
             self.type_key(k);
@@ -1398,6 +1398,16 @@ impl Session {
         };
         let file = self.ed.claude.is_none();
         let was_insert = self.ed.mode == Mode::Insert;
+        // In the chat buffer Claude may only leave it (`:b 1<CR>`): any other
+        // key would type into your prompt, or Enter send it.
+        if !file
+            && k.code != KeyCode::Esc
+            && !matches!(self.ed.mode, Mode::Command(_))
+            && !(self.ed.mode == Mode::Normal && plain && k.code == KeyCode::Char(':'))
+        {
+            return self.refuse_typing("refused: that key would edit the [*claude*] chat buffer; leave it first with `:b N<CR>` or `:e path<CR>`");
+        }
+        let before = (!file).then(|| self.ed.buf.clone());
         match text {
             Some(t) if was_insert && file => return self.ed.paste(&t),
             _ => {
@@ -1405,6 +1415,20 @@ impl Session {
                 self.handle_key(k);
                 crate::shell::CLAUDE_TYPING.set(false);
             }
+        }
+        // A `:` command that edited the chat anyway (`:s`, `:d`) is undone.
+        if let Some(b) =
+            before.filter(|b| self.ed.claude.is_some() && b.version != self.ed.buf.version)
+        {
+            let end = self.ed.buf.len_chars();
+            self.ed.apply(crate::buffer::Edit {
+                start: 0,
+                end,
+                text: b.text(),
+            });
+            return self.refuse_typing(
+                "refused: that edited the [*claude*] chat buffer, so fred undid it",
+            );
         }
         // `o`, `O`, `cc`, `S` autoindent the new line; Claude sends its own.
         if file && !was_insert && self.ed.mode == Mode::Insert {
@@ -1430,6 +1454,15 @@ impl Session {
                 "the user stopped you (Ctrl-C), {left} keys short; fred_state shows where fred is"
             );
             let _ = t.reply.send(Err(msg));
+        }
+    }
+
+    /// Claude's keys stopped early, and Claude told why.
+    fn refuse_typing(&mut self, why: &str) {
+        if let Some(t) = self.typing.take() {
+            let _ = t
+                .reply
+                .send(Err(format!("{why}; fred_state shows where fred is")));
         }
     }
 
@@ -2949,6 +2982,21 @@ mod tests {
         // The user's own are run.
         t.keys(":r !echo hi<Enter>");
         assert_eq!(t.s.ed.buf.text(), "1\nhi");
+    }
+
+    #[test]
+    fn claude_cannot_type_into_the_chat_buffer() {
+        let mut t = T::open(Some("a"), Some("1\n"));
+        t.s.ed.claude = Some(Box::new(crate::claude::Chat::new("true")));
+        let keys = |k: &str| serde_json::json!({ "keys": k });
+        // `o` would type into the prompt; the rest is never typed.
+        let err = call(&mut t.s, "fred_keys", keys("<Esc>ohi<CR><Esc>")).unwrap_err();
+        assert!(err.contains("[*claude*]"), "{err}");
+        assert_eq!(t.s.ed.buf.text(), "1");
+        // A `:` command that edits it is undone.
+        let err = call(&mut t.s, "fred_keys", keys(":s/1/2/<CR>")).unwrap_err();
+        assert!(err.contains("undid"), "{err}");
+        assert_eq!(t.s.ed.buf.text(), "1");
     }
 
     #[test]
