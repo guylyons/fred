@@ -381,10 +381,9 @@ impl Session {
     }
 
     pub fn handle_key(&mut self, k: Key) {
-        // Claude's question is answered from whichever buffer you're in, but
-        // only in Normal mode with nothing pending: `n` while typing is text.
-        let idle = self.ed.mode == Mode::Normal && self.ed.vim.pending.is_empty();
-        if idle && self.editors_mut().any(|ed| crate::claude::answer(ed, k)) {
+        // The approval dialog takes `y` and `n` from whichever buffer and mode
+        // you're in. Never from Claude's own typing (it would approve itself).
+        if self.typing.is_none() && self.editors_mut().any(|ed| crate::claude::answer(ed, k)) {
             self.ed.msg = None;
             return;
         }
@@ -2236,17 +2235,23 @@ mod tests {
     }
 
     #[test]
-    fn claude_is_answered_only_from_normal_mode() {
+    fn claude_is_answered_from_any_mode_but_not_by_its_own_typing() {
         let mut t = T::open(Some("a"), Some("1\n"));
+        // The chat is in Insert mode at its prompt, as after sending one.
         t.keys(":claude<Enter>");
+        assert_eq!(t.s.ed.mode, Mode::Insert);
         let (tx, rx) = std::sync::mpsc::channel();
         let args = serde_json::json!({ "tool_name": "Bash", "input": { "command": "ls" } });
         crate::claude::ask(&mut t.s.ed, &args, tx);
-        t.keys("<Esc>:b 1<Enter>ion<Esc>");
-        assert_eq!(t.s.ed.buf.text(), "on1");
+        t.keys("y");
+        assert!(rx.try_recv().unwrap().unwrap().contains("allow"));
+        assert!(t.s.ed.buf.text().ends_with("Allowed\n\n> "), "{}", t.s.ed.buf.text());
+        let (tx, rx) = std::sync::mpsc::channel();
+        crate::claude::ask(&mut t.s.ed, &args, tx);
+        let (ktx, _krx) = std::sync::mpsc::channel();
+        t.s.typing = Some(Typing { keys: "n".chars().map(Key::ch).collect(), per_frame: 1, reply: ktx });
+        t.s.tick_typing();
         assert!(rx.try_recv().is_err());
-        t.keys("n");
-        assert!(rx.try_recv().unwrap().unwrap().contains("deny"));
     }
 
     #[test]
