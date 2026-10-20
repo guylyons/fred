@@ -10,6 +10,9 @@ Contained:  main
 
 Add c
 
+1 file changed, 1 insertion(+)
+c | 1 +
+
 new file   c
 @@ -0,0 +1 @@
 +c

@@ -592,7 +592,7 @@ impl Repo {
         };
         let mut out = String::new();
         // magit-insert-revision-headers: ref labels, then the full hash.
-        let refs = fmt("%D")?.trim().to_owned();
+        let refs = ref_labels(fmt("%D")?.trim());
         let full = fmt("%H")?.trim().to_owned();
         if refs.is_empty() {
             out.push_str(&format!("{full}\n"));
@@ -611,6 +611,10 @@ impl Repo {
             out.push_str(h.trim_end_matches('\n'));
             out.push('\n');
         }
+        // magit-insert-revision-headers ends with a blank line before the
+        // related refs.
+        let related_start = out.len();
+        out.push('\n');
         // magit-revision-insert-related-refs: t, mixed, all or nil.
         let related = match options::value("magit-revision-insert-related-refs") {
             Some(toml::Value::Boolean(false)) => None,
@@ -703,7 +707,10 @@ impl Repo {
                 }
             }
         }
-        out.push('\n');
+        // A blank line ends the related refs, when there are any.
+        if out.len() > related_start + 1 {
+            out.push('\n');
+        }
         // magit-insert-revision-message, with magit-revision-fill-summary-line.
         let message = fmt("%B")?;
         let mut lines = message.trim_end().lines();

@@ -79,7 +79,7 @@
   (render fixtures out "changes" "stashes"
           (lambda () (set-buffer (magit-stashes-setup-buffer))))
   (render fixtures out "changes" "revision"
-          (lambda () (set-buffer (magit-revision-setup-buffer "HEAD" nil nil))))
+          (lambda () (set-buffer (magit-revision-setup-buffer "HEAD" (list "--stat" "--no-ext-diff") nil))))
   (render fixtures out "changes" "unstaged"
           (lambda () (set-buffer (magit-diff-setup-buffer nil nil '("--no-ext-diff" "--stat") nil 'unstaged))))
   (render fixtures out "changes" "staged"

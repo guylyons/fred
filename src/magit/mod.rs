@@ -444,6 +444,15 @@ pub struct View {
     pub labelled: HashSet<usize>,
     /// A refs buffer's expanded refs, which show their cherries.
     pub open_refs: HashSet<String>,
+    /// A diff, commit or stash buffer's Git output, the raw line each row
+    /// shows (diff::wash's layout), its file headings, and the files whose
+    /// fold TAB toggled (deleted files start folded).
+    pub raw: Vec<u8>,
+    /// Where each raw line starts.
+    pub raw_starts: Vec<usize>,
+    pub row_raw: Vec<Option<usize>>,
+    pub diff_files: HashMap<usize, String>,
+    pub diff_toggled: HashSet<String>,
 }
 /// magit-log-select's pick function: answer QUESTION with the commit, after
 /// the answers already given.
@@ -571,6 +580,11 @@ impl View {
             refnames: HashMap::new(),
             labelled: HashSet::new(),
             open_refs: HashSet::new(),
+            raw: vec![],
+            raw_starts: vec![],
+            row_raw: vec![],
+            diff_files: HashMap::new(),
+            diff_toggled: HashSet::new(),
         };
         v.rebuild();
         v
@@ -726,6 +740,78 @@ impl View {
                 .extend(self.repo.stamps(chunk, committer, m.shortstat)?);
         }
         Ok(())
+    }
+    /// Show BYTES (git diff or show output) as upstream lays diffs out.
+    pub fn set_diff(&mut self, bytes: Vec<u8>) {
+        let text = String::from_utf8_lossy(&bytes[..bytes.len().min(4 * 1024 * 1024)]).into_owned();
+        let lines: Vec<&str> = text.lines().collect();
+        let toggled = &self.diff_toggled;
+        let washed = diff::wash(&lines, &|f, status| {
+            (status == "deleted") != toggled.contains(f)
+        });
+        self.rows.clear();
+        self.row_raw.clear();
+        self.diff_files.clear();
+        for w in washed {
+            if let Some(f) = w.file {
+                self.diff_files.insert(self.rows.len(), f);
+            }
+            self.row_raw.push(w.raw);
+            self.rows.push(Row {
+                text: label(std::path::Path::new(
+                    &w.text.chars().take(20_000).collect::<String>(),
+                )),
+                action: None,
+            });
+        }
+        if bytes.len() > text.len() {
+            self.rows.push(Row {
+                text: "[output truncated]".into(),
+                action: None,
+            });
+        }
+        self.raw_starts = std::iter::once(0)
+            .chain(
+                bytes
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, b)| **b == b'\n')
+                    .map(|(i, _)| i + 1),
+            )
+            .collect();
+        self.raw = bytes;
+    }
+    /// Raw line K (without its newline).
+    pub fn raw_line(&self, k: usize) -> Option<std::borrow::Cow<'_, str>> {
+        let start = *self.raw_starts.get(k)?;
+        let end = self.raw_starts.get(k + 1).map_or(self.raw.len(), |e| e - 1);
+        let line = self.raw.get(start..end.max(start))?;
+        Some(String::from_utf8_lossy(
+            line.strip_suffix(b"\r").unwrap_or(line),
+        ))
+    }
+    /// The raw Git output's text (see set_diff).
+    pub fn raw_text(&self) -> std::borrow::Cow<'_, str> {
+        String::from_utf8_lossy(&self.raw)
+    }
+    /// The raw line ROW shows.
+    pub fn raw_at(&self, row: usize) -> Option<usize> {
+        self.row_raw.get(row).copied().flatten()
+    }
+    /// The row showing raw line RAW (or the first after it).
+    pub fn row_of_raw(&self, raw: usize) -> Option<usize> {
+        self.row_raw
+            .iter()
+            .position(|r| r.is_some_and(|r| r >= raw))
+    }
+    /// ROW is inside a file's diff (below its "diff" line).
+    pub fn in_diff(&self, row: usize) -> bool {
+        self.raw_at(row).is_some_and(|r| {
+            self.raw_text()
+                .lines()
+                .take(r + 1)
+                .any(|l| l.starts_with("diff "))
+        })
     }
     pub fn rebuild(&mut self) {
         if self.kind != Kind::Status {
@@ -1274,8 +1360,11 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     {
         ed.vim.pending.clear();
         let view = ed.magit.as_ref().unwrap();
-        let lines: Vec<&str> = view.rows.iter().map(|r| r.text.as_str()).collect();
-        match diff::stat_or_diff(&lines, ed.cur.line) {
+        let raw = view.raw_text();
+        let lines: Vec<&str> = raw.lines().collect();
+        let target = diff::stat_or_diff(&lines, view.raw_at(ed.cur.line).unwrap_or(0))
+            .and_then(|r| view.row_of_raw(r));
+        match target {
             Some(i) => ed.set_cursor(i, 0),
             None => ed.set_msg("No diffstat here"),
         }
@@ -1843,14 +1932,7 @@ fn in_file_diff(ed: &Editor) -> bool {
             v.action_at(ed.cur.line),
             Some(RowAction::File(..) | RowAction::Hunk(..))
         ) && v.kind != Kind::Status
-            || matches!(
-                v.kind,
-                Kind::Diff(..) | Kind::Patch(_) | Kind::StashPatch(_)
-            ) && v
-                .rows
-                .iter()
-                .take(ed.cur.line + 1)
-                .any(|r| r.text.starts_with("diff "))
+            || v.in_diff(ed.cur.line)
     })
 }
 fn diff_like(ed: &Editor) -> bool {

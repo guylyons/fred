@@ -96,19 +96,18 @@ enum PatchUse {
 }
 /// The patch for the hunk (or file) at LINE of a diff, commit or stash buffer.
 fn diff_patch_at(view: &View, line: usize) -> Result<Vec<u8>, String> {
-    let repo = &view.repo;
-    // The raw output and the rows before it (a diff buffer's title).
-    let (bytes, offset) = match &view.kind {
-        Kind::Diff(target, args) => (repo.diff_output(target, args)?, 1),
-        Kind::Patch(id) => (repo.commit_patch(id)?, 0),
-        Kind::StashPatch(stash) => (repo.stash_patch(stash)?, 0),
-        _ => return Err("Not in a diff buffer".into()),
-    };
-    if bytes.len() > 1024 * 1024 {
+    // The raw output the buffer shows, and the raw line LINE shows.
+    if !matches!(
+        view.kind,
+        Kind::Diff(..) | Kind::Patch(_) | Kind::StashPatch(_)
+    ) {
+        return Err("Not in a diff buffer".into());
+    }
+    if view.raw.len() > 1024 * 1024 {
         return Err("Diff too large to apply from here".into());
     }
-    let lines: Vec<&[u8]> = bytes.split(|b| *b == b'\n').collect();
-    let at = line.checked_sub(offset).ok_or("No hunk or file at point")?;
+    let lines: Vec<&[u8]> = view.raw.split(|b| *b == b'\n').collect();
+    let at = view.raw_at(line).ok_or("No hunk or file at point")?;
     crate::magit::diff::hunk_patch(&lines, at)
 }
 pub(super) struct Job {
@@ -1566,9 +1565,11 @@ impl Session {
                 "headers" => Some(0),
                 "message" => blank.map(|b| b + 1),
                 "notes" => rows.iter().position(|l| l.starts_with("Notes")),
-                "diffstat" => crate::magit::diff::stat_or_diff(&rows, 0)
-                    .filter(|i| !rows[*i].starts_with("diff ")),
-                _ => rows.iter().position(|l| l.starts_with("diff ")),
+                // The diffstat's summary heads it.
+                "diffstat" => rows
+                    .iter()
+                    .position(|l| crate::magit::diff::is_stat_summary(l)),
+                _ => view.diff_files.keys().min().copied(),
             };
             match target {
                 Some(i) => self.ed.set_cursor(i, 0),
@@ -3295,9 +3296,7 @@ impl Session {
             if action == Action::Visit
                 && selected.is_none()
                 && matches!(view.kind, Kind::Patch(_))
-                && !view.rows[..=self.ed.cur.line.min(view.rows.len().saturating_sub(1))]
-                    .iter()
-                    .any(|r| r.text.starts_with("diff --git"))
+                && !view.in_diff(self.ed.cur.line)
             {
                 let text = self.ed.buf.line(self.ed.cur.line);
                 let col = self.ed.cur.byte.min(text.len());
@@ -3319,7 +3318,7 @@ impl Session {
                         let id = String::from_utf8_lossy(&id).trim().to_owned();
                         let mut v = View::status(repo.clone(), Default::default());
                         v.kind = Kind::Patch(id.clone());
-                        v.rows = display_patch(&repo.commit_patch(&id)?);
+                        v.set_diff(repo.commit_patch(&id)?);
                         v.return_to = origin;
                         Ok(Outcome::View(Box::new(v), None, 0))
                     });
@@ -3410,12 +3409,24 @@ impl Session {
                         self.start_magit(move || {
                             let bytes = view.repo.commit_patch(&id)?;
                             view.kind = Kind::Patch(id);
-                            view.rows = display_patch(&bytes);
+                            view.set_diff(bytes);
                             Ok(Outcome::View(Box::new(view), None, 0))
                         });
                     }
                     _ => {}
                 }
+                return;
+            }
+            // A file heading in a diff, commit or stash buffer folds it.
+            if action == Action::Toggle
+                && let Some(file) = view.diff_files.get(&self.ed.cur.line).cloned()
+            {
+                if !view.diff_toggled.remove(&file) {
+                    view.diff_toggled.insert(file);
+                }
+                let raw = std::mem::take(&mut view.raw);
+                view.set_diff(raw);
+                self.install_magit(view, selected, fallback);
                 return;
             }
             // A ref in a refs buffer shows or hides its cherries.
@@ -4556,15 +4567,17 @@ impl Session {
             _ => {}
         }
         // A diff buffer's raw lines: the nearest hunk header and file above.
-        let rows = &view.rows;
+        let raw = view.raw_text();
+        let rows: Vec<&str> = raw.lines().collect();
+        let line = view.raw_at(line)?;
         let mut defun = None;
         for i in (0..=line.min(rows.len().checked_sub(1)?)).rev() {
-            let t = rows[i].text.as_str();
+            let t = rows[i];
             if defun.is_none() && t.starts_with("@@") {
                 defun = Some(crate::magit::message::hunk_defun(
                     rows[i..]
                         .iter()
-                        .map(|r| r.text.as_str())
+                        .copied()
                         .take_while(|l| !l.starts_with("diff ")),
                 ));
             }
@@ -5321,8 +5334,9 @@ fn branch_outcome(repo: Repo, next: crate::magit::branch::Next, origin: usize) -
 fn diff_visit(view: &View, line: usize, worktree: bool) -> Option<(String, PathBuf, usize)> {
     use crate::magit::blob::{INDEX, WORKTREE};
     use crate::magit::diff::Target;
-    let lines: Vec<&str> = view.rows.iter().map(|r| r.text.as_str()).collect();
-    let loc = crate::magit::diff::location(&lines, line)?;
+    let raw = view.raw_text();
+    let lines: Vec<&str> = raw.lines().collect();
+    let loc = crate::magit::diff::location(&lines, view.raw_at(line)?)?;
     // magit-diff-visit-worktree-file: the worktree at the new side's line.
     if worktree {
         return Some((WORKTREE.to_owned(), loc.file, loc.line - 1));
@@ -5533,7 +5547,7 @@ fn stash_view(
     origin: usize,
 ) -> Result<Outcome, String> {
     let mut view = View::status(repo.clone(), repo.status()?);
-    view.rows = display_patch(&repo.stash_patch(&stash)?);
+    view.set_diff(repo.stash_patch(&stash)?);
     view.kind = Kind::StashPatch(stash);
     view.return_to = origin;
     Ok(Outcome::View(Box::new(view), None, 0))
@@ -5576,12 +5590,13 @@ fn refresh_rows(view: &mut View) -> Result<(), String> {
         return Ok(());
     }
     if let Kind::Diff(target, args) = &view.kind {
-        let mut rows = vec![Row {
-            text: format!("{} (gr refresh, q return)", target.title()),
-            action: None,
-        }];
-        rows.extend(display_patch(&view.repo.diff_output(target, args)?));
-        view.rows = rows;
+        let bytes = view.repo.diff_output(target, args)?;
+        view.set_diff(bytes);
+        return Ok(());
+    }
+    if let Kind::Patch(id) = &view.kind {
+        let bytes = view.repo.commit_patch(id)?;
+        view.set_diff(bytes);
         return Ok(());
     }
     if matches!(
@@ -5722,7 +5737,8 @@ fn refresh_rows(view: &mut View) -> Result<(), String> {
         return Ok(());
     }
     if let Kind::StashPatch(stash) = &view.kind {
-        view.rows = display_patch(&view.repo.stash_patch(stash)?);
+        let bytes = view.repo.stash_patch(stash)?;
+        view.set_diff(bytes);
         return Ok(());
     }
     if matches!(view.kind, Kind::Stashes | Kind::Tags) {

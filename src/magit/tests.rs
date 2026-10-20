@@ -4538,10 +4538,8 @@ fn revision_buffer_layout_follows_magit_revision_mode() {
         .to_owned();
     let text = String::from_utf8_lossy(&r.commit_patch(&id).unwrap()).into_owned();
     let lines: Vec<&str> = text.lines().collect();
-    assert!(
-        lines[0].ends_with(&id) && lines[0].contains("tag: v2"),
-        "{text}"
-    );
+    // magit-format-ref-labels: the branch and the tag, then the hash.
+    assert_eq!(lines[0], format!("main v2 {id}"), "{text}");
     assert!(lines[1].starts_with("Author:     Fred Test <"), "{text}");
     assert!(lines[2].starts_with("AuthorDate: "));
     assert!(
@@ -4550,8 +4548,14 @@ fn revision_buffer_layout_follows_magit_revision_mode() {
     );
     assert!(lines.contains(&"Contained:  main"), "{text}");
     assert!(lines.contains(&"Follows:    v2 (0)"), "{text}");
-    let blank = lines.iter().position(|l| l.is_empty()).unwrap();
-    assert_eq!(&lines[blank + 1..blank + 4], &["second", "", "body line"]);
+    // A blank line after the headers, then after the related refs.
+    assert!(
+        lines[5].is_empty() && lines[6].starts_with("Parent:     "),
+        "{text}"
+    );
+    let message = lines.iter().position(|l| *l == "second").unwrap();
+    assert!(lines[message - 1].is_empty());
+    assert_eq!(&lines[message..message + 3], &["second", "", "body line"]);
     assert!(text.contains("Notes:\n    a note"), "{text}");
     assert!(lines.iter().any(|l| l.starts_with(" g | 1 +")), "{text}");
     assert!(text.contains("diff --git a/g b/g"));
@@ -5609,7 +5613,11 @@ fn fred_render(fixture: &str, buffer: &str) -> Option<String> {
                 ),
                 "refs" => Kind::Refs("HEAD".into(), vec![], Default::default()),
                 "stashes" => Kind::Stashes,
-                "revision" => Kind::Patch("HEAD".into()),
+                "revision" => Kind::Patch(
+                    String::from_utf8_lossy(&repo.read(&["rev-parse", "HEAD"]).ok()?)
+                        .trim()
+                        .to_owned(),
+                ),
                 "unstaged" => Kind::Diff(Target::Unstaged, stat()),
                 "staged" => Kind::Diff(Target::Staged, stat()),
                 _ => return None,
@@ -5638,11 +5646,7 @@ fn golden_render(name: &str) -> String {
         .collect()
 }
 /// Golden renders Fred does not match yet (tracked in the roadmap).
-const RENDER_PENDING: &[&str] = &[
-    "changes.revision.txt",
-    "changes.staged.txt",
-    "changes.unstaged.txt",
-];
+const RENDER_PENDING: &[&str] = &[];
 /// Upstream bugs Fred does not copy: (golden, upstream's text, Fred's).
 const RENDER_UPSTREAM_BUGS: &[(&str, &str, &str)] = &[
     // magit-stashes-refresh-buffer passes t as the child count, which
@@ -5700,4 +5704,31 @@ fn print_render_diffs() {
             println!("===== {name}: same");
         }
     }
+}
+#[test]
+fn wash_lays_out_a_diff_as_upstream() {
+    let raw = " b | 2 +-\n d | 1 -\n 2 files changed, 1 insertion(+), 2 deletions(-)\n\ndiff --git a/b b/b\nindex 1..2 100644\n--- a/b\n+++ b/b\n@@ -1 +1 @@\n-b\n+b2\ndiff --git a/d b/d\ndeleted file mode 100644\nindex 3..0\n--- a/d\n+++ /dev/null\n@@ -1 +0,0 @@\n-gone\ndiff --git a/r b/n\nsimilarity index 100%\nrename from r\nrename to n\n";
+    let lines: Vec<&str> = raw.lines().collect();
+    let rows = super::diff::wash(&lines, &|_, status| status == "deleted");
+    let text: Vec<&str> = rows.iter().map(|r| r.text.as_str()).collect();
+    assert_eq!(
+        text,
+        [
+            "2 files changed, 1 insertion(+), 2 deletions(-)",
+            "b | 2 +-",
+            "d | 1 -",
+            "",
+            "modified   b",
+            "@@ -1 +1 @@",
+            "-b",
+            "+b2",
+            "deleted    d…",
+            "renamed    r -> n",
+            "rename from r",
+            "rename to n",
+        ]
+    );
+    // Each row knows its raw line: the hunk header is line 8.
+    assert_eq!(rows[5].raw, Some(8));
+    assert_eq!(rows[8].file.as_deref(), Some("d"));
 }

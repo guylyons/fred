@@ -500,10 +500,20 @@ fn magit_styles(ed: &Editor, hl: &Highlighter, l: usize, line: &str) -> LineStyl
         return base;
     }
     // Inside a hunk: its header, then the file (diff header or status row).
+    // Diff, commit and stash buffers keep the raw diff, headers included.
+    let at = view.raw_at(l);
     let mut in_hunk = false;
     let mut path = None;
-    for k in (0..l).rev().take(5000) {
-        let t = ed.buf.line(k);
+    let above: Box<dyn Iterator<Item = (usize, String)>> = match at {
+        Some(r) => Box::new(
+            (0..r)
+                .rev()
+                .map(|k| (k, view.raw_line(k).unwrap_or_default().into_owned())),
+        ),
+        None => Box::new((0..l).rev().map(|k| (k, ed.buf.line(k).to_string()))),
+    };
+    for (k, t) in above.take(5000) {
+        let t = t.as_str();
         if t.starts_with("@@") {
             in_hunk = true;
         } else if let Some(f) = t.strip_prefix("+++ b/") {
@@ -517,7 +527,10 @@ fn magit_styles(ed: &Editor, hl: &Highlighter, l: usize, line: &str) -> LineStyl
         } else if t.starts_with("diff ")
             || !(t.starts_with(['+', '-', ' ', '\\']) || (in_hunk && !t.is_empty()))
         {
-            if let Some(crate::magit::RowAction::File(p, _)) = view.action_at(k) {
+            // A status file row (raw lines have no rows).
+            if at.is_none()
+                && let Some(crate::magit::RowAction::File(p, _)) = view.action_at(k)
+            {
                 path = Some(p);
             }
             break;

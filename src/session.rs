@@ -2779,6 +2779,38 @@ mod tests {
     }
 
     #[test]
+    fn magit_diff_buffer_folds_files_like_upstream() {
+        let mut t = T::open(Some("f.txt"), Some("one\n"));
+        magit_repo(&t);
+        let repo = crate::magit::repo::Repo::discover(t.dir.path()).unwrap();
+        repo.read(&["config", "user.name", "Fred"]).unwrap();
+        repo.read(&["config", "user.email", "fred@example.test"])
+            .unwrap();
+        fs::write(t.dir.path().join("gone.txt"), "gone\n").unwrap();
+        repo.read(&["add", "."]).unwrap();
+        repo.read(&["commit", "-qm", "base"]).unwrap();
+        fs::remove_file(t.dir.path().join("gone.txt")).unwrap();
+        fs::write(t.dir.path().join("f.txt"), "two\n").unwrap();
+        // magit-diff-unstaged: f.txt open, the deleted file folded.
+        t.keys(":Magit magit-diff-unstaged<Enter>");
+        magit_settle(&mut t);
+        let text = t.s.ed.buf.text();
+        assert!(
+            text.contains("modified   f.txt\n@@ -1 +1 @@\n-one\n+two"),
+            "{text}"
+        );
+        let row = text
+            .lines()
+            .position(|l| l == "deleted    gone.txt…")
+            .expect(&text);
+        t.keys(&format!(":{}<Enter><Tab>", row + 1));
+        assert_eq!(t.s.ed.buf.line(row), "deleted    gone.txt");
+        assert_eq!(t.s.ed.buf.line(row + 2), "-gone");
+        t.keys("<Tab>");
+        assert_eq!(t.s.ed.buf.line(row), "deleted    gone.txt…");
+    }
+
+    #[test]
     fn magit_refs_tab_shows_a_refs_cherries() {
         let mut t = T::open(Some("f.txt"), Some("one\n"));
         magit_repo(&t);

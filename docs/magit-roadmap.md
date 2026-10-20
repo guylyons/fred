@@ -461,3 +461,14 @@ RENDER_PENDING differs. Status now matches upstream for all six fixtures
 change sections, untracked hidden, merge/rebase sequences, ref labels on
 commits, unborn header). Pending: log, refs, stashes, revision and diff
 buffers. Score remains 3%.
+
+October 19 render oracle, continued: log, refs (with TAB cherries),
+stashes, revision and diff buffers now match upstream too — all 18
+goldens, RENDER_PENDING empty. Diff, commit and stash buffers keep Git's
+raw output beside upstream's layout (diff::wash: diffstat summary first,
+"%-11s" file headings, mode/rename lines, hunks; deleted files folded,
+TAB folds a file); applying, reversing, visiting, tracing and jumping
+read the raw lines through the row map. One upstream bug is not copied
+(stashes heading "(t)"). Still outside the oracle: reflog, cherry,
+process, repository and submodule lists, file logs, shortlog, blame and
+bisect buffers; hunk-level folding. Score remains 3%.
