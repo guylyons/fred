@@ -13,6 +13,7 @@ pub mod coverage;
 pub mod diff;
 pub mod ediff;
 pub mod ignore;
+pub mod levels;
 pub mod log;
 pub mod margin;
 pub mod merge;
@@ -1004,7 +1005,7 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     if let Mode::Pick(picker) = &ed.mode
         && picker.kind == crate::pick::Kind::MagitMenu
     {
-        let entries = menu_entries(ed.magit_menu.unwrap_or('*'));
+        let entries = shown_entries(ed, ed.magit_menu.unwrap_or('*'));
         // C-c cancels unless the menu binds it (git-commit-insert-trailer).
         let cancel_c = k == Key::ctrl('c') && !entries.iter().any(|e| e.0 == "C-c");
         if k.is(KeyCode::Esc) || k == Key::ctrl('g') || cancel_c {
@@ -1043,6 +1044,13 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             let transient = match suffix.as_str() {
                 "C-xs" => Some(Action::TransientSet(false)),
                 "C-xC-s" => Some(Action::TransientSet(true)),
+                // transient-set-level: the prefix's level.
+                "C-xl" => {
+                    ed.mode = Mode::Normal;
+                    ed.magit_menu = None;
+                    prompt(ed, Prompt::MenuLevel(menu));
+                    return true;
+                }
                 _ => None,
             };
             if let Some(action) = found.map(|e| e.3).or(transient) {
@@ -2175,6 +2183,8 @@ pub enum Prompt {
     CommitStyle(Vec<String>),
     /// git-rebase-cancel-confirm: abandon an edited todo list?
     TodoCancel,
+    /// transient-set-level for a menu: 1 to 7.
+    MenuLevel(char),
     /// magit-save-repository-buffers t: save this buffer (path), then the
     /// rest, then run the action.
     SaveBuffer(PathBuf, Vec<PathBuf>, Box<Action>),
@@ -2303,6 +2313,10 @@ pub fn prompt(ed: &mut Editor, question: Prompt) {
         Prompt::RebaseLine(_, prompt) => (*prompt).into(),
         Prompt::Trailer(key) => format!("{key}: "),
         // The reader's choices: magit-push-options, the default signing key.
+        Prompt::MenuLevel(menu) => format!(
+            "Set level for this transient (1-7, now {}): ",
+            menu_level(ed, *menu)
+        ),
         Prompt::OptionValue(_, "--push-option=") => format!(
             "--push-option= ({}) ",
             options::strings("magit-push-options", &["skip-ci", "ci.skip"]).join(", ")
@@ -2401,6 +2415,16 @@ pub fn answer(ed: &mut Editor, text: &str) {
         }
         Some(Prompt::RebaseLine(verb, _)) => rebase::insert_line(ed, verb, text),
         Some(Prompt::Trailer(key)) => message::insert_trailer(ed, key, text),
+        Some(Prompt::MenuLevel(menu)) => match text.trim().parse::<u8>() {
+            Ok(n @ 1..=7) => {
+                ed.magit_levels.insert(menu, n);
+                if let Err(e) = save_level(menu, n) {
+                    ed.set_err(e);
+                }
+                open_menu(ed, menu);
+            }
+            _ => ed.set_err("Level must be between 1 and 7"),
+        },
         Some(Prompt::OptionValue(menu, prefix)) => {
             // magit-openpgp-default-signing-key answers an empty key prompt.
             let default_key = (prefix == "--gpg-sign=")
@@ -5389,6 +5413,66 @@ impl MenuOption {
     }
 }
 /// Menus that share another menu's arguments (magit-diff-refresh uses magit-diff's).
+/// transient--use-level-p: the entries a menu shows and binds at its level
+/// (upstream's suffix levels; level 0 is never available).
+pub fn shown_entries(
+    ed: &Editor,
+    menu: char,
+) -> Vec<(&'static str, &'static str, &'static str, Action)> {
+    let level = menu_level(ed, menu);
+    menu_entries(menu)
+        .into_iter()
+        .filter(|e| {
+            let l = levels::LEVELS
+                .iter()
+                .find(|(m, k, _)| *m == menu && *k == e.0)
+                .map_or(4, |x| x.2);
+            l >= 1 && l <= level
+        })
+        .collect()
+}
+/// A menu's transient level: set with C-x l (and saved), else 4.
+pub fn menu_level(ed: &Editor, menu: char) -> u8 {
+    ed.magit_levels
+        .get(&menu)
+        .copied()
+        .or_else(|| saved_level(menu))
+        .unwrap_or(4)
+}
+/// transient-levels-file: "menu<TAB>level" lines beside transient-values.
+fn levels_file() -> PathBuf {
+    crate::swap::swap_dir().with_file_name("transient-levels")
+}
+fn saved_level(menu: char) -> Option<u8> {
+    // Tests share a process: a level one sets must not reach another.
+    if cfg!(test) {
+        return None;
+    }
+    std::fs::read_to_string(levels_file())
+        .ok()?
+        .lines()
+        .find_map(|l| {
+            let (m, n) = l.split_once('\t')?;
+            (m == menu.to_string()).then(|| n.trim().parse().ok())?
+        })
+}
+fn save_level(menu: char, level: u8) -> Result<(), String> {
+    if cfg!(test) {
+        return Ok(());
+    }
+    let file = levels_file();
+    let mut lines: Vec<String> = std::fs::read_to_string(&file)
+        .unwrap_or_default()
+        .lines()
+        .filter(|l| l.split('\t').next() != Some(&menu.to_string()))
+        .map(str::to_owned)
+        .collect();
+    lines.push(format!("{menu}\t{level}"));
+    if let Some(dir) = file.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&file, lines.join("\n") + "\n").map_err(|e| format!("{}: {e}", file.display()))
+}
 /// A prefix's :value, the arguments a fresh invocation starts with.
 fn default_arguments(menu: char) -> Vec<String> {
     let args: &[&str] = match menu {

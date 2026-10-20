@@ -2626,7 +2626,8 @@ mod tests {
             }
         }
         assert!(t.s.ed.magit.is_none());
-        t.keys(" mlh");
+        // magit-log-head is on level 0 of the menu: by name.
+        t.keys(":Magit magit-log-head<Enter>");
         magit_settle(&mut t);
         assert!(t.s.ed.buf.text().contains("unrelated"));
     }
@@ -3336,7 +3337,10 @@ mod tests {
         repo.read(&["commit", "-qm", "base"]).unwrap();
         fs::write(t.dir.path().join("f.txt"), "two\n").unwrap();
         fs::write(t.dir.path().join("g.txt"), "other\n").unwrap();
-        t.keys(" mzP--g.txt<Enter>P");
+        // magit-stash-push is on level 5: C-x l shows it.
+        t.keys(" mz<C-x>l5<Enter>");
+        assert_eq!(t.s.ed.magit_menu, Some('z'));
+        t.keys("P--g.txt<Enter>P");
         magit_settle(&mut t);
         assert_eq!(
             fs::read_to_string(t.dir.path().join("g.txt")).unwrap(),
@@ -4700,7 +4704,7 @@ mod tests {
             .unwrap();
         repo.stage_file(Path::new("f.txt")).unwrap();
         repo.read(&["commit", "-qm", "initial"]).unwrap();
-        t.keys(" mlh");
+        t.keys(":Magit magit-log-head<Enter>");
         magit_settle(&mut t);
         assert!(t.s.ed.magit.is_some());
         t.keys("j<Enter>");

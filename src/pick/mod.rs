@@ -1167,7 +1167,7 @@ pub fn org_choice(ed: &mut Editor, title: &str, candidates: Vec<String>) {
 
 pub fn magit_menu(ed: &mut Editor, menu: char) {
     let mut picker = Picker::new(Kind::MagitMenu, &ed.project, ed.cur.line);
-    picker.rows = crate::magit::menu_entries(menu)
+    picker.rows = crate::magit::shown_entries(ed, menu)
         .into_iter()
         .enumerate()
         .map(|(index, (key, group, label, action))| Row {

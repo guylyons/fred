@@ -1420,9 +1420,9 @@ type Group<'a> = (&'a str, Vec<(usize, Cells)>);
 /// per line, then action groups side by side in columns. Switches that are on
 /// are highlighted and show their argument; choices show their value.
 pub fn transient_lines(ed: &Editor, selected: usize, width: usize) -> Vec<Line<'static>> {
-    use crate::magit::{Action, current_choice, menu_entries};
+    use crate::magit::{Action, current_choice, shown_entries};
     let menu = ed.magit_menu.unwrap_or('*');
-    let entries = menu_entries(menu);
+    let entries = shown_entries(ed, menu);
     let heading = Style::default()
         .fg(Color::Blue)
         .add_modifier(Modifier::BOLD);

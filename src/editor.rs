@@ -156,6 +156,8 @@ pub struct Editor {
     /// Free-form transient-option values by (menu, argument prefix).
     pub magit_values: std::collections::BTreeMap<(char, &'static str), String>,
     /// Menus whose default arguments have been applied in this buffer.
+    /// Menu levels set with C-x l (transient-set-level).
+    pub magit_levels: std::collections::HashMap<char, u8>,
     /// Menu arguments set with C-x s (transient-set), for this session.
     pub magit_set: std::collections::HashMap<char, Vec<String>>,
     /// magit-blame-mode on this file buffer.
@@ -244,6 +246,7 @@ impl Editor {
             magit_options: std::collections::HashSet::new(),
             magit_values: std::collections::BTreeMap::new(),
             magit_set: std::collections::HashMap::new(),
+            magit_levels: std::collections::HashMap::new(),
             blame: None,
             blob: None,
             rebase_todo: None,

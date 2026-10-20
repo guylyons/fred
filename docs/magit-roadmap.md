@@ -499,3 +499,12 @@ menu or :Magit path), so library-level tests do not count. 159 commands are
 exercised, 82 keys are covered by the key map, 560 entries have no scenario
 yet and options were never configured by any test until options::set_for_test
 (a per-test override carried into Git worker threads).
+
+Track 2 (menus and sections), in progress: menu values now live for one
+invocation unless set (C-x s) or saved (C-x C-s), as transient values do;
+suffix levels follow upstream (src/magit/levels.rs from the UI map: level
+5-7 suffixes hidden at the default 4, level 0 never shown; C-x l sets a
+menu's level, saved in ~/.local/state/fred/transient-levels). Open in this
+track: per-suffix levels (C-x l then a suffix), transient history (M-p/M-n
+when reading values), suffix help (C-h), hunk-level folding, the
+three-state section cycles, bisect log items, text-mode toggle.
