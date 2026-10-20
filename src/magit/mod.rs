@@ -440,6 +440,8 @@ pub struct View {
     pub marked: HashSet<PathBuf>,
     /// A refs buffer's full ref name per row.
     pub refnames: HashMap<usize, String>,
+    /// A log buffer's rows whose commit has refs (magit-next-reference).
+    pub labelled: HashSet<usize>,
 }
 /// magit-log-select's pick function: answer QUESTION with the commit, after
 /// the answers already given.
@@ -565,6 +567,7 @@ impl View {
             forward: vec![],
             marked: HashSet::new(),
             refnames: HashMap::new(),
+            labelled: HashSet::new(),
         };
         v.rebuild();
         v

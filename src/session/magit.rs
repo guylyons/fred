@@ -4467,15 +4467,7 @@ impl Session {
                 Kind::Status => ["Head:", "Merge:", "Rebase:", "Push:", "Tag:"]
                     .iter()
                     .any(|p| text.starts_with(p)),
-                _ => {
-                    // "hash (refs) subject", after any graph.
-                    let t = text.trim_start_matches(|c: char| "*|/\\ _-.".contains(c));
-                    t.split_once(' ').is_some_and(|(h, rest)| {
-                        h.len() >= 7
-                            && h.bytes().all(|b| b.is_ascii_hexdigit())
-                            && rest.starts_with('(')
-                    })
-                }
+                _ => view.labelled.contains(&i),
             }
         };
         let cur = self.ed.cur.line;
@@ -5774,44 +5766,49 @@ fn refresh_log(view: &mut View) -> Result<(), String> {
         return Ok(());
     }
     if let Kind::Log(revs, args) = &view.kind {
-        // magit-log-refresh-buffer: header line, then the washed log; a
-        // magit-log-select buffer shows its usage instead.
-        let mut rows = vec![Row {
-            text: match &view.select {
-                // magit-log-select-show-usage: header-line (or both).
-                Some(select)
-                    if matches!(
-                        crate::magit::options::string("magit-log-select-show-usage", Some("both"))
-                            .as_deref(),
-                        Some("both" | "header-line")
-                    ) =>
-                {
-                    select.message.clone()
-                }
-                Some(_) => "Select a commit".into(),
-                None => format!(
-                    "Commits in {}{} (Enter inspect, = limit, + more, gr refresh, q return)",
-                    label(Path::new(&revs.join(" "))),
-                    if args.is_empty() {
-                        String::new()
-                    } else {
-                        format!(" {}", label(Path::new(&args.join(" "))))
-                    }
-                ),
-            },
-            action: None,
-        }];
-        let lines = view.repo.log_lines(revs, args, &[])?;
-        if lines.is_empty() {
+        // magit-log-refresh-buffer: the washed log. A magit-log-select
+        // buffer's usage (upstream's header line) comes first.
+        let mut rows = vec![];
+        if let Some(select) = &view.select {
             rows.push(Row {
-                text: "No commits for this history".into(),
+                // magit-log-select-show-usage: header-line (or both).
+                text: if matches!(
+                    crate::magit::options::string("magit-log-select-show-usage", Some("both"))
+                        .as_deref(),
+                    Some("both" | "header-line")
+                ) {
+                    select.message.clone()
+                } else {
+                    "Select a commit".into()
+                },
                 action: None,
             });
         }
-        rows.extend(lines.into_iter().map(|l| Row {
-            text: l.text,
-            action: l.commit.map(RowAction::Commit),
-        }));
+        // magit-git-wash shows Git's error (a bad revision) in the buffer.
+        let lines = match view.repo.log_lines(revs, args, &[]) {
+            Ok(lines) => lines,
+            Err(e) => vec![crate::magit::log::Line {
+                text: e
+                    .find("fatal:")
+                    .map_or(e.as_str(), |i| &e[i..])
+                    .lines()
+                    .next()
+                    .unwrap_or("")
+                    .to_owned(),
+                commit: None,
+                refs: false,
+            }],
+        };
+        view.labelled.clear();
+        for l in lines {
+            if l.refs {
+                view.labelled.insert(rows.len());
+            }
+            rows.push(Row {
+                text: l.text,
+                action: l.commit.map(RowAction::Commit),
+            });
+        }
         view.rows = rows;
         return Ok(());
     }

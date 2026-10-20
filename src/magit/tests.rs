@@ -2709,10 +2709,16 @@ fn log_variants_arguments_and_merged() {
     let args = s(&["-n256", "--graph", "--decorate"]);
     let (revs, text) = lines(r.log_step(Op::Current, &[], &args).unwrap());
     assert_eq!(revs, vec![main.clone()]);
-    assert!(text.contains("* ") && text.contains("tag: v1"), "{text}");
-    // Limits, message search and revisions read from the minibuffer.
+    // magit-format-ref-labels: the tag as "v1".
+    assert!(
+        text.contains("* ") && text.contains("v1 merge topic"),
+        "{text}"
+    );
+    // Limits, message search and revisions read from the minibuffer; a
+    // full page offers more.
     let (_, text) = lines(r.log_step(Op::Head, &[], &s(&["-n1"])).unwrap());
-    assert_eq!(text.lines().count(), 1);
+    assert_eq!(text.lines().count(), 2);
+    assert_eq!(text.lines().nth(1), Some("Type + to show more history"));
     let (_, text) = lines(
         r.log_step(Op::Other, &s(&["topic"]), &s(&["--grep=feat"]))
             .unwrap(),
@@ -5633,18 +5639,12 @@ fn golden_render(name: &str) -> String {
 }
 /// Golden renders Fred does not match yet (tracked in the roadmap).
 const RENDER_PENDING: &[&str] = &[
-    "changes.log.txt",
     "changes.refs.txt",
     "changes.revision.txt",
     "changes.staged.txt",
     "changes.stashes.txt",
     "changes.unstaged.txt",
-    "clean.log.txt",
     "clean.refs.txt",
-    "conflict.log.txt",
-    "detached.log.txt",
-    "empty.log.txt",
-    "rebase.log.txt",
 ];
 /// Each golden as (name, upstream, Fred), final newlines aside.
 fn render_pairs() -> Vec<(String, String, String)> {

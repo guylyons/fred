@@ -2654,7 +2654,10 @@ mod tests {
             "{text}"
         );
         assert!(!text.contains("commit 0"), "{text}");
-        assert!(text.contains("--grep=commit"), "{text}");
+        assert!(
+            matches!(&t.s.ed.magit.as_ref().unwrap().kind, crate::magit::Kind::Log(_, args) if args.iter().any(|a| a == "--grep=commit")),
+            "{text}"
+        );
         t.keys("+");
         magit_settle(&mut t);
         assert!(t.s.ed.buf.text().contains("commit 0"));
