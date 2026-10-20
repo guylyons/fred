@@ -1,0 +1,12 @@
+Head:     main Main change
+
+Merging topic (1)
+7be23e3 topic Topic change
+
+Unstaged changes (1)
+unmerged   f…
+
+Staged changes (1)
+unmerged   f
+
+Recent commits…

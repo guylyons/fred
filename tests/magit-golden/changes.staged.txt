@@ -1,0 +1,14 @@
+3 files changed, 1 insertion(+), 2 deletions(-)
+b            | 2 +-
+d            | 1 -
+r => renamed | 0 
+
+modified   b
+@@ -1 +1 @@
+-b
++b2
+deleted    d…
+renamed    r -> renamed
+rename from r
+rename to renamed
+

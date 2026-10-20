@@ -12,7 +12,7 @@ use crate::swap::{self, SwapInfo};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-mod magit;
+pub(crate) mod magit;
 mod occur;
 mod org;
 pub use org::Finish;

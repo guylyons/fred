@@ -5533,7 +5533,7 @@ fn stash_view(
     view.return_to = origin;
     Ok(Outcome::View(Box::new(view), None, 0))
 }
-fn refresh_view(view: &mut View) -> Result<(), String> {
+pub(crate) fn refresh_view(view: &mut View) -> Result<(), String> {
     refresh_rows(view)?;
     view.load_stamps()
 }

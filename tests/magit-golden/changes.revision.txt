@@ -1,0 +1,16 @@
+main 0d2a643e7aa42df14ca784d40628bcb952f6a6bb
+Author:     Ann <ann@example.test>
+AuthorDate: Thu Jan 2 03:04:05 2020 +0000
+Commit:     Ann <ann@example.test>
+CommitDate: Thu Jan 2 03:04:05 2020 +0000
+
+Parent:     529090a Initial commit
+Merged:     main
+Contained:  main
+
+Add c
+
+new file   c
+@@ -0,0 +1 @@
++c
+

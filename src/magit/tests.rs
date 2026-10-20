@@ -5556,3 +5556,100 @@ fn print_key_map() {
     }
     println!("COUNTS {counts:?}");
 }
+#[test]
+#[ignore = "prints Fred's status buffer for FRED_REPO"]
+fn print_status_for_repo() {
+    let repo = Repo::discover(std::path::Path::new(&std::env::var("FRED_REPO").unwrap())).unwrap();
+    let snapshot = repo.status().unwrap();
+    let mut view = super::View::new_status(repo, snapshot);
+    view.closed.clear();
+    view.rebuild();
+    for r in &view.rows {
+        println!("ROW {}", r.text);
+    }
+}
+
+/// tools/magit-fixtures.sh's repositories, made once per test run.
+fn render_fixtures() -> &'static std::path::Path {
+    static DIR: std::sync::OnceLock<tempfile::TempDir> = std::sync::OnceLock::new();
+    DIR.get_or_init(|| {
+        let d = tempfile::tempdir().unwrap();
+        let status = std::process::Command::new("sh")
+            .arg(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/tools/magit-fixtures.sh"
+            ))
+            .arg(d.path())
+            .status()
+            .unwrap();
+        assert!(status.success());
+        d
+    })
+    .path()
+}
+/// Fred's text for a buffer tools/magit-render.el renders.
+fn fred_render(fixture: &str, buffer: &str) -> Option<String> {
+    use super::{Kind, View, diff::Target};
+    let dir = render_fixtures().join(fixture);
+    let repo = Repo::discover(&dir).ok()?;
+    let stat = || vec!["--no-ext-diff".to_owned(), "--stat".to_owned()];
+    let mut view = match buffer {
+        "status" => View::new_status(repo.clone(), repo.status().ok()?),
+        _ => {
+            let kind = match buffer {
+                "log" => Kind::Log(
+                    vec![repo.current_branch().unwrap_or_else(|_| "HEAD".into())],
+                    vec!["-n256".into(), "--graph".into(), "--decorate".into()],
+                ),
+                "refs" => Kind::Refs("HEAD".into(), vec![], Default::default()),
+                "stashes" => Kind::Stashes,
+                "revision" => Kind::Patch("HEAD".into()),
+                "unstaged" => Kind::Diff(Target::Unstaged, stat()),
+                "staged" => Kind::Diff(Target::Staged, stat()),
+                _ => return None,
+            };
+            let mut v = View::status(repo.clone(), Snapshot::default());
+            v.kind = kind;
+            v
+        }
+    };
+    crate::session::magit::refresh_view(&mut view).ok()?;
+    let root = render_fixtures().to_string_lossy().into_owned();
+    Some(
+        view.rows
+            .iter()
+            .map(|r| format!("{}\n", r.text.replace(&root, "ROOT").trim_end()))
+            .collect(),
+    )
+}
+fn golden_render(name: &str) -> String {
+    let text = fs::read_to_string(
+        std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/magit-golden")).join(name),
+    )
+    .unwrap();
+    text.lines()
+        .map(|l| format!("{}\n", l.trim_end()))
+        .collect()
+}
+#[test]
+#[ignore = "prints Fred's buffers beside upstream's"]
+fn print_render_diffs() {
+    let mut names: Vec<_> =
+        fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/magit-golden"))
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+    names.sort();
+    for name in names {
+        let [fixture, buffer, _] = name.split('.').collect::<Vec<_>>()[..] else {
+            continue;
+        };
+        let up = golden_render(&name);
+        let fred = fred_render(fixture, buffer).unwrap_or_else(|| "(no render)\n".into());
+        if up != fred {
+            println!("===== {name}\n--- upstream\n{up}--- fred\n{fred}");
+        } else {
+            println!("===== {name}: same");
+        }
+    }
+}
