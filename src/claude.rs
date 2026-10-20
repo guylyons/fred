@@ -1,15 +1,18 @@
 //! `:claude` / `Space c`: Claude Code in a fred buffer, laid out like its
 //! CLI (`> ` prompts, `⏺` replies and tools, `⎿` results). Enter on the
-//! prompt sends it, Shift-Enter or Ctrl-J breaks the line, Ctrl-C interrupts. Each prompt
-//! runs `claude_command` (`--resume`d, so it is one conversation) with the
-//! reply streaming in while you edit, here or in another buffer.
+//! prompt sends it, Shift-Enter or Ctrl-J breaks the line, Ctrl-C interrupts. One
+//! `claude_command` runs for the chat, each prompt a line on its stdin
+//! (`--input-format stream-json`), with the reply streaming in while you edit,
+//! here or in another buffer. It stays up between turns, so a command Claude
+//! sent to the background still reports back; if it exits, the next prompt
+//! `--resume`s the conversation.
 
 use crate::buffer::Edit;
 use crate::editor::{Editor, Mode};
 use crate::key::{Key, KeyCode};
 use serde_json::{Value, json};
 use std::io::{BufRead, BufReader, Write};
-use std::process::{Child, Stdio};
+use std::process::{Child, ChildStdin, Stdio};
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::time::Instant;
 
@@ -29,6 +32,36 @@ struct Job {
     child: Child,
     rx: Receiver<Out>,
     start: Instant,
+    /// Where the next prompt goes, for `claude`; other commands get one
+    /// prompt and their stdin closed.
+    stdin: Option<ChildStdin>,
+    /// The turn is over, though the process is still up: between prompts,
+    /// or waiting on a background command, which starts a turn of its own.
+    idle: bool,
+}
+
+impl Job {
+    /// Hand `prompt` to the running claude. False if it can't take it.
+    fn prompt(&mut self, prompt: &str) -> bool {
+        let line = json!({ "type": "user", "message": { "role": "user", "content": prompt } });
+        let Some(stdin) = &mut self.stdin else { return false };
+        if writeln!(stdin, "{line}").and_then(|_| stdin.flush()).is_err() {
+            return false;
+        }
+        self.idle = false;
+        self.start = Instant::now();
+        true
+    }
+
+    /// Stop with it, reaping it in the background (claude may linger on its
+    /// hooks or background commands).
+    fn end(mut self, kill: bool) {
+        if kill {
+            let _ = self.child.kill();
+        }
+        drop(self.stdin.take());
+        std::thread::spawn(move || self.child.wait());
+    }
 }
 
 /// What a line of `--output-format stream-json` adds to the chat.
@@ -139,12 +172,19 @@ pub fn asked(msg: &str) -> Option<(&str, &str)> {
 /// every buffer's status bar shows it.
 pub fn working(ed: &Editor) -> Option<String> {
     const SPIN: [char; 6] = ['·', '✢', '✳', '✶', '✻', '✽'];
-    let t = ed.claude.as_ref()?.job.as_ref()?.start.elapsed();
+    let job = ed.claude.as_ref()?.job.as_ref().filter(|j| !j.idle)?;
+    let t = job.start.elapsed();
     let c = SPIN[(t.as_millis() / 120) as usize % SPIN.len()];
     Some(format!("{c} Claude is working… {}s", t.as_secs()))
 }
 
+/// A turn is running.
 pub fn busy(ed: &Editor) -> bool {
+    ed.claude.as_ref().and_then(|c| c.job.as_ref()).is_some_and(|j| !j.idle)
+}
+
+/// Its claude is running, between turns or not: tool approvals go here.
+pub fn live(ed: &Editor) -> bool {
     ed.claude.as_ref().is_some_and(|c| c.job.is_some())
 }
 
@@ -158,7 +198,7 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     if !(insert || normal) {
         return false;
     }
-    if k == Key::ctrl('c') && chat.job.is_some() {
+    if k == Key::ctrl('c') && chat.job.as_ref().is_some_and(|j| !j.idle) {
         // A question left unanswered: dropping it tells Claude no.
         chat.ask = None;
         let mut job = chat.job.take().unwrap();
@@ -197,11 +237,14 @@ fn send(ed: &mut Editor) {
         return;
     }
     let chat = ed.claude.as_mut().unwrap();
-    if chat.job.is_some() {
+    if chat.job.as_ref().is_some_and(|j| !j.idle) {
         return ed.set_msg("Claude is working · C-c to interrupt");
     }
     if prompt == "/clear" {
         chat.session = None;
+        if let Some(job) = chat.job.take() {
+            job.end(true);
+        }
         let end = ed.buf.len_chars();
         ed.apply(Edit {
             start: 0,
@@ -211,10 +254,6 @@ fn send(ed: &mut Editor) {
         ed.set_cursor(0, 2);
         return ed.set_msg("new conversation");
     }
-    let cmd = match &chat.session {
-        Some(id) => format!("{} --resume {id}", chat.cmd),
-        None => chat.cmd.clone(),
-    };
     let end = ed.buf.len_chars();
     ed.apply(Edit {
         start: end,
@@ -223,7 +262,20 @@ fn send(ed: &mut Editor) {
     });
     let last = ed.line_count() - 1;
     ed.set_cursor(last, 2);
-    let prompt = with_files(&ed.claude.as_ref().unwrap().files, prompt);
+    let chat = ed.claude.as_mut().unwrap();
+    let prompt = with_files(&chat.files, prompt);
+    if let Some(mut job) = chat.job.take() {
+        if job.prompt(&prompt) {
+            chat.job = Some(job);
+            ed.msg = working(ed).map(|s| (s, false));
+            return;
+        }
+        job.end(false);
+    }
+    let cmd = match &chat.session {
+        Some(id) => format!("{} --resume {id}", chat.cmd),
+        None => chat.cmd.clone(),
+    };
     match spawn(&cmd, prompt) {
         Ok(job) => {
             ed.claude.as_mut().unwrap().job = Some(job);
@@ -259,15 +311,23 @@ check them. Save with `:w<CR>` before running anything that reads the file, such
 as a build or tests. Use Bash, Grep and Glob to search and run commands, never to \
 change files.";
 
+/// How long Claude's Bash waits on a command before moving it to the
+/// background and carrying on, as the CLI lets you with Ctrl-B. Your own
+/// `$CLAUDE_CODE_AUTO_BACKGROUND_TIMEOUT_MS` wins.
+const AUTO_BACKGROUND_MS: &str = "30000";
+
 fn spawn(cmd: &str, prompt: String) -> Result<Job, String> {
     let mut cmd = cmd.to_string();
     let mut env = None;
+    // `claude …`, or wrapped: `env X=1 claude …`, `/opt/bin/claude …`.
+    let is_claude = cmd.split_whitespace().any(|w| w == "claude" || w.ends_with("/claude"));
+    if is_claude {
+        cmd += " --input-format stream-json";
+    }
     // The chat drives this fred, through its own `fred --mcp`, which also
     // asks you (`-p` can't) before a tool your settings don't allow.
     if let Some(p) = crate::remote::SOCKET.get() {
         env = Some(p);
-        // `claude …`, or wrapped: `env X=1 claude …`, `/opt/bin/claude …`.
-        let is_claude = cmd.split_whitespace().any(|w| w == "claude" || w.ends_with("/claude"));
         if let Some(exe) = std::env::current_exe().ok().filter(|_| is_claude) {
             let servers = json!({ "mcpServers": { "fred": {
                 "command": exe, "args": ["--mcp"] } } });
@@ -286,6 +346,10 @@ fn spawn(cmd: &str, prompt: String) -> Result<Job, String> {
     if let Some(p) = env {
         command.env("FRED_SOCKET", p);
     }
+    const BG: &str = "CLAUDE_CODE_AUTO_BACKGROUND_TIMEOUT_MS";
+    if is_claude && std::env::var_os(BG).is_none() {
+        command.env(BG, AUTO_BACKGROUND_MS);
+    }
     let mut child = command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -293,7 +357,6 @@ fn spawn(cmd: &str, prompt: String) -> Result<Job, String> {
         .spawn()
         .map_err(|e| format!("can't run claude: {e}"))?;
     let mut stdin = child.stdin.take().unwrap();
-    std::thread::spawn(move || stdin.write_all(prompt.as_bytes()));
     let stdout = child.stdout.take().unwrap();
     let (tx, rx) = mpsc::channel();
     std::thread::spawn(move || {
@@ -305,11 +368,23 @@ fn spawn(cmd: &str, prompt: String) -> Result<Job, String> {
             }
         }
     });
-    Ok(Job {
+    let mut job = Job {
         child,
         rx,
         start: Instant::now(),
-    })
+        stdin: None,
+        idle: false,
+    };
+    if is_claude {
+        job.stdin = Some(stdin);
+        if !job.prompt(&prompt) {
+            job.end(true);
+            return Err("can't send claude the prompt".into());
+        }
+    } else {
+        std::thread::spawn(move || stdin.write_all(prompt.as_bytes()));
+    }
+    Ok(job)
 }
 
 /// Put what arrived into the chat. True if anything changed.
@@ -327,25 +402,32 @@ pub fn tick(ed: &mut Editor) -> bool {
     };
     let changed = !outs.is_empty() || ended;
     for o in outs {
+        let job = ed.claude.as_mut().unwrap().job.as_mut().unwrap();
+        // A background command finished: Claude takes a turn of its own.
+        if job.idle && !matches!(o, Out::Session(_) | Out::Done(_)) {
+            job.idle = false;
+            job.start = Instant::now();
+        }
         match o {
             Out::Block => put(ed, "\n\n⏺ "),
             Out::Text(t) => put(ed, &t.replace('\n', "\n  ")),
             Out::Tool(t) => put(ed, &format!("\n\n⏺ {t}")),
             Out::Result(r) => put(ed, &format!("\n  ⎿  {r}")),
             Out::Session(id) => ed.claude.as_mut().unwrap().session = Some(id),
-            // The turn is over, though claude may still be exiting (its
-            // hooks): reap it in the background so the next prompt can go.
+            // The turn is over; claude stays up for the next prompt.
             Out::Done(m) => {
-                if let Some(mut job) = ed.claude.as_mut().unwrap().job.take() {
-                    std::thread::spawn(move || job.child.wait());
-                }
+                job.idle = true;
                 ed.set_msg(m);
-                break;
             }
         }
     }
-    if ended && let Some(mut job) = ed.claude.as_mut().unwrap().job.take() {
-        let _ = job.child.wait();
+    if ended && let Some(job) = ed.claude.as_mut().unwrap().job.take() {
+        let idle = job.idle;
+        job.end(false);
+        if idle {
+            ed.buf.modified = false;
+            return changed;
+        }
         put(
             ed,
             "\n\n⏺ claude exited without answering (see claude_command)",

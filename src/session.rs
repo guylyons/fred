@@ -1380,7 +1380,7 @@ impl Session {
         args: &serde_json::Value,
         reply: std::sync::mpsc::Sender<Result<String, String>>,
     ) {
-        match self.editors_mut().find(|ed| crate::claude::busy(ed)) {
+        match self.editors_mut().find(|ed| crate::claude::live(ed)) {
             Some(ed) => crate::claude::ask(ed, args, reply),
             None => {
                 let _ = reply.send(Err("no :claude chat in fred is waiting".into()));
@@ -2682,6 +2682,58 @@ mod tests {
         assert!(t.s.ed.claude.is_some());
         assert_eq!(t.s.ed.claude_working, None);
         assert_eq!(t.s.ed.msg.as_ref().unwrap().0, "done in 1s · $0.00");
+    }
+
+    fn claude_settle(t: &mut T) {
+        let start = std::time::Instant::now();
+        while crate::claude::live(&t.s.ed) && start.elapsed().as_secs() < 5 {
+            t.s.tick_claude();
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+    }
+
+    #[test]
+    fn claude_reports_back_after_the_turn_when_a_background_command_ends() {
+        let mut t = T::open(Some("a"), Some("1\n"));
+        let r = r#"echo '{"type":"result","duration_ms":1000,"total_cost_usd":0}'"#;
+        let text = r#"echo '{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"sync finished"}}}'"#;
+        t.s.cfg.claude_command = format!("{r}; sleep 0.3; {text}; {r}");
+        t.s.cfg.claude_permissions = String::new();
+        t.keys(":claude<Enter>hi<Enter>");
+        claude_settle(&mut t);
+        assert!(t.s.ed.buf.slice(0, t.s.ed.buf.len_chars()).contains("sync finished"));
+        assert!(!t.s.ed.buf.slice(0, t.s.ed.buf.len_chars()).contains("exited without answering"));
+    }
+
+    #[test]
+    fn claude_takes_each_prompt_in_the_same_process() {
+        let mut t = T::open(Some("a"), Some("1\n"));
+        use std::os::unix::fs::PermissionsExt;
+        let claude = t.dir.path().join("claude");
+        // Answers each stdin line with its own pid, and how many it has read.
+        fs::write(
+            &claude,
+            "#!/bin/sh\nn=0\nwhile read l; do n=$((n+1))\n\
+             echo '{\"type\":\"stream_event\",\"event\":{\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"'$$-$n'\"}}}'\n\
+             echo '{\"type\":\"result\",\"duration_ms\":0,\"total_cost_usd\":0}'\ndone\n",
+        )
+        .unwrap();
+        fs::set_permissions(&claude, fs::Permissions::from_mode(0o755)).unwrap();
+        t.s.cfg.claude_command = claude.display().to_string();
+        t.s.cfg.claude_permissions = String::new();
+        let turn = |t: &mut T, keys: &str| {
+            t.keys(keys);
+            let start = std::time::Instant::now();
+            while crate::claude::busy(&t.s.ed) && start.elapsed().as_secs() < 5 {
+                t.s.tick_claude();
+            }
+        };
+        turn(&mut t, ":claude<Enter>one<Enter>");
+        assert!(crate::claude::live(&t.s.ed));
+        turn(&mut t, "two<Enter>");
+        let chat = t.s.ed.buf.slice(0, t.s.ed.buf.len_chars());
+        let pid = chat.split("-1").next().unwrap().rsplit(|c: char| !c.is_ascii_digit()).next();
+        assert!(chat.contains(&format!("{}-2", pid.unwrap())), "{chat}");
     }
 
     #[test]

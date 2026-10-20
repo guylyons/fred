@@ -435,7 +435,12 @@ plain buffer, so you can leave Insert mode, move around, yank and switch
 buffers while Claude works. `Ctrl-C` interrupts, and `/clear` starts a new
 conversation. Each prompt tells Claude which files are open in fred and on
 what line, the one you used last first, so "this file" means the one you were
-just in. Each prompt runs `claude_command` with `--resume`.
+just in. One `claude_command` runs for the chat and takes each prompt in
+turn. A command Claude runs that takes over 30 seconds moves to the
+background, as `Ctrl-B` does in the CLI, so the chat never sits on it; when
+it finishes, Claude picks the answer up and replies on its own
+(`CLAUDE_CODE_AUTO_BACKGROUND_TIMEOUT_MS` in your environment changes the
+30 seconds).
 `claude_permissions` sets what Claude may do without asking: by default
 `bypassPermissions`, no restrictions at all (it can run any command and edit
 any file). `acceptEdits`, `plan` and `default` are stricter, and `""` leaves
