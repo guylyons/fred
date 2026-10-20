@@ -1,0 +1,8 @@
+changes                    20200102.0304-g0d2a643     0   1 ROOT/changes/
+clean                      20200102.0304-g529090a     1   0 ROOT/clean/
+conflict                   20200102.0304-g6fa8235           ROOT/conflict/
+detached                   20200102.0304-g69a2616           ROOT/detached/
+empty                                                       ROOT/empty/
+modules                    20200102.0304-g282716e           ROOT/modules/
+rebase                     20200102.0304-gef9eaa9           ROOT/rebase/
+upstream                   20200102.0304-gd40ec34           ROOT/upstream/

@@ -30,7 +30,7 @@ fn header(keyword: &str, text: &str) -> String {
 }
 
 impl Repo {
-    fn summary(&self, rev: &str) -> Option<String> {
+    pub(crate) fn summary(&self, rev: &str) -> Option<String> {
         let out = self
             .read(&["log", "-1", "--format=%s", "--end-of-options", rev, "--"])
             .ok()?;

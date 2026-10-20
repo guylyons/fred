@@ -184,7 +184,19 @@ pub fn uniquify(paths: &[PathBuf]) -> Vec<(String, PathBuf)> {
 
 impl Repo {
     fn upstream_counts(&self, push: bool) -> Option<(usize, usize)> {
-        let target = if push { "@{push}" } else { "@{upstream}" };
+        // magit-get-push-branch: only a configured push remote counts, not
+        // Git's @{push} falling back to the upstream.
+        let target = if push {
+            let branch = self.current_branch().ok()?;
+            let remote = self
+                .config(&format!("branch.{branch}.pushRemote"))
+                .or_else(|| self.config("remote.pushDefault"))?;
+            let r = format!("refs/remotes/{remote}/{branch}");
+            self.read(&["rev-parse", "--verify", "-q", &r]).ok()?;
+            r
+        } else {
+            "@{upstream}".to_owned()
+        };
         let out = self
             .read(&[
                 "rev-list",
@@ -237,9 +249,10 @@ impl Repo {
             "magit-repolist-column-ident" | "magit-modulelist-column-path" => id.to_owned(),
             "magit-repolist-column-path" => {
                 let home = std::env::var_os("HOME").map(PathBuf::from);
+                // abbreviate-file-name of the directory, with its slash.
                 match home.and_then(|h| self.root.strip_prefix(h).ok().map(Path::to_path_buf)) {
-                    Some(rest) => format!("~/{}", rest.display()),
-                    None => self.root.display().to_string(),
+                    Some(rest) => format!("~/{}/", rest.display()),
+                    None => format!("{}/", self.root.display()),
                 }
             }
             "magit-repolist-column-version" => {

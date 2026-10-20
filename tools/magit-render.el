@@ -9,7 +9,7 @@
 (let ((lisp (nth 0 command-line-args-left)))
   (setq load-path (cons lisp (seq-remove (lambda (d) (string-match-p "/magit-[0-9]" d)) load-path))))
 (require 'magit)
-(setq magit-display-buffer-function (lambda (b) (set-buffer b) (selected-window))
+(setq magit-display-buffer-function (lambda (b) (set-window-buffer (selected-window) b) (set-buffer b) (selected-window))
       magit-log-margin '(nil age magit-log-margin-width t 18)
       magit-refs-margin '(nil age magit-log-margin-width t 18)
       magit-reflog-margin '(nil age magit-log-margin-width nil 18)
@@ -50,9 +50,19 @@
         (setq pos next)))
     (substring-no-properties out)))
 
+(defun listing ()
+  "The tabulated list a list command just filled (it may not be current)."
+  (seq-find (lambda (b)
+              (with-current-buffer b
+                (and (derived-mode-p 'tabulated-list-mode) (> (buffer-size) 0))))
+            (buffer-list)))
+
 (defun render (fixtures out fixture name setup)
-  (let ((default-directory (file-name-as-directory (expand-file-name fixture fixtures))))
-    (when (file-directory-p default-directory)
+  (let ((dir (file-name-as-directory (expand-file-name fixture fixtures))))
+    (when (file-directory-p dir)
+      ;; Start from a buffer in the repository, as a user would.
+      (set-buffer (get-buffer-create " *render*"))
+      (setq default-directory dir)
       (let ((buffer (condition-case err (progn (funcall setup) (current-buffer))
                       (error (message "%s %s: %S" fixture name err) nil))))
         (when buffer
@@ -61,7 +71,8 @@
               (insert (with-current-buffer buffer (visible-text)))))
           ;; Every Magit buffer goes, so the next repository gets its own.
           (dolist (b (buffer-list))
-            (when (with-current-buffer b (derived-mode-p 'magit-mode)) (kill-buffer b))))))))
+            (when (with-current-buffer b (derived-mode-p 'magit-mode 'magit-repolist-mode))
+              (kill-buffer b))))))))
 
 (let ((fixtures (nth 1 command-line-args-left))
       (out (nth 2 command-line-args-left)))
@@ -84,4 +95,17 @@
           (lambda () (set-buffer (magit-diff-setup-buffer nil nil '("--no-ext-diff" "--stat") nil 'unstaged))))
   (render fixtures out "changes" "staged"
           (lambda () (set-buffer (magit-diff-setup-buffer nil "--cached" '("--no-ext-diff" "--stat") nil 'staged))))
+  (render fixtures out "changes" "reflog"
+          (lambda () (set-buffer (magit-reflog-setup-buffer "HEAD"))))
+  (render fixtures out "changes" "cherry"
+          (lambda () (set-buffer (magit-cherry-setup-buffer "main" "origin/main"))))
+  (render fixtures out "changes" "filelog"
+          (lambda () (set-buffer (magit-log-setup-buffer (list "main") '("-n256" "--follow") '("a")))))
+  (render fixtures out "modules" "status"
+          (lambda () (set-buffer (magit-status-setup-buffer default-directory))))
+  (render fixtures out "modules" "submodules"
+          #'magit-list-submodules)
+  (let ((magit-repository-directories (list (cons fixtures 1))))
+    (render fixtures out "changes" "repolist"
+            (lambda () (magit-list-repositories) (set-buffer (listing))))))
   (kill-emacs 0))

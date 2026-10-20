@@ -5613,6 +5613,11 @@ fn fred_render(fixture: &str, buffer: &str) -> Option<String> {
                 ),
                 "refs" => Kind::Refs("HEAD".into(), vec![], Default::default()),
                 "stashes" => Kind::Stashes,
+                "reflog" => Kind::Reflog("HEAD".into()),
+                "cherry" => Kind::Cherry("main".into(), "origin/main".into()),
+                "filelog" => Kind::FileLog("a".into(), true),
+                "submodules" => Kind::Modules,
+                "repolist" => Kind::Repos,
                 "revision" => Kind::Patch(
                     String::from_utf8_lossy(&repo.read(&["rev-parse", "HEAD"]).ok()?)
                         .trim()
@@ -5627,6 +5632,28 @@ fn fred_render(fixture: &str, buffer: &str) -> Option<String> {
             v
         }
     };
+    if buffer == "repolist" {
+        // magit-repository-directories: the fixtures, one level down.
+        let (cols, table) = super::repos::table_in(&[(render_fixtures().to_path_buf(), 1)]).ok()?;
+        let root = render_fixtures().to_string_lossy().into_owned();
+        let header: Vec<String> = cols
+            .iter()
+            .map(|c| super::repos::pad(&c.header, c))
+            .collect();
+        let mut out = format!("{}\n", header.join(" ").trim_end());
+        for (_, _, cells) in table {
+            let text: Vec<String> = cols
+                .iter()
+                .zip(&cells)
+                .map(|(c, v)| super::repos::pad(v, c))
+                .collect();
+            out.push_str(&format!(
+                "{}\n",
+                text.join(" ").trim_end().replace(&root, "ROOT")
+            ));
+        }
+        return Some(out);
+    }
     crate::session::magit::refresh_view(&mut view).ok()?;
     let root = render_fixtures().to_string_lossy().into_owned();
     Some(
@@ -5653,6 +5680,9 @@ const RENDER_UPSTREAM_BUGS: &[(&str, &str, &str)] = &[
     // magit-insert-heading prints as is.
     ("changes.stashes.txt", "Stashes (t)", "Stashes (1)"),
 ];
+/// Tabulated lists, whose column header is Emacs's header line (not buffer
+/// text) and Fred's first row.
+const RENDER_HEADER_LINE: &[&str] = &["changes.repolist.txt", "modules.submodules.txt"];
 /// Each golden as (name, upstream, Fred), final newlines aside.
 fn render_pairs() -> Vec<(String, String, String)> {
     let mut names: Vec<_> =
@@ -5673,7 +5703,12 @@ fn render_pairs() -> Vec<(String, String, String)> {
                     up = up.replace(bug, fixed);
                 }
             }
-            let fred = fred_render(fixture, buffer).unwrap_or_else(|| "(no render)".into());
+            let mut fred = fred_render(fixture, buffer).unwrap_or_else(|| "(no render)".into());
+            if RENDER_HEADER_LINE.contains(&name.as_str()) {
+                fred = fred
+                    .split_once('\n')
+                    .map_or(String::new(), |(_, rest)| rest.to_owned());
+            }
             let fred = fred.trim_end().to_owned() + "\n";
             Some((name.clone(), up, fred))
         })
@@ -5731,4 +5766,20 @@ fn wash_lays_out_a_diff_as_upstream() {
     // Each row knows its raw line: the hunk header is line 8.
     assert_eq!(rows[5].raw, Some(8));
     assert_eq!(rows[8].file.as_deref(), Some("d"));
+}
+#[test]
+fn reflog_subjects_as_magit_formats_them() {
+    use super::log::reflog_subject as f;
+    let s = |a: &str, b: &str| (a.to_owned(), b.to_owned());
+    assert_eq!(f("commit (amend): Fix"), s("amend", "Fix"));
+    assert_eq!(f("commit: Add c"), s("commit", "Add c"));
+    assert_eq!(f("reset: moving to HEAD"), s("reset", "moving to HEAD"));
+    assert_eq!(
+        f("pull --rebase (finish): done"),
+        s("pull --rebase finish", "done")
+    );
+    assert_eq!(
+        f("merge topic: Fast-forward"),
+        s("merge", "topic: Fast-forward")
+    );
 }

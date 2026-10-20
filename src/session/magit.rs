@@ -257,6 +257,12 @@ impl Session {
             } else {
                 view.marked.remove(&p);
             }
+            // magit-repolist--ensure-padding: two columns for the tags.
+            if !view.rows.first().is_some_and(|r| r.text.starts_with("  ")) {
+                for row in &mut view.rows {
+                    row.text.insert_str(0, "  ");
+                }
+            }
             if let Some(row) = view.rows.get_mut(line) {
                 row.text.replace_range(..1, if mark { "*" } else { " " });
             }
@@ -5565,24 +5571,28 @@ fn refresh_rows(view: &mut View) -> Result<(), String> {
             .iter()
             .map(|c| crate::magit::repos::pad(&c.header, c))
             .collect();
+        view.marked.retain(|p| table.iter().any(|(_, q, _)| q == p));
+        // tabulated-list-padding: none until something is marked (then two).
+        // shortcut: unmarking everything drops it again, upstream keeps it.
+        let pad = if view.marked.is_empty() { "" } else { "  " };
+        // Emacs's header line, as the first row.
         let mut rows = vec![Row {
-            text: format!("  {}", header.join(" ").trim_end()),
+            text: format!("{pad}{}", header.join(" ").trim_end()),
             action: None,
         }];
-        view.marked.retain(|p| table.iter().any(|(_, q, _)| q == p));
         for (_, path, cells) in table {
             let text: Vec<String> = cols
                 .iter()
                 .zip(&cells)
                 .map(|(c, v)| crate::magit::repos::pad(&label(Path::new(v)), c))
                 .collect();
-            let mark = if view.marked.contains(&path) {
-                "*"
-            } else {
-                " "
+            let mark = match (pad.is_empty(), view.marked.contains(&path)) {
+                (true, _) => "",
+                (false, true) => "* ",
+                (false, false) => "  ",
             };
             rows.push(Row {
-                text: format!("{mark} {}", text.join(" ").trim_end()),
+                text: format!("{mark}{}", text.join(" ").trim_end()),
                 action: Some(RowAction::Repo(path)),
             });
         }
@@ -5670,51 +5680,63 @@ fn refresh_rows(view: &mut View) -> Result<(), String> {
         return Ok(());
     }
     if view.kind == Kind::Modules {
+        // Emacs's header line, as the first row; the tag columns once
+        // something is marked.
+        let (header, modules) = view.repo.module_rows()?;
+        let pad = if view.marked.is_empty() { "" } else { "  " };
         let mut rows = vec![Row {
-            text: "Modules (Enter visit, Space m o actions, gr refresh, q return)".into(),
+            text: format!("{pad}{}", label(Path::new(&header))),
             action: None,
         }];
-        let (header, modules) = view.repo.module_rows()?;
-        rows.push(Row {
-            text: label(Path::new(&header)),
-            action: None,
-        });
         for (text, module) in modules {
+            let tag = match (
+                pad.is_empty(),
+                view.marked.contains(&view.repo.root.join(&module)),
+            ) {
+                (true, _) => "",
+                (false, true) => "* ",
+                (false, false) => "  ",
+            };
             rows.push(Row {
-                text: label(Path::new(&text)),
+                text: format!("{tag}{}", label(Path::new(&text))),
                 action: Some(RowAction::Module(module)),
             });
         }
-        if rows.len() == 2 {
-            rows.push(Row {
-                text: "No modules".into(),
-                action: None,
-            });
-        }
+
         view.rows = rows;
         return Ok(());
     }
     if let Kind::Cherry(head, upstream) = &view.kind {
-        // magit-insert-cherry-headers and -commits.
+        // magit-insert-cherry-headers, then magit-insert-cherry-commits.
+        let summary = |r: &str| view.repo.summary(r).unwrap_or_default();
+        let cherries = view.repo.cherry(head, upstream)?;
         let mut rows = vec![
             Row {
-                text: format!("Head:     {}", label(Path::new(head))),
+                text: format!("Head:     {} {}", label(Path::new(head)), summary(head)),
                 action: None,
             },
             Row {
-                text: format!("Upstream: {}", label(Path::new(upstream))),
+                text: format!(
+                    "Upstream: {} {}",
+                    label(Path::new(upstream)),
+                    summary(upstream)
+                ),
                 action: None,
             },
             Row {
-                text: "Cherry commits (+ not in upstream, - equivalent change upstream)".into(),
+                text: String::new(),
+                action: None,
+            },
+            Row {
+                text: format!("Cherry commits ({})", cherries.len()),
                 action: None,
             },
         ];
-        for (sign, id, subject) in view.repo.cherry(head, upstream)? {
+        for (sign, id, subject) in cherries {
             rows.push(Row {
                 text: format!(
                     "{sign} {} {}",
-                    &id[..id.len().min(8)],
+                    &id[..id.len().min(7)],
                     label(Path::new(&subject))
                 ),
                 action: Some(RowAction::Commit(id)),
@@ -5789,33 +5811,40 @@ fn refresh_log(view: &mut View) -> Result<(), String> {
         let out = view.repo.read(&[
             "reflog",
             "show",
-            "--format=%H%x00%gd%x00%gs",
+            "--format=%H%x00%h%x00%gs",
             &limit,
             "--end-of-options",
             target,
             "--",
         ])?;
-        let mut rows = vec![Row {
-            text: format!(
-                "Reflog for {} (Enter inspect, gr refresh, q return)",
-                label(Path::new(target))
-            ),
-            action: None,
-        }];
+        // magit-log-wash-rev's reflog style: hash, index, then the
+        // subject's command (magit-reflog-format-subject) and message.
+        let mut rows = vec![];
         let fields: Vec<_> = out.split(|b| *b == 0 || *b == b'\n').collect();
-        for c in fields
+        for (n, c) in fields
             .chunks(3)
             .filter(|c| c.len() == 3 && !c[0].is_empty())
+            .enumerate()
         {
             let id = String::from_utf8_lossy(c[0]).trim().to_owned();
+            let subject = String::from_utf8_lossy(c[2]).into_owned();
+            let (command, message) = crate::magit::log::reflog_subject(&subject);
             rows.push(Row {
-                text: format!(
-                    "{} {} {}",
-                    &id[..id.len().min(8)],
-                    label(Path::new(&String::from_utf8_lossy(c[1]).into_owned())),
-                    label(Path::new(&String::from_utf8_lossy(c[2]).into_owned()))
-                ),
+                text: label(Path::new(&format!(
+                    "{} {n:<2} {command:<16} {message}",
+                    String::from_utf8_lossy(c[1])
+                ))),
                 action: Some(RowAction::Commit(id)),
+            });
+        }
+        if limit
+            .trim_start_matches("-n")
+            .parse::<usize>()
+            .is_ok_and(|l| l == rows.len())
+        {
+            rows.push(Row {
+                text: "Type + to show more history".into(),
+                action: None,
             });
         }
         view.rows = rows;
@@ -5866,6 +5895,27 @@ fn refresh_log(view: &mut View) -> Result<(), String> {
             });
         }
         view.rows = rows;
+        return Ok(());
+    }
+    // magit-log-buffer-file: the file's log from the current branch, with
+    // --follow (which drops the graph) or the usual graph and refs.
+    if let Kind::FileLog(path, follow) = &view.kind {
+        let rev = view.repo.current_branch().unwrap_or_else(|_| "HEAD".into());
+        let args: Vec<String> = if *follow {
+            vec!["-n256".into(), "--follow".into()]
+        } else {
+            vec!["-n256".into(), "--graph".into(), "--decorate".into()]
+        };
+        let lines = view
+            .repo
+            .log_lines(&[rev], &args, std::slice::from_ref(path))?;
+        view.rows = lines
+            .into_iter()
+            .map(|l| Row {
+                text: l.text,
+                action: l.commit.map(RowAction::Commit),
+            })
+            .collect();
         return Ok(());
     }
     let (heading, commits) = match &view.kind {

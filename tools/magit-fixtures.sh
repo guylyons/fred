@@ -44,3 +44,9 @@ GIT_SEQUENCE_EDITOR="sed -i.bak '1s/^pick/edit/'" g rebase -qi HEAD~2 >/dev/null
 # detached: HEAD at an older commit; empty: no commits yet.
 cd "$root" && g clone -q rebase detached 2>/dev/null && cd detached && g checkout -q HEAD~1
 cd "$root" && g init -q empty && printf 'x\n' > empty/x
+
+# modules: a superproject with one populated submodule.
+cd "$root" && g init -q modules && cd modules
+printf 'top\n' > top && g add top && g commit -qm 'Top'
+g -c protocol.file.allow=always submodule add -q ../upstream lib 2>/dev/null
+g commit -qm 'Add lib'

@@ -386,6 +386,10 @@ impl Repo {
             argv[2] = format!("--format=%x1e%H%x1f%h%x1f%D%x1f%s%n    {headers}").into();
         }
         argv.extend(git_args(args)?.into_iter().map(Into::into));
+        // --follow needs exactly one file (magit-log-buffer-file's).
+        if files.len() == 1 && args.iter().any(|a| a == "--follow") {
+            argv.push("--follow".into());
+        }
         argv.extend(revs.iter().map(Into::into));
         argv.push("--".into());
         argv.extend(files.iter().map(Into::into));
@@ -469,4 +473,41 @@ impl Repo {
         }
         Ok(lines)
     }
+}
+
+/// magit-log-reflog-re's refsub and magit-reflog-format-subject: the label
+/// for a reflog subject ("commit (amend): msg" is "amend") and its message.
+pub fn reflog_subject(subject: &str) -> (String, String) {
+    let (refsub, message) = match ["merge ", "autosave ", "restart ", "rewritten "]
+        .iter()
+        .find(|p| subject.starts_with(**p))
+    {
+        Some(p) => (p.trim_end(), &subject[p.len()..]),
+        None => match subject.split_once(": ") {
+            Some((r, m)) => (r, m),
+            None => return (String::new(), subject.to_owned()),
+        },
+    };
+    // COMMAND [-OPTION...] [(TYPE)]
+    let mut words = refsub.split(' ');
+    let command = words.next().unwrap_or("");
+    let rest: Vec<&str> = words.collect();
+    let options: Vec<&str> = rest
+        .iter()
+        .copied()
+        .filter(|w| w.starts_with('-'))
+        .collect();
+    let kind = rest
+        .iter()
+        .find_map(|w| w.strip_prefix('(').and_then(|w| w.strip_suffix(')')));
+    let label = if command == "commit" {
+        kind.unwrap_or(command).to_owned()
+    } else {
+        std::iter::once(command)
+            .chain(options.iter().copied())
+            .chain(kind)
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
+    (label, message.to_owned())
 }

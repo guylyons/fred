@@ -472,3 +472,10 @@ read the raw lines through the row map. One upstream bug is not copied
 (stashes heading "(t)"). Still outside the oracle: reflog, cherry,
 process, repository and submodule lists, file logs, shortlog, blame and
 bisect buffers; hunk-level folding. Score remains 3%.
+
+Render oracle extended to reflog, cherry, file log, repository list and
+submodule list (24 goldens, all matching; tabulated lists' column header
+is Fred's first row, standing in for Emacs's header line). Reflog rows
+use magit-reflog-format-subject labels; push columns count only a
+configured push remote; list tag columns appear once something is marked.
+Still outside the oracle: process, blame, bisect and shortlog buffers.

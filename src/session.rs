@@ -4609,7 +4609,7 @@ mod tests {
         magit_settle(&mut t);
         let text = t.s.ed.buf.text();
         assert!(
-            text.contains("Reflog for main") && text.contains("main@{0} commit: second"),
+            text.starts_with(&format!("{} 0  commit           second", &text[..7])),
             "{text}"
         );
         t.keys("j<Enter>");
