@@ -68,8 +68,17 @@ struct Parked {
     used: u64,
 }
 
+/// Claude's `fred_keys` being typed, a few keys a frame, so you watch.
+pub struct Typing {
+    keys: std::collections::VecDeque<Key>,
+    per_frame: usize,
+    reply: crate::remote::Reply,
+}
+
 pub struct Session {
     pub ed: Editor,
+    /// Claude typing (see `tick_typing`); your keys wait until it's done.
+    pub typing: Option<Typing>,
     pub stamp: Option<FileStamp>,
     pub swap_dir: PathBuf,
     pub swap_path: PathBuf,
@@ -271,6 +280,7 @@ impl Session {
         let o = open_file(path.as_deref(), opts, cfg)?;
         let swap_path = swap::swap_path_in(swap_dir, path.as_deref());
         let mut s = Session {
+            typing: None,
             seen_version: o.ed.buf.version,
             ed: o.ed,
             stamp: o.stamp,
@@ -371,6 +381,19 @@ impl Session {
     }
 
     pub fn handle_key(&mut self, k: Key) {
+        // Claude's question is answered from whichever buffer you're in, but
+        // only in Normal mode with nothing pending: `n` while typing is text.
+        let idle = self.ed.mode == Mode::Normal && self.ed.vim.pending.is_empty();
+        if idle && self.editors_mut().any(|ed| crate::claude::answer(ed, k)) {
+            self.ed.msg = None;
+            return;
+        }
+        if self.ed.claude.is_some() {
+            let files = self.open_files();
+            if let Some(c) = &mut self.ed.claude {
+                c.files = files;
+            }
+        }
         self.ed.handle_key(k);
         // A chat is never "unsaved".
         if self.ed.claude.is_some() {
@@ -1038,13 +1061,216 @@ impl Session {
         self.handle_key(Key::ch('A'));
     }
 
+    /// The other buffers' files, for the chat: `path:line`, the one used
+    /// last first.
+    fn open_files(&self) -> String {
+        let mut parked: Vec<&Parked> = self.bufs.iter().flatten().collect();
+        parked.sort_by_key(|b| std::cmp::Reverse(b.used));
+        let mut out = String::new();
+        for ed in parked.iter().map(|b| &b.ed).filter(|ed| !ed.generated()) {
+            let Some(p) = ed.path.as_deref().and_then(|p| std::path::absolute(p).ok()) else {
+                continue;
+            };
+            let unsaved = if ed.buf.modified { " unsaved" } else { "" };
+            out += &format!("{}:{}{unsaved}\n", p.display(), ed.cur.line + 1);
+        }
+        out
+    }
+
+    /// A tool call from Claude, through `fred --mcp` (see `remote`). Keys
+    /// are typed over the next frames (`tick_typing`); approvals wait for
+    /// you; the rest is answered now.
+    pub fn remote(&mut self, tool: &str, args: &serde_json::Value, reply: crate::remote::Reply) {
+        let now = match tool {
+            "fred_approve" => return self.approve(args, reply),
+            "fred_keys" => match self.start_typing(args) {
+                Ok(keys) => {
+                    // All typed in about 3s (100 frames), however many.
+                    let per_frame = keys.len().div_ceil(100).max(1);
+                    self.typing = Some(Typing { keys, per_frame, reply });
+                    return;
+                }
+                Err(e) => Err(e),
+            },
+            "fred_state" => Ok(self.state()),
+            "fred_read" => self.read_buffer(args),
+            _ => Err(format!("unknown tool: {tool}")),
+        };
+        let _ = reply.send(now);
+    }
+
+    fn start_typing(&self, args: &serde_json::Value) -> Result<std::collections::VecDeque<Key>, String> {
+        let keys = args["keys"].as_str().ok_or("keys is required")?;
+        // Else a `y` typed by Claude would approve Claude.
+        if self.asking() {
+            return Err("fred is asking the user to allow a tool; try again after".into());
+        }
+        Ok(crate::key::parse_keys(keys).into())
+    }
+
+    /// Type a frame's worth of Claude's keys; the last one answers Claude
+    /// with what fred shows. True while typing.
+    pub fn tick_typing(&mut self) -> bool {
+        let Some(t) = &mut self.typing else {
+            return false;
+        };
+        let n = t.per_frame.min(t.keys.len());
+        let keys: Vec<Key> = t.keys.drain(..n).collect();
+        for k in keys {
+            if self.quit {
+                break;
+            }
+            self.type_key(k);
+        }
+        if self.quit || self.typing.as_ref().is_some_and(|t| t.keys.is_empty()) {
+            let t = self.typing.take().unwrap();
+            let _ = t.reply.send(Ok(self.state()));
+        }
+        true
+    }
+
+    /// One of Claude's keys. Text in Insert mode goes in as typed, like a
+    /// paste: no autoindent doubling Claude's indent, no completion popup
+    /// taking its Enter.
+    fn type_key(&mut self, k: Key) {
+        use crate::key::KeyCode;
+        let plain = !k.ctrl && !k.alt;
+        let text = match k.code {
+            KeyCode::Char(c) if plain => Some(c.to_string()),
+            KeyCode::Enter if plain => Some("\n".into()),
+            KeyCode::Tab if plain => Some("\t".into()),
+            _ => None,
+        };
+        let file = self.ed.claude.is_none();
+        let was_insert = self.ed.mode == Mode::Insert;
+        match text {
+            Some(t) if was_insert && file => return self.ed.paste(&t),
+            _ => self.handle_key(k),
+        }
+        // `o`, `O`, `cc`, `S` autoindent the new line; Claude sends its own.
+        if file && !was_insert && self.ed.mode == Mode::Insert {
+            let line = self.ed.buf.line(self.ed.cur.line).to_string();
+            if !line.is_empty() && line.trim().is_empty() && self.ed.cur.byte == line.len() {
+                let start = self.ed.buf.line_to_char(self.ed.cur.line);
+                let end = start + line.chars().count();
+                self.ed.apply(crate::buffer::Edit { start, end, text: String::new() });
+                self.ed.cur.byte = 0;
+            }
+        }
+    }
+
+    /// Ctrl-C while Claude types: the rest is dropped, and Claude told.
+    pub fn stop_typing(&mut self) {
+        if let Some(t) = self.typing.take() {
+            let left = t.keys.len();
+            let msg = format!("the user stopped you (Ctrl-C), {left} keys short; fred_state shows where fred is");
+            let _ = t.reply.send(Err(msg));
+        }
+    }
+
+    /// `fred_approve`: Claude, in a chat, asks to use a tool. The answer
+    /// waits for `y` or `n`.
+    pub fn approve(&mut self, args: &serde_json::Value, reply: std::sync::mpsc::Sender<Result<String, String>>) {
+        match self.editors_mut().find(|ed| crate::claude::busy(ed)) {
+            Some(ed) => crate::claude::ask(ed, args, reply),
+            None => {
+                let _ = reply.send(Err("no :claude chat in fred is waiting".into()));
+            }
+        }
+    }
+
+    fn asking(&self) -> bool {
+        let parked = self.bufs.iter().flatten().map(|b| &b.ed);
+        std::iter::once(&self.ed).chain(parked).any(|ed| crate::claude::question(ed).is_some())
+    }
+
+    /// What fred shows, for Claude: mode, this buffer, message, buffers.
+    fn state(&self) -> String {
+        let label = |ed: &Editor| match ed.path.as_deref().and_then(|p| std::path::absolute(p).ok()) {
+            Some(p) if !ed.generated() => p.display().to_string(),
+            _ => buf_name(ed),
+        };
+        let unsaved = |ed: &Editor| if ed.buf.modified { ", unsaved" } else { "" };
+        let ed = &self.ed;
+        let mut out = format!(
+            "mode: {}\nbuffer {}: {}, line {} col {} of {} lines{}\n",
+            crate::ui::render::mode_name(&ed.mode),
+            self.cur + 1,
+            label(ed),
+            ed.cur.line + 1,
+            crate::text::col_of_byte(&ed.buf.line(ed.cur.line), ed.cur.byte, ed.tabstop()) + 1,
+            ed.line_count(),
+            unsaved(ed),
+        );
+        if let Some((m, _)) = &ed.msg {
+            out += &format!("message: {m}\n");
+        }
+        let mut list: Vec<usize> = (0..self.bufs.len()).collect();
+        list.sort_by_key(|&i| std::cmp::Reverse(self.bufs[i].as_ref().map_or(u64::MAX, |b| b.used)));
+        out += "buffers, most recently used first:\n";
+        for i in list {
+            let ed = self.ed_at(i);
+            let here = if i == self.cur { "*" } else { " " };
+            out += &format!("{here}{} {}:{}{}\n", i + 1, label(ed), ed.cur.line + 1, unsaved(ed));
+        }
+        out
+    }
+
+    /// Numbered lines of a buffer, at most `READ_MAX` a call. A `path` is
+    /// opened (and shown, at `start`) first, as `:e` would.
+    fn read_buffer(&mut self, args: &serde_json::Value) -> Result<String, String> {
+        const READ_MAX: usize = 500;
+        if let Some(p) = args["path"].as_str() {
+            if self.typing.is_some() || self.asking() {
+                return Err("fred is busy; try again".into());
+            }
+            let line = args["start"].as_u64().unwrap_or(1).max(1) as usize - 1;
+            let path = PathBuf::from(p);
+            if !path.is_file() {
+                return Err(format!("{p} isn't a file (to make one: fred_keys `:e {p}<CR>`)"));
+            }
+            self.ed.mode = Mode::Normal;
+            self.edit_path(path.clone(), Some(Goto { line, col: 0, pattern: None }));
+            if self.pending_edit.is_some() {
+                return Err(format!("{p} has a swap file; the user is being asked what to do"));
+            }
+            if !self.is_own_file(&path) {
+                return Err(self.ed.msg.clone().map_or(format!("can't open {p}"), |m| m.0));
+            }
+        }
+        let i = match args["buffer"].as_u64() {
+            Some(n) => (n as usize)
+                .checked_sub(1)
+                .filter(|&i| i < self.bufs.len())
+                .ok_or(format!("no buffer {n} (fred_state lists them)"))?,
+            None => self.cur,
+        };
+        let ed = self.ed_at(i);
+        let n = ed.line_count();
+        let start = args["start"].as_u64().unwrap_or(1).max(1) as usize;
+        if start > n {
+            return Err(format!("line {start} is past the end ({n} lines)"));
+        }
+        let end = args["end"]
+            .as_u64()
+            .map_or(n, |e| e as usize)
+            .clamp(start, n)
+            .min(start + READ_MAX - 1);
+        let mut out = format!("buffer {}: lines {start}-{end} of {n}\n", i + 1);
+        for l in start - 1..end {
+            out += &format!("{}\t{}\n", l + 1, ed.buf.line(l));
+        }
+        Ok(out)
+    }
+
     /// Claude's replies, into every chat (shown or not); the spinner.
     pub fn tick_claude(&mut self) -> bool {
         let mut changed = false;
         for ed in self.editors_mut() {
             changed |= crate::claude::tick(ed);
         }
-        if let Some(s) = crate::claude::status(&self.ed) {
+        let asked = self.editors_mut().find_map(|ed| crate::claude::question(ed));
+        if let Some(s) = asked.or_else(|| crate::claude::status(&self.ed)) {
             self.ed.set_msg(s);
             changed = true;
         }
@@ -1982,6 +2208,100 @@ mod tests {
         let (s2, _) =
             Session::open(Some(b), &Config::default(), &t.dir.path().join("swap")).unwrap();
         assert_eq!(s2.ed.cur.pos(), (1, 0));
+    }
+
+    #[test]
+    fn the_claude_chat_knows_the_open_files() {
+        let mut t = T::open(Some("a"), Some("1\n2\n3\n"));
+        fs::write(t.dir.path().join("b"), "x\n").unwrap();
+        let d = std::path::absolute(t.dir.path()).unwrap();
+        t.keys(&format!("jj:e {}/b<Enter>x:claude<Enter>", d.display()));
+        let files = &t.s.ed.claude.as_ref().unwrap().files;
+        let want = format!("{0}/b:1 unsaved\n{0}/a:3\n", d.display());
+        assert_eq!(files, &want);
+    }
+
+    #[test]
+    fn claude_is_answered_only_from_normal_mode() {
+        let mut t = T::open(Some("a"), Some("1\n"));
+        t.keys(":claude<Enter>");
+        let (tx, rx) = std::sync::mpsc::channel();
+        let args = serde_json::json!({ "tool_name": "Bash", "input": { "command": "ls" } });
+        crate::claude::ask(&mut t.s.ed, &args, tx);
+        t.keys("<Esc>:b 1<Enter>ion<Esc>");
+        assert_eq!(t.s.ed.buf.text(), "on1");
+        assert!(rx.try_recv().is_err());
+        t.keys("n");
+        assert!(rx.try_recv().unwrap().unwrap().contains("deny"));
+    }
+
+    #[test]
+    fn claude_drives_fred_through_the_remote_tools() {
+        let mut t = T::open(Some("a"), Some("1\n2\n3\n"));
+        fs::write(t.dir.path().join("b"), "x\ny\n").unwrap();
+        let d = std::path::absolute(t.dir.path()).unwrap().display().to_string();
+        let keys = serde_json::json!({ "keys": format!("jdd:e {d}/b<CR>") });
+        let state = call(&mut t.s, "fred_keys", keys).unwrap();
+        assert!(state.starts_with(&format!("mode: NORMAL\nbuffer 2: {d}/b, line 1 col 1 of 2 lines\n")), "{state}");
+        assert!(state.ends_with(&format!("*2 {d}/b:1\n 1 {d}/a:2, unsaved\n")), "{state}");
+        let mut read = |args| call(&mut t.s, "fred_read", args);
+        assert_eq!(read(serde_json::json!({ "buffer": 1 })).unwrap(), "buffer 1: lines 1-2 of 2\n1\t1\n2\t3\n");
+        assert_eq!(read(serde_json::json!({ "start": 2, "end": 9 })).unwrap(), "buffer 2: lines 2-2 of 2\n2\ty\n");
+        assert!(read(serde_json::json!({ "buffer": 3 })).is_err());
+        assert!(read(serde_json::json!({ "start": 5 })).is_err());
+        assert!(call(&mut t.s, "nope", serde_json::json!({})).is_err());
+    }
+
+    /// A tool call, typed through to the end as the event loop would.
+    fn call(s: &mut Session, tool: &str, args: serde_json::Value) -> Result<String, String> {
+        let (tx, rx) = std::sync::mpsc::channel();
+        s.remote(tool, &args, tx);
+        while s.tick_typing() {}
+        rx.recv().unwrap()
+    }
+
+    #[test]
+    fn claude_types_a_frame_at_a_time_and_text_goes_in_as_sent() {
+        let mut t = T::open(Some("a"), Some("fn x() {\n    w();\n}\n"));
+        let (tx, rx) = std::sync::mpsc::channel();
+        let keys = serde_json::json!({ "keys": "<Esc>jo    y();<CR>    z();<Esc>" });
+        t.s.remote("fred_keys", &keys, tx);
+        // One key a frame: after three, only the `o` has landed.
+        for _ in 0..3 {
+            t.s.tick_typing();
+        }
+        assert_eq!(t.s.ed.buf.text(), "fn x() {\n    w();\n\n}");
+        assert!(rx.try_recv().is_err());
+        while t.s.tick_typing() {}
+        assert!(rx.recv().unwrap().unwrap().starts_with("mode: NORMAL"));
+        // The indent as sent, not doubled by autoindent.
+        assert_eq!(t.s.ed.buf.text(), "fn x() {\n    w();\n    y();\n    z();\n}");
+        t.keys("u");
+        assert_eq!(t.s.ed.buf.text(), "fn x() {\n    w();\n}");
+    }
+
+    #[test]
+    fn ctrl_c_stops_claude_typing() {
+        let mut t = T::open(Some("a"), Some("1\n"));
+        let (tx, rx) = std::sync::mpsc::channel();
+        t.s.remote("fred_keys", &serde_json::json!({ "keys": "xxxx" }), tx);
+        t.s.tick_typing();
+        t.s.stop_typing();
+        assert!(!t.s.tick_typing());
+        assert!(rx.recv().unwrap().unwrap_err().contains("3 keys short"));
+    }
+
+    #[test]
+    fn fred_read_opens_a_path_in_front_of_you() {
+        let mut t = T::open(Some("a"), Some("1\n"));
+        fs::write(t.dir.path().join("b"), "x\ny\nz\n").unwrap();
+        let b = t.dir.path().join("b").display().to_string();
+        let got = call(&mut t.s, "fred_read", serde_json::json!({ "path": b, "start": 2 }));
+        assert_eq!(got.unwrap(), "buffer 2: lines 2-3 of 3\n2\ty\n3\tz\n");
+        assert!(t.s.is_own_file(Path::new(&b)));
+        assert_eq!(t.s.ed.cur.line, 1);
+        let missing = t.dir.path().join("nope").display().to_string();
+        assert!(call(&mut t.s, "fred_read", serde_json::json!({ "path": missing })).is_err());
     }
 
     #[test]

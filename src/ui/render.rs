@@ -173,7 +173,7 @@ fn git_sign(m: Mark) -> (&'static str, Color) {
     }
 }
 
-fn mode_name(m: &Mode) -> &'static str {
+pub(crate) fn mode_name(m: &Mode) -> &'static str {
     match m {
         Mode::Normal => "NORMAL",
         Mode::Insert => "INSERT",
@@ -815,6 +815,8 @@ pub fn draw(
             Some(crate::occur::styles(ed, l))
         } else if ed.org.is_some() {
             Some(crate::org::face::styles(ed, l, &org_settings))
+        } else if let Some(st) = ed.claude.as_ref().and_then(|_| crate::claude::styles(&line)) {
+            Some(st)
         } else {
             styles.get(l - view.top).cloned().flatten()
         };
@@ -1318,7 +1320,11 @@ fn draw_command_row(buf: &mut Screen, area: Rect, ed: &Editor) -> Option<usize> 
         Mode::Command(cl) if !cl.prompt.is_empty() => Some(draw_input(buf, area, &cl.prompt, cl)),
         Mode::Command(cl) => Some(draw_input(buf, area, cl.kind.encode_utf8(&mut [0; 4]), cl)),
         _ => {
-            if let Some((m, err)) = &ed.msg {
+            if let Some(st) = ed.msg.as_ref().and_then(|(m, _)| crate::claude::styles(m)) {
+                let m = &ed.msg.as_ref().unwrap().0;
+                let spans: Vec<_> = st.into_iter().map(|(s, r)| Span::styled(&m[r], s)).collect();
+                buf.set_line(area.x, y, &Line::from(spans), area.width);
+            } else if let Some((m, err)) = &ed.msg {
                 let style = if *err {
                     Style::default().fg(Color::Red)
                 } else {

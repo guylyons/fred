@@ -1,22 +1,28 @@
 //! `:claude` / `Space c`: Claude Code in a fred buffer, laid out like its
 //! CLI (`> ` prompts, `⏺` replies and tools, `⎿` results). Enter on the
-//! prompt sends it, Ctrl-J breaks the line, Ctrl-C interrupts. Each prompt
+//! prompt sends it, Shift-Enter or Ctrl-J breaks the line, Ctrl-C interrupts. Each prompt
 //! runs `claude_command` (`--resume`d, so it is one conversation) with the
 //! reply streaming in while you edit, here or in another buffer.
 
 use crate::buffer::Edit;
 use crate::editor::{Editor, Mode};
 use crate::key::{Key, KeyCode};
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, Stdio};
-use std::sync::mpsc::{self, Receiver, TryRecvError};
+use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::time::Instant;
 
 pub struct Chat {
     cmd: String,
     session: Option<String>,
     job: Option<Job>,
+    /// The files open in fred, `path:line` a line each, the one used last
+    /// first; the session keeps it current, and each prompt carries it.
+    pub files: String,
+    /// Claude asking to use a tool (`fred_approve`): what, its input, and
+    /// where y or n goes.
+    ask: Option<(String, Value, crate::remote::Reply)>,
 }
 
 struct Job {
@@ -46,13 +52,85 @@ impl Chat {
             cmd: cmd.into(),
             session: None,
             job: None,
+            files: String::new(),
+            ask: None,
         }
     }
+}
+
+/// Claude, through `--permission-prompt-tool`, asks to use a tool: the
+/// chat shows it, and the answer waits for `y` or `n` (see `answer`).
+pub fn ask(ed: &mut Editor, args: &Value, reply: Sender<Result<String, String>>) {
+    let what = tool(args["tool_name"].as_str().unwrap_or("?"), &args["input"]);
+    put(ed, &format!("\n\n⏺ Allow {what}? y/n"));
+    ed.buf.modified = false;
+    ed.claude.as_mut().unwrap().ask = Some((what, args["input"].clone(), reply));
+}
+
+/// The question waiting for `y` or `n`, if any.
+pub fn question(ed: &Editor) -> Option<String> {
+    let (what, ..) = ed.claude.as_ref()?.ask.as_ref()?;
+    Some(format!("Allow {what}? y/n"))
+}
+
+/// `y` or `n` to the question: the reply Claude Code's permission prompt
+/// tool expects. True if `k` answered it.
+pub fn answer(ed: &mut Editor, k: Key) -> bool {
+    let yes = k == Key::ch('y');
+    if !(yes || k == Key::ch('n')) {
+        return false;
+    }
+    let Some((_, input, reply)) = ed.claude.as_mut().and_then(|c| c.ask.take()) else {
+        return false;
+    };
+    let v = match yes {
+        true => json!({ "behavior": "allow", "updatedInput": input }),
+        false => json!({ "behavior": "deny", "message": "The user said no, in fred." }),
+    };
+    let _ = reply.send(Ok(v.to_string()));
+    put(ed, if yes { "\n  ⎿  Allowed" } else { "\n  ⎿  Denied" });
+    ed.buf.modified = false;
+    true
+}
+
+/// Colors for a question (`⏺ Allow Bash(ls)? y/n`, in the chat or on the
+/// message line) and its answer; None for other lines, which are Markdown.
+pub fn styles(line: &str) -> Option<crate::highlight::LineStyles> {
+    use ratatui::style::{Color, Modifier, Style};
+    let s = Style::default();
+    let bold = s.add_modifier(Modifier::BOLD);
+    if let Some(rest) = line.strip_prefix("  ⎿  ") {
+        let c = match rest {
+            "Allowed" => Color::Green,
+            "Denied" | "Interrupted" => Color::Red,
+            _ => return None,
+        };
+        let p = line.len() - rest.len();
+        return Some(vec![(s.fg(Color::DarkGray), 0..p), (bold.fg(c), p..line.len())]);
+    }
+    let at = line.find("Allow ")?;
+    if !matches!(&line[..at], "" | "⏺ ") || !line.ends_with("? y/n") {
+        return None;
+    }
+    let (what, q) = (at + "Allow ".len(), line.len() - "? y/n".len());
+    let end = line.len();
+    Some(vec![
+        (s.fg(Color::Yellow), 0..at),
+        (bold.fg(Color::Yellow), at..what),
+        (bold.fg(Color::Cyan), what..q),
+        (bold.fg(Color::Yellow), q..q + 2),
+        (bold.fg(Color::Green), end - 3..end - 2),
+        (s.fg(Color::DarkGray), end - 2..end - 1),
+        (bold.fg(Color::Red), end - 1..end),
+    ])
 }
 
 /// The CLI's spinner on the status line, while Claude works.
 pub fn status(ed: &Editor) -> Option<String> {
     const SPIN: [char; 6] = ['·', '✢', '✳', '✶', '✻', '✽'];
+    if let Some(q) = question(ed) {
+        return Some(q);
+    }
     let t = ed.claude.as_ref()?.job.as_ref()?.start.elapsed();
     let c = SPIN[(t.as_millis() / 120) as usize % SPIN.len()];
     Some(format!("{c} Working… {}s · C-c to interrupt", t.as_secs()))
@@ -73,6 +151,8 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         return false;
     }
     if k == Key::ctrl('c') && chat.job.is_some() {
+        // A question left unanswered: dropping it tells Claude no.
+        chat.ask = None;
         let mut job = chat.job.take().unwrap();
         let _ = job.child.kill();
         let _ = job.child.wait();
@@ -80,7 +160,8 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         ed.set_msg("interrupted");
         return true;
     }
-    if insert && k == Key::ctrl('j') {
+    let shift_enter = k.code == KeyCode::Enter && k.shift;
+    if insert && (k == Key::ctrl('j') || shift_enter) {
         crate::vim::ops::insert_text(ed, "\n");
         return true;
     }
@@ -134,6 +215,7 @@ fn send(ed: &mut Editor) {
     });
     let last = ed.line_count() - 1;
     ed.set_cursor(last, 2);
+    let prompt = with_files(&ed.claude.as_ref().unwrap().files, prompt);
     match spawn(&cmd, prompt) {
         Ok(job) => {
             ed.claude.as_mut().unwrap().job = Some(job);
@@ -143,8 +225,59 @@ fn send(ed: &mut Editor) {
     }
 }
 
+/// The prompt as sent: what is open in fred first, so "this file" means
+/// something. The chat shows only what was typed.
+fn with_files(files: &str, prompt: String) -> String {
+    if files.is_empty() {
+        return prompt;
+    }
+    format!(
+        "<fred-buffers>\nFiles open in the fred editor, as path:cursor-line, \
+         the one used last first (\"unsaved\": the buffer differs from disk):\n\
+         {files}</fred-buffers>\n\n{prompt}"
+    )
+}
+
+/// For the chat's Claude: fred is its editor, and the user watches it work.
+const IN_FRED: &str = "You are running inside fred, the user's Vim-like editor, \
+and they watch you work in it. fred is your only way to read and change files: \
+fred_read with a path opens a file in fred and reads it; fred_keys types Vim keys \
+into fred, one by one where the user sees them (`:e path<CR>` to open or create a \
+file, `/text<CR>` or `42G` to move, `ciw`, `dd`, `o`, `O`, `A`, `:s/a/b/<CR>`, `u`). \
+Start each fred_keys call with <Esc>, keep each one to one small edit, and end it \
+in Normal mode. Text typed in Insert mode goes in exactly as sent, with no \
+autoindent, so include the indentation. After editing, fred_read the lines to \
+check them. Save with `:w<CR>` before running anything that reads the file, such \
+as a build or tests. Use Bash, Grep and Glob to search and run commands, never to \
+change files.";
+
 fn spawn(cmd: &str, prompt: String) -> Result<Job, String> {
-    let mut child = crate::shell::command(cmd)
+    let mut cmd = cmd.to_string();
+    let mut env = None;
+    // The chat drives this fred, through its own `fred --mcp`, which also
+    // asks you (`-p` can't) before a tool your settings don't allow.
+    if let Some(p) = crate::remote::SOCKET.get() {
+        env = Some(p);
+        let is_claude = cmd.split_whitespace().next().is_some_and(|w| w.ends_with("claude"));
+        if let Some(exe) = std::env::current_exe().ok().filter(|_| is_claude) {
+            let servers = json!({ "mcpServers": { "fred": {
+                "command": exe, "args": ["--mcp"] } } });
+            // Its own file tools are off: it reads and edits in fred, in front of you.
+            cmd += &format!(
+                " --mcp-config {} --permission-prompt-tool mcp__fred__fred_approve \
+                 --allowedTools mcp__fred__fred_state,mcp__fred__fred_read,mcp__fred__fred_keys \
+                 --disallowedTools Read,Edit,Write,MultiEdit,NotebookEdit \
+                 --append-system-prompt {}",
+                crate::shell::quote(&servers.to_string()),
+                crate::shell::quote(IN_FRED)
+            );
+        }
+    }
+    let mut command = crate::shell::command(&cmd);
+    if let Some(p) = env {
+        command.env("FRED_SOCKET", p);
+    }
+    let mut child = command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -406,5 +539,57 @@ mod tests {
         }
         assert_eq!(ed.buf.text(), "> ping\n\n⏺ pong\n\n> ");
         assert_eq!(ed.claude.as_ref().unwrap().session.as_deref(), Some("S"));
+    }
+
+    #[test]
+    fn asks_before_a_tool_and_answers_claude() {
+        let mut ed = Editor::new(Buffer::from_text("> go\n\n> "));
+        ed.claude = Some(Box::new(Chat::new("true")));
+        let (tx, rx) = mpsc::channel();
+        let args = json!({ "tool_name": "Bash", "input": { "command": "ls" } });
+        ask(&mut ed, &args, tx);
+        assert_eq!(question(&ed).as_deref(), Some("Allow Bash(ls)? y/n"));
+        assert!(!answer(&mut ed, Key::ch('x')));
+        assert!(answer(&mut ed, Key::ch('y')));
+        let v: Value = serde_json::from_str(&rx.recv().unwrap().unwrap()).unwrap();
+        assert_eq!(v, json!({ "behavior": "allow", "updatedInput": { "command": "ls" } }));
+        assert_eq!(ed.buf.text(), "> go\n\n⏺ Allow Bash(ls)? y/n\n  ⎿  Allowed\n\n> ");
+        assert!(question(&ed).is_none() && !answer(&mut ed, Key::ch('n')));
+    }
+
+    #[test]
+    fn questions_and_answers_have_colors() {
+        use ratatui::style::Color;
+        let fg = |l: &str| -> Vec<(Option<Color>, String)> {
+            let st = styles(l).unwrap();
+            st.into_iter().map(|(s, r)| (s.fg, l[r].to_string())).collect()
+        };
+        let q = fg("⏺ Allow Bash(ls)? y/n");
+        assert_eq!(q[2], (Some(Color::Cyan), "Bash(ls)".into()));
+        assert_eq!(q[4], (Some(Color::Green), "y".into()));
+        assert_eq!(q[6], (Some(Color::Red), "n".into()));
+        assert_eq!(fg("Allow Read(x)? y/n")[0].1, "");
+        assert_eq!(fg("  ⎿  Allowed")[1], (Some(Color::Green), "Allowed".into()));
+        assert_eq!(fg("  ⎿  Denied")[1], (Some(Color::Red), "Denied".into()));
+        assert!(styles("  ⎿  ok").is_none() && styles("say Allow x? y/n").is_none());
+    }
+
+    #[test]
+    fn shift_enter_breaks_the_prompt() {
+        let mut ed = Editor::new(Buffer::from_text("> hi"));
+        ed.claude = Some(Box::new(Chat::new("true")));
+        ed.mode = Mode::Insert;
+        ed.set_cursor(0, 4);
+        assert!(key(&mut ed, Key::with(KeyCode::Enter, "S")));
+        assert_eq!(ed.buf.text(), "> hi\n");
+        assert!(!busy(&ed));
+    }
+
+    #[test]
+    fn prompts_carry_the_open_files() {
+        assert_eq!(with_files("", "hi".into()), "hi");
+        let p = with_files("/x/a.rs:3\n", "fix this".into());
+        assert!(p.starts_with("<fred-buffers>\n"), "{p}");
+        assert!(p.ends_with("/x/a.rs:3\n</fred-buffers>\n\nfix this"), "{p}");
     }
 }

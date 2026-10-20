@@ -433,9 +433,30 @@ new line). The reply streams in above the prompt, `⏺` for text and tool
 calls and `⎿` for their output, with a spinner on the status line. It's a
 plain buffer, so you can leave Insert mode, move around, yank and switch
 buffers while Claude works. `Ctrl-C` interrupts, and `/clear` starts a new
-conversation. Each prompt runs `claude_command` with `--resume`. By default
+conversation. Each prompt tells Claude which files are open in fred and on
+what line, the one you used last first, so "this file" means the one you were
+just in. Each prompt runs `claude_command` with `--resume`. By default
 it accepts file edits, and other tools follow your Claude Code permission
-settings. Anything denied is counted on the status line.
+settings. Where those would ask, fred asks: `⏺ Allow Bash(cargo test)? y/n`
+in the chat and on the status line, answered with `y` or `n` from any buffer
+(fred passes `claude` its own MCP server and `--permission-prompt-tool`).
+Anything denied is counted on the status line.
+
+Claude can also drive fred in front of you. Add fred's MCP server once with
+`claude mcp add fred -- fred --mcp`, and Claude Code, whether in another
+terminal or in the chat, gets three tools: `fred_state` (the mode, the
+cursor, and every open buffer with its line and whether it's unsaved),
+`fred_read` (a buffer's text, unsaved changes included; given a path, it
+opens the file in fred first) and `fred_keys` (typing into fred as you would,
+`:e src/main.rs<CR>42Gciwfoo<Esc>`, a key a frame so you watch each one,
+your own keys waiting until it's done; `Ctrl-C` stops it). Everything stays
+undoable with `u`. The tools reach the fred most recently started, or the
+one in `$FRED_SOCKET`. Each fred listens on a socket only your user can open.
+
+In the chat, fred is Claude's editor: its own Read, Edit and Write tools are
+off, so it opens every file in fred and makes every change with Vim keys in
+front of you, saving with `:w` before it builds or runs tests. It still
+searches and runs commands itself.
 
 Select lines and run `:'<,'>ai make this async` (or any request): Claude
 rewrites just those lines, seeing the whole file for context, and a spinner
