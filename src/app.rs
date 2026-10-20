@@ -45,6 +45,8 @@ const HIGHLIGHT_BUDGET: Duration = Duration::from_millis(20);
 /// How long to wait for more pending input before drawing. Not zero: with
 /// `use-dev-tty`, crossterm's poll reads nothing when given no time.
 const BATCH: Duration = Duration::from_millis(1);
+/// How often a terminal you're typing in shows its output.
+const TERM_TICK: Duration = Duration::from_millis(4);
 /// A frame of Claude's typing (`fred_keys`): a key or a few, then a redraw.
 const TYPE_TICK: Duration = Duration::from_millis(30);
 
@@ -110,7 +112,7 @@ impl Ui {
         // Paging scrolls by the text rows actually on screen, not the
         // configured height, which may be "max".
         s.ed.win_height = rows.max(1);
-        let bar = s.ed.mode == Mode::Insert;
+        let bar = s.ed.mode == Mode::Insert && s.ed.term.is_none();
         if bar != self.bar_cursor {
             self.bar_cursor = bar;
             let style = if bar {
@@ -749,6 +751,8 @@ fn event_loop(
             || matches!(s.ed.mode, Mode::Pick(_))
             || s.working();
         let tick = match () {
+            // Quick to echo what you type in a terminal.
+            _ if s.in_terminal() && active.elapsed() < IDLE_AFTER => TERM_TICK,
             _ if s.typing.is_some() => TYPE_TICK,
             _ if busy => TICK,
             _ => IDLE_TICK,
@@ -784,6 +788,26 @@ fn event_loop(
                         break;
                     }
                     continue;
+                }
+                // Terminal mode: keys and pastes go to the shell whole.
+                if s.in_terminal() && s.ed.menu.is_none() {
+                    let typed = match &ev {
+                        Event::Key(k) => {
+                            s.term_key(*k);
+                            true
+                        }
+                        Event::Paste(text) => {
+                            s.term_paste(text);
+                            true
+                        }
+                        _ => false,
+                    };
+                    if typed {
+                        if !event::poll(BATCH)? {
+                            break;
+                        }
+                        continue;
+                    }
                 }
                 if let Event::Key(k) = ev
                     && map_key(k) == Some(Key::ctrl('z'))
@@ -835,6 +859,9 @@ fn event_loop(
             dirty = true;
         }
         if s.tick_claude() {
+            dirty = true;
+        }
+        if s.tick_terms() {
             dirty = true;
         }
         // Claude's tool calls; keys are typed a frame at a time, as you

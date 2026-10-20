@@ -51,6 +51,11 @@ pub enum ExEffect {
     OccurRevert,
     /// `:claude`, `Space c` then a key: show the chat and do that.
     Claude(crate::claude::Action),
+    /// `:terminal`: a Ghostty terminal in this window; `Space t` (`split`)
+    /// in a new one below it (see `term`).
+    Terminal {
+        split: bool,
+    },
     /// `:pwd`.
     Pwd,
     /// `:cd [dir]` (home without one).
@@ -473,6 +478,10 @@ pub const COMMANDS: &[Command] = &[
     })
     .about("chat with Claude Code in a buffer"),
     cmd("pwd", 2, 0, |_, _| Ok(ExEffect::Pwd)).about("show the working directory"),
+    cmd("terminal", 2, 0, |_, _| {
+        Ok(ExEffect::Terminal { split: false })
+    })
+    .about("your shell in a Ghostty terminal, in this window; jj or Ctrl-\\ Ctrl-n leaves"),
     cmd("set", 2, EXTRA | OPTION, |_, a| set(a, Level::Both))
         .about("show or change options")
         .takes("[option...]"),

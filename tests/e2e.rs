@@ -12,6 +12,41 @@ const BIN: &str = env!("CARGO_BIN_EXE_fred");
 const ROWS: u16 = 24;
 const COLS: u16 = 80;
 
+#[cfg(feature = "ghostty")]
+#[test]
+fn terminal_opens_in_a_pane_and_jj_leaves_it() {
+    let env = Env::new();
+    env.write("a.txt", "alpha\n");
+    let mut p = env.fred(&["-f", "a.txt"]);
+    p.wait_for("editor", |s| s.contains("NORMAL"));
+    // Space t: a terminal in a new pane below; the file stays above.
+    p.keys(&[" t"]);
+    p.wait_for("terminal pane", |s| {
+        s.contains("TERMINAL") && s.contains("alpha")
+    });
+    p.keys(&["echo ghost$((6*7))\r"]);
+    p.wait_text("ghost42");
+    // jj: Normal mode, still in the terminal's pane.
+    p.keys(&["j", "j"]);
+    p.wait_for("normal in the terminal", |s| {
+        !s.contains("TERMINAL") && s.contains("terminal") && s.contains("ghost42")
+    });
+    // To the file above, and a terminal there too (`:terminal`).
+    p.keys(&["\x17k", ":terminal\r"]);
+    p.wait_for("a second terminal", |s| {
+        s.contains("TERMINAL") && !s.contains("alpha")
+    });
+    // Ctrl-\ Ctrl-n leaves; exit closes the first terminal's pane.
+    p.keys(&["\x1c", "\x0e"]);
+    p.wait_for("left", |s| !s.contains("TERMINAL"));
+    p.keys(&["\x17j", "exit\r"]);
+    p.wait_for("shell exited", |s| {
+        s.contains("the shell exited") && !s.contains("ghost42")
+    });
+    p.keys(&["\x1c", "\x0e", ":qa\r"]);
+    assert_eq!(p.wait_exit(), 0);
+}
+
 #[test]
 fn zap_exact_visible_word_moves_without_editing() {
     let env = Env::new();

@@ -284,6 +284,7 @@ const LEADER: &[(char, &str)] = &[
     ('w', "pick a window"),
     ('i', "imenu: this file's functions, types…"),
     ('h', "help: search commands"),
+    ('t', "terminal in a new pane"),
     ('c', "+claude"),
     ('m', "+magit"),
     ('o', "+org"),
@@ -750,7 +751,7 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
         // `Space B` searches their lines, `Space d` goes to a definition,
         // `Space -` lists the file's directory (dired), `Space O` shows it in
         // the file manager, `Space Enter` saves,
-        // `Space h` opens help, `Space i` lists this file's symbols, `Space ;` closes, `Space w N` goes to window N.
+        // `Space h` opens help, `Space i` lists this file's symbols, `Space t` opens the terminal, `Space ;` closes, `Space w N` goes to window N.
         (KeyCode::Char(' '), false) => match arg {
             Some('s') => crate::zap::open(ed),
             Some('p') => crate::pick::open(ed, crate::pick::Kind::Files),
@@ -760,6 +761,7 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
             Some('d') => crate::pick::definition(ed),
             Some('h') => ed.help(""),
             Some('i') => crate::pick::imenu::open(ed),
+            Some('t') => ed.pending_effect = Some(ExEffect::Terminal { split: true }),
             Some(c @ ('b' | 'B')) => {
                 ed.pending_effect = Some(ExEffect::Buffer {
                     cmd: if c == 'b' {

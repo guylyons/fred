@@ -161,3 +161,10 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
   command's usage in a box, and Tab's names say what each does. A test
   checks every name and shortest abbreviation runs its own command. No
   help files or tags.
+- 2026-10-20: `:terminal` (partial, `--features ghostty`): a terminal
+  buffer (`Editor::term`, `src/term.rs`, `src/session/term.rs`) running the
+  shell in libghostty-vt in a PTY, drawn in its window; `Space t` splits
+  below. Insert mode in it is terminal mode; `Ctrl-\ Ctrl-n` and `jj`
+  leave. The buffer goes when the shell exits. Normal mode shows the live
+  screen, not scrollback text; no `{cmd}` argument, no mouse reporting. No
+  points: terminal is out of scope.

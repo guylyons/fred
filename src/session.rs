@@ -19,6 +19,7 @@ use std::time::{Duration, Instant};
 pub(crate) mod magit;
 mod occur;
 mod org;
+mod term;
 mod windows;
 pub use org::Finish;
 
@@ -278,6 +279,9 @@ fn buf_name(ed: &Editor) -> String {
     if ed.claude.is_some() {
         return "[*claude*]".into();
     }
+    if ed.term.is_some() {
+        return "[terminal]".into();
+    }
     if let Some(n) = &ed.org_buffer_name {
         return format!("[{n}]");
     }
@@ -425,6 +429,11 @@ impl Session {
 
     pub fn handle_key(&mut self, k: Key) {
         self.which_key = false;
+        // Terminal mode's keys go to the shell (`term_key`), not here: these
+        // are Claude's or replayed ones, and must not reach the shell.
+        if self.in_terminal() {
+            return;
+        }
         if std::mem::take(&mut self.picking_window) {
             // A digit picks a window; any other key just puts the numbers away.
             if let Some(n) = k.char().and_then(|c| c.to_digit(10)).filter(|&n| n > 0)
@@ -549,6 +558,10 @@ impl Session {
             ExEffect::Edit { path, force } => self.edit(path.as_deref(), force),
             ExEffect::Shell(cmd) => match crate::shell::guard() {
                 Ok(()) => self.pending_shell = Some(cmd),
+                Err(e) => self.ed.set_err(e),
+            },
+            ExEffect::Terminal { split } => match crate::shell::guard() {
+                Ok(()) => self.terminal(split),
                 Err(e) => self.ed.set_err(e),
             },
             ExEffect::Ai {

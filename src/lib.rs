@@ -24,6 +24,7 @@ pub mod search;
 pub mod session;
 pub mod shell;
 pub mod swap;
+pub mod term;
 pub mod text;
 pub mod ui;
 pub mod undo;

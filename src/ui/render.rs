@@ -789,6 +789,15 @@ pub fn draw_window(
         height: rect.height - 1,
         ..rect
     };
+    if let Some(t) = &ed.term {
+        let cursor = t.borrow_mut().draw(buf, area);
+        let status = Rect::new(area.x, area.bottom(), area.width, 1);
+        draw_status(buf, status, ed, hl, active);
+        draw_divider(buf, rect, divider);
+        return cursor
+            .filter(|_| active && ed.mode == Mode::Insert)
+            .map(|(x, y, _)| (x, y));
+    }
     let rows = area.height as usize;
     let normal = Mode::Normal;
     let mode = if active { &ed.mode } else { &normal };
@@ -1118,12 +1127,7 @@ pub fn draw_window(
         hl,
         active,
     );
-    if divider {
-        let dim = Style::default().fg(Color::Indexed(240));
-        for y in rect.y..rect.bottom() {
-            buf.set_stringn(rect.right() - 1, y, "│", 1, dim);
-        }
-    }
+    draw_divider(buf, rect, divider);
     let (cx, cy) = cursor.filter(|_| active && rows > 0)?;
     if cy < rows {
         let geom = Geom {
@@ -1136,6 +1140,25 @@ pub fn draw_window(
     let x = cx.min(area.width as usize - 1) as u16;
     let y = cy.min(rows - 1) as u16;
     Some((ox + x, oy + y))
+}
+
+/// A terminal's name in the status line: the title its shell set.
+fn term_title(ed: &Editor) -> Option<String> {
+    let title = ed.term.as_ref()?.borrow().title();
+    Some(match title.as_str() {
+        "" => "terminal".into(),
+        t => format!("terminal · {t}"),
+    })
+}
+
+/// The `│` between this window and the one to its right.
+fn draw_divider(buf: &mut Screen, rect: Rect, divider: bool) {
+    if divider {
+        let dim = Style::default().fg(Color::Indexed(240));
+        for y in rect.y..rect.bottom() {
+            buf.set_stringn(rect.right() - 1, y, "│", 1, dim);
+        }
+    }
 }
 
 /// What belongs to fred rather than a window: the command row and the
@@ -1337,6 +1360,7 @@ fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter, acti
     let label = match (&ed.mode, &ed.dired) {
         _ if ed.zap.is_some() => "ZAP".to_string(),
         _ if ed.magit.is_some() => "MAGIT".to_string(),
+        (Mode::Insert, _) if ed.term.is_some() => "TERMINAL".to_string(),
         (Mode::Normal, Some(d)) if !d.editing => "DIRED".to_string(),
         (m, _) => mode_name(m).to_string(),
     };
@@ -1408,6 +1432,7 @@ fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter, acti
         |v| v.title(),
     );
     let filename = ed.claude.as_ref().map_or(filename, |c| c.title());
+    let filename = term_title(ed).unwrap_or(filename);
     let flags_width = usize::from(ed.buf.modified) * 4 + usize::from(ed.readonly) * 5;
     let core_width =
         display_width(&label, 1, 0) + 4 + display_width(&filename, 1, 0).min(20) + flags_width + 1;
@@ -1446,10 +1471,15 @@ fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter, acti
         },
         |v| v.title(),
     );
+    let name = term_title(ed).unwrap_or(name);
     let flags = format!(
         "{}{}",
         if ed.buf.modified { " [+]" } else { "" },
-        if ed.readonly { " [RO]" } else { "" }
+        if ed.readonly && ed.term.is_none() {
+            " [RO]"
+        } else {
+            ""
+        }
     );
     let used: usize = left.iter().map(|s| display_width(&s.content, 1, 0)).sum();
     let name = status_tail(

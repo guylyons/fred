@@ -1157,7 +1157,7 @@ ex,,tabs,:tabs ADDR_NONE,missing,,ex_tabs
 ex,,tcl,tcl ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_script_ni
 ex,,tcldo,tcldo ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_ni
 ex,,tclfile,tclfile ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_ni
-ex,,terminal,:te[rminal] ADDR_NONE,deferred,terminal,ex_terminal
+ex,,terminal,:te[rminal] ADDR_NONE,partial,"Ghostty (libghostty-vt) terminal buffer in the window; Insert is terminal mode, Ctrl-\ Ctrl-n or jj leaves; no {cmd} argument, no scrollback text in Normal mode",ex_terminal
 ex,,tfirst,:tf[irst] ADDR_OTHER,missing,,ex_tag
 ex,,throw,:th[row] ADDR_NONE,excluded,Vimscript language,ex_throw
 ex,,tjump,:tj[ump] ADDR_NONE,missing,,ex_tag

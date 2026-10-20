@@ -123,6 +123,9 @@ pub struct Editor {
     pub occur: Option<Box<crate::occur::Occur>>,
     /// This buffer is a chat with Claude Code (see `claude`).
     pub claude: Option<Box<crate::claude::Chat>>,
+    /// This buffer is a terminal (`:terminal`, see `term`); Insert mode
+    /// in it is terminal mode, where keys go to the shell.
+    pub term: Option<Box<std::cell::RefCell<crate::term::Ghost>>>,
     pub magit: Option<Box<crate::magit::View>>,
     /// Hidden line ranges (Org visibility).
     pub folds: crate::fold::Folds,
@@ -230,6 +233,7 @@ impl Editor {
             dired: None,
             occur: None,
             claude: None,
+            term: None,
             magit: None,
             folds: crate::fold::Folds::default(),
             org: None,

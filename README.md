@@ -82,6 +82,14 @@ cargo install --git https://github.com/guylyons/fred
 
 Or from a clone: `cargo install --path .`
 
+With the Ghostty terminal (`:terminal`, `Space t`), which needs
+[Zig](https://ziglang.org) 0.15 to build Ghostty's terminal library:
+
+```sh
+brew install zig@0.15
+PATH="$(brew --prefix zig@0.15)/bin:$PATH" cargo install --path . --features ghostty
+```
+
 Optional, for the features that use them:
 
 | For | Install |
@@ -237,6 +245,7 @@ clipboard alone.
 | `Space s` | jump to any word on screen, in any window |
 | `Space i` | list this file's functions, types, constants and variables (headings in Markdown and Org), as Emacs's imenu; search and jump |
 | `Space d` | go to definition (same as `gd`) |
+| `Space t` | your shell in a Ghostty terminal, in a new pane below this one (`:terminal` opens one in this pane); `jj` or `Ctrl-\ Ctrl-n` leaves terminal mode |
 | `Space c` then a key | Claude Code: `c` chat (`:claude`), `/` slash command, `m` model, `p` permission mode, `r` resume, `n` new, `x` context, `i` interrupt |
 | `Space j` | browse files from a path, like Emacs's find-file |
 | `Space b` | switch between open buffers |
@@ -342,6 +351,18 @@ changes 500 lines.
 and `Enter` puts the one you pick on the `:` line. `:help split` starts the
 search for you. While you type a command, a box above the `:` line shows its
 usage, and `Tab`'s list of names says what each one does.
+
+`:terminal` runs your shell in Ghostty's own terminal emulator,
+[libghostty-vt](https://ghostty.org), in the pane you're on; `Space t` opens
+one in a new pane below it. Each is a buffer like any other: split it, switch
+to it with `:b`, have several. Colors keep your terminal's palette, and keys
+are encoded the way Ghostty sends them, so editors, `less`, `htop` and the
+kitty keyboard protocol work. Typing in it is terminal mode (`TERMINAL` in the
+status line); `jj` or `Ctrl-\ Ctrl-n` leaves it for Normal mode, where
+`CTRL-W`, `Space w` and `:` work as anywhere, and `i`, a click, or coming
+back to the pane types in it again. The wheel scrolls back through 10,000
+lines. When the shell exits, its buffer and pane go. Programs don't get mouse
+clicks yet.
 
 | Command | Does |
 |---|---|

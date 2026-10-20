@@ -13,13 +13,24 @@ impl Session {
     /// or left when `vertical`) becomes active showing the same buffer, then
     /// `what`. `size` is in text rows or columns.
     pub fn split(&mut self, vertical: bool, what: SplitWhat, size: Option<usize>) {
+        self.split_at(vertical, false, what, size)
+    }
+
+    /// `split`, the new window below (or right of) the old one when `after`.
+    pub(super) fn split_at(
+        &mut self,
+        vertical: bool,
+        after: bool,
+        what: SplitWhat,
+        size: Option<usize>,
+    ) {
         let dir = if vertical { Dir::Row } else { Dir::Col };
         // Plus the new window's status line or divider.
         let size = size.map(|n| n.saturating_add(1).min(u16::MAX as usize) as u16);
         let id = self.next_win_id;
         if let Err(e) = self
             .tree
-            .split(self.area, self.active, id, dir, false, size)
+            .split(self.area, self.active, id, dir, after, size)
         {
             return self.ed.set_err(e);
         }
@@ -159,6 +170,17 @@ impl Session {
                 };
             }
         }
+        // A terminal: the wheel scrolls back through its output, and a
+        // click is for typing in it.
+        if let Some(t) = &self.ed.term {
+            match m.kind {
+                MouseEventKind::ScrollUp => t.borrow_mut().scroll(-3),
+                MouseEventKind::ScrollDown => t.borrow_mut().scroll(3),
+                MouseEventKind::Down(MouseButton::Left) => self.ed.mode = Mode::Insert,
+                _ => {}
+            }
+            return;
+        }
         let mut view = self.win().view;
         crate::ui::render::mouse(&mut self.ed, &mut view, area, m);
         self.win_mut().view = view;
@@ -207,6 +229,10 @@ impl Session {
         self.ed.cur.want_col = c.want_col;
         // The text may have shrunk under it, from another window.
         self.ed.clamp_cursor();
+        // Going to a terminal is going to type in it.
+        if self.ed.term.is_some() {
+            self.ed.mode = Mode::Insert;
+        }
     }
 
     /// The active window's cursor cell on screen, near enough to choose
