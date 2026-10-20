@@ -1052,6 +1052,10 @@ pub fn draw(
         let text_area = Rect::new(ox, oy, area.width, rows as u16);
         draw_explain(buf, text_area, gutter, text, ex_top, ex_end)
     });
+    // Claude asking to use a tool: a dialog over the text until y or n.
+    if let Some(q) = ed.msg.as_ref().and_then(|(m, _)| crate::claude::asked(m)) {
+        draw_approval(buf, Rect::new(ox, oy, area.width, rows as u16), q);
+    }
     if let Mode::Pick(p) = &ed.mode {
         let list = Rect::new(ox, oy + rows as u16 + 2, area.width, panel as u16);
         if p.kind == Kind::MagitMenu {
@@ -1160,6 +1164,10 @@ fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter) {
         Span::styled("▎", mode),
         Span::styled(format!(" {label} "), mode),
     ];
+    // Claude at work, in whichever buffer you're watching it in.
+    if let Some(w) = &ed.claude_working {
+        left.push(Span::styled(format!(" {w} "), bold.fg(Color::LightMagenta)));
+    }
     if let Mode::Pick(p) = &ed.mode {
         let (text, err) = match &ed.msg {
             Some((m, true)) => (m.as_str().into(), true),
@@ -1729,6 +1737,39 @@ fn draw_explain(
         );
     }
     Some(rect)
+}
+
+/// Claude's question as a dialog at the bottom of the text, like Claude
+/// Code's: the tool, what it would run, and the keys that answer.
+fn draw_approval(buf: &mut Screen, area: Rect, (name, arg): (&str, &str)) {
+    use ratatui::widgets::{Block, BorderType, Clear, Widget};
+    let width = area.width.min(72);
+    if width < 24 || area.height < 6 {
+        return;
+    }
+    let x0 = area.x + (area.width - width) / 2;
+    let rect = Rect::new(x0, area.y + area.height - 6, width, 6);
+    let bold = Style::default().add_modifier(Modifier::BOLD);
+    Clear.render(rect, buf);
+    Block::bordered()
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(Color::Yellow))
+        .title(Line::from(vec![
+            Span::styled(" ⏺ Claude wants to use ", bold.fg(Color::Yellow)),
+            Span::styled(format!("{name} "), bold.fg(Color::Cyan)),
+        ]))
+        .render(rect, buf);
+    let arg = if arg.is_empty() { "(no arguments)" } else { arg };
+    let w = width as usize - 4;
+    buf.set_stringn(x0 + 2, rect.y + 2, arg, w, Style::default().fg(Color::White));
+    let keys = Line::from(vec![
+        Span::styled("Allow?   ", Style::default().fg(Color::DarkGray)),
+        Span::styled(" y ", bold.fg(Color::Black).bg(Color::Green)),
+        Span::raw(" Yes    "),
+        Span::styled(" n ", bold.fg(Color::Black).bg(Color::Red)),
+        Span::raw(" No"),
+    ]);
+    buf.set_line(x0 + 2, rect.y + 4, &keys, width - 4);
 }
 
 /// `text` broken at spaces into lines at most `width` columns wide.

@@ -113,6 +113,8 @@ pub struct Editor {
     pub last_search_fwd: bool,
     /// Status-row message and whether it is an error.
     pub msg: Option<(String, bool)>,
+    /// The chat's `claude::working`, whichever buffer it is, for the status bar.
+    pub claude_working: Option<String>,
     pub path: Option<PathBuf>,
     pub readonly: bool,
     /// This buffer lists a directory (see `dired`).
@@ -217,6 +219,7 @@ impl Editor {
             last_pat: None,
             last_search_fwd: true,
             msg: None,
+            claude_working: None,
             path: None,
             readonly: false,
             dired: None,
