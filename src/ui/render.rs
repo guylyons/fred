@@ -1784,7 +1784,7 @@ fn draw_explain(
     Some(rect)
 }
 
-/// Claude's question as a dialog at the bottom of the text, like Claude
+/// Claude's question as a dialog in the middle of the text, like Claude
 /// Code's: the tool, what it would run, and the keys that answer.
 fn draw_approval(buf: &mut Screen, area: Rect, (name, arg): (&str, &str)) {
     use ratatui::widgets::{Block, BorderType, Clear, Widget};
@@ -1793,7 +1793,7 @@ fn draw_approval(buf: &mut Screen, area: Rect, (name, arg): (&str, &str)) {
         return;
     }
     let x0 = area.x + (area.width - width) / 2;
-    let rect = Rect::new(x0, area.y + area.height - 6, width, 6);
+    let rect = Rect::new(x0, area.y + (area.height - 6) / 2, width, 6);
     let bold = Style::default().add_modifier(Modifier::BOLD);
     Clear.render(rect, buf);
     Block::bordered()
