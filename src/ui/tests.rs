@@ -197,7 +197,11 @@ fn ex_completion_popup_cycles_and_esc_dismisses_it() {
     let rows: Vec<_> = (0..11).map(|y| s.row(y)).collect();
     // Each name, then what it does.
     let name = |r: &str| r.split_whitespace().next().unwrap_or("").to_string();
-    assert!(rows.iter().any(|r| name(r) == "ai" && r.contains("have Claude")), "{rows:?}");
+    assert!(
+        rows.iter()
+            .any(|r| name(r) == "ai" && r.contains("have Claude")),
+        "{rows:?}"
+    );
     assert!(rows.iter().any(|r| name(r) == "buffer"), "{rows:?}");
     let ai_y = (0..11).find(|&y| name(&s.row(y)) == "ai").unwrap();
     assert_eq!(
@@ -1846,7 +1850,11 @@ fn space_w_numbers_and_dims_the_windows() {
     assert!(b[(0, 0)].modifier.contains(Modifier::DIM));
     s.handle_keys("1");
     sc.draw_session(&mut s);
-    assert!(!sc.term.backend().buffer()[(0, 0)].modifier.contains(Modifier::DIM));
+    assert!(
+        !sc.term.backend().buffer()[(0, 0)]
+            .modifier
+            .contains(Modifier::DIM)
+    );
 }
 
 #[test]
@@ -1858,7 +1866,8 @@ fn clicking_a_window_focuses_it() {
         row,
         modifiers: KeyModifiers::NONE,
     };
-    let (mut s, mut sc, d) = session_screen(41, 12, &[("a", "alpha\nalps\n"), ("b", "beta\nbest\n")]);
+    let (mut s, mut sc, d) =
+        session_screen(41, 12, &[("a", "alpha\nalps\n"), ("b", "beta\nbest\n")]);
     let screen = ratatui::layout::Rect::new(0, 0, 41, 12);
     // Left: b (active). Right: a.
     s.handle_keys(&format!(":vsplit {}<Enter>", d.path().join("b").display()));
@@ -1866,16 +1875,25 @@ fn clicking_a_window_focuses_it() {
     let left = s.active;
     s.mouse(screen, click(23, 1));
     assert_ne!(s.active, left);
-    assert_eq!((s.ed.buf.text().as_str(), s.ed.cur.pos()), ("alpha\nalps", (1, 3)));
+    assert_eq!(
+        (s.ed.buf.text().as_str(), s.ed.cur.pos()),
+        ("alpha\nalps", (1, 3))
+    );
     // And back, onto b's second line.
     s.mouse(screen, click(1, 1));
-    assert_eq!((s.active, s.ed.buf.text().as_str(), s.ed.cur.pos()), (left, "beta\nbest", (1, 1)));
+    assert_eq!(
+        (s.active, s.ed.buf.text().as_str(), s.ed.cur.pos()),
+        (left, "beta\nbest", (1, 1))
+    );
     // The divider moves nothing; a status line focuses its window, as in Vim,
     // leaving the cursor where it was.
     s.mouse(screen, click(19, 1));
     assert_eq!((s.active, s.ed.cur.pos()), (left, (1, 1)));
     s.mouse(screen, click(25, 10));
-    assert_eq!((s.ed.buf.text().as_str(), s.ed.cur.pos()), ("alpha\nalps", (1, 3)));
+    assert_eq!(
+        (s.ed.buf.text().as_str(), s.ed.cur.pos()),
+        ("alpha\nalps", (1, 3))
+    );
 }
 
 #[test]
@@ -1884,19 +1902,37 @@ fn zap_reaches_every_window() {
     s.handle_keys(&format!(":vsplit {}<Enter>", d.path().join("b").display()));
     sc.draw_session(&mut s);
     // As the app does after a draw.
-    let p = s.tree.layout(s.area).into_iter().find(|p| p.id == s.active).unwrap();
-    s.ed.viewport = Some(crate::zap::Viewport::of(p.rect, p.divider, &s.ed, s.win().view));
+    let p = s
+        .tree
+        .layout(s.area)
+        .into_iter()
+        .find(|p| p.id == s.active)
+        .unwrap();
+    s.ed.viewport = Some(crate::zap::Viewport::of(
+        p.rect,
+        p.divider,
+        &s.ed,
+        s.win().view,
+    ));
     let left = s.active;
     s.handle_keys(" sz");
     sc.draw_session(&mut s);
     // `zoo` here and `zed` in the right window (from column 20) are labelled.
     let b = sc.term.backend().buffer();
     assert_eq!(b[(0, 0)].bg, ratatui::style::Color::Magenta);
-    assert_eq!(b[(26, 0)].bg, ratatui::style::Color::Magenta, "{}", sc.row(0));
+    assert_eq!(
+        b[(26, 0)].bg,
+        ratatui::style::Color::Magenta,
+        "{}",
+        sc.row(0)
+    );
     let label = b[(26, 0)].symbol().to_string();
     s.handle_keys(&label);
     assert_ne!(s.active, left);
-    assert_eq!((s.ed.buf.text().as_str(), s.ed.cur.pos()), ("apple zed", (0, 6)));
+    assert_eq!(
+        (s.ed.buf.text().as_str(), s.ed.cur.pos()),
+        ("apple zed", (0, 6))
+    );
     // A word only the other window has jumps straight there.
     s.handle_keys(" splum");
     assert_eq!((s.active, s.ed.cur.pos()), (left, (0, 4)));
@@ -1912,6 +1948,7 @@ fn which_key_lists_the_leader_keys() {
     assert!(text.contains(" SPC "), "{text}");
     assert!(text.contains("s → zap to a word"), "{text}");
     assert!(text.contains("o → +org"), "{text}");
+    assert!(text.contains("h → help: search commands"), "{text}");
     // `Space o` shows Org's.
     s.handle_keys("o");
     assert!(!s.which_key);
@@ -1932,7 +1969,10 @@ fn colon_line_shows_help_for_the_command() {
     s.draw(&e);
     let text: String = (0..12).map(|r| s.row(r) + "\n").collect();
     assert!(text.contains(":[N]sp[lit] [file]"), "{text}");
-    assert!(text.contains("split the window, optionally opening a file"), "{text}");
+    assert!(
+        text.contains("split the window, optionally opening a file"),
+        "{text}"
+    );
     // Tab's names say what they do too.
     let e = editor("a", ":clo<Tab>");
     s.draw(&e);
@@ -1948,15 +1988,25 @@ fn colon_line_shows_help_for_the_command() {
 fn help_lists_commands_and_puts_the_pick_on_the_colon_line() {
     let mut e = editor("a", "");
     e.run_ex("help vsplit");
-    let Mode::Pick(p) = &e.mode else { panic!("{:?}", e.mode) };
-    assert!(p.rows[0].text.starts_with(":[N]vs[plit] [file]"), "{}", p.rows[0].text);
+    let Mode::Pick(p) = &e.mode else {
+        panic!("{:?}", e.mode)
+    };
+    assert!(
+        p.rows[0].text.starts_with(":[N]vs[plit] [file]"),
+        "{}",
+        p.rows[0].text
+    );
     e.handle_key(crate::key::Key::new(crate::key::KeyCode::Enter));
-    let Mode::Command(cl) = &e.mode else { panic!("{:?}", e.mode) };
+    let Mode::Command(cl) = &e.mode else {
+        panic!("{:?}", e.mode)
+    };
     assert_eq!(cl.text, "vsplit");
     // One that needs an argument comes with the space for it.
     let mut e = editor("a", "");
     e.run_ex("help move lines");
     e.handle_key(crate::key::Key::new(crate::key::KeyCode::Enter));
-    let Mode::Command(cl) = &e.mode else { panic!("{:?}", e.mode) };
+    let Mode::Command(cl) = &e.mode else {
+        panic!("{:?}", e.mode)
+    };
     assert_eq!(cl.text, "move ");
 }

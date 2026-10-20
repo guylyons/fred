@@ -111,7 +111,10 @@ const CASES: &[(&str, &str)] = &[
     ("a\nb\nc", ":1t.<CR>"),
     // Vim patterns: a bare ( | + { is literal, \( \| \+ \{ are not.
     ("f(x) || g", ":s/(x) ||/[y]/<CR>"),
-    ("foo bar baz", ":s/\\(foo\\|baz\\) \\(\\w\\+\\)/\\2 \\1/<CR>"),
+    (
+        "foo bar baz",
+        ":s/\\(foo\\|baz\\) \\(\\w\\+\\)/\\2 \\1/<CR>",
+    ),
     ("aaa+b", ":s/a\\{2}+/X/<CR>"),
     ("is this is", ":s/\\<is\\>/X/g<CR>"),
     ("a.b axb", ":s/\\Va.b/X/g<CR>"),

@@ -282,6 +282,8 @@ const LEADER: &[(char, &str)] = &[
     ('-', "dired this directory"),
     ('O', "show in the file manager"),
     ('w', "pick a window"),
+    ('i', "imenu: this file's functions, types…"),
+    ('h', "help: search commands"),
     ('c', "chat with Claude"),
     ('m', "+magit"),
     ('o', "+org"),
@@ -301,8 +303,17 @@ pub fn which_key(ed: &Editor) -> Option<(&'static str, Vec<(String, &'static str
         [s, o] if *s == Key::ch(' ') && *o == Key::ch('o') => ("SPC o", crate::org::LEADER),
         _ => return None,
     };
-    let name = |c: char| if c == '\n' { "RET".into() } else { c.to_string() };
-    Some((title, table.iter().map(|&(c, what)| (name(c), what)).collect()))
+    let name = |c: char| {
+        if c == '\n' {
+            "RET".into()
+        } else {
+            c.to_string()
+        }
+    };
+    Some((
+        title,
+        table.iter().map(|&(c, what)| (name(c), what)).collect(),
+    ))
 }
 
 /// Handle a key in Normal or Visual-line mode.
@@ -737,7 +748,7 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
         // `Space B` searches their lines, `Space d` goes to a definition,
         // `Space -` lists the file's directory (dired), `Space O` shows it in
         // the file manager, `Space Enter` saves,
-        // `Space ;` closes, `Space w N` goes to window N.
+        // `Space h` opens help, `Space i` lists this file's symbols, `Space ;` closes, `Space w N` goes to window N.
         (KeyCode::Char(' '), false) => match arg {
             Some('s') => crate::zap::open(ed),
             Some('p') => crate::pick::open(ed, crate::pick::Kind::Files),
@@ -746,6 +757,8 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
             Some('r') => crate::pick::open(ed, crate::pick::Kind::Recent),
             Some('d') => crate::pick::definition(ed),
             Some('c') => ed.pending_effect = Some(ExEffect::Claude),
+            Some('h') => ed.help(""),
+            Some('i') => crate::pick::imenu::open(ed),
             Some(c @ ('b' | 'B')) => {
                 ed.pending_effect = Some(ExEffect::Buffer {
                     cmd: if c == 'b' {
@@ -791,7 +804,12 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
             }
             Some(';') => ed.pending_effect = Some(ExEffect::Quit { force: false }),
             // Number the windows; the next digit goes to one.
-            Some('w') => ed.pending_effect = Some(ExEffect::Window { cmd: '#', count: None }),
+            Some('w') => {
+                ed.pending_effect = Some(ExEffect::Window {
+                    cmd: '#',
+                    count: None,
+                })
+            }
             _ => {}
         },
         (KeyCode::Char(c @ ('/' | '?')), false) => ed.open_cmdline(c, ""),

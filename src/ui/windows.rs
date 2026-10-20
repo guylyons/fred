@@ -4,10 +4,10 @@ use super::render::{chrome_rows, draw_chrome, draw_window, draw_zap, gutter_widt
 use crate::config::Config;
 use crate::session::Session;
 use ratatui::Frame;
-use ratatui::widgets::{Block, Borders, Clear, Widget};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
+use ratatui::widgets::{Block, Borders, Clear, Widget};
 use std::time::{Duration, Instant};
 
 /// Lay the windows out above the command row, draw each, then the chrome.
@@ -73,8 +73,14 @@ fn number(buf: &mut Buffer, rect: Rect, n: usize) {
     if rect.width < w || rect.height < 3 {
         return;
     }
-    let (x, y) = (rect.x + (rect.width - w) / 2, rect.y + (rect.height - 3) / 2);
-    let style = Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD).remove_modifier(Modifier::DIM);
+    let (x, y) = (
+        rect.x + (rect.width - w) / 2,
+        rect.y + (rect.height - 3) / 2,
+    );
+    let style = Style::default()
+        .fg(Color::Yellow)
+        .add_modifier(Modifier::BOLD)
+        .remove_modifier(Modifier::DIM);
     let bar = "─".repeat(label.len() + 2);
     buf.set_string(x, y, format!("╭{bar}╮"), style);
     buf.set_string(x, y + 1, format!("│ {label} │"), style);
@@ -83,7 +89,11 @@ fn number(buf: &mut Buffer, rect: Rect, n: usize) {
 
 /// The keys that can follow `title`, in columns, along the bottom of `area`.
 fn which_key(buf: &mut Buffer, area: Rect, title: &str, keys: &[(String, &str)]) {
-    let width = keys.iter().map(|(k, what)| k.len() + what.len() + 5).max().unwrap_or(1);
+    let width = keys
+        .iter()
+        .map(|(k, what)| k.len() + what.len() + 5)
+        .max()
+        .unwrap_or(1);
     let inner = area.width.saturating_sub(2) as usize;
     let cols = (inner / width).max(1);
     let rows = keys.len().div_ceil(cols);
@@ -107,7 +117,9 @@ fn which_key(buf: &mut Buffer, area: Rect, title: &str, keys: &[(String, &str)])
             continue;
         }
         let room = (text.right() - x) as usize;
-        let key_style = Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD);
+        let key_style = Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD);
         buf.set_stringn(x, y, key, room, key_style);
         let x = x + key.len() as u16;
         if x < text.right() {

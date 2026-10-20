@@ -97,7 +97,10 @@ fn answer(conn: UnixStream, tx: Sender<(Request, Instant)>) {
     let req: Value = serde_json::from_str(&line).unwrap_or_default();
     let tool = req["tool"].as_str().unwrap_or_default().to_string();
     let (rtx, rrx) = mpsc::channel();
-    if tx.send(((tool, req["args"].clone(), rtx), Instant::now())).is_err() {
+    if tx
+        .send(((tool, req["args"].clone(), rtx), Instant::now()))
+        .is_err()
+    {
         return;
     }
     let reply = match rrx.recv() {
@@ -287,18 +290,26 @@ mod tests {
         assert_eq!(r["result"]["isError"], false);
         let bad = json!({"id": 4, "method": "tools/call", "params": {"name": "x"}});
         assert_eq!(handle(&bad, echo).unwrap()["result"]["isError"], true);
-        assert_eq!(handle(&json!({"id": 5, "method": "nope"}), echo).unwrap()["error"]["code"], -32601);
+        assert_eq!(
+            handle(&json!({"id": 5, "method": "nope"}), echo).unwrap()["error"]["code"],
+            -32601
+        );
     }
 
     #[test]
     fn a_call_that_waited_too_long_is_refused() {
         let (tx, rx) = mpsc::channel();
-        let r = Remote { rx, path: PathBuf::from("/nonexistent/fred.sock") };
+        let r = Remote {
+            rx,
+            path: PathBuf::from("/nonexistent/fred.sock"),
+        };
         let old = Instant::now() - WAIT;
         let (keys, late) = mpsc::channel();
         let (ok, approve) = mpsc::channel();
-        tx.send((("fred_keys".into(), json!({}), keys), old)).unwrap();
-        tx.send((("fred_approve".into(), json!({}), ok), old)).unwrap();
+        tx.send((("fred_keys".into(), json!({}), keys), old))
+            .unwrap();
+        tx.send((("fred_approve".into(), json!({}), ok), old))
+            .unwrap();
         let got: Vec<String> = r.take().map(|(tool, ..)| tool).collect();
         assert_eq!(got, ["fred_approve"]);
         assert!(late.recv().unwrap().is_err());
@@ -315,7 +326,10 @@ mod tests {
             let ((_, _, reply), _) = r.rx.recv().unwrap();
             reply.send(Err("bad".into())).unwrap();
         });
-        assert_eq!(call(&path, "fred_keys", &json!({"keys": "x"})).unwrap(), "fred_keys \"x\"");
+        assert_eq!(
+            call(&path, "fred_keys", &json!({"keys": "x"})).unwrap(),
+            "fred_keys \"x\""
+        );
         assert_eq!(call(&path, "y", &json!({})).unwrap_err(), "bad");
         fred.join().unwrap();
         let m = fs::metadata(path.parent().unwrap()).unwrap();

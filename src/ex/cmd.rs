@@ -211,7 +211,10 @@ pub fn run(st: &mut ExState, line: &str) -> Result<ExEffect, String> {
 
 fn run_one(st: &mut ExState, line: &str, in_global: bool) -> Result<ExEffect, String> {
     if let Some((n, rest)) = count_prefix(line) {
-        let at = Range { start: n - 1, end: n - 1 };
+        let at = Range {
+            start: n - 1,
+            end: n - 1,
+        };
         return run_named(st, Some(at), rest, st.cur, in_global);
     }
     let (range, rest) = {
@@ -248,7 +251,9 @@ fn count_prefix(line: &str) -> Option<(usize, &str)> {
     let t = line.trim_start();
     let rest = t.trim_start_matches(|c: char| c.is_ascii_digit());
     let n: usize = t[..t.len() - rest.len()].parse().ok()?;
-    let name_end = rest.find(|c: char| !c.is_ascii_alphabetic()).unwrap_or(rest.len());
+    let name_end = rest
+        .find(|c: char| !c.is_ascii_alphabetic())
+        .unwrap_or(rest.len());
     let cmd = lookup(&rest[..name_end])?;
     (cmd.flags & COUNT != 0).then_some((n.max(1), rest))
 }
@@ -392,7 +397,9 @@ pub fn typed(line: &str) -> Option<&'static Command> {
             None => break,
         }
     }
-    let name = &rest[..rest.find(|c: char| !c.is_ascii_alphabetic()).unwrap_or(rest.len())];
+    let name = &rest[..rest
+        .find(|c: char| !c.is_ascii_alphabetic())
+        .unwrap_or(rest.len())];
     lookup(name)
 }
 
@@ -421,14 +428,13 @@ pub const COMMANDS: &[Command] = &[
         Ok(ExEffect::None)
     })
     .about("delete lines"),
-    cmd("join", 1, RANGE | BANG, join)
-    .about("join lines (! without adding spaces)"),
+    cmd("join", 1, RANGE | BANG, join).about("join lines (! without adding spaces)"),
     needs("move", 1, RANGE, "{address}", |st, a| {
         move_copy(st, a, false)
     })
     .about("move lines to below a line"),
     needs("t", 1, RANGE, "{address}", |st, a| move_copy(st, a, true))
-    .about("copy lines to below a line, as :copy"),
+        .about("copy lines to below a line, as :copy"),
     needs("copy", 2, RANGE, "{address}", |st, a| {
         move_copy(st, a, true)
     })
@@ -437,10 +443,8 @@ pub const COMMANDS: &[Command] = &[
         write(a, false)
     })
     .about("save the buffer, or lines, to its file or another"),
-    cmd("wq", 2, RANGE | BANG | EXTRA | FILE, |_, a| write(a, true))
-    .about("save, then close"),
-    cmd("xit", 1, 0, |_, _| Ok(ExEffect::WriteIfModifiedQuit))
-    .about("save if changed, then close"),
+    cmd("wq", 2, RANGE | BANG | EXTRA | FILE, |_, a| write(a, true)).about("save, then close"),
+    cmd("xit", 1, 0, |_, _| Ok(ExEffect::WriteIfModifiedQuit)).about("save if changed, then close"),
     cmd("quit", 1, BANG, |_, a| {
         Ok(ExEffect::Quit { force: a.force })
     })
@@ -464,59 +468,62 @@ pub const COMMANDS: &[Command] = &[
         })
     })
     .about("list the matching lines in an editable buffer"),
-    cmd("claude", 3, 0, |_, _| Ok(ExEffect::Claude))
-    .about("chat with Claude Code in a buffer"),
-    cmd("pwd", 2, 0, |_, _| Ok(ExEffect::Pwd))
-    .about("show the working directory"),
+    cmd("claude", 3, 0, |_, _| Ok(ExEffect::Claude)).about("chat with Claude Code in a buffer"),
+    cmd("pwd", 2, 0, |_, _| Ok(ExEffect::Pwd)).about("show the working directory"),
     cmd("set", 2, EXTRA | OPTION, |_, a| set(a, Level::Both))
-    .about("show or change options")
-    .takes("[option...]"),
+        .about("show or change options")
+        .takes("[option...]"),
     cmd("setlocal", 4, EXTRA | OPTION, |_, a| set(a, Level::Local))
-    .about("change an option for this buffer or window only")
-    .takes("[option...]"),
+        .about("change an option for this buffer or window only")
+        .takes("[option...]"),
     cmd("setglobal", 4, EXTRA | OPTION, |_, a| set(a, Level::Global))
-    .about("change an option's global value")
-    .takes("[option...]"),
+        .about("change an option's global value")
+        .takes("[option...]"),
     cmd("cd", 2, EXTRA | FILE, |_, a| {
         Ok(ExEffect::Cd(path_arg(a.arg)?))
     })
     .about("change the working directory")
     .takes("[dir]"),
     cmd("buffer", 1, BANG | EXTRA, |_, a| buffer(a, BufCmd::Go))
-    .about("go to a buffer by number or name")
-    .takes("[N|name]"),
-    cmd("bnext", 2, BANG, |_, a| buffer(a, BufCmd::Next))
-    .about("go to the next buffer"),
-    cmd("bprevious", 2, BANG, |_, a| buffer(a, BufCmd::Prev))
-    .about("go to the previous buffer"),
+        .about("go to a buffer by number or name")
+        .takes("[N|name]"),
+    cmd("bnext", 2, BANG, |_, a| buffer(a, BufCmd::Next)).about("go to the next buffer"),
+    cmd("bprevious", 2, BANG, |_, a| buffer(a, BufCmd::Prev)).about("go to the previous buffer"),
     cmd("bNext", 2, BANG, |_, a| buffer(a, BufCmd::Prev))
-    .about("go to the previous buffer, as :bprevious"),
+        .about("go to the previous buffer, as :bprevious"),
     cmd("bdelete", 2, BANG | EXTRA, |_, a| buffer(a, BufCmd::Delete))
-    .about("close a buffer")
-    .takes("[N|name]"),
-    cmd("ls", 2, BANG, |_, a| buffer(a, BufCmd::List))
-    .about("list the open buffers"),
-    cmd("close", 3, BANG, |_, a| Ok(ExEffect::Close { force: a.force }))
+        .about("close a buffer")
+        .takes("[N|name]"),
+    cmd("ls", 2, BANG, |_, a| buffer(a, BufCmd::List)).about("list the open buffers"),
+    cmd("close", 3, BANG, |_, a| {
+        Ok(ExEffect::Close { force: a.force })
+    })
     .about("close this window"),
-    cmd("only", 2, BANG, |_, _| Ok(ExEffect::Only))
-    .about("close every other window"),
-    cmd("hide", 3, BANG, |_, a| Ok(ExEffect::Close { force: a.force }))
+    cmd("only", 2, BANG, |_, _| Ok(ExEffect::Only)).about("close every other window"),
+    cmd("hide", 3, BANG, |_, a| {
+        Ok(ExEffect::Close { force: a.force })
+    })
     .about("close this window, as :close"),
-    cmd("qall", 2, BANG, |_, a| quit_all(a, false))
-    .about("quit fred (! drops changes)"),
-    cmd("quitall", 5, BANG, |_, a| quit_all(a, false))
-    .about("quit fred, as :qall"),
-    cmd("wqall", 3, BANG, |_, a| quit_all(a, true))
-    .about("save every changed buffer, then quit"),
+    cmd("qall", 2, BANG, |_, a| quit_all(a, false)).about("quit fred (! drops changes)"),
+    cmd("quitall", 5, BANG, |_, a| quit_all(a, false)).about("quit fred, as :qall"),
+    cmd("wqall", 3, BANG, |_, a| quit_all(a, true)).about("save every changed buffer, then quit"),
     cmd("xall", 2, BANG, |_, a| quit_all(a, true))
-    .about("save every changed buffer, then quit, as :wqall"),
-    cmd("split", 2, RANGE | COUNT | EXTRA | FILE, |_, a| split(a, false, false))
+        .about("save every changed buffer, then quit, as :wqall"),
+    cmd("split", 2, RANGE | COUNT | EXTRA | FILE, |_, a| {
+        split(a, false, false)
+    })
     .about("split the window, optionally opening a file"),
-    cmd("vsplit", 2, RANGE | COUNT | EXTRA | FILE, |_, a| split(a, true, false))
+    cmd("vsplit", 2, RANGE | COUNT | EXTRA | FILE, |_, a| {
+        split(a, true, false)
+    })
     .about("split the window side by side"),
-    cmd("new", 3, RANGE | COUNT | EXTRA | FILE, |_, a| split(a, false, true))
+    cmd("new", 3, RANGE | COUNT | EXTRA | FILE, |_, a| {
+        split(a, false, true)
+    })
     .about("split, with a new empty buffer"),
-    cmd("vnew", 3, RANGE | COUNT | EXTRA | FILE, |_, a| split(a, true, true))
+    cmd("vnew", 3, RANGE | COUNT | EXTRA | FILE, |_, a| {
+        split(a, true, true)
+    })
     .about("split side by side, with a new empty buffer"),
     cmd("sbuffer", 2, RANGE | COUNT | EXTRA, |_, a| {
         Ok(ExEffect::Split {
@@ -538,17 +545,11 @@ pub const COMMANDS: &[Command] = &[
         }
     })
     .about("run a Ctrl-W window command"),
-    cmd("buffers", 7, BANG, |_, a| buffer(a, BufCmd::List))
-    .about("list the open buffers, as :ls"),
-    cmd("files", 5, BANG, |_, a| buffer(a, BufCmd::List))
-    .about("list the open buffers, as :ls"),
-    needs(
-        "ai",
-        2,
-        RANGE,
-        "{instruction}",
-        |st, a| ai(st, a.at, a.arg, false),
-    )
+    cmd("buffers", 7, BANG, |_, a| buffer(a, BufCmd::List)).about("list the open buffers, as :ls"),
+    cmd("files", 5, BANG, |_, a| buffer(a, BufCmd::List)).about("list the open buffers, as :ls"),
+    needs("ai", 2, RANGE, "{instruction}", |st, a| {
+        ai(st, a.at, a.arg, false)
+    })
     .about("have Claude change the lines"),
     cmd("explain", 3, RANGE | EXTRA, |st, a| {
         ai(st, a.at, a.arg, true)
@@ -569,9 +570,11 @@ pub const COMMANDS: &[Command] = &[
     })
     .about("run a Magit command by name; alone, magit-status")
     .takes("[command]"),
-    cmd("help", 1, EXTRA, |_, a| Ok(ExEffect::Help(a.arg.to_owned())))
-        .about("list the commands; with a name, find it")
-        .takes("[command]"),
+    cmd("help", 1, EXTRA, |_, a| {
+        Ok(ExEffect::Help(a.arg.to_owned()))
+    })
+    .about("list the commands; with a name, find it")
+    .takes("[command]"),
 ];
 
 const fn cmd(
@@ -1053,7 +1056,12 @@ mod tests {
     fn every_command_is_reachable_and_described() {
         for c in COMMANDS {
             assert_eq!(lookup(c.name).map(|l| l.name), Some(c.name));
-            assert_eq!(lookup(&c.name[..c.min]).map(|l| l.name), Some(c.name), "{}", c.name);
+            assert_eq!(
+                lookup(&c.name[..c.min]).map(|l| l.name),
+                Some(c.name),
+                "{}",
+                c.name
+            );
             if c.min > 1 {
                 let short = lookup(&c.name[..c.min - 1]).map(|l| l.name);
                 assert_ne!(short, Some(c.name), "{} runs shorter than its min", c.name);

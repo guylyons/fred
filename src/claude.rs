@@ -44,8 +44,13 @@ impl Job {
     /// Hand `prompt` to the running claude. False if it can't take it.
     fn prompt(&mut self, prompt: &str) -> bool {
         let line = json!({ "type": "user", "message": { "role": "user", "content": prompt } });
-        let Some(stdin) = &mut self.stdin else { return false };
-        if writeln!(stdin, "{line}").and_then(|_| stdin.flush()).is_err() {
+        let Some(stdin) = &mut self.stdin else {
+            return false;
+        };
+        if writeln!(stdin, "{line}")
+            .and_then(|_| stdin.flush())
+            .is_err()
+        {
             return false;
         }
         self.idle = false;
@@ -123,7 +128,14 @@ pub fn answer(ed: &mut Editor, k: Key) -> bool {
         false => json!({ "behavior": "deny", "message": "The user said no, in fred." }),
     };
     let _ = reply.send(Ok(v.to_string()));
-    put(ed, if yes { "\n  ⎿  Allowed" } else { "\n  ⎿  Denied" });
+    put(
+        ed,
+        if yes {
+            "\n  ⎿  Allowed"
+        } else {
+            "\n  ⎿  Denied"
+        },
+    );
     ed.buf.modified = false;
     true
 }
@@ -141,7 +153,10 @@ pub fn styles(line: &str) -> Option<crate::highlight::LineStyles> {
             _ => return None,
         };
         let p = line.len() - rest.len();
-        return Some(vec![(s.fg(Color::DarkGray), 0..p), (bold.fg(c), p..line.len())]);
+        return Some(vec![
+            (s.fg(Color::DarkGray), 0..p),
+            (bold.fg(c), p..line.len()),
+        ]);
     }
     let at = line.find("Allow ")?;
     if !matches!(&line[..at], "" | "⏺ ") || !line.ends_with("? y/n") {
@@ -180,7 +195,10 @@ pub fn working(ed: &Editor) -> Option<String> {
 
 /// A turn is running.
 pub fn busy(ed: &Editor) -> bool {
-    ed.claude.as_ref().and_then(|c| c.job.as_ref()).is_some_and(|j| !j.idle)
+    ed.claude
+        .as_ref()
+        .and_then(|c| c.job.as_ref())
+        .is_some_and(|j| !j.idle)
 }
 
 /// Its claude is running, between turns or not: tool approvals go here.
@@ -320,7 +338,9 @@ fn spawn(cmd: &str, prompt: String) -> Result<Job, String> {
     let mut cmd = cmd.to_string();
     let mut env = None;
     // `claude …`, or wrapped: `env X=1 claude …`, `/opt/bin/claude …`.
-    let is_claude = cmd.split_whitespace().any(|w| w == "claude" || w.ends_with("/claude"));
+    let is_claude = cmd
+        .split_whitespace()
+        .any(|w| w == "claude" || w.ends_with("/claude"));
     if is_claude {
         cmd += " --input-format stream-json";
     }
@@ -521,13 +541,24 @@ pub fn parse(line: &str) -> Vec<Out> {
 
 /// `Bash(cargo test)`, as the CLI shows a tool call.
 fn tool(name: &str, input: &Value) -> String {
-    format!("{name}({})", clip(arg(input).lines().next().unwrap_or_default()))
+    format!(
+        "{name}({})",
+        clip(arg(input).lines().next().unwrap_or_default())
+    )
 }
 
 /// What a call works on: its command, path, pattern…, else its whole input,
 /// so an approval never hides what it allows.
 fn arg(input: &Value) -> String {
-    let keys = ["file_path", "command", "pattern", "path", "url", "query", "description"];
+    let keys = [
+        "file_path",
+        "command",
+        "pattern",
+        "path",
+        "url",
+        "query",
+        "description",
+    ];
     match keys.iter().find_map(|k| input[k].as_str()) {
         Some(a) => a.into(),
         None if input.as_object().is_none_or(|o| o.is_empty()) => String::new(),
@@ -642,8 +673,14 @@ mod tests {
         assert!(!answer(&mut ed, Key::ch('x')));
         assert!(answer(&mut ed, Key::ch('y')));
         let v: Value = serde_json::from_str(&rx.recv().unwrap().unwrap()).unwrap();
-        assert_eq!(v, json!({ "behavior": "allow", "updatedInput": { "command": "ls" } }));
-        assert_eq!(ed.buf.text(), "> go\n\n⏺ Allow Bash(ls)? y/n\n  ⎿  Allowed\n\n> ");
+        assert_eq!(
+            v,
+            json!({ "behavior": "allow", "updatedInput": { "command": "ls" } })
+        );
+        assert_eq!(
+            ed.buf.text(),
+            "> go\n\n⏺ Allow Bash(ls)? y/n\n  ⎿  Allowed\n\n> "
+        );
         assert!(question(&ed).is_none() && !answer(&mut ed, Key::ch('n')));
     }
 
@@ -654,10 +691,16 @@ mod tests {
         let a = "a".repeat(90);
         let cmd = json!({ "tool_name": "Bash", "input": { "command": format!("ls\n{a} | sh") } });
         ask(&mut ed, &cmd, mpsc::channel().0);
-        assert_eq!(question(&ed).unwrap(), format!("Allow Bash(ls ⏎ {a} | sh)? y/n"));
+        assert_eq!(
+            question(&ed).unwrap(),
+            format!("Allow Bash(ls ⏎ {a} | sh)? y/n")
+        );
         let other = json!({ "tool_name": "mcp__db__run", "input": { "sql": "DROP t" } });
         ask(&mut ed, &other, mpsc::channel().0);
-        assert_eq!(question(&ed).unwrap(), r#"Allow mcp__db__run({"sql":"DROP t"})? y/n"#);
+        assert_eq!(
+            question(&ed).unwrap(),
+            r#"Allow mcp__db__run({"sql":"DROP t"})? y/n"#
+        );
     }
 
     #[test]
@@ -665,14 +708,19 @@ mod tests {
         use ratatui::style::Color;
         let fg = |l: &str| -> Vec<(Option<Color>, String)> {
             let st = styles(l).unwrap();
-            st.into_iter().map(|(s, r)| (s.fg, l[r].to_string())).collect()
+            st.into_iter()
+                .map(|(s, r)| (s.fg, l[r].to_string()))
+                .collect()
         };
         let q = fg("⏺ Allow Bash(ls)? y/n");
         assert_eq!(q[2], (Some(Color::Cyan), "Bash(ls)".into()));
         assert_eq!(q[4], (Some(Color::Green), "y".into()));
         assert_eq!(q[6], (Some(Color::Red), "n".into()));
         assert_eq!(fg("Allow Read(x)? y/n")[0].1, "");
-        assert_eq!(fg("  ⎿  Allowed")[1], (Some(Color::Green), "Allowed".into()));
+        assert_eq!(
+            fg("  ⎿  Allowed")[1],
+            (Some(Color::Green), "Allowed".into())
+        );
         assert_eq!(fg("  ⎿  Denied")[1], (Some(Color::Red), "Denied".into()));
         assert_eq!(asked("Allow Bash(ls -l)? y/n"), Some(("Bash", "ls -l")));
         assert_eq!(asked("⏺ Allow Bash(ls)? y/n"), None);

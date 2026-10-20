@@ -202,6 +202,7 @@ pub(crate) fn mode_name(m: &Mode) -> &'static str {
             Kind::MagitMenu => "MAGIT MENU",
             // `:help` borrows Org's chooser.
             Kind::OrgChoice if p.title == "commands" => "HELP",
+            Kind::OrgChoice if p.title == "symbols" => "IMENU",
             Kind::OrgMenu | Kind::OrgChoice => "ORG",
         },
     }
@@ -1102,11 +1103,21 @@ pub fn draw_window(
             cfg.icons,
         );
     }
-    view.explain_box = ed.explain.as_ref().filter(|_| active).and_then(|(_, text)| {
-        let text_area = Rect::new(ox, oy, area.width, rows as u16);
-        draw_explain(buf, text_area, gutter, text, ex_top, ex_end)
-    });
-    draw_status(buf, Rect::new(ox, oy + rows as u16, area.width, 1), ed, hl, active);
+    view.explain_box = ed
+        .explain
+        .as_ref()
+        .filter(|_| active)
+        .and_then(|(_, text)| {
+            let text_area = Rect::new(ox, oy, area.width, rows as u16);
+            draw_explain(buf, text_area, gutter, text, ex_top, ex_end)
+        });
+    draw_status(
+        buf,
+        Rect::new(ox, oy + rows as u16, area.width, 1),
+        ed,
+        hl,
+        active,
+    );
     if divider {
         let dim = Style::default().fg(Color::Indexed(240));
         for y in rect.y..rect.bottom() {
@@ -1166,7 +1177,12 @@ pub fn draw_chrome(
         draw_approval(buf, Rect::new(ox, oy, area.width, rows as u16), q, typing);
     }
     if let Mode::Pick(p) = &ed.mode {
-        let list = Rect::new(ox, oy + area.height - panel as u16, area.width, panel as u16);
+        let list = Rect::new(
+            ox,
+            oy + area.height - panel as u16,
+            area.width,
+            panel as u16,
+        );
         if p.kind == Kind::MagitMenu {
             for (i, line) in transient_lines(ed, p.sel, area.width as usize)
                 .into_iter()
@@ -1208,7 +1224,13 @@ fn draw_ex_completion(buf: &mut Screen, area: Rect, cl: &CmdLine) {
 
 /// The Tab completions, above the command line; command names say what
 /// they do. Returns the rows taken.
-fn draw_completions(buf: &mut Screen, area: Rect, items: &[String], selected: usize, ex: bool) -> u16 {
+fn draw_completions(
+    buf: &mut Screen,
+    area: Rect,
+    items: &[String],
+    selected: usize,
+    ex: bool,
+) -> u16 {
     let height = items.len().min(area.height.saturating_sub(1) as usize);
     if height == 0 || area.width == 0 {
         return 0;
@@ -1219,8 +1241,17 @@ fn draw_completions(buf: &mut Screen, area: Rect, items: &[String], selected: us
             .flatten()
             .map(|c| c.about)
     };
-    let name_w = items.iter().map(|s| display_width(s, 1, 0)).max().unwrap_or(0);
-    let about_w = items.iter().filter_map(about).map(str::len).max().map_or(0, |w| w + 2);
+    let name_w = items
+        .iter()
+        .map(|s| display_width(s, 1, 0))
+        .max()
+        .unwrap_or(0);
+    let about_w = items
+        .iter()
+        .filter_map(about)
+        .map(str::len)
+        .max()
+        .map_or(0, |w| w + 2);
     let width = (name_w + about_w + 2).min(area.width as usize);
     let off = (selected + 1)
         .saturating_sub(height)
@@ -1240,7 +1271,11 @@ fn draw_completions(buf: &mut Screen, area: Rect, items: &[String], selected: us
         if let Some(a) = about(item)
             && name_w + 3 < width
         {
-            let dim = if row == selected { style } else { style.fg(Color::Indexed(244)) };
+            let dim = if row == selected {
+                style
+            } else {
+                style.fg(Color::Indexed(244))
+            };
             buf.set_stringn(area.x + 3 + name_w as u16, y, a, width - name_w - 3, dim);
         }
     }
@@ -1266,7 +1301,15 @@ fn draw_command_help(buf: &mut Screen, area: Rect, c: &crate::ex::cmd::Command) 
     let text = block.inner(rect);
     block.render(rect, buf);
     let w = text.width as usize;
-    buf.set_stringn(text.x + 1, text.y, &usage, w - 1, Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD));
+    buf.set_stringn(
+        text.x + 1,
+        text.y,
+        &usage,
+        w - 1,
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD),
+    );
     buf.set_stringn(text.x + 1, text.y + 1, c.about, w - 1, Style::default());
 }
 
@@ -1430,7 +1473,9 @@ fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter, acti
     }
     if !active {
         // Neovim's StatusLineNC.
-        let dim = Style::default().bg(Color::Indexed(236)).fg(Color::Indexed(244));
+        let dim = Style::default()
+            .bg(Color::Indexed(236))
+            .fg(Color::Indexed(244));
         buf.set_style(Rect::new(area.x, y, area.width, 1), dim);
     }
 }
@@ -1900,7 +1945,11 @@ fn draw_approval(buf: &mut Screen, area: Rect, (name, arg): (&str, &str), typing
         return;
     }
     let w = width as usize - 4;
-    let arg = if arg.is_empty() { "(no arguments)" } else { arg };
+    let arg = if arg.is_empty() {
+        "(no arguments)"
+    } else {
+        arg
+    };
     // Broken anywhere, not at spaces: no character of what is being allowed
     // may go unseen.
     let mut lines = vec![String::new()];
@@ -1931,10 +1980,19 @@ fn draw_approval(buf: &mut Screen, area: Rect, (name, arg): (&str, &str), typing
         ]))
         .render(rect, buf);
     for (i, l) in lines.iter().enumerate() {
-        buf.set_stringn(x0 + 2, rect.y + 2 + i as u16, l, w, Style::default().fg(Color::White));
+        buf.set_stringn(
+            x0 + 2,
+            rect.y + 2 + i as u16,
+            l,
+            w,
+            Style::default().fg(Color::White),
+        );
     }
     let keys = Line::from(vec![
-        Span::styled(if typing { "Esc, then" } else { "Allow?   " }, Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            if typing { "Esc, then" } else { "Allow?   " },
+            Style::default().fg(Color::DarkGray),
+        ),
         Span::styled(" y ", bold.fg(Color::Black).bg(Color::Green)),
         Span::raw(" Yes    "),
         Span::styled(" n ", bold.fg(Color::Black).bg(Color::Red)),

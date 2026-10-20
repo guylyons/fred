@@ -235,6 +235,7 @@ clipboard alone.
 | `Space k` | search the lines of this file |
 | `Space B` | search the lines of every open buffer |
 | `Space s` | jump to any word on screen, in any window |
+| `Space i` | list this file's functions, types, constants and variables (headings in Markdown and Org), as Emacs's imenu; search and jump |
 | `Space d` | go to definition (same as `gd`) |
 | `Space c` | chat with Claude Code (`:claude`) |
 | `Space j` | browse files from a path, like Emacs's find-file |

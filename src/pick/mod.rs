@@ -8,6 +8,7 @@ pub mod fff;
 pub mod files;
 pub mod fuzzy;
 pub mod grep;
+pub mod imenu;
 pub mod lines;
 pub mod recent;
 

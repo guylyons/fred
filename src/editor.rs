@@ -860,9 +860,13 @@ impl Editor {
 
     /// `:help`: every command and what it does, to search; the one picked
     /// goes on the `:` line.
-    fn help(&mut self, query: &str) {
+    pub fn help(&mut self, query: &str) {
         use crate::ex::cmd::{COMMANDS, NEEDARG};
-        let w = COMMANDS.iter().map(|c| c.synopsis().len()).max().unwrap_or(0);
+        let w = COMMANDS
+            .iter()
+            .map(|c| c.synopsis().len())
+            .max()
+            .unwrap_or(0);
         let row = move |c: &crate::ex::cmd::Command| format!("{:<w$}  {}", c.synopsis(), c.about);
         crate::pick::choose(self, "commands", COMMANDS.iter().map(row).collect(), query);
         self.org_require_match = true;

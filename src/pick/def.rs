@@ -5,13 +5,13 @@
 use regex::Regex;
 
 /// Keywords that introduce a function, type or module.
-const DEFINES: &str = r"fn|def|func|function|class|struct|enum|trait|type|interface|module|mod|impl|union|typedef|namespace|package|object|record|protocol|extension|actor|data|newtype|alias|macro_rules!|macro|defun|defmacro|defn|defmodule|defp|defstruct|sub|proc|#define|#macro";
+pub(super) const DEFINES: &str = r"fn|def|func|function|class|struct|enum|trait|type|interface|module|mod|impl|union|typedef|namespace|package|object|record|protocol|extension|actor|data|newtype|alias|macro_rules!|macro|defun|defmacro|defn|defmodule|defp|defstruct|sub|proc|#define|#macro";
 /// Keywords that introduce a variable or constant.
-const BINDS: &str = r"const|static|let|var|val|local|my|our|readonly|export|global|declare|defvar|defparameter|defconst|defonce";
+pub(super) const BINDS: &str = r"const|static|let|var|val|local|my|our|readonly|export|global|declare|defvar|defparameter|defconst|defonce";
 /// Words that may sit between the keyword and the name.
-const MODS: &str = r"(?:(?:pub(?:\([^)]*\))?|mut|async|unsafe|static|inline|private|public|protected|final|abstract|override|virtual|export|default|extern|const|\*|&)\s*)*";
+pub(super) const MODS: &str = r"(?:(?:pub(?:\([^)]*\))?|mut|async|unsafe|static|inline|private|public|protected|final|abstract|override|virtual|export|default|extern|const|\*|&)\s*)*";
 /// Words that start a statement, not a C-style declaration.
-const NOT_TYPES: &[&str] = &[
+pub(super) const NOT_TYPES: &[&str] = &[
     "return", "if", "else", "elif", "while", "for", "switch", "case", "await", "new", "throw",
     "yield", "print", "assert", "not", "and", "or", "in", "do", "delete", "typeof", "echo",
 ];

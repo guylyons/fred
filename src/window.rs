@@ -67,14 +67,26 @@ fn rects(dir: Dir, kids: &[(Node, u16)], area: Rect) -> Vec<Option<Rect>> {
             t => (u32::from(*size) * extent / t) as u16,
         };
         // The last kid absorbs any rounding; the others clip to the room left.
-        let n = if i + 1 == kids.len() { room } else { size.min(room) };
+        let n = if i + 1 == kids.len() {
+            room
+        } else {
+            size.min(room)
+        };
         if n < min(dir) {
             out.push(None);
             continue;
         }
         out.push(Some(match dir {
-            Dir::Col => Rect { y: pos, height: n, ..area },
-            Dir::Row => Rect { x: pos, width: n, ..area },
+            Dir::Col => Rect {
+                y: pos,
+                height: n,
+                ..area
+            },
+            Dir::Row => Rect {
+                x: pos,
+                width: n,
+                ..area
+            },
         }));
         pos += n;
     }
@@ -94,7 +106,11 @@ impl Node {
                 && area.width > 0
                 && area.height > 0
             {
-                out.push(Placed { id: *id, rect: area, divider });
+                out.push(Placed {
+                    id: *id,
+                    rect: area,
+                    divider,
+                });
             }
             return;
         };
@@ -108,7 +124,9 @@ impl Node {
     /// Store the sizes the kids have on a screen of `area`, so a split or
     /// close after a resize works in today's cells.
     fn fit(&mut self, area: Rect) {
-        let Node::Split { dir, kids } = self else { return };
+        let Node::Split { dir, kids } = self else {
+            return;
+        };
         let placed = rects(*dir, kids, area);
         for ((kid, size), rect) in kids.iter_mut().zip(placed) {
             let r = rect.unwrap_or_default();
@@ -131,13 +149,17 @@ impl Node {
 
     /// The split whose kids hold `Leaf(id)`, and its index there.
     fn parent_of(&mut self, id: usize) -> Option<(&mut Node, usize)> {
-        let Node::Split { kids, .. } = self else { return None };
+        let Node::Split { kids, .. } = self else {
+            return None;
+        };
         if let Some(i) = kids.iter().position(|(k, _)| *k == Node::Leaf(id)) {
             return Some((self, i));
         }
         // Find the kid first so the recursive borrow is taken only once.
         let k = kids.iter().position(|(k, _)| k.order().contains(&id))?;
-        let Node::Split { kids, .. } = self else { unreachable!() };
+        let Node::Split { kids, .. } = self else {
+            unreachable!()
+        };
         kids[k].0.parent_of(id)
     }
 
@@ -159,7 +181,12 @@ impl Node {
         size: Option<u16>,
     ) -> Result<(), &'static str> {
         self.fit(area);
-        let rect = self.layout(area).into_iter().find(|p| p.id == target).ok_or(E36)?.rect;
+        let rect = self
+            .layout(area)
+            .into_iter()
+            .find(|p| p.id == target)
+            .ok_or(E36)?
+            .rect;
         let extent = match dir {
             Dir::Col => rect.height,
             Dir::Row => rect.width,
@@ -173,18 +200,26 @@ impl Node {
         if let Some((Node::Split { dir: d, kids }, i)) = self.parent_of(target)
             && *d == dir
         {
-            kids.splice(i..=i, pair((Node::Leaf(target), rest), (Node::Leaf(new), n)));
+            kids.splice(
+                i..=i,
+                pair((Node::Leaf(target), rest), (Node::Leaf(new), n)),
+            );
             return Ok(());
         }
         let leaf = self.leaf_mut(target).ok_or(E36)?;
-        *leaf = Node::Split { dir, kids: pair((Node::Leaf(target), rest), (Node::Leaf(new), n)) };
+        *leaf = Node::Split {
+            dir,
+            kids: pair((Node::Leaf(target), rest), (Node::Leaf(new), n)),
+        };
         Ok(())
     }
 
     pub fn close(&mut self, area: Rect, id: usize) -> Result<(), &'static str> {
         self.fit(area);
         let (parent, i) = self.parent_of(id).ok_or(E444)?;
-        let Node::Split { kids, .. } = parent else { unreachable!() };
+        let Node::Split { kids, .. } = parent else {
+            unreachable!()
+        };
         let (_, size) = kids.remove(i);
         let to = if i > 0 { i - 1 } else { 0 };
         kids[to].1 += size;
@@ -201,14 +236,22 @@ impl Node {
     /// Step `count` windows in direction `dir` (`h j k l`) from `id`,
     /// stopping at the edge; among several neighbours take the one whose
     /// span holds `at`, the cursor's screen cell.
-    pub fn neighbor(&self, area: Rect, id: usize, dir: char, count: usize, at: (u16, u16)) -> Option<usize> {
+    pub fn neighbor(
+        &self,
+        area: Rect,
+        id: usize,
+        dir: char,
+        count: usize,
+        at: (u16, u16),
+    ) -> Option<usize> {
         let wins = self.layout(area);
         let mut cur = wins.iter().find(|w| w.id == id)?.rect;
         let mut found = None;
         for _ in 0..count.max(1) {
             let next = wins.iter().filter(|w| {
                 let r = w.rect;
-                let across = |lo: u16, len: u16, mlo: u16, mlen: u16| lo < mlo + mlen && mlo < lo + len;
+                let across =
+                    |lo: u16, len: u16, mlo: u16, mlen: u16| lo < mlo + mlen && mlo < lo + len;
                 match dir {
                     'h' => r.right() == cur.x && across(r.y, r.height, cur.y, cur.height),
                     'l' => r.x == cur.right() && across(r.y, r.height, cur.y, cur.height),
@@ -224,9 +267,17 @@ impl Node {
                     'h' | 'l' => (at.1, r.y, r.bottom()),
                     _ => (at.0, r.x, r.right()),
                 };
-                if p < lo { lo - p } else if p >= hi { p + 1 - hi } else { 0 }
+                if p < lo {
+                    lo - p
+                } else if p >= hi {
+                    p + 1 - hi
+                } else {
+                    0
+                }
             };
-            let Some(w) = next.min_by_key(dist) else { break };
+            let Some(w) = next.min_by_key(dist) else {
+                break;
+            };
             cur = w.rect;
             found = Some(w.id);
         }
@@ -281,7 +332,8 @@ mod tests {
     #[test]
     fn layout_smaller_than_sizes() {
         let mut t = Node::Leaf(1);
-        t.split(Rect::new(0, 0, 80, 24), 1, 2, Dir::Col, false, None).unwrap();
+        t.split(Rect::new(0, 0, 80, 24), 1, 2, Dir::Col, false, None)
+            .unwrap();
         let p = t.layout(Rect::new(0, 0, 80, 3));
         assert!(p.iter().all(|w| w.rect.height >= 2 && w.rect.bottom() <= 3));
     }
@@ -289,7 +341,8 @@ mod tests {
     fn layout_scales_with_the_screen() {
         // A 100-column screen split in half, then the terminal narrows to 50.
         let mut t = Node::Leaf(1);
-        t.split(Rect::new(0, 0, 100, 30), 1, 2, Dir::Row, false, None).unwrap();
+        t.split(Rect::new(0, 0, 100, 30), 1, 2, Dir::Row, false, None)
+            .unwrap();
         let p = t.layout(Rect::new(0, 0, 50, 30));
         assert_eq!(p.len(), 2);
         assert_eq!((p[0].rect.width, p[1].rect.width), (25, 25));
@@ -297,7 +350,8 @@ mod tests {
     #[test]
     fn split_after_resize_keeps_proportions() {
         let mut t = Node::Leaf(1);
-        t.split(Rect::new(0, 0, 100, 30), 1, 2, Dir::Row, false, None).unwrap();
+        t.split(Rect::new(0, 0, 100, 30), 1, 2, Dir::Row, false, None)
+            .unwrap();
         let a = Rect::new(0, 0, 50, 30);
         t.split(a, 2, 3, Dir::Row, false, None).unwrap();
         let w: Vec<u16> = t.layout(a).iter().map(|p| p.rect.width).collect();
@@ -307,6 +361,9 @@ mod tests {
     fn split_too_small() {
         let a = Rect::new(0, 0, 80, 3);
         let mut t = Node::Leaf(1);
-        assert_eq!(t.split(a, 1, 2, Dir::Col, false, None), Err("E36: Not enough room"));
+        assert_eq!(
+            t.split(a, 1, 2, Dir::Col, false, None),
+            Err("E36: Not enough room")
+        );
     }
 }

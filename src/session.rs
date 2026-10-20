@@ -7,12 +7,12 @@ use crate::ex::addr::Range;
 use crate::ex::{BufCmd, ExEffect};
 use crate::fileio::{self, FileStamp};
 use crate::highlight::Highlighter;
-use crate::ui::View;
-use crate::window::{Node, Placed, Window};
-use ratatui::layout::Rect;
 use crate::key::Key;
 use crate::options::Options;
 use crate::swap::{self, SwapInfo};
+use crate::ui::View;
+use crate::window::{Node, Placed, Window};
+use ratatui::layout::Rect;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -880,7 +880,10 @@ impl Session {
     /// a new buffer, or in place of this one when reloading it (or when
     /// this one is an empty unnamed one).
     fn switch_to(&mut self, o: Opened, new_swap: PathBuf) {
-        let shown_elsewhere = self.windows.iter().any(|w| w.id != self.active && w.buf == self.cur);
+        let shown_elsewhere = self
+            .windows
+            .iter()
+            .any(|w| w.id != self.active && w.buf == self.cur);
         let blank = o.ed.magit.is_none()
             && !shown_elsewhere
             && self.ed.path.is_none()
@@ -925,7 +928,10 @@ impl Session {
         self.last_change = None;
         self.swap_path = new_swap;
         self.reloaded = true;
-        self.hl.set_file(self.ed.path.as_deref().or(self.ed.syntax_path.as_deref()), &self.ed.buf);
+        self.hl.set_file(
+            self.ed.path.as_deref().or(self.ed.syntax_path.as_deref()),
+            &self.ed.buf,
+        );
         self.win_mut().view = View::default();
         self.attach_git_commit_mode();
     }
@@ -1001,7 +1007,10 @@ impl Session {
         let mut p = self.bufs[i].take().expect("a parked buffer");
         let hl = p.hl.take().unwrap_or_else(|| {
             let mut h = self.hl.blank();
-            h.set_file(p.ed.path.as_deref().or(p.ed.syntax_path.as_deref()), &p.ed.buf);
+            h.set_file(
+                p.ed.path.as_deref().or(p.ed.syntax_path.as_deref()),
+                &p.ed.buf,
+            );
             h
         });
         p.hl = Some(std::mem::replace(&mut self.hl, hl));
@@ -1040,7 +1049,10 @@ impl Session {
     /// Each window on screen, the active one first: its buffer's editor
     /// (with the window's cursor in it, clamped to the text), its view, its
     /// buffer's highlighting, where it is, and whether it is active.
-    pub fn each_window(&mut self, mut f: impl FnMut(&Editor, &mut View, &mut Highlighter, Placed, bool)) {
+    pub fn each_window(
+        &mut self,
+        mut f: impl FnMut(&Editor, &mut View, &mut Highlighter, Placed, bool),
+    ) {
         let mut placed = self.tree.layout(self.area);
         placed.sort_by_key(|p| p.id != self.active);
         for p in placed {
@@ -1051,10 +1063,15 @@ impl Session {
             let (ed, hl) = if w.buf == self.cur {
                 (&mut self.ed, &mut self.hl)
             } else {
-                let Some(park) = self.bufs[w.buf].as_mut() else { continue };
+                let Some(park) = self.bufs[w.buf].as_mut() else {
+                    continue;
+                };
                 let hl = park.hl.get_or_insert_with(|| {
                     let mut h = self.hl.blank();
-                    h.set_file(park.ed.path.as_deref().or(park.ed.syntax_path.as_deref()), &park.ed.buf);
+                    h.set_file(
+                        park.ed.path.as_deref().or(park.ed.syntax_path.as_deref()),
+                        &park.ed.buf,
+                    );
                     h
                 });
                 if let Some(d) = park.ed.buf.take_dirty_from() {
@@ -1077,12 +1094,18 @@ impl Session {
 
     /// The active window.
     pub fn win(&self) -> &Window {
-        self.windows.iter().find(|w| w.id == self.active).expect("the active window")
+        self.windows
+            .iter()
+            .find(|w| w.id == self.active)
+            .expect("the active window")
     }
 
     pub fn win_mut(&mut self) -> &mut Window {
         let id = self.active;
-        self.windows.iter_mut().find(|w| w.id == id).expect("the active window")
+        self.windows
+            .iter_mut()
+            .find(|w| w.id == id)
+            .expect("the active window")
     }
 
     /// The other buffer open on `path`.
@@ -1196,7 +1219,12 @@ impl Session {
 
     /// Close the windows showing buffer `i`, except the last window.
     fn close_windows_on(&mut self, i: usize) {
-        let on: Vec<usize> = self.windows.iter().filter(|w| w.buf == i).map(|w| w.id).collect();
+        let on: Vec<usize> = self
+            .windows
+            .iter()
+            .filter(|w| w.buf == i)
+            .map(|w| w.id)
+            .collect();
         for id in on {
             if self.windows.len() > 1 {
                 let _ = self.close_window(id);
@@ -1220,7 +1248,10 @@ impl Session {
             if w.buf > target {
                 w.buf -= 1;
             }
-            w.prev = w.prev.filter(|&p| p != target).map(|p| if p > target { p - 1 } else { p });
+            w.prev = w
+                .prev
+                .filter(|&p| p != target)
+                .map(|p| if p > target { p - 1 } else { p });
         }
         self.clock += 1;
         for ed in self.editors_mut() {
@@ -1342,7 +1373,9 @@ impl Session {
             let t = self.typing.take().unwrap();
             // The lines around the cursor too, so a slipped edit shows at once.
             let l = self.ed.cur.line + 1;
-            let near = self.read_buffer(&serde_json::json!({"start": l.saturating_sub(2).max(1), "end": l + 2}));
+            let near = self.read_buffer(
+                &serde_json::json!({"start": l.saturating_sub(2).max(1), "end": l + 2}),
+            );
             let _ = t.reply.send(Ok(self.state() + &near.unwrap_or_default()));
         }
         true
@@ -1534,7 +1567,9 @@ impl Session {
             }
         }
         // The turn is over: back to the chat, where it says how it went.
-        if let Some(msg) = finished && self.ed.claude.is_none() {
+        if let Some(msg) = finished
+            && self.ed.claude.is_none()
+        {
             self.claude();
             self.ed.msg = msg;
             changed = true;
@@ -1542,7 +1577,9 @@ impl Session {
         let working = self.editors_mut().find_map(|ed| crate::claude::working(ed));
         changed |= working.is_some();
         self.ed.claude_working = working;
-        let asked = self.editors_mut().find_map(|ed| crate::claude::question(ed));
+        let asked = self
+            .editors_mut()
+            .find_map(|ed| crate::claude::question(ed));
         if let Some(s) = asked {
             self.ed.set_msg(s);
             changed = true;
@@ -1861,7 +1898,10 @@ mod tests {
     fn qall_checks_every_buffer() {
         let mut t = T::open(Some("a"), Some("a\n"));
         let b = t.dir.path().join("b");
-        t.keys(&format!(":split {}<Enter>ix<Esc><C-w>j:qa<Enter>", b.display()));
+        t.keys(&format!(
+            ":split {}<Enter>ix<Esc><C-w>j:qa<Enter>",
+            b.display()
+        ));
         assert!(!t.s.quit);
         t.keys(":wqa<Enter>");
         assert!(t.s.quit);
@@ -1933,7 +1973,10 @@ mod tests {
         assert_eq!((t.s.active, t.s.picking_window), (order[2], false));
         // Any other key puts the numbers away and does nothing else.
         t.keys(" wx");
-        assert_eq!((t.s.active, t.s.ed.buf.text().as_str()), (order[2], "1\n2\n3"));
+        assert_eq!(
+            (t.s.active, t.s.ed.buf.text().as_str()),
+            (order[2], "1\n2\n3")
+        );
         // One window: nothing to pick.
         t.keys("<C-w>o w");
         assert!(!t.s.picking_window);
@@ -2698,11 +2741,19 @@ mod tests {
         assert!(rx.try_recv().is_err());
         t.keys("<Esc>y");
         assert!(rx.try_recv().unwrap().unwrap().contains("allow"));
-        assert!(t.s.ed.buf.text().contains("  ⎿  Allowed"), "{}", t.s.ed.buf.text());
+        assert!(
+            t.s.ed.buf.text().contains("  ⎿  Allowed"),
+            "{}",
+            t.s.ed.buf.text()
+        );
         let (tx, rx) = std::sync::mpsc::channel();
         crate::claude::ask(&mut t.s.ed, &args, tx);
         let (ktx, _krx) = std::sync::mpsc::channel();
-        t.s.typing = Some(Typing { keys: "n".chars().map(Key::ch).collect(), per_frame: 1, reply: ktx });
+        t.s.typing = Some(Typing {
+            keys: "n".chars().map(Key::ch).collect(),
+            per_frame: 1,
+            reply: ktx,
+        });
         t.s.tick_typing();
         assert!(rx.try_recv().is_err());
     }
@@ -2710,12 +2761,19 @@ mod tests {
     #[test]
     fn claude_shows_it_is_working_and_comes_back_to_the_chat_when_done() {
         let mut t = T::open(Some("a"), Some("1\n"));
-        t.s.cfg.claude_command = r#"sleep 0.2; echo '{"type":"result","duration_ms":1000,"total_cost_usd":0}'"#.into();
+        t.s.cfg.claude_command =
+            r#"sleep 0.2; echo '{"type":"result","duration_ms":1000,"total_cost_usd":0}'"#.into();
         t.s.cfg.claude_permissions = String::new();
         t.keys(":claude<Enter>hi<Enter><Esc>:b 1<Enter>");
         t.s.tick_claude();
         assert!(t.s.ed.claude.is_none());
-        assert!(t.s.ed.claude_working.as_deref().unwrap().contains("Claude is working… 0s"));
+        assert!(
+            t.s.ed
+                .claude_working
+                .as_deref()
+                .unwrap()
+                .contains("Claude is working… 0s")
+        );
         let start = std::time::Instant::now();
         while t.s.ed.claude.is_none() && start.elapsed().as_secs() < 5 {
             t.s.tick_claude();
@@ -2742,8 +2800,18 @@ mod tests {
         t.s.cfg.claude_permissions = String::new();
         t.keys(":claude<Enter>hi<Enter>");
         claude_settle(&mut t);
-        assert!(t.s.ed.buf.slice(0, t.s.ed.buf.len_chars()).contains("sync finished"));
-        assert!(!t.s.ed.buf.slice(0, t.s.ed.buf.len_chars()).contains("exited without answering"));
+        assert!(
+            t.s.ed
+                .buf
+                .slice(0, t.s.ed.buf.len_chars())
+                .contains("sync finished")
+        );
+        assert!(
+            !t.s.ed
+                .buf
+                .slice(0, t.s.ed.buf.len_chars())
+                .contains("exited without answering")
+        );
     }
 
     #[test]
@@ -2773,7 +2841,12 @@ mod tests {
         assert!(crate::claude::live(&t.s.ed));
         turn(&mut t, "two<Enter>");
         let chat = t.s.ed.buf.slice(0, t.s.ed.buf.len_chars());
-        let pid = chat.split("-1").next().unwrap().rsplit(|c: char| !c.is_ascii_digit()).next();
+        let pid = chat
+            .split("-1")
+            .next()
+            .unwrap()
+            .rsplit(|c: char| !c.is_ascii_digit())
+            .next();
         assert!(chat.contains(&format!("{}-2", pid.unwrap())), "{chat}");
     }
 
@@ -2794,7 +2867,9 @@ mod tests {
             "{state}"
         );
         assert!(
-            state.ends_with(&format!("*2 {d}/b:1\n 1 {d}/a:2, unsaved\nbuffer 2: lines 1-2 of 2\n1\tx\n2\ty\n")),
+            state.ends_with(&format!(
+                "*2 {d}/b:1\n 1 {d}/a:2, unsaved\nbuffer 2: lines 1-2 of 2\n1\tx\n2\ty\n"
+            )),
             "{state}"
         );
         let mut read = |args| call(&mut t.s, "fred_read", args);
@@ -2860,7 +2935,12 @@ mod tests {
         let keys = serde_json::json!({ "keys": ":!touch x<CR>:r !echo hi<CR>" });
         t.s.remote("fred_keys", &keys, tx);
         while t.s.tick_typing() {}
-        assert!(rx.recv().unwrap().unwrap().contains("refuses shell commands"));
+        assert!(
+            rx.recv()
+                .unwrap()
+                .unwrap()
+                .contains("refuses shell commands")
+        );
         assert!(t.s.pending_shell.is_none());
         assert_eq!(t.s.ed.buf.text(), "1");
         // The user's own are run.

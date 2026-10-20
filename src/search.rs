@@ -129,7 +129,10 @@ fn vim_regex(pat: &str) -> Result<(String, Option<bool>), String> {
             '<' => out += r"\b{start}",
             '>' => out += r"\b{end}",
             '{' => {
-                let close = cs[i..].iter().position(|&c| c == '}').ok_or("missing } after \\{")?;
+                let close = cs[i..]
+                    .iter()
+                    .position(|&c| c == '}')
+                    .ok_or("missing } after \\{")?;
                 let body: String = cs[i..i + close].iter().collect();
                 i += close + 1;
                 let body = body.strip_suffix('\\').unwrap_or(&body);
@@ -174,7 +177,11 @@ fn vim_regex(pat: &str) -> Result<(String, Option<bool>), String> {
                     'o' => (8, 4),
                     _ => return Err(format!("\\%{k} is not supported")),
                 };
-                let n = cs[i..].iter().take(max).take_while(|c| c.is_digit(radix)).count();
+                let n = cs[i..]
+                    .iter()
+                    .take(max)
+                    .take_while(|c| c.is_digit(radix))
+                    .count();
                 let code: String = cs[i..i + n].iter().collect();
                 i += n;
                 let ch = u32::from_str_radix(&code, radix)

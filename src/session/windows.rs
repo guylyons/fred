@@ -2,8 +2,8 @@
 
 use super::{Parked, Session, SwapState, make_editor};
 use crate::buffer::Buffer;
-use crate::ex::{BufCmd, ExEffect, SplitWhat};
 use crate::editor::Mode;
+use crate::ex::{BufCmd, ExEffect, SplitWhat};
 use crate::window::Dir;
 use ratatui::crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 use ratatui::layout::Rect;
@@ -17,7 +17,10 @@ impl Session {
         // Plus the new window's status line or divider.
         let size = size.map(|n| n.saturating_add(1).min(u16::MAX as usize) as u16);
         let id = self.next_win_id;
-        if let Err(e) = self.tree.split(self.area, self.active, id, dir, false, size) {
+        if let Err(e) = self
+            .tree
+            .split(self.area, self.active, id, dir, false, size)
+        {
             return self.ed.set_err(e);
         }
         self.next_win_id += 1;
@@ -130,10 +133,15 @@ impl Session {
     pub fn mouse(&mut self, screen: Rect, m: MouseEvent) {
         let mut area = screen;
         // The picker and the right-click menu are drawn over the whole screen.
-        if self.windows.len() > 1 && self.ed.menu.is_none() && !matches!(self.ed.mode, Mode::Pick(_)) {
+        if self.windows.len() > 1
+            && self.ed.menu.is_none()
+            && !matches!(self.ed.mode, Mode::Pick(_))
+        {
             let placed = self.tree.layout(self.area);
             if m.kind == MouseEventKind::Down(MouseButton::Left)
-                && let Some(p) = placed.iter().find(|p| p.rect.contains((m.column, m.row).into()))
+                && let Some(p) = placed
+                    .iter()
+                    .find(|p| p.rect.contains((m.column, m.row).into()))
                 && p.id != self.active
             {
                 // A click half-typed into the old window doesn't carry over.
@@ -204,7 +212,12 @@ impl Session {
     /// The active window's cursor cell on screen, near enough to choose
     /// between neighbours.
     fn cursor_cell(&self) -> (u16, u16) {
-        let Some(p) = self.tree.layout(self.area).into_iter().find(|p| p.id == self.active) else {
+        let Some(p) = self
+            .tree
+            .layout(self.area)
+            .into_iter()
+            .find(|p| p.id == self.active)
+        else {
             return (0, 0);
         };
         let view = self.win().view;
@@ -235,7 +248,10 @@ impl Session {
             }
             'h' | 'j' | 'k' | 'l' => {
                 let n = count.unwrap_or(1);
-                if let Some(id) = self.tree.neighbor(self.area, self.active, c, n, self.cursor_cell()) {
+                if let Some(id) =
+                    self.tree
+                        .neighbor(self.area, self.active, c, n, self.cursor_cell())
+                {
                     self.focus(id);
                 }
             }
