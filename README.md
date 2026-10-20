@@ -433,9 +433,12 @@ new line). The reply streams in above the prompt, `⏺` for text and tool
 calls and `⎿` for their output, with a spinner on the status line. It's a
 plain buffer, so you can leave Insert mode, move around, yank and switch
 buffers while Claude works. `Ctrl-C` interrupts, and `/clear` starts a new
-conversation. Each prompt runs `claude_command` with `--resume`. By default
-it accepts file edits, and other tools follow your Claude Code permission
-settings. Anything denied is counted on the status line.
+conversation. Each prompt runs `claude_command` with `--resume`.
+`claude_permissions` sets what Claude may do without asking: by default
+`bypassPermissions`, no restrictions at all (it can run any command and edit
+any file). `acceptEdits`, `plan` and `default` are stricter, and `""` leaves
+it to your Claude Code settings. Anything denied is counted on the status
+line.
 
 Select lines and run `:'<,'>ai make this async` (or any request): Claude
 rewrites just those lines, seeing the whole file for context, and a spinner
@@ -479,7 +482,8 @@ tabstop = 8
 autocomplete = true      # suggest completions while typing (Ctrl-N works anyway)
 icons = false            # file icons in pickers (needs a Nerd Font)
 clipboard = true         # share yanks and puts with the system clipboard
-claude_command = "claude -p --output-format stream-json --verbose --include-partial-messages --permission-mode acceptEdits"
+claude_command = "claude -p --output-format stream-json --verbose --include-partial-messages"
+claude_permissions = "bypassPermissions"   # or acceptEdits, plan, default, "" (your settings)
 ai_command = "claude -p --tools '' --safe-mode"   # what :ai runs, prompt on stdin
 explain_command = "claude -p --tools '' --safe-mode --model sonnet"
 ai_rules = ""            # added to every :ai, e.g. "Smallest change that works."

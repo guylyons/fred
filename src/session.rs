@@ -1018,7 +1018,11 @@ impl Session {
                     self.ed.opts.for_new_buffer(),
                     &self.cfg,
                 );
-                ed.claude = Some(Box::new(crate::claude::Chat::new(&self.cfg.claude_command)));
+                let cmd = match self.cfg.claude_permissions.as_str() {
+                    "" => self.cfg.claude_command.clone(),
+                    mode => format!("{} --permission-mode {mode}", self.cfg.claude_command),
+                };
+                ed.claude = Some(Box::new(crate::claude::Chat::new(&cmd)));
                 ed.syntax_path = Some(PathBuf::from("claude.md"));
                 let swap = self.swap_dir.join(format!("claude-{}", self.bufs.len()));
                 self.bufs.push(Some(Parked {

@@ -28,6 +28,10 @@ pub struct Config {
     pub clipboard: bool,
     /// What `:claude` runs for each prompt (on stdin), plus `--resume ID`.
     pub claude_command: String,
+    /// `--permission-mode` for `:claude`: "bypassPermissions" (no
+    /// restrictions), "acceptEdits", "plan", "default"; "" = your Claude
+    /// Code settings decide.
+    pub claude_permissions: String,
     /// What `:ai` runs, prompt on stdin.
     pub ai_command: String,
     /// Extra instructions added to every `:ai` prompt.
@@ -79,8 +83,9 @@ impl Default for Config {
             // --safe-mode skips your plugins, hooks, MCP servers and
             // CLAUDE.md: much faster, ~100x fewer tokens per call.
             claude_command: "claude -p --output-format stream-json --verbose \
-                --include-partial-messages --permission-mode acceptEdits"
+                --include-partial-messages"
                 .into(),
+            claude_permissions: "bypassPermissions".into(),
             ai_command: "claude -p --tools '' --safe-mode".into(),
             ai_rules: String::new(),
             explain_command: "claude -p --tools '' --safe-mode --model sonnet".into(),
