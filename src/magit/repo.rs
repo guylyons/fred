@@ -468,6 +468,24 @@ pub struct Commit {
     pub subject: String,
     pub author: String,
     pub date: String,
+    /// The refs at the commit, as magit-format-ref-labels shows them.
+    pub refs: String,
+}
+/// magit-format-ref-labels over git's %D: "HEAD -> main, origin/HEAD,
+/// tag: v1" shows "main v1"; a detached HEAD is "@".
+pub fn ref_labels(decoration: &str) -> String {
+    decoration
+        .split(", ")
+        .filter(|d| !d.is_empty() && !d.ends_with("/HEAD"))
+        .map(|d| match d {
+            "HEAD" => "@",
+            d => d
+                .strip_prefix("HEAD -> ")
+                .or_else(|| d.strip_prefix("tag: "))
+                .unwrap_or(d),
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 #[derive(Clone, Debug)]
 pub struct GitInvocation {
@@ -538,6 +556,7 @@ impl Repo {
             let author = String::from_utf8_lossy(fields.next().ok_or("invalid log")?).into();
             let date = String::from_utf8_lossy(fields.next().ok_or("invalid log")?).into();
             commits.push(Commit {
+                refs: String::new(),
                 id,
                 subject,
                 author,

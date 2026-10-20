@@ -452,3 +452,12 @@ C-c C-c / C-c M-g / C-x keys, S-Tab, RET vs S-RET in diffs, staging a
 whole section from its heading, s/u/-/a prompting off changes, I
 (intent to add), list buffers' keys. Menu and key maps done; section map
 (buffer layout) remains in the baseline gate. Score remains 3%.
+
+October 19 render oracle: tools/magit-fixtures.sh (deterministic repositories)
+and tools/magit-render.el (upstream buffers as a terminal shows them) give
+tests/magit-golden; renders_match_upstream fails when a buffer not listed in
+RENDER_PENDING differs. Status now matches upstream for all six fixtures
+(headers, "…" collapsed headings, %-11s file lines, unmerged paths in both
+change sections, untracked hidden, merge/rebase sequences, ref labels on
+commits, unborn header). Pending: log, refs, stashes, revision and diff
+buffers. Score remains 3%.

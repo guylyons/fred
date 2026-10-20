@@ -876,8 +876,7 @@ impl Session {
             // magit-jump-to-*: the section's heading row, by its title.
             let row = self.ed.magit.as_ref().and_then(|v| {
                 v.rows.iter().position(|r| {
-                    matches!(r.action, Some(RowAction::Section(_)))
-                        && r.text.get(2..).is_some_and(|t| t.starts_with(name))
+                    matches!(r.action, Some(RowAction::Section(_))) && r.text.starts_with(name)
                 })
             });
             match row {

@@ -456,6 +456,8 @@ impl View {
     pub fn new_status(repo: Repo, mut snapshot: Snapshot) -> Self {
         snapshot.extra = repo.status_extra();
         let mut v = Self::status(repo, snapshot);
+        // magit-insert-files and magit-insert-stashes insert hidden.
+        v.closed.insert(Section::Untracked);
         v.closed.insert(Section::Stashes);
         for (section, heading, _) in &v.snapshot.extra.logs {
             if *section != Section::UnpushedUpstream || heading == "Recent commits" {
@@ -723,208 +725,161 @@ impl View {
         if self.kind != Kind::Status {
             return;
         }
-        self.rows.clear();
-        for header in &self.snapshot.extra.headers {
-            self.rows.push(Row {
-                text: header.clone(),
+        // magit-status-mode as a terminal shows it: the headers, a blank
+        // line, then each section's heading ("…" when collapsed) and, when
+        // expanded, its body and a blank line.
+        let mut rows: Vec<Row> = self
+            .snapshot
+            .extra
+            .headers
+            .iter()
+            .map(|h| Row {
+                text: h.clone(),
                 action: None,
-            });
-        }
-        if let Some(operation) = &self.snapshot.operation
-            && self.snapshot.extra.sequences.is_empty()
-        {
-            self.rows.push(Row {
-                text: format!("In progress: {operation}"),
-                action: None,
-            });
-        }
-        // The in-progress sections of magit-status-sections-hook.
-        for (section, heading, lines) in &self.snapshot.extra.sequences {
-            let shut = self.closed.contains(section);
-            self.rows.push(Row {
-                text: String::new(),
-                action: None,
-            });
-            self.rows.push(Row {
-                text: format!("{} {heading}", if shut { ">" } else { "v" }),
-                action: Some(RowAction::Section(*section)),
-            });
-            if shut {
-                continue;
-            }
-            for (text, commit) in lines {
-                self.rows.push(Row {
-                    text: format!("  {}", label(std::path::Path::new(text))),
-                    action: commit.clone().map(RowAction::Commit),
-                });
-            }
-        }
-        self.rows.push(Row {
-            text: "Tab expand  s stage  u unstage  gr refresh  Enter visit  q return".into(),
+            })
+            .collect();
+        rows.push(Row {
+            text: String::new(),
             action: None,
         });
-        if self.snapshot.entries.is_empty() {
-            self.rows.push(Row {
-                text: "Working tree clean".into(),
-                action: None,
+        let closed = &self.closed;
+        let section = |rows: &mut Vec<Row>, section: Section, heading: String, body: Vec<Row>| {
+            let shut = closed.contains(&section);
+            rows.push(Row {
+                text: format!("{heading}{}", if shut { "…" } else { "" }),
+                action: Some(RowAction::Section(section)),
             });
+            if !shut {
+                rows.extend(body);
+                rows.push(Row {
+                    text: String::new(),
+                    action: None,
+                });
+            }
+        };
+        // The in-progress sections of magit-status-sections-hook.
+        for (s, heading, lines) in &self.snapshot.extra.sequences {
+            let body = lines
+                .iter()
+                .map(|(text, commit)| Row {
+                    text: label(std::path::Path::new(text)),
+                    action: commit.clone().map(RowAction::Commit),
+                })
+                .collect();
+            section(&mut rows, *s, heading.clone(), body);
         }
-        for section in [
-            Section::Conflicts,
-            Section::Untracked,
-            Section::Unstaged,
-            Section::Staged,
-        ] {
+        for s in [Section::Untracked, Section::Unstaged, Section::Staged] {
+            // Conflicted paths are "unmerged" in both change sections.
             let entries: Vec<_> = self
                 .snapshot
                 .entries
                 .iter()
-                .filter(|e| section.contains(e))
+                .filter(|e| s.contains(e) || e.conflict && s != Section::Untracked)
                 .collect();
             if entries.is_empty() {
                 continue;
             }
-            let shut = self.closed.contains(&section);
-            self.rows.push(Row {
-                text: String::new(),
-                action: None,
-            });
-            self.rows.push(Row {
-                text: format!(
-                    "{} {} ({})",
-                    if shut { ">" } else { "v" },
-                    section.name(),
-                    entries.len()
-                ),
-                action: Some(RowAction::Section(section)),
-            });
-            if shut {
-                continue;
-            }
+            let count = entries.len();
             // magit-status-file-list-limit for the untracked file list.
-            let limit = if section == Section::Untracked {
+            let limit = if s == Section::Untracked {
                 options::int("magit-status-file-list-limit", 100).max(0) as usize
             } else {
                 usize::MAX
             };
-            let unlisted = entries.len().saturating_sub(limit);
-            let entries: Vec<_> = entries.into_iter().take(limit).collect();
-            for e in entries {
-                let staged = section == Section::Staged;
-                let key = (e.path.clone(), staged);
-                let expanded = self.expanded.contains(&key);
+            let mut body = vec![];
+            for e in entries.iter().take(limit) {
                 let name = e.old_path.as_ref().map_or_else(
                     || label(&e.path),
                     |old| format!("{} -> {}", label(old), label(&e.path)),
                 );
-                self.rows.push(Row {
-                    text: format!("  {} {} {}", if expanded { "v" } else { ">" }, e.xy, name),
-                    action: Some(RowAction::File(e.path.clone(), section)),
+                if s == Section::Untracked {
+                    body.push(Row {
+                        text: name,
+                        action: Some(RowAction::File(e.path.clone(), s)),
+                    });
+                    continue;
+                }
+                let staged = s == Section::Staged;
+                let key = (e.path.clone(), staged);
+                let expanded = self.expanded.contains(&key);
+                let xy = e.xy.as_bytes();
+                let word = if e.conflict {
+                    "unmerged"
+                } else {
+                    status_word(xy[usize::from(!staged)])
+                };
+                // A staged conflict has no diff to show.
+                let more = if expanded || e.conflict && staged {
+                    ""
+                } else {
+                    "…"
+                };
+                body.push(Row {
+                    text: format!("{word:<11}{name}{more}"),
+                    action: Some(RowAction::File(
+                        e.path.clone(),
+                        if e.conflict { Section::Conflicts } else { s },
+                    )),
                 });
                 if expanded && let Some(d) = self.diffs.get(&key) {
-                    let mut off = 0;
-                    let mut hunk = None;
-                    let mut source_line = 0;
-                    for bytes in d.bytes.split_inclusive(|b| *b == b'\n') {
-                        if off >= 1024 * 1024 {
-                            self.rows.push(Row {
-                                text: "    [diff display truncated]".into(),
-                                action: None,
-                            });
-                            break;
-                        }
-                        if let Some((i, h)) =
-                            d.hunks.iter().enumerate().find(|(_, h)| h.start == off)
-                        {
-                            hunk = Some(i);
-                            source_line = h.line;
-                        }
-                        let text = String::from_utf8_lossy(&bytes[..bytes.len().min(20_000)])
-                            .trim_end_matches('\n')
-                            .to_string();
-                        // Keep control sequences from repository text out of the terminal.
-                        let text = label(std::path::Path::new(&text));
-                        let action =
-                            hunk.map(|i| RowAction::Hunk(e.path.clone(), staged, i, source_line));
-                        self.rows.push(Row {
-                            text: format!("    {text}"),
-                            action,
-                        });
-                        if !bytes.starts_with(b"-") && !bytes.starts_with(b"@@") && hunk.is_some() {
-                            source_line += 1;
-                        }
-                        off += bytes.len();
-                    }
-                    if d.bytes.is_empty() {
-                        self.rows.push(Row {
-                            text: "    No textual diff; use whole-file staging".into(),
-                            action: None,
-                        });
-                    }
+                    body.extend(file_body(d, &e.path, staged));
                 }
             }
-            if unlisted > 0 {
-                self.rows.push(Row {
-                    text: format!("  {unlisted} files not listed"),
+            if count > limit {
+                body.push(Row {
+                    text: format!("{} files not listed", count - limit),
                     action: None,
                 });
             }
+            section(&mut rows, s, format!("{} ({count})", s.name()), body);
         }
         // magit-insert-stashes and the log sections of magit-status-sections-hook.
-        let mut sections: Vec<(Section, String, Vec<Row>)> = vec![];
         if !self.snapshot.extra.stashes.is_empty() {
-            let rows = self
+            let body: Vec<Row> = self
                 .snapshot
                 .extra
                 .stashes
                 .iter()
                 .map(|stash| Row {
                     text: format!(
-                        "  {} {}",
+                        "{} {}",
                         stash.selector,
                         label(std::path::Path::new(&stash.subject))
                     ),
                     action: Some(RowAction::Stash(stash.clone())),
                 })
                 .collect();
-            sections.push((Section::Stashes, "Stashes".into(), rows));
+            let n = body.len();
+            section(&mut rows, Section::Stashes, format!("Stashes ({n})"), body);
         }
-        for (section, heading, commits) in &self.snapshot.extra.logs {
-            let rows = commits
+        for (s, heading, commits) in &self.snapshot.extra.logs {
+            let body: Vec<Row> = commits
                 .iter()
                 .map(|c| Row {
-                    text: format!(
-                        "  {} {}",
+                    text: [
                         &c.id[..c.id.len().min(7)],
-                        label(std::path::Path::new(&c.subject))
-                    ),
+                        &c.refs,
+                        &label(std::path::Path::new(&c.subject)),
+                    ]
+                    .iter()
+                    .filter(|p| !p.is_empty())
+                    .copied()
+                    .collect::<Vec<_>>()
+                    .join(" "),
                     action: Some(RowAction::Commit(c.id.clone())),
                 })
                 .collect();
-            sections.push((*section, heading.clone(), rows));
-        }
-        for (section, heading, rows) in sections {
-            let shut = self.closed.contains(&section);
-            self.rows.push(Row {
-                text: String::new(),
-                action: None,
-            });
             // magit-section-show-child-count, except for recent commits.
             let count = if heading == "Recent commits" {
                 String::new()
-            } else if section != Section::Stashes && rows.len() >= status::LIMIT {
-                format!(" ({}+)", rows.len())
+            } else if body.len() >= status::LIMIT {
+                format!(" ({}+)", body.len())
             } else {
-                format!(" ({})", rows.len())
+                format!(" ({})", body.len())
             };
-            self.rows.push(Row {
-                text: format!("{} {heading}{count}", if shut { ">" } else { "v" }),
-                action: Some(RowAction::Section(section)),
-            });
-            if !shut {
-                self.rows.extend(rows);
-            }
+            section(&mut rows, *s, format!("{heading}{count}"), body);
         }
+        self.rows = rows;
     }
     pub fn selection(&self, action: &Option<RowAction>, fallback: usize) -> usize {
         // A commit can appear in several sections: keep the occurrence nearest
@@ -2532,6 +2487,63 @@ fn margin_entries() -> Vec<(&'static str, &'static str, &'static str, Action)> {
         ("l", "Margin", "Cycle style", Action::Margin('l')),
         ("d", "Margin", "Toggle details", Action::Margin('d')),
     ]
+}
+/// magit-diff-wash-diff's status word for a porcelain status letter.
+fn status_word(c: u8) -> &'static str {
+    match c {
+        b'A' => "new file",
+        b'D' => "deleted",
+        b'R' => "renamed",
+        b'C' => "copied",
+        b'T' => "typechange",
+        _ => "modified",
+    }
+}
+/// An expanded file's body in status: magit-diff-wash-diff keeps the mode
+/// and rename lines and the hunks, not the diff, index, --- and +++ lines.
+fn file_body(d: &Diff, path: &std::path::Path, staged: bool) -> Vec<Row> {
+    let mut rows = vec![];
+    let mut off = 0;
+    let mut hunk = None;
+    let mut source_line = 0;
+    for bytes in d.bytes.split_inclusive(|b| *b == b'\n') {
+        if off >= 1024 * 1024 {
+            rows.push(Row {
+                text: "[diff display truncated]".into(),
+                action: None,
+            });
+            break;
+        }
+        if let Some((i, h)) = d.hunks.iter().enumerate().find(|(_, h)| h.start == off) {
+            hunk = Some(i);
+            source_line = h.line;
+        }
+        off += bytes.len();
+        let header_kept = [
+            "old mode",
+            "new mode",
+            "rename from",
+            "rename to",
+            "Binary files",
+        ]
+        .iter()
+        .any(|p| bytes.starts_with(p.as_bytes()));
+        if hunk.is_none() && !header_kept {
+            continue;
+        }
+        let text = String::from_utf8_lossy(&bytes[..bytes.len().min(20_000)])
+            .trim_end_matches('\n')
+            .to_string();
+        // Keep control sequences from repository text out of the terminal.
+        rows.push(Row {
+            text: label(std::path::Path::new(&text)),
+            action: hunk.map(|i| RowAction::Hunk(path.to_path_buf(), staged, i, source_line)),
+        });
+        if hunk.is_some() && !bytes.starts_with(b"-") && !bytes.starts_with(b"@@") {
+            source_line += 1;
+        }
+    }
+    rows
 }
 pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Action)> {
     let mut v = base_entries(menu);

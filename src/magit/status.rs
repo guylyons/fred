@@ -156,20 +156,37 @@ impl Repo {
             let rows = heads
                 .first()
                 .and_then(|h| {
-                    self.read(&["log", "--format=%H%x00%h %s", &format!("HEAD..{h}"), "--"])
-                        .ok()
+                    self.read(&[
+                        "log",
+                        "--format=%H%x00%h%x00%D%x00%s",
+                        &format!("HEAD..{h}"),
+                        "--",
+                    ])
+                    .ok()
                 })
                 .map(|o| {
                     String::from_utf8_lossy(&o)
                         .lines()
-                        .filter_map(|l| l.split_once('\0'))
-                        .map(|(full, text)| (text.to_owned(), Some(full.to_owned())))
-                        .collect()
+                        .filter_map(|l| {
+                            let f: Vec<&str> = l.splitn(4, '\0').collect();
+                            let [full, short, refs, subject] = f[..] else {
+                                return None;
+                            };
+                            let refs = super::repo::ref_labels(refs);
+                            let text = [short, refs.as_str(), subject]
+                                .iter()
+                                .filter(|p| !p.is_empty())
+                                .copied()
+                                .collect::<Vec<_>>()
+                                .join(" ");
+                            Some((text, Some(full.to_owned())))
+                        })
+                        .collect::<Vec<_>>()
                 })
                 .unwrap_or_default();
             out.push((
                 Section::Merging,
-                format!("Merging {}:", names.join(", ")),
+                format!("Merging {} ({})", names.join(", "), rows.len()),
                 rows,
             ));
         }
@@ -199,13 +216,15 @@ impl Repo {
                 {
                     let mut w = line.splitn(3, ' ');
                     let (cmd, target) = (w.next().unwrap_or(""), w.next().unwrap_or(""));
-                    let commit = self.summary_line(target).map(|(f, _)| f);
-                    rows.push((
-                        line.to_owned(),
-                        commit.filter(|_| {
-                            !matches!(cmd, "exec" | "x" | "label" | "l" | "reset" | "t")
-                        }),
-                    ));
+                    // magit-rebase-insert-merge-sequence: the action, the
+                    // abbreviated commit and its subject.
+                    let commit = self
+                        .summary_line(target)
+                        .filter(|_| !matches!(cmd, "exec" | "x" | "label" | "l" | "reset" | "t"));
+                    match commit {
+                        Some((full, text)) => rows.push((format!("{cmd} {text}"), Some(full))),
+                        None => rows.push((line.to_owned(), None)),
+                    }
                 }
             }
             let stop = file("rebase-merge/stopped-sha").map(|s| s.trim().to_owned());
@@ -348,7 +367,11 @@ impl Repo {
     /// Commits of a range for a status section (`git log RANGE`).
     pub fn log_range(&self, range: &str, limit: Option<usize>) -> Vec<Commit> {
         let limit = limit.map(|n| format!("-{n}"));
-        let mut args = vec!["log", "--format=%H%x00%s%x00%an%x00%ad%x00", "--date=short"];
+        let mut args = vec![
+            "log",
+            "--format=%H%x00%s%x00%an%x00%ad%x00%D%x00",
+            "--date=short",
+        ];
         args.extend(limit.as_deref());
         args.extend(["--end-of-options", range, "--"]);
         let Ok(bytes) = self.read(&args) else {
@@ -356,13 +379,14 @@ impl Repo {
         };
         let fields: Vec<_> = bytes.split(|b| *b == 0).collect();
         fields
-            .chunks(4)
-            .filter(|c| c.len() == 4)
+            .chunks(5)
+            .filter(|c| c.len() == 5)
             .map(|c| Commit {
                 id: String::from_utf8_lossy(c[0]).trim().to_owned(),
                 subject: String::from_utf8_lossy(c[1]).into(),
                 author: String::from_utf8_lossy(c[2]).into(),
                 date: String::from_utf8_lossy(c[3]).into(),
+                refs: super::repo::ref_labels(&String::from_utf8_lossy(c[4])),
             })
             .filter(|c| !c.id.is_empty())
             .collect()
@@ -381,10 +405,8 @@ impl Repo {
                     self.summary("HEAD").unwrap_or_default()
                 ),
             ),
-            (Some(b), false) => header(
-                "Head:",
-                &format!("{} (no commits yet)", label(Path::new(b))),
-            ),
+            // magit-insert-error-header... and the unborn branch's line.
+            (Some(_), false) => "In the beginning there was darkness".into(),
             (None, _) => {
                 let hash = self.short_ref("HEAD").and_then(|_| {
                     self.read(&["rev-parse", "--short", "HEAD"])

@@ -485,21 +485,15 @@ fn magit_styles(ed: &Editor, hl: &Highlighter, l: usize, line: &str) -> LineStyl
         Color::Red
     } else if text.starts_with("@@") {
         Color::Cyan
-    } else if text.starts_with("Head:") || text.starts_with("v ") || text.starts_with("> ") {
+    } else if text.starts_with("Head:")
+        || matches!(view.action_at(l), Some(crate::magit::RowAction::Section(_)))
+    {
         Color::Yellow
     } else {
         Color::Reset
     };
     let base = vec![(Style::default().fg(color), 0..line.len())];
-    // Status buffers indent a file's diff by four columns.
-    let indent = if view.kind == crate::magit::Kind::Status {
-        4
-    } else {
-        0
-    };
-    let Some(body) = line.get(indent..) else {
-        return base;
-    };
+    let body = line;
     let sign = body.chars().next();
     if !matches!(sign, Some('+' | '-' | ' ')) || body.starts_with("+++") || body.starts_with("---")
     {
@@ -510,12 +504,6 @@ fn magit_styles(ed: &Editor, hl: &Highlighter, l: usize, line: &str) -> LineStyl
     let mut path = None;
     for k in (0..l).rev().take(5000) {
         let t = ed.buf.line(k);
-        let Some(t) = t.get(indent..) else {
-            if let Some(crate::magit::RowAction::File(p, _)) = view.action_at(k) {
-                path = Some(p);
-            }
-            break;
-        };
         if t.starts_with("@@") {
             in_hunk = true;
         } else if let Some(f) = t.strip_prefix("+++ b/") {
@@ -538,7 +526,7 @@ fn magit_styles(ed: &Editor, hl: &Highlighter, l: usize, line: &str) -> LineStyl
     if !in_hunk {
         return base;
     }
-    let start = indent + 1;
+    let start = 1;
     let tint = match sign {
         Some('+') => Some(Color::Indexed(22)),
         Some('-') => Some(Color::Indexed(52)),
@@ -640,7 +628,7 @@ fn magit_styles(ed: &Editor, hl: &Highlighter, l: usize, line: &str) -> LineStyl
     }
     if view.refine && tint.is_some() {
         let rows: Vec<String> = ((l.saturating_sub(200))..(l + 200).min(ed.line_count()))
-            .map(|k| ed.buf.line(k).get(indent..).unwrap_or("").to_owned())
+            .map(|k| ed.buf.line(k).to_string())
             .collect();
         let lines: Vec<&str> = rows.iter().map(String::as_str).collect();
         let me = l - l.saturating_sub(200);
@@ -815,7 +803,11 @@ pub fn draw(
             Some(crate::occur::styles(ed, l))
         } else if ed.org.is_some() {
             Some(crate::org::face::styles(ed, l, &org_settings))
-        } else if let Some(st) = ed.claude.as_ref().and_then(|_| crate::claude::styles(&line)) {
+        } else if let Some(st) = ed
+            .claude
+            .as_ref()
+            .and_then(|_| crate::claude::styles(&line))
+        {
             Some(st)
         } else {
             styles.get(l - view.top).cloned().flatten()
@@ -1322,7 +1314,10 @@ fn draw_command_row(buf: &mut Screen, area: Rect, ed: &Editor) -> Option<usize> 
         _ => {
             if let Some(st) = ed.msg.as_ref().and_then(|(m, _)| crate::claude::styles(m)) {
                 let m = &ed.msg.as_ref().unwrap().0;
-                let spans: Vec<_> = st.into_iter().map(|(s, r)| Span::styled(&m[r], s)).collect();
+                let spans: Vec<_> = st
+                    .into_iter()
+                    .map(|(s, r)| Span::styled(&m[r], s))
+                    .collect();
                 buf.set_line(area.x, y, &Line::from(spans), area.width);
             } else if let Some((m, err)) = &ed.msg {
                 let style = if *err {

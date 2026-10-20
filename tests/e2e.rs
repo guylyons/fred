@@ -1110,10 +1110,11 @@ fn magit_status_stage_and_return_in_both_modes() {
         p.keys(&["iunsaved \x1b", " ms"]);
         p.wait_text("Save file f.txt? (y or n)");
         p.keys(&["n\r"]);
+        // No commits yet: upstream's unborn header; untracked files start hidden.
         p.wait_for("Git status", |s| {
-            s.contains("Head:     main") && s.contains("Untracked files")
+            s.contains("In the beginning there was darkness") && s.contains("Untracked files")
         });
-        p.keys(&["/f.txt\r", "s"]);
+        p.keys(&["gn", "\t", "/f.txt\r", "s"]);
         p.wait_for("staged file", |s| s.contains("Staged changes (1)"));
         p.keys(&["q"]);
         p.wait_for("original buffer", |s| s.contains("unsaved original"));

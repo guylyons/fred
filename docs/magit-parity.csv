@@ -268,7 +268,7 @@ magit-diff.el,318,option,magit-diff-highlight-trailing,partial,trailing spaces/t
 magit-diff.el,325,option,magit-diff-highlight-indentation,partial,"[[DIR-REGEXP, ""tabs"" or N]] on painted lines",explicit
 magit-diff.el,343,option,magit-diff-hide-trailing-cr-characters,partial,Fred always hides a CRLF's CR in diff buffers,explicit
 magit-diff.el,350,option,magit-diff-extra-stat-arguments,partial,list of extra --stat arguments in revision buffers (no function values),explicit
-magit-diff.el,364,option,magit-format-file-function,n/a,value is an Emacs Lisp function; Fred's built-in equivalent behavior is fixed,explicit
+magit-diff.el,364,option,magit-format-file-function,n/a,"magit-format-file-default's layout (%-11s status word, then the file); other functions are Emacs Lisp",explicit
 magit-diff.el,381,option,magit-diff-buffer-file-locked,partial,file diff buffers are locked to their file (t),explicit
 magit-diff.el,395,option,magit-revision-mode-hook,n/a,Emacs mode/setup hook of Lisp functions; Fred has no Lisp and no Emacs buffer lifecycle,explicit
 magit-diff.el,404,option,magit-revision-sections-hook,n/a,list of Lisp section inserters; Fred renders upstream's default sections,explicit
@@ -780,7 +780,7 @@ magit-section.el,151,option,magit-section-highlight-selection,n/a,"Emacs faces, 
 magit-section.el,160,option,magit-section-show-child-count,partial,default t behavior; not configurable,explicit
 magit-section.el,167,option,magit-section-cache-visibility,n/a,"Emacs-specific (default-directory, windows, Info, minor modes, tab-width, buffer names, global keymaps or Lisp githook bridge); Fred's equivalent is fixed or uses Space m",explicit
 magit-section.el,184,option,magit-section-initial-visibility-alist,partial,"table of section = ""show""/""hide"" for status sections (untracked unstaged staged stashes unpushed unpulled recent)",explicit
-magit-section.el,212,option,magit-section-visibility-indicators,n/a,"Emacs faces, overlays, fringes, images, tooltips or mode-line lighters; Fred's terminal UI has fixed equivalents",explicit
+magit-section.el,212,option,magit-section-visibility-indicators,partial,"the terminal default: ""…"" after a collapsed heading (no fringe); the option itself is not read",explicit
 magit-section.el,284,option,magit-section-keep-region-overlay,n/a,"Emacs faces, overlays, fringes, images, tooltips or mode-line lighters; Fred's terminal UI has fixed equivalents",explicit
 magit-section.el,322,option,magit-section-disable-line-numbers,partial,Magit buffers hide line numbers unless false,explicit
 magit-section.el,803,command,magit-section-forward,partial,"C-j (on a file/hunk C-j visits the worktree file, as evil-collection section maps)",explicit

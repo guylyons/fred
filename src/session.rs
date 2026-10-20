@@ -2717,7 +2717,7 @@ mod tests {
         let heading = |t: &T, name: &str| {
             let text = t.s.ed.buf.text();
             text.lines()
-                .position(|l| l.get(2..).is_some_and(|r| r.starts_with(name)))
+                .position(|l| l.starts_with(name))
                 .unwrap_or_else(|| panic!("{name}: {text}"))
         };
         t.keys(&format!(":{}<Enter>s", heading(&t, "Unstaged changes") + 1));
@@ -2984,6 +2984,8 @@ mod tests {
         fs::write(t.dir.path().join("new.txt"), "new\n").unwrap();
         t.keys(" ms");
         magit_settle(&mut t);
+        // Untracked files start hidden; show them.
+        t.keys("gn<Tab>");
         let goto = |t: &mut T, f: &dyn Fn(&crate::magit::RowAction) -> bool| {
             let row =
                 t.s.ed
@@ -3936,7 +3938,7 @@ mod tests {
                 .buf
                 .text()
                 .lines()
-                .position(|l| l.starts_with("v Staged"))
+                .position(|l| l.starts_with("Staged changes"))
                 .unwrap();
         t.keys(&format!(":{}<Enter> mdd", staged + 1));
         magit_settle(&mut t);
@@ -4307,20 +4309,20 @@ mod tests {
         magit_settle(&mut t);
         let text = t.s.ed.buf.text();
         assert!(
-            text.contains("> Stashes (1)") && text.contains("> Recent commits"),
+            text.contains("Stashes (1)…") && text.contains("Recent commits…"),
             "{text}"
         );
         let line = |t: &T| t.s.ed.buf.line(t.s.ed.cur.line);
         t.keys("gz<Tab>");
-        assert!(line(&t).starts_with("v Stashes"), "{}", line(&t));
+        assert_eq!(line(&t), "Stashes (1)");
         t.keys("gn");
-        assert!(line(&t).starts_with("v Untracked files"));
+        assert!(line(&t).starts_with("Untracked files"));
         t.keys("gpu");
-        assert!(line(&t).starts_with("> Recent commits"));
+        assert_eq!(line(&t), "Recent commits…");
         t.keys("gfu");
         assert!(t.msg().contains("Unpulled from @{upstream}"), "{}", t.msg());
         t.keys("gpu<Tab>");
-        assert!(line(&t).starts_with("v Recent commits"));
+        assert_eq!(line(&t), "Recent commits");
         t.keys("j<Enter>");
         magit_settle(&mut t);
         assert!(
@@ -4779,7 +4781,17 @@ mod tests {
         };
         t.s.finish_git(inv, Err("test operation failure".into()));
         magit_settle(&mut t);
-        assert!(t.s.ed.buf.to_bytes().windows(5).any(|b| b == b"later"));
+        // The refreshed status lists the new file (in the hidden untracked section).
+        assert!(
+            t.s.ed
+                .magit
+                .as_ref()
+                .unwrap()
+                .snapshot
+                .entries
+                .iter()
+                .any(|e| e.path == Path::new("later"))
+        );
         assert!(format!("{:?}", t.s.ed.msg).contains("test operation failure"));
         t.keys(" mzl");
         magit_settle(&mut t);
