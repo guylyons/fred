@@ -10,6 +10,9 @@ fn main() {
                 .unwrap_or_else(|o| o.to_string_lossy().into_owned())
         })
         .collect();
+    if argv == ["--mcp"] {
+        std::process::exit(fred::remote::mcp());
+    }
     let code = match args::parse(argv) {
         Ok(ArgsOrInfo::Help) => {
             println!("{}", args::USAGE);

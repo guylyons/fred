@@ -30,7 +30,7 @@ fn header(keyword: &str, text: &str) -> String {
 }
 
 impl Repo {
-    fn summary(&self, rev: &str) -> Option<String> {
+    pub(crate) fn summary(&self, rev: &str) -> Option<String> {
         let out = self
             .read(&["log", "-1", "--format=%s", "--end-of-options", rev, "--"])
             .ok()?;
@@ -156,20 +156,37 @@ impl Repo {
             let rows = heads
                 .first()
                 .and_then(|h| {
-                    self.read(&["log", "--format=%H%x00%h %s", &format!("HEAD..{h}"), "--"])
-                        .ok()
+                    self.read(&[
+                        "log",
+                        "--format=%H%x00%h%x00%D%x00%s",
+                        &format!("HEAD..{h}"),
+                        "--",
+                    ])
+                    .ok()
                 })
                 .map(|o| {
                     String::from_utf8_lossy(&o)
                         .lines()
-                        .filter_map(|l| l.split_once('\0'))
-                        .map(|(full, text)| (text.to_owned(), Some(full.to_owned())))
-                        .collect()
+                        .filter_map(|l| {
+                            let f: Vec<&str> = l.splitn(4, '\0').collect();
+                            let [full, short, refs, subject] = f[..] else {
+                                return None;
+                            };
+                            let refs = super::repo::ref_labels(refs);
+                            let text = [short, refs.as_str(), subject]
+                                .iter()
+                                .filter(|p| !p.is_empty())
+                                .copied()
+                                .collect::<Vec<_>>()
+                                .join(" ");
+                            Some((text, Some(full.to_owned())))
+                        })
+                        .collect::<Vec<_>>()
                 })
                 .unwrap_or_default();
             out.push((
                 Section::Merging,
-                format!("Merging {}:", names.join(", ")),
+                format!("Merging {} ({})", names.join(", "), rows.len()),
                 rows,
             ));
         }
@@ -199,13 +216,15 @@ impl Repo {
                 {
                     let mut w = line.splitn(3, ' ');
                     let (cmd, target) = (w.next().unwrap_or(""), w.next().unwrap_or(""));
-                    let commit = self.summary_line(target).map(|(f, _)| f);
-                    rows.push((
-                        line.to_owned(),
-                        commit.filter(|_| {
-                            !matches!(cmd, "exec" | "x" | "label" | "l" | "reset" | "t")
-                        }),
-                    ));
+                    // magit-rebase-insert-merge-sequence: the action, the
+                    // abbreviated commit and its subject.
+                    let commit = self
+                        .summary_line(target)
+                        .filter(|_| !matches!(cmd, "exec" | "x" | "label" | "l" | "reset" | "t"));
+                    match commit {
+                        Some((full, text)) => rows.push((format!("{cmd} {text}"), Some(full))),
+                        None => rows.push((line.to_owned(), None)),
+                    }
                 }
             }
             let stop = file("rebase-merge/stopped-sha").map(|s| s.trim().to_owned());
@@ -285,70 +304,85 @@ impl Repo {
         }
         // Bisecting: output, the rest to test, and the log.
         if file("BISECT_LOG").is_some() {
-            let output = file("BISECT_CMD_OUTPUT");
-            let mut lines: Vec<String> = match &output {
+            // magit-insert-bisect-output.
+            let mut lines: Vec<String> = match file("BISECT_CMD_OUTPUT") {
                 Some(o) => o.lines().map(str::to_owned).collect(),
-                None => vec![
-                    "Bisecting: (no saved bisect output)".into(),
-                    "It appears you have invoked \"git bisect\" from a shell.".into(),
-                ],
+                None => [
+                    "Bisecting: (no saved bisect output)",
+                    "It appears you have invoked \"git bisect\" from a shell.",
+                    "There is nothing wrong with that, we just cannot display",
+                    "anything useful here.  Consult the shell output instead.",
+                ]
+                .map(String::from)
+                .to_vec(),
             };
-            let heading = if lines.is_empty() {
-                String::new()
-            } else {
-                lines.remove(0)
+            let done = lines
+                .iter()
+                .position(|l| l.ends_with(" is the first bad commit"));
+            let heading = match done {
+                Some(k) => lines.remove(k),
+                None if !lines.is_empty() => lines.remove(0),
+                None => String::new(),
             };
             out.push((
                 Section::BisectOutput,
                 heading,
                 lines.into_iter().map(|l| (l, None)).collect(),
             ));
-            let mut argv = vec![
-                "bisect",
-                "visualize",
-                "git",
-                "log",
-                "--format=%H%x00%h %D %s",
-            ];
+            // magit-insert-bisect-rest: git bisect visualize as a log.
+            let goods: Vec<String> = self
+                .read(&["for-each-ref", "--format=%(refname)", "refs/bisect/good-*"])
+                .map(|o| {
+                    String::from_utf8_lossy(&o)
+                        .lines()
+                        .map(str::to_owned)
+                        .collect()
+                })
+                .unwrap_or_default();
+            let mut revs = vec!["refs/bisect/bad".to_owned(), "--not".to_owned()];
+            revs.extend(goods);
+            let mut args = vec!["--decorate".to_owned()];
             if super::options::flag("magit-bisect-show-graph", true) {
-                argv.push("--graph");
+                args.push("--graph".into());
             }
-            let rest = self
-                .read(&argv)
-                .map(|o| {
-                    String::from_utf8_lossy(&o)
-                        .lines()
-                        .map(|l| match l.split_once('\0') {
-                            Some((pre, text)) => {
-                                // The graph, then the full hash.
-                                let split = pre.len().saturating_sub(40);
-                                let (graph, full) = pre.split_at(split);
-                                (format!("{graph}{text}"), Some(full.to_owned()))
-                            }
-                            None => (l.to_owned(), None),
-                        })
-                        .collect()
-                })
+            let rest: Vec<(String, Option<String>)> = self
+                .log_lines(&revs, &args, &[])
+                .map(|lines| lines.into_iter().map(|l| (l.text, l.commit)).collect())
                 .unwrap_or_default();
-            out.push((Section::BisectRest, "Bisect Rest".into(), rest));
-            let log = self
-                .read(&["bisect", "log"])
-                .map(|o| {
-                    String::from_utf8_lossy(&o)
-                        .lines()
-                        .filter(|l| !l.starts_with("# status:"))
-                        .map(|l| (l.trim_start_matches("# ").to_owned(), None))
-                        .collect()
-                })
-                .unwrap_or_default();
-            out.push((Section::BisectLog, "Bisect Log".into(), log));
+            let n = rest.iter().filter(|r| r.1.is_some()).count();
+            out.push((Section::BisectRest, format!("Bisect Rest ({n})"), rest));
+            // magit-wash-bisect-log: each "git bisect" command, its "# good:"
+            // and "# bad:" lines (hidden) above it.
+            let mut log = vec![];
+            if let Ok(o) = self.read(&["bisect", "log"]) {
+                for l in String::from_utf8_lossy(&o).lines() {
+                    if l.starts_with("git bisect ") {
+                        log.push((format!("{l}…"), None));
+                    } else if let Some(rest) = l.strip_prefix("# first bad commit: [") {
+                        let hash = rest.split(']').next().unwrap_or("");
+                        log.push((
+                            format!("{hash} is the first bad commit"),
+                            Some(hash.to_owned()),
+                        ));
+                    }
+                }
+            }
+            let n = log
+                .iter()
+                .filter(|r| r.0.starts_with("git bisect "))
+                .count();
+            out.push((Section::BisectLog, format!("Bisect Log ({n})"), log));
         }
         out
     }
     /// Commits of a range for a status section (`git log RANGE`).
     pub fn log_range(&self, range: &str, limit: Option<usize>) -> Vec<Commit> {
         let limit = limit.map(|n| format!("-{n}"));
-        let mut args = vec!["log", "--format=%H%x00%s%x00%an%x00%ad%x00", "--date=short"];
+        let mut args = vec![
+            "log",
+            "--format=%H%x00%s%x00%an%x00%ad%x00%D%x00",
+            "--date=short",
+        ];
         args.extend(limit.as_deref());
         args.extend(["--end-of-options", range, "--"]);
         let Ok(bytes) = self.read(&args) else {
@@ -356,13 +390,14 @@ impl Repo {
         };
         let fields: Vec<_> = bytes.split(|b| *b == 0).collect();
         fields
-            .chunks(4)
-            .filter(|c| c.len() == 4)
+            .chunks(5)
+            .filter(|c| c.len() == 5)
             .map(|c| Commit {
                 id: String::from_utf8_lossy(c[0]).trim().to_owned(),
                 subject: String::from_utf8_lossy(c[1]).into(),
                 author: String::from_utf8_lossy(c[2]).into(),
                 date: String::from_utf8_lossy(c[3]).into(),
+                refs: super::repo::ref_labels(&String::from_utf8_lossy(c[4])),
             })
             .filter(|c| !c.id.is_empty())
             .collect()
@@ -381,10 +416,8 @@ impl Repo {
                     self.summary("HEAD").unwrap_or_default()
                 ),
             ),
-            (Some(b), false) => header(
-                "Head:",
-                &format!("{} (no commits yet)", label(Path::new(b))),
-            ),
+            // magit-insert-error-header... and the unborn branch's line.
+            (Some(_), false) => "In the beginning there was darkness".into(),
             (None, _) => {
                 let hash = self.short_ref("HEAD").and_then(|_| {
                     self.read(&["rev-parse", "--short", "HEAD"])

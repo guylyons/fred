@@ -48,7 +48,6 @@ pub fn initial_style(kind: Kind) -> usize {
         0
     }
 }
-pub const HEADING_WIDTH: usize = 48;
 
 /// magit-blame-type plus echo, which is addition without read-only keys.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -253,6 +252,15 @@ impl Blame {
             label(Path::new(&info.summary))
         )
     }
+    /// The heading drawn on its own line above LINE, when LINE starts a
+    /// chunk and the style is headings.
+    pub fn heading_above(&self, line: usize) -> Option<String> {
+        if self.echo() || self.style() != "headings" {
+            return None;
+        }
+        let chunk = self.chunk_at(line).filter(|c| c.line == line)?;
+        Some(self.heading(chunk))
+    }
     /// The gutter text for a buffer line, if this style draws one.
     pub fn margin(&self, line: usize) -> Option<(usize, String)> {
         if self.echo() {
@@ -260,14 +268,6 @@ impl Blame {
         }
         let chunk = self.chunk_at(line)?;
         match self.style() {
-            "headings" => Some((
-                HEADING_WIDTH,
-                if chunk.line == line {
-                    self.heading(chunk)
-                } else {
-                    String::new()
-                },
-            )),
             "lines" => Some((1, if chunk.line == line { "┌" } else { "│" }.into())),
             _ => None,
         }
@@ -277,7 +277,6 @@ impl Blame {
             return 0;
         }
         match self.style() {
-            "headings" => HEADING_WIDTH,
             "lines" => 1,
             _ => 0,
         }

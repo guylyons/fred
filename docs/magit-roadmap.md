@@ -6,7 +6,7 @@ Nothing below is excluded from the port.
 
 ## Percentage and accounting
 
-**Verified roadmap completion: 3 / 100 points = 3%. Remaining: 97%.**
+**Verified roadmap completion: 5 / 100 points = 5%. Remaining: 95%.**
 This deliberately measures accepted deliverables, not elapsed effort, lines of
 code, or how many familiar Git verbs run. Existing partial functionality is
 listed below but earns no full-family credit. This is a conservative completion
@@ -15,8 +15,9 @@ them only with an explicit explanation and preserve the prior score.
 
 The baseline's five one-point deliverables are: pinned source checkout (done),
 explicit command/customization inventory (done), generated commands and companion
-mode inventory (done; runtime snapshot and extractor), complete menu/key/section mapping (open), and an
-acceptance scenario matrix linked to every ledger entry (open).
+mode inventory (done; runtime snapshot and extractor), complete menu/key/section mapping (done;
+docs/magit-ui-map.md, docs/magit-key-map.md, tests/magit-golden), and an acceptance scenario matrix
+linked to every ledger entry (done; docs/magit-scenarios.md).
 
 For every other row, its points are awarded together only when all five gates
 pass: full upstream source/option mapping; navigable menus and contextual keys;
@@ -27,7 +28,7 @@ additional behavior reopens its row and lowers the score until it is covered.
 
 | Order | Track | Points | Accepted | Existing partial work / remaining acceptance |
 | --- | --- | ---: | ---: | --- |
-| 1 | Source and acceptance baseline | 5 | 3 | Pin, expanded command/option and companion-mode inventory done; full Fred UI map and scenario matrix open |
+| 1 | Source and acceptance baseline | 5 | 5 | Pin, inventories, menu/key/section maps (guarded) and the coverage-generated scenario matrix |
 | 2 | Transient menus and section framework | 7 | 0 | Basic panels/toggles; remaining arguments, persistence, help, navigation, selection and context |
 | 3 | Status and refresh | 7 | 0 | Basic status/conflicts; all upstream sections, hooks, contextual operations, auto-refresh |
 | 4 | Diff, staging, discard, reset and blobs | 10 | 0 | File/hunk stage/unstage; region operations, diff variants/options, reverse/discard/reset, revision/blob navigation |
@@ -43,15 +44,17 @@ additional behavior reopens its row and lowers the score until it is covered.
 | 14 | Repository/file dispatch and maintenance | 3 | 0 | Clone/init, repository lists, ignore, sparse checkout, file actions and maintenance |
 | 15 | Patches, mail and bundles | 3 | 0 | Format/apply/export, mail-related editor equivalents, bundles and interruption handling |
 | 16 | Configuration, process UI and integrations | 5 | 0 | 237 options plus hooks; process/history diagnostics, companion modes, WIP, autorevert and Fred equivalents |
-| | Total | 100 | 3 | |
+| | Total | 100 | 5 | |
 
 ## Execution queue
 
-Customization configuration is wired for 21 upstream options (all partial).
-Next: repository-list commands and their directory/column options, then remaining
-customization behavior, complete menu/section mapping and the source-linked
-acceptance scenario matrix. Keep incomplete command behavior and safety/recovery
-gaps open; command-name coverage alone does not close a family.
+The baseline is accepted (5/5). Next: per-track acceptance in roadmap order,
+starting with track 2 (menus and sections) and track 3 (status). For each
+track, close its "gap:" notes (docs/magit-key-map.md), its "none" and
+"default only" rows in docs/magit-scenarios.md (options are now testable per
+test with options::set_for_test), then an independent review. Keep
+incomplete command behavior and safety/recovery gaps open; command-name
+coverage alone does not close a family.
 
 At every implementation commit, update the command ledger and this queue. Report
 the same score even when useful partial functionality lands but no acceptance
@@ -412,3 +415,96 @@ passed its five acceptance gates (source/option mapping, menus, behavior,
 real-Git/UI/error scenarios, independent review). Next: the baseline UI map
 and scenario matrix, then per-track acceptance reviews starting with
 status/diff/commit.
+
+October 8 checkpoint (user request): baseline UI map in progress.
+docs/magit-ui-map.md is generated from the runtime snapshot (cargo test
+write_ui_map -- --ignored) and guarded by ui_map_is_current: 523 of 565
+upstream transient entries match Fred's key and command; 9 moved, 13
+missing, 1 key differs, 18 in prefixes without a Fred menu, 1 disabled
+upstream. Added upstream magit-dispatch layout (h/? in Magit buffers) and
+evil-collection's menu keys (branch X/x, tag x, remote x, revert _), refs
+r (was v), branch-configure B / a m / a r, pull U, rebase t and =X.
+`:Magit NAME` now runs any command a menu offers (src/magit/names.rs,
+guarded by menu_names_are_current) plus in-progress continue/abort
+commands; 84 keymap-only commands are listed in the map. Open in this gate:
+transient set/save (diff/log refresh s/w; track 2 argument persistence),
+pull-or-fetch rows, pull r, remote d u, revision-jump and trailer menus,
+rebase -p (Git < 2.33 only), and the section map. Score remains 3%. Next:
+finish those rows, then the acceptance scenario matrix.
+
+October 19 (merged main): menus take any key sequence an entry names
+(including C-x keys), so branch-configure a m / a r work; C-x s / C-x C-s
+set or save a menu's arguments in every menu (saved to
+~/.local/state/fred/transient-values and used instead of the defaults),
+and the diff/log refresh menus have s/w. New menus: git-commit-insert-trailer
+(C-c C-i; a m r s t insert your identity at once) and magit-revision-jump
+(the jump menu in commit buffers). Pull r, remote d u. UI map: 548 of 565
+entries match; the 16 others carry a reason (ui_map_is_current fails on
+an unexplained one). Remaining in the gate: the section map. Score remains
+3%. Next: section map, then the acceptance scenario matrix.
+
+October 19 key map: docs/magit-key-map.md compares Fred with the user's
+evil-collection keys in every Magit mode and on each section kind (from a
+batch Emacs, tools/magit-evil-keys.el); key_map_is_current fails on an
+unexplained difference. 5000+ keys match, are a section remap or an
+equivalent; 23 (key, command) pairs carry notes, nine marked "gap:"
+(diff context outside diff buffers, log limit outside logs, a on status
+changes, submodule stage/unstage, text-mode toggle). Fixed on the way:
+[ ] and Z, stash d/p/A/x, Alt keys, P H K S U x 1-4 in every buffer,
+C-c C-c / C-c M-g / C-x keys, S-Tab, RET vs S-RET in diffs, staging a
+whole section from its heading, s/u/-/a prompting off changes, I
+(intent to add), list buffers' keys. Menu and key maps done; section map
+(buffer layout) remains in the baseline gate. Score remains 3%.
+
+October 19 render oracle: tools/magit-fixtures.sh (deterministic repositories)
+and tools/magit-render.el (upstream buffers as a terminal shows them) give
+tests/magit-golden; renders_match_upstream fails when a buffer not listed in
+RENDER_PENDING differs. Status now matches upstream for all six fixtures
+(headers, "…" collapsed headings, %-11s file lines, unmerged paths in both
+change sections, untracked hidden, merge/rebase sequences, ref labels on
+commits, unborn header). Pending: log, refs, stashes, revision and diff
+buffers. Score remains 3%.
+
+October 19 render oracle, continued: log, refs (with TAB cherries),
+stashes, revision and diff buffers now match upstream too — all 18
+goldens, RENDER_PENDING empty. Diff, commit and stash buffers keep Git's
+raw output beside upstream's layout (diff::wash: diffstat summary first,
+"%-11s" file headings, mode/rename lines, hunks; deleted files folded,
+TAB folds a file); applying, reversing, visiting, tracing and jumping
+read the raw lines through the row map. One upstream bug is not copied
+(stashes heading "(t)"). Still outside the oracle: reflog, cherry,
+process, repository and submodule lists, file logs, shortlog, blame and
+bisect buffers; hunk-level folding. Score remains 3%.
+
+Render oracle extended to reflog, cherry, file log, repository list and
+submodule list (24 goldens, all matching; tabulated lists' column header
+is Fred's first row, standing in for Emacs's header line). Reflog rows
+use magit-reflog-format-subject labels; push columns count only a
+configured push remote; list tag columns appear once something is marked.
+Still outside the oracle: process, blame, bisect and shortlog buffers.
+
+Blame and bisect join the oracle (27 goldens, all matching). Blame's
+headings style now draws each chunk's heading on its own row above the
+chunk, as upstream does in a terminal (virtual rows counted by scrolling
+and the mouse), instead of a 48-column gutter. Bisect sections follow
+upstream: the full shell message, the rest as an aligned log without
+refs/bisect labels, and the log grouped by "git bisect" command (items
+folded; expanding them is a gap). Process and shortlog buffers remain
+outside the oracle.
+
+October 19: baseline accepted, score 5%. docs/magit-scenarios.md comes from a
+coverage run (FRED_MAGIT_COVERAGE): each ported ledger entry with the tests
+that dispatch its action or set/read its option. Dispatch-level only (a key,
+menu or :Magit path), so library-level tests do not count. 159 commands are
+exercised, 82 keys are covered by the key map, 560 entries have no scenario
+yet and options were never configured by any test until options::set_for_test
+(a per-test override carried into Git worker threads).
+
+Track 2 (menus and sections), in progress: menu values now live for one
+invocation unless set (C-x s) or saved (C-x C-s), as transient values do;
+suffix levels follow upstream (src/magit/levels.rs from the UI map: level
+5-7 suffixes hidden at the default 4, level 0 never shown; C-x l sets a
+menu's level, saved in ~/.local/state/fred/transient-levels). Open in this
+track: per-suffix levels (C-x l then a suffix), transient history (M-p/M-n
+when reading values), suffix help (C-h), hunk-level folding, the
+three-state section cycles, bisect log items, text-mode toggle.

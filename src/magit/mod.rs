@@ -9,14 +9,17 @@ pub mod clone;
 pub mod commands;
 pub mod commit;
 pub mod configure;
+pub mod coverage;
 pub mod diff;
 pub mod ediff;
 pub mod ignore;
+pub mod levels;
 pub mod log;
 pub mod margin;
 pub mod merge;
 pub mod message;
 pub mod misc;
+pub mod names;
 pub mod network;
 pub mod notes;
 pub mod options;
@@ -166,6 +169,11 @@ pub enum Action {
     ProcessBuffer,
     /// A git-commit trailer by key, read for the current draft.
     Trailer(&'static str),
+    /// A trailer with the user's own identity (git-commit-get-ident).
+    TrailerSelf(&'static str),
+    /// transient-set (C-x s) or, when true, transient-save (C-x C-s): the
+    /// menu's arguments become its defaults (saved: in later sessions too).
+    TransientSet(bool),
     /// A magit-ediff.el command (difftool / mergetool in the terminal).
     Ediff(ediff::Op),
     /// magit-ediff-dwim: by the thing at point.
@@ -290,6 +298,8 @@ pub enum Action {
     Toggle,
     Stage,
     Unstage,
+    /// git add --intent-to-add on an untracked file (evil-collection's I).
+    StageIntent,
     Visit,
     Return,
 }
@@ -432,6 +442,19 @@ pub struct View {
     pub marked: HashSet<PathBuf>,
     /// A refs buffer's full ref name per row.
     pub refnames: HashMap<usize, String>,
+    /// A log buffer's rows whose commit has refs (magit-next-reference).
+    pub labelled: HashSet<usize>,
+    /// A refs buffer's expanded refs, which show their cherries.
+    pub open_refs: HashSet<String>,
+    /// A diff, commit or stash buffer's Git output, the raw line each row
+    /// shows (diff::wash's layout), its file headings, and the files whose
+    /// fold TAB toggled (deleted files start folded).
+    pub raw: Vec<u8>,
+    /// Where each raw line starts.
+    pub raw_starts: Vec<usize>,
+    pub row_raw: Vec<Option<usize>>,
+    pub diff_files: HashMap<usize, String>,
+    pub diff_toggled: HashSet<String>,
 }
 /// magit-log-select's pick function: answer QUESTION with the commit, after
 /// the answers already given.
@@ -448,6 +471,8 @@ impl View {
     pub fn new_status(repo: Repo, mut snapshot: Snapshot) -> Self {
         snapshot.extra = repo.status_extra();
         let mut v = Self::status(repo, snapshot);
+        // magit-insert-files and magit-insert-stashes insert hidden.
+        v.closed.insert(Section::Untracked);
         v.closed.insert(Section::Stashes);
         for (section, heading, _) in &v.snapshot.extra.logs {
             if *section != Section::UnpushedUpstream || heading == "Recent commits" {
@@ -555,6 +580,13 @@ impl View {
             forward: vec![],
             marked: HashSet::new(),
             refnames: HashMap::new(),
+            labelled: HashSet::new(),
+            open_refs: HashSet::new(),
+            raw: vec![],
+            raw_starts: vec![],
+            row_raw: vec![],
+            diff_files: HashMap::new(),
+            diff_toggled: HashSet::new(),
         };
         v.rebuild();
         v
@@ -711,212 +743,237 @@ impl View {
         }
         Ok(())
     }
+    /// Show BYTES (git diff or show output) as upstream lays diffs out.
+    pub fn set_diff(&mut self, bytes: Vec<u8>) {
+        let text = String::from_utf8_lossy(&bytes[..bytes.len().min(4 * 1024 * 1024)]).into_owned();
+        let lines: Vec<&str> = text.lines().collect();
+        let toggled = &self.diff_toggled;
+        let washed = diff::wash(&lines, &|f, status| {
+            (status == "deleted") != toggled.contains(f)
+        });
+        self.rows.clear();
+        self.row_raw.clear();
+        self.diff_files.clear();
+        for w in washed {
+            if let Some(f) = w.file {
+                self.diff_files.insert(self.rows.len(), f);
+            }
+            self.row_raw.push(w.raw);
+            self.rows.push(Row {
+                text: label(std::path::Path::new(
+                    &w.text.chars().take(20_000).collect::<String>(),
+                )),
+                action: None,
+            });
+        }
+        if bytes.len() > text.len() {
+            self.rows.push(Row {
+                text: "[output truncated]".into(),
+                action: None,
+            });
+        }
+        self.raw_starts = std::iter::once(0)
+            .chain(
+                bytes
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, b)| **b == b'\n')
+                    .map(|(i, _)| i + 1),
+            )
+            .collect();
+        self.raw = bytes;
+    }
+    /// Raw line K (without its newline).
+    pub fn raw_line(&self, k: usize) -> Option<std::borrow::Cow<'_, str>> {
+        let start = *self.raw_starts.get(k)?;
+        let end = self.raw_starts.get(k + 1).map_or(self.raw.len(), |e| e - 1);
+        let line = self.raw.get(start..end.max(start))?;
+        Some(String::from_utf8_lossy(
+            line.strip_suffix(b"\r").unwrap_or(line),
+        ))
+    }
+    /// The raw Git output's text (see set_diff).
+    pub fn raw_text(&self) -> std::borrow::Cow<'_, str> {
+        String::from_utf8_lossy(&self.raw)
+    }
+    /// The raw line ROW shows.
+    pub fn raw_at(&self, row: usize) -> Option<usize> {
+        self.row_raw.get(row).copied().flatten()
+    }
+    /// The row showing raw line RAW (or the first after it).
+    pub fn row_of_raw(&self, raw: usize) -> Option<usize> {
+        self.row_raw
+            .iter()
+            .position(|r| r.is_some_and(|r| r >= raw))
+    }
+    /// ROW is inside a file's diff (below its "diff" line).
+    pub fn in_diff(&self, row: usize) -> bool {
+        self.raw_at(row).is_some_and(|r| {
+            self.raw_text()
+                .lines()
+                .take(r + 1)
+                .any(|l| l.starts_with("diff "))
+        })
+    }
     pub fn rebuild(&mut self) {
         if self.kind != Kind::Status {
             return;
         }
-        self.rows.clear();
-        for header in &self.snapshot.extra.headers {
-            self.rows.push(Row {
-                text: header.clone(),
+        // magit-status-mode as a terminal shows it: the headers, a blank
+        // line, then each section's heading ("…" when collapsed) and, when
+        // expanded, its body and a blank line.
+        let mut rows: Vec<Row> = self
+            .snapshot
+            .extra
+            .headers
+            .iter()
+            .map(|h| Row {
+                text: h.clone(),
                 action: None,
-            });
-        }
-        if let Some(operation) = &self.snapshot.operation
-            && self.snapshot.extra.sequences.is_empty()
-        {
-            self.rows.push(Row {
-                text: format!("In progress: {operation}"),
-                action: None,
-            });
-        }
-        // The in-progress sections of magit-status-sections-hook.
-        for (section, heading, lines) in &self.snapshot.extra.sequences {
-            let shut = self.closed.contains(section);
-            self.rows.push(Row {
-                text: String::new(),
-                action: None,
-            });
-            self.rows.push(Row {
-                text: format!("{} {heading}", if shut { ">" } else { "v" }),
-                action: Some(RowAction::Section(*section)),
-            });
-            if shut {
-                continue;
-            }
-            for (text, commit) in lines {
-                self.rows.push(Row {
-                    text: format!("  {}", label(std::path::Path::new(text))),
-                    action: commit.clone().map(RowAction::Commit),
-                });
-            }
-        }
-        self.rows.push(Row {
-            text: "Tab expand  s stage  u unstage  gr refresh  Enter visit  q return".into(),
+            })
+            .collect();
+        rows.push(Row {
+            text: String::new(),
             action: None,
         });
-        if self.snapshot.entries.is_empty() {
-            self.rows.push(Row {
-                text: "Working tree clean".into(),
-                action: None,
+        let closed = &self.closed;
+        let section = |rows: &mut Vec<Row>, section: Section, heading: String, body: Vec<Row>| {
+            let shut = closed.contains(&section);
+            rows.push(Row {
+                text: format!("{heading}{}", if shut { "…" } else { "" }),
+                action: Some(RowAction::Section(section)),
             });
+            if !shut {
+                rows.extend(body);
+                rows.push(Row {
+                    text: String::new(),
+                    action: None,
+                });
+            }
+        };
+        // The in-progress sections of magit-status-sections-hook.
+        for (s, heading, lines) in &self.snapshot.extra.sequences {
+            let body = lines
+                .iter()
+                .map(|(text, commit)| Row {
+                    text: label(std::path::Path::new(text)),
+                    action: commit.clone().map(RowAction::Commit),
+                })
+                .collect();
+            section(&mut rows, *s, heading.clone(), body);
         }
-        for section in [
-            Section::Conflicts,
-            Section::Untracked,
-            Section::Unstaged,
-            Section::Staged,
-        ] {
+        for s in [Section::Untracked, Section::Unstaged, Section::Staged] {
+            // Conflicted paths are "unmerged" in both change sections.
             let entries: Vec<_> = self
                 .snapshot
                 .entries
                 .iter()
-                .filter(|e| section.contains(e))
+                .filter(|e| s.contains(e) || e.conflict && s != Section::Untracked)
                 .collect();
             if entries.is_empty() {
                 continue;
             }
-            let shut = self.closed.contains(&section);
-            self.rows.push(Row {
-                text: String::new(),
-                action: None,
-            });
-            self.rows.push(Row {
-                text: format!(
-                    "{} {} ({})",
-                    if shut { ">" } else { "v" },
-                    section.name(),
-                    entries.len()
-                ),
-                action: Some(RowAction::Section(section)),
-            });
-            if shut {
-                continue;
-            }
+            let count = entries.len();
             // magit-status-file-list-limit for the untracked file list.
-            let limit = if section == Section::Untracked {
+            let limit = if s == Section::Untracked {
                 options::int("magit-status-file-list-limit", 100).max(0) as usize
             } else {
                 usize::MAX
             };
-            let unlisted = entries.len().saturating_sub(limit);
-            let entries: Vec<_> = entries.into_iter().take(limit).collect();
-            for e in entries {
-                let staged = section == Section::Staged;
-                let key = (e.path.clone(), staged);
-                let expanded = self.expanded.contains(&key);
+            let mut body = vec![];
+            for e in entries.iter().take(limit) {
                 let name = e.old_path.as_ref().map_or_else(
                     || label(&e.path),
                     |old| format!("{} -> {}", label(old), label(&e.path)),
                 );
-                self.rows.push(Row {
-                    text: format!("  {} {} {}", if expanded { "v" } else { ">" }, e.xy, name),
-                    action: Some(RowAction::File(e.path.clone(), section)),
+                if s == Section::Untracked {
+                    body.push(Row {
+                        text: name,
+                        action: Some(RowAction::File(e.path.clone(), s)),
+                    });
+                    continue;
+                }
+                let staged = s == Section::Staged;
+                let key = (e.path.clone(), staged);
+                let expanded = self.expanded.contains(&key);
+                let xy = e.xy.as_bytes();
+                let word = if e.conflict {
+                    "unmerged"
+                } else {
+                    status_word(xy[usize::from(!staged)])
+                };
+                // A staged conflict has no diff to show.
+                let more = if expanded || e.conflict && staged {
+                    ""
+                } else {
+                    "…"
+                };
+                body.push(Row {
+                    text: format!("{word:<11}{name}{more}"),
+                    action: Some(RowAction::File(
+                        e.path.clone(),
+                        if e.conflict { Section::Conflicts } else { s },
+                    )),
                 });
                 if expanded && let Some(d) = self.diffs.get(&key) {
-                    let mut off = 0;
-                    let mut hunk = None;
-                    let mut source_line = 0;
-                    for bytes in d.bytes.split_inclusive(|b| *b == b'\n') {
-                        if off >= 1024 * 1024 {
-                            self.rows.push(Row {
-                                text: "    [diff display truncated]".into(),
-                                action: None,
-                            });
-                            break;
-                        }
-                        if let Some((i, h)) =
-                            d.hunks.iter().enumerate().find(|(_, h)| h.start == off)
-                        {
-                            hunk = Some(i);
-                            source_line = h.line;
-                        }
-                        let text = String::from_utf8_lossy(&bytes[..bytes.len().min(20_000)])
-                            .trim_end_matches('\n')
-                            .to_string();
-                        // Keep control sequences from repository text out of the terminal.
-                        let text = label(std::path::Path::new(&text));
-                        let action =
-                            hunk.map(|i| RowAction::Hunk(e.path.clone(), staged, i, source_line));
-                        self.rows.push(Row {
-                            text: format!("    {text}"),
-                            action,
-                        });
-                        if !bytes.starts_with(b"-") && !bytes.starts_with(b"@@") && hunk.is_some() {
-                            source_line += 1;
-                        }
-                        off += bytes.len();
-                    }
-                    if d.bytes.is_empty() {
-                        self.rows.push(Row {
-                            text: "    No textual diff; use whole-file staging".into(),
-                            action: None,
-                        });
-                    }
+                    body.extend(file_body(d, &e.path, staged));
                 }
             }
-            if unlisted > 0 {
-                self.rows.push(Row {
-                    text: format!("  {unlisted} files not listed"),
+            if count > limit {
+                body.push(Row {
+                    text: format!("{} files not listed", count - limit),
                     action: None,
                 });
             }
+            section(&mut rows, s, format!("{} ({count})", s.name()), body);
         }
         // magit-insert-stashes and the log sections of magit-status-sections-hook.
-        let mut sections: Vec<(Section, String, Vec<Row>)> = vec![];
         if !self.snapshot.extra.stashes.is_empty() {
-            let rows = self
+            let body: Vec<Row> = self
                 .snapshot
                 .extra
                 .stashes
                 .iter()
                 .map(|stash| Row {
                     text: format!(
-                        "  {} {}",
+                        "{} {}",
                         stash.selector,
                         label(std::path::Path::new(&stash.subject))
                     ),
                     action: Some(RowAction::Stash(stash.clone())),
                 })
                 .collect();
-            sections.push((Section::Stashes, "Stashes".into(), rows));
+            let n = body.len();
+            section(&mut rows, Section::Stashes, format!("Stashes ({n})"), body);
         }
-        for (section, heading, commits) in &self.snapshot.extra.logs {
-            let rows = commits
+        for (s, heading, commits) in &self.snapshot.extra.logs {
+            let body: Vec<Row> = commits
                 .iter()
                 .map(|c| Row {
-                    text: format!(
-                        "  {} {}",
+                    text: [
                         &c.id[..c.id.len().min(7)],
-                        label(std::path::Path::new(&c.subject))
-                    ),
+                        &c.refs,
+                        &label(std::path::Path::new(&c.subject)),
+                    ]
+                    .iter()
+                    .filter(|p| !p.is_empty())
+                    .copied()
+                    .collect::<Vec<_>>()
+                    .join(" "),
                     action: Some(RowAction::Commit(c.id.clone())),
                 })
                 .collect();
-            sections.push((*section, heading.clone(), rows));
-        }
-        for (section, heading, rows) in sections {
-            let shut = self.closed.contains(&section);
-            self.rows.push(Row {
-                text: String::new(),
-                action: None,
-            });
             // magit-section-show-child-count, except for recent commits.
             let count = if heading == "Recent commits" {
                 String::new()
-            } else if section != Section::Stashes && rows.len() >= status::LIMIT {
-                format!(" ({}+)", rows.len())
+            } else if body.len() >= status::LIMIT {
+                format!(" ({}+)", body.len())
             } else {
-                format!(" ({})", rows.len())
+                format!(" ({})", body.len())
             };
-            self.rows.push(Row {
-                text: format!("{} {heading}{count}", if shut { ">" } else { "v" }),
-                action: Some(RowAction::Section(section)),
-            });
-            if !shut {
-                self.rows.extend(rows);
-            }
+            section(&mut rows, *s, format!("{heading}{count}"), body);
         }
+        self.rows = rows;
     }
     pub fn selection(&self, action: &Option<RowAction>, fallback: usize) -> usize {
         // A commit can appear in several sections: keep the occurrence nearest
@@ -935,26 +992,40 @@ impl View {
 pub fn wants_alt(ed: &Editor) -> bool {
     ed.magit.is_some() || ed.blame.is_some() || ed.rebase_todo.is_some() || ed.commit_repo.is_some()
 }
+/// A menu key as entries spell it: "a", or "C-a" for a control key.
+fn menu_key_name(k: &Key) -> String {
+    match k.code {
+        KeyCode::Char(c) if k.ctrl => format!("C-{c}"),
+        KeyCode::Char(c) => c.to_string(),
+        _ => String::new(),
+    }
+}
 /// Intercept the extra prefix and component-local keys before Vim editing.
 pub fn key(ed: &mut Editor, k: Key) -> bool {
     if let Mode::Pick(picker) = &ed.mode
         && picker.kind == crate::pick::Kind::MagitMenu
     {
-        if k.is(KeyCode::Esc) || k == Key::ctrl('g') || k == Key::ctrl('c') {
+        let entries = shown_entries(ed, ed.magit_menu.unwrap_or('*'));
+        // C-c cancels unless the menu binds it (git-commit-insert-trailer).
+        let cancel_c = k == Key::ctrl('c') && !entries.iter().any(|e| e.0 == "C-c");
+        if k.is(KeyCode::Esc) || k == Key::ctrl('g') || cancel_c {
             ed.mode = Mode::Normal;
             ed.magit_menu = None;
             ed.vim.pending.clear();
             ed.msg = None;
             return true;
         }
-        let entries = menu_entries(ed.magit_menu.unwrap_or('*'));
-        // Menu h (status jump) has fu fp pu pp.
-        let jump_prefix = ed.magit_menu == Some('h') && matches!(k.char(), Some('f' | 'p'));
-        if !k.ctrl
-            && ed.vim.pending.is_empty()
-            && (jump_prefix || matches!(k.char(), Some('-' | '+' | '=' | ',' | '/')))
+        // Keys typed so far: "-f", "am", "C-a" (control keys spelled C-x).
+        let typed = matches!(k.code, KeyCode::Char(_) if !k.alt).then(|| {
+            let mut s: String = ed.vim.pending.iter().map(menu_key_name).collect();
+            s.push_str(&menu_key_name(&k));
+            s
+        });
+        if let Some(t) = &typed
+            && !entries.iter().any(|e| e.0 == t)
+            && (t == "C-x" || entries.iter().any(|e| e.0.starts_with(t.as_str())))
         {
-            ed.vim.pending = vec![k];
+            ed.vim.pending.push(k);
             return true;
         }
         let suffix = if k.is(KeyCode::Enter) {
@@ -963,29 +1034,51 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
                 .get(picker.sel)
                 .and_then(|r| entries.get(r.line))
                 .map(|entry| entry.0.to_owned())
-        } else if !k.ctrl && !k.alt {
-            k.char().map(|c| {
-                format!(
-                    "{}{c}",
-                    match ed.vim.pending.as_slice() {
-                        [key] if *key == Key::ch('-') => "-",
-                        [key] if *key == Key::ch('+') => "+",
-                        [key] if *key == Key::ch('=') => "=",
-                        [key] if *key == Key::ch(',') => ",",
-                        [key] if *key == Key::ch('/') => "/",
-                        [key] if *key == Key::ch('f') => "f",
-                        [key] if *key == Key::ch('p') => "p",
-                        _ => "",
-                    }
-                )
-            })
         } else {
-            None
+            typed
         };
         if let Some(suffix) = suffix {
             let menu = ed.magit_menu.unwrap_or('*');
             ed.vim.pending.clear();
-            if let Some((_, _, _, action)) = entries.into_iter().find(|(key, ..)| *key == suffix) {
+            let found = entries.into_iter().find(|(key, ..)| *key == suffix);
+            let transient = match suffix.as_str() {
+                "C-xs" => Some(Action::TransientSet(false)),
+                "C-xC-s" => Some(Action::TransientSet(true)),
+                // transient-set-level: the prefix's level.
+                "C-xl" => {
+                    ed.mode = Mode::Normal;
+                    ed.magit_menu = None;
+                    prompt(ed, Prompt::MenuLevel(menu));
+                    return true;
+                }
+                _ => None,
+            };
+            if let Some(action) = found.map(|e| e.3).or(transient) {
+                coverage::record("action", &format!("{action:?}"));
+                if let Action::TransientSet(save) = action {
+                    ed.mode = Mode::Normal;
+                    ed.magit_menu = None;
+                    let am = arg_menu(menu);
+                    let args = menu_arguments(ed, am);
+                    ed.magit_set.insert(am, args.clone());
+                    match save.then(|| save_values(am, &args)) {
+                        Some(Err(e)) => {
+                            return {
+                                ed.set_err(e);
+                                true
+                            };
+                        }
+                        Some(Ok(())) => ed.set_msg("Saved"),
+                        None => ed.set_msg("Set"),
+                    }
+                    // magit-diff-refresh and magit-log-refresh also refresh.
+                    ed.pending_effect = match menu {
+                        'D' => Some(ExEffect::Magit(Action::DiffRefresh(diff::Refresh::Buffer))),
+                        'R' => Some(ExEffect::Magit(Action::LogRefresh)),
+                        _ => None,
+                    };
+                    return true;
+                }
                 if let Action::CycleOption(prefix) = action {
                     cycle_choice(ed, arg_menu(menu), prefix);
                     // magit-pull :incompatible --ff-only with rebasing choices.
@@ -1084,11 +1177,39 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     if ed.magit.is_none() {
         return false;
     }
+    // magit-repolist-mode (and magit-submodule-list-mode, derived from it)
+    // under evil-collection: RET m u f and g r; Vim has every other key.
+    if ed
+        .magit
+        .as_ref()
+        .is_some_and(|v| matches!(v.kind, Kind::Repos | Kind::Modules))
+    {
+        let action = match (ed.vim.pending.as_slice(), k.code, k.ctrl || k.alt) {
+            ([g], KeyCode::Char('r'), false) if *g == Key::ch('g') => Some(Action::Refresh),
+            ([], KeyCode::Enter, false) => Some(Action::Visit),
+            ([], KeyCode::Char('m'), false) => Some(Action::RepolistMark(true)),
+            ([], KeyCode::Char('u'), false) => Some(Action::RepolistMark(false)),
+            ([], KeyCode::Char('f'), false) => Some(Action::RepolistFetch),
+            ([], KeyCode::Char('q'), false) => Some(Action::Return),
+            _ => None,
+        };
+        let Some(action) = action else {
+            return false;
+        };
+        ed.vim.pending.clear();
+        ed.pending_effect = Some(ExEffect::Magit(action));
+        return true;
+    }
     // evil-collection's status jumpers: gz gn gu gs, gfu gfp, gpu gpp.
     if ed.magit.as_ref().is_some_and(|v| v.kind == Kind::Status) && !k.ctrl && !k.alt {
         let target = match (ed.vim.pending.as_slice(), k.char()) {
             ([g], Some(c @ ('f' | 'p'))) if *g == Key::ch('g') => {
                 ed.vim.pending.push(Key::ch(c));
+                return true;
+            }
+            ([g], Some('t')) if *g == Key::ch('g') => {
+                ed.vim.pending.clear();
+                ed.pending_effect = Some(ExEffect::Magit(Action::Jump("Tracked files")));
                 return true;
             }
             ([g], Some('z')) if *g == Key::ch('g') => Some(Section::Stashes),
@@ -1136,33 +1257,22 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     if !k.ctrl || matches!(code, Some('j' | 'k')) {
         let pending = ed.vim.pending.clone();
         let mv = match (pending.as_slice(), code, k.ctrl, k.alt) {
-            ([], Some('j'), true, false) => {
-                // C-j on a file or hunk visits the worktree file (section maps).
-                let on_file = ed.magit.as_ref().is_some_and(|v| {
-                    matches!(
-                        v.action_at(ed.cur.line),
-                        Some(RowAction::File(..) | RowAction::Hunk(..))
-                    )
-                });
-                if on_file {
-                    ed.pending_effect = Some(ExEffect::Magit(Action::Visit));
-                    return true;
-                }
-                // Diff, commit and stash buffers: lines are in file/hunk sections.
-                if ed.magit.as_ref().is_some_and(|v| {
-                    matches!(
-                        v.kind,
-                        Kind::Diff(..) | Kind::Patch(_) | Kind::StashPatch(_)
-                    )
-                }) {
-                    ed.pending_effect = Some(ExEffect::Magit(Action::VisitWorktree));
-                    return true;
-                }
-                Some(Move::Next)
-            }
+            // evil-collection takes C-j back from the file and hunk maps.
+            ([], Some('j'), true, false) => Some(Move::Next),
             ([], Some('k'), true, false) => Some(Move::Prev),
-            ([], Some('j'), false, true) | ([], Some(']'), false, false) => Some(Move::NextSibling),
-            ([], Some('k'), false, true) | ([], Some('['), false, false) => Some(Move::PrevSibling),
+            ([], Some('[' | ']'), false, false) => {
+                ed.vim.pending = vec![k];
+                return true;
+            }
+            ([b], Some(']'), false, false) if *b == Key::ch(']') => Some(Move::NextSibling),
+            ([b], Some('['), false, false) if *b == Key::ch('[') => Some(Move::PrevSibling),
+            // Vim's other [ and ] keys mean nothing in a Magit buffer.
+            ([b], _, _, _) if *b == Key::ch('[') || *b == Key::ch(']') => {
+                ed.vim.pending.clear();
+                return true;
+            }
+            ([], Some('j' | 'n'), false, true) => Some(Move::NextSibling),
+            ([], Some('k' | 'p'), false, true) => Some(Move::PrevSibling),
             ([g], Some('j'), false, false) if *g == Key::ch('g') => Some(Move::NextSibling),
             ([g], Some('k'), false, false) if *g == Key::ch('g') => Some(Move::PrevSibling),
             ([g], Some('h'), false, false) if *g == Key::ch('g') => Some(Move::Up),
@@ -1177,11 +1287,8 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         // magit-section-show-level-N (1-4, around point) and -all (M-1..M-4);
         // evil-collection's z fold keys are off by default (use-z-for-folds).
         let fold = match (pending.as_slice(), code, k.ctrl, k.alt) {
-            // ponytail: status buffers only, so counts (12G) keep working
-            // in diff and log buffers.
-            ([], Some(c @ '1'..='4'), false, alt)
-                if ed.magit.as_ref().is_some_and(|v| v.kind == Kind::Status) =>
-            {
+            // magit-mode-map binds 1-4 in every Magit buffer (no counts).
+            ([], Some(c @ '1'..='4'), false, alt) => {
                 let n = c as u8 - b'0';
                 Some(Action::Fold(if alt {
                     Fold::Level(n)
@@ -1198,10 +1305,17 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     }
     // evil-collection (use-y-for-yank): ys copies the section value, yb the
     // buffer's revision, yr shows refs.
-    if ed.vim.pending == [Key::ch('y')] && matches!(k.char(), Some('s' | 'b' | 'r')) {
+    let yank = match (ed.vim.pending.as_slice(), k.code) {
+        ([y], KeyCode::Char(c @ ('s' | 'b' | 'r'))) if *y == Key::ch('y') && !k.ctrl && !k.alt => {
+            Some(c)
+        }
+        ([], KeyCode::Char('w')) if k.alt && !k.ctrl => Some('b'),
+        _ => None,
+    };
+    if yank.is_some() {
         ed.vim.pending.clear();
         // A commit also goes on magit-revision-stack (magit-pop-revision-stack).
-        let value = match k.char() {
+        let value = match yank {
             Some('r') => {
                 open_menu(ed, 'y');
                 return true;
@@ -1249,15 +1363,20 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     // magit-jump-to-diffstat-or-diff (gd in diff and commit buffers).
     if ed.vim.pending == [Key::ch('g')]
         && k.char() == Some('d')
-        && ed
-            .magit
-            .as_ref()
-            .is_some_and(|v| matches!(v.kind, Kind::Diff(..) | Kind::Patch(_)))
+        && ed.magit.as_ref().is_some_and(|v| {
+            matches!(
+                v.kind,
+                Kind::Diff(..) | Kind::Patch(_) | Kind::StashPatch(_)
+            )
+        })
     {
         ed.vim.pending.clear();
         let view = ed.magit.as_ref().unwrap();
-        let lines: Vec<&str> = view.rows.iter().map(|r| r.text.as_str()).collect();
-        match diff::stat_or_diff(&lines, ed.cur.line) {
+        let raw = view.raw_text();
+        let lines: Vec<&str> = raw.lines().collect();
+        let target = diff::stat_or_diff(&lines, view.raw_at(ed.cur.line).unwrap_or(0))
+            .and_then(|r| view.row_of_raw(r));
+        match target {
             Some(i) => ed.set_cursor(i, 0),
             None => ed.set_msg("No diffstat here"),
         }
@@ -1300,6 +1419,8 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
                 ed.pending_effect = Some(ExEffect::Magit(Action::Go(k == Key::ctrl('b'))));
             } else if selecting && k == Key::ctrl('c') {
                 ed.pending_effect = Some(ExEffect::Magit(Action::SelectPick));
+            } else if let Some(a) = c_c_key(ed, k) {
+                ed.pending_effect = Some(ExEffect::Magit(a));
             } else if selecting && k == Key::ctrl('k') {
                 ed.pending_effect = Some(ExEffect::Magit(Action::SelectQuit));
             }
@@ -1345,13 +1466,46 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             {
                 Some(Action::Thing(c))
             } else {
-                None
+                c_c_key(ed, k)
             };
             if let Some(a) = action {
                 ed.pending_effect = Some(ExEffect::Magit(a));
             }
             return true;
         }
+    }
+    // Emacs's C-x keys that Magit binds: g status, M-g dispatch, C-j dired,
+    // C-w save the diff as a patch.
+    if ed.vim.pending.is_empty() && k == Key::ctrl('x') {
+        ed.vim.pending = vec![k];
+        return true;
+    }
+    if ed.vim.pending == [Key::ctrl('x')] {
+        ed.vim.pending.clear();
+        let action = match (k.code, k.ctrl, k.alt) {
+            (KeyCode::Char('g'), false, false) => Some(Action::Status),
+            (KeyCode::Char('g'), false, true) => Some(Action::Menu('?')),
+            (KeyCode::Char('j'), true, _) => Some(Action::DiredJump),
+            (KeyCode::Char('w'), true, _) if diff_like(ed) => Some(Action::Patch(patch::Op::Save)),
+            _ => None,
+        };
+        match action {
+            Some(Action::Menu(m)) => open_menu(ed, m),
+            Some(a) => ed.pending_effect = Some(ExEffect::Magit(a)),
+            None => {}
+        }
+        return true;
+    }
+    // magit-section-cycle-global: collapse everything, else expand it all.
+    // shortcut: two states, not upstream's three (headings only between).
+    if ed.vim.pending.is_empty() && k.code == KeyCode::BackTab {
+        let open = ed.magit.as_ref().is_some_and(|v| v.closed.is_empty());
+        ed.pending_effect = Some(ExEffect::Magit(Action::Fold(Fold::Level(if open {
+            1
+        } else {
+            4
+        }))));
+        return true;
     }
     if ed.magit.is_some() && k.alt && k.code == KeyCode::Tab {
         ed.pending_effect = Some(ExEffect::Magit(Action::CycleDiffs));
@@ -1400,15 +1554,16 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         ed.pending_effect = Some(ExEffect::Magit(Action::Refresh));
         return true;
     }
-    if ed
-        .magit
-        .as_ref()
-        .is_some_and(|v| matches!(v.kind, Kind::Stashes | Kind::StashPatch(_)))
-    {
+    // magit-stash-section-map: magit-cherry-apply, magit-cherry-pick and
+    // magit-delete-thing become apply, pop and drop.
+    if ed.magit.as_ref().is_some_and(|v| {
+        matches!(v.kind, Kind::Stashes | Kind::StashPatch(_))
+            || matches!(v.action_at(ed.cur.line), Some(RowAction::Stash(_)))
+    }) {
         let action = match k.char() {
-            Some('a') if !k.ctrl => Some(workflows::StashAction::Apply),
-            Some('p') if !k.ctrl => Some(workflows::StashAction::Pop),
-            Some('d' | 'x') if !k.ctrl => Some(workflows::StashAction::Drop),
+            Some('a') => Some(workflows::StashAction::Apply),
+            Some('A') => Some(workflows::StashAction::Pop),
+            Some('x') => Some(workflows::StashAction::Drop),
             _ => None,
         };
         if let Some(action) = action {
@@ -1416,20 +1571,25 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             return true;
         }
     }
+    if k.alt && matches!(k.code, KeyCode::Char(_)) {
+        return false;
+    }
     let action = match k.code {
         KeyCode::Tab => Some(Action::Toggle),
-        KeyCode::Enter => Some(Action::Visit),
-        KeyCode::Char('j')
+        // evil-collection-magit-visit-worktree-file-on-return: in a file's
+        // diff RET visits the worktree file, S-RET the blob.
+        KeyCode::Enter if !k.shift && in_file_diff(ed) => Some(Action::VisitWorktree),
+        // magit-refs-set-show-commit-count.
+        KeyCode::Char('y')
             if k.ctrl
-                && ed.magit.as_ref().is_some_and(|v| {
-                    matches!(
-                        v.kind,
-                        Kind::Diff(..) | Kind::Patch(_) | Kind::StashPatch(_)
-                    )
-                }) =>
+                && ed
+                    .magit
+                    .as_ref()
+                    .is_some_and(|v| matches!(v.kind, Kind::Refs(..))) =>
         {
-            Some(Action::VisitWorktree)
+            Some(Action::Refs(refs::Op::Count))
         }
+        KeyCode::Enter => Some(Action::Visit),
         // magit-repolist-mode-map: m u f 5 (RET visits, as in every list).
         KeyCode::Char(c @ ('m' | 'u' | 'f' | '5'))
             if !k.ctrl && !k.alt && ed.magit.as_ref().is_some_and(|v| v.kind == Kind::Repos) =>
@@ -1446,13 +1606,17 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             if !k.ctrl
                 && !k.alt
                 && ed.magit.as_ref().is_some_and(|v| {
-                    matches!(v.kind, Kind::Reflog(_) | Kind::Refs(..) | Kind::Cherry(..))
+                    matches!(
+                        v.kind,
+                        Kind::Reflog(_) | Kind::Refs(..) | Kind::Cherry(..) | Kind::Stashes
+                    )
                 }) =>
         {
             open_menu(ed, 'L');
             return true;
         }
-        // magit-diff-section-map: & runs a shell command on the file.
+        // magit-file- and hunk-section-map: & runs a shell command on the file
+        // (elsewhere it is Vim's).
         KeyCode::Char('&')
             if !k.ctrl
                 && !k.alt
@@ -1460,7 +1624,7 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
                     matches!(
                         v.action_at(ed.cur.line),
                         Some(RowAction::File(..) | RowAction::Hunk(..))
-                    ) || matches!(v.kind, Kind::Diff(..) | Kind::Patch(_))
+                    )
                 }) =>
         {
             Some(Action::AsyncShell)
@@ -1469,19 +1633,13 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         KeyCode::Char('C')
             if !k.ctrl
                 && !k.alt
-                && ed.magit.as_ref().is_some_and(|v| {
-                    matches!(
-                        v.action_at(ed.cur.line),
-                        Some(RowAction::File(..) | RowAction::Hunk(..))
-                    ) || (matches!(
-                        v.kind,
-                        Kind::Diff(..) | Kind::Patch(_) | Kind::StashPatch(_)
-                    ) && v
-                        .rows
-                        .iter()
-                        .take(ed.cur.line + 1)
-                        .any(|r| r.text.starts_with("diff ")))
-                }) =>
+                && (in_file_diff(ed)
+                    || ed.magit.as_ref().is_some_and(|v| {
+                        matches!(
+                            v.action_at(ed.cur.line),
+                            Some(RowAction::File(..) | RowAction::Hunk(..))
+                        )
+                    })) =>
         {
             Some(Action::CommitAddLog)
         }
@@ -1491,8 +1649,29 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         {
             Some(Action::ReverseInIndex)
         }
-        KeyCode::Char('s') if !k.ctrl => Some(Action::Stage),
-        KeyCode::Char('u') if !k.ctrl => Some(Action::Unstage),
+        // magit-stage / magit-unstage on a file, hunk or section, else
+        // magit-stage-files / magit-unstage-files read the files.
+        KeyCode::Char('s') if !k.ctrl => Some(
+            if on_changes(ed, &[Section::Unstaged, Section::Untracked]) {
+                Action::Stage
+            } else {
+                Action::Misc(misc::Op::StageFiles(false))
+            },
+        ),
+        KeyCode::Char('u') if !k.ctrl => Some(if on_changes(ed, &[Section::Staged]) {
+            Action::Unstage
+        } else {
+            Action::Misc(misc::Op::UnstageFiles)
+        }),
+        // evil-collection: I stages an untracked file with intent to add.
+        KeyCode::Char('I')
+            if !k.ctrl
+                && ed.magit.as_ref().is_some_and(|v| {
+                    matches!(v.action_at(ed.cur.line), Some(RowAction::File(..)))
+                }) =>
+        {
+            Some(Action::StageIntent)
+        }
         // evil-collection: o reset quickly, ! run, | git command.
         KeyCode::Char('o') if !k.ctrl && !k.alt => Some(Action::Misc(misc::Op::ResetQuickly)),
         KeyCode::Char('!') if !k.ctrl && !k.alt => {
@@ -1506,23 +1685,71 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         }
         // evil-collection: x discard (magit-delete-thing), - reverse,
         // S stage all modified, U unstage all.
-        KeyCode::Char(c @ ('x' | '-' | 'S' | 'U'))
-            if !k.ctrl && ed.magit.as_ref().is_some_and(|v| v.kind == Kind::Status) =>
+        // magit-branch-section-map remaps magit-file-rename to magit-branch-rename.
+        KeyCode::Char('R')
+            if !k.ctrl
+                && ed
+                    .magit
+                    .as_ref()
+                    .and_then(|v| v.refnames.get(&ed.cur.line))
+                    .is_some_and(|r| r.starts_with("refs/heads/")) =>
         {
-            Some(Action::ApplyOp(match c {
-                'x' => apply::Kind::Discard,
-                '-' => apply::Kind::Reverse,
-                'S' => apply::Kind::StageModified,
-                _ => apply::Kind::UnstageAll,
-            }))
+            Some(Action::Branch(branch::Op::Rename))
         }
-        // On a commit, - is magit-revert-no-commit and a magit-cherry-apply.
+        // magit-stashes-section-map: magit-delete-thing is magit-stash-clear.
+        KeyCode::Char('x')
+            if !k.ctrl
+                && ed.magit.as_ref().is_some_and(|v| {
+                    v.action_at(ed.cur.line) == Some(RowAction::Section(Section::Stashes))
+                }) =>
+        {
+            Some(Action::StashOp(stash::Op::Clear))
+        }
+        // magit-process-kill.
+        KeyCode::Char('x')
+            if !k.ctrl && ed.magit.as_ref().is_some_and(|v| v.kind == Kind::Process) =>
+        {
+            Some(Action::ProcessKill)
+        }
+        // magit-delete-thing on a branch or tag (magit-branch-section-map,
+        // magit-tag-section-map).
+        KeyCode::Char('x')
+            if !k.ctrl
+                && ed
+                    .magit
+                    .as_ref()
+                    .is_some_and(|v| v.refnames.contains_key(&ed.cur.line)) =>
+        {
+            let tag = ed
+                .magit
+                .as_ref()
+                .and_then(|v| v.refnames.get(&ed.cur.line))
+                .is_some_and(|r| r.starts_with("refs/tags/"));
+            Some(if tag {
+                Action::Tag(tag::Op::Delete)
+            } else {
+                Action::Branch(branch::Op::Delete)
+            })
+        }
+        KeyCode::Char(c @ ('x' | 'S' | 'U')) if !k.ctrl => Some(Action::ApplyOp(match c {
+            'x' => apply::Kind::Discard,
+            'S' => apply::Kind::StageModified,
+            _ => apply::Kind::UnstageAll,
+        })),
+        // magit-reverse on staged changes in status.
+        KeyCode::Char('-')
+            if !k.ctrl
+                && ed.magit.as_ref().is_some_and(|v| v.kind == Kind::Status)
+                && on_changes(ed, &[Section::Staged]) =>
+        {
+            Some(Action::ApplyOp(apply::Kind::Reverse))
+        }
+        // Off changes, - is magit-revert-no-commit and a magit-cherry-apply
+        // (the commit at point is the default).
         KeyCode::Char(c @ ('-' | 'a'))
             if !k.ctrl
                 && !k.alt
-                && ed.magit.as_ref().is_some_and(|v| {
-                    matches!(v.action_at(ed.cur.line), Some(RowAction::Commit(_)))
-                }) =>
+                && !on_changes(ed, if c == '-' { &[Section::Staged] } else { &[] }) =>
         {
             Some(Action::Sequence(if c == '-' {
                 sequence::Op::RevertNoCommit
@@ -1560,6 +1787,17 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     }
     false
 }
+/// magit-mode-map's C-c keys: C-c C-c dispatch, C-c M-g file dispatch,
+/// C-c TAB cycles the section, C-c C-d diffs what a commit would.
+fn c_c_key(ed: &Editor, k: Key) -> Option<Action> {
+    match (k.code, k.ctrl, k.alt) {
+        (KeyCode::Char('c'), true, false) => Some(Action::Menu('?')),
+        (KeyCode::Char('g'), false, true) => Some(Action::Menu('F')),
+        (KeyCode::Tab, ..) | (KeyCode::Char('i'), true, false) => Some(Action::Toggle),
+        (KeyCode::Char('d'), true, false) if diff_like(ed) => Some(Action::DiffWhileCommitting),
+        _ => None,
+    }
+}
 /// magit-mode-map under evil-collection's defaults: upstream's single keys,
 /// with p push, O reset, ' submodule, " subtree, _ revert and X untrack where
 /// evil keeps v V P x k K n N g G : for itself.
@@ -1577,7 +1815,9 @@ fn direct_key(c: char) -> Option<Action> {
         'D' => Menu('D'),
         'f' => Menu('f'),
         'F' => Menu('P'),
-        'h' | '?' => Menu('*'),
+        // magit-dispatch (upstream's layout with evil-collection's keys);
+        // Space m keeps the user's layout.
+        'h' | '?' => Menu('?'),
         'i' => Menu('g'),
         'I' => Action::Init,
         'J' => Action::Status,
@@ -1585,7 +1825,9 @@ fn direct_key(c: char) -> Option<Action> {
         'L' => Menu('R'),
         'm' => Menu('M'),
         'M' => Menu('O'),
-        'p' => Menu('p'),
+        'p' | 'P' => Menu('p'),
+        'H' => Action::DescribeSection(true),
+        'K' => Action::File(blob::FileOp::Untrack),
         'Q' => Action::Misc(misc::Op::GitCommand { topdir: false }),
         'r' => Menu('r'),
         'R' => Action::File(blob::FileOp::Rename),
@@ -1600,7 +1842,7 @@ fn direct_key(c: char) -> Option<Action> {
         '_' => Menu('v'),
         'Y' => Action::LogOp(log::Op::Cherry),
         'z' => Menu('z'),
-        'Z' | '%' => Menu('Y'),
+        '%' => Menu('Y'),
         _ => return None,
     })
 }
@@ -1681,6 +1923,30 @@ pub fn looks_like_hash(word: &str) -> bool {
 /// a range other than HEAD against the worktree or index.
 /// magit-diff-section-map applies: a diff, commit or stash buffer, or a
 /// file or hunk in status.
+/// Point on changes magit-stage and friends act on: a file, hunk, a line of
+/// a diff, or one of SECTIONS.
+fn on_changes(ed: &Editor, sections: &[Section]) -> bool {
+    in_file_diff(ed)
+        || ed
+            .magit
+            .as_ref()
+            .is_some_and(|v| match v.action_at(ed.cur.line) {
+                Some(RowAction::File(..) | RowAction::Hunk(..)) => true,
+                Some(RowAction::Section(s)) => sections.contains(&s),
+                _ => false,
+            })
+}
+/// Point on a file or hunk section: a status file row, or a line below a
+/// "diff" header in a diff, commit or stash buffer.
+fn in_file_diff(ed: &Editor) -> bool {
+    ed.magit.as_ref().is_some_and(|v| {
+        matches!(
+            v.action_at(ed.cur.line),
+            Some(RowAction::File(..) | RowAction::Hunk(..))
+        ) && v.kind != Kind::Status
+            || v.in_diff(ed.cur.line)
+    })
+}
 fn diff_like(ed: &Editor) -> bool {
     ed.magit.as_ref().is_some_and(|v| {
         matches!(
@@ -1842,7 +2108,7 @@ fn menu_help(menu: char) -> Option<&'static str> {
         }
         '>' => "Sparse checkout: e enable  d disable  r reapply  s set  a add; -i sparse index",
         'y' => {
-            "Refs: y HEAD  c current  o other  v commit counts; -c contains  -M/-m merged  -N/-n not merged  -s sort"
+            "Refs: y HEAD  c current  o other  r commit counts; -c contains  -M/-m merged  -N/-n not merged  -s sort"
         }
         'k' => "Clone: C regular  s shallow  d since  e excluding  > sparse  b bare  m mirror",
         'J' => "Bundle: c create  v verify  l list-heads",
@@ -1876,7 +2142,7 @@ fn menu_help(menu: char) -> Option<&'static str> {
         'x' => {
             "Cherry-pick: A pick  a apply  h harvest  m squash  d donate  n spinout  s spinoff; picking: A continue  s skip  a abort"
         }
-        'v' => "Revert: V revert commits  v revert changes; reverting: V continue  s skip  a abort",
+        'v' => "Revert: _ revert commits  v revert changes; reverting: _ continue  s skip  a abort",
         _ => return None,
     })
 }
@@ -1908,8 +2174,8 @@ pub enum Prompt {
     /// A todo line to add below point: its verb (exec, label, reset, merge,
     /// pick) and prompt.
     RebaseLine(&'static str, &'static str),
-    /// git-commit-insert-trailer: the trailer key, or None to read "Key: value".
-    Trailer(Option<&'static str>),
+    /// A trailer by someone: its key.
+    Trailer(&'static str),
     /// A transient-option value for (menu, argument prefix); returns to the menu.
     OptionValue(char, &'static str),
     /// git-commit-check-style-conventions: the remaining "Commit anyway?"
@@ -1917,6 +2183,8 @@ pub enum Prompt {
     CommitStyle(Vec<String>),
     /// git-rebase-cancel-confirm: abandon an edited todo list?
     TodoCancel,
+    /// transient-set-level for a menu: 1 to 7.
+    MenuLevel(char),
     /// magit-save-repository-buffers t: save this buffer (path), then the
     /// rest, then run the action.
     SaveBuffer(PathBuf, Vec<PathBuf>, Box<Action>),
@@ -2043,10 +2311,12 @@ pub fn prompt(ed: &mut Editor, question: Prompt) {
         Prompt::Ask(_, _, _, prompts, answers) => prompts[answers.len()].clone(),
         Prompt::InitDir(_) => "Create repository in: ".into(),
         Prompt::RebaseLine(_, prompt) => (*prompt).into(),
-        Prompt::Trailer(key) => {
-            key.map_or("Insert trailer (Key: value): ".into(), |k| format!("{k}: "))
-        }
+        Prompt::Trailer(key) => format!("{key}: "),
         // The reader's choices: magit-push-options, the default signing key.
+        Prompt::MenuLevel(menu) => format!(
+            "Set level for this transient (1-7, now {}): ",
+            menu_level(ed, *menu)
+        ),
         Prompt::OptionValue(_, "--push-option=") => format!(
             "--push-option= ({}) ",
             options::strings("magit-push-options", &["skip-ci", "ci.skip"]).join(", ")
@@ -2144,12 +2414,16 @@ pub fn answer(ed: &mut Editor, text: &str) {
             }
         }
         Some(Prompt::RebaseLine(verb, _)) => rebase::insert_line(ed, verb, text),
-        Some(Prompt::Trailer(Some(key))) => message::insert_trailer(ed, key, text),
-        Some(Prompt::Trailer(None)) => match text.split_once(':') {
-            Some((key, value)) if !key.trim().is_empty() && !key.contains(char::is_whitespace) => {
-                message::insert_trailer(ed, key.trim(), value)
+        Some(Prompt::Trailer(key)) => message::insert_trailer(ed, key, text),
+        Some(Prompt::MenuLevel(menu)) => match text.trim().parse::<u8>() {
+            Ok(n @ 1..=7) => {
+                ed.magit_levels.insert(menu, n);
+                if let Err(e) = save_level(menu, n) {
+                    ed.set_err(e);
+                }
+                open_menu(ed, menu);
             }
-            _ => ed.set_err("Type a trailer as Key: value"),
+            _ => ed.set_err("Level must be between 1 and 7"),
         },
         Some(Prompt::OptionValue(menu, prefix)) => {
             // magit-openpgp-default-signing-key answers an empty key prompt.
@@ -2183,107 +2457,62 @@ pub fn answer(ed: &mut Editor, text: &str) {
 }
 
 pub(crate) fn open_menu(ed: &mut Editor, menu: char) {
+    coverage::record("action", &format!("{:?}", Action::Menu(menu)));
+    // magit-revision-jump replaces magit-status-jump in commit buffers.
+    let menu = match ed.magit.as_ref() {
+        Some(v)
+            if menu == 'h'
+                && matches!(
+                    v.kind,
+                    Kind::Patch(_) | Kind::Diff(diff::Target::Commit(_), _)
+                ) =>
+        {
+            '^'
+        }
+        _ => menu,
+    };
+    // transient--init-value: each invocation starts from the value set this
+    // session (C-x s), else the saved one (C-x C-s), else the prefix's
+    // :value; what an earlier invocation changed without setting is gone.
+    let am = arg_menu(menu);
+    let start = ed
+        .magit_set
+        .get(&am)
+        .cloned()
+        .or_else(|| saved_values(am))
+        .unwrap_or_else(|| default_arguments(am));
+    set_menu_arguments(ed, am, &start);
     if menu == 'C' && ed.commit_repo.is_some() {
         sync_commit_options(ed);
     }
-    // magit-prefix-use-buffer-arguments: a log buffer's own arguments seed its menu.
-    if menu == 'l'
-        && let Some(Kind::FileLog(_, follow)) = ed.magit.as_ref().map(|v| &v.kind)
-    {
-        if *follow {
-            ed.magit_options.insert(MenuOption::LogFollow);
-        } else {
-            ed.magit_options.remove(&MenuOption::LogFollow);
-        }
-    }
-    // magit-log-buffer arguments, else the default ("-n256" "--graph" "--decorate").
-    if menu == 'l' || menu == 'R' {
-        if let Some(Kind::Log(_, args)) = ed.magit.as_ref().map(|v| &v.kind) {
-            let args = args.clone();
-            let follow = ed.magit_options.contains(&MenuOption::LogFollow);
-            set_menu_arguments(ed, 'l', &args);
-            if follow {
+    // magit-prefix-use-buffer-arguments: a log, diff or refs buffer's own
+    // arguments seed its menu.
+    match ed.magit.as_ref().map(|v| &v.kind) {
+        Some(Kind::FileLog(_, follow)) if menu == 'l' => {
+            if *follow {
                 ed.magit_options.insert(MenuOption::LogFollow);
+            } else {
+                ed.magit_options.remove(&MenuOption::LogFollow);
             }
-        } else if ed.magit_seeded.insert('l') {
-            ed.magit_values.insert(('l', "-n"), "256".into());
-            ed.magit_options.insert(MenuOption::Switch('l', "--graph"));
-            ed.magit_options
-                .insert(MenuOption::Switch('l', "--decorate"));
         }
-    }
-    // magit-show-refs in a refs buffer uses the buffer's arguments.
-    if menu == 'y'
-        && let Some(Kind::Refs(_, args, _)) = ed.magit.as_ref().map(|v| &v.kind)
-    {
-        let args = args.clone();
-        set_menu_arguments(ed, 'y', &args);
-    }
-    // magit-commit :value '("--verbose").
-    if menu == 'C' && ed.commit_repo.is_none() && ed.magit_seeded.insert('C') {
-        ed.magit_options
-            .insert(MenuOption::Switch('C', "--verbose"));
-    }
-    // magit-fetch-modules :value '("--verbose" "--jobs=4").
-    if menu == 'Z' && ed.magit_seeded.insert('Z') {
-        ed.magit_options
-            .insert(MenuOption::Switch('Z', "--verbose"));
-        ed.magit_values.insert(('Z', "--jobs="), "4".into());
-    }
-    // magit-commit-absorb :value '("-v"), magit-commit-autofixup '("-vv").
-    if menu == 'A' && ed.magit_seeded.insert('A') {
-        ed.magit_options
-            .insert(MenuOption::Switch('A', "--verbose"));
-    }
-    if menu == 'H' && ed.magit_seeded.insert('H') {
-        ed.magit_options.insert(MenuOption::Switch('H', "-vv"));
-    }
-    // magit-am :value '("--3way").
-    if menu == 'w' && ed.magit_seeded.insert('w') {
-        ed.magit_options.insert(MenuOption::Switch('w', "--3way"));
-    }
-    // magit-shortlog :value '("--numbered" "--summary").
-    if menu == 'S' && ed.magit_seeded.insert('S') {
-        ed.magit_options
-            .insert(MenuOption::Switch('S', "--numbered"));
-        ed.magit_options
-            .insert(MenuOption::Switch('S', "--summary"));
-    }
-    // magit-rebase :value '("--autostash").
-    if menu == 'r' && ed.magit_seeded.insert('r') {
-        ed.magit_options.insert(MenuOption::RebaseAutostash);
-    }
-    // magit-cherry-pick :value '("--ff") and magit-revert :value '("--edit").
-    if menu == 'x' && ed.magit_seeded.insert('x') {
-        ed.magit_options.insert(MenuOption::CherryFf);
-    }
-    if menu == 'v' && ed.magit_seeded.insert('v') {
-        ed.magit_options.insert(MenuOption::RevertEdit);
-    }
-    // magit-remote :value '("-f").
-    if menu == 'O' && ed.magit_seeded.insert('O') {
-        ed.magit_options.insert(MenuOption::RemoteFetch);
-    }
-    // magit-blame :value '("-w").
-    if menu == 'B' && ed.magit_seeded.insert('B') {
-        ed.magit_options.insert(MenuOption::BlameWhitespace);
-    }
-    if menu == 'd' || menu == 'D' {
-        let args = match ed.magit.as_ref().map(|v| &v.kind) {
-            // A buffer's file limit stays with that buffer.
-            Some(Kind::Diff(_, args)) => Some(
-                args.iter()
-                    .filter(|a| !a.starts_with("-- ") && *a != "--cached")
-                    .cloned()
-                    .collect(),
-            ),
-            // magit-diff-mode's default arguments, applied once per buffer.
-            _ if ed.magit_seeded.insert('d') => Some(vec!["--stat".into(), "--no-ext-diff".into()]),
-            _ => None,
-        };
-        if let Some(args) = args {
+        Some(Kind::Log(_, args)) if menu == 'l' || menu == 'R' => {
+            let args = args.clone();
+            set_menu_arguments(ed, 'l', &args);
+        }
+        Some(Kind::Refs(_, args, _)) if menu == 'y' => {
+            let args = args.clone();
+            set_menu_arguments(ed, 'y', &args);
+        }
+        // A buffer's file limit stays with that buffer.
+        Some(Kind::Diff(_, args)) if menu == 'd' || menu == 'D' => {
+            let args: Vec<String> = args
+                .iter()
+                .filter(|a| !a.starts_with("-- ") && *a != "--cached")
+                .cloned()
+                .collect();
             set_menu_arguments(ed, 'd', &args);
         }
+        _ => {}
     }
     ed.magit_menu = Some(menu);
     crate::pick::magit_menu(ed, menu);
@@ -2308,6 +2537,63 @@ fn margin_entries() -> Vec<(&'static str, &'static str, &'static str, Action)> {
         ("l", "Margin", "Cycle style", Action::Margin('l')),
         ("d", "Margin", "Toggle details", Action::Margin('d')),
     ]
+}
+/// magit-diff-wash-diff's status word for a porcelain status letter.
+fn status_word(c: u8) -> &'static str {
+    match c {
+        b'A' => "new file",
+        b'D' => "deleted",
+        b'R' => "renamed",
+        b'C' => "copied",
+        b'T' => "typechange",
+        _ => "modified",
+    }
+}
+/// An expanded file's body in status: magit-diff-wash-diff keeps the mode
+/// and rename lines and the hunks, not the diff, index, --- and +++ lines.
+fn file_body(d: &Diff, path: &std::path::Path, staged: bool) -> Vec<Row> {
+    let mut rows = vec![];
+    let mut off = 0;
+    let mut hunk = None;
+    let mut source_line = 0;
+    for bytes in d.bytes.split_inclusive(|b| *b == b'\n') {
+        if off >= 1024 * 1024 {
+            rows.push(Row {
+                text: "[diff display truncated]".into(),
+                action: None,
+            });
+            break;
+        }
+        if let Some((i, h)) = d.hunks.iter().enumerate().find(|(_, h)| h.start == off) {
+            hunk = Some(i);
+            source_line = h.line;
+        }
+        off += bytes.len();
+        let header_kept = [
+            "old mode",
+            "new mode",
+            "rename from",
+            "rename to",
+            "Binary files",
+        ]
+        .iter()
+        .any(|p| bytes.starts_with(p.as_bytes()));
+        if hunk.is_none() && !header_kept {
+            continue;
+        }
+        let text = String::from_utf8_lossy(&bytes[..bytes.len().min(20_000)])
+            .trim_end_matches('\n')
+            .to_string();
+        // Keep control sequences from repository text out of the terminal.
+        rows.push(Row {
+            text: label(std::path::Path::new(&text)),
+            action: hunk.map(|i| RowAction::Hunk(path.to_path_buf(), staged, i, source_line)),
+        });
+        if hunk.is_some() && !bytes.starts_with(b"-") && !bytes.starts_with(b"@@") {
+            source_line += 1;
+        }
+    }
+    rows
 }
 pub fn menu_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Action)> {
     let mut v = base_entries(menu);
@@ -2373,6 +2659,74 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
     use Action::*;
     use workflows::{Operation::*, StashAction};
     match menu {
+        // magit-revision-jump.
+        '^' => vec![
+            ("h", "Jump to", "Headers", RevisionJump("headers")),
+            ("m", "Jump to", "Message", RevisionJump("message")),
+            ("n", "Jump to", "Notes", RevisionJump("notes")),
+            ("s", "Jump to", "Diffstat", RevisionJump("diffstat")),
+            ("d", "Jump to", "Diff", RevisionJump("diff")),
+        ],
+        // git-commit-insert-trailer (C-c C-i in a commit draft).
+        '&' => vec![
+            (
+                "a",
+                "Insert trailer ... by yourself",
+                "Ack",
+                TrailerSelf("Acked-by"),
+            ),
+            (
+                "m",
+                "Insert trailer ... by yourself",
+                "Modified",
+                TrailerSelf("Modified-by"),
+            ),
+            (
+                "r",
+                "Insert trailer ... by yourself",
+                "Reviewed",
+                TrailerSelf("Reviewed-by"),
+            ),
+            (
+                "s",
+                "Insert trailer ... by yourself",
+                "Signed-off",
+                TrailerSelf("Signed-off-by"),
+            ),
+            (
+                "t",
+                "Insert trailer ... by yourself",
+                "Tested",
+                TrailerSelf("Tested-by"),
+            ),
+            ("C-c", "Insert trailer ... by someone", "Cc", Trailer("Cc")),
+            (
+                "C-r",
+                "Insert trailer ... by someone",
+                "Reported",
+                Trailer("Reported-by"),
+            ),
+            (
+                "C-i",
+                "Insert trailer ... by someone",
+                "Suggested",
+                Trailer("Suggested-by"),
+            ),
+            (
+                "C-a",
+                "Insert trailer ... by someone",
+                "Co-authored",
+                Trailer("Co-authored-by"),
+            ),
+            (
+                "C-d",
+                "Insert trailer ... by someone",
+                "Co-developed",
+                Trailer("Co-developed-by"),
+            ),
+            ("lg", "Insert changelog", "GNU-style", Changelog(true)),
+            ("lp", "Insert changelog", "plain", Changelog(false)),
+        ],
         // magit-fetch-modules.
         'Z' => vec![
             (
@@ -2421,6 +2775,92 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
                 ToggleOption(MenuOption::Switch('H', "-vv")),
             ),
             ("x", "Actions", "Absorb", CommitEdit(commit::Op::Autofixup)),
+        ],
+        // magit-dispatch with evil-collection-magit-popup-changes
+        // (o ', O \", V _, X O, v -, k x).
+        '?' => vec![
+            ("A", "Transient commands", "Apply", Menu('x')),
+            ("b", "Transient commands", "Branch", Menu('b')),
+            ("B", "Transient commands", "Bisect", Menu('G')),
+            ("c", "Transient commands", "Commit", Menu('C')),
+            ("C", "Transient commands", "Clone", clone_entry()),
+            ("d", "Transient commands", "Diff", Menu('d')),
+            ("D", "Transient commands", "Diff (change)", Menu('D')),
+            ("e", "Transient commands", "Ediff (dwim)", EdiffDwim),
+            ("E", "Transient commands", "Ediff", Menu('U')),
+            ("f", "Transient commands", "Fetch", Menu('f')),
+            ("F", "Transient commands", "Pull", Menu('P')),
+            ("h", "Transient commands", "Help", Info),
+            ("C-xi", "Transient commands", "Info", Info),
+            (
+                "H",
+                "Transient commands",
+                "Section info",
+                DescribeSection(true),
+            ),
+            ("i", "Transient commands", "Ignore", Menu('g')),
+            ("I", "Transient commands", "Init", Init),
+            ("j", "Transient commands", "Jump to section", Menu('h')),
+            ("J", "Transient commands", "Display buffer", Status),
+            ("l", "Transient commands", "Log", Menu('l')),
+            ("L", "Transient commands", "Log (change)", Menu('R')),
+            ("m", "Transient commands", "Merge", Menu('M')),
+            ("M", "Transient commands", "Remote", Menu('O')),
+            ("'", "Transient commands", "Submodule", Menu('o')),
+            ("\"", "Transient commands", "Subtree", Menu('u')),
+            ("P", "Transient commands", "Push", Menu('p')),
+            (
+                "Q",
+                "Transient commands",
+                "Command",
+                Misc(misc::Op::GitCommand { topdir: false }),
+            ),
+            ("r", "Transient commands", "Rebase", Menu('r')),
+            ("t", "Transient commands", "Tag", Menu('t')),
+            ("T", "Transient commands", "Note", Menu('N')),
+            ("_", "Transient commands", "Revert", Menu('v')),
+            ("w", "Transient commands", "Apply patches", Menu('w')),
+            ("W", "Transient commands", "Format patches", Menu('W')),
+            ("O", "Transient commands", "Reset", Menu('X')),
+            ("y", "Transient commands", "Show Refs", Menu('y')),
+            (
+                "Y",
+                "Transient commands",
+                "Cherries",
+                LogOp(log::Op::Cherry),
+            ),
+            ("z", "Transient commands", "Stash", Menu('z')),
+            ("Z", "Transient commands", "Worktree", Menu('Y')),
+            ("!", "Transient commands", "Run", Menu('!')),
+            ("a", "Applying changes", "Apply", ApplyDiff(false)),
+            ("s", "Applying changes", "Stage", Stage),
+            ("u", "Applying changes", "Unstage", Unstage),
+            (
+                "-",
+                "Applying changes",
+                "Reverse",
+                ApplyOp(apply::Kind::Reverse),
+            ),
+            (
+                "x",
+                "Applying changes",
+                "Discard",
+                ApplyOp(apply::Kind::Discard),
+            ),
+            (
+                "S",
+                "Applying changes",
+                "Stage all",
+                ApplyOp(apply::Kind::StageModified),
+            ),
+            (
+                "U",
+                "Applying changes",
+                "Unstage all",
+                ApplyOp(apply::Kind::UnstageAll),
+            ),
+            ("g", "Essential commands", "Refresh current buffer", Refresh),
+            ("q", "Essential commands", "Bury current buffer", Return),
         ],
         '*' => vec![
             ("s", "Inspect", "Status", Status),
@@ -2618,6 +3058,18 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
                     Net(PullElsewhere),
                 ),
                 (
+                    "U",
+                    "Pull into @{upstream} from",
+                    "its upstream",
+                    Net(PullIntoUpstream),
+                ),
+                (
+                    "r",
+                    "Configure",
+                    "branch.<branch>.rebase",
+                    Configure(configure::Op::BranchRebase),
+                ),
+                (
                     "-A",
                     "Arguments",
                     "Autostash",
@@ -2753,6 +3205,18 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
                 .collect();
             v.extend([
                 ("g", "Refresh", "buffer", DiffRefresh(diff::Refresh::Buffer)),
+                (
+                    "s",
+                    "Refresh",
+                    "buffer and set defaults",
+                    TransientSet(false),
+                ),
+                (
+                    "w",
+                    "Refresh",
+                    "buffer and save defaults",
+                    TransientSet(true),
+                ),
                 (
                     "r",
                     "Do",
@@ -3097,9 +3561,9 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
                 Refs(refs::Op::Other),
             ),
             (
-                "v",
+                "r",
                 "Actions",
-                "Change verbosity (commit counts)",
+                "Show refs, changing commit count display",
                 Refs(refs::Op::Count),
             ),
         ],
@@ -3377,6 +3841,18 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
                 .filter(|e| !matches!(e.1, "Log" | "Reflog" | "Other" | "Wiplog"))
                 .collect();
             v.push(("g", "Refresh", "buffer", LogRefresh));
+            v.push((
+                "s",
+                "Refresh",
+                "buffer and set defaults",
+                TransientSet(false),
+            ));
+            v.push((
+                "w",
+                "Refresh",
+                "buffer and save defaults",
+                TransientSet(true),
+            ));
             v.extend(margin_entries());
             v.push(("x", "Margin", "Toggle shortstat", Margin('x')));
             v.push(("b", "Toggle", "buffer lock", BufferLock));
@@ -3887,8 +4363,9 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
             ("n", "Create", "new branch", Branch(branch::Op::Create)),
             ("S", "Create", "new spin-out", Branch(branch::Op::Spinout)),
             ("m", "Do", "rename", Branch(branch::Op::Rename)),
-            ("x", "Do", "reset", Branch(branch::Op::Reset)),
-            ("k", "Do", "delete", Branch(branch::Op::Delete)),
+            // evil-collection-magit-popup-changes: X reset, x delete.
+            ("X", "Do", "reset", Branch(branch::Op::Reset)),
+            ("x", "Do", "delete", Branch(branch::Op::Delete)),
             (
                 "o",
                 "Checkout",
@@ -3970,13 +4447,19 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
                     Configure(C::PushDefault),
                 ),
                 (
-                    "=m",
+                    "B",
+                    "Configure repository defaults",
+                    "Update default branch",
+                    Branch(branch::Op::UpdateDefault),
+                ),
+                (
+                    "am",
                     "Configure branch creation",
                     "branch.autoSetupMerge",
                     Configure(C::AutoSetupMerge),
                 ),
                 (
-                    "=r",
+                    "ar",
                     "Configure branch creation",
                     "branch.autoSetupRebase",
                     Configure(C::AutoSetupRebase),
@@ -4047,7 +4530,8 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
             ("-s", "Arguments", "Sign", ToggleOption(MenuOption::TagSign)),
             ("t", "Create", "tag", Action::Tag(tag::Op::Create)),
             ("r", "Create", "release", Action::Tag(tag::Op::Release)),
-            ("k", "Do", "delete", Action::Tag(tag::Op::Delete)),
+            // evil-collection: x deletes.
+            ("x", "Do", "delete", Action::Tag(tag::Op::Delete)),
             ("p", "Do", "prune", Action::Tag(tag::Op::Prune)),
             ("l", "Inspect", "List (Fred)", Tags),
             ("-u", "Arguments", "Sign as", ReadOption("--local-user=")),
@@ -4173,7 +4657,8 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
                 ),
                 ("a", "Actions", "Add", Action::Remote(O::Add)),
                 ("r", "Actions", "Rename", Action::Remote(O::Rename)),
-                ("k", "Actions", "Remove", Action::Remote(O::Remove)),
+                // evil-collection: x removes.
+                ("x", "Actions", "Remove", Action::Remote(O::Remove)),
                 (
                     "p",
                     "Actions",
@@ -4188,8 +4673,8 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
                 ),
                 ("C", "Actions", "Configure...", Menu('e')),
                 (
-                    "B",
-                    "Configure repository defaults",
+                    "du",
+                    "Actions",
                     "Update default branch",
                     Branch(branch::Op::UpdateDefault),
                 ),
@@ -4538,6 +5023,12 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
                 ),
                 ("s", "Rebase", "a subset / skip", Action::Rebase(O::Subset)),
                 (
+                    "t",
+                    "Rebase",
+                    "to change dates",
+                    Action::CommitEdit(commit::Op::ReshelveSince),
+                ),
+                (
                     "m",
                     "Rebase",
                     "to modify a commit",
@@ -4568,6 +5059,12 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
                     Action::Rebase(O::Continue),
                 ),
                 ("a", "Actions (rebasing)", "Abort", Action::Rebase(O::Abort)),
+                (
+                    "=X",
+                    "Arguments",
+                    "Diff algorithm",
+                    CycleOption("-Xdiff-algorithm="),
+                ),
                 (
                     "-f",
                     "Arguments",
@@ -4691,8 +5188,9 @@ fn base_entries(menu: char) -> Vec<(&'static str, &'static str, &'static str, Ac
                     ToggleOption(MenuOption::RevertNoEdit),
                 ),
                 ("=s", "Arguments", "Strategy", CycleOption("--strategy=")),
+                // evil-collection: _ (V) reverts and commits, or continues.
                 (
-                    "V",
+                    "_",
                     "Actions",
                     "Revert commit(s) / continue",
                     Action::Sequence(O::Revert),
@@ -4915,6 +5413,126 @@ impl MenuOption {
     }
 }
 /// Menus that share another menu's arguments (magit-diff-refresh uses magit-diff's).
+/// transient--use-level-p: the entries a menu shows and binds at its level
+/// (upstream's suffix levels; level 0 is never available).
+pub fn shown_entries(
+    ed: &Editor,
+    menu: char,
+) -> Vec<(&'static str, &'static str, &'static str, Action)> {
+    let level = menu_level(ed, menu);
+    menu_entries(menu)
+        .into_iter()
+        .filter(|e| {
+            let l = levels::LEVELS
+                .iter()
+                .find(|(m, k, _)| *m == menu && *k == e.0)
+                .map_or(4, |x| x.2);
+            l >= 1 && l <= level
+        })
+        .collect()
+}
+/// A menu's transient level: set with C-x l (and saved), else 4.
+pub fn menu_level(ed: &Editor, menu: char) -> u8 {
+    ed.magit_levels
+        .get(&menu)
+        .copied()
+        .or_else(|| saved_level(menu))
+        .unwrap_or(4)
+}
+/// transient-levels-file: "menu<TAB>level" lines beside transient-values.
+fn levels_file() -> PathBuf {
+    crate::swap::swap_dir().with_file_name("transient-levels")
+}
+fn saved_level(menu: char) -> Option<u8> {
+    // Tests share a process: a level one sets must not reach another.
+    if cfg!(test) {
+        return None;
+    }
+    std::fs::read_to_string(levels_file())
+        .ok()?
+        .lines()
+        .find_map(|l| {
+            let (m, n) = l.split_once('\t')?;
+            (m == menu.to_string()).then(|| n.trim().parse().ok())?
+        })
+}
+fn save_level(menu: char, level: u8) -> Result<(), String> {
+    if cfg!(test) {
+        return Ok(());
+    }
+    let file = levels_file();
+    let mut lines: Vec<String> = std::fs::read_to_string(&file)
+        .unwrap_or_default()
+        .lines()
+        .filter(|l| l.split('\t').next() != Some(&menu.to_string()))
+        .map(str::to_owned)
+        .collect();
+    lines.push(format!("{menu}\t{level}"));
+    if let Some(dir) = file.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&file, lines.join("\n") + "\n").map_err(|e| format!("{}: {e}", file.display()))
+}
+/// A prefix's :value, the arguments a fresh invocation starts with.
+fn default_arguments(menu: char) -> Vec<String> {
+    let args: &[&str] = match menu {
+        // magit-log-arguments' default.
+        'l' => &["-n256", "--graph", "--decorate"],
+        // magit-diff-mode's default arguments.
+        'd' => &["--stat", "--no-ext-diff"],
+        'C' => &["--verbose"],
+        'Z' => &["--verbose", "--jobs=4"],
+        // magit-commit-absorb and magit-commit-autofixup.
+        'A' => &["--verbose"],
+        'H' => &["-vv"],
+        'w' => &["--3way"],
+        'S' => &["--numbered", "--summary"],
+        'r' => &["--autostash"],
+        'x' => &["--ff"],
+        'v' => &["--edit"],
+        'O' => &["-f"],
+        'B' => &["-w"],
+        _ => &[],
+    };
+    args.iter().map(|a| a.to_string()).collect()
+}
+/// transient-values-file: arguments saved with C-x C-s, a line per menu
+/// (menu id, then its arguments, tab-separated).
+fn values_file() -> PathBuf {
+    if cfg!(test) {
+        return std::env::temp_dir().join(format!("fred-transient-values-{}", std::process::id()));
+    }
+    crate::swap::swap_dir().with_file_name("transient-values")
+}
+fn saved_values(menu: char) -> Option<Vec<String>> {
+    let text = std::fs::read_to_string(values_file()).ok()?;
+    text.lines().find_map(|l| {
+        let mut f = l.split('\t');
+        (f.next()? == menu.to_string()).then(|| f.map(str::to_owned).collect())
+    })
+}
+fn save_values(menu: char, args: &[String]) -> Result<(), String> {
+    if args.iter().any(|a| a.contains(['\t', '\n'])) {
+        return Err("Cannot save arguments containing tabs or newlines".into());
+    }
+    let file = values_file();
+    let old = std::fs::read_to_string(&file).unwrap_or_default();
+    let mut lines: Vec<String> = old
+        .lines()
+        .filter(|l| l.split('\t').next() != Some(&menu.to_string()))
+        .map(str::to_owned)
+        .collect();
+    lines.push(
+        std::iter::once(menu.to_string())
+            .chain(args.iter().cloned())
+            .collect::<Vec<_>>()
+            .join("\t"),
+    );
+    if let Some(dir) = file.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&file, lines.join("\n") + "\n").map_err(|e| format!("{}: {e}", file.display()))
+}
 pub fn arg_menu(menu: char) -> char {
     match menu {
         'D' => 'd',

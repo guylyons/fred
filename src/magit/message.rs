@@ -240,32 +240,15 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         if k == Key::ctrl('d') {
             ed.pending_effect = Some(ExEffect::Magit(Action::DiffWhileCommitting));
         } else if k == Key::ctrl('i') || k.is(KeyCode::Tab) {
-            ed.magit_prompt = Some(super::Prompt::Trailer(None));
-            ed.open_cmdline('=', "");
-            if let Mode::Command(cl) = &mut ed.mode {
-                // git-commit-trailers: the known keys.
-                let keys = super::options::strings(
-                    "git-commit-trailers",
-                    &[
-                        "Acked-by",
-                        "Modified-by",
-                        "Reviewed-by",
-                        "Signed-off-by",
-                        "Tested-by",
-                        "Cc",
-                        "Reported-by",
-                        "Suggested-by",
-                        "Co-authored-by",
-                        "Co-developed-by",
-                    ],
-                );
-                cl.prompt = format!("Insert trailer ({}) Key: value: ", keys.join(" "));
-            }
-        } else if k == Key::ctrl('s') {
-            insert_trailer(ed, "Signed-off-by", "");
+            ed.pending_effect = Some(ExEffect::Magit(Action::Menu('&')));
+        } else if let Some(key) = trailer_for(k)
+            && !matches!(key, "Cc" | "Reported-by" | "Suggested-by")
+        {
+            // git-commit-get-ident: your own name and email.
+            insert_trailer(ed, key, "");
         } else if let Some(key) = trailer_for(k) {
             let me = ed.commit_repo.as_ref().map(ident).unwrap_or_default();
-            ed.magit_prompt = Some(super::Prompt::Trailer(Some(key)));
+            ed.magit_prompt = Some(super::Prompt::Trailer(key));
             ed.open_cmdline('=', "");
             if let Mode::Command(cl) = &mut ed.mode {
                 cl.prompt = format!("{key} (default {me}): ");
@@ -286,14 +269,15 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         ed.vim.pending = vec![k];
         return true;
     }
-    // evil-collection: M-k / gk previous message, M-j / gj next.
+    // gk previous message, gj next (evil-collection).
     let c = match k.code {
         KeyCode::Char(c) => Some(c),
         _ => None,
     };
     let older = match (ed.vim.pending.as_slice(), c, k.alt) {
-        ([], Some('k'), true) => Some(true),
-        ([], Some('j'), true) => Some(false),
+        // git-commit-mode-map's M-p / M-n, evil-collection's M-k / M-j.
+        ([], Some('k' | 'p'), true) => Some(true),
+        ([], Some('j' | 'n'), true) => Some(false),
         ([g], Some('k'), false) if *g == Key::ch('g') => Some(true),
         ([g], Some('j'), false) if *g == Key::ch('g') => Some(false),
         _ => None,

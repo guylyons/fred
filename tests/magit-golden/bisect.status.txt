@@ -1,0 +1,16 @@
+Head:     96d8553 Step 3
+
+Bisecting: (no saved bisect output)
+It appears you have invoked "git bisect" from a shell.
+There is nothing wrong with that, we just cannot display
+anything useful here.  Consult the shell output instead.
+
+Bisect Rest (3)
+58d656e * main Step 4
+96d8553 * @ Step 3
+4f1b4ea * Step 2
+
+Bisect Log (1)
+git bisect start 'HEAD' 'HEAD~3'…
+
+Recent commits…

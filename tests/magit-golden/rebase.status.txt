@@ -1,0 +1,8 @@
+Head:     ef9eaa9 Commit 2
+
+Rebasing main onto main~2
+pick b556f01 Commit 3
+stop ef9eaa9 Commit 2
+onto 69a2616 Commit 1
+
+Recent commits…

@@ -1427,20 +1427,73 @@ fn blame_margin_headings_and_lines_shift_text_and_show_message() {
     let mut screen = Screen::new(100, 6);
     e.run_ex("set nonumber");
     screen.draw(&e);
-    assert!(
-        screen.row(0).starts_with(&format!(
-            "Ada                  {} the summa alpha",
+    // headings: the chunk's heading on its own row above it (as upstream
+    // draws it in a terminal), then the text without a gutter.
+    assert_eq!(
+        screen.row(0).trim_end(),
+        format!(
+            "Ada                  {} the summary",
             crate::magit::margin::strftime("%F %H:%M", 0)
-        )),
-        "{}",
-        screen.row(0)
+        ),
     );
-    assert_eq!(&screen.row(0)[48..53], "alpha");
-    assert_eq!(&screen.row(1)[48..52], "beta");
+    assert!(screen.row(1).starts_with("alpha"), "{}", screen.row(1));
+    assert!(screen.row(2).starts_with("beta"), "{}", screen.row(2));
     e.blame.as_mut().unwrap().style = 2;
     screen.draw(&e);
     assert!(screen.row(0).starts_with("┌alpha"), "{}", screen.row(0));
     assert!(screen.row(5).contains("the summary"), "{}", screen.row(5));
+}
+
+#[test]
+fn blame_heading_rows_count_when_scrolling() {
+    use crate::magit::blame::{Blame, Chunk, Info};
+    use crate::magit::repo::Repo;
+    let text: Vec<String> = (0..10).map(|i| format!("line{i}")).collect();
+    let mut e = editor(&text.join("\n"), "");
+    let revs: Vec<String> = (0..10).map(|i| format!("{i}").repeat(40)).collect();
+    e.blame = Some(Blame {
+        repo: Repo {
+            root: "/repo".into(),
+        },
+        file: "f".into(),
+        args: vec![],
+        chunks: (0..10)
+            .map(|i| Chunk {
+                rev: revs[i].clone(),
+                line: i,
+                lines: 1,
+                orig_line: i + 1,
+                orig_file: "f".into(),
+                prev: None,
+            })
+            .collect(),
+        info: revs
+            .iter()
+            .map(|r| {
+                let i = Info {
+                    summary: format!("c{}", &r[..1]),
+                    author: "Ada".into(),
+                    committer_time: 0,
+                    committer_tz: "+0000".into(),
+                };
+                (r.clone(), i)
+            })
+            .collect(),
+        style: 0,
+        kind: crate::magit::blame::Kind::Addition,
+        rev: None,
+        version: e.buf.version,
+        was_readonly: false,
+    });
+    e.run_ex("set nonumber");
+    // Every line has a heading above it: the last line still shows.
+    e.set_cursor(9, 0);
+    let mut screen = Screen::new(60, 8);
+    screen.draw(&e);
+    let rows: Vec<String> = (0..6).map(|y| screen.row(y)).collect();
+    assert!(rows.iter().any(|r| r.starts_with("line9")), "{rows:?}");
+    let at = rows.iter().position(|r| r.starts_with("line9")).unwrap();
+    assert!(rows[at - 1].contains("c9"), "{rows:?}");
 }
 
 #[test]

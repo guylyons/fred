@@ -16,7 +16,8 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::crossterm::cursor::{self, MoveTo, SetCursorStyle};
 use ratatui::crossterm::event::{
     self, DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
-    Event, KeyEvent, KeyEventKind, KeyModifiers,
+    Event, KeyEvent, KeyEventKind, KeyModifiers, KeyboardEnhancementFlags,
+    PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
 };
 use ratatui::crossterm::execute;
 use ratatui::crossterm::terminal::{
@@ -42,6 +43,8 @@ const HIGHLIGHT_BUDGET: Duration = Duration::from_millis(20);
 /// How long to wait for more pending input before drawing. Not zero: with
 /// `use-dev-tty`, crossterm's poll reads nothing when given no time.
 const BATCH: Duration = Duration::from_millis(1);
+/// A frame of Claude's typing (`fred_keys`): a key or a few, then a redraw.
+const TYPE_TICK: Duration = Duration::from_millis(30);
 
 type Term = Terminal<CrosstermBackend<Stdout>>;
 
@@ -155,7 +158,8 @@ impl Ui {
             cursor::Show,
             SetCursorStyle::DefaultUserShape,
             DisableBracketedPaste,
-            DisableMouseCapture
+            DisableMouseCapture,
+            PopKeyboardEnhancementFlags
         )?;
         terminal::disable_raw_mode()?;
         io::stdout().flush()
@@ -163,7 +167,7 @@ impl Ui {
 
     fn reopen(&mut self) -> io::Result<()> {
         terminal::enable_raw_mode()?;
-        execute!(io::stdout(), EnableBracketedPaste, EnableMouseCapture)?;
+        execute!(io::stdout(), EnableBracketedPaste, EnableMouseCapture, KEYS)?;
         self.term = open_term(self.full, self.height)?;
         self.area = None;
         self.bar_cursor = false;
@@ -182,6 +186,11 @@ pub fn map_keys(k: KeyEvent) -> Vec<Key> {
     }
 }
 
+/// Terminals that know the kitty keyboard protocol then tell Shift-Enter
+/// from Enter (a line break in the Claude chat); others ignore it.
+const KEYS: PushKeyboardEnhancementFlags =
+    PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES);
+
 /// crossterm key → fred key.
 pub fn map_key(k: KeyEvent) -> Option<Key> {
     use event::KeyCode as C;
@@ -191,6 +200,10 @@ pub fn map_key(k: KeyEvent) -> Option<Key> {
     let ctrl = k.modifiers.contains(KeyModifiers::CONTROL);
     let alt = k.modifiers.contains(KeyModifiers::ALT);
     let code = match k.code {
+        // Disambiguated, these come apart from the keys they always were.
+        C::Char('[') if ctrl && !alt => return Some(Key::new(KeyCode::Esc)),
+        C::Char('i') if ctrl && !alt => return Some(Key::new(KeyCode::Tab)),
+        C::Char('m') if ctrl && !alt => return Some(Key::new(KeyCode::Enter)),
         // Ctrl-G cancels, as in Emacs: it is Esc everywhere.
         C::Char('g' | 'G') if ctrl && !alt => return Some(Key::new(KeyCode::Esc)),
         C::Char(c) => KeyCode::Char(if ctrl { c.to_ascii_lowercase() } else { c }),
@@ -256,7 +269,8 @@ fn restore_terminal() {
         cursor::Show,
         SetCursorStyle::DefaultUserShape,
         DisableBracketedPaste,
-        DisableMouseCapture
+        DisableMouseCapture,
+        PopKeyboardEnhancementFlags
     );
     let _ = terminal::disable_raw_mode();
 }
@@ -616,7 +630,7 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
     }
     terminal::enable_raw_mode()?;
     let setup = (|| -> Result<Ui> {
-        execute!(io::stdout(), EnableBracketedPaste, EnableMouseCapture)?;
+        execute!(io::stdout(), EnableBracketedPaste, EnableMouseCapture, KEYS)?;
         let rows = terminal::size()?.1;
         let full = use_fullscreen(&args, &cfg, &s.ed, rows);
         Ok(Ui::new(
@@ -632,10 +646,12 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
         }
     };
     install_panic_hook();
+    // For Claude to drive this fred (`fred --mcp`); fred works without it.
+    let remote = crate::remote::Remote::listen().ok();
 
     CATCHING.store(true, Ordering::SeqCst);
     let result = panic::catch_unwind(AssertUnwindSafe(|| {
-        event_loop(&mut ui, &mut s, &mut hl, &cfg, leftover, &stop)
+        event_loop(&mut ui, &mut s, &mut hl, &cfg, leftover, &stop, remote.as_ref())
     }));
     CATCHING.store(false, Ordering::SeqCst);
     let code = match result {
@@ -680,6 +696,7 @@ fn event_loop(
     cfg: &Config,
     leftover: Option<SwapInfo>,
     stop: &AtomicBool,
+    remote: Option<&crate::remote::Remote>,
 ) -> Result<i32> {
     if let Some(info) = leftover {
         match ask_swap(ui, s, hl, cfg, &info, None)? {
@@ -712,6 +729,8 @@ fn event_loop(
     let mut dirty = true;
     let mut checked = Instant::now();
     let mut active = Instant::now();
+    // Your keys while Claude types, for after: the two never mix.
+    let mut held: Vec<Event> = vec![];
     loop {
         if dirty {
             ui.draw(s, hl, cfg)?;
@@ -729,7 +748,12 @@ fn event_loop(
             || active.elapsed() < IDLE_AFTER
             || matches!(s.ed.mode, Mode::Pick(_))
             || s.working();
-        if event::poll(if busy { TICK } else { IDLE_TICK })? {
+        let tick = match () {
+            _ if s.typing.is_some() => TYPE_TICK,
+            _ if busy => TICK,
+            _ => IDLE_TICK,
+        };
+        if event::poll(tick)? {
             active = Instant::now();
             dirty = true;
             loop {
@@ -746,6 +770,18 @@ fn event_loop(
                     );
                 let redraw_view =
                     !picker_wheel && matches!(ev, Event::Mouse(_) | Event::Resize(..));
+                if s.typing.is_some() && !matches!(ev, Event::Resize(..)) {
+                    match ev {
+                        Event::Key(k) if map_key(k) == Some(Key::ctrl('c')) => s.stop_typing(),
+                        Event::Key(_) | Event::Paste(_) => held.push(ev),
+                        // shortcut: clicks and scrolls while Claude types are dropped.
+                        _ => {}
+                    }
+                    if !event::poll(BATCH)? {
+                        break;
+                    }
+                    continue;
+                }
                 if let Event::Key(k) = ev
                     && map_key(k) == Some(Key::ctrl('z'))
                 {
@@ -796,6 +832,31 @@ fn event_loop(
             dirty = true;
         }
         if s.tick_claude() {
+            dirty = true;
+        }
+        // Claude's tool calls; keys are typed a frame at a time, as you
+        // would, and the next call waits until they're done.
+        let calls: Vec<_> = match s.typing {
+            Some(_) => vec![],
+            None => remote.into_iter().flat_map(|r| r.take()).collect(),
+        };
+        let called = !calls.is_empty();
+        for (tool, args, reply) in calls {
+            s.remote(&tool, &args, reply);
+        }
+        if called | s.tick_typing() {
+            if let Some(d) = s.ed.buf.take_dirty_from() {
+                hl.invalidate(d);
+            }
+            ui.view.last_click = None;
+            ui.view.detached = false;
+            active = Instant::now();
+            dirty = true;
+        }
+        if s.typing.is_none() && !held.is_empty() {
+            for ev in std::mem::take(&mut held) {
+                step(s, hl, ev, &mut resized);
+            }
             dirty = true;
         }
         if let Some(inv) = s.pending_git.take() {
@@ -928,6 +989,14 @@ mod tests {
         assert_eq!(
             map_key(ev(C::Tab, KeyModifiers::SHIFT)),
             Some(Key::new(KeyCode::BackTab))
+        );
+        assert_eq!(
+            map_key(ev(C::Char('['), KeyModifiers::CONTROL)),
+            Some(Key::new(KeyCode::Esc))
+        );
+        assert_eq!(
+            map_key(ev(C::Enter, KeyModifiers::SHIFT)),
+            Some(Key::with(KeyCode::Enter, "S"))
         );
         assert_eq!(
             map_key(ev(C::Esc, KeyModifiers::NONE)),

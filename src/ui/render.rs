@@ -150,6 +150,16 @@ pub fn gutter_width(ed: &Editor) -> usize {
     numbers + git_column(ed) + blame_column(ed)
 }
 
+/// Rows drawn above buffer line L that are not text: magit-blame's
+/// headings style puts each chunk's heading on its own line (as upstream
+/// does in a terminal).
+pub(crate) fn virtual_rows(ed: &Editor, l: usize) -> usize {
+    ed.blame
+        .as_ref()
+        .filter(|b| b.version == ed.buf.version && b.heading_above(l).is_some())
+        .map_or(0, |_| 1)
+}
+
 /// magit-blame's margin, when the current style draws one.
 fn blame_column(ed: &Editor) -> usize {
     ed.blame
@@ -173,7 +183,7 @@ fn git_sign(m: Mark) -> (&'static str, Color) {
     }
 }
 
-fn mode_name(m: &Mode) -> &'static str {
+pub(crate) fn mode_name(m: &Mode) -> &'static str {
     match m {
         Mode::Normal => "NORMAL",
         Mode::Insert => "INSERT",
@@ -447,10 +457,17 @@ fn text_pos(
         } else {
             1
         };
-        if y >= height {
-            y -= height;
+        // A blame heading row above the line counts as the line.
+        let virt = if height > 0 {
+            virtual_rows(ed, line)
+        } else {
+            0
+        };
+        if y >= height + virt {
+            y -= height + virt;
             continue;
         }
+        let y = y.saturating_sub(virt);
         let target = if wrap { x } else { x + view.left };
         let layout = || Layout::new(&text, ed.tabstop(), wrap.then_some(cols));
         let byte = layout()
@@ -485,37 +502,35 @@ fn magit_styles(ed: &Editor, hl: &Highlighter, l: usize, line: &str) -> LineStyl
         Color::Red
     } else if text.starts_with("@@") {
         Color::Cyan
-    } else if text.starts_with("Head:") || text.starts_with("v ") || text.starts_with("> ") {
+    } else if text.starts_with("Head:")
+        || matches!(view.action_at(l), Some(crate::magit::RowAction::Section(_)))
+    {
         Color::Yellow
     } else {
         Color::Reset
     };
     let base = vec![(Style::default().fg(color), 0..line.len())];
-    // Status buffers indent a file's diff by four columns.
-    let indent = if view.kind == crate::magit::Kind::Status {
-        4
-    } else {
-        0
-    };
-    let Some(body) = line.get(indent..) else {
-        return base;
-    };
+    let body = line;
     let sign = body.chars().next();
     if !matches!(sign, Some('+' | '-' | ' ')) || body.starts_with("+++") || body.starts_with("---")
     {
         return base;
     }
     // Inside a hunk: its header, then the file (diff header or status row).
+    // Diff, commit and stash buffers keep the raw diff, headers included.
+    let at = view.raw_at(l);
     let mut in_hunk = false;
     let mut path = None;
-    for k in (0..l).rev().take(5000) {
-        let t = ed.buf.line(k);
-        let Some(t) = t.get(indent..) else {
-            if let Some(crate::magit::RowAction::File(p, _)) = view.action_at(k) {
-                path = Some(p);
-            }
-            break;
-        };
+    let above: Box<dyn Iterator<Item = (usize, String)>> = match at {
+        Some(r) => Box::new(
+            (0..r)
+                .rev()
+                .map(|k| (k, view.raw_line(k).unwrap_or_default().into_owned())),
+        ),
+        None => Box::new((0..l).rev().map(|k| (k, ed.buf.line(k).to_string()))),
+    };
+    for (k, t) in above.take(5000) {
+        let t = t.as_str();
         if t.starts_with("@@") {
             in_hunk = true;
         } else if let Some(f) = t.strip_prefix("+++ b/") {
@@ -529,7 +544,10 @@ fn magit_styles(ed: &Editor, hl: &Highlighter, l: usize, line: &str) -> LineStyl
         } else if t.starts_with("diff ")
             || !(t.starts_with(['+', '-', ' ', '\\']) || (in_hunk && !t.is_empty()))
         {
-            if let Some(crate::magit::RowAction::File(p, _)) = view.action_at(k) {
+            // A status file row (raw lines have no rows).
+            if at.is_none()
+                && let Some(crate::magit::RowAction::File(p, _)) = view.action_at(k)
+            {
                 path = Some(p);
             }
             break;
@@ -538,7 +556,7 @@ fn magit_styles(ed: &Editor, hl: &Highlighter, l: usize, line: &str) -> LineStyl
     if !in_hunk {
         return base;
     }
-    let start = indent + 1;
+    let start = 1;
     let tint = match sign {
         Some('+') => Some(Color::Indexed(22)),
         Some('-') => Some(Color::Indexed(52)),
@@ -640,7 +658,7 @@ fn magit_styles(ed: &Editor, hl: &Highlighter, l: usize, line: &str) -> LineStyl
     }
     if view.refine && tint.is_some() {
         let rows: Vec<String> = ((l.saturating_sub(200))..(l + 200).min(ed.line_count()))
-            .map(|k| ed.buf.line(k).get(indent..).unwrap_or("").to_owned())
+            .map(|k| ed.buf.line(k).to_string())
             .collect();
         let lines: Vec<&str> = rows.iter().map(String::as_str).collect();
         let me = l - l.saturating_sub(200);
@@ -815,6 +833,12 @@ pub fn draw(
             Some(crate::occur::styles(ed, l))
         } else if ed.org.is_some() {
             Some(crate::org::face::styles(ed, l, &org_settings))
+        } else if let Some(st) = ed
+            .claude
+            .as_ref()
+            .and_then(|_| crate::claude::styles(&line))
+        {
+            Some(st)
         } else {
             styles.get(l - view.top).cloned().flatten()
         };
@@ -844,8 +868,28 @@ pub fn draw(
         } else {
             (line, st)
         };
-        // Rows of this line already scrolled off the top.
-        let skip = if l == view.top { view.top_row } else { 0 };
+        // Rows of this line already scrolled off the top: a blame heading
+        // above it first, then its own.
+        let top_skip = if l == view.top { view.top_row } else { 0 };
+        let virt = virtual_rows(ed, l);
+        if virt > 0 && top_skip == 0 {
+            if let Some(text) = blame.and_then(|b| b.heading_above(l)) {
+                let width = cols + gutter;
+                let text: String = text.chars().take(width).collect();
+                buf.set_stringn(
+                    ox,
+                    oy + y as u16,
+                    format!("{text:<width$}"),
+                    width,
+                    Style::default().bg(Color::DarkGray).fg(Color::White),
+                );
+            }
+            y += 1;
+            if y >= rows {
+                break;
+            }
+        }
+        let skip = top_skip.saturating_sub(virt);
         let first_y = y;
         let mut emit = |y: &mut usize, row: usize, mut spans: Vec<Span<'static>>| {
             if selected {
@@ -1050,6 +1094,10 @@ pub fn draw(
         let text_area = Rect::new(ox, oy, area.width, rows as u16);
         draw_explain(buf, text_area, gutter, text, ex_top, ex_end)
     });
+    // Claude asking to use a tool: a dialog over the text until y or n.
+    if let Some(q) = ed.msg.as_ref().and_then(|(m, _)| crate::claude::asked(m)) {
+        draw_approval(buf, Rect::new(ox, oy, area.width, rows as u16), q);
+    }
     if let Mode::Pick(p) = &ed.mode {
         let list = Rect::new(ox, oy + rows as u16 + 2, area.width, panel as u16);
         if p.kind == Kind::MagitMenu {
@@ -1158,6 +1206,10 @@ fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter) {
         Span::styled("▎", mode),
         Span::styled(format!(" {label} "), mode),
     ];
+    // Claude at work, in whichever buffer you're watching it in.
+    if let Some(w) = &ed.claude_working {
+        left.push(Span::styled(format!(" {w} "), bold.fg(Color::LightMagenta)));
+    }
     if let Mode::Pick(p) = &ed.mode {
         let (text, err) = match &ed.msg {
             Some((m, true)) => (m.as_str().into(), true),
@@ -1318,7 +1370,14 @@ fn draw_command_row(buf: &mut Screen, area: Rect, ed: &Editor) -> Option<usize> 
         Mode::Command(cl) if !cl.prompt.is_empty() => Some(draw_input(buf, area, &cl.prompt, cl)),
         Mode::Command(cl) => Some(draw_input(buf, area, cl.kind.encode_utf8(&mut [0; 4]), cl)),
         _ => {
-            if let Some((m, err)) = &ed.msg {
+            if let Some(st) = ed.msg.as_ref().and_then(|(m, _)| crate::claude::styles(m)) {
+                let m = &ed.msg.as_ref().unwrap().0;
+                let spans: Vec<_> = st
+                    .into_iter()
+                    .map(|(s, r)| Span::styled(&m[r], s))
+                    .collect();
+                buf.set_line(area.x, y, &Line::from(spans), area.width);
+            } else if let Some((m, err)) = &ed.msg {
                 let style = if *err {
                     Style::default().fg(Color::Red)
                 } else {
@@ -1369,9 +1428,9 @@ type Group<'a> = (&'a str, Vec<(usize, Cells)>);
 /// per line, then action groups side by side in columns. Switches that are on
 /// are highlighted and show their argument; choices show their value.
 pub fn transient_lines(ed: &Editor, selected: usize, width: usize) -> Vec<Line<'static>> {
-    use crate::magit::{Action, current_choice, menu_entries};
+    use crate::magit::{Action, current_choice, shown_entries};
     let menu = ed.magit_menu.unwrap_or('*');
-    let entries = menu_entries(menu);
+    let entries = shown_entries(ed, menu);
     let heading = Style::default()
         .fg(Color::Blue)
         .add_modifier(Modifier::BOLD);
@@ -1723,6 +1782,39 @@ fn draw_explain(
         );
     }
     Some(rect)
+}
+
+/// Claude's question as a dialog in the middle of the text, like Claude
+/// Code's: the tool, what it would run, and the keys that answer.
+fn draw_approval(buf: &mut Screen, area: Rect, (name, arg): (&str, &str)) {
+    use ratatui::widgets::{Block, BorderType, Clear, Widget};
+    let width = area.width.min(72);
+    if width < 24 || area.height < 6 {
+        return;
+    }
+    let x0 = area.x + (area.width - width) / 2;
+    let rect = Rect::new(x0, area.y + (area.height - 6) / 2, width, 6);
+    let bold = Style::default().add_modifier(Modifier::BOLD);
+    Clear.render(rect, buf);
+    Block::bordered()
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(Color::Yellow))
+        .title(Line::from(vec![
+            Span::styled(" ⏺ Claude wants to use ", bold.fg(Color::Yellow)),
+            Span::styled(format!("{name} "), bold.fg(Color::Cyan)),
+        ]))
+        .render(rect, buf);
+    let arg = if arg.is_empty() { "(no arguments)" } else { arg };
+    let w = width as usize - 4;
+    buf.set_stringn(x0 + 2, rect.y + 2, arg, w, Style::default().fg(Color::White));
+    let keys = Line::from(vec![
+        Span::styled("Allow?   ", Style::default().fg(Color::DarkGray)),
+        Span::styled(" y ", bold.fg(Color::Black).bg(Color::Green)),
+        Span::raw(" Yes    "),
+        Span::styled(" n ", bold.fg(Color::Black).bg(Color::Red)),
+        Span::raw(" No"),
+    ]);
+    buf.set_line(x0 + 2, rect.y + 4, &keys, width - 4);
 }
 
 /// `text` broken at spaces into lines at most `width` columns wide.

@@ -28,6 +28,8 @@ pub enum Op {
 pub struct Line {
     pub text: String,
     pub commit: Option<String>,
+    /// The commit has refs (shown as labels).
+    pub refs: bool,
 }
 
 fn rev(v: &str) -> Result<&str, String> {
@@ -371,7 +373,7 @@ impl Repo {
         let mut argv: Vec<std::ffi::OsString> = vec![
             "log".into(),
             "--no-color".into(),
-            "--format=%x1e%H%x1f%D%x1f%s".into(),
+            "--format=%x1e%H%x1f%h%x1f%D%x1f%s".into(),
         ];
         // ++header: magit-log-revision-headers-format below each commit.
         if args.iter().any(|a| a == "++header") {
@@ -381,9 +383,13 @@ impl Repo {
             )
             .unwrap_or_default()
             .replace('\n', "%n    ");
-            argv[2] = format!("--format=%x1e%H%x1f%D%x1f%s%n    {headers}").into();
+            argv[2] = format!("--format=%x1e%H%x1f%h%x1f%D%x1f%s%n    {headers}").into();
         }
         argv.extend(git_args(args)?.into_iter().map(Into::into));
+        // --follow needs exactly one file (magit-log-buffer-file's).
+        if files.len() == 1 && args.iter().any(|a| a == "--follow") {
+            argv.push("--follow".into());
+        }
         argv.extend(revs.iter().map(Into::into));
         argv.push("--".into());
         argv.extend(files.iter().map(Into::into));
@@ -394,7 +400,13 @@ impl Repo {
         let out = self.run(&argv, None)?;
         let limit = out.len().min(4 * 1024 * 1024);
         let text = String::from_utf8_lossy(&out[..limit]);
-        Ok(text
+        // magit-log-wash-rev: without --stat the hash leads and the graph
+        // follows, so graph-only lines are indented by the hash's width.
+        let align = !args.iter().any(|a| a == "--stat");
+        let after = super::options::flag("magit-log-show-refname-after-summary", false);
+        let mut width = 7;
+        let mut count = 0;
+        let mut lines: Vec<Line> = text
             .lines()
             .map(|line| {
                 match line.split_once('\x1e').filter(|(_, rest)| {
@@ -405,47 +417,97 @@ impl Repo {
                     })
                 }) {
                     Some((graph, rest)) => {
+                        count += 1;
                         let f: Vec<&str> = rest.split('\x1f').collect();
                         let get = |i: usize| f.get(i).copied().unwrap_or("");
-                        let refs = if decorate && !get(1).is_empty() {
-                            format!("({}) ", get(1))
+                        let (id, hash) = (get(0), get(1));
+                        width = hash.len();
+                        let refs = if decorate {
+                            super::repo::ref_labels(get(2))
                         } else {
                             String::new()
                         };
-                        let id = get(0);
-                        // magit-log-wash-rev: hash, refs, then the summary;
-                        // author and date go in the margin.
-                        // magit-log-show-refname-after-summary.
-                        let text = if super::options::flag(
-                            "magit-log-show-refname-after-summary",
-                            false,
-                        ) {
-                            format!(
-                                "{graph}{} {}{}",
-                                &id[..8],
-                                get(2),
-                                if refs.is_empty() {
-                                    String::new()
-                                } else {
-                                    format!(" {}", refs.trim_end())
-                                }
-                            )
+                        let subject = get(3);
+                        let mut text = if align {
+                            format!("{hash} {graph}")
                         } else {
-                            format!("{graph}{} {refs}{}", &id[..8], get(2))
+                            format!("{graph}{hash} ")
                         };
+                        if !refs.is_empty() && !after {
+                            text.push_str(&refs);
+                            text.push(' ');
+                        }
+                        text.push_str(subject);
+                        if !refs.is_empty() && after {
+                            text.push(' ');
+                            text.push_str(&refs);
+                        }
                         Line {
                             text: label(std::path::Path::new(&text)),
                             commit: Some(id.to_owned()).filter(|i| !i.is_empty()),
+                            refs: !refs.is_empty(),
                         }
                     }
-                    None => Line {
-                        text: label(std::path::Path::new(
-                            &line.chars().take(20_000).collect::<String>(),
-                        )),
-                        commit: None,
-                    },
+                    None => {
+                        let text: String = line.chars().take(20_000).collect();
+                        Line {
+                            text: label(std::path::Path::new(&if align {
+                                format!("{:w$}{text}", "", w = width + 1)
+                            } else {
+                                text
+                            })),
+                            commit: None,
+                            refs: false,
+                        }
+                    }
                 }
             })
-            .collect())
+            .collect();
+        // magit-log-wash-log: a full page offers more.
+        if super::log::limit(args).is_some_and(|n| n == count) {
+            lines.push(Line {
+                text: "Type + to show more history".into(),
+                commit: None,
+                refs: false,
+            });
+        }
+        Ok(lines)
     }
+}
+
+/// magit-log-reflog-re's refsub and magit-reflog-format-subject: the label
+/// for a reflog subject ("commit (amend): msg" is "amend") and its message.
+pub fn reflog_subject(subject: &str) -> (String, String) {
+    let (refsub, message) = match ["merge ", "autosave ", "restart ", "rewritten "]
+        .iter()
+        .find(|p| subject.starts_with(**p))
+    {
+        Some(p) => (p.trim_end(), &subject[p.len()..]),
+        None => match subject.split_once(": ") {
+            Some((r, m)) => (r, m),
+            None => return (String::new(), subject.to_owned()),
+        },
+    };
+    // COMMAND [-OPTION...] [(TYPE)]
+    let mut words = refsub.split(' ');
+    let command = words.next().unwrap_or("");
+    let rest: Vec<&str> = words.collect();
+    let options: Vec<&str> = rest
+        .iter()
+        .copied()
+        .filter(|w| w.starts_with('-'))
+        .collect();
+    let kind = rest
+        .iter()
+        .find_map(|w| w.strip_prefix('(').and_then(|w| w.strip_suffix(')')));
+    let label = if command == "commit" {
+        kind.unwrap_or(command).to_owned()
+    } else {
+        std::iter::once(command)
+            .chain(options.iter().copied())
+            .chain(kind)
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
+    (label, message.to_owned())
 }

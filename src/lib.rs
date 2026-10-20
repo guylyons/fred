@@ -19,6 +19,7 @@ pub mod occur;
 pub mod options;
 pub mod org;
 pub mod pick;
+pub mod remote;
 pub mod search;
 pub mod session;
 pub mod shell;

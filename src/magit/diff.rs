@@ -449,3 +449,142 @@ pub fn refine_partner(lines: &[&str], l: usize) -> Option<usize> {
         (s < start && s + k < start).then_some(s + k)
     }
 }
+
+/// A row of a washed diff: its text and the raw line it shows.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Washed {
+    pub text: String,
+    pub raw: Option<usize>,
+    /// On a file's heading: the file, which TAB folds.
+    pub file: Option<String>,
+}
+
+fn is_stat(l: &str) -> bool {
+    l.starts_with(' ') && l.contains(" | ")
+}
+/// A diffstat's summary: "N files changed, ...".
+pub fn is_stat_summary(l: &str) -> bool {
+    let l = l.trim_start();
+    l.split_once(' ')
+        .is_some_and(|(n, rest)| n.bytes().all(|b| b.is_ascii_digit()) && rest.starts_with("file"))
+        && l.contains(" changed")
+}
+
+/// magit-diff-wash-diffs: RAW (a diff after any preamble, such as a
+/// revision's headers or a diffstat) laid out as upstream shows it. The
+/// diffstat's summary leads its file lines; each file is a "%-11s" status
+/// and name heading ("…" when HIDDEN says so) over its mode and rename
+/// lines and hunks; diff, index, --- and +++ lines are not shown.
+pub fn wash(raw: &[&str], hidden: &dyn Fn(&str, &str) -> bool) -> Vec<Washed> {
+    let row = |text: String, raw: Option<usize>| Washed {
+        text,
+        raw,
+        file: None,
+    };
+    let mut out = vec![];
+    let mut i = 0;
+    let is_file = |l: &str| l.starts_with("diff ") || l.starts_with("* Unmerged path ");
+    while i < raw.len() && !is_file(raw[i]) {
+        // A diffstat: its summary first, then the files without the indent.
+        if is_stat(raw[i]) {
+            let start = i;
+            while i < raw.len() && is_stat(raw[i]) {
+                i += 1;
+            }
+            if i < raw.len() && is_stat_summary(raw[i]) {
+                out.push(row(raw[i].trim_start().to_owned(), Some(i)));
+                for (k, l) in raw.iter().enumerate().take(i).skip(start) {
+                    out.push(row(l[1..].to_owned(), Some(k)));
+                }
+                i += 1;
+            } else {
+                for (k, l) in raw.iter().enumerate().take(i).skip(start) {
+                    out.push(row((*l).to_owned(), Some(k)));
+                }
+            }
+            continue;
+        }
+        out.push(row(raw[i].to_owned(), Some(i)));
+        i += 1;
+    }
+    while i < raw.len() {
+        let start = i;
+        if let Some(file) = raw[i].strip_prefix("* Unmerged path ") {
+            out.push(Washed {
+                text: format!("{:<11}{file}", "unmerged"),
+                raw: Some(i),
+                file: Some(file.to_owned()),
+            });
+            i += 1;
+            continue;
+        }
+        let combined = raw[i].starts_with("diff --cc ") || raw[i].starts_with("diff --combined ");
+        let mut status = if combined { "unmerged" } else { "modified" };
+        let mut file = raw[i]
+            .strip_prefix("diff --cc ")
+            .or_else(|| raw[i].strip_prefix("diff --combined "))
+            .map(str::to_owned)
+            .or_else(|| {
+                raw[i]
+                    .strip_prefix("diff --git a/")
+                    .and_then(|r| r.rsplit_once(" b/"))
+                    .map(|(_, b)| b.to_owned())
+            })
+            .unwrap_or_default();
+        let mut orig: Option<String> = None;
+        let mut binary = false;
+        let mut shown = vec![];
+        i += 1;
+        while i < raw.len() && !raw[i].starts_with("@@") && !is_file(raw[i]) {
+            let l = raw[i];
+            if l.starts_with("old mode ") || l.starts_with("new mode ") {
+                shown.push(i);
+            } else if l.starts_with("deleted file ") {
+                status = "deleted";
+            } else if l.starts_with("new file ") {
+                status = "new file";
+            } else if let Some(o) = l.strip_prefix("rename from ") {
+                orig = Some(o.to_owned());
+                status = "renamed";
+                shown.push(i);
+            } else if let Some(f) = l.strip_prefix("rename to ") {
+                file = f.to_owned();
+                shown.push(i);
+            } else if let Some(o) = l.strip_prefix("copy from ") {
+                orig = Some(o.to_owned());
+                status = "copied";
+            } else if let Some(f) = l.strip_prefix("copy to ") {
+                file = f.to_owned();
+            } else if l.starts_with("Binary files ") {
+                binary = true;
+            } else if let Some(f) = header_path(l, "+++ b/") {
+                file = f;
+            }
+            i += 1;
+        }
+        let name = match &orig {
+            Some(o) if *o != file => format!("{o} -> {file}"),
+            _ => file.clone(),
+        };
+        let shut = hidden(&file, status);
+        let has_body = !shown.is_empty() || (i < raw.len() && raw[i].starts_with("@@"));
+        out.push(Washed {
+            text: format!(
+                "{status:<11}{name}{}{}",
+                if binary { " (binary)" } else { "" },
+                if shut && has_body { "…" } else { "" }
+            ),
+            raw: Some(start),
+            file: Some(file),
+        });
+        let body_end = (i..raw.len())
+            .find(|&k| is_file(raw[k]))
+            .unwrap_or(raw.len());
+        if !shut {
+            out.extend(shown.into_iter().map(|k| row(raw[k].to_owned(), Some(k))));
+            out.extend((i..body_end).map(|k| row(raw[k].to_owned(), Some(k))));
+        }
+        i = body_end;
+    }
+    out
+}
