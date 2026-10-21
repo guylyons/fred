@@ -329,7 +329,8 @@ fn seq_of(m: &In) -> Option<u64> {
         In::Keys { seq, .. }
         | In::Paste { seq, .. }
         | In::Mouse { seq, .. }
-        | In::Mac { seq, .. } => Some(*seq),
+        | In::Mac { seq, .. }
+        | In::Open { seq, .. } => Some(*seq),
         In::Resize { .. } | In::Quit => None,
     }
 }
@@ -487,6 +488,8 @@ fn input(s: &mut Session, term: &mut Terminal<TestBackend>, m: In) {
             );
         }
         In::Mac { key, shift, .. } => mac::mac_key(s, key, shift),
+        // Canonical, so a path under the working directory shows relative to it.
+        In::Open { path, .. } => s.open_pick(std::fs::canonicalize(&path).unwrap_or(path), None),
         In::Quit => handle_keys(s, "<Esc>:qa<Enter>"),
     }
     if keyboard && !keep_view && s.ed.zap.is_none() && s.ed.vim.pending != [Key::ch(' ')] {
@@ -577,6 +580,13 @@ mod tests {
             }
         );
         assert_eq!(p(r#"{"t":"quit"}"#), In::Quit);
+        assert_eq!(
+            p(r#"{"t":"open","seq":3,"path":"/a/b"}"#),
+            In::Open {
+                seq: 3,
+                path: "/a/b".into()
+            }
+        );
         assert!(serde_json::from_str::<In>(r#"{"t":"bogus"}"#).is_err());
     }
 

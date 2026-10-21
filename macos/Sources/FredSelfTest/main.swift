@@ -108,6 +108,24 @@ check("p99 is the max of two", abs(l.p99 - 6.0) < 0.01)
 l.shown(seq: 2, at: 0.9)
 check("repeat seq adds nothing", l.count == 2)
 
+check("open line", String(decoding: Outgoing.open(seq: 4, path: "/a/b c").line(), as: UTF8.self) == #"{"t":"open","seq":4,"path":"/a/b c"}"# + "\n")
+let withPath = line.replacingOccurrences(of: #""active":true,"#, with: #""active":true,"path":"/r/f","#)
+if case .frame(let f) = try Incoming.decode(Data(withPath.utf8)) { check("win path", f.windows[0].path == "/r/f") } else { check("win path", false) }
+if case .frame(let f) = try Incoming.decode(Data(line.utf8)) { check("no win path", f.windows[0].path == nil) } else { check("no win path", false) }
+let hid = { (n: String, d: Bool, c: Bool) in FileTree.isHidden(n, isDir: d, cargo: c) }
+check("hidden", hid(".git", true, false) && hid(".git", false, false) && hid(".DS_Store", false, false))
+check("dotfiles shown", !hid(".gitignore", false, false) && !hid(".github", true, false) && !hid("node_modules", true, false))
+check("target only beside Cargo.toml", hid("target", true, true) && !hid("target", true, false) && !hid("target", false, true))
+check("canonical resolves /tmp", FileTree.canonical("/tmp") == "/private/tmp" && FileTree.canonical("/var/../tmp") == "/private/tmp")
+check("canonical keeps a missing path", FileTree.canonical("/no/such/fred") == "/no/such/fred")
+check("folders first, case-insensitive", FileTree.sorted([("b.rs", false), ("Zed", true), ("A.md", false), ("apps", true), (".github", true)]).map(\.name)
+      == [".github", "apps", "Zed", "A.md", "b.rs"])
+check("ancestors", FileTree.ancestors(of: "/r/src/gui/mod.rs", under: "/r") == ["/r/src", "/r/src/gui"])
+check("ancestors top level", FileTree.ancestors(of: "/r/a.rs", under: "/r/") == [])
+check("ancestors outside", FileTree.ancestors(of: "/rx/a.rs", under: "/r") == nil && FileTree.ancestors(of: "/r", under: "/r") == nil)
+check("symbols", FileTree.symbol(for: "x", isDir: true) == "folder" && FileTree.symbol(for: "a.RS", isDir: false) == "chevron.left.forwardslash.chevron.right"
+      && FileTree.symbol(for: "README.md", isDir: false) == "doc.text" && FileTree.symbol(for: "a.bin", isDir: false) == "doc")
+
 exit(failures == 0 ? 0 : 1)
 
 extension Array where Element == CGPoint {

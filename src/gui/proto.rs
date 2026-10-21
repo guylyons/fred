@@ -42,6 +42,9 @@ pub struct Win {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sel: Vec<Sel>,
     pub status: Status,
+    /// The buffer's file, absolute; absent for no-name and special buffers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
 }
 
 /// Selected cells `x..x + w` of text row `y`.
@@ -122,6 +125,11 @@ pub enum In {
         seq: u64,
         key: char,
         shift: bool,
+    },
+    /// Open a file in the active window, as the `Space p` picker does.
+    Open {
+        seq: u64,
+        path: std::path::PathBuf,
     },
     Quit,
 }

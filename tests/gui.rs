@@ -246,3 +246,44 @@ fn quit_during_a_job_waits_for_it() {
         "quit before the job ended"
     );
 }
+
+#[test]
+fn open_shows_the_file_in_the_active_window() {
+    let mut g = Gui::spawn("a", "one\n");
+    std::fs::write(g.path("b"), "two\n").unwrap();
+    g.send(r#"{"t":"resize","cols":40,"rows":10}"#);
+    let b = g.path("b").display().to_string();
+    g.send(&format!(
+        r#"{{"t":"open","seq":1,"path":{}}}"#,
+        Value::from(b.clone())
+    ));
+    let f = g.frame_until(|f| f["seq"] == 1);
+    let w = &f["windows"][0];
+    assert_eq!(w["status"]["name"], "b");
+    assert_eq!(row_text(&f, 0, 0), "two");
+    assert!(w["path"].as_str().unwrap().ends_with("/b"), "{w}");
+}
+
+#[test]
+fn open_while_modified_keeps_the_change_in_a_hidden_buffer() {
+    // As the `Space p` picker: the modified buffer stays open, hidden.
+    let mut g = Gui::spawn("a", "one\n");
+    std::fs::write(g.path("b"), "two\n").unwrap();
+    g.send(r#"{"t":"resize","cols":40,"rows":10}"#);
+    g.send(r#"{"t":"keys","seq":1,"keys":"x"}"#);
+    let (a, b) = (g.path("a"), g.path("b"));
+    let open = |seq: u32, p: &PathBuf| {
+        format!(
+            r#"{{"t":"open","seq":{seq},"path":{}}}"#,
+            Value::from(p.display().to_string())
+        )
+    };
+    g.send(&open(2, &b));
+    let f = g.frame_until(|f| f["seq"] == 2);
+    assert_eq!(f["windows"][0]["status"]["name"], "b");
+    g.send(&open(3, &a));
+    let f = g.frame_until(|f| f["seq"] == 3);
+    assert_eq!(f["windows"][0]["status"]["name"], "a");
+    assert_eq!(f["windows"][0]["status"]["modified"], true);
+    assert_eq!(row_text(&f, 0, 0), "ne");
+}

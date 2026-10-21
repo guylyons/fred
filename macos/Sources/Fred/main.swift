@@ -2,10 +2,11 @@ import AppKit
 import FredKit
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSToolbarDelegate {
     var window: NSWindow!
     var core: Core!
     var view: EditorView!
+    var sidebar: Sidebar!
 
     // MARK: - Menus
 
@@ -60,6 +61,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 item("Find", #selector(macKey(_:)), "f", rep: "f"),
             ]),
             menu("View", [
+                {
+                    // The split view controller answers, and retitles it Show/Hide Sidebar.
+                    let i = NSMenuItem(title: "Show Sidebar", action: #selector(NSSplitViewController.toggleSidebar(_:)), keyEquivalent: "s")
+                    i.keyEquivalentModifierMask = [.command, .control]
+                    return i
+                }(),
+                .separator(),
                 item("Bigger", #selector(zoom(_:)), "=", tag: 1),
                 item("Smaller", #selector(zoom(_:)), "-", tag: -1),
                 item("Actual Size", #selector(zoom(_:)), "0"),
@@ -111,22 +119,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard let path = pathToOpen() else { NSApp.terminate(nil); return }
         var isDir: ObjCBool = false
         FileManager.default.fileExists(atPath: path.path, isDirectory: &isDir)
-        let cwd = isDir.boolValue ? path : path.deletingLastPathComponent()
+        // Symlinks resolved: the core reports canonical paths.
+        let cwd = URL(fileURLWithPath: FileTree.canonical((isDir.boolValue ? path : path.deletingLastPathComponent()).path))
 
         let exe = ProcessInfo.processInfo.environment["FRED_CORE"].map { URL(fileURLWithPath: $0) }
             ?? Bundle.main.executableURL!.deletingLastPathComponent().appendingPathComponent("fred-core")
         core = Core(executable: exe, args: ["--gui", path.path], cwd: cwd)
 
         let view = EditorView(frame: NSRect(x: 0, y: 0, width: 900, height: 600))
-        window = NSWindow(contentRect: view.frame, styleMask: [.titled, .closable, .miniaturizable, .resizable],
+        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1140, height: 640),
+                          styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                           backing: .buffered, defer: false)
         window.title = "Fred"
         window.delegate = self
         view.send = { [core] in core!.send($0) }
         view.onResize = { [core] cols, rows in core!.send(.resize(cols: cols, rows: rows)) }
+        let sidebar = Sidebar(root: cwd)
+        sidebar.open = { url in view.transmit { .open(seq: $0, path: url.path) } ; view.window?.makeFirstResponder(view) }
+        sidebar.leave = { view.window?.makeFirstResponder(view) }
+        self.sidebar = sidebar
         core.onFrame = { [window] f in
             view.apply(f)
             if window!.title != f.title { window!.title = f.title }
+            sidebar.follow(f.windows.first(where: \.active)?.path)
         }
         core.onExit = { [window] code, tail in
             if code != 0 {
@@ -138,13 +153,65 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             window!.close()
             NSApp.terminate(nil)
         }
-        window.contentView = view
+        let bar = NSToolbar(identifier: "main")
+        bar.delegate = self
+        bar.displayMode = .iconOnly
+        window.toolbar = bar
+        window.toolbarStyle = .unified
+        window.contentViewController = split(sidebar: sidebar, editor: view)
+        window.setContentSize(NSSize(width: 1140, height: 640))
         window.makeFirstResponder(view)
         self.view = view
         buildMenus()
         window.center()
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate()
+        // FRED_BACKGROUND=1: open behind (for screenshots while you work).
+        if ProcessInfo.processInfo.environment["FRED_BACKGROUND"] == "1" {
+            window.orderFront(nil)
+        } else {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate()
+        }
+    }
+
+    /// The folder sidebar (glass, width remembered) beside the editor.
+    private func split(sidebar: Sidebar, editor: EditorView) -> NSSplitViewController {
+        let split = NSSplitViewController()
+        let side = NSSplitViewItem(sidebarWithViewController: sidebar)
+        side.minimumThickness = 140
+        side.maximumThickness = 600
+        side.canCollapse = true
+        let content = NSViewController()
+        let box = EditorBackground()
+        box.color = editor.palette.bg
+        editor.translatesAutoresizingMaskIntoConstraints = false
+        box.addSubview(editor)
+        // Below the toolbar; the box keeps the theme color under it.
+        NSLayoutConstraint.activate([
+            editor.topAnchor.constraint(equalTo: box.safeAreaLayoutGuide.topAnchor),
+            editor.leadingAnchor.constraint(equalTo: box.leadingAnchor),
+            editor.trailingAnchor.constraint(equalTo: box.trailingAnchor),
+            editor.bottomAnchor.constraint(equalTo: box.bottomAnchor),
+        ])
+        content.view = box
+        split.addSplitViewItem(side)
+        split.addSplitViewItem(NSSplitViewItem(viewController: content))
+        split.view.frame = NSRect(x: 0, y: 0, width: 1140, height: 640)
+        let key = "NSSplitView Subview Frames FredSidebar"
+        let saved = UserDefaults.standard.object(forKey: key) != nil
+        split.splitView.autosaveName = "FredSidebar"
+        if !saved { split.splitView.setPosition(240, ofDividerAt: 0) }
+        return split
+    }
+
+    func toolbarDefaultItemIdentifiers(_ t: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [.toggleSidebar, .sidebarTrackingSeparator]
+    }
+
+    /// Required, or AppKit drops the delegate; the system items need nothing from us.
+    func toolbar(_ t: NSToolbar, itemForItemIdentifier id: NSToolbarItem.Identifier, willBeInsertedIntoToolbar: Bool) -> NSToolbarItem? { nil }
+
+    func toolbarAllowedItemIdentifiers(_ t: NSToolbar) -> [NSToolbarItem.Identifier] {
+        toolbarDefaultItemIdentifiers(t)
     }
 
     /// The close button asks the core to `:qa`; its `exit` line closes us.
@@ -171,3 +238,10 @@ app.appearance = NSAppearance(named: .darkAqua) // dark materials and label colo
 let delegate = AppDelegate()
 app.delegate = delegate
 app.run()
+
+/// Opaque theme background behind the editor (and under the toolbar).
+final class EditorBackground: NSView {
+    var color = NSColor.black
+    override var isOpaque: Bool { true }
+    override func draw(_ r: NSRect) { color.setFill(); r.fill() }
+}

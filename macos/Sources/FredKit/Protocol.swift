@@ -27,6 +27,8 @@ public struct Win: Codable, Equatable, Sendable {
     /// The selection, one span per text row; absent when there is none.
     public var sel: [Sel]?
     public var status: Status
+    /// The buffer's file, absolute; nil for no-name and special buffers.
+    public var path: String?
 }
 
 /// Selected cells `x..<x + w` of text row `y`, in the window.
@@ -83,12 +85,13 @@ public enum Outgoing {
     case paste(seq: Int, text: String)
     case mouse(seq: Int, kind: String, col: Int, row: Int)
     case mac(seq: Int, key: String, shift: Bool)
+    case open(seq: Int, path: String)
     case quit
 
     /// One JSON object plus "\n", fields in a fixed order.
     public func line() -> Data {
         func q(_ s: String) -> String {
-            let d = try! JSONSerialization.data(withJSONObject: s, options: .fragmentsAllowed)
+            let d = try! JSONSerialization.data(withJSONObject: s, options: [.fragmentsAllowed, .withoutEscapingSlashes])
             return String(decoding: d, as: UTF8.self)
         }
         let body: String
@@ -98,6 +101,7 @@ public enum Outgoing {
         case .paste(let s, let t): body = #""paste","seq":\#(s),"text":\#(q(t))"#
         case .mouse(let s, let k, let c, let r): body = #""mouse","seq":\#(s),"kind":\#(q(k)),"col":\#(c),"row":\#(r)"#
         case .mac(let s, let k, let sh): body = #""mac","seq":\#(s),"key":\#(q(k)),"shift":\#(sh)"#
+        case .open(let s, let p): body = #""open","seq":\#(s),"path":\#(q(p))"#
         case .quit: body = #""quit""#
         }
         return Data((#"{"t":"# + body + "}\n").utf8)
