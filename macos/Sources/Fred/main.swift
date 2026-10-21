@@ -33,7 +33,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         let windowMenu = menu("Window", [
             NSMenuItem(title: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m"),
             NSMenuItem(title: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: ""),
-        ])
+            .separator(),
+            // Shift is in the characters: Cmd-} is Cmd-Shift-].
+            item("Select Next Tab", #selector(selectTab(_:)), "}", tag: 100),
+            item("Select Previous Tab", #selector(selectTab(_:)), "{", tag: -100),
+        ] + (1...9).map { item("Select Tab \($0)", #selector(selectTab(_:)), "\($0)", tag: $0) })
         [
             menu("Fred", [
                 item("About Fred", #selector(NSApplication.orderFrontStandardAboutPanel(_:))),
@@ -47,7 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
             menu("File", [
                 item("Open…", nil, "o"), // disabled in Phase 1
                 item("Save", #selector(macKey(_:)), "s", rep: "s"),
-                item("Close Window", #selector(macKey(_:)), "w", rep: "w"),
+                item("Close Tab", #selector(macKey(_:)), "w", rep: "w"),
             ]),
             menu("Edit", [
                 item("Undo", #selector(macKey(_:)), "z", rep: "z"),
@@ -104,6 +108,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         view.transmit(at: CACurrentMediaTime()) { .mac(seq: $0, key: k, shift: shift) }
     }
 
+    /// tag 1...9: that tab; 100 / -100: next / previous, wrapping.
+    @objc private func selectTab(_ s: NSMenuItem) {
+        guard let w = view.current?.windows.first(where: \.active), let id = w.id, let tabs = w.tabs, !tabs.isEmpty else { return }
+        let cur = tabs.firstIndex(where: \.current) ?? 0
+        let i = abs(s.tag) == 100 ? (cur + s.tag / 100 + tabs.count) % tabs.count : s.tag - 1
+        guard i < tabs.count, i != cur else { return }
+        view.transmit { .tab(seq: $0, win: id, op: "select", index: i, to: nil) }
+    }
+
     @objc private func paste() {
         guard let t = NSPasteboard.general.string(forType: .string) else { return }
         view.transmit { .paste(seq: $0, text: t) }
@@ -133,9 +146,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         window.title = "Fred"
         window.delegate = self
         view.send = { [core] in core!.send($0) }
-        view.onResize = { [core] cols, rows in core!.send(.resize(cols: cols, rows: rows)) }
+        view.onResize = { [core] cols, rows in core!.send(.resize(cols: cols, rows: rows, margin: 0)) }
         let sidebar = Sidebar(root: cwd)
-        sidebar.open = { url in view.transmit { .open(seq: $0, path: url.path) } ; view.window?.makeFirstResponder(view) }
+        sidebar.open = { url, preview in
+            view.transmit { .open(seq: $0, path: url.path, preview: preview) }
+            view.window?.makeFirstResponder(view)
+        }
+        view.reveal = { sidebar.revealInTree($0) }
         sidebar.leave = { view.window?.makeFirstResponder(view) }
         self.sidebar = sidebar
         core.onFrame = { [window] f in

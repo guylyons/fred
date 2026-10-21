@@ -37,8 +37,8 @@ final class Node {
 @MainActor
 final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate, NSMenuDelegate, NSTextFieldDelegate {
     let root: Node
-    /// Opens a file in the active Fred window.
-    var open: (URL) -> Void = { _ in }
+    /// Opens a file in the active Fred window; `true` as a preview tab.
+    var open: (URL, Bool) -> Void = { _, _ in }
     /// Esc in the tree: back to the editor.
     var leave: () -> Void = {}
     private let outline = SidebarOutline()
@@ -172,22 +172,23 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         // The disclosure triangle has already toggled it.
         if n.isDir, let e = NSApp.currentEvent,
            outline.frameOfOutlineCell(atRow: outline.clickedRow).contains(outline.convert(e.locationInWindow, from: nil)) { return }
-        activate(n)
+        activate(n, preview: true)
     }
 
-    /// The first click already toggled a folder; a double-click only opens files.
+    /// The first click already toggled a folder (and previewed a file); a
+    /// double-click opens the file for good.
     @objc private func doubleClicked() {
         guard let n = outline.item(atRow: outline.clickedRow) as? Node, !n.isDir else { return }
-        activate(n)
+        activate(n, preview: false)
     }
 
     private func activateSelected() {
         if let n = outline.item(atRow: outline.selectedRow) as? Node { activate(n) }
     }
 
-    private func activate(_ n: Node) {
+    private func activate(_ n: Node, preview: Bool = false) {
         guard !n.pending else { return }
-        if !n.isDir { open(n.url); return }
+        if !n.isDir { open(n.url, preview); return }
         if outline.isItemExpanded(n) { outline.collapseItem(n) } else { outline.expandItem(n) }
     }
 
@@ -196,6 +197,14 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
     func follow(_ path: String?) {
         guard path != current else { return }
         current = path
+        select(path)
+    }
+
+    /// Reveal in Sidebar (a tab's menu): select `path` without making it
+    /// the followed file, so the next frame doesn't undo it.
+    func revealInTree(_ path: String) { select(path) }
+
+    private func select(_ path: String?) {
         guard let raw = path, case let path = FileTree.canonical(raw),
               let dirs = FileTree.ancestors(of: path, under: root.url.path) else {
             outline.deselectAll(nil)
@@ -363,13 +372,13 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
                     // Never clobber an existing file.
                     guard !FileManager.default.fileExists(atPath: to.path) else { throw CocoaError(.fileWriteFileExists) }
                     guard FileManager.default.createFile(atPath: to.path, contents: nil) else { throw CocoaError(.fileWriteUnknown) }
-                    open(to)
+                    open(to, false)
                     opened = true
                 }
             } else {
                 try FileManager.default.moveItem(at: n.url, to: to)
                 // ponytail: only the active window follows a rename (via `open`); other buffers keep the old path.
-                if let c = current, FileTree.canonical(c) == n.url.path { open(to); opened = true }
+                if let c = current, FileTree.canonical(c) == n.url.path { open(to, false); opened = true }
             }
         } catch {
             NSAlert(error: error).runModal()

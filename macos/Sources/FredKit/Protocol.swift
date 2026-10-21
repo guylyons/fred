@@ -29,6 +29,34 @@ public struct Win: Codable, Equatable, Sendable {
     public var status: Status
     /// The buffer's file, absolute; nil for no-name and special buffers.
     public var path: String?
+    // Phase 2, all absent from an older core.
+    /// The window id, for `tab` and `scroll`.
+    public var id: Int?
+    /// Rows reserved at the top for the tab strip (0 or 1); `rows` start below them.
+    public var header: Int?
+    /// Columns reserved at the right for the minimap.
+    public var margin: Int?
+    /// The first buffer line shown, and the buffer's line count.
+    public var top: Int?
+    public var lines: Int?
+    /// In display order, exactly one `current`.
+    public var tabs: [Tab]?
+}
+
+public struct Tab: Codable, Equatable, Sendable {
+    public var name: String
+    public var path: String?
+    public var modified: Bool
+    public var preview: Bool
+    public var current: Bool
+
+    public init(name: String, path: String? = nil, modified: Bool = false, preview: Bool = false, current: Bool = false) {
+        self.name = name
+        self.path = path
+        self.modified = modified
+        self.preview = preview
+        self.current = current
+    }
 }
 
 /// Selected cells `x..<x + w` of text row `y`, in the window.
@@ -80,12 +108,17 @@ public enum Incoming {
 }
 
 public enum Outgoing {
-    case resize(cols: Int, rows: Int)
+    /// `margin` (minimap columns) is left out when 0, its default.
+    case resize(cols: Int, rows: Int, margin: Int)
     case keys(seq: Int, keys: String)
     case paste(seq: Int, text: String)
     case mouse(seq: Int, kind: String, col: Int, row: Int)
     case mac(seq: Int, key: String, shift: Bool)
-    case open(seq: Int, path: String)
+    /// `preview` is left out when false, its default.
+    case open(seq: Int, path: String, preview: Bool)
+    /// `op`: select, close, move (to `to`) or keep.
+    case tab(seq: Int, win: Int, op: String, index: Int, to: Int?)
+    case scroll(seq: Int, win: Int, top: Int)
     case quit
 
     /// One JSON object plus "\n", fields in a fixed order.
@@ -96,12 +129,15 @@ public enum Outgoing {
         }
         let body: String
         switch self {
-        case .resize(let c, let r): body = #""resize","cols":\#(c),"rows":\#(r)"#
+        case .resize(let c, let r, let m): body = #""resize","cols":\#(c),"rows":\#(r)"# + (m == 0 ? "" : #","margin":\#(m)"#)
         case .keys(let s, let k): body = #""keys","seq":\#(s),"keys":\#(q(k))"#
         case .paste(let s, let t): body = #""paste","seq":\#(s),"text":\#(q(t))"#
         case .mouse(let s, let k, let c, let r): body = #""mouse","seq":\#(s),"kind":\#(q(k)),"col":\#(c),"row":\#(r)"#
         case .mac(let s, let k, let sh): body = #""mac","seq":\#(s),"key":\#(q(k)),"shift":\#(sh)"#
-        case .open(let s, let p): body = #""open","seq":\#(s),"path":\#(q(p))"#
+        case .open(let s, let p, let pv): body = #""open","seq":\#(s),"path":\#(q(p))"# + (pv ? #","preview":true"# : "")
+        case .tab(let s, let w, let op, let i, let to):
+            body = #""tab","seq":\#(s),"win":\#(w),"op":\#(q(op)),"index":\#(i)"# + (to.map { #","to":\#($0)"# } ?? "")
+        case .scroll(let s, let w, let t): body = #""scroll","seq":\#(s),"win":\#(w),"top":\#(t)"#
         case .quit: body = #""quit""#
         }
         return Data((#"{"t":"# + body + "}\n").utf8)

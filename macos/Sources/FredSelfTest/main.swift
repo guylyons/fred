@@ -108,7 +108,7 @@ check("p99 is the max of two", abs(l.p99 - 6.0) < 0.01)
 l.shown(seq: 2, at: 0.9)
 check("repeat seq adds nothing", l.count == 2)
 
-check("open line", String(decoding: Outgoing.open(seq: 4, path: "/a/b c").line(), as: UTF8.self) == #"{"t":"open","seq":4,"path":"/a/b c"}"# + "\n")
+check("open line", String(decoding: Outgoing.open(seq: 4, path: "/a/b c", preview: false).line(), as: UTF8.self) == #"{"t":"open","seq":4,"path":"/a/b c"}"# + "\n")
 let withPath = line.replacingOccurrences(of: #""active":true,"#, with: #""active":true,"path":"/r/f","#)
 if case .frame(let f) = try Incoming.decode(Data(withPath.utf8)) { check("win path", f.windows[0].path == "/r/f") } else { check("win path", false) }
 if case .frame(let f) = try Incoming.decode(Data(line.utf8)) { check("no win path", f.windows[0].path == nil) } else { check("no win path", false) }
@@ -125,6 +125,47 @@ check("ancestors top level", FileTree.ancestors(of: "/r/a.rs", under: "/r/") == 
 check("ancestors outside", FileTree.ancestors(of: "/rx/a.rs", under: "/r") == nil && FileTree.ancestors(of: "/r", under: "/r") == nil)
 check("symbols", FileTree.symbol(for: "x", isDir: true) == "folder" && FileTree.symbol(for: "a.RS", isDir: false) == "chevron.left.forwardslash.chevron.right"
       && FileTree.symbol(for: "README.md", isDir: false) == "doc.text" && FileTree.symbol(for: "a.bin", isDir: false) == "doc")
+
+// Tab strip layout.
+do {
+    let fit = TabMath.layout(widths: [100, 150, 120], available: 1000, current: 1)
+    check("tabs that fit keep natural widths", fit.frames.map(\.width) == [100, 150, 120] && fit.offset == 0)
+    check("tabs sit side by side", fit.frames.map(\.minX) == [0, 100, 250])
+    check("widths clamp to 90...220", TabMath.layout(widths: [40, 400], available: 1000, current: 0).frames.map(\.width) == [90, 220])
+    let tight = TabMath.layout(widths: [100, 220, 220], available: 420, current: 2)
+    check("overflow shrinks to fill", abs(tight.frames.map(\.width).reduce(0, +) - 420) < 0.001 && tight.offset == 0)
+    check("overflow shrinks every tab to at least 90", tight.frames.allSatisfy { $0.width >= 90 })
+    check("the widest shrink first (evenly)", tight.frames[0].width == 100 && tight.frames[1].width == tight.frames[2].width)
+    let many = TabMath.layout(widths: Array(repeating: 200, count: 10), available: 450, current: 7)
+    check("beyond that tabs stop at 90", many.frames.allSatisfy { $0.width == 90 })
+    let cur = many.frames[7]
+    check("and scroll so the current tab is fully visible", cur.minX - many.offset >= 0 && cur.maxX - many.offset <= 450 && many.offset > 0)
+    check("first tab current needs no scroll", TabMath.layout(widths: Array(repeating: 200, count: 10), available: 450, current: 0).offset == 0)
+    check("a kept offset stays while current is visible",
+          TabMath.layout(widths: Array(repeating: 200, count: 10), available: 450, current: 6, offset: many.offset).offset == many.offset)
+    check("offset never runs past the end", TabMath.layout(widths: Array(repeating: 200, count: 10), available: 450, current: 9, offset: 5000).offset == 900 - 450)
+    check("no tabs", TabMath.layout(widths: [], available: 450, current: 0).frames.isEmpty)
+}
+
+// Phase 2 window fields: present, and absent (an older core).
+let withTabs = line.replacingOccurrences(of: #""active":true,"#, with: #""active":true,"id":3,"header":1,"margin":8,"top":120,"lines":2048,"tabs":[{"name":"main.rs","path":"/abs/src/main.rs","modified":false,"preview":true,"current":true},{"name":"[No Name]","modified":true,"preview":false,"current":false}],"#)
+if case .frame(let f) = try Incoming.decode(Data(withTabs.utf8)) {
+    let w = f.windows[0]
+    check("win phase 2 fields", w.id == 3 && w.header == 1 && w.margin == 8 && w.top == 120 && w.lines == 2048)
+    check("tabs decode", w.tabs?.count == 2 && w.tabs?[0].preview == true && w.tabs?[0].path == "/abs/src/main.rs" && w.tabs?[1].path == nil && w.tabs?[1].modified == true)
+} else { check("decodes a frame with tabs", false) }
+if case .frame(let f) = try Incoming.decode(Data(line.utf8)) {
+    let w = f.windows[0]
+    check("old frame: no phase 2 fields", w.id == nil && w.tabs == nil && w.header == nil && w.margin == nil)
+} else { check("old frame decodes", false) }
+func out(_ o: Outgoing) -> String { String(decoding: o.line(), as: UTF8.self) }
+check("tab line", out(.tab(seq: 6, win: 3, op: "move", index: 2, to: 0)) == #"{"t":"tab","seq":6,"win":3,"op":"move","index":2,"to":0}"# + "\n")
+check("tab line without to", out(.tab(seq: 6, win: 3, op: "select", index: 2, to: nil)) == #"{"t":"tab","seq":6,"win":3,"op":"select","index":2}"# + "\n")
+check("scroll line", out(.scroll(seq: 10, win: 3, top: 400)) == #"{"t":"scroll","seq":10,"win":3,"top":400}"# + "\n")
+check("open preview line", out(.open(seq: 5, path: "/f", preview: true)) == #"{"t":"open","seq":5,"path":"/f","preview":true}"# + "\n")
+check("open line omits preview false", out(.open(seq: 5, path: "/f", preview: false)) == #"{"t":"open","seq":5,"path":"/f"}"# + "\n")
+check("resize margin", out(.resize(cols: 120, rows: 40, margin: 8)) == #"{"t":"resize","cols":120,"rows":40,"margin":8}"# + "\n")
+check("resize margin 0 omitted", out(.resize(cols: 120, rows: 40, margin: 0)) == #"{"t":"resize","cols":120,"rows":40}"# + "\n")
 
 exit(failures == 0 ? 0 : 1)
 

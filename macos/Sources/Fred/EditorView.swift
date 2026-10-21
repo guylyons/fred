@@ -15,6 +15,9 @@ final class EditorView: NSView {
     private let overlay = NSTextField(labelWithString: "")
     private var printed = 0
     private var statusBars: [StatusBar] = []
+    private var tabStrips: [TabStrip] = []
+    /// Reveal in Sidebar, from a tab's menu (wired by main.swift).
+    var reveal: (String) -> Void = { _ in }
 
     /// Sends a message to the core (wired by main.swift).
     var send: (Outgoing) -> Void = { _ in }
@@ -144,19 +147,20 @@ final class EditorView: NSView {
         let old = current
         current = f
         layoutStatusBars(f)
+        layoutTabStrips(f)
         defer { if !needsDisplay { frameShown(f) } } // nothing to draw: the echo is already on screen
         guard let old, old.cols == f.cols, old.rows == f.rows, old.windows.count == f.windows.count,
               zip(old.windows, f.windows).allSatisfy({ sameRect($0, $1) })
         else { needsDisplay = true; return }
         for (o, n) in zip(old.windows, f.windows) {
             for r in 0..<n.rows.count where r >= o.rows.count || o.rows[r] != n.rows[r] {
-                setNeedsDisplay(rowRect(n.y + r))
+                setNeedsDisplay(rowRect(textY(n) + r))
             }
             // A changed selection: its rows and their neighbours (the corners
             // and the border reach them).
             if o.sel != n.sel {
                 for s in (o.sel ?? []) + (n.sel ?? []) {
-                    for r in s.y - 1...s.y + 1 { setNeedsDisplay(rowRect(n.y + r)) }
+                    for r in s.y - 1...s.y + 1 { setNeedsDisplay(rowRect(textY(n) + r)) }
                 }
             }
         }
@@ -188,6 +192,31 @@ final class EditorView: NSView {
         }
     }
 
+    /// One TabStrip per window with a header row and tabs, over that row.
+    private func layoutTabStrips(_ f: Frame) {
+        while tabStrips.count < f.windows.count {
+            let s = TabStrip(frame: .zero)
+            s.editorBg = palette.bg
+            s.reveal = { [weak self] in self?.reveal($0) }
+            addSubview(s, positioned: .below, relativeTo: overlay)
+            tabStrips.append(s)
+        }
+        for (i, s) in tabStrips.enumerated() {
+            guard i < f.windows.count, case let w = f.windows[i], let id = w.id, let tabs = w.tabs, (w.header ?? 0) > 0 else {
+                s.isHidden = true
+                continue
+            }
+            let (l, r) = span(w.x, w.w - (w.divider ? 1 : 0))
+            s.frame = NSRect(x: l, y: CGFloat(w.y) * cell.height, width: r - l, height: CGFloat(w.header!) * cell.height)
+            s.isHidden = false
+            s.op = { [weak self] op, index, to in self?.transmit { .tab(seq: $0, win: id, op: op, index: index, to: to) } }
+            s.update(tabs, active: w.active)
+        }
+    }
+
+    /// The window's first text row: below its tab strip.
+    private func textY(_ w: Win) -> Int { w.y + (w.header ?? 0) }
+
     private func frameShown(_ f: Frame) {
         guard latency.shown(seq: f.seq, at: CACurrentMediaTime()), showLatency else { return }
         if latency.total / 100 > printed {
@@ -201,7 +230,7 @@ final class EditorView: NSView {
     }
 
     private func sameRect(_ a: Win, _ b: Win) -> Bool {
-        a.x == b.x && a.y == b.y && a.w == b.w && a.h == b.h && a.divider == b.divider
+        a.x == b.x && a.y == b.y && a.w == b.w && a.h == b.h && a.divider == b.divider && a.header == b.header
     }
 
     private func bottomTop(_ f: Frame) -> Int { f.windows.map { $0.y + $0.h }.max() ?? 0 }
@@ -219,10 +248,11 @@ final class EditorView: NSView {
         guard let f = current else { return }
         ctx.textMatrix = CGAffineTransform(scaleX: 1, y: -1)
         for w in f.windows {
-            let dirty = w.rows.indices.filter { needsToDraw(rowRect(w.y + $0)) }
-            for r in dirty { drawBackgrounds(ctx, w.rows[r], col: w.x, row: w.y + r) }
+            let y = textY(w)
+            let dirty = w.rows.indices.filter { needsToDraw(rowRect(y + $0)) }
+            for r in dirty { drawBackgrounds(ctx, w.rows[r], col: w.x, row: y + r) }
             if let sel = w.sel, !sel.isEmpty { drawSelection(ctx, sel, w) }
-            for r in dirty { drawText(ctx, w.rows[r], col: w.x, row: w.y + r) }
+            for r in dirty { drawText(ctx, w.rows[r], col: w.x, row: y + r) }
             if w.divider {
                 let x = snap((CGFloat(w.x + w.w - 1) + 0.5) * cell.width, scale: scale)
                 ctx.setFillColor(NSColor.separatorColor.cgColor)
@@ -265,8 +295,9 @@ final class EditorView: NSView {
     private func drawSelection(_ ctx: CGContext, _ sel: [Sel], _ w: Win) {
         let (l, r) = span(w.x, w.w - (w.divider ? 1 : 0))
         ctx.saveGState()
-        ctx.clip(to: CGRect(x: l, y: CGFloat(w.y) * cell.height, width: r - l, height: CGFloat(w.rows.count) * cell.height))
-        ctx.translateBy(x: l, y: CGFloat(w.y) * cell.height)
+        let y = CGFloat(textY(w)) * cell.height
+        ctx.clip(to: CGRect(x: l, y: y, width: r - l, height: CGFloat(w.rows.count) * cell.height))
+        ctx.translateBy(x: l, y: y)
         let path = selectionPath(sel, cell: cell, scale: scale)
         ctx.addPath(path)
         ctx.setFillColor(palette.selFill.cgColor)
@@ -360,8 +391,8 @@ final class EditorView: NSView {
     private func character(at x: Int, _ y: Int, _ f: Frame) -> (s: String, flags: Int, col: Int, width: Int)? {
         var origin = 0
         var runs: [Run]?, col = x
-        for w in f.windows where x >= w.x && x < w.x + w.w && y >= w.y && y - w.y < w.rows.count {
-            runs = w.rows[y - w.y]; col = x - w.x; origin = w.x
+        for w in f.windows where x >= w.x && x < w.x + w.w && y >= textY(w) && y - textY(w) < w.rows.count {
+            runs = w.rows[y - textY(w)]; col = x - w.x; origin = w.x
         }
         let top = bottomTop(f)
         if runs == nil, y >= top, y - top < f.bottom.count { runs = f.bottom[y - top] }
