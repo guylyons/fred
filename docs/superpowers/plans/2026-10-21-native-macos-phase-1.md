@@ -94,7 +94,7 @@ One JSON object per line, UTF-8.
 ```json
 {"t":"frame","seq":10,"cols":120,"rows":40,"title":"fred — ~/github/fred",
  "windows":[{"x":0,"y":0,"w":120,"h":38,"divider":false,"active":true,
-   "rows":[[{"x":0,"s":"  1 ","fg":8},{"x":4,"s":"fn","fg":16737970,"f":1}]],
+   "rows":[[{"x":0,"s":"  1 ","fg":8},{"x":4,"s":"fn","fg":33515186,"f":1}]],
    "status":{"mode":"NORMAL","name":"src/main.rs","modified":false,"pos":"12:5","branch":"main"}}],
  "bottom":[[{"x":0,"s":":w"}]],
  "cursor":{"x":4,"y":0,"shape":"block"}}
@@ -116,7 +116,7 @@ One JSON object per line, UTF-8.
   - `s`: the text, where a wide character counts for 2 columns.
   - `fg` and `bg`: absent means the theme default. `0..=255` is a
     palette index (0–15 are the named ANSI colors, in ratatui order).
-    `0x1000000 | rgb` is a 24-bit color, and the example's `16737970` is
+    `0x1000000 | rgb` is a 24-bit color, and the example's `33515186` is
     `0x1000000 | 0xff66b2`.
   - `f`: bit flags, absent when 0: 1 bold, 2 italic, 4 underline,
     8 reversed, 16 dim, 32 crossed out.
@@ -618,7 +618,7 @@ prints one canned frame line on every input line.
   calls, prints `ok N` or `FAIL name`, and exits 1 on any failure.
 
 ```swift
-let line = #"{"t":"frame","seq":3,"cols":20,"rows":6,"title":"t","windows":[{"x":0,"y":0,"w":20,"h":5,"divider":false,"active":true,"rows":[[{"x":0,"s":"hello","fg":16737970,"f":1}]],"status":{"mode":"NORMAL","name":"f","modified":false,"pos":"1:1","branch":null}}],"bottom":[],"cursor":{"x":0,"y":0,"shape":"block"}}"#
+let line = #"{"t":"frame","seq":3,"cols":20,"rows":6,"title":"t","windows":[{"x":0,"y":0,"w":20,"h":5,"divider":false,"active":true,"rows":[[{"x":0,"s":"hello","fg":33515186,"f":1}]],"status":{"mode":"NORMAL","name":"f","modified":false,"pos":"1:1","branch":null}}],"bottom":[],"cursor":{"x":0,"y":0,"shape":"block"}}"#
 if case .frame(let f) = try Incoming.decode(Data(line.utf8)) {
     check("seq", f.seq == 3)
     check("run text", f.windows[0].rows[0][0].s == "hello")
