@@ -160,6 +160,9 @@ brew install zig@0.15
 open macos/Fred.app --args PATH       # a file or directory; omit PATH for an open panel
 ```
 
+`open` does not pass your shell environment. To set the variables below, run
+the binary directly: `FRED_LATENCY=1 macos/Fred.app/Contents/MacOS/Fred PATH`.
+
 - `FRED_CORE=/path/to/fred` runs a different core binary than the bundled one.
 - `FRED_LATENCY=1` shows keypress-to-pixels p50/p99 in an overlay at the top
   right, and prints it to stderr every 100 samples.

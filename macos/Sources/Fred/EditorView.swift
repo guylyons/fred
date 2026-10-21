@@ -14,6 +14,7 @@ final class EditorView: NSView {
     private(set) var latency = Latency()
     private let showLatency = ProcessInfo.processInfo.environment["FRED_LATENCY"] == "1"
     private let overlay = NSTextField(labelWithString: "")
+    private var printed = 0
     private var statusBars: [StatusBar] = []
 
     /// Sends a message to the core (wired by main.swift).
@@ -23,9 +24,10 @@ final class EditorView: NSView {
 
     /// Sends the message `make` builds from the next seq; returns that seq.
     @discardableResult
-    func transmit(at: CFTimeInterval = CACurrentMediaTime(), _ make: (Int) -> Outgoing) -> Int {
+    /// Pass `at` (the keypress time) only for keypresses: those alone are latency samples.
+    func transmit(at: CFTimeInterval? = nil, _ make: (Int) -> Outgoing) -> Int {
         lastSeq += 1
-        latency.start(seq: lastSeq, at: at)
+        if let at { latency.start(seq: lastSeq, at: at) }
         send(make(lastSeq))
         return lastSeq
     }
@@ -184,9 +186,11 @@ final class EditorView: NSView {
     }
 
     private func frameShown(_ f: Frame) {
-        latency.shown(seq: f.seq, at: CACurrentMediaTime())
-        guard showLatency, latency.count > 0 else { return }
-        if latency.total % 100 == 0, latency.total > 0 { FileHandle.standardError.write(Data((latency.summary + "\n").utf8)) }
+        guard latency.shown(seq: f.seq, at: CACurrentMediaTime()), showLatency else { return }
+        if latency.total / 100 > printed {
+            printed = latency.total / 100
+            FileHandle.standardError.write(Data((latency.summary + "\n").utf8))
+        }
         overlay.stringValue = latency.summary
         overlay.sizeToFit()
         overlay.frame.origin = NSPoint(x: bounds.maxX - overlay.frame.width - 8, y: 8)

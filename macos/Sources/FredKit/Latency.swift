@@ -16,13 +16,17 @@ public struct Latency {
     }
 
     /// Closes every started seq up to and including `seq`.
-    public mutating func shown(seq: Int, at: Double) {
+    @discardableResult
+    public mutating func shown(seq: Int, at: Double) -> Bool {
+        var took = false
         while let p = pending.first, p.seq <= seq {
             pending.removeFirst()
             let ms = (at - p.at) * 1000
             if samples.count < 1000 { samples.append(ms) } else { samples[next] = ms; next = (next + 1) % 1000 }
             total += 1
+            took = true
         }
+        return took
     }
 
     private func percentile(_ q: Double) -> Double {

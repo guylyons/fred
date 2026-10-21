@@ -74,7 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc private func macKey(_ s: NSMenuItem) {
         let k = s.representedObject as! String, shift = s.tag == 1
-        view.transmit { .mac(seq: $0, key: k, shift: shift) }
+        view.transmit(at: CACurrentMediaTime()) { .mac(seq: $0, key: k, shift: shift) }
     }
 
     @objc private func paste() {
