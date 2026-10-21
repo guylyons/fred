@@ -157,7 +157,7 @@ Ghostty build.
 ```sh
 brew install zig@0.15
 ./macos/build.sh                      # builds the core and macos/Fred.app
-open macos/Fred.app --args PATH       # a file or directory; omit PATH for an open panel
+open macos/Fred.app --args "$PWD/file"  # an absolute path (the app starts in /): a file or directory; omit it for an open panel
 ```
 
 `open` does not pass your shell environment. To set the variables below, run
