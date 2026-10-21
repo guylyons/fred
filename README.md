@@ -147,6 +147,23 @@ seconds without input it checks for background work four times a second
 instead of twenty. Inside a repository, most of the extra time is the one
 `git show` that fetches the staged file for the gutter.
 
+## Native macOS app (preview)
+
+`macos/` holds a native Mac front end: a Swift app that draws Fred's windows
+with Core Text and per-window status bars, and runs `fred --gui` as its helper
+process. It needs macOS 26 and the Swift toolchain, plus Zig 0.15 for the
+Ghostty build.
+
+```sh
+brew install zig@0.15
+./macos/build.sh                      # builds the core and macos/Fred.app
+open macos/Fred.app --args PATH       # a file or directory; omit PATH for an open panel
+```
+
+- `FRED_CORE=/path/to/fred` runs a different core binary than the bundled one.
+- `FRED_LATENCY=1` shows keypress-to-pixels p50/p99 in an overlay at the top
+  right, and prints it to stderr every 100 samples.
+
 ## Usage
 
 ```

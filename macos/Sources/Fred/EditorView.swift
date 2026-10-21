@@ -11,13 +11,13 @@ final class EditorView: NSView {
     }
     /// Called with (cols, rows) whenever the size in cells changes.
     var onResize: (Int, Int) -> Void = { _, _ in }
-    /// Called after each draw with the frame on screen (latency hook).
-    var onDrawn: (Frame) -> Void = { _ in }
+    private(set) var latency = Latency()
+    private let showLatency = ProcessInfo.processInfo.environment["FRED_LATENCY"] == "1"
+    private let overlay = NSTextField(labelWithString: "")
+    private var statusBars: [StatusBar] = []
 
     /// Sends a message to the core (wired by main.swift).
     var send: (Outgoing) -> Void = { _ in }
-    /// Every seq sent, with its send time (CACurrentMediaTime), for latency measurement.
-    private(set) var sent: [(seq: Int, at: CFTimeInterval)] = []
     private var lastSeq = 0
     private var scrollAcc: CGFloat = 0
 
@@ -25,8 +25,7 @@ final class EditorView: NSView {
     @discardableResult
     func transmit(at: CFTimeInterval = CACurrentMediaTime(), _ make: (Int) -> Outgoing) -> Int {
         lastSeq += 1
-        sent.append((lastSeq, at))
-        if sent.count > 4096 { sent.removeFirst(2048) } // ponytail: bounded log, Task 8 drains it
+        latency.start(seq: lastSeq, at: at)
         send(make(lastSeq))
         return lastSeq
     }
@@ -48,6 +47,13 @@ final class EditorView: NSView {
         layer?.isOpaque = true
         layerContentsRedrawPolicy = .onSetNeedsDisplay
         metricsChanged()
+        overlay.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        overlay.textColor = .white
+        overlay.drawsBackground = true
+        overlay.backgroundColor = NSColor.black.withAlphaComponent(0.6)
+        overlay.isHidden = true
+        overlay.autoresizingMask = [.minXMargin, .maxYMargin]
+        addSubview(overlay)
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -139,6 +145,8 @@ final class EditorView: NSView {
     func apply(_ f: Frame) {
         let old = current
         current = f
+        layoutStatusBars(f)
+        defer { if !needsDisplay { frameShown(f) } } // nothing to draw: the echo is already on screen
         guard let old, old.cols == f.cols, old.rows == f.rows, old.windows.count == f.windows.count,
               zip(old.windows, f.windows).allSatisfy({ sameRect($0, $1) })
         else { needsDisplay = true; return }
@@ -156,6 +164,33 @@ final class EditorView: NSView {
             if let c = old.cursor { setNeedsDisplay(rowRect(c.y)) }
             if let c = f.cursor { setNeedsDisplay(rowRect(c.y)) }
         }
+    }
+
+    /// One StatusBar per window, over its last cell row (minus the divider column).
+    private func layoutStatusBars(_ f: Frame) {
+        while statusBars.count < f.windows.count {
+            let b = StatusBar(frame: .zero)
+            addSubview(b, positioned: .below, relativeTo: overlay)
+            statusBars.append(b)
+        }
+        for (i, b) in statusBars.enumerated() {
+            guard i < f.windows.count else { b.isHidden = true; continue }
+            let w = f.windows[i]
+            let (l, r) = span(w.x, w.w - (w.divider ? 1 : 0))
+            b.frame = NSRect(x: l, y: CGFloat(w.y + w.h - 1) * cell.height, width: r - l, height: cell.height)
+            b.isHidden = false
+            b.update(w.status, active: w.active)
+        }
+    }
+
+    private func frameShown(_ f: Frame) {
+        latency.shown(seq: f.seq, at: CACurrentMediaTime())
+        guard showLatency, latency.count > 0 else { return }
+        if latency.total % 100 == 0, latency.total > 0 { FileHandle.standardError.write(Data((latency.summary + "\n").utf8)) }
+        overlay.stringValue = latency.summary
+        overlay.sizeToFit()
+        overlay.frame.origin = NSPoint(x: bounds.maxX - overlay.frame.width - 8, y: 8)
+        overlay.isHidden = false
     }
 
     private func sameRect(_ a: Win, _ b: Win) -> Bool {
@@ -180,7 +215,6 @@ final class EditorView: NSView {
             for (r, runs) in w.rows.enumerated() where needsToDraw(rowRect(w.y + r)) {
                 drawRow(ctx, runs, col: w.x, row: w.y + r)
             }
-            // The last row is left for the StatusBar view (Task 8).
             if w.divider {
                 let x = snap((CGFloat(w.x + w.w - 1) + 0.5) * cell.width, scale: scale)
                 ctx.setFillColor(NSColor.separatorColor.cgColor)
@@ -193,7 +227,7 @@ final class EditorView: NSView {
             drawRow(ctx, runs, col: 0, row: top + r)
         }
         if let c = f.cursor, needsToDraw(rowRect(c.y)) { drawCursor(ctx, c, f) }
-        onDrawn(f)
+        frameShown(f)
     }
 
     /// Left and right edges of `n` cells from `col`, on device pixels.

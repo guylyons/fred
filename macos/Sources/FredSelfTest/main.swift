@@ -51,4 +51,13 @@ check("option shift keeps case", n("Ï", "J", opt: true, shift: true) == "<M-J>"
 check("gt under option/ctrl", n("≥", ">", opt: true) == "<M-gt>" && n("", ">", ctrl: true) == "<C-gt>" && n("", ">", ctrl: true, opt: true) == "<C-M-gt>")
 check("ctrl function key dropped", n("", "\u{f704}", code: 122, ctrl: true) == nil && n("", "\u{f704}", code: 122, opt: true) == nil)
 
+var l = Latency()
+l.start(seq: 1, at: 0.000); l.start(seq: 2, at: 0.001)
+l.shown(seq: 2, at: 0.006)
+check("closes both", l.count == 2)
+check("p50", abs(l.p50 - 5.0) < 0.01 || abs(l.p50 - 6.0) < 0.01)
+check("p99 is the max of two", abs(l.p99 - 6.0) < 0.01)
+l.shown(seq: 2, at: 0.9)
+check("repeat seq adds nothing", l.count == 2)
+
 exit(failures == 0 ? 0 : 1)
