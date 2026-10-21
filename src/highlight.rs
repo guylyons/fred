@@ -23,6 +23,10 @@ fn syntaxes() -> &'static SyntaxSet {
 }
 
 fn find_theme(name: &str) -> Option<Theme> {
+    if name.eq_ignore_ascii_case("material-dark") {
+        let src = include_str!("../assets/themes/material-dark.tmTheme");
+        return ThemeSet::load_from_reader(&mut std::io::Cursor::new(src)).ok();
+    }
     let set = two_face::theme::extra();
     two_face::theme::EmbeddedLazyThemeSet::theme_names()
         .iter()
@@ -302,6 +306,14 @@ mod tests {
             h.one_line(Path::new("notes.zzz-unknown"), "fn main")
                 .is_none()
         );
+    }
+
+    #[test]
+    fn material_dark_colors_keywords_purple() {
+        let h = Highlighter::new("Material-Dark", true).unwrap();
+        let st = h.one_line(Path::new("x.rs"), "fn main() {}").unwrap();
+        let purple = Some(Color::Rgb(0xc7, 0x92, 0xea));
+        assert!(st.iter().any(|(s, r)| r.start == 0 && s.fg == purple), "{st:?}");
     }
 
     const LONG: Duration = Duration::from_secs(5);

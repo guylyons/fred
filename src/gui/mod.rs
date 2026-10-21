@@ -98,7 +98,9 @@ pub fn run(args: Args, cfg: Config, cfg_err: Option<String>) -> Result<i32> {
         Some(LineArg::Last) => s.goto_line(None),
         None => {}
     }
-    s.hl = match Highlighter::new(&cfg.theme, true) {
+    // The terminal's "ansi" default follows the terminal's colors; the GUI has none, so it gets Material Dark.
+    let theme = if cfg.theme == "ansi" { "material-dark" } else { &cfg.theme };
+    s.hl = match Highlighter::new(theme, true) {
         Ok(h) => h,
         Err(e) => {
             s.ed.set_err(e);
