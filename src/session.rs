@@ -1209,13 +1209,20 @@ impl Session {
     }
 
     /// A buffer by `:b` argument: a number, `#` (the one used before this
-    /// one; in the GUI, of the window's tabs), its file name or part of its path, or nothing (this one).
+    /// one; in the GUI, the window's own alternate tab), its file name or
+    /// part of its path, or nothing (this one).
     fn buffer_arg(&self, arg: &str) -> Result<usize, String> {
         if arg.is_empty() {
             return Ok(self.cur);
         }
         if arg == "#" {
-            // In the GUI, Ctrl-^ stays among the window's tabs.
+            // In the GUI, Ctrl-^ is the window's alternate (kept among its
+            // tabs), else its most recently used other tab.
+            if self.gui
+                && let Some(p) = self.win().prev.filter(|&p| p != self.cur)
+            {
+                return Ok(p);
+            }
             return self
                 .bufs
                 .iter()

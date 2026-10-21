@@ -145,6 +145,8 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
     }
     // Tabs: `:bn` and `:bp` follow the window's.
     s.gui = true;
+    // The tab row is there before the app's first resize.
+    s.chrome = (1, 0);
     s.lock();
     let remote = crate::remote::Remote::listen().ok();
     let stop = Arc::new(AtomicBool::new(false));
@@ -277,7 +279,7 @@ fn event_loop(
             if s.typing.is_some() && typed {
                 if matches!(&m, In::Keys { keys, .. } if keys == "<C-c>") {
                     s.stop_typing();
-                } else if !matches!(m, In::Mouse { .. }) {
+                } else if !matches!(m, In::Mouse { .. } | In::Scroll { .. }) {
                     held_at.get_or_insert((s.cur, std::mem::discriminant(&s.ed.mode)));
                     held.push(m);
                 }

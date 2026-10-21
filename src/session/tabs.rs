@@ -428,6 +428,26 @@ mod tests {
     }
 
     #[test]
+    fn ctrl_caret_in_the_gui_is_the_windows_own_alternate() {
+        let mut t = T::new(&["a", "b", "c"]);
+        t.e("b");
+        t.e("c");
+        t.s.gui = true;
+        // Window A: tabs a, b, c; it goes a -> b.
+        t.keys(":b1<Enter>:b2<Enter>");
+        let a = t.id();
+        assert_eq!(t.tabs(), ["a", "b", "c"]);
+        // Window B shows c, the most recently used buffer after that.
+        t.keys(":vsplit<Enter>:b3<Enter>");
+        assert_ne!(t.id(), a);
+        t.s.focus(a);
+        assert_eq!(t.current(), "b");
+        t.keys("<C-^>");
+        assert_eq!(t.current(), "a");
+        t.s.check_tabs();
+    }
+
+    #[test]
     fn bn_and_bp_follow_tabs_only_in_gui() {
         let mut t = T::new(&["a", "b", "c"]);
         t.e("b");
