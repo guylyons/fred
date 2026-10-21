@@ -229,6 +229,71 @@ impl Node {
         Ok(())
     }
 
+    /// Move the edge between two windows, a status line (`Col`) or divider
+    /// (`Row`) ending at `edge`, to end at `to` instead, as far as the
+    /// windows on either side can shrink. `cross` is a column (or row) the
+    /// edge spans. The edge's new place, or None if there's no such edge.
+    pub fn drag(&mut self, area: Rect, dir: Dir, edge: u16, cross: u16, to: u16) -> Option<u16> {
+        self.fit(area);
+        self.move_edge(area, dir, edge, cross, to)
+    }
+
+    fn move_edge(&mut self, area: Rect, dir: Dir, edge: u16, cross: u16, to: u16) -> Option<u16> {
+        let Node::Split { dir: d, kids } = self else {
+            return None;
+        };
+        let placed = rects(*d, kids, area);
+        let start = |r: Rect| if dir == Dir::Col { r.y } else { r.x };
+        let end = |r: Rect| {
+            if dir == Dir::Col {
+                r.bottom()
+            } else {
+                r.right()
+            }
+        };
+        let spans = match dir {
+            Dir::Col => (area.x..area.right()).contains(&cross),
+            Dir::Row => (area.y..area.bottom()).contains(&cross),
+        };
+        if *d == dir && spans {
+            for i in 0..kids.len() - 1 {
+                let (Some(a), Some(b)) = (placed[i], placed[i + 1]) else {
+                    continue;
+                };
+                if end(a) != edge {
+                    continue;
+                }
+                let lo = start(a) + kids[i].0.least(dir);
+                let hi = end(b).saturating_sub(kids[i + 1].0.least(dir));
+                if lo > hi {
+                    return Some(edge);
+                }
+                let new = to.clamp(lo, hi);
+                kids[i].1 = new - start(a);
+                kids[i + 1].1 = end(b) - new;
+                return Some(new);
+            }
+        }
+        kids.iter_mut()
+            .zip(placed)
+            .find_map(|((kid, _), r)| kid.move_edge(r?, dir, edge, cross, to))
+    }
+
+    /// The smallest this node can be along `dir`.
+    fn least(&self, dir: Dir) -> u16 {
+        match self {
+            Node::Leaf(_) => min(dir),
+            Node::Split { dir: d, kids } => {
+                let each = kids.iter().map(|(k, _)| k.least(dir));
+                if *d == dir {
+                    each.sum()
+                } else {
+                    each.max().unwrap_or(0)
+                }
+            }
+        }
+    }
+
     pub fn only(&mut self, id: usize) {
         *self = Node::Leaf(id);
     }
@@ -356,6 +421,27 @@ mod tests {
         t.split(a, 2, 3, Dir::Row, false, None).unwrap();
         let w: Vec<u16> = t.layout(a).iter().map(|p| p.rect.width).collect();
         assert_eq!(w, vec![12, 13, 25]);
+    }
+    #[test]
+    fn drag_moves_status_lines_and_dividers() {
+        // [1 | 2] over 3: 1's status line ends at row 12, its divider at col 40.
+        let a = Rect::new(0, 0, 80, 24);
+        let mut t = Node::Leaf(3);
+        t.split(a, 3, 1, Dir::Col, false, None).unwrap();
+        t.split(a, 1, 2, Dir::Row, true, None).unwrap();
+        assert_eq!(t.drag(a, Dir::Col, 12, 70, 5), Some(5));
+        assert_eq!(t.drag(a, Dir::Row, 40, 2, 30), Some(30));
+        let h: Vec<(u16, u16)> = t
+            .layout(a)
+            .iter()
+            .map(|p| (p.rect.width, p.rect.height))
+            .collect();
+        assert_eq!(h, vec![(30, 5), (50, 5), (80, 19)]);
+        // Stops where a window would be too small; no edge at the screen's.
+        assert_eq!(t.drag(a, Dir::Col, 5, 0, 0), Some(2));
+        assert_eq!(t.drag(a, Dir::Col, 24, 0, 10), None);
+        // The divider only spans the top windows.
+        assert_eq!(t.drag(a, Dir::Row, 30, 20, 10), None);
     }
     #[test]
     fn split_too_small() {

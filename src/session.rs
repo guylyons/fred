@@ -160,6 +160,9 @@ pub struct Session {
     prev_win: Option<usize>,
     /// `Space w`: the windows show their numbers until the next key.
     pub picking_window: bool,
+    /// A window edge being dragged with the mouse: its direction, where it
+    /// is now, and the row or column it was grabbed at.
+    grab: Option<(crate::window::Dir, u16, u16)>,
     /// `Space w c`: the next digit is how many windows to lay out.
     grid_pending: bool,
     /// The which-key popup is up: `Space` was pressed a while ago.
@@ -365,6 +368,7 @@ impl Session {
             active: 1,
             prev_win: None,
             picking_window: false,
+            grab: None,
             grid_pending: false,
             which_key: false,
             next_win_id: 2,
@@ -2033,6 +2037,34 @@ mod tests {
         t.keys("3G:split<Enter>");
         assert_eq!(t.s.tree.order(), vec![t.s.active, t.s.windows[0].id]);
         assert_eq!(t.s.ed.cur.line, 2);
+    }
+
+    #[test]
+    fn dragging_a_status_line_resizes_the_windows() {
+        use ratatui::crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+        let mut t = T::open(Some("a"), Some("1\n2\n3\n"));
+        t.keys("<C-w>s");
+        let (top, bottom) = (t.s.active, t.s.windows[0].id);
+        let ev = |kind, row| MouseEvent {
+            kind,
+            column: 10,
+            row,
+            modifiers: KeyModifiers::NONE,
+        };
+        let screen = Rect::new(0, 0, 80, 24);
+        // The top window's status line is its last row, 10 of 0..11.
+        t.s.mouse(screen, ev(MouseEventKind::Down(MouseButton::Left), 10));
+        t.s.mouse(screen, ev(MouseEventKind::Drag(MouseButton::Left), 4));
+        t.s.mouse(screen, ev(MouseEventKind::Drag(MouseButton::Left), 6));
+        t.s.mouse(screen, ev(MouseEventKind::Up(MouseButton::Left), 6));
+        let heights: Vec<(usize, u16)> =
+            t.s.tree
+                .layout(t.s.area)
+                .iter()
+                .map(|p| (p.id, p.rect.height))
+                .collect();
+        assert_eq!(heights, vec![(top, 7), (bottom, 16)]);
+        assert!(t.s.grab.is_none());
     }
 
     #[test]

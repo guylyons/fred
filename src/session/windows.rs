@@ -195,6 +195,41 @@ impl Session {
             && self.ed.menu.is_none()
             && !matches!(self.ed.mode, Mode::Pick(_))
         {
+            // A press on a status line or divider drags it to resize.
+            match (m.kind, self.grab) {
+                (MouseEventKind::Down(MouseButton::Left), _) => {
+                    let at = (m.column, m.row).into();
+                    let placed = self.tree.layout(self.area);
+                    let p = placed.iter().find(|p| p.rect.contains(at));
+                    let status = p
+                        .filter(|p| m.row + 1 == p.rect.bottom())
+                        .map(|p| (Dir::Col, p.rect.bottom(), m.column));
+                    let divider = p
+                        .filter(|p| p.divider && m.column + 1 == p.rect.right())
+                        .map(|p| (Dir::Row, p.rect.right(), m.row));
+                    self.grab = [status, divider]
+                        .into_iter()
+                        .flatten()
+                        .find(|&(d, e, c)| self.tree.drag(self.area, d, e, c, e).is_some());
+                    if self.grab.is_some() {
+                        return;
+                    }
+                }
+                (MouseEventKind::Drag(MouseButton::Left), Some((d, edge, cross))) => {
+                    let to = if d == Dir::Col { m.row } else { m.column } + 1;
+                    let edge = self
+                        .tree
+                        .drag(self.area, d, edge, cross, to)
+                        .unwrap_or(edge);
+                    self.grab = Some((d, edge, cross));
+                    return;
+                }
+                (MouseEventKind::Up(_), Some(_)) => {
+                    self.grab = None;
+                    return;
+                }
+                _ => {}
+            }
             let placed = self.tree.layout(self.area);
             if m.kind == MouseEventKind::Down(MouseButton::Left)
                 && let Some(p) = placed
