@@ -1219,7 +1219,10 @@ impl Session {
             // In the GUI, Ctrl-^ is the window's alternate (kept among its
             // tabs), else its most recently used other tab.
             if self.gui
-                && let Some(p) = self.win().prev.filter(|&p| p != self.cur)
+                && let Some(p) = self
+                    .win()
+                    .prev
+                    .filter(|&p| p != self.cur && self.win().tabs.contains(&p))
             {
                 return Ok(p);
             }

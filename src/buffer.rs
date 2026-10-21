@@ -79,6 +79,9 @@ pub struct Buffer {
     pub edits_since_swap: usize,
     /// Increments on every edit.
     pub version: u64,
+    /// Unique to this buffer's text (a reload gets a new one); with
+    /// `version`, it names a state of the text across buffers.
+    pub id: u64,
     /// The file was zero bytes: it gains a final newline only while it has text.
     zero_byte: bool,
     dirty_from: Option<usize>,
@@ -121,6 +124,10 @@ impl Buffer {
             modified: false,
             edits_since_swap: 0,
             version: 0,
+            id: {
+                static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+                NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            },
             zero_byte: s.is_empty() && !bom,
             dirty_from: None,
             line_changes: vec![],

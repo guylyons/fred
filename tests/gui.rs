@@ -75,9 +75,36 @@ impl Gui {
         let deadline = Instant::now() + Duration::from_secs(5);
         loop {
             let v = self.next(deadline);
+            if v["t"] == "minimap" {
+                continue;
+            }
             assert_eq!(v["t"], "frame", "{v}");
             if done(&v) {
                 return v;
+            }
+        }
+    }
+
+    /// Every line for `d`.
+    fn lines_for(&mut self, d: Duration) -> Vec<Value> {
+        let deadline = Instant::now() + d;
+        std::iter::from_fn(|| {
+            let left = deadline.saturating_duration_since(Instant::now());
+            self.lines.recv_timeout(left).ok()
+        })
+        .collect()
+    }
+
+    /// Every line up to and including the next minimap.
+    fn until_minimap(&mut self) -> Vec<Value> {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut lines = vec![];
+        loop {
+            let v = self.next(deadline);
+            let done = v["t"] == "minimap";
+            lines.push(v);
+            if done {
+                return lines;
             }
         }
     }
@@ -460,4 +487,84 @@ fn cmd_w_closes_the_tab_not_the_window() {
     let f = g.frame_until(|f| f["seq"] == 4);
     assert_eq!(names(&f), ["[No Name]"]);
     assert!(g.still_running());
+}
+
+fn minimaps(lines: &[Value]) -> Vec<&Value> {
+    lines.iter().filter(|v| v["t"] == "minimap").collect()
+}
+
+/// Line 1's first run: its column and length.
+fn first_run(m: &Value) -> (u64, u64) {
+    let r = &m["lines"][0][0];
+    (r[0].as_u64().unwrap(), r[1].as_u64().unwrap())
+}
+
+#[test]
+fn a_minimap_follows_the_first_frame() {
+    let mut g = Gui::spawn("f.rs", "fn main() {\n\tx\n}\n");
+    g.send(r#"{"t":"resize","cols":40,"rows":10,"margin":8}"#);
+    let mut lines = g.until_minimap();
+    lines.extend(g.lines_for(Duration::from_millis(400)));
+    assert_eq!(lines[0]["t"], "frame");
+    let id = &lines[0]["windows"][0]["id"];
+    let m = minimaps(&lines);
+    assert_eq!(m.len(), 1, "{lines:?}");
+    assert_eq!(&m[0]["win"], id);
+    let starts: Vec<Value> = m[0]["lines"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|l| l[0].clone())
+        .collect();
+    // `fn` is purple; the tab is expanded (8 columns by default).
+    assert_eq!(starts[0], serde_json::json!([0, 2, 0x100_0000 | 0xC792EA]));
+    assert_eq!(
+        (&starts[1][0], &starts[1][1]),
+        (&serde_json::json!(8), &serde_json::json!(1))
+    );
+    assert_eq!(starts.len(), 3);
+}
+
+#[test]
+fn no_margin_no_minimap() {
+    let mut g = Gui::spawn("f", "x\n");
+    g.send(r#"{"t":"resize","cols":40,"rows":10}"#);
+    assert!(minimaps(&g.lines_for(Duration::from_millis(400))).is_empty());
+}
+
+#[test]
+fn fifty_keys_in_one_batch_send_at_most_one_minimap() {
+    let mut g = Gui::spawn("f", "x\n");
+    g.send(r#"{"t":"resize","cols":40,"rows":10,"margin":8}"#);
+    g.until_minimap();
+    let batch: Vec<String> = (1..=50)
+        .map(|n| {
+            format!(
+                r#"{{"t":"keys","seq":{n},"keys":"{}"}}"#,
+                if n == 1 { "A" } else { "y" }
+            )
+        })
+        .collect();
+    g.send(&batch.join("\n"));
+    let mut lines = g.until_minimap();
+    lines.extend(g.lines_for(Duration::from_millis(600)));
+    let m = minimaps(&lines);
+    assert_eq!(m.len(), 1, "{m:?}");
+    // It shows the text after the whole batch: `x` and 49 `y`s.
+    assert_eq!(first_run(m[0]), (0, 50));
+    // And it comes after the batch's last frame.
+    let last = lines.iter().rposition(|v| v["seq"] == 50).unwrap();
+    assert!(lines.iter().position(|v| v["t"] == "minimap").unwrap() > last);
+}
+
+#[test]
+fn switching_tabs_between_unedited_files_sends_a_minimap_for_each() {
+    let mut g = Gui::spawn("a", "a\n");
+    std::fs::write(g.path("b"), "bb\n").unwrap();
+    g.send(r#"{"t":"resize","cols":40,"rows":10,"margin":8}"#);
+    g.until_minimap();
+    g.send(&open_line(1, &g.path("b"), false));
+    assert_eq!(first_run(g.until_minimap().last().unwrap()), (0, 2));
+    g.send(r#"{"t":"keys","seq":2,"keys":"<C-^>"}"#);
+    assert_eq!(first_run(g.until_minimap().last().unwrap()), (0, 1));
 }

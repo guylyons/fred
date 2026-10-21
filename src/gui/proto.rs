@@ -101,6 +101,15 @@ pub struct Frame {
     pub cursor: Option<Cursor>,
 }
 
+/// Window `win`'s buffer as minimap runs; `lines` is None for huge files.
+#[derive(Serialize, Debug)]
+pub struct Minimap {
+    pub t: &'static str,
+    pub win: usize,
+    pub version: u64,
+    pub lines: Option<super::minimap::Lines>,
+}
+
 /// A ratatui color as the protocol's code; `None` is the theme default.
 pub fn color(c: Color) -> Option<u32> {
     Some(match c {

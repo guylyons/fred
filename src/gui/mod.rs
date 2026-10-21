@@ -3,6 +3,7 @@
 //! stdout; the Mac app draws them.
 pub mod frame;
 pub mod mac;
+pub mod minimap;
 pub mod proto;
 
 use crate::app::{self, AiJob};
@@ -23,6 +24,7 @@ use ratatui::backend::TestBackend;
 use ratatui::crossterm::event::{
     KeyCode as C, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::os::fd::FromRawFd;
@@ -31,7 +33,12 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::thread::JoinHandle;
-use std::time::Instant;
+use std::time::{Duration, Instant};
+
+/// A window's minimap is sent at most this often.
+const MINIMAP_EVERY: Duration = Duration::from_millis(250);
+/// Highlighting time per minimap; lines past it go uncolored.
+const MINIMAP_BUDGET: Duration = Duration::from_millis(4);
 
 /// Work that holds the editor until it finishes; keys are dropped meanwhile,
 /// as the terminal drops them while it is handed over.
@@ -219,6 +226,10 @@ fn event_loop(
     // Your input while Claude types, for after, and where it was typed.
     let mut held: Vec<In> = vec![];
     let mut held_at = None;
+    // The last wait for input timed out: nothing is being typed.
+    let mut idle = false;
+    // Each window's last minimap: its buffer's (id, version), and when.
+    let mut minimapped = HashMap::new();
     // The app sends its size first; without it the first frame would be 80x24.
     let mut first = match rx.recv_timeout(std::time::Duration::from_millis(200)) {
         Ok(In::Resize { cols, rows, margin }) => {
@@ -246,6 +257,10 @@ fn event_loop(
             // Keep drawing while visible lines are still being highlighted.
             dirty = s.hl_incomplete;
         }
+        // Minimaps wait for a pause in the input, off the key path.
+        if idle {
+            send_minimaps(s, &mut minimapped, out)?;
+        }
         if stop.load(Ordering::Relaxed) {
             s.write_swap();
             return Ok(1);
@@ -270,6 +285,7 @@ fn event_loop(
                 return Ok(1);
             }
         };
+        idle = next.is_none();
         // Everything queued is handled before the next frame.
         while let Some(m) = next.take() {
             active = Instant::now();
@@ -327,6 +343,37 @@ fn event_loop(
             }
         }
     }
+}
+
+/// A minimap for each window whose buffer changed (or is another buffer)
+/// since its last one, at most every `MINIMAP_EVERY`. None without a margin.
+fn send_minimaps(
+    s: &mut Session,
+    sent: &mut HashMap<usize, ((u64, u64), Instant)>,
+    out: &mut impl Write,
+) -> std::io::Result<()> {
+    if s.chrome.1 == 0 {
+        // Off: when it comes back on, every window gets one.
+        sent.clear();
+        return Ok(());
+    }
+    let mut maps = vec![];
+    s.each_window(|ed, _, hl, p, _| {
+        let now = (ed.buf.id, ed.buf.version);
+        let due = sent
+            .get(&p.id)
+            .is_none_or(|&(was, at)| was != now && at.elapsed() >= MINIMAP_EVERY);
+        if due {
+            sent.insert(p.id, (now, Instant::now()));
+            maps.push(proto::Minimap {
+                t: "minimap",
+                win: p.id,
+                version: now.1,
+                lines: minimap::build(ed, hl, MINIMAP_BUDGET),
+            });
+        }
+    });
+    maps.iter().try_for_each(|m| send(out, m))
 }
 
 fn seq_of(m: &In) -> Option<u64> {
