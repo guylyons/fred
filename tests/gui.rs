@@ -412,16 +412,17 @@ fn tab_ops_select_close_move_keep_over_the_pipe() {
     ));
     let f = g.frame_until(|f| f["seq"] == 7);
     assert_eq!(tabs(&f)[2], ("b".into(), false, true));
-    // A bad index is an error, not a crash.
+    // A stale index (a fast double close) is ignored: no crash, no error.
     g.send(&format!(
         r#"{{"t":"tab","seq":8,"win":{id},"op":"close","index":9}}"#
     ));
     let f = g.frame_until(|f| f["seq"] == 8);
     assert!(
-        bottom_text(&f).contains("no such tab"),
+        !bottom_text(&f).contains("no such tab"),
         "{}",
         bottom_text(&f)
     );
+    assert_eq!(names(&f), ["c", "a", "b"]);
 }
 
 #[test]
@@ -567,4 +568,56 @@ fn switching_tabs_between_unedited_files_sends_a_minimap_for_each() {
     assert_eq!(first_run(g.until_minimap().last().unwrap()), (0, 2));
     g.send(r#"{"t":"keys","seq":2,"keys":"<C-^>"}"#);
     assert_eq!(first_run(g.until_minimap().last().unwrap()), (0, 1));
+}
+
+#[test]
+fn the_wheel_scrolls_over_the_minimap_and_tab_row() {
+    let text: String = (1..=100).map(|n| format!("{n}\n")).collect();
+    let mut g = Gui::spawn("f", &text);
+    g.send(r#"{"t":"resize","cols":80,"rows":20,"margin":12}"#);
+    let top = |f: &Value| f["windows"][0]["top"].as_u64().unwrap();
+    g.send(r#"{"t":"mouse","seq":1,"kind":"scroll_down","col":75,"row":5}"#);
+    let t1 = top(&g.frame_until(|f| f["seq"] == 1));
+    assert!(t1 > 0, "the minimap's wheel scrolls");
+    g.send(r#"{"t":"mouse","seq":2,"kind":"scroll_down","col":10,"row":5}"#);
+    let t2 = top(&g.frame_until(|f| f["seq"] == 2));
+    assert!(t2 > t1, "the text's wheel scrolls");
+    g.send(r#"{"t":"mouse","seq":3,"kind":"scroll_down","col":10,"row":0}"#);
+    assert!(
+        top(&g.frame_until(|f| f["seq"] == 3)) > t2,
+        "the tab row's too"
+    );
+    // A click on the minimap is still not a click on the text.
+    g.send(r#"{"t":"mouse","seq":4,"kind":"down","col":75,"row":5}"#);
+    let f = g.frame_until(|f| f["seq"] == 4);
+    assert_eq!(f["windows"][0]["status"]["pos"], "1:1");
+}
+
+#[test]
+fn slow_typing_sends_no_minimap_until_a_pause() {
+    let mut g = Gui::spawn("f", "x\n");
+    g.send(r#"{"t":"resize","cols":40,"rows":10,"margin":8}"#);
+    g.until_minimap();
+    let mut lines = vec![];
+    for n in 1..=8 {
+        let k = if n == 1 { "A" } else { "y" };
+        g.send(&format!(r#"{{"t":"keys","seq":{n},"keys":"{k}"}}"#));
+        lines.extend(g.lines_for(Duration::from_millis(120)));
+    }
+    assert!(minimaps(&lines).is_empty(), "{lines:?}");
+    assert_eq!(first_run(g.until_minimap().last().unwrap()), (0, 8));
+}
+
+#[test]
+fn narrow_windows_get_no_minimap_margin() {
+    let mut g = Gui::spawn("f", "x\n");
+    g.send(r#"{"t":"resize","cols":40,"rows":10,"margin":8}"#);
+    g.send(r#"{"t":"keys","seq":1,"keys":"<C-w>v"}"#);
+    let f = g.frame_until(|f| f["seq"] == 1);
+    let ws = f["windows"].as_array().unwrap();
+    assert_eq!(ws.len(), 2);
+    assert!(ws.iter().all(|w| w["margin"] == 0), "{ws:?}");
+    g.send(r#"{"t":"keys","seq":2,"keys":"<C-w>o"}"#);
+    let f = g.frame_until(|f| f["seq"] == 2);
+    assert_eq!(f["windows"][0]["margin"], 8);
 }

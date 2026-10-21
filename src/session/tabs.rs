@@ -6,7 +6,7 @@ use super::Session;
 use crate::window::Window;
 use std::path::Path;
 
-const NO_TAB: &str = "no such tab";
+pub(crate) const NO_TAB: &str = "no such tab";
 
 impl Session {
     fn window(&mut self, id: usize) -> &mut Window {

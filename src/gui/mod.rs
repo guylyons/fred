@@ -257,8 +257,9 @@ fn event_loop(
             // Keep drawing while visible lines are still being highlighted.
             dirty = s.hl_incomplete;
         }
-        // Minimaps wait for a pause in the input, off the key path.
-        if idle {
+        // Minimaps wait for a pause in the input, off the key path: not
+        // between keys, however slowly typed.
+        if idle && active.elapsed() >= MINIMAP_EVERY {
             send_minimaps(s, &mut minimapped, out)?;
         }
         if stop.load(Ordering::Relaxed) {
@@ -359,6 +360,11 @@ fn send_minimaps(
     }
     let mut maps = vec![];
     s.each_window(|ed, _, hl, p, _| {
+        if p.margin == 0 {
+            // Too narrow for one: when it widens, it gets one.
+            sent.remove(&p.id);
+            return;
+        }
         let now = (ed.buf.id, ed.buf.version);
         let due = sent
             .get(&p.id)
@@ -560,7 +566,10 @@ fn input(s: &mut Session, term: &mut Terminal<TestBackend>, m: In) {
                 "keep" => s.keep_tab(win, index),
                 _ => Err(format!("unknown tab op {op:?}")),
             };
-            if let Err(e) = done {
+            // A stale index (a fast double close) is no error to show.
+            if let Err(e) = done
+                && e != crate::session::NO_TAB
+            {
                 s.ed.set_err(e);
             }
         }

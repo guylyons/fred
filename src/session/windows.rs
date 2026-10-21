@@ -183,7 +183,7 @@ impl Session {
 
     /// The mouse, on a `screen` this size. With windows split, clicking one
     /// makes it active, and the click lands in it as with one window.
-    pub fn mouse(&mut self, screen: Rect, m: MouseEvent) {
+    pub fn mouse(&mut self, screen: Rect, mut m: MouseEvent) {
         let mut area = screen;
         // The picker and the right-click menu are drawn over the whole screen.
         let windows = self.ed.menu.is_none() && !matches!(self.ed.mode, Mode::Pick(_));
@@ -238,7 +238,9 @@ impl Session {
         }
         // Its text and status line, as `mouse` expects the whole screen
         // to be (it leaves out the last two rows): outside it, and on the
-        // GUI's tab row and minimap, it is ignored.
+        // GUI's tab row and minimap, a click is ignored. The wheel there,
+        // and a drag or release that strays onto them, land on the
+        // nearest text instead.
         if windows
             && (self.windows.len() > 1 || self.chrome != (0, 0))
             && let Some(p) = self.placed().iter().find(|p| p.id == self.active)
@@ -248,6 +250,17 @@ impl Session {
                 height: text.height + 2,
                 ..text
             };
+            let strays = matches!(
+                m.kind,
+                MouseEventKind::ScrollUp
+                    | MouseEventKind::ScrollDown
+                    | MouseEventKind::Drag(_)
+                    | MouseEventKind::Up(_)
+            );
+            if strays && text.width > 0 && p.rect.contains((m.column, m.row).into()) {
+                m.column = m.column.min(text.right() - 1);
+                m.row = m.row.max(text.y);
+            }
         }
         // A terminal: the wheel scrolls back through its output, and a
         // click is for typing in it.

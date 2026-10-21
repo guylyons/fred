@@ -20,6 +20,7 @@ pub(crate) mod magit;
 mod occur;
 mod org;
 mod tabs;
+pub(crate) use tabs::NO_TAB;
 mod term;
 mod windows;
 pub use org::Finish;
@@ -1154,7 +1155,8 @@ impl Session {
             .into_iter()
             .map(|p| Placed {
                 header,
-                margin,
+                // Too narrow for a minimap beside its text: none.
+                margin: if p.rect.width < 3 * margin { 0 } else { margin },
                 ..p
             })
             .collect()
