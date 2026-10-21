@@ -12,8 +12,9 @@ final class MinimapView: NSView {
     var palette = Palette.materialDark
 
     private var map: MapImage?
-    private var top = 0, visible = 0
-    private var lines: Int { map?.lines ?? 0 }
+    /// The window's own line count (the frame's), so the box and clicks are
+    /// right even while the map is still the last tab's.
+    private var top = 0, visible = 0, lines = 0
     /// The pointer's distance below the box's top while dragging.
     private var grab: CGFloat?
     private var pending: Int?, sent: Int?
@@ -30,9 +31,11 @@ final class MinimapView: NSView {
     override var isOpaque: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
-    func update(_ map: MapImage?, top: Int, visible: Int) {
-        guard map?.gen != self.map?.gen || top != self.top || visible != self.visible else { return }
+    func update(_ map: MapImage?, top: Int, visible: Int, lines: Int?) {
+        let lines = lines ?? map?.lines ?? 0
+        guard map?.gen != self.map?.gen || top != self.top || visible != self.visible || lines != self.lines else { return }
         self.map = map
+        self.lines = lines
         self.top = top
         self.visible = visible
         needsDisplay = true
@@ -74,9 +77,9 @@ final class MinimapView: NSView {
         guard let ctx = NSGraphicsContext.current?.cgContext else { return }
         ctx.setFillColor(palette.bg.cgColor)
         ctx.fill(dirty)
-        guard let image = map?.image, lines > 0 else { return }
+        guard let image = map?.image, let mapLines = map?.lines, mapLines > 0 else { return }
         // Only the visible slice: the whole map can be ~100k pt tall.
-        let total = CGFloat(lines) * MinimapMath.lineHeight, off = offset
+        let total = CGFloat(mapLines) * MinimapMath.lineHeight, off = offset
         let sliceH = min(bounds.height, total - off)
         let px = CGFloat(image.height) / total
         let y0 = (off * px).rounded(.down) // whole image pixels; the rest shifts the slice up

@@ -284,7 +284,7 @@ final class EditorView: NSView {
             if m.frame != fr { m.frame = fr }
             m.isHidden = false
             m.onScroll = { [weak self] top in self?.transmit { .scroll(seq: $0, win: id, top: top) } }
-            m.update(maps[id], top: w.top ?? 0, visible: visible)
+            m.update(maps[id], top: w.top ?? 0, visible: visible, lines: w.lines)
         }
     }
 

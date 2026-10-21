@@ -19,6 +19,8 @@ final class TabStrip: NSView {
     private var hoverClose = false
     private var press: (index: Int, x: CGFloat, onClose: Bool)?
     private var dragDX: CGFloat?
+    /// Whether this strip's window is the active one.
+    private var active = true
 
     private static let font = NSFont.systemFont(ofSize: 12)
     private static let italic: NSFont = {
@@ -40,6 +42,7 @@ final class TabStrip: NSView {
 
     func update(_ tabs: [Tab], active: Bool) {
         alphaValue = active ? 1 : 0.7
+        self.active = active
         guard tabs != self.tabs else { return }
         // A press or hover on a tab that moved or went away would index past the end.
         if tabs.count != self.tabs.count || press.map({ tabs[$0.index].name != self.tabs[$0.index].name }) == true {
@@ -177,11 +180,15 @@ final class TabStrip: NSView {
     override func mouseDown(with e: NSEvent) {
         if e.modifierFlags.contains(.control) { rightMouseDown(with: e); return }
         let p = point(e)
-        guard let i = index(at: p) else { return }
+        // Empty strip space focuses an inactive window, on its current tab.
+        guard let i = index(at: p) else {
+            if !active, let c = tabs.firstIndex(where: \.current) { op("select", c, nil) }
+            return
+        }
         let onClose = closeRect(rect(i)).contains(p)
         press = (i, p.x, onClose)
         if onClose { return }
-        if e.clickCount == 2, tabs[i].preview { op("keep", i, nil) } else if !tabs[i].current { op("select", i, nil) }
+        if e.clickCount == 2, tabs[i].preview { op("keep", i, nil) } else if !tabs[i].current || !active { op("select", i, nil) }
     }
 
     override func mouseDragged(with e: NSEvent) {
