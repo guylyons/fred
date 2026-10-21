@@ -11,6 +11,8 @@ final class TabStrip: NSView {
     var editorBg = NSColor.black
 
     private var tabs: [Tab] = []
+    /// Natural widths, measured once per tabs change.
+    private var widths: [CGFloat] = []
     private var frames: [CGRect] = []
     private var offset: CGFloat = 0
     private var hover: Int?
@@ -39,21 +41,29 @@ final class TabStrip: NSView {
     func update(_ tabs: [Tab], active: Bool) {
         alphaValue = active ? 1 : 0.7
         guard tabs != self.tabs else { return }
+        // A press or hover on a tab that moved or went away would index past the end.
+        if tabs.count != self.tabs.count || press.map({ tabs[$0.index].name != self.tabs[$0.index].name }) == true {
+            press = nil
+            dragDX = nil
+            hover = nil
+        }
         self.tabs = tabs
+        widths = tabs.map { name($0).size().width + 2 * TabStrip.pad + TabStrip.closeW }
         relayout()
     }
 
+    /// EditorView sets our frame every core frame: only a new size relays out.
     override func setFrameSize(_ s: NSSize) {
+        guard s != frame.size else { return }
         super.setFrameSize(s)
         relayout()
     }
 
     private func relayout() {
-        let widths = tabs.map { t in
-            name(t).size().width + 2 * TabStrip.pad + TabStrip.closeW
-        }
         let cur = tabs.firstIndex(where: \.current) ?? 0
-        (frames, offset) = TabMath.layout(widths: widths, available: bounds.width, current: cur, offset: offset)
+        let l = TabMath.layout(widths: widths, available: bounds.width, current: cur, offset: offset)
+        frames = l.frames
+        if press == nil { offset = l.offset } // a pressed or dragged tab doesn't jump
         needsDisplay = true
     }
 
@@ -158,7 +168,14 @@ final class TabStrip: NSView {
         needsDisplay = true
     }
 
+    /// Empty strip space swallows right-clicks (they'd reach the core as a
+    /// click on the header row); a tab gets its menu.
+    override func rightMouseDown(with e: NSEvent) {
+        if let m = menu(for: e) { NSMenu.popUpContextMenu(m, with: e, for: self) }
+    }
+
     override func mouseDown(with e: NSEvent) {
+        if e.modifierFlags.contains(.control) { rightMouseDown(with: e); return }
         let p = point(e)
         guard let i = index(at: p) else { return }
         let onClose = closeRect(rect(i)).contains(p)
@@ -181,7 +198,7 @@ final class TabStrip: NSView {
         if pr.onClose {
             if index(at: point(e)) == pr.index, closeRect(rect(pr.index)).contains(point(e)) { op("close", pr.index, nil) }
         } else if dragDX != nil {
-            // The slot whose middle the dragged tab's middle has passed.
+            // The last slot whose left edge the dragged tab's middle has passed.
             let mid = rect(pr.index).midX + offset
             let to = frames.lastIndex { $0.minX <= mid } ?? 0
             if to != pr.index { op("move", pr.index, to) }

@@ -207,7 +207,8 @@ final class EditorView: NSView {
                 continue
             }
             let (l, r) = span(w.x, w.w - (w.divider ? 1 : 0))
-            s.frame = NSRect(x: l, y: CGFloat(w.y) * cell.height, width: r - l, height: CGFloat(w.header!) * cell.height)
+            let f = NSRect(x: l, y: CGFloat(w.y) * cell.height, width: r - l, height: CGFloat(w.header!) * cell.height)
+            if s.frame != f { s.frame = f }
             s.isHidden = false
             s.op = { [weak self] op, index, to in self?.transmit { .tab(seq: $0, win: id, op: op, index: index, to: to) } }
             s.update(tabs, active: w.active)
