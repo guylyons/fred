@@ -130,6 +130,7 @@ fn named(name: &str) -> Option<Key> {
         "PageDown" => KeyCode::PageDown,
         "Del" => KeyCode::Delete,
         "lt" => KeyCode::Char('<'),
+        "gt" => KeyCode::Char('>'),
         _ => {
             let mut it = rest.chars();
             let ch = it.next()?;
@@ -175,6 +176,12 @@ mod tests {
                 Key::ctrl('c'),
                 Key::with(KeyCode::Enter, "M"),
             ]
+        ); // A modified `>` from the Mac app.
+        assert_eq!(
+            parse_keys("<M-gt>"),
+            vec![Key::with(KeyCode::Char('>'), "M")]
         );
+        assert_eq!(parse_keys("<C-gt>"), vec![Key::ctrl('>')]);
+        assert_eq!(parse_keys("<gt>"), vec![Key::ch('>')]);
     }
 }

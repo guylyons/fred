@@ -34,21 +34,21 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 /// How often the current file is checked for changes on disk.
 const AUTOREAD: Duration = Duration::from_secs(1);
 
-const TICK: Duration = Duration::from_millis(50);
+pub(crate) const TICK: Duration = Duration::from_millis(50);
 /// After this long with nothing happening, check in every `IDLE_TICK`
 /// instead: an idle fred barely wakes.
-const IDLE_AFTER: Duration = Duration::from_secs(2);
-const IDLE_TICK: Duration = Duration::from_millis(250);
+pub(crate) const IDLE_AFTER: Duration = Duration::from_secs(2);
+pub(crate) const IDLE_TICK: Duration = Duration::from_millis(250);
 /// How long `Space` waits before showing its keys (as Emacs's which-key).
-const WHICH_KEY: Duration = Duration::from_millis(400);
-const HIGHLIGHT_BUDGET: Duration = Duration::from_millis(20);
+pub(crate) const WHICH_KEY: Duration = Duration::from_millis(400);
+pub(crate) const HIGHLIGHT_BUDGET: Duration = Duration::from_millis(20);
 /// How long to wait for more pending input before drawing. Not zero: with
 /// `use-dev-tty`, crossterm's poll reads nothing when given no time.
 const BATCH: Duration = Duration::from_millis(1);
 /// How often a terminal you're typing in shows its output.
-const TERM_TICK: Duration = Duration::from_millis(4);
+pub(crate) const TERM_TICK: Duration = Duration::from_millis(4);
 /// A frame of Claude's typing (`fred_keys`): a key or a few, then a redraw.
-const TYPE_TICK: Duration = Duration::from_millis(30);
+pub(crate) const TYPE_TICK: Duration = Duration::from_millis(30);
 
 type Term = Terminal<CrosstermBackend<Stdout>>;
 
@@ -79,6 +79,17 @@ struct Ui {
     bar_cursor: bool,
 }
 
+/// After a draw: the active window's viewport and page height.
+pub(crate) fn drawn(s: &mut Session) {
+    // The active window: its text rows (above its status line) and columns.
+    let win = s.tree.layout(s.area).into_iter().find(|p| p.id == s.active);
+    s.ed.viewport = win.map(|p| crate::zap::Viewport::of(p.rect, p.divider, &s.ed, s.win().view));
+    let rows = s.ed.viewport.map_or(0, |v| v.rows);
+    // Paging scrolls by the text rows actually on screen, not the
+    // configured height, which may be "max".
+    s.ed.win_height = rows.max(1);
+}
+
 impl Ui {
     fn new(full: bool, height: u16) -> io::Result<Ui> {
         Ok(Ui {
@@ -104,14 +115,7 @@ impl Ui {
             .draw(|f| ui::windows::draw_session(f, s, cfg, HIGHLIGHT_BUDGET))?;
         // `done.area` is the whole terminal; the buffer covers just the window.
         self.area = Some(done.buffer.area);
-        // The active window: its text rows (above its status line) and columns.
-        let win = s.tree.layout(s.area).into_iter().find(|p| p.id == s.active);
-        s.ed.viewport =
-            win.map(|p| crate::zap::Viewport::of(p.rect, p.divider, &s.ed, s.win().view));
-        let rows = s.ed.viewport.map_or(0, |v| v.rows);
-        // Paging scrolls by the text rows actually on screen, not the
-        // configured height, which may be "max".
-        s.ed.win_height = rows.max(1);
+        drawn(s);
         let bar = s.ed.mode == Mode::Insert && s.ed.term.is_none();
         if bar != self.bar_cursor {
             self.bar_cursor = bar;
@@ -440,27 +444,10 @@ fn ask_claude(
     prompt: String,
     explain: bool,
 ) -> Result<()> {
-    const SPIN: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-    let cmd = if explain {
-        cfg.explain_command.clone()
-    } else {
-        cfg.ai_command.clone()
-    };
-    let verb = if explain { "explaining" } else { "rewriting" };
-    let prompt = match cfg.ai_rules.trim() {
-        "" => prompt,
-        rules => format!("{prompt}\nRules: {rules}\n"),
-    };
-    let job = std::thread::spawn(move || crate::shell::capture(&cmd, Some(prompt)));
-    let what = match r.end - r.start {
-        0 => format!("line {}", r.start + 1),
-        _ => format!("lines {}-{}", r.start + 1, r.end + 1),
-    };
+    let job = start_ai(cfg, prompt, explain);
     let start = Instant::now();
     while !job.is_finished() {
-        let t = start.elapsed();
-        let spin = SPIN[(t.as_millis() / 100) as usize % SPIN.len()];
-        s.ed.set_msg(format!("{spin} Claude is {verb} {what}… {}s", t.as_secs()));
+        ai_spin(s, r, explain, start);
         ui.draw(s, cfg)?;
         if event::poll(TICK)? {
             event::read()?;
@@ -469,19 +456,66 @@ fn ask_claude(
             return Ok(());
         }
     }
-    match job.join() {
+    finish_ai(s, r, explain, job.join());
+    Ok(())
+}
+
+pub(crate) type AiJob = std::thread::JoinHandle<Result<String, String>>;
+
+/// Claude (`cfg.ai_command`, or `cfg.explain_command`, plus `cfg.ai_rules`)
+/// answering `prompt` on another thread.
+pub(crate) fn start_ai(cfg: &Config, prompt: String, explain: bool) -> AiJob {
+    let cmd = if explain {
+        cfg.explain_command.clone()
+    } else {
+        cfg.ai_command.clone()
+    };
+    let prompt = match cfg.ai_rules.trim() {
+        "" => prompt,
+        rules => format!("{prompt}\nRules: {rules}\n"),
+    };
+    std::thread::spawn(move || crate::shell::capture(&cmd, Some(prompt)))
+}
+
+fn ai_what(r: Range) -> String {
+    match r.end - r.start {
+        0 => format!("line {}", r.start + 1),
+        _ => format!("lines {}-{}", r.start + 1, r.end + 1),
+    }
+}
+
+/// The spinner while Claude works, since `start`.
+pub(crate) fn ai_spin(s: &mut Session, r: Range, explain: bool, start: Instant) {
+    const SPIN: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+    let verb = if explain { "explaining" } else { "rewriting" };
+    let t = start.elapsed();
+    let spin = SPIN[(t.as_millis() / 100) as usize % SPIN.len()];
+    s.ed.set_msg(format!(
+        "{spin} Claude is {verb} {}… {}s",
+        ai_what(r),
+        t.as_secs()
+    ));
+}
+
+/// Claude's reply: rewritten lines, or the `:explain` box.
+pub(crate) fn finish_ai(
+    s: &mut Session,
+    r: Range,
+    explain: bool,
+    joined: std::thread::Result<Result<String, String>>,
+) {
+    match joined {
         Ok(Ok(out)) if explain => {
             s.ed.explain = Some((r, out.trim().to_string()));
             s.ed.msg = None;
         }
         Ok(Ok(out)) => {
             s.ed.ai_reply(r, &out);
-            s.ed.set_msg(format!("Claude rewrote {what}"));
+            s.ed.set_msg(format!("Claude rewrote {}", ai_what(r)));
         }
         Ok(Err(e)) => s.ed.set_err(e),
         Err(_) => s.ed.set_err("claude: crashed"),
     }
-    Ok(())
 }
 
 fn run_shell(ui: &mut Ui, s: &mut Session, cmd: &str) -> Result<()> {
@@ -685,6 +719,75 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
     Ok(code)
 }
 
+/// The background work of one frame, shared by the terminal and GUI loops:
+/// returns `(dirty, acted)`: anything changed (a redraw is due), and whether
+/// Claude's tool calls or typing ran (which counts as activity).
+pub fn tick_session(
+    s: &mut Session,
+    remote: Option<&crate::remote::Remote>,
+    checked: &mut Instant,
+) -> (bool, bool) {
+    let mut dirty = false;
+    let mut acted = false;
+    if checked.elapsed() >= AUTOREAD {
+        *checked = Instant::now();
+        if s.auto_read() {
+            s.hl.invalidate(0);
+            dirty = true;
+        }
+    }
+    if s.tick_magit() {
+        dirty = true;
+    }
+    if s.tick_claude() {
+        dirty = true;
+    }
+    if s.tick_terms() {
+        dirty = true;
+    }
+    // Claude's tool calls; keys are typed a frame at a time, as you
+    // would, and the next call waits until they're done.
+    let calls: Vec<_> = match s.typing {
+        Some(_) => vec![],
+        None => remote.into_iter().flat_map(|r| r.take()).collect(),
+    };
+    let called = !calls.is_empty();
+    for (tool, args, reply) in calls {
+        s.remote(&tool, &args, reply);
+    }
+    if called | s.tick_typing() {
+        if let Some(d) = s.ed.buf.take_dirty_from() {
+            s.hl.invalidate(d);
+        }
+        s.win_mut().view.last_click = None;
+        s.win_mut().view.detached = false;
+        acted = true;
+        dirty = true;
+    }
+    if s.reloaded {
+        s.reloaded = false;
+        // Highlighting and scroll belong to the buffer now (`Session::show`).
+        s.ed.nearby = nearby::Nearby::new(s.ed.path.clone());
+        dirty = true;
+    }
+    // Picker results from background threads, or a grep due to start.
+    if crate::pick::tick(&mut s.ed) {
+        s.win_mut().view.last_click = None;
+        dirty = true;
+    }
+    // A definition search may have found where to jump.
+    if let Some(eff) = s.ed.pending_effect.take() {
+        s.perform(eff);
+        dirty = true;
+    }
+    // Git marks after an edit (or once the staged text has loaded).
+    dirty |= s.ed.git.refresh(&s.ed.buf);
+    let msg = s.ed.msg.clone();
+    s.maybe_swap(Instant::now());
+    dirty |= s.ed.msg != msg;
+    (dirty, acted)
+}
+
 fn event_loop(
     ui: &mut Ui,
     s: &mut Session,
@@ -848,41 +951,11 @@ fn event_loop(
         if s.quit {
             return Ok(0);
         }
-        if checked.elapsed() >= AUTOREAD {
-            checked = Instant::now();
-            if s.auto_read() {
-                s.hl.invalidate(0);
-                dirty = true;
-            }
-        }
-        if s.tick_magit() {
-            dirty = true;
-        }
-        if s.tick_claude() {
-            dirty = true;
-        }
-        if s.tick_terms() {
-            dirty = true;
-        }
-        // Claude's tool calls; keys are typed a frame at a time, as you
-        // would, and the next call waits until they're done.
-        let calls: Vec<_> = match s.typing {
-            Some(_) => vec![],
-            None => remote.into_iter().flat_map(|r| r.take()).collect(),
-        };
-        let called = !calls.is_empty();
-        for (tool, args, reply) in calls {
-            s.remote(&tool, &args, reply);
-        }
-        if called | s.tick_typing() {
-            if let Some(d) = s.ed.buf.take_dirty_from() {
-                s.hl.invalidate(d);
-            }
-            s.win_mut().view.last_click = None;
-            s.win_mut().view.detached = false;
+        let (changed, acted) = tick_session(s, remote, &mut checked);
+        if acted {
             active = Instant::now();
-            dirty = true;
         }
+        dirty |= changed;
         if s.typing.is_none() && !held.is_empty() {
             let keys = std::mem::take(&mut held);
             // Claude moved you (another buffer, or out of Insert mode): keys meant
@@ -919,12 +992,6 @@ fn event_loop(
             s.resolve_edit(choice);
             dirty = true;
         }
-        if s.reloaded {
-            s.reloaded = false;
-            // Highlighting and scroll belong to the buffer now (`Session::show`).
-            s.ed.nearby = nearby::Nearby::new(s.ed.path.clone());
-            dirty = true;
-        }
         let rows = terminal::size()?.1;
         let shown = (ui.height as usize).saturating_sub(2);
         // A picker gets the full configured height, whatever the file's size.
@@ -939,21 +1006,6 @@ fn event_loop(
             ui.rebuild(want)?;
             dirty = true;
         }
-        // Picker results from background threads, or a grep due to start.
-        if crate::pick::tick(&mut s.ed) {
-            s.win_mut().view.last_click = None;
-            dirty = true;
-        }
-        // A definition search may have found where to jump.
-        if let Some(eff) = s.ed.pending_effect.take() {
-            s.perform(eff);
-            dirty = true;
-        }
-        // Git marks after an edit (or once the staged text has loaded).
-        dirty |= s.ed.git.refresh(&s.ed.buf);
-        let msg = s.ed.msg.clone();
-        s.maybe_swap(Instant::now());
-        dirty |= s.ed.msg != msg;
     }
 }
 

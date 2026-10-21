@@ -1156,7 +1156,7 @@ pub fn draw_window(
 }
 
 /// A terminal's name in the status line: the title its shell set.
-fn term_title(ed: &Editor) -> Option<String> {
+pub(crate) fn term_title(ed: &Editor) -> Option<String> {
     let title = ed.term.as_ref()?.borrow().title();
     Some(match title.as_str() {
         "" => "terminal".into(),
@@ -1362,6 +1362,17 @@ fn mode_color(m: &Mode) -> Color {
 
 /// The status line in `area`'s first row; dim and without the mode for an
 /// inactive window.
+/// The mode label the status line shows.
+pub(crate) fn status_label(ed: &Editor) -> String {
+    match (&ed.mode, &ed.dired) {
+        _ if ed.zap.is_some() => "ZAP".to_string(),
+        _ if ed.magit.is_some() => "MAGIT".to_string(),
+        (Mode::Insert, _) if ed.term.is_some() => "TERMINAL".to_string(),
+        (Mode::Normal, Some(d)) if !d.editing => "DIRED".to_string(),
+        (m, _) => mode_name(m).to_string(),
+    }
+}
+
 fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter, active: bool) {
     let y = area.y;
     let w = area.width as usize;
@@ -1370,13 +1381,7 @@ fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter, acti
         .fg(Color::Indexed(250));
     let bold = bar.add_modifier(Modifier::BOLD);
     let mode = bar.fg(mode_color(&ed.mode)).add_modifier(Modifier::BOLD);
-    let label = match (&ed.mode, &ed.dired) {
-        _ if ed.zap.is_some() => "ZAP".to_string(),
-        _ if ed.magit.is_some() => "MAGIT".to_string(),
-        (Mode::Insert, _) if ed.term.is_some() => "TERMINAL".to_string(),
-        (Mode::Normal, Some(d)) if !d.editing => "DIRED".to_string(),
-        (m, _) => mode_name(m).to_string(),
-    };
+    let label = status_label(ed);
     buf.set_stringn(area.x, y, " ".repeat(w), w, bar);
     // Drawing: the toolbar takes the status line.
     if let Some(d) = &ed.draw {

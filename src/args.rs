@@ -11,6 +11,7 @@ pub const USAGE: &str = "usage: fred [-i | -f] [--height N] [+LINE] [FILE | DIR]
   -f, --fullscreen  take over the terminal (the default, unless the
                     config says otherwise)
   --height N        inline, showing N lines of text, or `max` (default 12)
+  --gui             speak the native app's protocol on stdin/stdout
   --mcp             be the MCP server that lets Claude Code drive the
                     running fred (claude mcp add fred -- fred --mcp)
   -h, --help        show this help
@@ -33,6 +34,7 @@ pub struct Args {
     pub height: Option<usize>,
     pub line: Option<LineArg>,
     pub file: Option<PathBuf>,
+    pub gui: bool,
 }
 
 #[derive(Debug)]
@@ -68,6 +70,10 @@ pub fn parse(args: Vec<String>) -> Result<ArgsOrInfo, String> {
                 }
                 "-i" | "--inline" => {
                     out.inline = true;
+                    continue;
+                }
+                "--gui" => {
+                    out.gui = true;
                     continue;
                 }
                 "-f" | "--fullscreen" => {
@@ -125,7 +131,8 @@ mod tests {
                 fullscreen: false,
                 height: Some(5),
                 line: Some(LineArg::N(3)),
-                file: Some(_)
+                file: Some(_),
+                gui: false
             }))
         ));
         assert!(matches!(
@@ -161,6 +168,7 @@ mod tests {
             matches!(parse(v(&["-i", "f"])), Ok(ArgsOrInfo::Run(a)) if a.inline && a.file.is_some())
         );
         assert!(matches!(parse(v(&["-f"])), Ok(ArgsOrInfo::Run(a)) if a.fullscreen));
+        assert!(matches!(parse(v(&["--gui", "f"])), Ok(ArgsOrInfo::Run(a)) if a.gui));
         assert!(parse(v(&["--bogus"])).is_err());
         assert!(parse(v(&["+x"])).is_err());
     }
