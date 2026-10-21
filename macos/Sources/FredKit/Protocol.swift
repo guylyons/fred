@@ -88,8 +88,18 @@ public struct Frame: Codable, Sendable {
     public var cursor: Cursor?
 }
 
+/// A window's buffer in miniature: per line, `[col, len, color]` runs
+/// (color in the run encoding, nil for the default). `lines` is nil for a
+/// file too big to map.
+public struct Minimap: Codable, Sendable {
+    public var win: Int
+    public var version: Int
+    public var lines: [[[Int?]]]?
+}
+
 public enum Incoming {
     case frame(Frame)
+    case minimap(Minimap)
     case exit(code: Int)
 
     struct Tag: Decodable { var t: String }
@@ -100,6 +110,7 @@ public enum Incoming {
         let tag = try d.decode(Tag.self, from: line)
         switch tag.t {
         case "frame": return .frame(try d.decode(Frame.self, from: line))
+        case "minimap": return .minimap(try d.decode(Minimap.self, from: line))
         case "exit": return .exit(code: try d.decode(Exit.self, from: line).code)
         default:
             throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "unknown t \(tag.t)"))

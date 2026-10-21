@@ -1,6 +1,6 @@
 import AppKit
 
-public struct Palette {
+public struct Palette: Sendable {
     public var fg: NSColor
     public var bg: NSColor
     /// The selection: a fill a little lighter than `bg`, and its border.

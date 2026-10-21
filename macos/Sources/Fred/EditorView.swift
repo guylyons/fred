@@ -8,14 +8,21 @@ final class EditorView: NSView {
     var palette = Palette.materialDark {
         didSet { lines.removeAll(); needsDisplay = true }
     }
-    /// Called with (cols, rows) whenever the size in cells changes.
-    var onResize: (Int, Int) -> Void = { _, _ in }
+    /// Called with (cols, rows, minimap margin) whenever one of them changes.
+    var onResize: (Int, Int, Int) -> Void = { _, _, _ in }
+    /// View ▸ Show/Hide Minimap (set by main.swift).
+    var showMinimap = true {
+        didSet { reportSize(); if let f = current { layoutMinimaps(f) } }
+    }
     private(set) var latency = Latency()
     private let showLatency = ProcessInfo.processInfo.environment["FRED_LATENCY"] == "1"
     private let overlay = NSTextField(labelWithString: "")
     private var printed = 0
     private var statusBars: [StatusBar] = []
     private var tabStrips: [TabStrip] = []
+    private var minimapViews: [MinimapView] = []
+    /// The latest `minimap` message per window id.
+    private var maps: [Int: Minimap] = [:]
     /// Reveal in Sidebar, from a tab's menu (wired by main.swift).
     var reveal: (String) -> Void = { _ in }
 
@@ -37,7 +44,7 @@ final class EditorView: NSView {
     private(set) var current: Frame?
     private(set) var cell = CGSize(width: 8, height: 16)
     private var scale: CGFloat { window?.backingScaleFactor ?? 2 }
-    private var lastSize = (0, 0)
+    private var lastSize = (0, 0, 0)
     private var fonts: [NSFont] = [] // index: bold | italic << 1
     private var lines: [LineKey: CTLine] = [:]
 
@@ -99,10 +106,11 @@ final class EditorView: NSView {
     }
 
     private func reportSize() {
-        let size = (Int(bounds.width / cell.width), Int(bounds.height / cell.height))
+        let margin = showMinimap ? Int((MinimapMath.width / cell.width).rounded(.up)) : 0
+        let size = (Int(bounds.width / cell.width), Int(bounds.height / cell.height), margin)
         guard window != nil, size != lastSize, size.0 > 0, size.1 > 0 else { return }
         lastSize = size
-        onResize(size.0, size.1)
+        onResize(size.0, size.1, size.2)
     }
 
     // MARK: - Input
@@ -148,6 +156,7 @@ final class EditorView: NSView {
         current = f
         layoutStatusBars(f)
         layoutTabStrips(f)
+        layoutMinimaps(f)
         defer { if !needsDisplay { frameShown(f) } } // nothing to draw: the echo is already on screen
         guard let old, old.cols == f.cols, old.rows == f.rows, old.windows.count == f.windows.count,
               zip(old.windows, f.windows).allSatisfy({ sameRect($0, $1) })
@@ -212,6 +221,36 @@ final class EditorView: NSView {
             s.isHidden = false
             s.op = { [weak self] op, index, to in self?.transmit { .tab(seq: $0, win: id, op: op, index: index, to: to) } }
             s.update(tabs, active: w.active)
+        }
+    }
+
+    func applyMinimap(_ m: Minimap) {
+        maps[m.win] = m
+        if let f = current { layoutMinimaps(f) }
+    }
+
+    /// One MinimapView per window with a margin, over its margin columns and text rows.
+    private func layoutMinimaps(_ f: Frame) {
+        let ids = Set(f.windows.compactMap(\.id))
+        if maps.keys.contains(where: { !ids.contains($0) }) { maps = maps.filter { ids.contains($0.key) } }
+        while minimapViews.count < f.windows.count {
+            let m = MinimapView(frame: .zero)
+            m.palette = palette
+            addSubview(m, positioned: .below, relativeTo: overlay)
+            minimapViews.append(m)
+        }
+        for (i, m) in minimapViews.enumerated() {
+            guard showMinimap, i < f.windows.count, case let w = f.windows[i], let id = w.id, let margin = w.margin, margin > 0 else {
+                m.isHidden = true
+                continue
+            }
+            let (l, r) = span(w.x + w.w - (w.divider ? 1 : 0) - margin, margin)
+            let visible = max(0, w.h - (w.header ?? 0) - 1) // the text rows
+            let fr = NSRect(x: l, y: CGFloat(textY(w)) * cell.height, width: r - l, height: CGFloat(visible) * cell.height)
+            if m.frame != fr { m.frame = fr }
+            m.isHidden = false
+            m.onScroll = { [weak self] top in self?.transmit { .scroll(seq: $0, win: id, top: top) } }
+            m.update(maps[id], top: w.top ?? 0, visible: visible)
         }
     }
 

@@ -75,6 +75,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
                 item("Bigger", #selector(zoom(_:)), "=", tag: 1),
                 item("Smaller", #selector(zoom(_:)), "-", tag: -1),
                 item("Actual Size", #selector(zoom(_:)), "0"),
+                .separator(),
+                item(view.showMinimap ? "Hide Minimap" : "Show Minimap", #selector(toggleMinimap(_:))),
             ]),
             windowMenu,
         ].forEach(bar.addItem)
@@ -122,6 +124,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         view.transmit { .paste(seq: $0, text: t) }
     }
 
+    @objc private func toggleMinimap(_ s: NSMenuItem) {
+        view.showMinimap.toggle()
+        UserDefaults.standard.set(view.showMinimap, forKey: "FredMinimap")
+        s.title = view.showMinimap ? "Hide Minimap" : "Show Minimap"
+    }
+
     /// tag 1 bigger, -1 smaller, 0 actual size; 9–36 pt.
     @objc private func zoom(_ s: NSMenuItem) {
         let size = s.tag == 0 ? 13 : min(36, max(9, view.font.pointSize + CGFloat(s.tag)))
@@ -146,7 +154,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         window.title = "Fred"
         window.delegate = self
         view.send = { [core] in core!.send($0) }
-        view.onResize = { [core] cols, rows in core!.send(.resize(cols: cols, rows: rows, margin: 0)) }
+        view.showMinimap = UserDefaults.standard.object(forKey: "FredMinimap") as? Bool ?? true
+        view.onResize = { [core] cols, rows, margin in core!.send(.resize(cols: cols, rows: rows, margin: margin)) }
         let sidebar = Sidebar(root: cwd)
         sidebar.open = { url, preview in
             view.transmit { .open(seq: $0, path: url.path, preview: preview) }
@@ -160,6 +169,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
             if window!.title != f.title { window!.title = f.title }
             sidebar.follow(f.windows.first(where: \.active)?.path)
         }
+        core.onMinimap = { view.applyMinimap($0) }
         core.onExit = { [window] code, tail in
             if code != 0 {
                 let alert = NSAlert()

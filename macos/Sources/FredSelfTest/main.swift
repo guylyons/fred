@@ -167,6 +167,38 @@ check("open line omits preview false", out(.open(seq: 5, path: "/f", preview: fa
 check("resize margin", out(.resize(cols: 120, rows: 40, margin: 8)) == #"{"t":"resize","cols":120,"rows":40,"margin":8}"# + "\n")
 check("resize margin 0 omitted", out(.resize(cols: 120, rows: 40, margin: 0)) == #"{"t":"resize","cols":120,"rows":40}"# + "\n")
 
+// Minimap: 2 pt per line; scrolls only when taller than the view.
+do {
+    check("short file doesn't scroll", MinimapMath.offset(top: 10, lines: 100, visible: 30, height: 400) == 0)
+    // 1000 lines = 2000 pt in 400 pt: at the end (top 970) the offset is 1600.
+    check("long file at the start", MinimapMath.offset(top: 0, lines: 1000, visible: 30, height: 400) == 0)
+    check("long file at the end", MinimapMath.offset(top: 970, lines: 1000, visible: 30, height: 400) == 1600)
+    check("long file halfway", MinimapMath.offset(top: 485, lines: 1000, visible: 30, height: 400) == 800)
+    check("past the end clamps", MinimapMath.offset(top: 999, lines: 1000, visible: 30, height: 400) == 1600)
+    check("line at y", MinimapMath.line(atY: 0, offset: 0) == 0 && MinimapMath.line(atY: 5, offset: 0) == 2
+          && MinimapMath.line(atY: 5, offset: 800) == 402)
+    check("centering", MinimapMath.topForCentering(line: 500, visible: 30, lines: 1000) == 485)
+    check("centering clamps low", MinimapMath.topForCentering(line: 3, visible: 30, lines: 1000) == 0)
+    check("centering clamps high", MinimapMath.topForCentering(line: 995, visible: 30, lines: 1000) == 970)
+    check("centering a short file", MinimapMath.topForCentering(line: 10, visible: 30, lines: 20) == 0)
+    // Dragging: the box's y and back.
+    for (top, lines) in [(0, 1000), (300, 1000), (970, 1000), (40, 100)] {
+        let y = MinimapMath.boxY(top: top, lines: lines, visible: 30, height: 400)
+        check("drag round trip \(top)/\(lines)", MinimapMath.top(forBoxY: y, lines: lines, visible: 30, height: 400) == top)
+    }
+    check("drag clamps", MinimapMath.top(forBoxY: -50, lines: 1000, visible: 30, height: 400) == 0
+          && MinimapMath.top(forBoxY: 5000, lines: 1000, visible: 30, height: 400) == 970)
+}
+let mm = #"{"t":"minimap","win":3,"version":17,"lines":[[[0,4,16737970],[5,3,null]],[]]}"#
+if case .minimap(let m) = try Incoming.decode(Data(mm.utf8)) {
+    check("minimap decodes", m.win == 3 && m.version == 17 && m.lines?.count == 2 && m.lines?[1].isEmpty == true)
+    check("minimap runs", m.lines?[0] == [[0, 4, 16737970], [5, 3, nil]])
+} else { check("decodes a minimap", false) }
+if case .minimap(let m) = try Incoming.decode(Data(#"{"t":"minimap","win":3,"version":18,"lines":null}"#.utf8)) {
+    check("huge file: null lines", m.lines == nil)
+} else { check("decodes a null minimap", false) }
+check("unknown message throws, doesn't crash", (try? Incoming.decode(Data(#"{"t":"later","x":1}"#.utf8))) == nil)
+
 exit(failures == 0 ? 0 : 1)
 
 extension Array where Element == CGPoint {

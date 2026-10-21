@@ -6,6 +6,7 @@ import Synchronization
 @MainActor
 final class Core {
     var onFrame: (Frame) -> Void = { _ in }
+    var onMinimap: (Minimap) -> Void = { _ in }
     /// Exit code (-1 when the core died without an `exit` line) and the last
     /// 20 lines of its stderr.
     var onExit: (Int, String) -> Void = { _, _ in }
@@ -71,6 +72,7 @@ final class Core {
         guard !exited else { return }
         switch msg {
         case .frame(let f): onFrame(f)
+        case .minimap(let m): onMinimap(m)
         case .exit(let code): exited = true; onExit(code, tail)
         case nil: exited = true; onExit(-1, tail)
         }
