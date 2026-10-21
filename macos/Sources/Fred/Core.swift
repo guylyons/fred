@@ -37,7 +37,9 @@ final class Core {
             forEachLine(out.fileHandleForReading) { line in
                 do {
                     let msg = try Incoming.decode(line)
-                    DispatchQueue.main.async { self?.handle(msg, tail: tail.withLock { $0.joined(separator: "\n") }) }
+                    var t = ""
+                    if case .exit = msg { t = tail.withLock { $0.joined(separator: "\n") } }
+                    DispatchQueue.main.async { self?.handle(msg, tail: t) }
                 } catch {
                     NSLog("fred: bad core line: %@", String(decoding: line, as: UTF8.self))
                 }

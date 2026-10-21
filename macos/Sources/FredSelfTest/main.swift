@@ -8,7 +8,7 @@ var count = 0
     if cond { print("ok \(count)") } else { print("FAIL \(name)"); failures += 1 }
 }
 
-let line = #"{"t":"frame","seq":3,"cols":20,"rows":6,"title":"t","windows":[{"x":0,"y":0,"w":20,"h":5,"divider":false,"active":true,"rows":[[{"x":0,"s":"hello","fg":16737970,"f":1}]],"status":{"mode":"NORMAL","name":"f","modified":false,"pos":"1:1","branch":null}}],"bottom":[],"cursor":{"x":0,"y":0,"shape":"block"}}"#
+let line = #"{"t":"frame","seq":3,"cols":20,"rows":6,"title":"t","windows":[{"x":0,"y":0,"w":20,"h":5,"divider":false,"active":true,"rows":[[{"x":0,"s":"hello","fg":33515186,"f":1}]],"status":{"mode":"NORMAL","name":"f","modified":false,"pos":"1:1","branch":null}}],"bottom":[],"cursor":{"x":0,"y":0,"shape":"block"}}"#
 if case .frame(let f) = try Incoming.decode(Data(line.utf8)) {
     check("seq", f.seq == 3)
     check("run text", f.windows[0].rows[0][0].s == "hello")
@@ -24,5 +24,7 @@ check("snap 1x", snap(10.3, scale: 1) == 10.0)
 let c = cellSize(font: .monospacedSystemFont(ofSize: 13, weight: .regular), scale: 2)
 check("cell height on pixel grid", (c.height * 2).rounded() == c.height * 2)
 check("cell width positive", c.width > 7 && c.width < 9)
+check("wide chars take 2 cells", cellWidth("日本語 wide") == 11)
+check("ascii 1 cell", cellWidth("abc") == 3)
 
 exit(failures == 0 ? 0 : 1)

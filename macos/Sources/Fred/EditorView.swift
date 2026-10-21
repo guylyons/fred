@@ -44,6 +44,12 @@ final class EditorView: NSView {
         metricsChanged()
     }
 
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        layer?.contentsScale = scale
+        metricsChanged()
+    }
+
     override func setFrameSize(_ s: NSSize) {
         super.setFrameSize(s)
         reportSize()
@@ -157,8 +163,20 @@ final class EditorView: NSView {
         for run in runs {
             let flags = run.f ?? 0
             let (l, r) = span(col + run.x, cellWidth(run.s))
-            ctx.textPosition = CGPoint(x: l, y: base)
-            CTLineDraw(line(LineKey(s: run.s, fg: run.fg, bg: flags & 8 != 0 ? run.bg : nil, f: flags)), ctx)
+            func key(_ s: String) -> LineKey { LineKey(s: s, fg: run.fg, bg: flags & 8 != 0 ? run.bg : nil, f: flags) }
+            if cellWidth(run.s) == run.s.count {
+                ctx.textPosition = CGPoint(x: l, y: base)
+                CTLineDraw(line(key(run.s)), ctx)
+            } else {
+                // Fallback fonts' wide glyphs aren't 2 cells wide: place each character on the grid.
+                var at = col + run.x
+                for ch in run.s {
+                    let s = String(ch)
+                    ctx.textPosition = CGPoint(x: span(at, 1).0, y: base)
+                    CTLineDraw(line(key(s)), ctx)
+                    at += cellWidth(s)
+                }
+            }
             if flags & (4 | 32) != 0 {
                 ctx.setFillColor(colors(run).fg.cgColor)
                 if flags & 4 != 0 {
@@ -194,7 +212,8 @@ final class EditorView: NSView {
     }
 
     private func drawCursor(_ ctx: CGContext, _ c: Cursor, _ f: Frame) {
-        let (l, r) = span(c.x, 1)
+        let under = character(at: c.x, c.y, f)
+        let (l, r) = span(under?.col ?? c.x, under?.width ?? 1)
         let y = CGFloat(c.y) * cell.height
         switch c.shape {
         case "bar":
@@ -206,7 +225,7 @@ final class EditorView: NSView {
         default:
             ctx.setFillColor(palette.fg.withAlphaComponent(0.85).cgColor)
             ctx.fill(CGRect(x: l, y: y, width: r - l, height: cell.height))
-            if let (ch, flags) = character(at: c.x, c.y, f) {
+            if let (ch, flags, _, _) = under, ch != " " {
                 // Reversed with default colors draws in the theme bg.
                 ctx.textPosition = CGPoint(x: l, y: baseline(c.y))
                 CTLineDraw(line(LineKey(s: ch, fg: nil, bg: nil, f: (flags & 3) | 8)), ctx)
@@ -214,11 +233,12 @@ final class EditorView: NSView {
         }
     }
 
-    /// The character (and its run's flags) at absolute cell (x, y).
-    private func character(at x: Int, _ y: Int, _ f: Frame) -> (String, Int)? {
+    /// The character at absolute cell (x, y): its run's flags, absolute start column and width.
+    private func character(at x: Int, _ y: Int, _ f: Frame) -> (s: String, flags: Int, col: Int, width: Int)? {
+        var origin = 0
         var runs: [Run]?, col = x
         for w in f.windows where x >= w.x && x < w.x + w.w && y >= w.y && y - w.y < w.rows.count {
-            runs = w.rows[y - w.y]; col = x - w.x
+            runs = w.rows[y - w.y]; col = x - w.x; origin = w.x
         }
         let top = bottomTop(f)
         if runs == nil, y >= top, y - top < f.bottom.count { runs = f.bottom[y - top] }
@@ -226,24 +246,10 @@ final class EditorView: NSView {
             var at = run.x
             for ch in run.s {
                 let n = cellWidth(String(ch))
-                if col < at + n { return ch == " " ? nil : (String(ch), run.f ?? 0) }
+                if col < at + n { return (String(ch), run.f ?? 0, origin + at, n) }
                 at += n
             }
         }
         return nil
-    }
-}
-
-/// Columns `s` takes; wide (CJK, emoji) characters take 2.
-func cellWidth(_ s: String) -> Int {
-    // ponytail: hand-picked East Asian Wide ranges, a full EAW table if the core and this disagree
-    s.unicodeScalars.reduce(0) { n, u in
-        let v = u.value
-        if u.properties.generalCategory == .nonspacingMark || v == 0x200d || (0xfe00...0xfe0f).contains(v) { return n }
-        let wide = (0x1100...0x115f).contains(v) || (0x2e80...0xa4cf).contains(v) || (0xac00...0xd7a3).contains(v)
-            || (0xf900...0xfaff).contains(v) || (0xfe30...0xfe4f).contains(v) || (0xff00...0xff60).contains(v)
-            || (0xffe0...0xffe6).contains(v) || (0x1f300...0x1f64f).contains(v) || (0x1f900...0x1f9ff).contains(v)
-            || (0x20000...0x3fffd).contains(v)
-        return n + (wide ? 2 : 1)
     }
 }
