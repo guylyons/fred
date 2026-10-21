@@ -14,6 +14,23 @@ final class EditorView: NSView {
     /// Called after each draw with the frame on screen (latency hook).
     var onDrawn: (Frame) -> Void = { _ in }
 
+    /// Sends a message to the core (wired by main.swift).
+    var send: (Outgoing) -> Void = { _ in }
+    /// Every seq sent, with its send time (CACurrentMediaTime), for latency measurement.
+    private(set) var sent: [(seq: Int, at: CFTimeInterval)] = []
+    private var lastSeq = 0
+    private var scrollAcc: CGFloat = 0
+
+    /// Sends the message `make` builds from the next seq; returns that seq.
+    @discardableResult
+    func transmit(at: CFTimeInterval = CACurrentMediaTime(), _ make: (Int) -> Outgoing) -> Int {
+        lastSeq += 1
+        sent.append((lastSeq, at))
+        if sent.count > 4096 { sent.removeFirst(2048) } // ponytail: bounded log, Task 8 drains it
+        send(make(lastSeq))
+        return lastSeq
+    }
+
     private(set) var current: Frame?
     private(set) var cell = CGSize(width: 8, height: 16)
     private var scale: CGFloat { window?.backingScaleFactor ?? 2 }
@@ -76,6 +93,44 @@ final class EditorView: NSView {
         guard window != nil, size != lastSize, size.0 > 0, size.1 > 0 else { return }
         lastSize = size
         onResize(size.0, size.1)
+    }
+
+    // MARK: - Input
+
+    override var acceptsFirstResponder: Bool { true }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    // ponytail: no NSTextInputClient yet, so no IME or dead keys; committed text is the event's chars.
+    override func keyDown(with e: NSEvent) {
+        let t = CACurrentMediaTime()
+        let m = e.modifierFlags
+        guard let k = notation(chars: e.characters ?? "", charsIgnoringModifiers: e.charactersIgnoringModifiers ?? "",
+                               keyCode: e.keyCode, control: m.contains(.control), option: m.contains(.option),
+                               shift: m.contains(.shift), command: m.contains(.command)) else { return }
+        transmit(at: t) { .keys(seq: $0, keys: k) }
+    }
+
+    private func cellAt(_ e: NSEvent) -> (Int, Int) {
+        let p = convert(e.locationInWindow, from: nil)
+        return (max(0, Int(p.x / cell.width)), max(0, Int(p.y / cell.height)))
+    }
+
+    private func mouse(_ kind: String, _ e: NSEvent) {
+        let (c, r) = cellAt(e)
+        transmit { .mouse(seq: $0, kind: kind, col: c, row: r) }
+    }
+
+    override func mouseDown(with e: NSEvent) { mouse(e.modifierFlags.contains(.control) ? "right" : "down", e) }
+    override func mouseDragged(with e: NSEvent) { mouse("drag", e) }
+    override func mouseUp(with e: NSEvent) { mouse("up", e) }
+    override func rightMouseDown(with e: NSEvent) { mouse("right", e) }
+
+    override func scrollWheel(with e: NSEvent) {
+        scrollAcc += e.scrollingDeltaY
+        while abs(scrollAcc) >= 3 {
+            mouse(scrollAcc > 0 ? "scroll_up" : "scroll_down", e)
+            scrollAcc -= scrollAcc > 0 ? 3 : -3
+        }
     }
 
     // MARK: - Frames
