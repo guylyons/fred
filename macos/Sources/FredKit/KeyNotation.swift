@@ -11,12 +11,15 @@ public func notation(chars: String, charsIgnoringModifiers: String, keyCode: UIn
         let shiftable: Set<UInt16> = [48, 123, 124, 125, 126]
         return "<" + (shift && shiftable.contains(keyCode) ? "S-" : "") + name + ">"
     }
-    if control || option {
-        let k = charsIgnoringModifiers.lowercased()
-        guard !k.isEmpty else { return nil }
-        return "<" + (control ? "C-" : "") + (option ? "M-" : "") + (k == "<" ? "lt" : k) + ">"
-    }
     // F-keys and friends arrive as private-use characters.
-    guard let u = chars.unicodeScalars.first, !(0xF700...0xF8FF).contains(u.value) else { return nil }
+    func isFunctionKey(_ s: String) -> Bool { s.unicodeScalars.first.map { (0xF700...0xF8FF).contains($0.value) } ?? false }
+    if control || option {
+        // Control folds case (as Rust does); Option keeps Shift.
+        let k = control ? charsIgnoringModifiers.lowercased() : charsIgnoringModifiers
+        guard !k.isEmpty, !isFunctionKey(k) else { return nil }
+        let name = k == "<" ? "lt" : k == ">" ? "gt" : k
+        return "<" + (control ? "C-" : "") + (option ? "M-" : "") + name + ">"
+    }
+    guard !chars.isEmpty, !isFunctionKey(chars) else { return nil }
     return chars == "<" ? "<lt>" : chars
 }

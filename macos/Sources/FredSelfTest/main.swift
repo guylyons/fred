@@ -47,5 +47,8 @@ check("nav", [115, 119, 116, 121].map { n("", code: $0) } == ["<Home>", "<End>",
 check("cmd goes to menus", n("s", cmd: true) == nil)
 check("space", n(" ") == " ")
 check("function key is dropped", n("\u{f704}", code: 122) == nil)
+check("option shift keeps case", n("Ï", "J", opt: true, shift: true) == "<M-J>")
+check("gt under option/ctrl", n("≥", ">", opt: true) == "<M-gt>" && n("", ">", ctrl: true) == "<C-gt>" && n("", ">", ctrl: true, opt: true) == "<C-M-gt>")
+check("ctrl function key dropped", n("", "\u{f704}", code: 122, ctrl: true) == nil && n("", "\u{f704}", code: 122, opt: true) == nil)
 
 exit(failures == 0 ? 0 : 1)

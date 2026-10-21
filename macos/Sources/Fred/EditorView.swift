@@ -112,7 +112,8 @@ final class EditorView: NSView {
 
     private func cellAt(_ e: NSEvent) -> (Int, Int) {
         let p = convert(e.locationInWindow, from: nil)
-        return (max(0, Int(p.x / cell.width)), max(0, Int(p.y / cell.height)))
+        let cols = current?.cols ?? Int.max, rows = current?.rows ?? Int.max
+        return (min(max(0, Int(p.x / cell.width)), cols - 1), min(max(0, Int(p.y / cell.height)), rows - 1))
     }
 
     private func mouse(_ kind: String, _ e: NSEvent) {
