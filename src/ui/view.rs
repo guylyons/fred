@@ -23,6 +23,8 @@ pub struct View {
     pub detached: bool,
     pub(crate) picker_offset: usize,
     pub(crate) last_click: Option<(std::time::Instant, bool, usize)>,
+    /// A double-click in the text: when and on which line, for a triple-click.
+    pub(crate) triple: Option<(std::time::Instant, usize)>,
     /// Where a left-button drag started, for mouse selection.
     pub(crate) drag_from: Option<(usize, usize)>,
     /// Where the `:explain` box was last drawn, for clicks.

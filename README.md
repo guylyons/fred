@@ -219,6 +219,13 @@ In Visual mode, move to grow the selection, then `d x y c s` act on it,
 `D X Y C S J :` act on its whole lines, `o` jumps to the other end and `K`
 asks Claude to explain it.
 
+`gh` and `gH` start Select mode, Neovim's selection that works like other
+editors': typing replaces it, `Backspace` deletes it, and `Ctrl-G` switches
+between Visual and Select. With `:set selectmode=mouse,key
+keymodel=startsel,stopsel` (the Mac app's default) dragging, double-click
+(word), triple-click (line) and `Shift`+arrows select this way, and a plain
+arrow ends the selection.
+
 Yanks and deletes also go to the system clipboard, and `p` puts what another
 app copied since (`clipboard = false` keeps them inside fred).
 

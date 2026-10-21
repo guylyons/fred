@@ -456,7 +456,7 @@ key,g,g??,change,missing,,Rot13 encode current line
 key,g,g?g?,change,missing,,Rot13 encode current line
 key,g,gD,motion,missing,,go to definition of word under the cursor
 key,g,gE,motion,missing,,go backwards to the end of the previous
-key,g,gH,,missing,,start Select line mode
+key,g,gH,,done,"Select line mode (src/vim/select.rs); oracle cases",start Select line mode
 key,g,gI,change,missing,,"like ""I"", but always start in column 1"
 key,g,gJ,change,missing,,join lines without inserting space
 key,g,gN,,missing,,"1,2  find the previous match with the last used"
@@ -475,7 +475,7 @@ key,g,ge,motion,missing,,go backwards to the end of the previous
 key,g,gf,,missing,,start editing the file whose name is under
 key,g,gF,,missing,,start editing the file whose name is under
 key,g,gg,motion,partial,present; not yet verified against nvim,"cursor to line N, default first line"
-key,g,gh,,missing,,start Select mode
+key,g,gh,,done,"Select mode (src/vim/select.rs): typing replaces, <BS>/<Del> delete; oracle cases",start Select mode
 key,g,gi,change,missing,,"like ""i"", but first move to the |'^| mark"
 key,g,gj,motion,missing,,"like ""j"", but when 'wrap' on go N screen"
 key,g,gk,motion,missing,,"like ""k"", but when 'wrap' on go N screen"
@@ -558,9 +558,9 @@ key,operator-pending,V,,missing,,force operator to work linewise
 key,operator-pending,CTRL-V,,missing,,force operator to work blockwise
 key,visual,CTRL-A,change,missing,,add N to number in highlighted text
 key,visual,CTRL-C,,missing,,stop Visual mode
-key,visual,CTRL-G,,missing,,toggle between Visual mode and Select mode
-key,visual,<BS>,change,missing,,Select mode: delete highlighted area
-key,visual,CTRL-H,change,missing,,same as <BS>
+key,visual,CTRL-G,,done,oracle cases,toggle between Visual mode and Select mode
+key,visual,<BS>,change,done,"<Del> too; leaves Normal mode, or Insert if the selection began there, as Neovim",Select mode: delete highlighted area
+key,visual,CTRL-H,change,done,oracle case,same as <BS>
 key,visual,CTRL-O,,missing,,switch from Select to Visual mode for one
 key,visual,CTRL-V,,missing,,make Visual mode blockwise or stop Visual
 key,visual,CTRL-X,change,missing,,subtract N from number in highlighted text
@@ -1402,7 +1402,7 @@ option,,isprint,isp global string,missing,,printable characters
 option,,joinspaces,js global boolean,missing,,two spaces after a period with a join command
 option,,jumpoptions,jop global string,missing,,Controls the behavior of the jumplist
 option,,keymap,kmp buf string,deferred,right-to-left text and input methods,name of a keyboard mapping
-option,,keymodel,km global string,missing,,enable starting/stopping selection with keys
+option,,keymodel,km global string,done,"startsel, stopsel (arrows, Home/End, PageUp/PageDown, also from Insert mode); fred --gui sets startsel,stopsel",enable starting/stopping selection with keys
 option,,keywordprg,kp global+buf string,missing,,"program to use for the \""K\"" command"
 option,,langmap,lmap global string,deferred,right-to-left text and input methods,alphabetic characters for other language mode
 option,,langmenu,lm global string,deferred,right-to-left text and input methods,language to be used for the menus
@@ -1495,7 +1495,7 @@ option,,scrollopt,sbo global string,missing,,how 'scrollbind' should behave
 option,,sections,sect global string,missing,,nroff macros that separate sections
 option,,secure, global boolean,excluded,"Vimscript, plugins and other languages",Deprecated
 option,,selection,sel global string,missing,,what type of selection to use
-option,,selectmode,slm global string,missing,,when to use Select mode instead of Visual mode
+option,,selectmode,slm global string,done,"mouse (drag, double/triple-click, Shift-click), key, cmd; fred --gui sets mouse,key",when to use Select mode instead of Visual mode
 option,,sessionoptions,ssop global string,deferred,"sessions, views and shada",options for |:mksession|
 option,,shada,sd global string,deferred,"sessions, views and shada",use .shada file upon startup and exiting
 option,,shadafile,sdf global string,deferred,"sessions, views and shada",overrides the filename used for shada

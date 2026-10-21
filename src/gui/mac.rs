@@ -32,6 +32,10 @@ pub fn mac_key(s: &mut Session, key: char, shift: bool) {
     }
     let insert = s.ed.mode == Mode::Insert;
     let visual = matches!(s.ed.mode, Mode::Visual { .. } | Mode::VisualLine { .. });
+    // Copy, cut and select-all type Visual keys, which Select would type over.
+    if matches!(key, 'c' | 'x' | 'a') {
+        s.ed.vim.select = false;
+    }
     // Save and undo/redo keep the mode; the rest start from Normal.
     match key {
         's' if visual => return ex(s, "w"),
@@ -185,5 +189,28 @@ mod tests {
         s.handle_keys("i");
         mac_key(&mut s, 'f', false);
         assert!(matches!(s.ed.mode, Mode::Command(ref cl) if cl.kind == '/'));
+    }
+
+    #[test]
+    fn cmd_c_x_and_v_work_in_select_mode() {
+        let (mut s, _d) = open("hello world\n");
+        s.handle_keys("gh<Right><Right><Right><Right>");
+        mac_key(&mut s, 'c', false);
+        assert_eq!(s.ed.mode, Mode::Normal);
+        assert_eq!(crate::clipboard::get().as_deref(), Some("hello"));
+        s.handle_keys("wgh<Right>");
+        mac_key(&mut s, 'x', false);
+        assert_eq!(s.ed.buf.line(0).trim_end(), "hello rld");
+        // Cmd-V replaces the selection and leaves the registers alone.
+        s.handle_keys("0gh<Right>");
+        s.ed.paste("HE");
+        assert_eq!(s.ed.buf.line(0).trim_end(), "HEllo rld");
+        assert_eq!(s.ed.mode, Mode::Normal);
+        assert_eq!(s.ed.reg.text, "wo");
+        // Cmd-A from Select selects everything, without typing over it.
+        s.handle_keys("gh");
+        mac_key(&mut s, 'a', false);
+        assert_eq!(s.ed.buf.line(0).trim_end(), "HEllo rld");
+        assert_eq!(s.ed.visual_lines(), Some((0, 0)));
     }
 }

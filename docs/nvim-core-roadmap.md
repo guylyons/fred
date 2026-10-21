@@ -34,7 +34,7 @@ track.
 | 6 | Motions (all of normal-index, `g`, `[ ]`) | 5 | 0 | 21 motions |
 | 7 | Text objects | 4 | 0 | none |
 | 8 | Operators (`> < = g~ gu gU gq gw g? ! zf g@`) | 5 | 0 | `d c y` |
-| 9 | Visual, Visual-line, Visual-block | 5 | 0 | charwise and linewise, few keys |
+| 9 | Visual, Visual-line, Visual-block | 5 | 0 | charwise and linewise, few keys; Select mode (`gh`, `gH`, CTRL-G, `<BS>`) |
 | 10 | Insert and Replace mode keys | 4 | 0 | basics |
 | 11 | Command-line editing keys | 3 | 0 | basics, history, Tab |
 | 12 | Marks, jumplist, changelist | 3 | 0 | `a-z` line marks |
@@ -108,7 +108,7 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
    global-local options, then each new option arrives with its behavior
    (track 23). Done so far: the table (`src/options/`), `:set`,
    `:setlocal`, `:setglobal`, `[set]` in config.toml, Tab completion,
-   7 options.
+   9 options.
 2. Buffer / window separation (track 2) and windows (track 17): split
    windows part 2 (spec stages 3–7 of
    `docs/superpowers/specs/2026-10-19-split-windows-design.md`): resizing
@@ -118,7 +118,12 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
    cases. Part 1 is done.
 3. Registers (track 5), then key tables (track 4).
 4. Tracks 6–13 (the editing grammar), each with oracle cases.
-5. Track 14 continued: `\zs`/`\ze`, `\@` look-around, `\_` multi-line
+5. Track 9 continued: Select block mode (`g CTRL-H`, needs Visual-block),
+   Select CTRL-O and CTRL-R, `.` repeating a Select-mode replacement,
+   'selection' (exclusive), `<S-Right>`/`<S-Left>` as word motions when
+   'keymodel' lacks startsel. Done so far: Select mode, 'keymodel',
+   'selectmode'.
+6. Track 14 continued: `\zs`/`\ze`, `\@` look-around, `\_` multi-line
    and back-references (the `regex` crate has none of them), `~`, hlsearch,
    incsearch. Done so far: Vim pattern syntax for `/ ? :s :g` and range
    addresses (`src/search.rs` `compile_vim`).
@@ -168,3 +173,13 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
   leave. The buffer goes when the shell exits. Normal mode shows the live
   screen, not scrollback text; no `{cmd}` argument, no mouse reporting. No
   points: terminal is out of scope.
+- 2026-10-21: Select mode (`src/vim/select.rs`), as Neovim's
+  `VIsual_select` flag on a Visual selection: `gh`, `gH`, CTRL-G both
+  ways, typing replaces (a linewise selection is changed charwise, so its
+  line break goes too), `<BS>`/`<Del>`/CTRL-H delete and leave Normal mode;
+  'keymodel' startsel/stopsel (also from Insert, returning to Insert when
+  the selection ends, as Neovim's `restart_edit`), 'selectmode' mouse, key
+  and cmd; triple-click selects a line. `fred --gui` sets
+  `selectmode=mouse,key` and `keymodel=startsel,stopsel` unless `[set]`
+  says otherwise. Oracle: 157 cases. Track 9 stays at 0: Visual-block and
+  most Visual keys remain.

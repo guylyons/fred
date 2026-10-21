@@ -372,3 +372,158 @@ fn space_enter_saves_and_space_semicolon_closes() {
     );
     assert_eq!(ed("abc", " x").pending_effect, None);
 }
+
+/// Text, cursor and Neovim's mode letter (`s`/`S` for Select).
+fn sel(t: &str, keys: &str) -> (String, (usize, usize), &'static str) {
+    let e = ed(t, keys);
+    let mode = match (&e.mode, e.vim.select) {
+        (Mode::Visual { .. }, true) => "s",
+        (Mode::VisualLine { .. }, true) => "S",
+        (Mode::Visual { .. }, false) => "v",
+        (Mode::VisualLine { .. }, false) => "V",
+        (Mode::Insert, _) => "i",
+        (Mode::Normal, _) => "n",
+        _ => "?",
+    };
+    (e.buf.text(), e.cur.pos(), mode)
+}
+
+#[test]
+fn select_mode_typing_replaces() {
+    assert_eq!(sel("abc def", "gh"), ("abc def".into(), (0, 0), "s"));
+    assert_eq!(sel("abc def", "gh<Right>x"), ("xc def".into(), (0, 1), "i"));
+    assert_eq!(
+        sel("abc def", "gh<Right>xy<Esc>"),
+        ("xyc def".into(), (0, 1), "n")
+    );
+    // `l` is printable: it replaces, it doesn't move.
+    assert_eq!(sel("abc def", "ghl"), ("lbc def".into(), (0, 1), "i"));
+    assert_eq!(
+        sel("abc def", "gh<Right><CR>"),
+        ("\nc def".into(), (1, 0), "i")
+    );
+    // Linewise Select replaces like a charwise one (the line break goes).
+    assert_eq!(sel("a\nb\nc", "gHx"), ("xb\nc".into(), (0, 1), "i"));
+    assert_eq!(sel("a\nb\nc", "GgHx"), ("a\nb\nx".into(), (2, 1), "i"));
+    assert_eq!(sel("a\nb\nc", "jgH<Down>x"), ("a\nx".into(), (1, 1), "i"));
+}
+
+#[test]
+fn select_mode_bs_and_del_delete() {
+    assert_eq!(
+        sel("abc def", "gh<Right><BS>"),
+        ("c def".into(), (0, 0), "n")
+    );
+    assert_eq!(
+        sel("abc def", "gh<Right><Del>"),
+        ("c def".into(), (0, 0), "n")
+    );
+    assert_eq!(
+        sel("abc def", "wgh<Right><BS>"),
+        ("abc f".into(), (0, 4), "n")
+    );
+    assert_eq!(sel("a\nb\nc", "gH<BS>"), ("b\nc".into(), (0, 0), "n"));
+    assert_eq!(sel("a\nb\nc", "jgH<Down><BS>"), ("a".into(), (0, 0), "n"));
+    assert_eq!(
+        sel("ab\ncd\nef", "lgh<Down><Del>"),
+        ("a\nef".into(), (0, 0), "n")
+    );
+}
+
+#[test]
+fn ctrl_g_toggles_visual_and_select() {
+    assert_eq!(sel("abc def", "vl<C-g>"), ("abc def".into(), (0, 1), "s"));
+    assert_eq!(sel("abc def", "vl<C-g>x"), ("xc def".into(), (0, 1), "i"));
+    assert_eq!(
+        sel("abc def", "gh<Right><C-g>"),
+        ("abc def".into(), (0, 1), "v")
+    );
+    assert_eq!(
+        sel("abc def", "gh<Right><C-g>d"),
+        ("c def".into(), (0, 0), "n")
+    );
+    assert_eq!(sel("a\nb", "Vj<C-g>"), ("a\nb".into(), (1, 0), "S"));
+    assert_eq!(sel("a\nb", "gH<C-g>"), ("a\nb".into(), (0, 0), "V"));
+    assert_eq!(
+        sel("abc def", "gh<Right><Esc>"),
+        ("abc def".into(), (0, 1), "n")
+    );
+    // Arrows without keymodel move and extend.
+    assert_eq!(
+        sel("abc def", "gh<Right><Left>x"),
+        ("xbc def".into(), (0, 1), "i")
+    );
+}
+
+#[test]
+fn keymodel_startsel_and_stopsel() {
+    let km = ":set km=startsel,stopsel slm=key<CR>";
+    assert_eq!(
+        sel("abc def", &format!("{km}<S-Right>x")),
+        ("xc def".into(), (0, 1), "i")
+    );
+    assert_eq!(
+        sel("abc def", &format!("{km}<S-Right><S-Right>x")),
+        ("x def".into(), (0, 1), "i")
+    );
+    assert_eq!(
+        sel("abc def", &format!("{km}<S-End>x")),
+        ("x".into(), (0, 1), "i")
+    );
+    assert_eq!(
+        sel("abc\ndef", &format!("{km}<S-Down>x")),
+        ("xef".into(), (0, 1), "i")
+    );
+    assert_eq!(
+        sel("abc def", &format!("{km}l<S-Home>x")),
+        ("xc def".into(), (0, 1), "i")
+    );
+    // stopsel: an unshifted arrow ends the selection, then moves.
+    assert_eq!(
+        sel("abc def", &format!("{km}<S-Right><Right>x")),
+        ("ab def".into(), (0, 2), "n")
+    );
+    assert_eq!(
+        sel("abc def", &format!("{km}<S-Right><S-Right><Left>x")),
+        ("ac def".into(), (0, 1), "n")
+    );
+    // ... and Visual mode too.
+    assert_eq!(
+        sel("abc def", ":set km=stopsel<CR>vl<Right>x"),
+        ("ab def".into(), (0, 2), "n")
+    );
+    // startsel without `key` in 'selectmode' starts Visual.
+    assert_eq!(
+        sel("abc def", ":set km=startsel<CR><S-Right>x"),
+        ("c def".into(), (0, 0), "n")
+    );
+    // From Insert mode, the selection returns to Insert when it ends.
+    assert_eq!(
+        sel("abc def", &format!("{km}i<S-Right>")),
+        ("abc def".into(), (0, 1), "s")
+    );
+    assert_eq!(
+        sel("abc def", &format!("{km}i<S-Right>x")),
+        ("xc def".into(), (0, 1), "i")
+    );
+    assert_eq!(
+        sel("abc def", &format!("{km}i<S-Right><Esc>")),
+        ("abc def".into(), (0, 1), "i")
+    );
+    assert_eq!(
+        sel("abc def", &format!("{km}i<S-Right><Right>")),
+        ("abc def".into(), (0, 2), "i")
+    );
+    assert_eq!(
+        sel("abc def", &format!("{km}i<S-Right><BS>")),
+        ("c def".into(), (0, 0), "i")
+    );
+}
+
+#[test]
+fn select_mode_label() {
+    let e = ed("a\nb", "gh");
+    assert_eq!(crate::ui::render::status_label(&e), "SELECT");
+    let e = ed("a\nb", "gH");
+    assert_eq!(crate::ui::render::status_label(&e), "SELECT LINE");
+}

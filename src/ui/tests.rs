@@ -2010,3 +2010,81 @@ fn help_lists_commands_and_puts_the_pick_on_the_colon_line() {
     };
     assert_eq!(cl.text, "move ");
 }
+
+#[test]
+fn selectmode_mouse_drags_double_and_triple_clicks_select() {
+    use ratatui::crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    let mut e = editor("hello world\nsecond line\n", ":set slm=mouse<CR>");
+    let mut s = Screen::new(80, 12);
+    s.draw(&e);
+    let area = ratatui::layout::Rect::new(0, 0, 80, 12);
+    let gutter = super::render::gutter_width(&e) as u16;
+    let at = |kind, col: u16, row, modifiers| MouseEvent {
+        kind,
+        column: gutter + col,
+        row,
+        modifiers,
+    };
+    let none = KeyModifiers::NONE;
+    let down = MouseEventKind::Down(MouseButton::Left);
+    let drag = MouseEventKind::Drag(MouseButton::Left);
+    let mut mouse =
+        |e: &mut crate::editor::Editor, ev| super::render::mouse(e, &mut s.view, area, ev);
+    mouse(&mut e, at(down, 2, 0, none));
+    mouse(&mut e, at(drag, 3, 1, none));
+    assert_eq!(e.mode, Mode::Visual { anchor: (0, 2) });
+    assert!(e.select_mode(), "a drag starts Select");
+    assert_eq!(super::render::status_label(&e), "SELECT");
+    // Typing replaces it.
+    e.handle_key(crate::key::Key::ch('x'));
+    assert_eq!(e.buf.text(), "hexnd line");
+    assert_eq!(e.mode, Mode::Insert);
+    e.handle_key(crate::key::Key::new(crate::key::KeyCode::Esc));
+    // Double-click: the word, in Select; triple-click: the line.
+    mouse(&mut e, at(down, 1, 0, none));
+    mouse(&mut e, at(down, 1, 0, none));
+    assert_eq!(e.mode, Mode::Visual { anchor: (0, 0) });
+    assert!(e.select_mode());
+    mouse(&mut e, at(down, 1, 0, none));
+    assert_eq!(e.mode, Mode::VisualLine { anchor: 0 });
+    assert!(e.select_mode());
+    // A click ends it; Shift-click extends from the cursor, in Select.
+    mouse(&mut e, at(down, 0, 0, none));
+    assert_eq!(e.mode, Mode::Normal);
+    assert!(!e.select_mode());
+    mouse(&mut e, at(down, 4, 0, KeyModifiers::SHIFT));
+    assert_eq!(e.mode, Mode::Visual { anchor: (0, 0) });
+    assert!(e.select_mode());
+}
+
+#[test]
+fn a_mouse_selection_from_insert_goes_back_to_insert() {
+    use ratatui::crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    let mut e = editor("hello world\n", ":set slm=mouse<CR>i");
+    let mut s = Screen::new(80, 12);
+    s.draw(&e);
+    let area = ratatui::layout::Rect::new(0, 0, 80, 12);
+    let gutter = super::render::gutter_width(&e) as u16;
+    let at = |kind, col: u16| MouseEvent {
+        kind,
+        column: gutter + col,
+        row: 0,
+        modifiers: KeyModifiers::NONE,
+    };
+    super::render::mouse(
+        &mut e,
+        &mut s.view,
+        area,
+        at(MouseEventKind::Down(MouseButton::Left), 0),
+    );
+    super::render::mouse(
+        &mut e,
+        &mut s.view,
+        area,
+        at(MouseEventKind::Drag(MouseButton::Left), 4),
+    );
+    assert!(e.select_mode());
+    e.handle_key(crate::key::Key::new(crate::key::KeyCode::Backspace));
+    assert_eq!(e.buf.text(), " world");
+    assert_eq!(e.mode, Mode::Insert);
+}

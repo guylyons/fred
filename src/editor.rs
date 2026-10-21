@@ -323,8 +323,8 @@ impl Editor {
         {
             return;
         }
-        // A Shift key nothing took is the plain key.
-        if k.shift {
+        // A Shift key nothing took is the plain key (unless it selects).
+        if k.shift && !vim::select::shift_selects(self, k) {
             return self.handle_key(Key { shift: false, ..k });
         }
         // An Alt key nothing took: Fred's usual Esc, key (except a Magit
@@ -411,6 +411,11 @@ impl Editor {
             self.msg = None;
         }
         let was_insert = self.mode == Mode::Insert;
+        // A selection that ended elsewhere (a mouse click) ends Select too.
+        if self.visual_lines().is_none() {
+            self.vim.select = false;
+            self.vim.restart_insert = false;
+        }
         match self.mode {
             Mode::Normal | Mode::VisualLine { .. } | Mode::Visual { .. } => {
                 if !crate::dired::key(self, k) && !crate::occur::key(self, k) {
@@ -422,6 +427,10 @@ impl Editor {
             Mode::Pick(_) => crate::pick::pick_key(self, k),
         }
         self.clamp_cursor();
+        if self.visual_lines().is_none() {
+            self.vim.select = false;
+            self.vim.restart_insert = false;
+        }
         // Undo/redo in Visual-line mode can delete the anchor's line.
         let last = self.buf.len_lines() - 1;
         match &mut self.mode {
@@ -448,6 +457,11 @@ impl Editor {
         if !self.undo.in_group() {
             self.buf.modified = self.undo.state_id() != self.saved_state;
         }
+    }
+
+    /// The Visual selection is in Select mode (`gh`, 'selectmode').
+    pub fn select_mode(&self) -> bool {
+        self.vim.select && self.visual_lines().is_some()
     }
 
     /// The lines a Visual or Visual-line selection covers, lowest first.
@@ -515,6 +529,17 @@ impl Editor {
                 self.clamp_cursor();
                 if !self.undo.in_group() {
                     self.buf.modified = self.undo.state_id() != self.saved_state;
+                }
+            }
+            // Select mode: the paste replaces the selection, leaving the
+            // registers alone.
+            Mode::VisualLine { .. } | Mode::Visual { .. } if self.vim.select => {
+                let restart = self.vim.restart_insert;
+                if vim::select::change(self, true) {
+                    vim::ops::insert_text(self, &text);
+                    if !restart {
+                        vim::insert::leave(self);
+                    }
                 }
             }
             Mode::VisualLine { .. } | Mode::Visual { .. } => {}

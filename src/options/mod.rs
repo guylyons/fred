@@ -109,10 +109,20 @@ options! {
         .check(|v| items(v, &["unnamed", "unnamedplus"])),
     /// Highlight the cursor's line.
     Cursorline => opt("cursorline", "cul", Window, Bool(false)),
+    /// Shifted special keys start a selection, unshifted ones stop it.
+    /// `fred --gui` sets `startsel,stopsel`.
+    Keymodel => opt("keymodel", "km", Global, Str(""))
+        .list()
+        .check(|v| items(v, &["startsel", "stopsel"])),
     /// Line numbers (Neovim: off).
     Number => opt("number", "nu", Window, Bool(true)),
     /// Line numbers relative to the cursor's.
     Relativenumber => opt("relativenumber", "rnu", Window, Bool(false)),
+    /// Ways of selecting that start Select mode instead of Visual mode.
+    /// `fred --gui` sets `mouse,key`.
+    Selectmode => opt("selectmode", "slm", Global, Str(""))
+        .list()
+        .check(|v| items(v, &["mouse", "key", "cmd"])),
     /// Columns a tab takes.
     Tabstop => opt("tabstop", "ts", Buffer, Num(8)).check(positive),
     /// Wrap long lines (Neovim: on).
@@ -216,6 +226,11 @@ impl Options {
             Value::Num(n) => n,
             _ => 0,
         }
+    }
+
+    /// The list option `o` has `item`.
+    pub fn has(&self, o: Opt, item: &str) -> bool {
+        self.str(o).split(',').any(|i| i == item)
     }
 
     pub fn str(&self, o: Opt) -> String {

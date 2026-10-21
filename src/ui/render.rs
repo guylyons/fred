@@ -317,6 +317,8 @@ pub fn mouse(
     let gutter = gutter_width(ed).min(area.width as usize / 2);
     let cols = (area.width as usize).saturating_sub(gutter).max(1);
     let rows = (area.height as usize).saturating_sub(2).max(1);
+    // 'selectmode' mouse: the mouse selects in Select mode.
+    let select = ed.opts.has(Opt::Selectmode, "mouse");
     match event.kind {
         MouseEventKind::ScrollUp | MouseEventKind::ScrollDown => {
             view.last_click = None;
@@ -334,19 +336,26 @@ pub fn mouse(
             };
             ed.popup = None;
             ed.vim.pending.clear();
+            let triple = view.triple.take().is_some_and(|(then, l)| {
+                l == line && then.elapsed() <= std::time::Duration::from_millis(400)
+            });
             // Shift-click extends the selection (or starts one) to the click.
             if event.modifiers.contains(KeyModifiers::SHIFT) && ed.dired.is_none() {
                 let anchor = match ed.mode {
                     Mode::Visual { anchor } => anchor,
-                    _ => (ed.cur.line, ed.cur.byte),
+                    _ => {
+                        let from = ed.cur.pos();
+                        crate::vim::select::start(ed, from, false, select);
+                        from
+                    }
                 };
                 ed.set_cursor(line, byte);
                 ed.mode = Mode::Visual { anchor };
                 view.drag_from = Some(anchor);
                 return;
             }
-            if matches!(ed.mode, Mode::Visual { .. } | Mode::VisualLine { .. }) {
-                ed.mode = Mode::Normal;
+            if ed.visual_lines().is_some() {
+                crate::vim::select::end(ed);
             }
             ed.set_cursor(line, byte);
             view.drag_from = Some((line, ed.cur.byte));
@@ -369,12 +378,17 @@ pub fn mouse(
                     view.detached = false;
                     ed.handle_key(crate::key::Key::new(crate::key::KeyCode::Enter));
                 }
+            } else if triple {
+                // Triple-click selects the line.
+                view.last_click = None;
+                crate::vim::select::start(ed, (line, 0), true, select);
             } else if view.double_click(false, line) {
                 // Double-click selects the word (or run of punctuation) under it.
+                view.triple = Some((std::time::Instant::now(), line));
                 let (lo, hi) = word_at(&text, ed.cur.byte);
                 if hi > lo {
                     ed.set_cursor(line, crate::text::prev_grapheme(&text, hi));
-                    ed.mode = Mode::Visual { anchor: (line, lo) };
+                    crate::vim::select::start(ed, (line, lo), false, select);
                 }
             }
         }
@@ -389,7 +403,10 @@ pub fn mouse(
             };
             view.last_click = None;
             ed.set_cursor(line, byte);
-            if (line, ed.cur.byte) != anchor || matches!(ed.mode, Mode::Visual { .. }) {
+            if (line, ed.cur.byte) != anchor && ed.visual_lines().is_none() {
+                crate::vim::select::start(ed, anchor, false, select);
+            }
+            if matches!(ed.mode, Mode::Visual { .. }) {
                 ed.mode = Mode::Visual { anchor };
             }
         }
@@ -1367,6 +1384,8 @@ pub(crate) fn status_label(ed: &Editor) -> String {
         _ if ed.magit.is_some() => "MAGIT".to_string(),
         (Mode::Insert, _) if ed.term.is_some() => "TERMINAL".to_string(),
         (Mode::Normal, Some(d)) if !d.editing => "DIRED".to_string(),
+        (Mode::Visual { .. }, _) if ed.vim.select => "SELECT".to_string(),
+        (Mode::VisualLine { .. }, _) if ed.vim.select => "SELECT LINE".to_string(),
         (m, _) => mode_name(m).to_string(),
     }
 }

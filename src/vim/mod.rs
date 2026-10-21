@@ -3,6 +3,7 @@
 pub mod insert;
 pub mod motion;
 pub mod ops;
+pub(crate) mod select;
 
 use crate::editor::{Editor, Mode};
 use crate::ex::ExEffect;
@@ -30,6 +31,13 @@ pub struct State {
     /// Where this Insert session began: `CTRL-W` and `CTRL-U` stop there
     /// once, as with Neovim's default 'backspace'.
     pub(crate) insert_start: (usize, usize),
+    /// The Visual selection is in Select mode (Neovim's `VIsual_select`).
+    pub select: bool,
+    /// The selection began in Insert mode and goes back to it when it ends
+    /// without a change (Neovim's `restart_edit`).
+    pub(crate) restart_insert: bool,
+    /// The line that Insert was left at the end of, for that restart.
+    pub(crate) insert_left_eol: Option<usize>,
 }
 
 impl State {
@@ -321,6 +329,14 @@ pub fn which_key(ed: &Editor) -> Option<(&'static str, Vec<(String, &'static str
 
 /// Handle a key in Normal or Visual-line mode.
 pub fn normal_key(ed: &mut Editor, k: Key) {
+    let k = if ed.vim.pending.is_empty() {
+        match select::key(ed, k) {
+            Some(k) => k,
+            None => return,
+        }
+    } else {
+        k
+    };
     if k.is(KeyCode::Esc) || k == Key::ctrl('c') {
         ed.vim.pending.clear();
         if ed.visual_lines().is_some() {
@@ -718,15 +734,10 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
             ed.mode = Mode::Insert;
             ed.cur.byte = b;
         }
-        (KeyCode::Char('V'), false) => {
-            ed.mode = Mode::VisualLine {
-                anchor: ed.cur.line,
-            }
-        }
-        (KeyCode::Char('v'), false) => {
-            ed.mode = Mode::Visual {
-                anchor: ed.cur.pos(),
-            }
+        // 'selectmode' cmd: `v` and `V` start Select mode.
+        (KeyCode::Char(c @ ('v' | 'V')), false) => {
+            let select = ed.opts.has(crate::options::Opt::Selectmode, "cmd");
+            select::start(ed, ed.cur.pos(), c == 'V', select);
         }
         (KeyCode::Char('d'), true) | (KeyCode::PageDown, _) | (KeyCode::Char('f'), true) => {
             let n = count.unwrap_or(if matches!(key.code, KeyCode::Char('d')) {
@@ -818,6 +829,10 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
         (KeyCode::Char(c @ ('/' | '?')), false) => ed.open_cmdline(c, ""),
         // `gd`, as in vim (`gg` is a motion).
         (KeyCode::Char('g'), false) if arg == Some('d') => crate::pick::definition(ed),
+        // `gh` and `gH`: Select mode, charwise and linewise.
+        (KeyCode::Char('g'), false) if matches!(arg, Some('h' | 'H')) => {
+            select::start(ed, ed.cur.pos(), arg == Some('H'), true)
+        }
         // ZZ writes if modified and quits; ZQ quits without writing.
         (KeyCode::Char('Z'), false) => match arg {
             Some('Z') => ed.pending_effect = Some(ExEffect::WriteIfModifiedQuit),

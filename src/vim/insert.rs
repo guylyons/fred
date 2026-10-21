@@ -7,6 +7,9 @@ use crate::key::{Key, KeyCode};
 use crate::text::{col_of_byte, next_grapheme, prev_grapheme, word_start_before};
 
 pub fn insert_key(ed: &mut Editor, k: Key) {
+    if super::select::insert_key(ed, k) {
+        return;
+    }
     if let Some(r) = ed.vim.recording.as_mut() {
         r.push(k);
     }
