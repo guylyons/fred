@@ -58,10 +58,11 @@ pub struct Edit {
     pub text: String,
 }
 
-/// Lines `at..at + removed` were replaced by `inserted` lines.
-/// Edits remembered for `Buffer::splices_since`.
-const SPLICES: usize = 64;
+/// Edits remembered for `Buffer::splices_since`: enough that a `:%s` or
+/// a macro doesn't send the word index back to a full rebuild.
+const SPLICES: usize = 1024;
 
+/// Lines `at..at + removed` were replaced by `inserted` lines.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LineChange {
     pub at: usize,

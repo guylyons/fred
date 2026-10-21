@@ -267,6 +267,69 @@ mod tests {
     }
 
     #[test]
+    fn same_ranking_as_scanning_everything() {
+        // The old whole-file scan: each match's nearest line, then nearest
+        // first, ties alphabetical, then nearby files' words.
+        fn naive(prefix: &str, b: &Buffer, cur: usize, nearby: &[String]) -> Vec<String> {
+            let cs = prefix.chars().any(char::is_uppercase);
+            let ok = |w: &str| {
+                w != prefix
+                    && if cs {
+                        w.starts_with(prefix)
+                    } else {
+                        w.to_lowercase().starts_with(&prefix.to_lowercase())
+                    }
+            };
+            let mut best: HashMap<String, usize> = HashMap::new();
+            for l in 0..b.len_lines() {
+                for w in index::words(&b.line(l)).filter(|w| ok(w)) {
+                    let d = best.entry(w.to_string()).or_insert(usize::MAX);
+                    *d = (*d).min(l.abs_diff(cur));
+                }
+            }
+            let mut r: Vec<_> = best.into_iter().collect();
+            r.sort_by(|a, b| a.1.cmp(&b.1).then(a.0.cmp(&b.0)));
+            let mut out: Vec<String> = r.into_iter().map(|(w, _)| w).take(MAX_ITEMS).collect();
+            for w in nearby {
+                if out.len() < MAX_ITEMS && ok(w) && !out.contains(w) {
+                    out.push(w.clone());
+                }
+            }
+            out
+        }
+        let mut seed = 11usize;
+        let mut next = |n: usize| {
+            seed = seed
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            (seed >> 33) % n
+        };
+        let nearby: Vec<String> = ["abba", "Abed", "abcab", "bab"].map(String::from).into();
+        for _ in 0..60 {
+            // Few letters: many matches (well over a menu) and many ties.
+            let text: String = (0..300)
+                .map(|_| match next(9) {
+                    0 => '\n',
+                    1 => ' ',
+                    n => "abcAB c"[n - 2..].chars().next().unwrap(),
+                })
+                .collect();
+            let b = Buffer::from_text(&text);
+            let mut i = WordIndex::default();
+            i.ensure(&b, true);
+            for _ in 0..20 {
+                let prefix: String = (0..1 + next(3)).map(|_| ['a', 'b', 'A'][next(3)]).collect();
+                let cur = next(b.len_lines() + 2);
+                assert_eq!(
+                    candidates(&prefix, &mut i, cur, &nearby),
+                    naive(&prefix, &b, cur, &nearby),
+                    "{prefix:?} at {cur} in {text:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn caps_at_eight() {
         let text = (0..20)
             .map(|i| format!("word{i:02}"))

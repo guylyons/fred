@@ -77,19 +77,24 @@ impl Gutter {
     /// Recompute after the buffer changed; true if the marks may have.
     /// The diff runs on a thread: its marks arrive on a later call.
     pub fn refresh(&mut self, buf: &Buffer) -> bool {
-        if let Some((v, job)) = self.job.take_if(|(_, j)| j.is_finished()) {
-            self.marks = job.join().unwrap_or_default();
-            self.seen = Some(v);
-            return true;
-        }
+        // A finished diff's marks; if the text moved on meanwhile, the
+        // next diff starts now rather than a tick later.
+        let harvested = match self.job.take_if(|(_, j)| j.is_finished()) {
+            Some((v, job)) => {
+                self.marks = job.join().unwrap_or_default();
+                self.seen = Some(v);
+                true
+            }
+            None => false,
+        };
         if self.seen == Some(buf.version) || self.job.is_some() {
-            return false;
+            return harvested;
         }
         let Ok(base) = self.base.lock() else {
-            return false;
+            return harvested;
         };
         let Some(base) = &*base else {
-            return false; // still loading: try again next tick
+            return harvested; // still loading: try again next tick
         };
         let Some(base) = base.clone() else {
             self.marks = vec![];
@@ -119,7 +124,7 @@ impl Gutter {
             marks(&base, &cur)
         });
         self.job = Some((buf.version, job));
-        false
+        harvested
     }
 }
 

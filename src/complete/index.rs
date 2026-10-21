@@ -38,6 +38,10 @@ impl WordIndex {
     /// Catch up with the buffer: just the edited lines when it remembers
     /// them, else re-index (big buffers only when `force`, huge ones never).
     pub fn ensure(&mut self, buf: &Buffer, force: bool) {
+        if buf.len_bytes() > INDEX_MAX {
+            *self = WordIndex::default();
+            return;
+        }
         if let Some((id, v)) = self.built
             && id == buf.id
             && let Some(splices) = buf.splices_since(v)
@@ -59,7 +63,10 @@ impl WordIndex {
             if let Some((lo, hi)) = dirty {
                 for l in lo..=hi.min(self.lines.len().saturating_sub(1)) {
                     self.lines[l] = line_words(buf, l);
-                    self.fresh.extend_from_slice(&self.lines[l]);
+                    // Only a memo can use them.
+                    if self.memo.is_some() {
+                        self.fresh.extend_from_slice(&self.lines[l]);
+                    }
                 }
             }
             self.built = Some((id, buf.version));
@@ -68,13 +75,10 @@ impl WordIndex {
         if !force && self.built.is_some() && buf.len_bytes() > AUTO_REBUILD_MAX {
             return;
         }
-        if buf.len_bytes() > INDEX_MAX {
-            *self = WordIndex::default();
-            return;
-        }
         self.lines = (0..buf.len_lines()).map(|l| line_words(buf, l)).collect();
         self.built = Some((buf.id, buf.version));
         self.memo = None;
+        self.fresh.clear();
     }
 
     pub fn line_words(&self, line: usize) -> &[String] {
@@ -155,7 +159,7 @@ mod tests {
             assert_eq!(i.lines, full.lines, "round {round}");
         }
         // Too far behind to catch up: re-indexed.
-        for _ in 0..100 {
+        for _ in 0..2000 {
             b.apply(Edit {
                 start: 0,
                 end: 0,
