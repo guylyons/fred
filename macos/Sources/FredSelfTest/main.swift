@@ -79,8 +79,12 @@ check("open line", String(decoding: Outgoing.open(seq: 4, path: "/a/b c").line()
 let withPath = line.replacingOccurrences(of: #""active":true,"#, with: #""active":true,"path":"/r/f","#)
 if case .frame(let f) = try Incoming.decode(Data(withPath.utf8)) { check("win path", f.windows[0].path == "/r/f") } else { check("win path", false) }
 if case .frame(let f) = try Incoming.decode(Data(line.utf8)) { check("no win path", f.windows[0].path == nil) } else { check("no win path", false) }
-check("hidden", FileTree.isHidden(".git") && FileTree.isHidden(".DS_Store") && FileTree.isHidden("target"))
-check("dotfiles shown", !FileTree.isHidden(".gitignore") && !FileTree.isHidden(".github") && !FileTree.isHidden("node_modules"))
+let hid = { (n: String, d: Bool, c: Bool) in FileTree.isHidden(n, isDir: d, cargo: c) }
+check("hidden", hid(".git", true, false) && hid(".git", false, false) && hid(".DS_Store", false, false))
+check("dotfiles shown", !hid(".gitignore", false, false) && !hid(".github", true, false) && !hid("node_modules", true, false))
+check("target only beside Cargo.toml", hid("target", true, true) && !hid("target", true, false) && !hid("target", false, true))
+check("canonical resolves /tmp", FileTree.canonical("/tmp") == "/private/tmp" && FileTree.canonical("/var/../tmp") == "/private/tmp")
+check("canonical keeps a missing path", FileTree.canonical("/no/such/fred") == "/no/such/fred")
 check("folders first, case-insensitive", FileTree.sorted([("b.rs", false), ("Zed", true), ("A.md", false), ("apps", true), (".github", true)]).map(\.name)
       == [".github", "apps", "Zed", "A.md", "b.rs"])
 check("ancestors", FileTree.ancestors(of: "/r/src/gui/mod.rs", under: "/r") == ["/r/src", "/r/src/gui"])

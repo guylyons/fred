@@ -2,9 +2,19 @@ import Foundation
 
 /// Pure rules for the folder sidebar: what is hidden, the order, icons, reveal.
 public enum FileTree {
-    /// Never listed. Dotfiles like `.gitignore` and `.github` are (as Sublime).
-    public static func isHidden(_ name: String) -> Bool {
-        [".git", ".DS_Store", "target"].contains(name)
+    /// Never listed: `.git`, `.DS_Store`, and a `target` folder beside a
+    /// `Cargo.toml` (`cargo`). Dotfiles like `.gitignore` and `.github` are
+    /// listed, as in Sublime.
+    public static func isHidden(_ name: String, isDir: Bool, cargo: Bool) -> Bool {
+        name == ".git" || name == ".DS_Store" || (name == "target" && isDir && cargo)
+    }
+
+    /// The real path (symlinks resolved, so /tmp is /private/tmp, as the
+    /// core reports it); `path` itself when it doesn't exist.
+    public static func canonical(_ path: String) -> String {
+        guard let p = realpath(path, nil) else { return path }
+        defer { free(p) }
+        return String(cString: p)
     }
 
     /// Folders first, then files, each case-insensitively by name.

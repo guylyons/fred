@@ -114,7 +114,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         var isDir: ObjCBool = false
         FileManager.default.fileExists(atPath: path.path, isDirectory: &isDir)
         // Symlinks resolved: the core reports canonical paths.
-        let cwd = (isDir.boolValue ? path : path.deletingLastPathComponent()).resolvingSymlinksInPath()
+        let cwd = URL(fileURLWithPath: FileTree.canonical((isDir.boolValue ? path : path.deletingLastPathComponent()).path))
 
         let exe = ProcessInfo.processInfo.environment["FRED_CORE"].map { URL(fileURLWithPath: $0) }
             ?? Bundle.main.executableURL!.deletingLastPathComponent().appendingPathComponent("fred-core")
@@ -130,6 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         view.onResize = { [core] cols, rows in core!.send(.resize(cols: cols, rows: rows)) }
         let sidebar = Sidebar(root: cwd)
         sidebar.open = { url in view.transmit { .open(seq: $0, path: url.path) } ; view.window?.makeFirstResponder(view) }
+        sidebar.leave = { view.window?.makeFirstResponder(view) }
         self.sidebar = sidebar
         core.onFrame = { [window] f in
             view.apply(f)

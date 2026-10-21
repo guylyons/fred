@@ -20,9 +20,11 @@ final class Node {
     func load() {
         let old = Dictionary((children ?? []).map { ($0.name, $0) }, uniquingKeysWith: { a, _ in a })
         let urls = (try? FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: [.isDirectoryKey])) ?? []
-        let entries = urls.filter { !FileTree.isHidden($0.lastPathComponent) }.map {
+        let all = urls.map {
             (name: $0.lastPathComponent, isDir: (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true)
         }
+        let cargo = all.contains { $0.name == "Cargo.toml" }
+        let entries = all.filter { !FileTree.isHidden($0.name, isDir: $0.isDir, cargo: cargo) }
         children = FileTree.sorted(entries).map { e in
             if let n = old[e.name], n.isDir == e.isDir, !n.pending { return n }
             return Node(url.appendingPathComponent(e.name, isDirectory: e.isDir), isDir: e.isDir)
@@ -37,6 +39,8 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
     let root: Node
     /// Opens a file in the active Fred window.
     var open: (URL) -> Void = { _ in }
+    /// Esc in the tree: back to the editor.
+    var leave: () -> Void = {}
     private let outline = SidebarOutline()
     private var stream: FSEventStreamRef?
     /// The active window's file, as last revealed.
@@ -44,7 +48,7 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
     private var editing: Node?
 
     init(root: URL) {
-        self.root = Node(root, isDir: true)
+        self.root = Node(URL(fileURLWithPath: FileTree.canonical(root.path)), isDir: true)
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -67,8 +71,9 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         outline.delegate = self
         outline.target = self
         outline.action = #selector(clicked)
-        outline.doubleAction = #selector(clicked)
+        outline.doubleAction = #selector(doubleClicked)
         outline.activate = { [weak self] in self?.activateSelected() }
+        outline.leave = { [weak self] in self?.leave() }
         outline.menu = NSMenu()
         outline.menu!.delegate = self
         let scroll = NSScrollView()
@@ -108,10 +113,11 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         let names = (n.children ?? []).filter { !$0.pending }.map(\.name)
         let dir = n.url
         guard !names.isEmpty else { return }
-        Task.detached {
+        DispatchQueue.global(qos: .utility).async { [weak self] in
             let ignored = gitIgnored(names, in: dir)
-            await MainActor.run { [weak self] in
-                guard let self, !ignored.isEmpty else { return }
+            guard !ignored.isEmpty else { return }
+            DispatchQueue.main.async {
+                guard let self else { return }
                 for c in n.children ?? [] where ignored.contains(c.name) && !c.ignored {
                     c.ignored = true
                     self.outline.reloadItem(c)
@@ -163,6 +169,15 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
 
     @objc private func clicked() {
         guard let n = outline.item(atRow: outline.clickedRow) as? Node else { return }
+        // The disclosure triangle has already toggled it.
+        if n.isDir, let e = NSApp.currentEvent,
+           outline.frameOfOutlineCell(atRow: outline.clickedRow).contains(outline.convert(e.locationInWindow, from: nil)) { return }
+        activate(n)
+    }
+
+    /// The first click already toggled a folder; a double-click only opens files.
+    @objc private func doubleClicked() {
+        guard let n = outline.item(atRow: outline.clickedRow) as? Node, !n.isDir else { return }
         activate(n)
     }
 
@@ -181,7 +196,8 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
     func follow(_ path: String?) {
         guard path != current else { return }
         current = path
-        guard let path, let dirs = FileTree.ancestors(of: path, under: root.url.path) else {
+        guard let raw = path, case let path = FileTree.canonical(raw),
+              let dirs = FileTree.ancestors(of: path, under: root.url.path) else {
             outline.deselectAll(nil)
             return
         }
@@ -218,30 +234,37 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
     /// Reload the loaded folders FSEvents names (it names folders).
     private func changed(_ dirs: [String]) {
         guard editing == nil else { return } // don't pull the row out from under the name field
-        for d in Set(dirs.map { URL(fileURLWithPath: $0).resolvingSymlinksInPath().path }) {
+        for d in Set(dirs.map { FileTree.canonical($0.hasSuffix("/") && $0.count > 1 ? String($0.dropLast()) : $0) }) {
             if let n = loaded(d) { reload(n) }
         }
     }
 
-    /// The loaded folder at `path`, if its row exists.
+    /// The loaded folder at `path`.
     private func loaded(_ path: String) -> Node? {
+        guard let n = existing(path), n.isDir, n.children != nil else { return nil }
+        return n
+    }
+
+    /// The node at `path` among those already listed (nothing is loaded).
+    private func existing(_ path: String) -> Node? {
         if path == root.url.path { return root }
         guard let dirs = FileTree.ancestors(of: path, under: root.url.path) else { return nil }
         var at = root
         for d in dirs + [path] {
-            guard let n = at.children?.first(where: { $0.url.path == d }), n.isDir else { return nil }
+            guard let n = at.children?.first(where: { $0.url.path == d }) else { return nil }
             at = n
         }
-        return at.children == nil ? nil : at
+        return at
     }
 
     private func reload(_ n: Node) {
         load(n)
         outline.reloadItem(n === root ? nil : n, reloadChildren: true)
-        // Re-select the current file (its Node may be new).
-        let c = current
-        current = nil
-        follow(c)
+        // Re-select the current file (its Node may be new) if its row is
+        // showing; a folder you collapsed stays collapsed.
+        guard let c = current, let node = existing(FileTree.canonical(c)) else { return }
+        let row = outline.row(forItem: node)
+        if row >= 0 { outline.selectRowIndexes([row], byExtendingSelection: false) }
     }
 
     // MARK: - Context menu
@@ -298,16 +321,36 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         field.currentEditor()?.selectedRange = NSRange(location: 0, length: n.isDir || stem.isEmpty ? n.name.utf16.count : stem.utf16.count)
     }
 
+    /// Esc cancels New/Rename: nothing is created or renamed.
+    func control(_ c: NSControl, textView: NSTextView, doCommandBy sel: Selector) -> Bool {
+        guard sel == #selector(NSResponder.cancelOperation(_:)), let n = editing, let field = c as? NSTextField else { return false }
+        editing = nil // controlTextDidEndEditing from the abort does nothing
+        field.abortEditing()
+        field.isEditable = false
+        field.stringValue = n.name
+        let parentNode = outline.parent(forItem: n) as? Node ?? root
+        if n.pending { parentNode.children?.removeAll { $0 === n } }
+        reload(parentNode)
+        view.window?.makeFirstResponder(outline)
+        return true
+    }
+
     func controlTextDidEndEditing(_ note: Notification) {
         guard let n = editing, let field = note.object as? NSTextField else { return }
         editing = nil
         field.isEditable = false
         let name = field.stringValue.trimmingCharacters(in: .whitespaces)
-        let cancelled = (note.userInfo?["NSTextMovement"] as? Int) == NSTextMovement.cancel.rawValue
         let parentNode = outline.parent(forItem: n) as? Node ?? root
         let to = parentNode.url.appendingPathComponent(name, isDirectory: n.isDir)
-        defer { reload(parentNode) }
-        guard !cancelled, !name.isEmpty, !name.contains("/"), n.pending || name != n.name else {
+        var opened = false
+        defer {
+            reload(parentNode)
+            // Back to the tree after Enter, unless a file opened (the editor
+            // has focus) or you clicked somewhere else to end the edit.
+            let w = view.window, r = w?.firstResponder
+            if !opened, r == nil || r === w || r === field { w?.makeFirstResponder(outline) }
+        }
+        guard !name.isEmpty, !name.contains("/"), n.pending || name != n.name else {
             if n.pending { parentNode.children?.removeAll { $0 === n } }
             return
         }
@@ -321,16 +364,16 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
                     guard !FileManager.default.fileExists(atPath: to.path) else { throw CocoaError(.fileWriteFileExists) }
                     guard FileManager.default.createFile(atPath: to.path, contents: nil) else { throw CocoaError(.fileWriteUnknown) }
                     open(to)
+                    opened = true
                 }
             } else {
                 try FileManager.default.moveItem(at: n.url, to: to)
                 // ponytail: only the active window follows a rename (via `open`); other buffers keep the old path.
-                if current == n.url.path { open(to) }
+                if let c = current, FileTree.canonical(c) == n.url.path { open(to); opened = true }
             }
         } catch {
             NSAlert(error: error).runModal()
         }
-        view.window?.makeFirstResponder(outline)
     }
 
     @objc private func delete() {
@@ -359,11 +402,12 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
     }
 }
 
-/// Enter or Space opens the selected row.
+/// Enter or Space opens the selected row; Esc goes back to the editor.
 final class SidebarOutline: NSOutlineView {
     var activate: () -> Void = {}
+    var leave: () -> Void = {}
     override func keyDown(with e: NSEvent) {
-        if [36, 76, 49].contains(e.keyCode) { activate() } else { super.keyDown(with: e) }
+        if [36, 76, 49].contains(e.keyCode) { activate() } else if e.keyCode == 53 { leave() } else { super.keyDown(with: e) }
     }
 }
 
@@ -377,8 +421,13 @@ private func gitIgnored(_ names: [String], in dir: URL) -> Set<String> {
     p.standardOutput = output
     p.standardError = FileHandle.nullDevice
     guard (try? p.run()) != nil else { return [] }
-    try? input.fileHandleForWriting.write(contentsOf: Data(names.joined(separator: "\0").utf8 + [0]))
-    try? input.fileHandleForWriting.close()
+    // Written from another thread: Git answers as it reads, and a full
+    // stdout pipe would otherwise block both of us.
+    let w = input.fileHandleForWriting, names = Data(names.joined(separator: "\0").utf8 + [0])
+    Thread {
+        try? w.write(contentsOf: names)
+        try? w.close()
+    }.start()
     let data = output.fileHandleForReading.readDataToEndOfFile()
     p.waitUntilExit()
     return Set(data.split(separator: 0).map { String(decoding: $0, as: UTF8.self) })
