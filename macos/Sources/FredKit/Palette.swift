@@ -3,6 +3,9 @@ import AppKit
 public struct Palette {
     public var fg: NSColor
     public var bg: NSColor
+    /// The selection: a fill a little lighter than `bg`, and its border.
+    public var selFill = rgb(0x404040)
+    public var selBorder = rgb(0x5a5a5a)
 
     public init(fg: NSColor, bg: NSColor) {
         self.fg = fg

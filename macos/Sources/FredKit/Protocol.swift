@@ -24,7 +24,22 @@ public struct Win: Codable, Equatable, Sendable {
     public var divider: Bool
     public var active: Bool
     public var rows: [[Run]]
+    /// The selection, one span per text row; absent when there is none.
+    public var sel: [Sel]?
     public var status: Status
+}
+
+/// Selected cells `x..<x + w` of text row `y`, in the window.
+public struct Sel: Codable, Equatable, Sendable {
+    public var y: Int
+    public var x: Int
+    public var w: Int
+
+    public init(y: Int, x: Int, w: Int) {
+        self.y = y
+        self.x = x
+        self.w = w
+    }
 }
 
 public struct Cursor: Codable, Equatable, Sendable {

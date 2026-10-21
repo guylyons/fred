@@ -66,6 +66,39 @@ check("option shift keeps case", n("Ï", "J", opt: true, shift: true) == "<M-J>"
 check("gt under option/ctrl", n("≥", ">", opt: true) == "<M-gt>" && n("", ">", ctrl: true) == "<C-gt>" && n("", ">", ctrl: true, opt: true) == "<C-M-gt>")
 check("ctrl function key dropped", n("", "\u{f704}", code: 122, ctrl: true) == nil && n("", "\u{f704}", code: 122, opt: true) == nil)
 
+// Selection shapes: rows that touch join into one outline; corners round.
+let frameWithSel = #"{"t":"frame","seq":1,"cols":20,"rows":6,"title":"t","windows":[{"x":0,"y":0,"w":20,"h":5,"divider":false,"active":true,"rows":[],"sel":[{"y":0,"x":2,"w":4}],"status":{"mode":"SELECT","name":"f","modified":false,"pos":"1:1","branch":null}}],"bottom":[],"cursor":null}"#
+if case .frame(let f) = try Incoming.decode(Data(frameWithSel.utf8)) {
+    check("sel decodes", f.windows[0].sel == [Sel(y: 0, x: 2, w: 4)])
+} else { check("decodes a frame with sel", false) }
+if case .frame(let f) = try Incoming.decode(Data(line.utf8)) { check("no sel is nil", f.windows[0].sel == nil) }
+let cell = CGSize(width: 10, height: 20)
+func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: x, y: y) }
+check("one row is a box", selectionOutlines([Sel(y: 1, x: 2, w: 3)], cell: cell, scale: 2)
+    == [[pt(20, 20), pt(50, 20), pt(50, 40), pt(20, 40)]])
+// abc|      row 0: cols 2..<6
+// defghi    row 1: cols 0..<6  -> one outline, 6 corners
+// de        row 2: cols 0..<2
+let staircase = [Sel(y: 0, x: 2, w: 4), Sel(y: 1, x: 0, w: 6), Sel(y: 2, x: 0, w: 2)]
+let o = selectionOutlines(staircase, cell: cell, scale: 2)
+check("touching rows make one outline", o.count == 1)
+check("its corners", o.first == [pt(20, 0), pt(60, 0), pt(60, 40), pt(20, 40), pt(20, 60), pt(0, 60), pt(0, 20), pt(20, 20)]
+    .rotatedToStart(at: o.first?.first))
+check("rows that don't overlap stay apart", selectionOutlines([Sel(y: 0, x: 4, w: 2), Sel(y: 1, x: 0, w: 4)], cell: cell, scale: 2).count == 2)
+check("rows with a gap stay apart", selectionOutlines([Sel(y: 0, x: 0, w: 2), Sel(y: 2, x: 0, w: 2)], cell: cell, scale: 2).count == 2)
+check("empty spans draw nothing", selectionOutlines([Sel(y: 0, x: 0, w: 0)], cell: cell, scale: 2).isEmpty)
+let path = selectionPath(staircase, cell: cell, scale: 2)
+func near(_ a: CGRect, _ b: CGRect) -> Bool {
+    abs(a.minX - b.minX) < 1e-6 && abs(a.minY - b.minY) < 1e-6 && abs(a.maxX - b.maxX) < 1e-6 && abs(a.maxY - b.maxY) < 1e-6
+}
+check("path covers the rows", near(path.boundingBoxOfPath, CGRect(x: 0, y: 0, width: 60, height: 60)))
+check("inside is filled", path.contains(pt(30, 30)))
+check("outer corner is rounded off", !path.contains(pt(60.5 - 1, 0.5)) && path.contains(pt(55, 5)))
+// Inside corner where row 0 (from col 2) meets row 1 (from col 0): filled out a little.
+check("inside corner curves out", path.contains(pt(19, 19)) && !path.contains(pt(10, 10)))
+check("one-cell box keeps its size", near(selectionPath([Sel(y: 0, x: 0, w: 1)], cell: cell, scale: 2).boundingBoxOfPath,
+                                         CGRect(x: 0, y: 0, width: 10, height: 20)))
+
 var l = Latency()
 l.start(seq: 1, at: 0.000); l.start(seq: 2, at: 0.001)
 l.shown(seq: 2, at: 0.006)
@@ -76,3 +109,11 @@ l.shown(seq: 2, at: 0.9)
 check("repeat seq adds nothing", l.count == 2)
 
 exit(failures == 0 ? 0 : 1)
+
+extension Array where Element == CGPoint {
+    /// The same cycle of points, starting at `p`.
+    func rotatedToStart(at p: CGPoint?) -> [CGPoint] {
+        guard let p, let i = firstIndex(of: p) else { return self }
+        return Array(self[i...] + self[..<i])
+    }
+}

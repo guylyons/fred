@@ -39,7 +39,7 @@ private final class StatusContent: NSView {
         switch mode {
         case "NORMAL": .systemBlue
         case "INSERT": .systemGreen
-        case "VISUAL": .systemOrange
+        case "VISUAL", "SELECT", "SELECT LINE": .systemOrange
         case "TERMINAL": .systemTeal
         default: .systemPurple // COMMAND and the rest
         }

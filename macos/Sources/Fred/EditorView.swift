@@ -152,6 +152,13 @@ final class EditorView: NSView {
             for r in 0..<n.rows.count where r >= o.rows.count || o.rows[r] != n.rows[r] {
                 setNeedsDisplay(rowRect(n.y + r))
             }
+            // A changed selection: its rows and their neighbours (the corners
+            // and the border reach them).
+            if o.sel != n.sel {
+                for s in (o.sel ?? []) + (n.sel ?? []) {
+                    for r in s.y - 1...s.y + 1 { setNeedsDisplay(rowRect(n.y + r)) }
+                }
+            }
         }
         let top = bottomTop(f)
         for r in 0..<max(old.bottom.count, f.bottom.count)
@@ -212,9 +219,10 @@ final class EditorView: NSView {
         guard let f = current else { return }
         ctx.textMatrix = CGAffineTransform(scaleX: 1, y: -1)
         for w in f.windows {
-            for (r, runs) in w.rows.enumerated() where needsToDraw(rowRect(w.y + r)) {
-                drawRow(ctx, runs, col: w.x, row: w.y + r)
-            }
+            let dirty = w.rows.indices.filter { needsToDraw(rowRect(w.y + $0)) }
+            for r in dirty { drawBackgrounds(ctx, w.rows[r], col: w.x, row: w.y + r) }
+            if let sel = w.sel, !sel.isEmpty { drawSelection(ctx, sel, w) }
+            for r in dirty { drawText(ctx, w.rows[r], col: w.x, row: w.y + r) }
             if w.divider {
                 let x = snap((CGFloat(w.x + w.w - 1) + 0.5) * cell.width, scale: scale)
                 ctx.setFillColor(NSColor.separatorColor.cgColor)
@@ -224,7 +232,8 @@ final class EditorView: NSView {
         }
         let top = bottomTop(f)
         for (r, runs) in f.bottom.enumerated() where needsToDraw(rowRect(top + r)) {
-            drawRow(ctx, runs, col: 0, row: top + r)
+            drawBackgrounds(ctx, runs, col: 0, row: top + r)
+            drawText(ctx, runs, col: 0, row: top + r)
         }
         if let c = f.cursor, needsToDraw(rowRect(c.y)) { drawCursor(ctx, c, f) }
         frameShown(f)
@@ -240,7 +249,7 @@ final class EditorView: NSView {
         return snap(CGFloat(row) * cell.height + pad + font.ascender, scale: scale)
     }
 
-    private func drawRow(_ ctx: CGContext, _ runs: [Run], col: Int, row: Int) {
+    private func drawBackgrounds(_ ctx: CGContext, _ runs: [Run], col: Int, row: Int) {
         let y = CGFloat(row) * cell.height
         for run in runs {
             let flags = run.f ?? 0
@@ -249,6 +258,30 @@ final class EditorView: NSView {
             ctx.setFillColor(colors(run).bg.cgColor)
             ctx.fill(CGRect(x: l, y: y, width: r - l, height: cell.height))
         }
+    }
+
+    /// Sublime's selection: rounded shapes behind the text, clipped to the
+    /// window's text rows.
+    private func drawSelection(_ ctx: CGContext, _ sel: [Sel], _ w: Win) {
+        let (l, r) = span(w.x, w.w - (w.divider ? 1 : 0))
+        ctx.saveGState()
+        ctx.clip(to: CGRect(x: l, y: CGFloat(w.y) * cell.height, width: r - l, height: CGFloat(w.rows.count) * cell.height))
+        ctx.translateBy(x: l, y: CGFloat(w.y) * cell.height)
+        let path = selectionPath(sel, cell: cell, scale: scale)
+        ctx.addPath(path)
+        ctx.setFillColor(palette.selFill.cgColor)
+        ctx.fillPath()
+        // A 1 pt border inside the shape: stroke 2 pt, clipped to the shape.
+        ctx.addPath(path)
+        ctx.clip()
+        ctx.addPath(path)
+        ctx.setStrokeColor(palette.selBorder.cgColor)
+        ctx.setLineWidth(2)
+        ctx.strokePath()
+        ctx.restoreGState()
+    }
+
+    private func drawText(_ ctx: CGContext, _ runs: [Run], col: Int, row: Int) {
         let base = baseline(row)
         for run in runs {
             let flags = run.f ?? 0
