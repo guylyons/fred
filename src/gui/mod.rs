@@ -99,7 +99,11 @@ pub fn run(args: Args, cfg: Config, cfg_err: Option<String>) -> Result<i32> {
         None => {}
     }
     // The terminal's "ansi" default follows the terminal's colors; the GUI has none, so it gets Material Dark.
-    let theme = if cfg.theme == "ansi" { "material-dark" } else { &cfg.theme };
+    let theme = if cfg.theme == "ansi" {
+        "material-dark"
+    } else {
+        &cfg.theme
+    };
     s.hl = match Highlighter::new(theme, true) {
         Ok(h) => h,
         Err(e) => {
@@ -191,11 +195,24 @@ fn event_loop(
     let mut checked = Instant::now();
     let mut active = Instant::now();
     let mut job: Option<Job> = None;
-    // The close button during a job: quit once it is done.
+    // The close button during a job or Claude's typing: quit once it is done.
     let mut quit_held = false;
     // Your input while Claude types, for after, and where it was typed.
     let mut held: Vec<In> = vec![];
     let mut held_at = None;
+    // The app sends its size first; without it the first frame would be 80x24.
+    let mut first = match rx.recv_timeout(std::time::Duration::from_millis(200)) {
+        Ok(In::Resize { cols, rows }) => {
+            term.backend_mut().resize(cols, rows);
+            None
+        }
+        Ok(m) => Some(m),
+        Err(RecvTimeoutError::Timeout) => None,
+        Err(RecvTimeoutError::Disconnected) => {
+            s.write_swap();
+            return Ok(1);
+        }
+    };
     loop {
         if !s.which_key
             && active.elapsed() >= app::WHICH_KEY
@@ -224,7 +241,7 @@ fn event_loop(
             _ if busy => app::TICK,
             _ => app::IDLE_TICK,
         };
-        let mut next = match rx.recv_timeout(tick) {
+        let mut next = match first.take().map_or_else(|| rx.recv_timeout(tick), Ok) {
             Ok(m) => Some(m),
             Err(RecvTimeoutError::Timeout) => None,
             // EOF: the app died. As SIGHUP.
@@ -246,7 +263,8 @@ fn event_loop(
                     held_at.get_or_insert((s.cur, std::mem::discriminant(&s.ed.mode)));
                     held.push(m);
                 }
-            } else if job.is_some() && matches!(m, In::Quit) {
+            } else if (job.is_some() || s.typing.is_some()) && matches!(m, In::Quit) {
+                // Not inside Claude's key stream, nor during a job.
                 quit_held = true;
             } else if job.is_none() || !typed {
                 input(s, &mut term, m);
@@ -281,7 +299,7 @@ fn event_loop(
             dirty = true;
         }
         dirty |= tick_jobs(s, cfg, &mut job);
-        if quit_held && job.is_none() {
+        if quit_held && job.is_none() && s.typing.is_none() {
             quit_held = false;
             input(s, &mut term, In::Quit);
             if s.quit {
@@ -530,6 +548,46 @@ mod tests {
         );
         assert_eq!(p(r#"{"t":"quit"}"#), In::Quit);
         assert!(serde_json::from_str::<In>(r#"{"t":"bogus"}"#).is_err());
+    }
+
+    fn session(text: &str) -> (Session, tempfile::TempDir) {
+        let d = tempfile::tempdir().unwrap();
+        let path = d.path().join("f");
+        std::fs::write(&path, text).unwrap();
+        let (s, _) = Session::open(Some(path), &Config::default(), &d.path().join("swap")).unwrap();
+        (s, d)
+    }
+
+    #[test]
+    fn quit_while_claude_types_waits_for_the_keys() {
+        let (mut s, _d) = session("1\n2\n3\n");
+        let (reply, answered) = mpsc::channel();
+        s.remote("fred_keys", &serde_json::json!({"keys": "jj"}), reply);
+        let (tx, rx) = mpsc::channel();
+        tx.send(In::Quit).unwrap();
+        let stop = AtomicBool::new(false);
+        let code = event_loop(&mut s, &Config::default(), &rx, &stop, None, &mut vec![]);
+        assert_eq!(code.unwrap(), 0);
+        // Claude's keys all ran (and were answered); `:qa` didn't cut in.
+        assert_eq!(s.ed.cur.line, 2);
+        assert!(answered.try_recv().unwrap().is_ok());
+    }
+
+    #[test]
+    fn the_first_frame_waits_for_the_apps_size() {
+        let (mut s, _d) = session("1\n");
+        let (tx, rx) = mpsc::channel();
+        tx.send(In::Resize { cols: 50, rows: 7 }).unwrap();
+        tx.send(In::Quit).unwrap();
+        let mut out = vec![];
+        let stop = AtomicBool::new(false);
+        event_loop(&mut s, &Config::default(), &rx, &stop, None, &mut out).unwrap();
+        let first: serde_json::Value =
+            serde_json::from_slice(out.split(|b| *b == b'\n').next().unwrap()).unwrap();
+        assert_eq!(
+            (first["cols"].as_u64(), first["rows"].as_u64()),
+            (Some(50), Some(7))
+        );
     }
 
     #[test]

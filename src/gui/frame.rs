@@ -58,7 +58,8 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
                 divider: p.divider,
                 active: p.id == s.active,
                 rows: (r.y..r.bottom().saturating_sub(1))
-                    .map(|y| runs(buf, y, r.x, r.right()))
+                    // Not the divider column: the app draws its own line.
+                    .map(|y| runs(buf, y, r.x, r.right() - u16::from(p.divider)))
                     .collect(),
                 status: status.swap_remove(i).1,
             })
@@ -229,6 +230,12 @@ mod tests {
         assert_eq!(f.windows.len(), 2);
         assert_eq!(f.windows.iter().filter(|w| w.active).count(), 1);
         assert!(f.windows.iter().any(|w| w.divider));
+        // The app draws the divider natively; no box-drawing char in rows.
+        for w in &f.windows {
+            for row in &w.rows {
+                assert!(row.iter().all(|r| !r.s.contains('│')), "{row:?}");
+            }
+        }
     }
 
     #[test]

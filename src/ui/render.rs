@@ -1360,8 +1360,6 @@ fn mode_color(m: &Mode) -> Color {
     }
 }
 
-/// The status line in `area`'s first row; dim and without the mode for an
-/// inactive window.
 /// The mode label the status line shows.
 pub(crate) fn status_label(ed: &Editor) -> String {
     match (&ed.mode, &ed.dired) {
@@ -1373,6 +1371,8 @@ pub(crate) fn status_label(ed: &Editor) -> String {
     }
 }
 
+/// The status line in `area`'s first row; dim and without the mode for an
+/// inactive window.
 fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter, active: bool) {
     let y = area.y;
     let w = area.width as usize;

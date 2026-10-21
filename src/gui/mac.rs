@@ -9,7 +9,6 @@ fn keys(s: &mut Session, k: &str) {
     }
 }
 
-/// An ex command that leaves the mode alone (so it works from Insert).
 /// Yank or delete, and always reach the system clipboard (even with
 /// `clipboard = false`, where plain y/d leave it alone).
 fn copy(s: &mut Session, k: &str) {
@@ -19,6 +18,7 @@ fn copy(s: &mut Session, k: &str) {
     }
 }
 
+/// An ex command that leaves the mode alone (so it works from Insert).
 fn ex(s: &mut Session, cmd: &str) {
     s.ed.run_ex(cmd);
     if let Some(eff) = s.ed.pending_effect.take() {
