@@ -214,3 +214,18 @@ fn a_shell_command_shows_its_output_in_a_frame() {
     // Every stdout line must parse as JSON, or the reader thread panics.
     g.frame_until(|f| f["seq"] == 1 && f.to_string().contains("hello"));
 }
+
+#[test]
+fn quit_during_a_job_waits_for_it() {
+    let mut g = Gui::spawn("f", "one\n");
+    g.send(r#"{"t":"resize","cols":40,"rows":10}"#);
+    g.send(r#"{"t":"keys","seq":1,"keys":":!sleep 1<Enter>"}"#);
+    g.frame_until(|f| f["seq"] == 1);
+    let start = Instant::now();
+    g.send(r#"{"t":"quit"}"#);
+    assert_eq!(g.exit_line()["code"], 0);
+    assert!(
+        start.elapsed() >= Duration::from_millis(700),
+        "quit before the job ended"
+    );
+}

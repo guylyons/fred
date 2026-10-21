@@ -189,6 +189,8 @@ fn event_loop(
     let mut checked = Instant::now();
     let mut active = Instant::now();
     let mut job: Option<Job> = None;
+    // The close button during a job: quit once it is done.
+    let mut quit_held = false;
     // Your input while Claude types, for after, and where it was typed.
     let mut held: Vec<In> = vec![];
     let mut held_at = None;
@@ -242,6 +244,8 @@ fn event_loop(
                     held_at.get_or_insert((s.cur, std::mem::discriminant(&s.ed.mode)));
                     held.push(m);
                 }
+            } else if job.is_some() && matches!(m, In::Quit) {
+                quit_held = true;
             } else if job.is_none() || !typed {
                 input(s, &mut term, m);
             }
@@ -250,6 +254,9 @@ fn event_loop(
             }
             next = rx.try_recv().ok();
         }
+        // Claude's requests wait while a job holds the editor (and are
+        // refused as late), as the terminal blocks during one.
+        let remote = if job.is_some() { None } else { remote };
         let (changed, acted) = app::tick_session(s, remote, &mut checked);
         if acted {
             active = Instant::now();
@@ -272,6 +279,13 @@ fn event_loop(
             dirty = true;
         }
         dirty |= tick_jobs(s, cfg, &mut job);
+        if quit_held && job.is_none() {
+            quit_held = false;
+            input(s, &mut term, In::Quit);
+            if s.quit {
+                return Ok(0);
+            }
+        }
     }
 }
 
