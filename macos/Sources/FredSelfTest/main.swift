@@ -1,0 +1,23 @@
+import AppKit
+import FredKit
+
+var failures = 0
+var count = 0
+@MainActor func check(_ name: String, _ cond: Bool) {
+    count += 1
+    if cond { print("ok \(count)") } else { print("FAIL \(name)"); failures += 1 }
+}
+
+let line = #"{"t":"frame","seq":3,"cols":20,"rows":6,"title":"t","windows":[{"x":0,"y":0,"w":20,"h":5,"divider":false,"active":true,"rows":[[{"x":0,"s":"hello","fg":16737970,"f":1}]],"status":{"mode":"NORMAL","name":"f","modified":false,"pos":"1:1","branch":null}}],"bottom":[],"cursor":{"x":0,"y":0,"shape":"block"}}"#
+if case .frame(let f) = try Incoming.decode(Data(line.utf8)) {
+    check("seq", f.seq == 3)
+    check("run text", f.windows[0].rows[0][0].s == "hello")
+    check("bold", f.windows[0].rows[0][0].f == 1)
+} else { check("decodes a frame", false) }
+check("exit", { if case .exit(let c) = try! Incoming.decode(Data(#"{"t":"exit","code":0}"#.utf8)) { return c == 0 }; return false }())
+check("keys line", String(decoding: Outgoing.keys(seq: 7, keys: "<C-w>j").line(), as: UTF8.self) == #"{"t":"keys","seq":7,"keys":"<C-w>j"}"# + "\n")
+let p = Palette(fg: .white, bg: .black)
+check("rgb", p.color(0x1ff66b2, default: .white).usingColorSpace(.sRGB)!.redComponent == 1.0)
+check("default", p.color(nil, default: .black) == .black)
+
+exit(failures == 0 ? 0 : 1)
