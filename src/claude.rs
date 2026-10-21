@@ -479,18 +479,12 @@ fn with_files(files: &str, prompt: String) -> String {
     )
 }
 
-/// For the chat's Claude: fred is its editor, and the user watches it work.
+/// For the chat's Claude: it works as it would anywhere, beside the user's editor.
 const IN_FRED: &str = "You are running inside fred, the user's Vim-like editor, \
-and they watch you work in it. fred is your only way to read and change files: \
-fred_read with a path opens a file in fred and reads it; fred_keys types Vim keys \
-into fred, one by one where the user sees them (`:e path<CR>` to open or create a \
-file, `/text<CR>` or `42G` to move, `ciw`, `dd`, `o`, `O`, `A`, `:s/a/b/<CR>`, `u`). \
-Start each fred_keys call with <Esc>, keep each one to one small edit, and end it \
-in Normal mode. Text typed in Insert mode goes in exactly as sent, with no \
-autoindent, so include the indentation. After editing, fred_read the lines to \
-check them. Save with `:w<CR>` before running anything that reads the file, such \
-as a build or tests. Use Bash, Grep and Glob to search and run commands, never to \
-change files.";
+which they keep using while you work. Read and change files with your own tools, \
+as usual; fred reloads a file you change unless its buffer has unsaved changes. \
+fred_state lists the open buffers and fred_read reads one, unsaved changes \
+included. Never type into fred.";
 
 /// How long Claude's Bash waits on a command before moving it to the
 /// background and carrying on, as the CLI lets you with Ctrl-B. Your own
@@ -516,11 +510,11 @@ fn spawn(cmd: &str, prompt: Option<String>) -> Result<Job, String> {
         if let Some(exe) = std::env::current_exe().ok().filter(|_| is_claude) {
             let servers = json!({ "mcpServers": { "fred": {
                 "command": exe, "args": ["--mcp"] } } });
-            // Its own file tools are off: it reads and edits in fred, in front of you.
+            // It edits with its own tools; fred_keys is off so it never takes your editor.
             cmd += &format!(
                 " --mcp-config {} --permission-prompt-tool mcp__fred__fred_approve \
-                 --allowedTools mcp__fred__fred_state,mcp__fred__fred_read,mcp__fred__fred_keys \
-                 --disallowedTools Read,Edit,Write,MultiEdit,NotebookEdit \
+                 --allowedTools mcp__fred__fred_state,mcp__fred__fred_read \
+                 --disallowedTools mcp__fred__fred_keys \
                  --append-system-prompt {}",
                 crate::shell::quote(&servers.to_string()),
                 crate::shell::quote(IN_FRED)

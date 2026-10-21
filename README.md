@@ -515,10 +515,10 @@ permission settings instead. Everything stays
 undoable with `u`. The tools reach the fred most recently started, or the
 one in `$FRED_SOCKET`. Each fred listens on a socket only your user can open.
 
-In the chat, fred is Claude's editor: its own Read, Edit and Write tools are
-off, so it opens every file in fred and makes every change with Vim keys in
-front of you, saving with `:w` before it builds or runs tests. It still
-searches and runs commands itself.
+In the chat, Claude works as it normally would, with its own Read, Edit and
+Write tools, while you keep driving fred; a file it changes reloads unless
+its buffer has unsaved changes. It can see your buffers (`fred_state`,
+`fred_read`) but `fred_keys` is off there, so it never types into fred.
 
 Select lines and run `:'<,'>ai make this async` (or any request): Claude
 rewrites just those lines, seeing the whole file for context, and a spinner
