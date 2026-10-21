@@ -112,8 +112,8 @@ fn refresh_popup(ed: &mut Editor, manual: bool) {
     } else {
         ed.word_index.ensure(&ed.buf, false);
         match ed.nearby.words().lock() {
-            Ok(nearby) => complete::candidates(&text, &ed.word_index, l, &nearby),
-            Err(_) => complete::candidates(&text, &ed.word_index, l, &[]),
+            Ok(nearby) => complete::candidates(&text, &mut ed.word_index, l, &nearby),
+            Err(_) => complete::candidates(&text, &mut ed.word_index, l, &[]),
         }
     };
     ed.popup = (!items.is_empty()).then_some(Popup {

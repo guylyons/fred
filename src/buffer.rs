@@ -59,6 +59,9 @@ pub struct Edit {
 }
 
 /// Lines `at..at + removed` were replaced by `inserted` lines.
+/// Edits remembered for `Buffer::splices_since`.
+const SPLICES: usize = 64;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LineChange {
     pub at: usize,
@@ -86,6 +89,10 @@ pub struct Buffer {
     zero_byte: bool,
     dirty_from: Option<usize>,
     line_changes: Vec<LineChange>,
+    /// The latest edits, one per version, as (first line, lines removed,
+    /// lines inserted): lines `first..=first+removed` became
+    /// `first..=first+inserted`. Lets indexes update just those lines.
+    splices: std::collections::VecDeque<(usize, usize, usize)>,
 }
 
 impl Default for Buffer {
@@ -131,6 +138,7 @@ impl Buffer {
             zero_byte: s.is_empty() && !bom,
             dirty_from: None,
             line_changes: vec![],
+            splices: Default::default(),
         }
     }
 
@@ -184,11 +192,25 @@ impl Buffer {
         self.modified = true;
         self.edits_since_swap += 1;
         self.version += 1;
+        if self.splices.len() == SPLICES {
+            self.splices.pop_front();
+        }
+        self.splices.push_back((first, r, i));
         Edit {
             start: e.start,
             end: e.start + e.text.chars().count(),
             text: removed,
         }
+    }
+
+    /// The edits since `version` as (first line, removed, inserted), oldest
+    /// first; None if they're no longer all remembered.
+    pub fn splices_since(
+        &self,
+        version: u64,
+    ) -> Option<impl Iterator<Item = &(usize, usize, usize)>> {
+        let n = usize::try_from(self.version.checked_sub(version)?).ok()?;
+        Some(self.splices.iter().skip(self.splices.len().checked_sub(n)?))
     }
 
     /// Line structure changes since the last call, oldest first.

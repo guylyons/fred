@@ -21,26 +21,60 @@ pub fn words(text: &str) -> impl Iterator<Item = &str> {
 #[derive(Debug, Default)]
 pub struct WordIndex {
     lines: Vec<Vec<String>>,
-    built: Option<u64>,
+    /// The buffer (id, version) indexed.
+    built: Option<(u64, u64)>,
+    /// The last completion's prefix and every indexed word it matched
+    /// (`super::candidates`), and words of lines re-read since: what a
+    /// longer prefix can match.
+    pub(super) memo: Option<(String, Vec<String>)>,
+    pub(super) fresh: Vec<String>,
+}
+
+fn line_words(buf: &Buffer, l: usize) -> Vec<String> {
+    words(&buf.line(l)).map(String::from).collect()
 }
 
 impl WordIndex {
-    /// Re-index if the buffer changed (big buffers only when `force`,
-    /// huge ones never).
+    /// Catch up with the buffer: just the edited lines when it remembers
+    /// them, else re-index (big buffers only when `force`, huge ones never).
     pub fn ensure(&mut self, buf: &Buffer, force: bool) {
-        if self.built == Some(buf.version)
-            || (!force && self.built.is_some() && buf.len_bytes() > AUTO_REBUILD_MAX)
+        if let Some((id, v)) = self.built
+            && id == buf.id
+            && let Some(splices) = buf.splices_since(v)
         {
+            // The lines to re-read, in the latest text so far.
+            let mut dirty: Option<(usize, usize)> = None;
+            for &(first, removed, inserted) in splices {
+                let end = (first + removed + 1).min(self.lines.len());
+                let new = std::iter::repeat_with(Vec::new).take(inserted + 1);
+                self.lines.splice(first.min(end)..end, new);
+                let (lo, hi) = dirty.unwrap_or((first, first));
+                let hi = if hi > first + removed {
+                    hi + inserted - removed
+                } else {
+                    hi.max(first + inserted)
+                };
+                dirty = Some((lo.min(first), hi));
+            }
+            if let Some((lo, hi)) = dirty {
+                for l in lo..=hi.min(self.lines.len().saturating_sub(1)) {
+                    self.lines[l] = line_words(buf, l);
+                    self.fresh.extend_from_slice(&self.lines[l]);
+                }
+            }
+            self.built = Some((id, buf.version));
+            return;
+        }
+        if !force && self.built.is_some() && buf.len_bytes() > AUTO_REBUILD_MAX {
             return;
         }
         if buf.len_bytes() > INDEX_MAX {
             *self = WordIndex::default();
             return;
         }
-        self.lines = (0..buf.len_lines())
-            .map(|l| words(&buf.line(l)).map(String::from).collect())
-            .collect();
-        self.built = Some(buf.version);
+        self.lines = (0..buf.len_lines()).map(|l| line_words(buf, l)).collect();
+        self.built = Some((buf.id, buf.version));
+        self.memo = None;
     }
 
     pub fn line_words(&self, line: usize) -> &[String] {
@@ -78,7 +112,8 @@ mod tests {
     }
 
     #[test]
-    fn big_buffers_rebuild_only_when_forced() {
+    fn edits_update_just_their_lines() {
+        // Big: a re-index would wait for `force`; the edit's lines don't.
         let mut b = Buffer::from_text(&"word ".repeat(300_000));
         let mut i = WordIndex::default();
         i.ensure(&b, true);
@@ -88,8 +123,48 @@ mod tests {
             text: "fresh ".into(),
         });
         i.ensure(&b, false);
-        assert_eq!(i.line_words(0)[0], "word");
-        i.ensure(&b, true);
         assert_eq!(i.line_words(0)[0], "fresh");
+        // Several edits between looks, lines in and out: as a re-index.
+        let mut b = Buffer::from_text(
+            &(0..40)
+                .map(|n| format!("w{n:03}"))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        );
+        let mut i = WordIndex::default();
+        i.ensure(&b, true);
+        let mut seed = 7usize;
+        for round in 0..200 {
+            for _ in 0..round % 4 + 1 {
+                seed = seed
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
+                let len = b.len_chars();
+                let start = (seed >> 33) % (len + 1);
+                let end = (start + (seed >> 20) % 9).min(len);
+                let text = ["", "\n", "abc", "xyz\nqq", "\nnew\n", "zz"][(seed >> 8) % 6];
+                b.apply(Edit {
+                    start,
+                    end,
+                    text: text.into(),
+                });
+            }
+            i.ensure(&b, false);
+            let mut full = WordIndex::default();
+            full.ensure(&b, true);
+            assert_eq!(i.lines, full.lines, "round {round}");
+        }
+        // Too far behind to catch up: re-indexed.
+        for _ in 0..100 {
+            b.apply(Edit {
+                start: 0,
+                end: 0,
+                text: "x".into(),
+            });
+        }
+        i.ensure(&b, true);
+        let mut full = WordIndex::default();
+        full.ensure(&b, true);
+        assert_eq!(i.lines, full.lines);
     }
 }
