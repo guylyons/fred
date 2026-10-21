@@ -82,8 +82,8 @@ struct Ui {
 /// After a draw: the active window's viewport and page height.
 pub(crate) fn drawn(s: &mut Session) {
     // The active window: its text rows (above its status line) and columns.
-    let win = s.tree.layout(s.area).into_iter().find(|p| p.id == s.active);
-    s.ed.viewport = win.map(|p| crate::zap::Viewport::of(p.rect, p.divider, &s.ed, s.win().view));
+    let win = s.placed().into_iter().find(|p| p.id == s.active);
+    s.ed.viewport = win.map(|p| crate::zap::Viewport::of(p.text(), &s.ed, s.win().view));
     let rows = s.ed.viewport.map_or(0, |v| v.rows);
     // Paging scrolls by the text rows actually on screen, not the
     // configured height, which may be "max".

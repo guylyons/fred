@@ -17,14 +17,14 @@ pub(crate) struct Viewport {
 }
 
 impl Viewport {
-    /// The text area of a window `rect` (with its status line, and divider
-    /// when `divider`) showing `ed` from `view`.
-    pub fn of(rect: ratatui::layout::Rect, divider: bool, ed: &Editor, view: View) -> Self {
-        let width = (rect.width - u16::from(divider)) as usize;
+    /// The viewport of a window's text area (`Placed::text`) showing `ed`
+    /// from `view`.
+    pub fn of(text: ratatui::layout::Rect, ed: &Editor, view: View) -> Self {
+        let width = text.width as usize;
         let gutter = crate::ui::render::gutter_width(ed).min(width / 2);
         Viewport {
             view,
-            rows: (rect.height as usize).saturating_sub(1),
+            rows: text.height as usize,
             cols: width.saturating_sub(gutter).max(1),
             wrap: ed.opts.bool(crate::options::Opt::Wrap),
         }

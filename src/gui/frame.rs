@@ -18,7 +18,7 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
     app::drawn(s);
     let mut status = vec![];
     let cwd = std::env::current_dir().ok();
-    s.each_window(|ed, _, _, p, _| {
+    s.each_window(|ed, view, _, p, _| {
         let name = render::term_title(ed).unwrap_or_else(|| match &ed.path {
             Some(path) => cwd
                 .as_deref()
@@ -28,17 +28,13 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
                 .to_string(),
             None => "[No Name]".into(),
         });
-        let special =
-            ed.dired.is_some() || ed.occur.is_some() || ed.term.is_some() || ed.magit.is_some();
-        let file = (!special)
-            .then(|| ed.path.as_deref().and_then(|p| std::path::absolute(p).ok()))
-            .flatten()
-            .map(|p| p.to_string_lossy().into_owned());
+        let file = file_of(ed);
         let line = ed.buf.line(ed.cur.line);
         let col = crate::text::col_of_byte(&line, ed.cur.byte, ed.tabstop()) + 1;
         status.push((
             p.id,
             file,
+            (view.top, ed.line_count()),
             Status {
                 mode: render::status_label(ed),
                 name,
@@ -51,12 +47,11 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
     let be = term.backend();
     let buf = be.buffer();
     let windows = s
-        .tree
-        .layout(s.area)
+        .placed()
         .into_iter()
         .filter_map(|p| {
             let i = status.iter().position(|(id, ..)| *id == p.id)?;
-            let r = p.rect;
+            let (r, text) = (p.rect, p.text());
             let sel: Vec<proto::Sel> = if p.id == s.active {
                 s.ed.drawn_sel
                     .borrow()
@@ -68,7 +63,7 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
             };
             let row_sel = |y: u16| {
                 sel.iter()
-                    .find(|p| p.y == y - r.y)
+                    .find(|p| p.y == y - text.y)
                     .map(|p| r.x + p.x..r.x + p.x + p.w)
             };
             Some(Win {
@@ -78,13 +73,20 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
                 h: r.height,
                 divider: p.divider,
                 active: p.id == s.active,
-                rows: (r.y..r.bottom().saturating_sub(1))
-                    // Not the divider column: the app draws its own line.
-                    .map(|y| runs(buf, y, r.x, r.right() - u16::from(p.divider), row_sel(y)))
+                // Not the tab row, the minimap or the divider column:
+                // the app draws its own.
+                rows: (text.y..text.bottom())
+                    .map(|y| runs(buf, y, r.x, text.right(), row_sel(y)))
                     .collect(),
                 sel,
                 path: status[i].1.take(),
-                status: status.swap_remove(i).2,
+                id: p.id,
+                header: p.header,
+                margin: p.margin,
+                top: status[i].2.0,
+                lines: status[i].2.1,
+                tabs: tabs(s, p.id),
+                status: status.swap_remove(i).3,
             })
         })
         .collect();
@@ -116,6 +118,44 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
         bottom,
         cursor,
     }
+}
+
+/// A file's absolute path; none for no-name and special buffers.
+fn file_of(ed: &crate::editor::Editor) -> Option<String> {
+    let special =
+        ed.dired.is_some() || ed.occur.is_some() || ed.term.is_some() || ed.magit.is_some();
+    (!special)
+        .then(|| ed.path.as_deref().and_then(|p| std::path::absolute(p).ok()))
+        .flatten()
+        .map(|p| p.to_string_lossy().into_owned())
+}
+
+/// Window `id`'s tabs, in order.
+fn tabs(s: &Session, id: usize) -> Vec<proto::Tab> {
+    let Some(w) = s.windows.iter().find(|w| w.id == id) else {
+        return vec![];
+    };
+    w.tabs
+        .iter()
+        .map(|&b| {
+            let ed = s.ed_at(b);
+            let name = render::term_title(ed)
+                .or_else(|| {
+                    ed.path
+                        .as_ref()?
+                        .file_name()
+                        .map(|n| n.to_string_lossy().into())
+                })
+                .unwrap_or_else(|| "[No Name]".into());
+            proto::Tab {
+                name,
+                path: file_of(ed),
+                modified: ed.buf.modified,
+                preview: w.preview == Some(b),
+                current: w.buf == b,
+            }
+        })
+        .collect()
 }
 
 const FLAGS: [Modifier; 6] = [
@@ -324,6 +364,72 @@ mod tests {
                 .unwrap()
                 .contains("\"path\"")
         );
+    }
+
+    #[test]
+    fn gui_windows_reserve_a_tab_row_and_a_minimap_margin() {
+        let long = format!("{}\n", "x".repeat(60));
+        let (mut s, mut term, _d) = setup(40, 12, &format!("hello\n{long}"));
+        s.handle_keys(":set nowrap<Enter>j");
+        s.chrome = (1, 8);
+        let f = build(&mut s, &Config::default(), &mut term, 0);
+        let w = &f.windows[0];
+        assert_eq!((w.header, w.margin), (1, 8));
+        assert_eq!(w.rows.len(), w.h as usize - 2);
+        let text: String = w.rows[0].iter().map(|r| r.s.as_str()).collect();
+        assert_eq!(text, "hello");
+        for row in &w.rows {
+            for r in row {
+                let end = r.x as usize + UnicodeWidthStr::width(r.s.as_str());
+                assert!(end <= w.w as usize - 8, "{r:?}");
+            }
+        }
+        // The cursor (line 2) is drawn under the tab row.
+        assert_eq!(f.cursor.map(|c| c.y), Some(2));
+    }
+
+    #[test]
+    fn the_terminal_layout_is_unchanged() {
+        let (mut s, mut term, _d) = setup(40, 12, "hello\n");
+        let f = build(&mut s, &Config::default(), &mut term, 0);
+        let w = &f.windows[0];
+        assert_eq!((w.header, w.margin), (0, 0));
+        assert_eq!(w.rows.len(), w.h as usize - 1);
+        assert_eq!(f.cursor.map(|c| c.y), Some(0));
+    }
+
+    #[test]
+    fn tabs_and_top_and_lines_are_in_the_frame() {
+        let text: String = (1..=30).map(|n| format!("{n}\n")).collect();
+        let (mut s, mut term, d) = setup(40, 12, &text);
+        std::fs::write(d.path().join("g.txt"), "g\n").unwrap();
+        std::fs::write(d.path().join("h.txt"), "h\n").unwrap();
+        s.handle_keys(&format!(":e {}<Enter>", d.path().join("g.txt").display()));
+        s.open_preview(&d.path().join("h.txt"), true);
+        s.handle_keys(":b1<Enter>G");
+        s.chrome = (1, 0);
+        let f = build(&mut s, &Config::default(), &mut term, 0);
+        let w = &f.windows[0];
+        assert_eq!(w.id, s.active);
+        let tabs: Vec<_> = w
+            .tabs
+            .iter()
+            .map(|t| (t.name.as_str(), t.preview, t.current))
+            .collect();
+        assert_eq!(
+            tabs,
+            [
+                ("f.txt", false, true),
+                ("g.txt", false, false),
+                ("h.txt", true, false)
+            ]
+        );
+        let want = std::path::absolute(d.path().join("g.txt")).unwrap();
+        assert_eq!(w.tabs[1].path.as_deref(), Some(want.to_str().unwrap()));
+        assert!(!w.tabs[0].modified);
+        assert_eq!(w.lines, 30);
+        // 12 rows: the command row, the tab row and the status row leave 9.
+        assert_eq!(w.top, 30 - 9);
     }
 
     #[test]

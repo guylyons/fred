@@ -19,6 +19,7 @@ use std::time::{Duration, Instant};
 pub(crate) mod magit;
 mod occur;
 mod org;
+mod tabs;
 mod term;
 mod windows;
 pub use org::Finish;
@@ -174,6 +175,11 @@ pub struct Session {
     pub hl: Highlighter,
     /// A window's lines were left unhighlighted last frame: draw again.
     pub hl_incomplete: bool,
+    /// Run by the native Mac app: `:bn` and `:bp` follow the window's tabs.
+    pub gui: bool,
+    /// Each window's GUI chrome: rows for its tab strip and columns for
+    /// its minimap. (0, 0) in the terminal.
+    pub chrome: (u16, u16),
 }
 
 fn make_editor(buf: Buffer, opts: Options, cfg: &Config) -> Editor {
@@ -363,6 +369,9 @@ impl Session {
                 cur: Default::default(),
                 view: View::default(),
                 prev: None,
+                tabs: vec![0],
+                preview: None,
+                preview_mark: (0, false),
             }],
             tree: Node::Leaf(1),
             active: 1,
@@ -375,6 +384,8 @@ impl Session {
             area: Rect::new(0, 0, 80, 23),
             hl: Highlighter::new("ansi", false)?,
             hl_incomplete: false,
+            gui: false,
+            chrome: (0, 0),
         };
         let dir = browse.clone().or_else(|| {
             s.ed.path
@@ -495,6 +506,8 @@ impl Session {
                 None => break,
             }
         }
+        self.keep_edited_previews();
+        self.check_tabs();
     }
 
     pub fn perform(&mut self, eff: ExEffect) {
@@ -1034,6 +1047,11 @@ impl Session {
         w.view = incoming;
         w.prev = Some(from);
         w.buf = i;
+        // A new tab goes right after the one it was opened from.
+        if !w.tabs.contains(&i) {
+            let at = w.tabs.iter().position(|&t| t == from);
+            w.tabs.insert(at.map_or(w.tabs.len(), |a| a + 1), i);
+        }
     }
 
     /// Make buffer `i` the live one, `ed`; nothing about windows.
@@ -1089,7 +1107,7 @@ impl Session {
         &mut self,
         mut f: impl FnMut(&Editor, &mut View, &mut Highlighter, Placed, bool),
     ) {
-        let mut placed = self.tree.layout(self.area);
+        let mut placed = self.placed();
         placed.sort_by_key(|p| p.id != self.active);
         for p in placed {
             let Some(w) = self.windows.iter_mut().find(|w| w.id == p.id) else {
@@ -1128,6 +1146,20 @@ impl Session {
         }
     }
 
+    /// The windows on screen, with their GUI chrome.
+    pub fn placed(&self) -> Vec<Placed> {
+        let (header, margin) = self.chrome;
+        self.tree
+            .layout(self.area)
+            .into_iter()
+            .map(|p| Placed {
+                header,
+                margin,
+                ..p
+            })
+            .collect()
+    }
+
     /// The active window.
     pub fn win(&self) -> &Window {
         self.windows
@@ -1154,7 +1186,7 @@ impl Session {
         })
     }
 
-    fn ed_at(&self, i: usize) -> &Editor {
+    pub(crate) fn ed_at(&self, i: usize) -> &Editor {
         self.bufs[i].as_ref().map_or(&self.ed, |b| &b.ed)
     }
 
@@ -1177,16 +1209,28 @@ impl Session {
     }
 
     /// A buffer by `:b` argument: a number, `#` (the one used before this
-    /// one), its file name or part of its path, or nothing (this one).
+    /// one; in the GUI, the window's own alternate tab), its file name or
+    /// part of its path, or nothing (this one).
     fn buffer_arg(&self, arg: &str) -> Result<usize, String> {
         if arg.is_empty() {
             return Ok(self.cur);
         }
         if arg == "#" {
+            // In the GUI, Ctrl-^ is the window's alternate (kept among its
+            // tabs), else its most recently used other tab.
+            if self.gui
+                && let Some(p) = self
+                    .win()
+                    .prev
+                    .filter(|&p| p != self.cur && self.win().tabs.contains(&p))
+            {
+                return Ok(p);
+            }
             return self
                 .bufs
                 .iter()
                 .enumerate()
+                .filter(|(i, _)| !self.gui || self.win().tabs.contains(i))
                 .filter_map(|(i, b)| Some((b.as_ref()?.used, i)))
                 .max()
                 .map(|(_, i)| i)
@@ -1223,6 +1267,16 @@ impl Session {
                 Ok(i) => i,
                 Err(e) => return self.ed.set_err(e),
             },
+            BufCmd::Next | BufCmd::Prev if self.gui => {
+                let tabs = &self.win().tabs;
+                let at = tabs.iter().position(|&b| b == self.cur).unwrap_or(0);
+                let step = if cmd == BufCmd::Next {
+                    1
+                } else {
+                    tabs.len() - 1
+                };
+                tabs[(at + step) % tabs.len()]
+            }
             BufCmd::Next => (self.cur + 1) % n,
             BufCmd::Prev => (self.cur + n - 1) % n,
             BufCmd::List => return self.list_buffers(),
@@ -1284,10 +1338,11 @@ impl Session {
             if w.buf > target {
                 w.buf -= 1;
             }
-            w.prev = w
-                .prev
-                .filter(|&p| p != target)
-                .map(|p| if p > target { p - 1 } else { p });
+            let shift = |p: usize| if p > target { p - 1 } else { p };
+            w.prev = w.prev.filter(|&p| p != target).map(shift);
+            w.preview = w.preview.filter(|&p| p != target).map(shift);
+            w.tabs.retain(|&t| t != target);
+            w.tabs.iter_mut().for_each(|t| *t = shift(*t));
         }
         self.clock += 1;
         for ed in self.editors_mut() {
@@ -2016,6 +2071,7 @@ mod tests {
         assert!(t.s.windows.iter().all(|w| w.buf < n), "{:?}", t.s.windows);
         assert_eq!(t.s.win().buf, t.s.cur);
         t.s.each_window(|_, _, _, _, _| {});
+        t.s.check_tabs();
     }
 
     #[test]
@@ -2073,11 +2129,7 @@ mod tests {
         t.s.mouse(screen, ev(MouseEventKind::Drag(MouseButton::Left), 6));
         t.s.mouse(screen, ev(MouseEventKind::Up(MouseButton::Left), 6));
         let heights: Vec<(usize, u16)> =
-            t.s.tree
-                .layout(t.s.area)
-                .iter()
-                .map(|p| (p.id, p.rect.height))
-                .collect();
+            t.s.placed().iter().map(|p| (p.id, p.rect.height)).collect();
         assert_eq!(heights, vec![(top, 7), (bottom, 16)]);
         assert!(t.s.grab.is_none());
     }
@@ -2103,12 +2155,7 @@ mod tests {
     fn space_w_c_lays_out_a_grid() {
         let mut t = T::open(Some("a"), Some("1\n"));
         let rects = |t: &T| {
-            let mut r: Vec<_> =
-                t.s.tree
-                    .layout(t.s.area)
-                    .into_iter()
-                    .map(|p| p.rect)
-                    .collect();
+            let mut r: Vec<_> = t.s.placed().into_iter().map(|p| p.rect).collect();
             r.sort_by_key(|r| (r.y, r.x));
             r
         };
@@ -2170,7 +2217,7 @@ mod tests {
     fn split_count_sets_height() {
         let mut t = T::open(Some("a"), Some("a\n"));
         t.keys(":5split<Enter>");
-        let p = t.s.tree.layout(t.s.area);
+        let p = t.s.placed();
         assert_eq!(p[0].rect.height, 6); // 5 text rows + status line
     }
 
@@ -2965,14 +3012,7 @@ mod tests {
         assert!(t.s.ed.claude.is_some());
         let chat_win = t.s.active;
         // Below the file.
-        let rect = |t: &T, id| {
-            t.s.tree
-                .layout(t.s.area)
-                .into_iter()
-                .find(|p| p.id == id)
-                .unwrap()
-                .rect
-        };
+        let rect = |t: &T, id| t.s.placed().into_iter().find(|p| p.id == id).unwrap().rect;
         assert!(rect(&t, chat_win).y > rect(&t, file_win).y);
         assert_eq!(t.s.ed.mode, Mode::Insert);
         t.keys("jj");

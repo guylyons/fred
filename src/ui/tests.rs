@@ -1902,18 +1902,8 @@ fn zap_reaches_every_window() {
     s.handle_keys(&format!(":vsplit {}<Enter>", d.path().join("b").display()));
     sc.draw_session(&mut s);
     // As the app does after a draw.
-    let p = s
-        .tree
-        .layout(s.area)
-        .into_iter()
-        .find(|p| p.id == s.active)
-        .unwrap();
-    s.ed.viewport = Some(crate::zap::Viewport::of(
-        p.rect,
-        p.divider,
-        &s.ed,
-        s.win().view,
-    ));
+    let p = s.placed().into_iter().find(|p| p.id == s.active).unwrap();
+    s.ed.viewport = Some(crate::zap::Viewport::of(p.text(), &s.ed, s.win().view));
     let left = s.active;
     s.handle_keys(" sz");
     sc.draw_session(&mut s);

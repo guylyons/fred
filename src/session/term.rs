@@ -16,13 +16,10 @@ impl Session {
             self.split_at(false, true, SplitWhat::Same, None);
         }
         let (cols, rows) = self
-            .tree
-            .layout(self.area)
+            .placed()
             .into_iter()
             .find(|p| p.id == self.active)
-            .map_or((80, 24), |p| {
-                (p.rect.width - u16::from(p.divider), p.rect.height - 1)
-            });
+            .map_or((80, 24), |p| (p.text().width, p.text().height));
         let ghost = match Ghost::spawn(cols, rows) {
             Ok(g) => g,
             Err(e) => {
