@@ -1,6 +1,6 @@
 //! `:claude` / `Space c`: Claude Code in a fred buffer, laid out like its
 //! CLI (`> ` prompts, `⏺` replies and tools, `⎿` results). Enter on the
-//! prompt sends it, Shift-Enter or Ctrl-J breaks the line, Ctrl-C interrupts. One
+//! prompt sends it, Shift-Enter, Ctrl-J or `\` Enter breaks the line, Ctrl-C interrupts. One
 //! `claude_command` runs for the chat, each prompt a line on its stdin
 //! (`--input-format stream-json`), with the reply streaming in while you edit,
 //! here or in another buffer. It stays up between turns, so a command Claude
@@ -306,7 +306,7 @@ pub fn live(ed: &Editor) -> bool {
     ed.claude.as_ref().is_some_and(|c| c.job.is_some())
 }
 
-/// Enter (on the prompt), Ctrl-J and Ctrl-C in a chat buffer.
+/// Enter (on the prompt), Shift-Enter, Ctrl-J and Ctrl-C in a chat buffer.
 pub fn key(ed: &mut Editor, k: Key) -> bool {
     let Some(chat) = &mut ed.claude else {
         return false;
@@ -327,10 +327,28 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     }
     let plain_enter = k.code == KeyCode::Enter && !k.ctrl && !k.alt && !k.shift;
     if plain_enter && ed.popup.is_none() && prompt_line(ed).is_some_and(|p| ed.cur.line >= p) {
+        // `\` then Enter breaks the line, as in the CLI, where Shift-Enter can't.
+        let line = ed.buf.line(ed.cur.line);
+        if insert && line[..ed.cur.byte.min(line.len())].ends_with('\\') {
+            let at = ed.buf.pos_to_char(ed.cur.line, ed.cur.byte);
+            ed.apply(Edit {
+                start: at - 1,
+                end: at,
+                text: "\n".into(),
+            });
+            let line = ed.cur.line + 1;
+            ed.set_cursor(line, 0);
+            return true;
+        }
         send(ed);
         return true;
     }
     false
+}
+
+/// `line` is on the prompt of a chat, where the view follows the reply.
+pub fn at_prompt(ed: &Editor, line: usize) -> bool {
+    ed.claude.is_some() && prompt_line(ed).is_some_and(|p| line >= p)
 }
 
 /// The last line starting with `>`: the prompt being typed.
@@ -1222,6 +1240,25 @@ mod tests {
         put(&mut ed, "hello\nthere");
         assert_eq!(ed.buf.text(), "> hi\n\n⏺ hello\nthere\n\n> next");
         assert_eq!((ed.cur.line, ed.cur.byte), (5, 6));
+    }
+
+    #[test]
+    fn wheeling_back_to_the_end_follows_the_reply_again() {
+        let text: String = (0..30).map(|i| format!("{i}\n")).collect();
+        let mut ed = Editor::new(Buffer::from_text(&format!("{text}> ")));
+        ed.claude = Some(Box::new(Chat::new("true")));
+        ed.set_cursor(30, 2);
+        let mut v = crate::ui::View::default();
+        v.scroll(&ed, 10, 80, false);
+        v.wheel(&ed, 10, 80, false, false);
+        assert!(v.detached);
+        v.wheel(&ed, 10, 80, false, true);
+        assert!(!v.detached);
+        // Not at the end yet: still where the wheel left it.
+        v.wheel(&ed, 10, 80, true, false);
+        v.wheel(&ed, 10, 80, true, false);
+        v.wheel(&ed, 10, 80, true, true);
+        assert!(v.detached);
     }
 
     #[test]

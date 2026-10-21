@@ -1636,12 +1636,26 @@ impl Session {
     pub fn tick_claude(&mut self) -> bool {
         let mut changed = false;
         let mut finished = None;
+        // Other windows on a chat's prompt stay on it as the reply grows above.
+        let follow: Vec<(usize, usize)> = (self.windows.iter().enumerate())
+            .filter(|(_, w)| w.id != self.active)
+            .filter(|(_, w)| crate::claude::at_prompt(self.ed_at(w.buf), w.cur.line))
+            .map(|(i, w)| {
+                let b = &self.ed_at(w.buf).buf;
+                (i, b.len_chars() - b.pos_to_char(w.cur.line, w.cur.byte))
+            })
+            .collect();
         for ed in self.editors_mut() {
             let was = crate::claude::busy(ed);
             changed |= crate::claude::tick(ed);
             if was && !crate::claude::busy(ed) {
                 finished = Some(ed.msg.clone());
             }
+        }
+        for (i, back) in follow {
+            let b = &self.ed_at(self.windows[i].buf).buf;
+            let (line, byte) = b.char_to_pos(b.len_chars().saturating_sub(back));
+            (self.windows[i].cur.line, self.windows[i].cur.byte) = (line, byte);
         }
         // The turn is over: back to the chat, where it says how it went.
         if let Some(msg) = finished
@@ -2927,6 +2941,19 @@ mod tests {
     }
 
     #[test]
+    fn chat_prompt_takes_several_lines() {
+        let mut t = T::open(Some("a"), Some("1\n"));
+        t.s.cfg.claude_command = "true".into();
+        t.s.cfg.claude_permissions = String::new();
+        t.keys(" cchi<S-Enter>there<C-j>you\\<Enter>all");
+        assert!(
+            t.s.ed.buf.text().ends_with("> hi\nthere\nyou\nall"),
+            "{:?}",
+            t.s.ed.buf.text()
+        );
+    }
+
+    #[test]
     fn the_chat_opens_in_a_pane_below_and_jj_leaves_insert() {
         let mut t = T::open(Some("a"), Some("1\n"));
         t.s.cfg.claude_command = "true".into();
@@ -2984,6 +3011,31 @@ mod tests {
                 .buf
                 .slice(0, t.s.ed.buf.len_chars())
                 .contains("exited without answering")
+        );
+    }
+
+    #[test]
+    fn a_chat_pane_left_on_its_prompt_follows_the_reply() {
+        let mut t = T::open(Some("a"), Some("1\n"));
+        let r = r#"echo '{"type":"result","duration_ms":1000,"total_cost_usd":0}'"#;
+        let text = r#"echo '{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"streamed reply"}}}'"#;
+        let block = r#"echo '{"type":"stream_event","event":{"type":"content_block_start","content_block":{"type":"text"}}}'"#;
+        t.s.cfg.claude_command = format!("sleep 0.3; {block}; {text}; sleep 1; {r}");
+        t.s.cfg.claude_permissions = String::new();
+        t.keys(" cchi<Enter><Esc><C-w>k");
+        let id = t.s.windows.iter().position(|w| w.id != t.s.active).unwrap();
+        let chat = t.s.windows[id].buf;
+        let start = std::time::Instant::now();
+        while !t.s.ed_at(chat).buf.text().contains("streamed reply")
+            && start.elapsed().as_secs() < 5
+        {
+            t.s.tick_claude();
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        let (w, ed) = (&t.s.windows[id], t.s.ed_at(chat));
+        assert_eq!(
+            (w.cur.line, ed.buf.line(w.cur.line).as_str()),
+            (ed.line_count() - 1, "> ")
         );
     }
 

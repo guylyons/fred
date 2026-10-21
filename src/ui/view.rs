@@ -65,6 +65,7 @@ impl View {
             }
             .min(ed.line_count().saturating_sub(rows));
             self.top_row = 0;
+            self.reattach(ed, down && self.top == ed.line_count().saturating_sub(rows));
             return;
         }
         let rows_of = |l| {
@@ -101,8 +102,17 @@ impl View {
         let last = ed.folds.prev_visible(ed.line_count() - 1);
         let max_top = up((last, rows_of(last) - 1), rows.saturating_sub(1), &rows_of);
         (self.top, self.top_row) = top.min(max_top);
+        self.reattach(ed, down && (self.top, self.top_row) == max_top);
         if wrap {
             self.left = 0;
+        }
+    }
+
+    /// Wheeled back down to the end of a chat, with the cursor on its
+    /// prompt: the view follows the reply again.
+    fn reattach(&mut self, ed: &Editor, at_end: bool) {
+        if at_end && crate::claude::at_prompt(ed, ed.cur.line) {
+            self.detached = false;
         }
     }
 
