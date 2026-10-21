@@ -65,6 +65,15 @@ pub fn mac_key(s: &mut Session, key: char, shift: bool) {
         s.ed.vim.restart_insert = false;
         keys(s, "<Esc>");
     }
+    // Cmd-W closes the tab, as in Sublime.
+    if key == 'w' {
+        let (id, b) = (s.active, s.win().buf);
+        let i = s.win().tabs.iter().position(|&t| t == b).unwrap_or(0);
+        if let Err(e) = s.close_tab(id, i) {
+            s.ed.set_err(e);
+        }
+        return;
+    }
     keys(
         s,
         match (key, shift) {
@@ -74,7 +83,6 @@ pub fn mac_key(s: &mut Session, key: char, shift: bool) {
             ('c', _) => return copy(s, "yy"),
             ('x', _) => return copy(s, "dd"),
             ('a', _) => "ggVG",
-            ('w', _) => ":q<Enter>",
             _ => "/",
         },
     );
@@ -257,10 +265,11 @@ mod tests {
                 "Cmd-F, drag {drag}"
             );
             assert_eq!(s.ed.buf.line(0).trim_end(), "hello world");
+            // Cmd-W closes the tab: the buffer, hidden, is untouched.
             let (mut s, _d) = insert_selection(drag);
             mac_key(&mut s, 'w', false);
             assert_eq!(
-                s.ed.buf.line(0).trim_end(),
+                s.ed_at(0).buf.line(0).trim_end(),
                 "hello world",
                 "Cmd-W, drag {drag}"
             );

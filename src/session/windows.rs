@@ -69,12 +69,7 @@ impl Session {
             .collect();
         // Each split leaves the window its share and gives the new one the rest.
         let size = |s: &Session, vertical: bool, left: usize| {
-            let r = s
-                .tree
-                .layout(s.area)
-                .into_iter()
-                .find(|p| p.id == s.active)?
-                .rect;
+            let r = s.placed().into_iter().find(|p| p.id == s.active)?.rect;
             let len = usize::from(if vertical { r.width } else { r.height });
             Some((len - len / left).saturating_sub(1))
         };
@@ -129,10 +124,10 @@ impl Session {
     /// Close window `id`; the window that takes its space (above or left,
     /// else below or right) becomes active if `id` was. Its buffer stays.
     pub fn close_window(&mut self, id: usize) -> Result<(), &'static str> {
-        let old = self.tree.layout(self.area).into_iter().find(|p| p.id == id);
+        let old = self.placed().into_iter().find(|p| p.id == id);
         self.tree.close(self.area, id)?;
         if id == self.active {
-            let placed = self.tree.layout(self.area);
+            let placed = self.placed();
             let heir = old
                 .and_then(|o| placed.iter().find(|p| p.rect.intersects(o.rect)))
                 .map_or(self.tree.order()[0], |p| p.id);
@@ -191,15 +186,13 @@ impl Session {
     pub fn mouse(&mut self, screen: Rect, m: MouseEvent) {
         let mut area = screen;
         // The picker and the right-click menu are drawn over the whole screen.
-        if self.windows.len() > 1
-            && self.ed.menu.is_none()
-            && !matches!(self.ed.mode, Mode::Pick(_))
-        {
+        let windows = self.ed.menu.is_none() && !matches!(self.ed.mode, Mode::Pick(_));
+        if windows && self.windows.len() > 1 {
             // A press on a status line or divider drags it to resize.
             match (m.kind, self.grab) {
                 (MouseEventKind::Down(MouseButton::Left), _) => {
                     let at = (m.column, m.row).into();
-                    let placed = self.tree.layout(self.area);
+                    let placed = self.placed();
                     let p = placed.iter().find(|p| p.rect.contains(at));
                     let status = p
                         .filter(|p| m.row + 1 == p.rect.bottom())
@@ -230,7 +223,7 @@ impl Session {
                 }
                 _ => {}
             }
-            let placed = self.tree.layout(self.area);
+            let placed = self.placed();
             if m.kind == MouseEventKind::Down(MouseButton::Left)
                 && let Some(p) = placed
                     .iter()
@@ -242,15 +235,19 @@ impl Session {
                 self.focus(p.id);
                 self.win_mut().view.last_click = None;
             }
-            // Its text and status line, as `mouse` expects the whole screen
-            // to be (it leaves out the last two rows): outside it is ignored.
-            if let Some(p) = placed.iter().find(|p| p.id == self.active) {
-                area = Rect {
-                    width: p.rect.width - u16::from(p.divider),
-                    height: p.rect.height + 1,
-                    ..p.rect
-                };
-            }
+        }
+        // Its text and status line, as `mouse` expects the whole screen
+        // to be (it leaves out the last two rows): outside it, and on the
+        // GUI's tab row and minimap, it is ignored.
+        if windows
+            && (self.windows.len() > 1 || self.chrome != (0, 0))
+            && let Some(p) = self.placed().iter().find(|p| p.id == self.active)
+        {
+            let text = p.text();
+            area = Rect {
+                height: text.height + 2,
+                ..text
+            };
         }
         // A terminal: the wheel scrolls back through its output, and a
         // click is for typing in it.
@@ -270,7 +267,7 @@ impl Session {
 
     /// Zap just opened on the active window: add the words in every other.
     pub(super) fn zap_windows(&mut self) {
-        let placed = self.tree.layout(self.area);
+        let placed = self.placed();
         let mut more = vec![];
         for w in &self.windows {
             let Some(p) = placed.iter().find(|p| p.id == w.id && p.id != self.active) else {
@@ -283,7 +280,7 @@ impl Session {
             };
             // ponytail: a wrapped line under the live cursor counts that
             // cursor, not this window's; off by a row at worst, near it.
-            let vp = crate::zap::Viewport::of(p.rect, p.divider, ed, w.view);
+            let vp = crate::zap::Viewport::of(p.text(), ed, w.view);
             more.extend(crate::zap::words(ed, vp).into_iter().map(|mut x| {
                 x.win = Some(w.id);
                 x
@@ -320,12 +317,7 @@ impl Session {
     /// The active window's cursor cell on screen, near enough to choose
     /// between neighbours.
     fn cursor_cell(&self) -> (u16, u16) {
-        let Some(p) = self
-            .tree
-            .layout(self.area)
-            .into_iter()
-            .find(|p| p.id == self.active)
-        else {
+        let Some(p) = self.placed().into_iter().find(|p| p.id == self.active) else {
             return (0, 0);
         };
         let view = self.win().view;
@@ -336,7 +328,7 @@ impl Session {
         let last = |len: u16| len.saturating_sub(1) as usize;
         (
             p.rect.x + x.min(last(p.rect.width)) as u16,
-            p.rect.y + y.min(last(p.rect.height)) as u16,
+            p.rect.y + p.header + y.min(last(p.rect.height - p.header)) as u16,
         )
     }
 

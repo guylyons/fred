@@ -45,6 +45,33 @@ pub struct Win {
     /// The buffer's file, absolute; absent for no-name and special buffers.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
+    /// The window id, for `tab` and `scroll`.
+    #[serde(default)]
+    pub id: usize,
+    /// Rows at the top for the tab strip; `rows` starts below them.
+    #[serde(default)]
+    pub header: u16,
+    /// Columns at the right for the minimap, which no row covers.
+    #[serde(default)]
+    pub margin: u16,
+    /// The first buffer line shown, and the buffer's line count.
+    #[serde(default)]
+    pub top: usize,
+    #[serde(default)]
+    pub lines: usize,
+    /// In display order, exactly one `current`.
+    #[serde(default)]
+    pub tabs: Vec<Tab>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct Tab {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    pub modified: bool,
+    pub preview: bool,
+    pub current: bool,
 }
 
 /// Selected cells `x..x + w` of text row `y`.
@@ -106,6 +133,9 @@ pub enum In {
     Resize {
         cols: u16,
         rows: u16,
+        /// Columns per window for the minimap; 0 turns it off.
+        #[serde(default)]
+        margin: u16,
     },
     Keys {
         seq: u64,
@@ -130,6 +160,25 @@ pub enum In {
     Open {
         seq: u64,
         path: std::path::PathBuf,
+        /// A sidebar single-click: a preview tab, which the next replaces.
+        #[serde(default)]
+        preview: bool,
+    },
+    /// A tab strip action on window `win`'s tab `index`: `select`,
+    /// `close`, `move` (to `to`) or `keep`.
+    Tab {
+        seq: u64,
+        win: usize,
+        op: String,
+        index: usize,
+        #[serde(default)]
+        to: usize,
+    },
+    /// The minimap: show window `win` from line `top`.
+    Scroll {
+        seq: u64,
+        win: usize,
+        top: usize,
     },
     Quit,
 }

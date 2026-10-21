@@ -177,6 +177,9 @@ pub struct Session {
     pub hl_incomplete: bool,
     /// Run by the native Mac app: `:bn` and `:bp` follow the window's tabs.
     pub gui: bool,
+    /// Each window's GUI chrome: rows for its tab strip and columns for
+    /// its minimap. (0, 0) in the terminal.
+    pub chrome: (u16, u16),
 }
 
 fn make_editor(buf: Buffer, opts: Options, cfg: &Config) -> Editor {
@@ -382,6 +385,7 @@ impl Session {
             hl: Highlighter::new("ansi", false)?,
             hl_incomplete: false,
             gui: false,
+            chrome: (0, 0),
         };
         let dir = browse.clone().or_else(|| {
             s.ed.path
@@ -503,6 +507,7 @@ impl Session {
             }
         }
         self.keep_edited_previews();
+        self.check_tabs();
     }
 
     pub fn perform(&mut self, eff: ExEffect) {
@@ -1102,7 +1107,7 @@ impl Session {
         &mut self,
         mut f: impl FnMut(&Editor, &mut View, &mut Highlighter, Placed, bool),
     ) {
-        let mut placed = self.tree.layout(self.area);
+        let mut placed = self.placed();
         placed.sort_by_key(|p| p.id != self.active);
         for p in placed {
             let Some(w) = self.windows.iter_mut().find(|w| w.id == p.id) else {
@@ -1141,6 +1146,20 @@ impl Session {
         }
     }
 
+    /// The windows on screen, with their GUI chrome.
+    pub fn placed(&self) -> Vec<Placed> {
+        let (header, margin) = self.chrome;
+        self.tree
+            .layout(self.area)
+            .into_iter()
+            .map(|p| Placed {
+                header,
+                margin,
+                ..p
+            })
+            .collect()
+    }
+
     /// The active window.
     pub fn win(&self) -> &Window {
         self.windows
@@ -1167,7 +1186,7 @@ impl Session {
         })
     }
 
-    fn ed_at(&self, i: usize) -> &Editor {
+    pub(crate) fn ed_at(&self, i: usize) -> &Editor {
         self.bufs[i].as_ref().map_or(&self.ed, |b| &b.ed)
     }
 
@@ -1190,16 +1209,18 @@ impl Session {
     }
 
     /// A buffer by `:b` argument: a number, `#` (the one used before this
-    /// one), its file name or part of its path, or nothing (this one).
+    /// one; in the GUI, of the window's tabs), its file name or part of its path, or nothing (this one).
     fn buffer_arg(&self, arg: &str) -> Result<usize, String> {
         if arg.is_empty() {
             return Ok(self.cur);
         }
         if arg == "#" {
+            // In the GUI, Ctrl-^ stays among the window's tabs.
             return self
                 .bufs
                 .iter()
                 .enumerate()
+                .filter(|(i, _)| !self.gui || self.win().tabs.contains(i))
                 .filter_map(|(i, b)| Some((b.as_ref()?.used, i)))
                 .max()
                 .map(|(_, i)| i)
@@ -2098,11 +2119,7 @@ mod tests {
         t.s.mouse(screen, ev(MouseEventKind::Drag(MouseButton::Left), 6));
         t.s.mouse(screen, ev(MouseEventKind::Up(MouseButton::Left), 6));
         let heights: Vec<(usize, u16)> =
-            t.s.tree
-                .layout(t.s.area)
-                .iter()
-                .map(|p| (p.id, p.rect.height))
-                .collect();
+            t.s.placed().iter().map(|p| (p.id, p.rect.height)).collect();
         assert_eq!(heights, vec![(top, 7), (bottom, 16)]);
         assert!(t.s.grab.is_none());
     }
@@ -2128,12 +2145,7 @@ mod tests {
     fn space_w_c_lays_out_a_grid() {
         let mut t = T::open(Some("a"), Some("1\n"));
         let rects = |t: &T| {
-            let mut r: Vec<_> =
-                t.s.tree
-                    .layout(t.s.area)
-                    .into_iter()
-                    .map(|p| p.rect)
-                    .collect();
+            let mut r: Vec<_> = t.s.placed().into_iter().map(|p| p.rect).collect();
             r.sort_by_key(|r| (r.y, r.x));
             r
         };
@@ -2195,7 +2207,7 @@ mod tests {
     fn split_count_sets_height() {
         let mut t = T::open(Some("a"), Some("a\n"));
         t.keys(":5split<Enter>");
-        let p = t.s.tree.layout(t.s.area);
+        let p = t.s.placed();
         assert_eq!(p[0].rect.height, 6); // 5 text rows + status line
     }
 
@@ -2990,14 +3002,7 @@ mod tests {
         assert!(t.s.ed.claude.is_some());
         let chat_win = t.s.active;
         // Below the file.
-        let rect = |t: &T, id| {
-            t.s.tree
-                .layout(t.s.area)
-                .into_iter()
-                .find(|p| p.id == id)
-                .unwrap()
-                .rect
-        };
+        let rect = |t: &T, id| t.s.placed().into_iter().find(|p| p.id == id).unwrap().rect;
         assert!(rect(&t, chat_win).y > rect(&t, file_win).y);
         assert_eq!(t.s.ed.mode, Mode::Insert);
         t.keys("jj");

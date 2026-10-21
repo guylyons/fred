@@ -143,6 +143,8 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
         s.no_swap = true;
         s.ed.set_msg("swap file found: opened read-only");
     }
+    // Tabs: `:bn` and `:bp` follow the window's.
+    s.gui = true;
     s.lock();
     let remote = crate::remote::Remote::listen().ok();
     let stop = Arc::new(AtomicBool::new(false));
@@ -217,8 +219,9 @@ fn event_loop(
     let mut held_at = None;
     // The app sends its size first; without it the first frame would be 80x24.
     let mut first = match rx.recv_timeout(std::time::Duration::from_millis(200)) {
-        Ok(In::Resize { cols, rows }) => {
+        Ok(In::Resize { cols, rows, margin }) => {
             term.backend_mut().resize(cols, rows);
+            s.chrome = (1, margin);
             None
         }
         Ok(m) => Some(m),
@@ -330,7 +333,9 @@ fn seq_of(m: &In) -> Option<u64> {
         | In::Paste { seq, .. }
         | In::Mouse { seq, .. }
         | In::Mac { seq, .. }
-        | In::Open { seq, .. } => Some(*seq),
+        | In::Open { seq, .. }
+        | In::Tab { seq, .. }
+        | In::Scroll { seq, .. } => Some(*seq),
         In::Resize { .. } | In::Quit => None,
     }
 }
@@ -454,8 +459,9 @@ fn input(s: &mut Session, term: &mut Terminal<TestBackend>, m: In) {
     }
     let terminal = s.in_terminal() && s.ed.menu.is_none();
     match m {
-        In::Resize { cols, rows } => {
+        In::Resize { cols, rows, margin } => {
             term.backend_mut().resize(cols, rows);
+            s.chrome = (1, margin);
             s.ed.zap = None;
         }
         In::Keys { keys, .. } if terminal => {
@@ -465,7 +471,10 @@ fn input(s: &mut Session, term: &mut Terminal<TestBackend>, m: In) {
         }
         In::Keys { keys, .. } => handle_keys(s, &keys),
         In::Paste { text, .. } if terminal => s.term_paste(&text),
-        In::Paste { text, .. } => s.ed.paste(&text),
+        In::Paste { text, .. } => {
+            s.ed.paste(&text);
+            s.keep_edited_previews();
+        }
         In::Mouse { kind, col, row, .. } => {
             let kind = match kind.as_str() {
                 "down" => MouseEventKind::Down(MouseButton::Left),
@@ -489,7 +498,24 @@ fn input(s: &mut Session, term: &mut Terminal<TestBackend>, m: In) {
         }
         In::Mac { key, shift, .. } => mac::mac_key(s, key, shift),
         // Canonical, so a path under the working directory shows relative to it.
-        In::Open { path, .. } => s.open_pick(std::fs::canonicalize(&path).unwrap_or(path), None),
+        In::Open { path, preview, .. } => {
+            s.open_preview(&std::fs::canonicalize(&path).unwrap_or(path), preview)
+        }
+        In::Tab {
+            win, op, index, to, ..
+        } => {
+            let done = match op.as_str() {
+                "select" => s.select_tab(win, index),
+                "close" => s.close_tab(win, index),
+                "move" => s.move_tab(win, index, to),
+                "keep" => s.keep_tab(win, index),
+                _ => Err(format!("unknown tab op {op:?}")),
+            };
+            if let Err(e) = done {
+                s.ed.set_err(e);
+            }
+        }
+        In::Scroll { win, top, .. } => scroll(s, win, top),
         In::Quit => handle_keys(s, "<Esc>:qa<Enter>"),
     }
     if keyboard && !keep_view && s.ed.zap.is_none() && s.ed.vim.pending != [Key::ch(' ')] {
@@ -498,6 +524,22 @@ fn input(s: &mut Session, term: &mut Terminal<TestBackend>, m: In) {
     if let Some(d) = s.ed.buf.take_dirty_from() {
         s.hl.invalidate(d);
     }
+}
+
+/// Show window `win` from line `top`, clamped to its last screenful. As
+/// with the wheel, the cursor stays put until the next key.
+fn scroll(s: &mut Session, win: usize, top: usize) {
+    let Some(p) = s.placed().into_iter().find(|p| p.id == win) else {
+        return;
+    };
+    let Some(k) = s.windows.iter().position(|w| w.id == win) else {
+        return;
+    };
+    let lines = s.ed_at(s.windows[k].buf).line_count();
+    let view = &mut s.windows[k].view;
+    view.top = top.min(lines.saturating_sub(usize::from(p.text().height)));
+    view.top_row = 0;
+    view.detached = true;
 }
 
 /// Keys in Vim notation. Alt keys go whole to the buffers that bind them;
@@ -584,7 +626,26 @@ mod tests {
             p(r#"{"t":"open","seq":3,"path":"/a/b"}"#),
             In::Open {
                 seq: 3,
-                path: "/a/b".into()
+                path: "/a/b".into(),
+                preview: false
+            }
+        );
+        assert_eq!(
+            p(r#"{"t":"tab","seq":8,"win":3,"op":"move","index":2,"to":0}"#),
+            In::Tab {
+                seq: 8,
+                win: 3,
+                op: "move".into(),
+                index: 2,
+                to: 0
+            }
+        );
+        assert_eq!(
+            p(r#"{"t":"resize","cols":1,"rows":2,"margin":8}"#),
+            In::Resize {
+                cols: 1,
+                rows: 2,
+                margin: 8
             }
         );
         assert!(serde_json::from_str::<In>(r#"{"t":"bogus"}"#).is_err());
@@ -617,7 +678,12 @@ mod tests {
     fn the_first_frame_waits_for_the_apps_size() {
         let (mut s, _d) = session("1\n");
         let (tx, rx) = mpsc::channel();
-        tx.send(In::Resize { cols: 50, rows: 7 }).unwrap();
+        tx.send(In::Resize {
+            cols: 50,
+            rows: 7,
+            margin: 0,
+        })
+        .unwrap();
         tx.send(In::Quit).unwrap();
         let mut out = vec![];
         let stop = AtomicBool::new(false);

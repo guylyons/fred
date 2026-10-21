@@ -792,7 +792,11 @@ pub fn draw(
         height: area.height.saturating_sub(chrome_rows(ed, area)),
         ..area
     };
-    let cursor = draw_window(f.buffer_mut(), win, ed, view, hl, cfg, budget, true, false);
+    let win = crate::window::Placed {
+        rect: win,
+        ..Default::default()
+    };
+    let cursor = draw_window(f.buffer_mut(), win, ed, view, hl, cfg, budget, true);
     draw_chrome(f, area, ed, view, hl, cfg, budget, cursor);
 }
 
@@ -803,26 +807,28 @@ pub fn draw(
 #[allow(clippy::too_many_arguments)]
 pub fn draw_window(
     buf: &mut Screen,
-    rect: Rect,
+    placed: crate::window::Placed,
     ed: &Editor,
     view: &mut View,
     hl: &mut Highlighter,
     cfg: &Config,
     budget: Duration,
     active: bool,
-    divider: bool,
 ) -> Option<(u16, u16)> {
-    if rect.height == 0 || rect.width <= u16::from(divider) {
+    let (rect, divider) = (placed.rect, placed.divider);
+    // The GUI's tab row and minimap margin are left out of the text area.
+    let area = placed.text();
+    if rect.height == 0 || rect.width <= u16::from(divider) || area.width == 0 {
         return None;
     }
-    let area = Rect {
-        width: rect.width - u16::from(divider),
-        height: rect.height - 1,
-        ..rect
-    };
+    let status = Rect::new(
+        rect.x,
+        rect.bottom() - 1,
+        rect.width - u16::from(divider),
+        1,
+    );
     if let Some(t) = &ed.term {
         let cursor = t.borrow_mut().draw(buf, area);
-        let status = Rect::new(area.x, area.bottom(), area.width, 1);
         draw_status(buf, status, ed, hl, active);
         draw_divider(buf, rect, divider);
         return cursor
@@ -1198,13 +1204,7 @@ pub fn draw_window(
             let text_area = Rect::new(ox, oy, area.width, rows as u16);
             draw_explain(buf, text_area, gutter, text, ex_top, ex_end)
         });
-    draw_status(
-        buf,
-        Rect::new(ox, oy + rows as u16, area.width, 1),
-        ed,
-        hl,
-        active,
-    );
+    draw_status(buf, status, ed, hl, active);
     draw_divider(buf, rect, divider);
     let (cx, cy) = cursor.filter(|_| active && rows > 0)?;
     if cy < rows {

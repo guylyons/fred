@@ -19,11 +19,31 @@ pub enum Node {
 
 /// A window on screen. `rect` includes its status row (the last row);
 /// `divider` means the last column is the `│` to a right-hand neighbour.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// The GUI reserves `header` rows at the top (its tab strip) and `margin`
+/// columns at the right, before the divider (its minimap).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Placed {
     pub id: usize,
     pub rect: Rect,
     pub divider: bool,
+    pub header: u16,
+    pub margin: u16,
+}
+
+impl Placed {
+    /// Where the text goes: `rect` less the header, status row, margin
+    /// and divider.
+    pub fn text(&self) -> Rect {
+        Rect {
+            y: self.rect.y + self.header.min(self.rect.height),
+            height: self.rect.height.saturating_sub(self.header + 1),
+            width: self
+                .rect
+                .width
+                .saturating_sub(u16::from(self.divider) + self.margin),
+            ..self.rect
+        }
+    }
 }
 
 /// One window: the buffer it shows (an index into `Session::bufs`), its
@@ -117,6 +137,7 @@ impl Node {
                     id: *id,
                     rect: area,
                     divider,
+                    ..Placed::default()
                 });
             }
             return;

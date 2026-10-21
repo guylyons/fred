@@ -48,7 +48,8 @@ impl Session {
             return Ok(());
         }
         if shown {
-            let back = self.active;
+            // Focus moves there and back: CTRL-W p's target stays.
+            let (back, prev_win) = (self.active, self.prev_win);
             self.focus(win);
             let blank =
                 self.ed.path.is_none() && !self.ed.buf.modified && self.ed.buf.len_bytes() == 0;
@@ -64,6 +65,7 @@ impl Session {
                 self.new_buffer();
             }
             self.focus(back);
+            self.prev_win = prev_win;
             if tabs.len() == 1 && blank {
                 // Already an empty `[No Name]`: nothing to close.
                 return Ok(());
@@ -121,6 +123,8 @@ impl Session {
                 .position(|&t| t == old)
                 .expect("preview in tabs");
             w.tabs[at] = i;
+            // No longer a tab here: CTRL-^ must not bring it back.
+            w.prev = w.prev.filter(|&p| p != old);
             let fresh = w.preview_mark.1;
             if fresh
                 && !self.ed_at(old).buf.modified
@@ -151,7 +155,7 @@ impl Session {
     }
 
     /// Every window's tabs hold its shown buffer, real buffers, no
-    /// duplicates, and its preview.
+    /// duplicates, its preview and its alternate (CTRL-^). Debug builds only.
     pub(crate) fn check_tabs(&self) {
         if !cfg!(debug_assertions) {
             return;
@@ -160,11 +164,12 @@ impl Session {
             let mut seen = w.tabs.clone();
             seen.sort_unstable();
             seen.dedup();
-            debug_assert!(
+            assert!(
                 w.tabs.contains(&w.buf)
                     && seen.len() == w.tabs.len()
                     && seen.last().is_none_or(|&b| b < self.bufs.len())
-                    && w.preview.is_none_or(|p| w.tabs.contains(&p)),
+                    && w.preview.is_none_or(|p| w.tabs.contains(&p))
+                    && w.prev.is_none_or(|p| w.tabs.contains(&p)),
                 "bad tabs: {w:?} with {} buffers",
                 self.bufs.len()
             );
@@ -382,6 +387,43 @@ mod tests {
         t.s.open_preview(&t.path("b"), true);
         assert_eq!(t.s.bufs.len(), 2);
         assert_eq!(t.tabs(), ["a", "b"]);
+        t.s.check_tabs();
+    }
+
+    #[test]
+    fn a_replaced_preview_kept_open_is_not_the_alternate() {
+        let mut t = T::new(&["a", "b", "c"]);
+        // b is open before its preview, so replacing it keeps it, hidden.
+        t.e("b");
+        t.keys(":b1<Enter>");
+        let id = t.id();
+        t.s.close_tab(id, 1).unwrap();
+        t.s.open_preview(&t.path("b"), true);
+        t.s.open_preview(&t.path("c"), true);
+        assert_eq!(t.tabs(), ["a", "c"]);
+        assert_eq!(t.s.bufs.len(), 3);
+        // Ctrl-^ never brings back a buffer that is not a tab: in the
+        // GUI it goes back to a. (The terminal's is every buffer's.)
+        assert_eq!(t.s.win().prev, None);
+        t.s.gui = true;
+        t.keys("<C-^>");
+        assert_eq!(t.current(), "a");
+        t.s.check_tabs();
+    }
+
+    #[test]
+    fn closing_a_tab_in_another_window_keeps_ctrl_w_p() {
+        let mut t = T::new(&["a", "b"]);
+        t.e("b");
+        let first = t.id();
+        t.keys(":split<Enter>");
+        let second = t.id();
+        t.keys(":split<Enter>");
+        // CTRL-W p goes back to the second window.
+        assert_ne!(t.id(), second);
+        t.s.close_tab(first, 1).unwrap();
+        t.keys("<C-w>p");
+        assert_eq!(t.id(), second);
         t.s.check_tabs();
     }
 

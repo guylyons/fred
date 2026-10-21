@@ -30,13 +30,14 @@ pub fn draw_session(f: &mut Frame, s: &mut Session, cfg: &Config, budget: Durati
     let zapping = s.ed.zap.is_some();
     s.each_window(|ed, view, hl, p, active| {
         let left = budget.saturating_sub(start.elapsed());
-        let at = draw_window(buf, p.rect, ed, view, hl, cfg, left, active, p.divider);
+        let at = draw_window(buf, p, ed, view, hl, cfg, left, active);
         if active {
             cursor = at;
         } else if zapping {
-            let vp = crate::zap::Viewport::of(p.rect, p.divider, ed, *view);
-            let gutter = gutter_width(ed).min((p.rect.width - u16::from(p.divider)) as usize / 2);
-            zap_areas.push((p.id, (p.rect.x, p.rect.y), gutter, vp.cols, vp.rows));
+            let text = p.text();
+            let vp = crate::zap::Viewport::of(text, ed, *view);
+            let gutter = gutter_width(ed).min(text.width as usize / 2);
+            zap_areas.push((p.id, (text.x, text.y), gutter, vp.cols, vp.rows));
         }
         // Magit draws without the highlighter: its flag means nothing.
         incomplete |= ed.magit.is_none() && hl.incomplete();
@@ -49,16 +50,28 @@ pub fn draw_session(f: &mut Frame, s: &mut Session, cfg: &Config, budget: Durati
     }
     if s.picking_window {
         let order = s.tree.order();
-        for p in s.tree.layout(s.area) {
+        for p in s.placed() {
             if let Some(i) = order.iter().position(|&id| id == p.id) {
-                number(buf, p.rect, i + 1);
+                // Below the GUI's tab row and clear of its minimap.
+                let rect = Rect {
+                    y: p.text().y,
+                    height: p.rect.height.saturating_sub(p.header),
+                    width: p.rect.width.saturating_sub(p.margin),
+                    ..p.rect
+                };
+                number(buf, rect, i + 1);
             }
         }
     }
     if s.which_key
         && let Some((title, keys)) = crate::vim::which_key(&s.ed)
     {
-        which_key(buf, s.area, title, &keys);
+        // Clear of the GUI's minimap.
+        let area = Rect {
+            width: s.area.width.saturating_sub(s.chrome.1),
+            ..s.area
+        };
+        which_key(buf, area, title, &keys);
     }
     let mut view = s.win().view;
     draw_chrome(f, area, &s.ed, &mut view, &mut s.hl, cfg, budget, cursor);
