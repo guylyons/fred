@@ -10,6 +10,15 @@ fn keys(s: &mut Session, k: &str) {
 }
 
 /// An ex command that leaves the mode alone (so it works from Insert).
+/// Yank or delete, and always reach the system clipboard (even with
+/// `clipboard = false`, where plain y/d leave it alone).
+fn copy(s: &mut Session, k: &str) {
+    keys(s, k);
+    if !s.ed.clipboard() {
+        crate::clipboard::set(&s.ed.reg);
+    }
+}
+
 fn ex(s: &mut Session, cmd: &str) {
     s.ed.run_ex(cmd);
     if let Some(eff) = s.ed.pending_effect.take() {
@@ -25,21 +34,24 @@ pub fn mac_key(s: &mut Session, key: char, shift: bool) {
     let visual = matches!(s.ed.mode, Mode::Visual { .. } | Mode::VisualLine { .. });
     // Save and undo/redo keep the mode; the rest start from Normal.
     match key {
-        's' if insert || visual => return ex(s, "w"),
+        's' if visual => return ex(s, "w"),
+        // Saving inside the open undo group would leave the buffer marked
+        // modified when Esc closes it, so close it, save, and come back.
+        's' if insert => {
+            let before = s.ed.cur.byte;
+            keys(s, "<Esc>");
+            let moved = s.ed.cur.byte < before;
+            ex(s, "w");
+            return keys(s, if moved { "a" } else { "i" });
+        }
+        // Esc closes the open undo group; then undo and go back to Insert.
         'z' if insert => {
-            let p = if shift {
-                s.ed.undo.redo(&mut s.ed.buf)
-            } else {
-                s.ed.undo.undo(&mut s.ed.buf)
-            };
-            if let Some(p) = p {
-                s.ed.set_cursor(p.0, p.1);
-            }
+            keys(s, if shift { "<Esc><C-r>i" } else { "<Esc>ui" });
             return;
         }
         'c' | 'x' if insert => return,
-        'c' if visual => return keys(s, "y"),
-        'x' if visual => return keys(s, "d"),
+        'c' if visual => return copy(s, "y"),
+        'x' if visual => return copy(s, "d"),
         'a' if visual => return keys(s, "ggVG"),
         _ => {}
     }
@@ -52,8 +64,8 @@ pub fn mac_key(s: &mut Session, key: char, shift: bool) {
             ('s', _) => ":w<Enter>",
             ('z', false) => "u",
             ('z', true) => "<C-r>",
-            ('c', _) => "yy",
-            ('x', _) => "dd",
+            ('c', _) => return copy(s, "yy"),
+            ('x', _) => return copy(s, "dd"),
             ('a', _) => "ggVG",
             ('w', _) => ":q<Enter>",
             _ => "/",
@@ -107,6 +119,39 @@ mod tests {
         mac_key(&mut s, 'z', false);
         assert_eq!(s.ed.mode, Mode::Insert);
         assert_eq!(s.ed.buf.line(0).trim_end(), "one");
+    }
+
+    #[test]
+    fn cmd_z_in_insert_undoes_typed_text_and_redo_restores_it() {
+        let (mut s, _d) = open("one\n");
+        s.handle_keys("x");
+        s.handle_keys("Ahi");
+        mac_key(&mut s, 'z', false);
+        assert_eq!(s.ed.mode, Mode::Insert);
+        assert_eq!(s.ed.buf.line(0).trim_end(), "ne");
+        mac_key(&mut s, 'z', true);
+        assert_eq!(s.ed.mode, Mode::Insert);
+        assert_eq!(s.ed.buf.line(0).trim_end(), "nehi");
+    }
+
+    #[test]
+    fn cmd_s_in_insert_then_esc_stays_unmodified() {
+        let (mut s, _d) = open("one\n");
+        s.handle_keys("Ahi");
+        mac_key(&mut s, 's', false);
+        s.handle_keys("<Esc>");
+        assert!(!s.ed.buf.modified);
+    }
+
+    #[test]
+    fn cmd_c_and_x_reach_the_clipboard_with_clipboard_off() {
+        let (mut s, _d) = open("a\nb\n");
+        s.handle_keys(":set clipboard=<Enter>");
+        assert!(!s.ed.clipboard());
+        mac_key(&mut s, 'c', false);
+        assert_eq!(crate::clipboard::get().as_deref(), Some("a\n"));
+        mac_key(&mut s, 'x', false);
+        assert_eq!(s.ed.buf.line(0).trim_end(), "b");
     }
 
     #[test]
