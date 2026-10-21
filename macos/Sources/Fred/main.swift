@@ -70,13 +70,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.windowsMenu = windowMenu.submenu
     }
 
-    @objc private func quitCore() { NSApp.terminate(nil) }
+    /// Cmd-Q asks the core to `:qa`, as the close button does: with unsaved
+    /// changes the core stays and says so, however often it is pressed.
+    @objc private func quitCore() {
+        guard let core, !core.exited else { NSApp.terminate(nil); return }
+        core.send(.quit)
+    }
 
     private var quitAsked: Date?
 
-    /// Quit asks the core to `:qa`, as the close button does; its `exit`
-    /// line ends the app. A second request within 2 s quits anyway, for a
-    /// hung core (which then sees EOF and saves its swap).
+    /// A system quit (Dock, logout) asks the core to `:qa`; its `exit` line
+    /// ends the app. A second request within 2 s quits anyway, for a hung
+    /// core (which then sees EOF and saves its swap). Cmd-Q doesn't come
+    /// here (`quitCore`).
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let core, !core.exited else { return .terminateNow }
         if let t = quitAsked, Date().timeIntervalSince(t) < 2 { return .terminateNow }

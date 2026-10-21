@@ -431,10 +431,6 @@ impl Editor {
             Mode::Pick(_) => crate::pick::pick_key(self, k),
         }
         self.clamp_cursor();
-        if self.visual_lines().is_none() {
-            self.vim.select = false;
-            self.vim.restart_insert = false;
-        }
         // Undo/redo in Visual-line mode can delete the anchor's line.
         let last = self.buf.len_lines() - 1;
         match &mut self.mode {

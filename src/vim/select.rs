@@ -39,14 +39,17 @@ pub(crate) fn shift_selects(ed: &Editor, k: Key) -> bool {
 /// `select`. From Insert mode (like Insert CTRL-O) the insert closes and
 /// the selection goes back to Insert when it ends without a change.
 pub(crate) fn start(ed: &mut Editor, anchor: (usize, usize), linewise: bool, select: bool) {
+    ed.vim.restart_insert = ed.mode == Mode::Insert;
     if ed.mode == Mode::Insert {
+        // Up and Down keep the column Insert left the cursor in.
+        let (l, b) = ed.cur.pos();
+        ed.set_cursor(l, b);
         ed.vim.after_j = false;
         ed.popup = None;
         ed.undo.end(ed.cur.pos());
         if let Some(r) = ed.vim.recording.take() {
             ed.vim.finish_recording(r);
         }
-        ed.vim.restart_insert = true;
         ed.vim.insert_left_eol =
             (ed.cur.byte >= ed.buf.line_len(ed.cur.line)).then_some(ed.cur.line);
     }
@@ -162,6 +165,15 @@ fn take(ed: &mut Editor, change: bool) -> Option<ops::Span> {
     })
 }
 
+/// `op` on `span` into the unnamed register only: Fred's deliberate
+/// difference from Neovim, whose 'clipboard' would sync it (see
+/// docs/nvim-parity.csv, `gh`).
+fn apply_keeping_clipboard(ed: &mut Editor, op: char, span: ops::Span) {
+    ed.vim.keep_clipboard = true;
+    ops::apply_op(ed, op, span);
+    ed.vim.keep_clipboard = false;
+}
+
 fn start_of(span: &ops::Span) -> (usize, usize) {
     match *span {
         ops::Span::Chars(from, _) => from,
@@ -174,7 +186,7 @@ fn start_of(span: &ops::Span) -> (usize, usize) {
 fn delete(ed: &mut Editor) {
     let Some(span) = take(ed, false) else { return };
     ed.undo.begin(start_of(&span));
-    ops::apply_op(ed, 'd', span);
+    apply_keeping_clipboard(ed, 'd', span);
     ed.undo.end(ed.cur.pos());
     end(ed);
 }
@@ -194,7 +206,7 @@ pub(crate) fn change(ed: &mut Editor, black_hole: bool) -> bool {
         ed.mode = Mode::Insert;
         ed.set_cursor(from.0, from.1);
     } else {
-        ops::apply_op(ed, 'c', span);
+        apply_keeping_clipboard(ed, 'c', span);
     }
     true
 }

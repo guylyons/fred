@@ -60,6 +60,9 @@ pub fn mac_key(s: &mut Session, key: char, shift: bool) {
         _ => {}
     }
     if s.ed.mode != Mode::Normal {
+        // A selection begun in Insert would go back there on Esc, and the
+        // keys below would be typed as text.
+        s.ed.vim.restart_insert = false;
         keys(s, "<Esc>");
     }
     keys(
@@ -212,5 +215,72 @@ mod tests {
         mac_key(&mut s, 'a', false);
         assert_eq!(s.ed.buf.line(0).trim_end(), "HEllo rld");
         assert_eq!(s.ed.visual_lines(), Some((0, 0)));
+    }
+
+    /// A selection begun in Insert: by Shift+arrow, or (`drag`) as the
+    /// mouse starts one (`select::start` from Insert, what a drag calls).
+    fn insert_selection(drag: bool) -> (Session, tempfile::TempDir) {
+        let (mut s, d) = open("hello world\n");
+        s.handle_keys(":set km=startsel,stopsel slm=key,mouse<Enter>i");
+        if drag {
+            crate::vim::select::start(&mut s.ed, (0, 0), false, true);
+            s.ed.set_cursor(0, 1);
+        } else {
+            s.handle_keys("<S-Right>");
+        }
+        assert!(s.ed.select_mode());
+        (s, d)
+    }
+
+    #[test]
+    fn cmd_keys_after_a_selection_begun_in_insert_type_nothing() {
+        for drag in [false, true] {
+            let (mut s, _d) = insert_selection(drag);
+            mac_key(&mut s, 'z', false);
+            assert_eq!(
+                s.ed.buf.line(0).trim_end(),
+                "hello world",
+                "Cmd-Z, drag {drag}"
+            );
+            assert_ne!(s.ed.mode, Mode::Insert);
+            let (mut s, _d) = insert_selection(drag);
+            mac_key(&mut s, 'z', true);
+            assert_eq!(
+                s.ed.buf.line(0).trim_end(),
+                "hello world",
+                "Cmd-Shift-Z, drag {drag}"
+            );
+            let (mut s, _d) = insert_selection(drag);
+            mac_key(&mut s, 'f', false);
+            assert!(
+                matches!(s.ed.mode, Mode::Command(ref cl) if cl.kind == '/'),
+                "Cmd-F, drag {drag}"
+            );
+            assert_eq!(s.ed.buf.line(0).trim_end(), "hello world");
+            let (mut s, _d) = insert_selection(drag);
+            mac_key(&mut s, 'w', false);
+            assert_eq!(
+                s.ed.buf.line(0).trim_end(),
+                "hello world",
+                "Cmd-W, drag {drag}"
+            );
+            assert_ne!(s.ed.mode, Mode::Insert);
+        }
+    }
+
+    #[test]
+    fn select_replace_and_delete_leave_the_system_clipboard_alone() {
+        for keys in ["x", "<BS>", "<Del>"] {
+            let (mut s, _d) = open("hello world\n");
+            s.handle_keys(":set clipboard=unnamedplus<Enter>");
+            crate::clipboard::set(&crate::editor::Register {
+                text: "copied".into(),
+                linewise: false,
+            });
+            s.handle_keys(&format!("gh<Right>{keys}"));
+            assert_eq!(crate::clipboard::get().as_deref(), Some("copied"), "{keys}");
+            // The unnamed register still gets the text, as in Neovim.
+            assert_eq!(s.ed.reg.text, "he", "{keys}");
+        }
     }
 }

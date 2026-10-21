@@ -475,7 +475,7 @@ key,g,ge,motion,missing,,go backwards to the end of the previous
 key,g,gf,,missing,,start editing the file whose name is under
 key,g,gF,,missing,,start editing the file whose name is under
 key,g,gg,motion,partial,present; not yet verified against nvim,"cursor to line N, default first line"
-key,g,gh,,done,"Select mode (src/vim/select.rs): typing replaces, <BS>/<Del> delete; oracle cases",start Select mode
+key,g,gh,,done,"Select mode (src/vim/select.rs): typing replaces, <BS>/<Del> delete; oracle cases. Differs: Select replace/delete fills the unnamed register but never syncs it to the system clipboard ('clipboard'), as other Mac editors",start Select mode
 key,g,gi,change,missing,,"like ""i"", but first move to the |'^| mark"
 key,g,gj,motion,missing,,"like ""j"", but when 'wrap' on go N screen"
 key,g,gk,motion,missing,,"like ""k"", but when 'wrap' on go N screen"

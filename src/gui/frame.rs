@@ -284,6 +284,25 @@ mod tests {
     }
 
     #[test]
+    fn sel_spans_cover_wide_chars_and_a_lone_line_break() {
+        let (mut s, mut term, _d) = setup(30, 8, "a日b\nabc\ndef\n");
+        let sel = |s: &mut Session, term: &mut Terminal<TestBackend>| {
+            let f = build(s, &Config::default(), term, 0);
+            f.windows[0]
+                .sel
+                .iter()
+                .map(|p| (p.y, p.x, p.w))
+                .collect::<Vec<_>>()
+        };
+        // Ending on a wide character takes both its cells.
+        s.handle_keys("gh<Right>");
+        assert_eq!(sel(&mut s, &mut term), vec![(0, 0, 3)]);
+        // Only line 2's line break is selected: it still gets its cell.
+        s.handle_keys("<Esc>:set km=startsel slm=key<Enter>jA<S-Down>");
+        assert_eq!(sel(&mut s, &mut term), vec![(1, 3, 1), (2, 0, 3)]);
+    }
+
+    #[test]
     fn colors_encode_as_palette_or_rgb() {
         use ratatui::style::Color;
         assert_eq!(proto::color(Color::Reset), None);

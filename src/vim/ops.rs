@@ -245,7 +245,7 @@ fn apply(ed: &mut Editor, op: char, sp: Span, to_reg: bool) {
 
 /// Set the register, and the system clipboard with it.
 pub(crate) fn set_reg(ed: &mut Editor, reg: Register) {
-    if ed.clipboard() {
+    if ed.clipboard() && !ed.vim.keep_clipboard {
         crate::clipboard::set(&reg);
     }
     ed.reg = reg;

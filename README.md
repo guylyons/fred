@@ -224,7 +224,9 @@ editors': typing replaces it, `Backspace` deletes it, and `Ctrl-G` switches
 between Visual and Select. With `:set selectmode=mouse,key
 keymodel=startsel,stopsel` (the Mac app's default) dragging, double-click
 (word), triple-click (line) and `Shift`+arrows select this way, and a plain
-arrow ends the selection.
+arrow ends the selection. Typing over or deleting such a selection leaves
+the system clipboard alone. In the app, an arrow key without `Shift` ends a
+`v`/`V` selection too (`keymodel=stopsel`); `h j k l` extend it.
 
 Yanks and deletes also go to the system clipboard, and `p` puts what another
 app copied since (`clipboard = false` keeps them inside fred).

@@ -17,6 +17,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use std::time::Duration;
 use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
 
 /// Styles for increasing byte offsets of one line.
 struct Styler<'a> {
@@ -1046,9 +1047,10 @@ pub fn draw_window(
                     })
                     .collect();
                 if let (Some(a), Some(b)) = (on.first(), on.last()) {
-                    ed.drawn_sel
-                        .borrow_mut()
-                        .push((*y as u16, a - ox, b + 1 - a));
+                    // A wide character's second cell isn't marked: count it.
+                    let wide = buf[(*b, oy + *y as u16)].symbol().width().max(1) as u16;
+                    let end = (b + wide).min(x0 + cols as u16);
+                    ed.drawn_sel.borrow_mut().push((*y as u16, a - ox, end - a));
                 }
             }
             if margin_w > 0
@@ -1132,11 +1134,25 @@ pub fn draw_window(
         // One more cell for the line break, on the line's last row.
         if with_break {
             let mut d = ed.drawn_sel.borrow_mut();
-            if d.len() > sel_before
-                && let Some(last) = d.last_mut()
-                && last.1 + last.2 < (gutter + cols) as u16
-            {
-                last.2 += 1;
+            if d.len() > sel_before {
+                if let Some(last) = d.last_mut()
+                    && last.1 + last.2 < (gutter + cols) as u16
+                {
+                    last.2 += 1;
+                }
+            } else {
+                // Only the line break is selected: its cell after the text.
+                let text = ed.buf.line(l);
+                let at = if ed.opts.bool(Opt::Wrap) {
+                    let (cr, cx) = wrap_cursor(&text, text.len(), ed.tabstop(), cols);
+                    (cr >= skip).then(|| (first_y + cr - skip, cx))
+                } else {
+                    let cc = col_of_byte(&text, text.len(), ed.tabstop());
+                    (cc >= view.left && cc - view.left < cols).then(|| (first_y, cc - view.left))
+                };
+                if let Some((row, x)) = at.filter(|&(row, _)| row < rows) {
+                    d.push((row as u16, (gutter + x) as u16, 1));
+                }
             }
         }
         if let Some((r, _)) = &ed.explain {

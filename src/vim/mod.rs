@@ -38,6 +38,9 @@ pub struct State {
     pub(crate) restart_insert: bool,
     /// The line that Insert was left at the end of, for that restart.
     pub(crate) insert_left_eol: Option<usize>,
+    /// Select mode is replacing or deleting: the unnamed register gets the
+    /// text, the system clipboard doesn't (as in other Mac editors).
+    pub(crate) keep_clipboard: bool,
 }
 
 impl State {
