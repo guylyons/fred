@@ -12,6 +12,8 @@ use std::collections::HashMap;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExEffect {
     Magit(crate::magit::Action),
+    /// `:draw`: toggle drawing mode.
+    Draw,
     /// Org work that needs the session (other buffers and files).
     Org(crate::org::Effect),
     None,
@@ -477,6 +479,8 @@ pub const COMMANDS: &[Command] = &[
         Ok(ExEffect::Claude(crate::claude::Action::Chat))
     })
     .about("chat with Claude Code in a buffer"),
+    cmd("draw", 3, 0, |_, _| Ok(ExEffect::Draw))
+        .about("draw ASCII art with the mouse; again, or Esc, stops"),
     cmd("pwd", 2, 0, |_, _| Ok(ExEffect::Pwd)).about("show the working directory"),
     cmd("terminal", 2, 0, |_, _| {
         Ok(ExEffect::Terminal { split: false })

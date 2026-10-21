@@ -119,6 +119,8 @@ pub struct Editor {
     pub readonly: bool,
     /// This buffer lists a directory (see `dired`).
     pub dired: Option<Box<crate::dired::Dired>>,
+    /// `:draw` is on: the mouse draws in this buffer (see `draw`).
+    pub draw: Option<Box<crate::draw::Draw>>,
     /// This buffer lists another's matching lines (see `occur`).
     pub occur: Option<Box<crate::occur::Occur>>,
     /// This buffer is a chat with Claude Code (see `claude`).
@@ -231,6 +233,7 @@ impl Editor {
             path: None,
             readonly: false,
             dired: None,
+            draw: None,
             occur: None,
             claude: None,
             term: None,
@@ -308,7 +311,8 @@ impl Editor {
         if self.menu.is_some() && crate::menu::key(self, k) {
             return;
         }
-        if crate::claude::key(self, k)
+        if crate::draw::key(self, k)
+            || crate::claude::key(self, k)
             || crate::claude::leader(self, k)
             || crate::occur::start_key(self, k)
             || crate::magit::key(self, k)
@@ -768,6 +772,9 @@ impl Editor {
         }
         if kind == 'o' {
             return crate::org::answer(self, text);
+        }
+        if kind == 'D' {
+            return crate::draw::answer(self, text);
         }
         let hist = if kind == ':' {
             &mut self.cmd_history

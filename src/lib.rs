@@ -6,6 +6,7 @@ pub mod clipboard;
 pub mod complete;
 pub mod config;
 pub mod dired;
+pub mod draw;
 pub mod editor;
 pub mod ex;
 pub mod fileio;

@@ -296,6 +296,19 @@ pub fn mouse(
         }
         return;
     }
+    if ed.draw.is_some()
+        && !matches!(ed.mode, Mode::Command(_))
+        && crate::draw::mouse(
+            ed,
+            view,
+            area,
+            event,
+            gutter_width(ed).min(area.width as usize / 2),
+        )
+    {
+        view.last_click = None;
+        return;
+    }
     if event.row >= area.bottom().saturating_sub(2) || matches!(ed.mode, Mode::Command(_)) {
         view.last_click = None;
         return;
@@ -1365,6 +1378,20 @@ fn draw_status(buf: &mut Screen, area: Rect, ed: &Editor, hl: &Highlighter, acti
         (m, _) => mode_name(m).to_string(),
     };
     buf.set_stringn(area.x, y, " ".repeat(w), w, bar);
+    // Drawing: the toolbar takes the status line.
+    if let Some(d) = &ed.draw {
+        let mut x = area.x;
+        for (label, _, on) in crate::draw::toolbar(d) {
+            let style = if on {
+                mode.add_modifier(Modifier::REVERSED)
+            } else {
+                bar
+            };
+            let left = (area.right() - x) as usize;
+            x = buf.set_stringn(x, y, &label, left, style).0;
+        }
+        return;
+    }
     let mut left = if active {
         vec![
             Span::styled("▎", mode),

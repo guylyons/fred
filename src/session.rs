@@ -579,6 +579,7 @@ impl Session {
                 Ok(()) => self.pending_shell = Some(cmd),
                 Err(e) => self.ed.set_err(e),
             },
+            ExEffect::Draw => crate::draw::toggle(&mut self.ed),
             ExEffect::Terminal { split } => match crate::shell::guard() {
                 Ok(()) => self.terminal(split),
                 Err(e) => self.ed.set_err(e),
