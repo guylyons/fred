@@ -28,10 +28,17 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
                 .to_string(),
             None => "[No Name]".into(),
         });
+        let special =
+            ed.dired.is_some() || ed.occur.is_some() || ed.term.is_some() || ed.magit.is_some();
+        let file = (!special)
+            .then(|| ed.path.as_deref().and_then(|p| std::path::absolute(p).ok()))
+            .flatten()
+            .map(|p| p.to_string_lossy().into_owned());
         let line = ed.buf.line(ed.cur.line);
         let col = crate::text::col_of_byte(&line, ed.cur.byte, ed.tabstop()) + 1;
         status.push((
             p.id,
+            file,
             Status {
                 mode: render::status_label(ed),
                 name,
@@ -48,7 +55,7 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
         .layout(s.area)
         .into_iter()
         .filter_map(|p| {
-            let i = status.iter().position(|(id, _)| *id == p.id)?;
+            let i = status.iter().position(|(id, ..)| *id == p.id)?;
             let r = p.rect;
             Some(Win {
                 x: r.x,
@@ -61,7 +68,8 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
                     // Not the divider column: the app draws its own line.
                     .map(|y| runs(buf, y, r.x, r.right() - u16::from(p.divider)))
                     .collect(),
-                status: status.swap_remove(i).1,
+                path: status[i].1.take(),
+                status: status.swap_remove(i).2,
             })
         })
         .collect();
@@ -236,6 +244,22 @@ mod tests {
                 assert!(row.iter().all(|r| !r.s.contains('│')), "{row:?}");
             }
         }
+    }
+
+    #[test]
+    fn a_file_window_has_its_absolute_path_and_no_name_has_none() {
+        let (mut s, mut term, d) = setup(20, 6, "hello\n");
+        let f = build(&mut s, &Config::default(), &mut term, 0);
+        let want = std::path::absolute(d.path().join("f.txt")).unwrap();
+        assert_eq!(f.windows[0].path.as_deref(), Some(want.to_str().unwrap()));
+        let (mut s, _) = Session::open(None, &Config::default(), &d.path().join("swap2")).unwrap();
+        let f = build(&mut s, &Config::default(), &mut term, 0);
+        assert_eq!(f.windows[0].path, None);
+        assert!(
+            !serde_json::to_string(&f.windows[0])
+                .unwrap()
+                .contains("\"path\"")
+        );
     }
 
     #[test]

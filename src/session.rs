@@ -800,7 +800,7 @@ impl Session {
     }
 
     /// Open a picker result (this file stays open as a buffer).
-    fn open_pick(&mut self, path: PathBuf, then: Option<Goto>) {
+    pub fn open_pick(&mut self, path: PathBuf, then: Option<Goto>) {
         self.ed.project.grep.cancel();
         if self.is_own_file(&path) {
             self.ed.mode = Mode::Normal;

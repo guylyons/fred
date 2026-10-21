@@ -128,6 +128,17 @@ One JSON object per line, UTF-8.
     `underline` in Replace mode, and `block` otherwise.
 - **`exit`:** the last line before the core exits.
 
+### Phase 1 additions (all optional, backward compatible)
+
+- **App → core `{"t":"open","seq":N,"path":"/abs/path"}`** (the sidebar):
+  opens the file in the active window the way the `Space p` picker does.
+  The current buffer stays open, hidden, even when modified; a directory
+  opens in dired.
+- **`Win.path`:** the window's file as an absolute path; absent for
+  `[No Name]` and special buffers (dired, occur, terminal, Magit).
+- No `renamed` message: after renaming the active window's file the app
+  sends `open` for the new path (see the sidebar report).
+
 ## File Structure
 
 **Rust:**

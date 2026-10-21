@@ -39,6 +39,9 @@ pub struct Win {
     pub active: bool,
     pub rows: Vec<Vec<Run>>,
     pub status: Status,
+    /// The buffer's file, absolute; absent for no-name and special buffers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -111,6 +114,11 @@ pub enum In {
         seq: u64,
         key: char,
         shift: bool,
+    },
+    /// Open a file in the active window, as the `Space p` picker does.
+    Open {
+        seq: u64,
+        path: std::path::PathBuf,
     },
     Quit,
 }
