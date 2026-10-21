@@ -24,7 +24,12 @@ fn main() {
         }
         Ok(ArgsOrInfo::Run(a)) => {
             let (cfg, err) = Config::load();
-            match fred::app::run(a, cfg, err) {
+            let run = if a.gui {
+                fred::gui::run
+            } else {
+                fred::app::run
+            };
+            match run(a, cfg, err) {
                 Ok(c) => c,
                 Err(e) => {
                     // Not eprintln!: with the terminal gone it would panic.

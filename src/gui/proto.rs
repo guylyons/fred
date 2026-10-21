@@ -84,3 +84,33 @@ pub fn color(c: Color) -> Option<u32> {
         Color::Rgb(r, g, b) => 0x100_0000 | u32::from(r) << 16 | u32::from(g) << 8 | u32::from(b),
     })
 }
+
+/// One line from the app.
+#[derive(Deserialize, Debug, PartialEq)]
+#[serde(tag = "t", rename_all = "lowercase")]
+pub enum In {
+    Resize {
+        cols: u16,
+        rows: u16,
+    },
+    Keys {
+        seq: u64,
+        keys: String,
+    },
+    Paste {
+        seq: u64,
+        text: String,
+    },
+    Mouse {
+        seq: u64,
+        kind: String,
+        col: u16,
+        row: u16,
+    },
+    Mac {
+        seq: u64,
+        key: char,
+        shift: bool,
+    },
+    Quit,
+}

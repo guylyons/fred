@@ -34,21 +34,21 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 /// How often the current file is checked for changes on disk.
 const AUTOREAD: Duration = Duration::from_secs(1);
 
-const TICK: Duration = Duration::from_millis(50);
+pub(crate) const TICK: Duration = Duration::from_millis(50);
 /// After this long with nothing happening, check in every `IDLE_TICK`
 /// instead: an idle fred barely wakes.
-const IDLE_AFTER: Duration = Duration::from_secs(2);
-const IDLE_TICK: Duration = Duration::from_millis(250);
+pub(crate) const IDLE_AFTER: Duration = Duration::from_secs(2);
+pub(crate) const IDLE_TICK: Duration = Duration::from_millis(250);
 /// How long `Space` waits before showing its keys (as Emacs's which-key).
-const WHICH_KEY: Duration = Duration::from_millis(400);
+pub(crate) const WHICH_KEY: Duration = Duration::from_millis(400);
 pub(crate) const HIGHLIGHT_BUDGET: Duration = Duration::from_millis(20);
 /// How long to wait for more pending input before drawing. Not zero: with
 /// `use-dev-tty`, crossterm's poll reads nothing when given no time.
 const BATCH: Duration = Duration::from_millis(1);
 /// How often a terminal you're typing in shows its output.
-const TERM_TICK: Duration = Duration::from_millis(4);
+pub(crate) const TERM_TICK: Duration = Duration::from_millis(4);
 /// A frame of Claude's typing (`fred_keys`): a key or a few, then a redraw.
-const TYPE_TICK: Duration = Duration::from_millis(30);
+pub(crate) const TYPE_TICK: Duration = Duration::from_millis(30);
 
 type Term = Terminal<CrosstermBackend<Stdout>>;
 
@@ -444,27 +444,10 @@ fn ask_claude(
     prompt: String,
     explain: bool,
 ) -> Result<()> {
-    const SPIN: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-    let cmd = if explain {
-        cfg.explain_command.clone()
-    } else {
-        cfg.ai_command.clone()
-    };
-    let verb = if explain { "explaining" } else { "rewriting" };
-    let prompt = match cfg.ai_rules.trim() {
-        "" => prompt,
-        rules => format!("{prompt}\nRules: {rules}\n"),
-    };
-    let job = std::thread::spawn(move || crate::shell::capture(&cmd, Some(prompt)));
-    let what = match r.end - r.start {
-        0 => format!("line {}", r.start + 1),
-        _ => format!("lines {}-{}", r.start + 1, r.end + 1),
-    };
+    let job = start_ai(cfg, prompt, explain);
     let start = Instant::now();
     while !job.is_finished() {
-        let t = start.elapsed();
-        let spin = SPIN[(t.as_millis() / 100) as usize % SPIN.len()];
-        s.ed.set_msg(format!("{spin} Claude is {verb} {what}… {}s", t.as_secs()));
+        ai_spin(s, r, explain, start);
         ui.draw(s, cfg)?;
         if event::poll(TICK)? {
             event::read()?;
@@ -473,19 +456,66 @@ fn ask_claude(
             return Ok(());
         }
     }
-    match job.join() {
+    finish_ai(s, r, explain, job.join());
+    Ok(())
+}
+
+pub(crate) type AiJob = std::thread::JoinHandle<Result<String, String>>;
+
+/// Claude (`cfg.ai_command`, or `cfg.explain_command`, plus `cfg.ai_rules`)
+/// answering `prompt` on another thread.
+pub(crate) fn start_ai(cfg: &Config, prompt: String, explain: bool) -> AiJob {
+    let cmd = if explain {
+        cfg.explain_command.clone()
+    } else {
+        cfg.ai_command.clone()
+    };
+    let prompt = match cfg.ai_rules.trim() {
+        "" => prompt,
+        rules => format!("{prompt}\nRules: {rules}\n"),
+    };
+    std::thread::spawn(move || crate::shell::capture(&cmd, Some(prompt)))
+}
+
+fn ai_what(r: Range) -> String {
+    match r.end - r.start {
+        0 => format!("line {}", r.start + 1),
+        _ => format!("lines {}-{}", r.start + 1, r.end + 1),
+    }
+}
+
+/// The spinner while Claude works, since `start`.
+pub(crate) fn ai_spin(s: &mut Session, r: Range, explain: bool, start: Instant) {
+    const SPIN: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+    let verb = if explain { "explaining" } else { "rewriting" };
+    let t = start.elapsed();
+    let spin = SPIN[(t.as_millis() / 100) as usize % SPIN.len()];
+    s.ed.set_msg(format!(
+        "{spin} Claude is {verb} {}… {}s",
+        ai_what(r),
+        t.as_secs()
+    ));
+}
+
+/// Claude's reply: rewritten lines, or the `:explain` box.
+pub(crate) fn finish_ai(
+    s: &mut Session,
+    r: Range,
+    explain: bool,
+    joined: std::thread::Result<Result<String, String>>,
+) {
+    match joined {
         Ok(Ok(out)) if explain => {
             s.ed.explain = Some((r, out.trim().to_string()));
             s.ed.msg = None;
         }
         Ok(Ok(out)) => {
             s.ed.ai_reply(r, &out);
-            s.ed.set_msg(format!("Claude rewrote {what}"));
+            s.ed.set_msg(format!("Claude rewrote {}", ai_what(r)));
         }
         Ok(Err(e)) => s.ed.set_err(e),
         Err(_) => s.ed.set_err("claude: crashed"),
     }
-    Ok(())
 }
 
 fn run_shell(ui: &mut Ui, s: &mut Session, cmd: &str) -> Result<()> {
