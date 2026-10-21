@@ -11,9 +11,9 @@ final class MinimapView: NSView {
     var onScroll: (Int) -> Void = { _ in }
     var palette = Palette.materialDark
 
-    private var rendered: (win: Int, version: Int)?
-    private var image: CGImage?
-    private var lines = 0, top = 0, visible = 0
+    private var map: MapImage?
+    private var top = 0, visible = 0
+    private var lines: Int { map?.lines ?? 0 }
     /// The pointer's distance below the box's top while dragging.
     private var grab: CGFloat?
     private var pending: Int?, sent: Int?
@@ -30,30 +30,9 @@ final class MinimapView: NSView {
     override var isOpaque: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
-    func update(_ map: Minimap?, top: Int, visible: Int) {
-        if map?.win != rendered?.win || map?.version != rendered?.version {
-            rendered = map.map { ($0.win, $0.version) }
-            if let map, let rows = map.lines {
-                // The old image stays up until the new one is ready: no blank flash per edit.
-                // Off the main thread: a long file takes tens of ms, which keys mustn't wait for.
-                let p = palette, scale = window?.backingScaleFactor ?? 2
-                let done: @MainActor (CGImage?) -> Void = { [weak self] img in
-                    guard let self, self.rendered?.win == map.win, self.rendered?.version == map.version else { return }
-                    self.image = img
-                    self.lines = rows.count
-                    self.needsDisplay = true
-                }
-                DispatchQueue.global(qos: .userInitiated).async {
-                    let img = MinimapView.render(rows, palette: p, scale: scale)
-                    DispatchQueue.main.async { done(img) }
-                }
-            } else {
-                image = nil
-                lines = 0
-                needsDisplay = true
-            }
-        }
-        guard top != self.top || visible != self.visible else { return }
+    func update(_ map: MapImage?, top: Int, visible: Int) {
+        guard map?.gen != self.map?.gen || top != self.top || visible != self.visible else { return }
+        self.map = map
         self.top = top
         self.visible = visible
         needsDisplay = true
@@ -68,9 +47,9 @@ final class MinimapView: NSView {
     private var boxY: CGFloat { MinimapMath.boxY(top: top, lines: lines, visible: visible, height: bounds.height) }
 
     /// The whole map as one bitmap, runs batched by color.
-    private nonisolated static func render(_ map: [[[Int?]]], palette: Palette, scale: CGFloat) -> CGImage? {
-        guard !map.isEmpty else { return nil }
-        let w = MinimapMath.width, h = CGFloat(map.count) * MinimapMath.lineHeight
+    nonisolated static func render(_ runs: [MiniRun], lines: Int, palette: Palette, scale: CGFloat) -> CGImage? {
+        guard lines > 0 else { return nil }
+        let w = MinimapMath.width, h = CGFloat(lines) * MinimapMath.lineHeight
         // ponytail: one bitmap capped at ~8M pixels (lower resolution past ~20k lines); tile it if that blurs.
         let s = min(scale, (8_000_000 / (w * h)).squareRoot())
         guard let ctx = CGContext(data: nil, width: Int((w * s).rounded(.up)), height: Int((h * s).rounded(.up)),
@@ -78,17 +57,14 @@ final class MinimapView: NSView {
                                   bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
         ctx.translateBy(x: 0, y: CGFloat(ctx.height))
         ctx.scaleBy(x: s, y: -s)
-        var byColor: [Int?: [CGRect]] = [:]
-        for (i, runs) in map.enumerated() {
-            for r in runs where r.count >= 2 {
-                guard let col = r[0], let len = r[1], col < Int(w), len > 0 else { continue }
-                let y = CGFloat(i) * MinimapMath.lineHeight
-                byColor[r.count > 2 ? r[2] : nil, default: []]
-                    .append(CGRect(x: CGFloat(col), y: y, width: CGFloat(min(len, Int(w) - col)), height: 1.5))
-            }
+        var byColor: [Int32?: [CGRect]] = [:]
+        for r in runs {
+            byColor[r.color, default: []].append(CGRect(x: CGFloat(r.col), y: CGFloat(r.line) * MinimapMath.lineHeight,
+                                                         width: CGFloat(r.len), height: 1.5))
         }
         for (code, rects) in byColor {
-            ctx.setFillColor(palette.color(code, default: palette.fg).withAlphaComponent(code == nil ? 0.45 : 0.75).cgColor)
+            ctx.setFillColor(palette.color(code.map(Int.init), default: palette.fg)
+                .withAlphaComponent(code == nil ? 0.45 : 0.75).cgColor)
             ctx.fill(rects)
         }
         return ctx.makeImage()
@@ -98,13 +74,21 @@ final class MinimapView: NSView {
         guard let ctx = NSGraphicsContext.current?.cgContext else { return }
         ctx.setFillColor(palette.bg.cgColor)
         ctx.fill(dirty)
-        guard let image, lines > 0 else { return }
-        let h = CGFloat(lines) * MinimapMath.lineHeight
-        ctx.saveGState()
-        ctx.translateBy(x: 0, y: h - offset) // the flipped view would draw the image upside down
-        ctx.scaleBy(x: 1, y: -1)
-        ctx.draw(image, in: CGRect(x: 0, y: 0, width: MinimapMath.width, height: h))
-        ctx.restoreGState()
+        guard let image = map?.image, lines > 0 else { return }
+        // Only the visible slice: the whole map can be ~100k pt tall.
+        let total = CGFloat(lines) * MinimapMath.lineHeight, off = offset
+        let sliceH = min(bounds.height, total - off)
+        let px = CGFloat(image.height) / total
+        let y0 = (off * px).rounded(.down) // whole image pixels; the rest shifts the slice up
+        if sliceH > 0, let slice = image.cropping(to: CGRect(x: 0, y: y0, width: CGFloat(image.width),
+                                                             height: (sliceH * px).rounded(.up) + 1)) {
+            let h = CGFloat(slice.height) / px
+            ctx.saveGState()
+            ctx.translateBy(x: 0, y: y0 / px - off + h) // the flipped view would draw the image upside down
+            ctx.scaleBy(x: 1, y: -1)
+            ctx.draw(slice, in: CGRect(x: 0, y: 0, width: CGFloat(slice.width) / px, height: h))
+            ctx.restoreGState()
+        }
         ctx.setFillColor(NSColor.white.withAlphaComponent(0.07).cgColor)
         ctx.fill(CGRect(x: 0, y: boxY, width: bounds.width, height: CGFloat(visible) * MinimapMath.lineHeight))
     }
@@ -151,4 +135,14 @@ final class MinimapView: NSView {
         sent = t
         onScroll(t)
     }
+}
+
+/// One window's rendered map. The compact runs stay for a re-render at a
+/// new backing scale; the decoded message doesn't.
+struct MapImage: Sendable {
+    var gen: Int
+    var lines: Int
+    var runs: [MiniRun]
+    var image: CGImage?
+    var scale: CGFloat
 }

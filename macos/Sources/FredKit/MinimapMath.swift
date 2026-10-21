@@ -38,7 +38,36 @@ public enum MinimapMath {
         return clampTop(Int(t.rounded()), visible: visible, lines: lines)
     }
 
+    /// The `minimap` message's runs, clipped to the drawn width, in 12 bytes
+    /// each instead of nested arrays.
+    public static func compact(_ map: [[[Int?]]]) -> [MiniRun] {
+        let w = Int(width)
+        var out: [MiniRun] = []
+        for (i, runs) in map.enumerated() {
+            for r in runs where r.count >= 2 {
+                guard let col = r[0], let len = r[1], col >= 0, col < w, len > 0 else { continue }
+                out.append(MiniRun(line: Int32(i), col: UInt8(col), len: UInt8(min(len, w - col)),
+                                   color: r.count > 2 ? r[2].map { Int32(truncatingIfNeeded: $0) } : nil))
+            }
+        }
+        return out
+    }
+
     static func clampTop(_ t: Int, visible: Int, lines: Int) -> Int {
         min(max(0, t), max(0, lines - visible))
+    }
+}
+
+public struct MiniRun: Equatable, Sendable {
+    public var line: Int32
+    public var col: UInt8, len: UInt8
+    /// The run color encoding; nil is the default fg.
+    public var color: Int32?
+
+    public init(line: Int32, col: UInt8, len: UInt8, color: Int32?) {
+        self.line = line
+        self.col = col
+        self.len = len
+        self.color = color
     }
 }

@@ -199,6 +199,13 @@ if case .minimap(let m) = try Incoming.decode(Data(#"{"t":"minimap","win":3,"ver
 } else { check("decodes a null minimap", false) }
 check("unknown message throws, doesn't crash", (try? Incoming.decode(Data(#"{"t":"later","x":1}"#.utf8))) == nil)
 
+// Compact runs: what's kept per window instead of the decoded JSON.
+check("compact runs", MinimapMath.compact([[[0, 4, 16737970], [5, 3, nil]], [], [[2, 1]]])
+      == [MiniRun(line: 0, col: 0, len: 4, color: 16737970), MiniRun(line: 0, col: 5, len: 3, color: nil),
+          MiniRun(line: 2, col: 2, len: 1, color: nil)])
+check("compact clips at 96 columns, drops junk", MinimapMath.compact([[[94, 10, 1], [96, 2, 1], [3, 0, 1], [nil, 2, 1], [4]]])
+      == [MiniRun(line: 0, col: 94, len: 2, color: 1)])
+
 exit(failures == 0 ? 0 : 1)
 
 extension Array where Element == CGPoint {

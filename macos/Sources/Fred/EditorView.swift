@@ -21,8 +21,10 @@ final class EditorView: NSView {
     private var statusBars: [StatusBar] = []
     private var tabStrips: [TabStrip] = []
     private var minimapViews: [MinimapView] = []
-    /// The latest `minimap` message per window id.
-    private var maps: [Int: Minimap] = [:]
+    /// The rendered map per window id; `mapGen` and `mapPending` drop stale renders.
+    private var maps: [Int: MapImage] = [:]
+    private var mapGen = 0
+    private var mapPending: [Int: Int] = [:]
     /// Reveal in Sidebar, from a tab's menu (wired by main.swift).
     var reveal: (String) -> Void = { _ in }
 
@@ -76,6 +78,11 @@ final class EditorView: NSView {
         super.viewDidChangeBackingProperties()
         layer?.contentsScale = scale
         metricsChanged()
+        // Sharp again on the new display.
+        for (id, m) in maps where m.scale != scale && mapPending[id] == nil {
+            let runs = m.runs, lines = m.lines
+            renderMap(id) { (lines, runs) }
+        }
     }
 
     override func viewDidMoveToWindow() {
@@ -224,15 +231,42 @@ final class EditorView: NSView {
         }
     }
 
+    /// Every message renders: the core sends one only on a change, and
+    /// buffer versions aren't unique across buffers.
     func applyMinimap(_ m: Minimap) {
-        maps[m.win] = m
-        if let f = current { layoutMinimaps(f) }
+        guard let rows = m.lines else {
+            maps[m.win] = nil // too big: an empty margin
+            mapPending[m.win] = nil
+            if let f = current { layoutMinimaps(f) }
+            return
+        }
+        renderMap(m.win) { (rows.count, MinimapMath.compact(rows)) }
+    }
+
+    /// Renders off the main thread (a long file takes tens of ms); the old
+    /// map stays up until then, and a newer request wins.
+    private func renderMap(_ id: Int, _ runs: @escaping @Sendable () -> (Int, [MiniRun])) {
+        mapGen += 1
+        let gen = mapGen, p = palette, s = scale
+        mapPending[id] = gen
+        let done: @MainActor (MapImage) -> Void = { [weak self] m in
+            guard let self, self.mapPending[id] == gen else { return }
+            self.mapPending[id] = nil
+            self.maps[id] = m
+            if let f = self.current { self.layoutMinimaps(f) }
+        }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let (lines, r) = runs()
+            let m = MapImage(gen: gen, lines: lines, runs: r, image: MinimapView.render(r, lines: lines, palette: p, scale: s), scale: s)
+            DispatchQueue.main.async { done(m) }
+        }
     }
 
     /// One MinimapView per window with a margin, over its margin columns and text rows.
     private func layoutMinimaps(_ f: Frame) {
         let ids = Set(f.windows.compactMap(\.id))
         if maps.keys.contains(where: { !ids.contains($0) }) { maps = maps.filter { ids.contains($0.key) } }
+        if mapPending.keys.contains(where: { !ids.contains($0) }) { mapPending = mapPending.filter { ids.contains($0.key) } }
         while minimapViews.count < f.windows.count {
             let m = MinimapView(frame: .zero)
             m.palette = palette
