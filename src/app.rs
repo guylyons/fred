@@ -685,6 +685,72 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
     Ok(code)
 }
 
+/// The background work of one frame, shared by the terminal and GUI loops:
+/// returns true when anything changed (so a redraw is due).
+pub fn tick_session(
+    s: &mut Session,
+    remote: Option<&crate::remote::Remote>,
+    checked: &mut Instant,
+) -> bool {
+    let mut dirty = false;
+    if checked.elapsed() >= AUTOREAD {
+        *checked = Instant::now();
+        if s.auto_read() {
+            s.hl.invalidate(0);
+            dirty = true;
+        }
+    }
+    if s.tick_magit() {
+        dirty = true;
+    }
+    if s.tick_claude() {
+        dirty = true;
+    }
+    if s.tick_terms() {
+        dirty = true;
+    }
+    // Claude's tool calls; keys are typed a frame at a time, as you
+    // would, and the next call waits until they're done.
+    let calls: Vec<_> = match s.typing {
+        Some(_) => vec![],
+        None => remote.into_iter().flat_map(|r| r.take()).collect(),
+    };
+    let called = !calls.is_empty();
+    for (tool, args, reply) in calls {
+        s.remote(&tool, &args, reply);
+    }
+    if called | s.tick_typing() {
+        if let Some(d) = s.ed.buf.take_dirty_from() {
+            s.hl.invalidate(d);
+        }
+        s.win_mut().view.last_click = None;
+        s.win_mut().view.detached = false;
+        dirty = true;
+    }
+    if s.reloaded {
+        s.reloaded = false;
+        // Highlighting and scroll belong to the buffer now (`Session::show`).
+        s.ed.nearby = nearby::Nearby::new(s.ed.path.clone());
+        dirty = true;
+    }
+    // Picker results from background threads, or a grep due to start.
+    if crate::pick::tick(&mut s.ed) {
+        s.win_mut().view.last_click = None;
+        dirty = true;
+    }
+    // A definition search may have found where to jump.
+    if let Some(eff) = s.ed.pending_effect.take() {
+        s.perform(eff);
+        dirty = true;
+    }
+    // Git marks after an edit (or once the staged text has loaded).
+    dirty |= s.ed.git.refresh(&s.ed.buf);
+    let msg = s.ed.msg.clone();
+    s.maybe_swap(Instant::now());
+    dirty |= s.ed.msg != msg;
+    dirty
+}
+
 fn event_loop(
     ui: &mut Ui,
     s: &mut Session,
@@ -848,38 +914,7 @@ fn event_loop(
         if s.quit {
             return Ok(0);
         }
-        if checked.elapsed() >= AUTOREAD {
-            checked = Instant::now();
-            if s.auto_read() {
-                s.hl.invalidate(0);
-                dirty = true;
-            }
-        }
-        if s.tick_magit() {
-            dirty = true;
-        }
-        if s.tick_claude() {
-            dirty = true;
-        }
-        if s.tick_terms() {
-            dirty = true;
-        }
-        // Claude's tool calls; keys are typed a frame at a time, as you
-        // would, and the next call waits until they're done.
-        let calls: Vec<_> = match s.typing {
-            Some(_) => vec![],
-            None => remote.into_iter().flat_map(|r| r.take()).collect(),
-        };
-        let called = !calls.is_empty();
-        for (tool, args, reply) in calls {
-            s.remote(&tool, &args, reply);
-        }
-        if called | s.tick_typing() {
-            if let Some(d) = s.ed.buf.take_dirty_from() {
-                s.hl.invalidate(d);
-            }
-            s.win_mut().view.last_click = None;
-            s.win_mut().view.detached = false;
+        if tick_session(s, remote, &mut checked) {
             active = Instant::now();
             dirty = true;
         }
@@ -919,12 +954,6 @@ fn event_loop(
             s.resolve_edit(choice);
             dirty = true;
         }
-        if s.reloaded {
-            s.reloaded = false;
-            // Highlighting and scroll belong to the buffer now (`Session::show`).
-            s.ed.nearby = nearby::Nearby::new(s.ed.path.clone());
-            dirty = true;
-        }
         let rows = terminal::size()?.1;
         let shown = (ui.height as usize).saturating_sub(2);
         // A picker gets the full configured height, whatever the file's size.
@@ -939,21 +968,6 @@ fn event_loop(
             ui.rebuild(want)?;
             dirty = true;
         }
-        // Picker results from background threads, or a grep due to start.
-        if crate::pick::tick(&mut s.ed) {
-            s.win_mut().view.last_click = None;
-            dirty = true;
-        }
-        // A definition search may have found where to jump.
-        if let Some(eff) = s.ed.pending_effect.take() {
-            s.perform(eff);
-            dirty = true;
-        }
-        // Git marks after an edit (or once the staged text has loaded).
-        dirty |= s.ed.git.refresh(&s.ed.buf);
-        let msg = s.ed.msg.clone();
-        s.maybe_swap(Instant::now());
-        dirty |= s.ed.msg != msg;
     }
 }
 
