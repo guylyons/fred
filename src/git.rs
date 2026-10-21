@@ -24,7 +24,7 @@ pub enum Mark {
 }
 
 /// The staged text: loading, absent (no repo, untracked), or its lines.
-type Base = Arc<Mutex<Option<Option<Vec<String>>>>>;
+type Base = Arc<Mutex<Option<Option<Arc<Vec<String>>>>>>;
 
 #[derive(Debug, Default)]
 pub struct Gutter {
@@ -33,6 +33,9 @@ pub struct Gutter {
     /// One per buffer line, for buffer version `seen`.
     marks: Vec<Option<Mark>>,
     seen: Option<u64>,
+    /// The diff for a buffer version, on its own thread: a big file's
+    /// took milliseconds of every keystroke.
+    job: Option<(u64, std::thread::JoinHandle<Vec<Option<Mark>>>)>,
 }
 
 impl Gutter {
@@ -50,7 +53,7 @@ impl Gutter {
                 *name = head_branch(d);
             }
             // Outside a repository there's nothing to ask git.
-            let staged = git_dir.and_then(|_| staged(&path));
+            let staged = git_dir.and_then(|_| staged(&path)).map(Arc::new);
             if let Ok(mut b) = base.lock() {
                 *b = Some(staged);
             }
@@ -72,8 +75,14 @@ impl Gutter {
     }
 
     /// Recompute after the buffer changed; true if the marks may have.
+    /// The diff runs on a thread: its marks arrive on a later call.
     pub fn refresh(&mut self, buf: &Buffer) -> bool {
-        if self.seen == Some(buf.version) {
+        if let Some((v, job)) = self.job.take_if(|(_, j)| j.is_finished()) {
+            self.marks = job.join().unwrap_or_default();
+            self.seen = Some(v);
+            return true;
+        }
+        if self.seen == Some(buf.version) || self.job.is_some() {
             return false;
         }
         let Ok(base) = self.base.lock() else {
@@ -82,32 +91,35 @@ impl Gutter {
         let Some(base) = &*base else {
             return false; // still loading: try again next tick
         };
-        self.marks = match base {
-            Some(lines) => {
-                // Borrow lines from the rope where they're contiguous (most
-                // are): copying 100k lines per keystroke took ~25 ms.
-                let cur: Vec<Cow<str>> = if buf.len_bytes() == 0 {
-                    vec![]
-                } else {
-                    buf.rope()
-                        .lines()
-                        .take(buf.len_lines())
-                        .map(|l| match l.as_str() {
-                            Some(s) => Cow::Borrowed(s.trim_end_matches(['\n', '\r'])),
-                            None => {
-                                Cow::Owned(l.to_string().trim_end_matches(['\n', '\r']).to_string())
-                            }
-                        })
-                        .collect()
-                };
-                let base: Vec<&str> = lines.iter().map(String::as_str).collect();
-                let cur: Vec<&str> = cur.iter().map(AsRef::as_ref).collect();
-                marks(&base, &cur)
-            }
-            None => vec![],
+        let Some(base) = base.clone() else {
+            self.marks = vec![];
+            self.seen = Some(buf.version);
+            return true;
         };
-        self.seen = Some(buf.version);
-        true
+        let rope = buf.rope().clone();
+        let lines = buf.len_lines();
+        let job = std::thread::spawn(move || {
+            // Borrow lines from the rope where they're contiguous (most
+            // are): copying 100k lines per diff took ~25 ms.
+            let cur: Vec<Cow<str>> = if rope.len_bytes() == 0 {
+                vec![]
+            } else {
+                rope.lines()
+                    .take(lines)
+                    .map(|l| match l.as_str() {
+                        Some(s) => Cow::Borrowed(s.trim_end_matches(['\n', '\r'])),
+                        None => {
+                            Cow::Owned(l.to_string().trim_end_matches(['\n', '\r']).to_string())
+                        }
+                    })
+                    .collect()
+            };
+            let base: Vec<&str> = base.iter().map(String::as_str).collect();
+            let cur: Vec<&str> = cur.iter().map(AsRef::as_ref).collect();
+            marks(&base, &cur)
+        });
+        self.job = Some((buf.version, job));
+        false
     }
 }
 
@@ -381,5 +393,21 @@ mod tests {
             (None, Some(Changed), Some(Added))
         );
         assert!(!g.refresh(&buf), "same version: nothing to do");
+        // An edit's diff is off the caller's thread (it took a big file's
+        // keystrokes milliseconds): the old marks stand until it's done.
+        let mut buf = buf;
+        buf.apply(crate::buffer::Edit {
+            start: 0,
+            end: 3,
+            text: "ONE".into(),
+        });
+        assert!(!g.refresh(&buf), "diffed on the caller's thread");
+        assert_eq!(g.mark(0), None);
+        let t = Instant::now();
+        while !g.refresh(&buf) {
+            assert!(t.elapsed() < Duration::from_secs(5));
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert_eq!(g.mark(0), Some(Changed));
     }
 }

@@ -780,7 +780,8 @@ pub fn tick_session(
         s.perform(eff);
         dirty = true;
     }
-    // Git marks after an edit (or once the staged text has loaded).
+    // Git marks after an edit (or once the staged text has loaded),
+    // diffed on a thread: they may come a tick after the edit.
     dirty |= s.ed.git.refresh(&s.ed.buf);
     let msg = s.ed.msg.clone();
     s.maybe_swap(Instant::now());
