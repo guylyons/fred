@@ -75,4 +75,18 @@ check("p99 is the max of two", abs(l.p99 - 6.0) < 0.01)
 l.shown(seq: 2, at: 0.9)
 check("repeat seq adds nothing", l.count == 2)
 
+check("open line", String(decoding: Outgoing.open(seq: 4, path: "/a/b c").line(), as: UTF8.self) == #"{"t":"open","seq":4,"path":"/a/b c"}"# + "\n")
+let withPath = line.replacingOccurrences(of: #""active":true,"#, with: #""active":true,"path":"/r/f","#)
+if case .frame(let f) = try Incoming.decode(Data(withPath.utf8)) { check("win path", f.windows[0].path == "/r/f") } else { check("win path", false) }
+if case .frame(let f) = try Incoming.decode(Data(line.utf8)) { check("no win path", f.windows[0].path == nil) } else { check("no win path", false) }
+check("hidden", FileTree.isHidden(".git") && FileTree.isHidden(".DS_Store") && FileTree.isHidden("target"))
+check("dotfiles shown", !FileTree.isHidden(".gitignore") && !FileTree.isHidden(".github") && !FileTree.isHidden("node_modules"))
+check("folders first, case-insensitive", FileTree.sorted([("b.rs", false), ("Zed", true), ("A.md", false), ("apps", true), (".github", true)]).map(\.name)
+      == [".github", "apps", "Zed", "A.md", "b.rs"])
+check("ancestors", FileTree.ancestors(of: "/r/src/gui/mod.rs", under: "/r") == ["/r/src", "/r/src/gui"])
+check("ancestors top level", FileTree.ancestors(of: "/r/a.rs", under: "/r/") == [])
+check("ancestors outside", FileTree.ancestors(of: "/rx/a.rs", under: "/r") == nil && FileTree.ancestors(of: "/r", under: "/r") == nil)
+check("symbols", FileTree.symbol(for: "x", isDir: true) == "folder" && FileTree.symbol(for: "a.RS", isDir: false) == "chevron.left.forwardslash.chevron.right"
+      && FileTree.symbol(for: "README.md", isDir: false) == "doc.text" && FileTree.symbol(for: "a.bin", isDir: false) == "doc")
+
 exit(failures == 0 ? 0 : 1)
