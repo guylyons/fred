@@ -41,7 +41,7 @@ const IDLE_AFTER: Duration = Duration::from_secs(2);
 const IDLE_TICK: Duration = Duration::from_millis(250);
 /// How long `Space` waits before showing its keys (as Emacs's which-key).
 const WHICH_KEY: Duration = Duration::from_millis(400);
-const HIGHLIGHT_BUDGET: Duration = Duration::from_millis(20);
+pub(crate) const HIGHLIGHT_BUDGET: Duration = Duration::from_millis(20);
 /// How long to wait for more pending input before drawing. Not zero: with
 /// `use-dev-tty`, crossterm's poll reads nothing when given no time.
 const BATCH: Duration = Duration::from_millis(1);
@@ -79,6 +79,17 @@ struct Ui {
     bar_cursor: bool,
 }
 
+/// After a draw: the active window's viewport and page height.
+pub(crate) fn drawn(s: &mut Session) {
+    // The active window: its text rows (above its status line) and columns.
+    let win = s.tree.layout(s.area).into_iter().find(|p| p.id == s.active);
+    s.ed.viewport = win.map(|p| crate::zap::Viewport::of(p.rect, p.divider, &s.ed, s.win().view));
+    let rows = s.ed.viewport.map_or(0, |v| v.rows);
+    // Paging scrolls by the text rows actually on screen, not the
+    // configured height, which may be "max".
+    s.ed.win_height = rows.max(1);
+}
+
 impl Ui {
     fn new(full: bool, height: u16) -> io::Result<Ui> {
         Ok(Ui {
@@ -104,14 +115,7 @@ impl Ui {
             .draw(|f| ui::windows::draw_session(f, s, cfg, HIGHLIGHT_BUDGET))?;
         // `done.area` is the whole terminal; the buffer covers just the window.
         self.area = Some(done.buffer.area);
-        // The active window: its text rows (above its status line) and columns.
-        let win = s.tree.layout(s.area).into_iter().find(|p| p.id == s.active);
-        s.ed.viewport =
-            win.map(|p| crate::zap::Viewport::of(p.rect, p.divider, &s.ed, s.win().view));
-        let rows = s.ed.viewport.map_or(0, |v| v.rows);
-        // Paging scrolls by the text rows actually on screen, not the
-        // configured height, which may be "max".
-        s.ed.win_height = rows.max(1);
+        drawn(s);
         let bar = s.ed.mode == Mode::Insert && s.ed.term.is_none();
         if bar != self.bar_cursor {
             self.bar_cursor = bar;
