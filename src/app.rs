@@ -686,13 +686,15 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
 }
 
 /// The background work of one frame, shared by the terminal and GUI loops:
-/// returns true when anything changed (so a redraw is due).
+/// returns `(dirty, acted)`: anything changed (a redraw is due), and whether
+/// Claude's tool calls or typing ran (which counts as activity).
 pub fn tick_session(
     s: &mut Session,
     remote: Option<&crate::remote::Remote>,
     checked: &mut Instant,
-) -> bool {
+) -> (bool, bool) {
     let mut dirty = false;
+    let mut acted = false;
     if checked.elapsed() >= AUTOREAD {
         *checked = Instant::now();
         if s.auto_read() {
@@ -725,6 +727,7 @@ pub fn tick_session(
         }
         s.win_mut().view.last_click = None;
         s.win_mut().view.detached = false;
+        acted = true;
         dirty = true;
     }
     if s.reloaded {
@@ -748,7 +751,7 @@ pub fn tick_session(
     let msg = s.ed.msg.clone();
     s.maybe_swap(Instant::now());
     dirty |= s.ed.msg != msg;
-    dirty
+    (dirty, acted)
 }
 
 fn event_loop(
@@ -914,10 +917,11 @@ fn event_loop(
         if s.quit {
             return Ok(0);
         }
-        if tick_session(s, remote, &mut checked) {
+        let (changed, acted) = tick_session(s, remote, &mut checked);
+        if acted {
             active = Instant::now();
-            dirty = true;
         }
+        dirty |= changed;
         if s.typing.is_none() && !held.is_empty() {
             let keys = std::mem::take(&mut held);
             // Claude moved you (another buffer, or out of Insert mode): keys meant
