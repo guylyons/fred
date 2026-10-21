@@ -50,6 +50,20 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
         .filter_map(|p| {
             let i = status.iter().position(|(id, _)| *id == p.id)?;
             let r = p.rect;
+            let sel: Vec<proto::Sel> = if p.id == s.active {
+                s.ed.drawn_sel
+                    .borrow()
+                    .iter()
+                    .map(|&(y, x, w)| proto::Sel { y, x, w })
+                    .collect()
+            } else {
+                vec![]
+            };
+            let row_sel = |y: u16| {
+                sel.iter()
+                    .find(|p| p.y == y - r.y)
+                    .map(|p| r.x + p.x..r.x + p.x + p.w)
+            };
             Some(Win {
                 x: r.x,
                 y: r.y,
@@ -59,14 +73,15 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
                 active: p.id == s.active,
                 rows: (r.y..r.bottom().saturating_sub(1))
                     // Not the divider column: the app draws its own line.
-                    .map(|y| runs(buf, y, r.x, r.right() - u16::from(p.divider)))
+                    .map(|y| runs(buf, y, r.x, r.right() - u16::from(p.divider), row_sel(y)))
                     .collect(),
+                sel,
                 status: status.swap_remove(i).1,
             })
         })
         .collect();
     let bottom = (s.area.bottom()..buf.area.bottom())
-        .map(|y| runs(buf, y, 0, buf.area.right()))
+        .map(|y| runs(buf, y, 0, buf.area.right(), None))
         .collect();
     let cursor = be.cursor_visible().then(|| {
         let p = be.cursor_position();
@@ -104,8 +119,9 @@ const FLAGS: [Modifier; 6] = [
     Modifier::CROSSED_OUT,
 ];
 
-/// Row `y`, columns `from..to`, as runs (x relative to `from`).
-fn runs(buf: &Buffer, y: u16, from: u16, to: u16) -> Vec<Run> {
+/// Row `y`, columns `from..to`, as runs (x relative to `from`). Cells in
+/// `sel` are the selection, which the app draws: not reversed.
+fn runs(buf: &Buffer, y: u16, from: u16, to: u16, sel: Option<std::ops::Range<u16>>) -> Vec<Run> {
     let mut out: Vec<Run> = vec![];
     let mut covered = 0;
     let mut end = 0; // columns up to the last cell that isn't a default blank
@@ -119,10 +135,14 @@ fn runs(buf: &Buffer, y: u16, from: u16, to: u16) -> Vec<Run> {
         covered = cell.symbol().width().max(1) - 1;
         let fg = proto::color(cell.fg);
         let bg = proto::color(cell.bg);
+        let mut modifier = cell.modifier;
+        if sel.as_ref().is_some_and(|r| r.contains(&x)) {
+            modifier.remove(Modifier::REVERSED);
+        }
         let f = FLAGS
             .iter()
             .enumerate()
-            .filter(|(_, m)| cell.modifier.contains(**m))
+            .filter(|(_, m)| modifier.contains(**m))
             .fold(0, |a, (i, _)| a | 1 << i);
         let style = (fg, bg, f);
         let sym = if cell.symbol().is_empty() {
@@ -236,6 +256,31 @@ mod tests {
                 assert!(row.iter().all(|r| !r.s.contains('│')), "{row:?}");
             }
         }
+    }
+
+    #[test]
+    fn a_selection_is_sel_spans_not_reversed_cells() {
+        let (mut s, mut term, _d) = setup(30, 8, "abc\n\ndef ghi\n");
+        let sel = |s: &mut Session, term: &mut Terminal<TestBackend>| {
+            let f = build(s, &Config::default(), term, 0);
+            let w = &f.windows[0];
+            for row in &w.rows {
+                assert!(row.iter().all(|r| r.f & 8 == 0), "reversed: {row:?}");
+            }
+            w.sel.iter().map(|p| (p.y, p.x, p.w)).collect::<Vec<_>>()
+        };
+        assert_eq!(sel(&mut s, &mut term), vec![]);
+        // Charwise: a full line runs one cell past its text (the line
+        // break); an empty one is one cell; the last stops at the cursor.
+        s.handle_keys("lvjj");
+        assert_eq!(
+            sel(&mut s, &mut term),
+            vec![(0, 1, 3), (1, 0, 1), (2, 0, 2)]
+        );
+        s.handle_keys("<Esc>ggVj");
+        assert_eq!(sel(&mut s, &mut term), vec![(0, 0, 4), (1, 0, 1)]);
+        s.handle_keys("<Esc>Ggh<End>");
+        assert_eq!(sel(&mut s, &mut term), vec![(2, 0, 7)]);
     }
 
     #[test]

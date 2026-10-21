@@ -76,7 +76,22 @@ fn send(out: &mut impl Write, v: &impl serde::Serialize) -> std::io::Result<()> 
     out.flush()
 }
 
-pub fn run(args: Args, cfg: Config, cfg_err: Option<String>) -> Result<i32> {
+/// The GUI selects like other Mac editors: the mouse and Shift+arrows start
+/// Select mode, and unshifted arrows stop it. A `[set]` in config.toml wins.
+fn select_like_a_mac(cfg: &mut Config) {
+    for (name, abbrev, v) in [
+        ("selectmode", "slm", "mouse,key"),
+        ("keymodel", "km", "startsel,stopsel"),
+    ] {
+        let set = &mut cfg.set.0;
+        if !set.contains_key(name) && !set.contains_key(abbrev) {
+            set.insert(name.into(), v.into());
+        }
+    }
+}
+
+pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> {
+    select_like_a_mac(&mut cfg);
     let (input, output) = take_stdio()?;
     let mut out = BufWriter::new(output);
     let unknown = crate::magit::options::set(cfg.magit.0.clone());
@@ -527,6 +542,21 @@ fn crossterm_key(k: Key) -> KeyEvent {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_gui_selects_like_a_mac_unless_the_config_says_otherwise() {
+        use crate::options::Opt;
+        let mut cfg = Config::default();
+        select_like_a_mac(&mut cfg);
+        let o = cfg.options().unwrap();
+        assert_eq!(o.str(Opt::Selectmode), "mouse,key");
+        assert_eq!(o.str(Opt::Keymodel), "startsel,stopsel");
+        let (mut cfg, _) = Config::parse("[set]\nslm = \"\"\nkeymodel = \"stopsel\"\n");
+        select_like_a_mac(&mut cfg);
+        let o = cfg.options().unwrap();
+        assert_eq!(o.str(Opt::Selectmode), "");
+        assert_eq!(o.str(Opt::Keymodel), "stopsel");
+    }
 
     #[test]
     fn input_lines_parse() {

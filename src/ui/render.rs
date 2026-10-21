@@ -829,6 +829,7 @@ pub fn draw_window(
             .map(|(x, y, _)| (x, y));
     }
     let rows = area.height as usize;
+    ed.drawn_sel.borrow_mut().clear();
     let normal = Mode::Normal;
     let mode = if active { &ed.mode } else { &normal };
     let picking = matches!(mode, Mode::Pick(_));
@@ -921,6 +922,11 @@ pub fn draw_window(
             styles.get(l - view.top).cloned().flatten()
         };
         let in_sel = sel.is_some_and(|(a, b)| l >= a && l <= b);
+        // The selection takes this line's line break.
+        let with_break = in_sel
+            && chars.is_none_or(|(_, b)| l < b.0 || b.1 >= ed.buf.line_len(l))
+            && ed.buf.line_len(l) > 0;
+        let sel_before = ed.drawn_sel.borrow().len();
         let mut selected = in_sel;
         // A charwise selection's partial first or last line reverses just its bytes.
         let st = match chars {
@@ -1029,6 +1035,22 @@ pub fn draw_window(
                 &Line::from(spans),
                 cols as u16,
             );
+            // In a selected line, the selection is its reversed cells.
+            if in_sel {
+                let x0 = ox + gutter as u16;
+                let on: Vec<u16> = (x0..x0 + cols as u16)
+                    .filter(|&x| {
+                        buf[(x, oy + *y as u16)]
+                            .modifier
+                            .contains(Modifier::REVERSED)
+                    })
+                    .collect();
+                if let (Some(a), Some(b)) = (on.first(), on.last()) {
+                    ed.drawn_sel
+                        .borrow_mut()
+                        .push((*y as u16, a - ox, b + 1 - a));
+                }
+            }
             if margin_w > 0
                 && row == 0
                 && let Some(text) = ed.magit.as_ref().and_then(|v| v.margin_at(l, now))
@@ -1105,6 +1127,16 @@ pub fn draw_window(
                 if cc >= view.left && cc - view.left < cols {
                     cursor = Some((gutter + cc - view.left, first_y));
                 }
+            }
+        }
+        // One more cell for the line break, on the line's last row.
+        if with_break {
+            let mut d = ed.drawn_sel.borrow_mut();
+            if d.len() > sel_before
+                && let Some(last) = d.last_mut()
+                && last.1 + last.2 < (gutter + cols) as u16
+            {
+                last.2 += 1;
             }
         }
         if let Some((r, _)) = &ed.explain {

@@ -38,7 +38,18 @@ pub struct Win {
     pub divider: bool,
     pub active: bool,
     pub rows: Vec<Vec<Run>>,
+    /// The selection: one span of cells per text row, window-relative.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sel: Vec<Sel>,
     pub status: Status,
+}
+
+/// Selected cells `x..x + w` of text row `y`.
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Copy)]
+pub struct Sel {
+    pub y: u16,
+    pub x: u16,
+    pub w: u16,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]

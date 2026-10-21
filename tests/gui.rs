@@ -203,7 +203,24 @@ fn mouse_drag_selects() {
     g.send(r#"{"t":"mouse","seq":3,"kind":"drag","col":4,"row":0}"#);
     g.send(r#"{"t":"mouse","seq":4,"kind":"up","col":4,"row":0}"#);
     let f = g.frame_until(|f| f["seq"] == 4);
-    assert_eq!(f["windows"][0]["status"]["mode"], "VISUAL");
+    // `fred --gui` sets selectmode=mouse: the drag starts Select mode.
+    assert_eq!(f["windows"][0]["status"]["mode"], "SELECT");
+    // The selection is a span, not reversed cells.
+    assert_eq!(
+        f["windows"][0]["sel"],
+        serde_json::json!([{"y":0,"x":0,"w":5}])
+    );
+    let row = f["windows"][0]["rows"][0].as_array().unwrap();
+    assert!(
+        row.iter().all(|r| r["f"].as_u64().unwrap_or(0) & 8 == 0),
+        "{row:?}"
+    );
+    // Typing replaces it.
+    g.send(r#"{"t":"keys","seq":5,"keys":"x"}"#);
+    let f = g.frame_until(|f| f["seq"] == 5);
+    assert_eq!(row_text(&f, 0, 0), "x world");
+    assert_eq!(f["windows"][0]["status"]["mode"], "INSERT");
+    assert!(f["windows"][0].get("sel").is_none(), "no selection, no sel");
 }
 
 #[test]

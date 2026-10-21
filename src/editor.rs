@@ -145,6 +145,9 @@ pub struct Editor {
     pub org_keys: Vec<Key>,
     /// `zz`: the next draw puts the cursor line in the middle of the window.
     pub recenter: std::cell::Cell<bool>,
+    /// The selection as the last draw showed it: (text row, column, width)
+    /// in the window, for the GUI to draw instead of reversed cells.
+    pub drawn_sel: std::cell::RefCell<Vec<(u16, u16, u16)>>,
     /// The prefix argument for the next Org command (`Space u`).
     pub org_arg: crate::org::Prefix,
     /// The active region (Visual-line selection) for an Org command.
@@ -247,6 +250,7 @@ impl Editor {
             org_menu_typed: String::new(),
             org_keys: vec![],
             recenter: Default::default(),
+            drawn_sel: Default::default(),
             org_arg: crate::org::Prefix::None,
             org_region: None,
             org_buffer_name: None,
