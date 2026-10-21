@@ -148,6 +148,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
 let app = NSApplication.shared
 app.setActivationPolicy(.regular)
+app.appearance = NSAppearance(named: .darkAqua) // dark materials and label colors over the dark theme
 let delegate = AppDelegate()
 app.delegate = delegate
 app.run()

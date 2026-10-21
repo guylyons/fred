@@ -1,31 +1,39 @@
 import AppKit
 import FredKit
 
-/// Native status strip laid over a window's last cell row.
+/// Native status strip laid over a window's last cell row: a blur with the
+/// text view on top (a view's own drawing sits under its subviews, so the
+/// text can't be drawn by the view that holds the blur).
 final class StatusBar: NSView {
     private let blur = NSVisualEffectView()
-    private var status: Status?
+    private let content = StatusContent()
 
     override init(frame: NSRect) {
         super.init(frame: frame)
         blur.material = .titlebar
         blur.blendingMode = .withinWindow
         blur.state = .active
-        blur.autoresizingMask = [.width, .height]
-        blur.frame = bounds
-        addSubview(blur, positioned: .below, relativeTo: nil)
+        for v in [blur, content] {
+            v.frame = bounds
+            v.autoresizingMask = [.width, .height]
+            addSubview(v)
+        }
     }
 
     required init?(coder: NSCoder) { fatalError() }
 
-    override var isFlipped: Bool { true }
-
     func update(_ s: Status, active: Bool) {
-        blur.alphaValue = active ? 1 : 0.5
-        guard s != status else { return }
-        status = s
-        needsDisplay = true
+        alphaValue = active ? 1 : 0.5
+        guard s != content.status else { return }
+        content.status = s
+        content.needsDisplay = true
     }
+}
+
+private final class StatusContent: NSView {
+    var status: Status?
+
+    override var isFlipped: Bool { true }
 
     static func color(_ mode: String) -> NSColor {
         switch mode {
@@ -44,7 +52,7 @@ final class StatusBar: NSView {
         let badge = NSAttributedString(string: s.mode, attributes: [.font: badgeFont, .foregroundColor: NSColor.white])
         let bs = badge.size()
         let rect = NSRect(x: 6, y: mid - (bs.height + 2) / 2, width: bs.width + 12, height: bs.height + 2)
-        StatusBar.color(s.mode).setFill()
+        StatusContent.color(s.mode).setFill()
         NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4).fill()
         badge.draw(at: NSPoint(x: rect.minX + 6, y: rect.minY + 1))
 

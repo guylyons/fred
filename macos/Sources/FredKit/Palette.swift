@@ -9,11 +9,14 @@ public struct Palette {
         self.bg = bg
     }
 
-    // One Dark ANSI set, ratatui order: black, red, green, yellow, blue,
+    /// The default: Material Theme Darker, matching the core's `material-dark` syntax theme.
+    public static var materialDark: Palette { Palette(fg: rgb(0xeeffff), bg: rgb(0x212121)) }
+
+    // Material Dark ANSI set, ratatui order: black, red, green, yellow, blue,
     // magenta, cyan, gray, then the dark gray and bright variants.
     static let ansi: [Int] = [
-        0x282c34, 0xe06c75, 0x98c379, 0xe5c07b, 0x61afef, 0xc678dd, 0x56b6c2, 0xabb2bf,
-        0x5c6370, 0xe06c75, 0x98c379, 0xe5c07b, 0x61afef, 0xc678dd, 0x56b6c2, 0xffffff,
+        0x000000, 0xf07178, 0xc3e88d, 0xffcb6b, 0x82aaff, 0xc792ea, 0x89ddff, 0xeeffff,
+        0x545454, 0xff5370, 0xc3e88d, 0xffcb6b, 0x82aaff, 0xc792ea, 0x89ddff, 0xffffff,
     ]
 
     static func rgb(_ v: Int) -> NSColor {

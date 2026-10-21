@@ -5,8 +5,7 @@ import FredKit
 /// only changed rows redrawn.
 final class EditorView: NSView {
     var font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular) { didSet { metricsChanged() } }
-    var palette = Palette(fg: NSColor(srgbRed: 0xab / 255, green: 0xb2 / 255, blue: 0xbf / 255, alpha: 1),
-                          bg: NSColor(srgbRed: 0x28 / 255, green: 0x2c / 255, blue: 0x34 / 255, alpha: 1)) {
+    var palette = Palette.materialDark {
         didSet { lines.removeAll(); needsDisplay = true }
     }
     /// Called with (cols, rows) whenever the size in cells changes.
