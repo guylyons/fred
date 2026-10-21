@@ -36,6 +36,13 @@ pub struct Window {
     pub cur: crate::editor::Cursor,
     pub view: crate::ui::View,
     pub prev: Option<usize>,
+    /// Its tabs: the buffers it has shown, in display order (the GUI's).
+    pub tabs: Vec<usize>,
+    /// The preview tab, one of `tabs`, that the next preview replaces.
+    pub preview: Option<usize>,
+    /// The preview's text version when it opened, and whether that open
+    /// created its buffer.
+    pub preview_mark: (u64, bool),
 }
 
 const E36: &str = "E36: Not enough room";

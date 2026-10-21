@@ -105,7 +105,7 @@ impl Session {
     }
 
     /// A new unnamed buffer in the active window.
-    fn new_buffer(&mut self) {
+    pub(super) fn new_buffer(&mut self) {
         let opts = self.ed.opts.for_new_buffer();
         let ed = make_editor(Buffer::from_text(""), opts, &self.cfg);
         self.clock += 1;

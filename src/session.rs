@@ -19,6 +19,7 @@ use std::time::{Duration, Instant};
 pub(crate) mod magit;
 mod occur;
 mod org;
+mod tabs;
 mod term;
 mod windows;
 pub use org::Finish;
@@ -174,6 +175,8 @@ pub struct Session {
     pub hl: Highlighter,
     /// A window's lines were left unhighlighted last frame: draw again.
     pub hl_incomplete: bool,
+    /// Run by the native Mac app: `:bn` and `:bp` follow the window's tabs.
+    pub gui: bool,
 }
 
 fn make_editor(buf: Buffer, opts: Options, cfg: &Config) -> Editor {
@@ -363,6 +366,9 @@ impl Session {
                 cur: Default::default(),
                 view: View::default(),
                 prev: None,
+                tabs: vec![0],
+                preview: None,
+                preview_mark: (0, false),
             }],
             tree: Node::Leaf(1),
             active: 1,
@@ -375,6 +381,7 @@ impl Session {
             area: Rect::new(0, 0, 80, 23),
             hl: Highlighter::new("ansi", false)?,
             hl_incomplete: false,
+            gui: false,
         };
         let dir = browse.clone().or_else(|| {
             s.ed.path
@@ -495,6 +502,7 @@ impl Session {
                 None => break,
             }
         }
+        self.keep_edited_previews();
     }
 
     pub fn perform(&mut self, eff: ExEffect) {
@@ -1034,6 +1042,11 @@ impl Session {
         w.view = incoming;
         w.prev = Some(from);
         w.buf = i;
+        // A new tab goes right after the one it was opened from.
+        if !w.tabs.contains(&i) {
+            let at = w.tabs.iter().position(|&t| t == from);
+            w.tabs.insert(at.map_or(w.tabs.len(), |a| a + 1), i);
+        }
     }
 
     /// Make buffer `i` the live one, `ed`; nothing about windows.
@@ -1223,6 +1236,16 @@ impl Session {
                 Ok(i) => i,
                 Err(e) => return self.ed.set_err(e),
             },
+            BufCmd::Next | BufCmd::Prev if self.gui => {
+                let tabs = &self.win().tabs;
+                let at = tabs.iter().position(|&b| b == self.cur).unwrap_or(0);
+                let step = if cmd == BufCmd::Next {
+                    1
+                } else {
+                    tabs.len() - 1
+                };
+                tabs[(at + step) % tabs.len()]
+            }
             BufCmd::Next => (self.cur + 1) % n,
             BufCmd::Prev => (self.cur + n - 1) % n,
             BufCmd::List => return self.list_buffers(),
@@ -1284,10 +1307,11 @@ impl Session {
             if w.buf > target {
                 w.buf -= 1;
             }
-            w.prev = w
-                .prev
-                .filter(|&p| p != target)
-                .map(|p| if p > target { p - 1 } else { p });
+            let shift = |p: usize| if p > target { p - 1 } else { p };
+            w.prev = w.prev.filter(|&p| p != target).map(shift);
+            w.preview = w.preview.filter(|&p| p != target).map(shift);
+            w.tabs.retain(|&t| t != target);
+            w.tabs.iter_mut().for_each(|t| *t = shift(*t));
         }
         self.clock += 1;
         for ed in self.editors_mut() {
@@ -2016,6 +2040,7 @@ mod tests {
         assert!(t.s.windows.iter().all(|w| w.buf < n), "{:?}", t.s.windows);
         assert_eq!(t.s.win().buf, t.s.cur);
         t.s.each_window(|_, _, _, _, _| {});
+        t.s.check_tabs();
     }
 
     #[test]
