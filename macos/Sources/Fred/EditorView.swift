@@ -134,11 +134,8 @@ final class EditorView: NSView {
     override func rightMouseDown(with e: NSEvent) { mouse("right", e) }
 
     override func scrollWheel(with e: NSEvent) {
-        scrollAcc += e.scrollingDeltaY
-        while abs(scrollAcc) >= 3 {
-            mouse(scrollAcc > 0 ? "scroll_up" : "scroll_down", e)
-            scrollAcc -= scrollAcc > 0 ? 3 : -3
-        }
+        let n = scrollLines(e.scrollingDeltaY, precise: e.hasPreciseScrollingDeltas, acc: &scrollAcc)
+        for _ in 0..<abs(n) { mouse(n > 0 ? "scroll_up" : "scroll_down", e) }
     }
 
     // MARK: - Frames

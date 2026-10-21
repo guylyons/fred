@@ -7,6 +7,8 @@ root="$(dirname "$here")"
 swift build -c release --package-path "$here"
 app="$here/Fred.app/Contents"
 mkdir -p "$app/MacOS"
+# New files, not overwritten ones: a running copy keeps its old (validly signed) pages.
+rm -f "$app/MacOS/Fred" "$app/MacOS/fred-core"
 cp "$here/.build/release/Fred" "$app/MacOS/Fred"
 cp "$root/target/release/fred" "$app/MacOS/fred-core"
 cat > "$app/Info.plist" <<PLIST

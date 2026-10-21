@@ -70,7 +70,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.windowsMenu = windowMenu.submenu
     }
 
-    @objc private func quitCore() { core.send(.quit) }
+    @objc private func quitCore() { NSApp.terminate(nil) }
+
+    private var quitAsked: Date?
+
+    /// Quit asks the core to `:qa`, as the close button does; its `exit`
+    /// line ends the app. A second request within 2 s quits anyway, for a
+    /// hung core (which then sees EOF and saves its swap).
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let core, !core.exited else { return .terminateNow }
+        if let t = quitAsked, Date().timeIntervalSince(t) < 2 { return .terminateNow }
+        quitAsked = Date()
+        core.send(.quit)
+        return .terminateCancel
+    }
 
     @objc private func macKey(_ s: NSMenuItem) {
         let k = s.representedObject as! String, shift = s.tag == 1
@@ -107,7 +120,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         view.onResize = { [core] cols, rows in core!.send(.resize(cols: cols, rows: rows)) }
         core.onFrame = { [window] f in
             view.apply(f)
-            window!.title = f.title
+            if window!.title != f.title { window!.title = f.title }
         }
         core.onExit = { [window] code, tail in
             if code != 0 {

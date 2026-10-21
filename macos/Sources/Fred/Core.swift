@@ -12,7 +12,7 @@ final class Core {
 
     private let process = Process()
     private let stdin = Pipe()
-    private var exited = false
+    private(set) var exited = false
 
     init(executable: URL, args: [String], cwd: URL) {
         signal(SIGPIPE, SIG_IGN) // a dead core must not kill the app on write
@@ -38,13 +38,18 @@ final class Core {
                 do {
                     let msg = try Incoming.decode(line)
                     var t = ""
-                    if case .exit = msg { t = tail.withLock { $0.joined(separator: "\n") } }
+                    if case .exit(let code) = msg {
+                        // A failing core's last words may still be in the stderr pipe.
+                        if code != 0, errDone.wait(timeout: .now() + 0.3) == .success { errDone.signal() }
+                        t = tail.withLock { $0.joined(separator: "\n") }
+                    }
                     DispatchQueue.main.async { self?.handle(msg, tail: t) }
                 } catch {
                     NSLog("fred: bad core line: %@", String(decoding: line, as: UTF8.self))
                 }
             }
-            errDone.wait()
+            // A grandchild holding fd 2 open must not hang us.
+            _ = errDone.wait(timeout: .now() + 1)
             let t = tail.withLock { $0.joined(separator: "\n") }
             DispatchQueue.main.async { self?.handle(nil, tail: t) }
         }.start()

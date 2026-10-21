@@ -29,3 +29,15 @@ public func cellWidth(_ s: String) -> Int {
         return n + (wide ? 2 : 1)
     }
 }
+
+/// Scroll lines for one wheel event: up positive. A notched wheel scrolls one
+/// per notch; a trackpad's points add up in `acc`, 3 per line, starting over
+/// when the direction turns.
+public func scrollLines(_ dy: CGFloat, precise: Bool, acc: inout CGFloat) -> Int {
+    guard precise else { return dy > 0 ? 1 : dy < 0 ? -1 : 0 }
+    if dy * acc < 0 { acc = 0 }
+    acc += dy
+    let n = Int(acc / 3)
+    acc -= CGFloat(n) * 3
+    return n
+}
