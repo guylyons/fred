@@ -1,0 +1,26 @@
+New Claude features in fred (2026-10-20)
+==========================================
+
+Space c is now a Magit-style porcelain for Claude Code. It talks to your
+`claude` through Claude Code's own SDK control protocol, so models, slash
+commands and sessions all come from your install. Pause after Space c and
+which-key shows the keys.
+
+Space c then:
+  c   open the *claude* chat (same as :claude)
+  /   pick a slash command (skills, plugins, built-ins), each described;
+      one that takes an argument lands on the prompt for you to finish
+  m   pick the model, from the ones your account has
+  p   pick the permission mode: manual, acceptEdits, plan, auto,
+      dontAsk, bypassPermissions
+  r   resume one of this directory's conversations, newest first, by title
+  n   start a new conversation (/clear)
+  x   show how full the context is (/context)
+  i   interrupt (Ctrl-C); the turn stops, the conversation goes on
+
+Other changes
+  - Slash command output now shows in the chat.
+  - The status line names the current model and permission mode.
+  - claude_permissions accepts auto and manual (alongside acceptEdits,
+    plan, and "" to defer to your Claude Code settings).
+  - Fix: Claude's own keys can no longer edit the [*claude*] chat buffer.
