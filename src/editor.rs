@@ -480,6 +480,9 @@ impl Editor {
             }
             _ => {}
         }
+        if matches!(self.mode, Mode::Visual { .. } | Mode::VisualLine { .. }) {
+            self.vim.last_visual = Some((self.mode.clone(), self.cur.pos()));
+        }
         if self.mode == Mode::Insert && !was_insert {
             self.vim.insert_start = self.cur.pos();
             // Start reading nearby files' words while there's typing to do.
@@ -499,6 +502,11 @@ impl Editor {
     }
 
     /// The Visual selection is in Select mode (`gh`, 'selectmode').
+    /// Insert mode is Replace mode (`R`).
+    pub fn replace_mode(&self) -> bool {
+        self.mode == Mode::Insert && self.vim.replace.is_some()
+    }
+
     pub fn select_mode(&self) -> bool {
         self.vim.select && self.visual_lines().is_some()
     }

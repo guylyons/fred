@@ -86,7 +86,7 @@ key,insert,CTRL-X CTRL-V,,missing,,complete like in : command line
 key,insert,CTRL-X CTRL-Z,,missing,,"stop completion, text is unchanged"
 key,insert,CTRL-X CTRL-],,missing,,complete tags
 key,insert,CTRL-X s,,missing,,spelling suggestions
-key,normal,CTRL-A,change,missing,,add N to number at/after cursor
+key,normal,CTRL-A,change,done,"port of do_addsub(): decimal, hex, bin, 'nrformats'; oracle cases",add N to number at/after cursor
 key,normal,CTRL-B,motion,partial,present; not yet verified against nvim,scroll N screens Backwards
 key,normal,CTRL-C,,missing,,interrupt current (search) command
 key,normal,CTRL-D,,partial,present; not yet verified against nvim,scroll Down N lines (default: half a screen)
@@ -112,7 +112,7 @@ key,normal,CTRL-T,,missing,,jump to N older Tag in tag list
 key,normal,CTRL-U,,partial,present; not yet verified against nvim,scroll N lines Upwards (default: half a
 key,normal,CTRL-V,,missing,,start blockwise Visual mode
 key,normal,CTRL-W {char},,missing,,"window commands, see |CTRL-W|"
-key,normal,CTRL-X,change,missing,,subtract N from number at/after cursor
+key,normal,CTRL-X,change,done,port of do_addsub(); oracle cases,subtract N from number at/after cursor
 key,normal,CTRL-Y,,missing,,scroll N lines downwards
 key,normal,CTRL-Z,,missing,,suspend program (or start new shell)
 key,normal,CTRL-\ CTRL-N,,missing,,go to Normal mode (no-op)
@@ -189,7 +189,7 @@ key,normal,M,motion,done,oracle cases,cursor to middle line of screen
 key,normal,N,motion,done,oracle cases,repeat the latest '/' or '?' N times in
 key,normal,O,change,done,oracle cases,begin a new line above the cursor and
 key,normal,"[""x]P",change,done,oracle cases,put the text [from register x] before the
-key,normal,R,change,missing,,enter replace mode: overtype existing
+key,normal,R,change,done,counts and <BS> putting text back; oracle cases,enter replace mode: overtype existing
 key,normal,"[""x]S",change,done,oracle cases,delete N lines [into register x] and start
 key,normal,T{char},motion,done,oracle cases,cursor till after Nth occurrence of {char}
 key,normal,U,change,missing,,undo all latest changes on one line
@@ -457,7 +457,7 @@ key,g,g?g?,change,done,oracle cases,Rot13 encode current line
 key,g,gD,motion,missing,,go to definition of word under the cursor
 key,g,gE,motion,done,oracle cases,go backwards to the end of the previous
 key,g,gH,,done,"Select line mode (src/vim/select.rs); oracle cases",start Select line mode
-key,g,gI,change,missing,,"like ""I"", but always start in column 1"
+key,g,gI,change,done,oracle cases,"like ""I"", but always start in column 1"
 key,g,gJ,change,done,oracle cases,join lines without inserting space
 key,g,gN,,missing,,"1,2  find the previous match with the last used"
 key,g,"[""x]gP",change,done,oracle cases,put the text [from register x] before the
@@ -476,7 +476,7 @@ key,g,gf,,missing,,start editing the file whose name is under
 key,g,gF,,missing,,start editing the file whose name is under
 key,g,gg,motion,done,keeps the column ('nostartofline'); oracle cases,"cursor to line N, default first line"
 key,g,gh,,done,"Select mode (src/vim/select.rs): typing replaces, <BS>/<Del> delete; oracle cases. Differs: Select replace/delete fills the unnamed register but never syncs it to the system clipboard ('clipboard'), as other Mac editors",start Select mode
-key,g,gi,change,missing,,"like ""i"", but first move to the |'^| mark"
+key,g,gi,change,done,oracle cases,"like ""i"", but first move to the |'^| mark"
 key,g,gj,motion,partial,same as $ 0 ^ j k (right while 'wrap' is off),"like ""j"", but when 'wrap' on go N screen"
 key,g,gk,motion,partial,same as $ 0 ^ j k (right while 'wrap' is off),"like ""k"", but when 'wrap' on go N screen"
 key,g,gm,motion,missing,,go to character at middle of the screenline
@@ -489,7 +489,7 @@ key,g,gr{char},change,missing,,virtual replace N chars with {char}
 key,g,gs,,missing,,go to sleep for N seconds (default 1)
 key,g,gt,,missing,,go to the next tabpage
 key,g,gu{motion},change,done,oracle cases,make Nmove text lowercase
-key,g,gv,,missing,,reselect the previous Visual area
+key,g,gv,,done,oracle cases,reselect the previous Visual area
 key,g,gw{motion},change,missing,,format Nmove text and keep cursor
 key,g,gx,,missing,,execute application for filepath at cursor
 key,g,g@{motion},,missing,,call 'operatorfunc'
@@ -556,14 +556,14 @@ key,z,z<Right>,,missing,,"same as ""zl"""
 key,operator-pending,v,,missing,,force operator to work charwise
 key,operator-pending,V,,missing,,force operator to work linewise
 key,operator-pending,CTRL-V,,missing,,force operator to work blockwise
-key,visual,CTRL-A,change,missing,,add N to number in highlighted text
+key,visual,CTRL-A,change,done,oracle cases,add N to number in highlighted text
 key,visual,CTRL-C,,missing,,stop Visual mode
 key,visual,CTRL-G,,done,oracle cases,toggle between Visual mode and Select mode
 key,visual,<BS>,change,done,"<Del> too; leaves Normal mode, or Insert if the selection began there, as Neovim",Select mode: delete highlighted area
 key,visual,CTRL-H,change,done,oracle case,same as <BS>
 key,visual,CTRL-O,,missing,,switch from Select to Visual mode for one
 key,visual,CTRL-V,,missing,,make Visual mode blockwise or stop Visual
-key,visual,CTRL-X,change,missing,,subtract N from number in highlighted text
+key,visual,CTRL-X,change,done,oracle cases,subtract N from number in highlighted text
 key,visual,<Esc>,,partial,present; not yet verified against nvim,stop Visual mode
 key,visual,CTRL-],,missing,,jump to highlighted tag
 key,visual,!{filter},change,missing,,filter the highlighted lines through the
@@ -605,8 +605,8 @@ key,visual,a{,,done,extends the selection; oracle cases,same as aB
 key,visual,a},,done,extends the selection; oracle cases,same as aB
 key,visual,c,change,partial,present; not yet verified against nvim,delete highlighted area and start insert
 key,visual,d,change,partial,present; not yet verified against nvim,delete highlighted area
-key,visual,g CTRL-A,change,missing,,add N to number in highlighted text
-key,visual,g CTRL-X,change,missing,,subtract N from number in highlighted text
+key,visual,g CTRL-A,change,done,oracle cases,add N to number in highlighted text
+key,visual,g CTRL-X,change,done,oracle cases,subtract N from number in highlighted text
 key,visual,gJ,change,done,no count yet; oracle cases,join the highlighted lines without
 key,visual,gq,change,missing,,format the highlighted lines
 key,visual,gv,,missing,,exchange current and previous highlighted
@@ -1448,7 +1448,7 @@ option,,mousemoveevent,mousemev global boolean,missing,,deliver mouse move event
 option,,mousescroll, global string,missing,,amount to scroll by when scrolling with a mouse
 option,,mouseshape,mouses global string,missing,,shape of the mouse pointer in different modes
 option,,mousetime,mouset global number,missing,,max time between mouse double-click
-option,,nrformats,nf buf string,missing,,number formats recognized for CTRL-A command
+option,,nrformats,nf buf string,done,alpha octal hex bin unsigned blank; oracle cases,number formats recognized for CTRL-A command
 option,,number,nu win boolean,partial,Fred default on; wraps the gutter,print the line number in front of each line
 option,,numberwidth,nuw win number,missing,,number of columns used for the line number
 option,,omnifunc,ofu buf string,missing,,function for filetype-specific completion

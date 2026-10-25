@@ -35,10 +35,10 @@ track.
 | 7 | Text objects | 4 | 0 | all but `it`/`at` (`src/vim/textobj.rs`) |
 | 8 | Operators (`> < = g~ gu gU gq gw g? ! zf g@`) | 5 | 0 | `d c y > < g~ gu gU g?`, `~`, `gJ` |
 | 9 | Visual, Visual-line, Visual-block | 5 | 0 | charwise and linewise; text objects, `< > u U ~ g? gJ`; Select mode (`gh`, `gH`, CTRL-G, `<BS>`) |
-| 10 | Insert and Replace mode keys | 4 | 0 | basics |
+| 10 | Insert and Replace mode keys | 4 | 0 | basics; counts (`3ix<Esc>`), Replace mode (`R`), `gi`, `gI` |
 | 11 | Command-line editing keys | 3 | 0 | basics, history, Tab |
 | 12 | Marks, jumplist, changelist | 3 | 0 | `a-z` line marks |
-| 13 | Macros, `:normal`, `.`, CTRL-A/CTRL-X | 3 | 0 | `.`, `q`, `@`, `@@`, `@:`, `Q` |
+| 13 | Macros, `:normal`, `.`, CTRL-A/CTRL-X | 3 | 0 | `.`, `q`, `@`, `@@`, `@:`, `Q`, CTRL-A/CTRL-X (`g CTRL-A`); no `:normal` |
 | 14 | Search and Vim regex, hlsearch, incsearch | 6 | 0 | Vim magic patterns (no `\zs`, `\@`, `\_`, back-references), `/ ? n N` |
 | 15 | `:substitute` and `:global` in full | 3 | 0 | `g` flag only |
 | 16 | Editing, file, buffer and argument-list ex commands | 5 | 0 | 26 commands |
@@ -119,9 +119,9 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
 3. Registers (track 5), then key tables (track 4).
 4. Tracks 6–13 (the editing grammar), each with oracle cases. Done so
    far: the motions, text objects and operators in the table above. Next:
-   `it`/`at`, `=` `gq` `gw` `!` `g@` `zf`, counts in Visual mode,
-   CTRL-A/CTRL-X, `gv`, `gi`, `R`, `:normal`, `:registers`, Insert
-   CTRL-R.
+   `it`/`at`, `=` `gq` `gw` `!` `g@` `zf`, `:normal`, `:registers`,
+   Insert CTRL-R/CTRL-O/CTRL-T/CTRL-D, scrolling (CTRL-E/CTRL-Y, `zt`
+   `zb` `z.`), `&`.
 5. Track 9 continued: Select block mode (`g CTRL-H`, needs Visual-block),
    Select CTRL-O and CTRL-R, `.` repeating a Select-mode replacement,
    'selection' (exclusive), `<S-Right>`/`<S-Left>` as word motions when
@@ -210,3 +210,10 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
   as register text (the status line shows `recording @x`), `q` stops,
   `@{reg}`, `@@`, `@:`, `Q`; a failing command ends a run, as in Vim.
   Oracle: 427 cases. Ledger: 182 keys done.
+- 2026-10-25: CTRL-A/CTRL-X as Neovim's `do_addsub()` (decimal with
+  wraparound, hex keeping its case, binary, leading zeros kept, option
+  'nrformats' with alpha/octal/unsigned/blank), in Visual mode on each
+  line's first number and `g CTRL-A` counting up. Counts in Visual mode
+  (`3>`). Counts on `i a I A o O` type the text again; Replace mode `R`
+  (with counts, `<BS>` putting text back, REPLACE in the status line);
+  `gi`, `gI`, `gv`. Oracle: 495 cases. Ledger: 193 keys done.

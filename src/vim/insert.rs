@@ -124,9 +124,58 @@ fn refresh_popup(ed: &mut Editor, manual: bool) {
     });
 }
 
+/// Replace mode: type `c` over the character under the cursor.
+fn replace_char(ed: &mut Editor, c: char) {
+    let (l, b) = ed.cur.pos();
+    let line = ed.buf.line(l);
+    let old = (b < line.len()).then(|| line[b..next_grapheme(&line, b)].to_string());
+    if old.is_some() {
+        delete_chars(ed, (l, b), (l, next_grapheme(&line, b)));
+        ed.cur.byte = b;
+    }
+    let mut s = [0u8; 4];
+    insert_text(ed, c.encode_utf8(&mut s));
+    if let Some(stack) = ed.vim.replace.as_mut() {
+        stack.push(old);
+    }
+}
+
 fn edit_key(ed: &mut Editor, k: Key) {
     let (l, b) = ed.cur.pos();
     let line = ed.buf.line(l);
+    if ed.vim.replace.is_some() {
+        match k.code {
+            KeyCode::Char(c) if !k.ctrl && !k.alt => return replace_char(ed, c),
+            KeyCode::Backspace | KeyCode::Char('h') if k.code == KeyCode::Backspace || k.ctrl => {
+                match ed.vim.replace.as_mut().and_then(Vec::pop) {
+                    // Before the replaced text: only move left.
+                    None => {
+                        if b > 0 {
+                            ed.cur.byte = prev_grapheme(&line, b);
+                        }
+                        return;
+                    }
+                    // Put back what the character replaced.
+                    Some(Some(old)) => {
+                        let p = prev_grapheme(&line, b);
+                        delete_chars(ed, (l, p), (l, b));
+                        ed.cur.byte = p;
+                        insert_text(ed, &old);
+                        ed.cur.byte = p;
+                        return;
+                    }
+                    // It was added: delete it, as in Insert mode.
+                    Some(None) => {}
+                }
+            }
+            KeyCode::Enter => {
+                if let Some(stack) = ed.vim.replace.as_mut() {
+                    stack.push(None);
+                }
+            }
+            _ => {}
+        }
+    }
     match k.code {
         KeyCode::Esc | KeyCode::Char('c') if k.code == KeyCode::Esc || k.ctrl => leave(ed),
         KeyCode::Enter => {
@@ -193,8 +242,34 @@ fn edit_key(ed: &mut Editor, k: Key) {
     }
 }
 
-/// Leave Insert mode: close the undo group and finish dot-repeat recording.
+/// Leave Insert mode: type the text again for a count, close the undo
+/// group and finish dot-repeat recording.
 pub fn leave(ed: &mut Editor) {
+    if let Some((cmd, n)) = ed.vim.insert_repeat.take() {
+        let keys = match &ed.vim.recording {
+            Some(r) => r[ed.vim.recording_split.min(r.len())..].to_vec(),
+            None if ed.vim.replaying => {
+                let k = &ed.vim.last_change;
+                k[ed.vim.last_change_split.unwrap_or(k.len()).min(k.len())..].to_vec()
+            }
+            None => vec![],
+        };
+        let text = super::typed_text(&keys);
+        for _ in 1..n {
+            if matches!(cmd, 'o' | 'O') {
+                super::ops::open_line(ed, true);
+                insert_text(ed, &text);
+            } else if cmd == 'R' {
+                for c in text.chars() {
+                    replace_char(ed, c);
+                }
+            } else {
+                insert_text(ed, &text);
+            }
+        }
+    }
+    ed.vim.replace = None;
+    ed.vim.insert_stop = Some(ed.cur.pos());
     ed.mode = Mode::Normal;
     ed.vim.after_j = false;
     let line = ed.buf.line(ed.cur.line);

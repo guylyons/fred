@@ -54,23 +54,41 @@ pub struct State {
     pub(crate) last_insert: String,
     /// `Editor::handle_key` calls in progress.
     pub(crate) key_depth: usize,
+    /// CTRL-A writes hex digits in upper case (the last ones seen were).
+    pub(crate) hexupper: bool,
+    /// Replace mode (`R`): what each typed character replaced (None: it
+    /// was added), for `<BS>` to put back.
+    pub(crate) replace: Option<Vec<Option<String>>>,
+    /// `3ix<Esc>`: the insert command and its count, to type the text
+    /// again when Insert mode ends.
+    pub(crate) insert_repeat: Option<(char, usize)>,
+    /// The last Visual selection (`gv`): its mode and cursor.
+    pub(crate) last_visual: Option<(Mode, (usize, usize))>,
+    /// Where Insert mode last ended (`gi`, Vim's `'^` mark).
+    pub(crate) insert_stop: Option<(usize, usize)>,
+}
+
+/// The text a run of Insert-mode keys typed.
+pub(crate) fn typed_text(keys: &[Key]) -> String {
+    let mut text = String::new();
+    for k in keys {
+        match (k.code, k.ctrl) {
+            (KeyCode::Char(c), false) => text.push(c),
+            (KeyCode::Enter, _) => text.push('\n'),
+            (KeyCode::Tab, _) => text.push('\t'),
+            (KeyCode::Backspace, _) | (KeyCode::Char('h'), true) => {
+                text.pop();
+            }
+            _ => {}
+        }
+    }
+    text
 }
 
 impl State {
     /// A change that went through Insert mode is complete.
     pub(crate) fn finish_recording(&mut self, keys: Vec<Key>) {
-        let mut text = String::new();
-        for k in keys.iter().skip(self.recording_split) {
-            match (k.code, k.ctrl) {
-                (KeyCode::Char(c), false) => text.push(c),
-                (KeyCode::Enter, _) => text.push('\n'),
-                (KeyCode::Tab, _) => text.push('\t'),
-                (KeyCode::Backspace, _) => {
-                    text.pop();
-                }
-                _ => {}
-            }
-        }
+        let text = typed_text(&keys[self.recording_split.min(keys.len())..]);
         self.last_insert = text;
         self.last_change = keys;
         self.last_change_split = Some(self.recording_split);
@@ -276,7 +294,7 @@ fn parse_op(keys: &[Key]) -> Parse<(char, usize)> {
 const ARG_CMDS: &[char] = &['r', 'm', 'Z', 'z', ' ', 'g', 'q', '@'];
 const SIMPLE: &[char] = &[
     'x', 'X', 's', 'S', 'J', 'p', 'P', 'o', 'O', 'i', 'a', 'I', 'A', 'u', 'D', 'C', 'Y', 'V', 'v',
-    '~', ':', '/', '?', '.', 'r', 'm', 'Z', 'z', ' ', 'g', 'q', '@', 'Q',
+    '~', ':', '/', '?', '.', 'r', 'm', 'Z', 'z', ' ', 'g', 'q', '@', 'Q', 'R',
 ];
 
 /// A command, with the register `"x` before it named.
@@ -389,7 +407,7 @@ fn parse_cmd(keys: &[Key], visual: bool) -> Parse<Cmd> {
     let simple_ctrl = k.ctrl
         && matches!(
             k.code,
-            KeyCode::Char('r' | 'd' | 'u' | 'f' | 'b' | '^' | '6')
+            KeyCode::Char('r' | 'd' | 'u' | 'f' | 'b' | '^' | '6' | 'a' | 'x')
         );
     let simple_key = matches!(
         k.code,
@@ -504,54 +522,7 @@ pub fn normal_key(ed: &mut Editor, k: Key) {
         register::stop_recording(ed);
         return;
     }
-    // `"x` before a Visual-mode key names its register.
-    if ed.visual_lines().is_some() && ed.vim.pending == [Key::ch('"')] {
-        ed.vim.pending.clear();
-        ed.vim.register = k.char().filter(|&c| register::valid(c));
-        return;
-    }
-    // `g~`, `gu`, `gU`, `g?` and `gJ` on the selection.
-    if ed.visual_lines().is_some()
-        && ed.vim.pending == [Key::ch('g')]
-        && let Some(c @ ('~' | 'u' | 'U' | '?' | 'J')) = k.char()
-    {
-        ed.vim.pending.clear();
-        visual_op(ed, if c == 'J' { 'j' } else { c });
-        ed.vim.register = None;
-        return;
-    }
-    if ed.visual_lines().is_some()
-        && ed.vim.pending.is_empty()
-        && let Some(c @ ('p' | 'P')) = k.char()
-    {
-        visual_put(ed, c == 'P');
-        ed.vim.register = None;
-        return;
-    }
-    if ed.visual_lines().is_some()
-        && ed.vim.pending.is_empty()
-        && let Some(c @ ('~' | 'u' | 'U' | '<' | '>')) = k.char()
-    {
-        visual_op(ed, c);
-        ed.vim.register = None;
-        return;
-    }
-    if let Mode::Visual { anchor } = ed.mode
-        && ed.vim.pending.is_empty()
-        && let Some(c) = k.char()
-        && VISUAL.contains(&c)
-    {
-        visual_chars(ed, anchor, c);
-        ed.vim.register = None;
-        return;
-    }
-    if let Mode::VisualLine { anchor } = ed.mode
-        && ed.vim.pending.is_empty()
-        && let Some(c) = k.char()
-        && VISUAL.contains(&c)
-    {
-        visual(ed, anchor, c);
-        ed.vim.register = None;
+    if ed.visual_lines().is_some() && visual_key(ed, k) {
         return;
     }
     ed.vim.pending.push(k);
@@ -590,9 +561,92 @@ const VISUAL: &[char] = &[
     'd', 'x', 'X', 'D', 'y', 'Y', 'c', 's', 'S', 'C', 'J', ':', 'V', 'v', 'o', 'K',
 ];
 
-/// An operator on the selection: `~ u U ?` change case, `< >` shift and
-/// `j` joins without spaces (`gJ`).
-fn visual_op(ed: &mut Editor, op: char) {
+/// A key in Visual mode that acts on the selection, after the count, `"x`
+/// or `g` that may be pending. False if it isn't one: the parser gets it.
+fn visual_key(ed: &mut Editor, k: Key) -> bool {
+    let (count, used) = count(&ed.vim.pending);
+    let rest = ed.vim.pending[used..].to_vec();
+    if rest == [Key::ch('"')] {
+        ed.vim.pending.truncate(used);
+        ed.vim.register = k.char().filter(|&c| register::valid(c));
+        return true;
+    }
+    let g = rest == [Key::ch('g')];
+    if !rest.is_empty() && !g {
+        return false;
+    }
+    let mode = ed.mode.clone();
+    match (g, k.char()) {
+        _ if k == Key::ctrl('a') || k == Key::ctrl('x') => {
+            visual_addsub(ed, k == Key::ctrl('x'), g, count)
+        }
+        (true, Some(c @ ('~' | 'u' | 'U' | '?' | 'J'))) => {
+            visual_op(ed, if c == 'J' { 'j' } else { c }, count)
+        }
+        (true, _) => return false,
+        (false, Some(c @ ('p' | 'P'))) => visual_put(ed, c == 'P'),
+        (false, Some(c @ ('~' | 'u' | 'U' | '<' | '>'))) => visual_op(ed, c, count),
+        (false, Some(c)) if VISUAL.contains(&c) => match mode {
+            Mode::Visual { anchor } => visual_chars(ed, anchor, c),
+            Mode::VisualLine { anchor } => visual(ed, anchor, c),
+            _ => return false,
+        },
+        _ => return false,
+    }
+    ed.vim.pending.clear();
+    ed.vim.register = None;
+    true
+}
+
+/// CTRL-A and CTRL-X on the selection: the first number of each line;
+/// with `g` (`g CTRL-A`) each one by `count` more than the one before.
+fn visual_addsub(ed: &mut Editor, sub: bool, g: bool, count: Option<usize>) {
+    let mode = ed.mode.clone();
+    let cur = ed.cur.pos();
+    let (from, to, linewise) = match mode {
+        Mode::Visual { anchor } => (anchor.min(cur), anchor.max(cur), false),
+        Mode::VisualLine { anchor } => ((anchor.min(cur.0), 0), (anchor.max(cur.0), 0), true),
+        _ => return,
+    };
+    ed.mode = Mode::Normal;
+    if ed.generated() {
+        ed.set_err("generated Git buffer is read-only");
+        return;
+    }
+    let amount = count.unwrap_or(1).max(1) as u64;
+    let mut step = amount;
+    let mut changed = 0;
+    ed.undo.begin(cur);
+    for l in from.0..=to.0 {
+        let len = ed.buf.line_len(l);
+        let (col, length) = if linewise {
+            (0, len)
+        } else {
+            let col = if l == from.0 { from.1 } else { 0 };
+            let end = if l == to.0 {
+                to.1.min(len.saturating_sub(1)) + 1
+            } else {
+                len
+            };
+            (col, end.saturating_sub(col))
+        };
+        if ops::addsub(ed, l, col, Some(length), linewise, sub, step) {
+            changed += 1;
+            if g {
+                step += amount;
+            }
+        }
+    }
+    ed.set_cursor(from.0, from.1);
+    if changed > 2 {
+        ed.set_msg(format!("{changed} lines changed"));
+    }
+    ed.undo.end(ed.cur.pos());
+}
+
+/// An operator on the selection: `~ u U ?` change case, `< >` shift
+/// (`count` times) and `j` joins without spaces (`gJ`).
+fn visual_op(ed: &mut Editor, op: char, count: Option<usize>) {
     let mode = ed.mode.clone();
     let Some(span) = selection(ed, &mode) else {
         return;
@@ -608,7 +662,7 @@ fn visual_op(ed: &mut Editor, op: char) {
     };
     ed.undo.begin(ed.cur.pos());
     match op {
-        '<' | '>' => ops::shift(ed, lo, hi, op == '<', 1),
+        '<' | '>' => ops::shift(ed, lo, hi, op == '<', count.unwrap_or(1).max(1)),
         'j' => {
             ops::join_with(ed, lo, (hi - lo + 1).max(2), false);
         }
@@ -808,8 +862,8 @@ fn visual(ed: &mut Editor, anchor: usize, c: char) {
 
 /// Commands that change text (and so are repeated by `.`).
 fn is_change(cmd: &Cmd) -> bool {
-    let g =
-        matches!(cmd, Cmd::Simple { key, arg: Some('J' | 'p' | 'P'), .. } if *key == Key::ch('g'));
+    let g = matches!(cmd, Cmd::Simple { key, arg: Some('J' | 'p' | 'P' | 'i' | 'I'), .. } if *key == Key::ch('g'))
+        || matches!(cmd, Cmd::Simple { key, .. } if *key == Key::ctrl('a') || *key == Key::ctrl('x'));
     g || match cmd {
         Cmd::Op { op, .. } => *op != 'y',
         // Applied when the search line finishes; not repeatable with `.`.
@@ -835,6 +889,7 @@ fn is_change(cmd: &Cmd) -> bool {
                             | 'C'
                             | 'r'
                             | '~'
+                            | 'R'
                     )
                 )
         }
@@ -1063,6 +1118,10 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
             }
         }
         (KeyCode::Char('.'), false) => repeat(ed, count),
+        (KeyCode::Char(c @ ('a' | 'x')), true) => {
+            let (l, b) = ed.cur.pos();
+            ops::addsub(ed, l, b, None, false, c == 'x', n as u64);
+        }
         (KeyCode::Char('x'), false) | (KeyCode::Delete, _) => {
             op(ed, 'd', count, Some(Motion::Right))
         }
@@ -1092,8 +1151,16 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
                 ops::replace_chars(ed, n, c);
             }
         }
-        (KeyCode::Char('o'), false) => ops::open_line(ed, true),
-        (KeyCode::Char('O'), false) => ops::open_line(ed, false),
+        (KeyCode::Char(c @ ('o' | 'O')), false) => {
+            ops::open_line(ed, c == 'o');
+            ed.vim.insert_repeat = (n > 1).then_some((c, n));
+        }
+        // Replace mode.
+        (KeyCode::Char('R'), false) => {
+            ed.mode = Mode::Insert;
+            ed.vim.replace = Some(vec![]);
+            ed.vim.insert_repeat = (n > 1).then_some(('R', n));
+        }
         (KeyCode::Char(c @ ('i' | 'a' | 'I' | 'A')), false) => {
             let line = ed.buf.line(ed.cur.line);
             let b = match c {
@@ -1105,6 +1172,7 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
             };
             ed.mode = Mode::Insert;
             ed.cur.byte = b;
+            ed.vim.insert_repeat = (n > 1).then_some((c, n));
         }
         // 'selectmode' cmd: `v` and `V` start Select mode.
         (KeyCode::Char(c @ ('v' | 'V')), false) => {
@@ -1219,6 +1287,37 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
         (KeyCode::Char('g'), false) if matches!(arg, Some('p' | 'P')) => {
             ops::put_with(ed, n, arg == Some('p'), true)
         }
+        // `gI`: insert in column 1; `gi`: where Insert mode last ended.
+        (KeyCode::Char('g'), false) if matches!(arg, Some('I' | 'i')) => {
+            if arg == Some('i')
+                && let Some((l, b)) = ed.vim.insert_stop
+            {
+                let l = l.min(ed.line_count() - 1);
+                ed.cur.line = l;
+                ed.cur.byte = b.min(ed.buf.line_len(l));
+            } else if arg == Some('I') {
+                ed.cur.byte = 0;
+            }
+            ed.mode = Mode::Insert;
+            ed.vim.insert_repeat = (n > 1).then_some(('i', n));
+        }
+        // `gv`: the last Visual selection again.
+        (KeyCode::Char('g'), false) if arg == Some('v') => match ed.vim.last_visual.clone() {
+            Some((mut mode, (l, b))) => {
+                let last = ed.line_count() - 1;
+                match &mut mode {
+                    Mode::VisualLine { anchor } => *anchor = (*anchor).min(last),
+                    Mode::Visual { anchor } => {
+                        anchor.0 = anchor.0.min(last);
+                        anchor.1 = anchor.1.min(ed.buf.line_len(anchor.0));
+                    }
+                    _ => {}
+                }
+                ed.mode = mode;
+                ed.set_cursor(l.min(last), b);
+            }
+            None => ed.set_err("E173: No previous Visual area"),
+        },
         // `gJ`: join without inserting or removing spaces.
         (KeyCode::Char('g'), false) if arg == Some('J') => {
             ops::join_with(ed, ed.cur.line, n, false);

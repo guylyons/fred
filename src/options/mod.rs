@@ -117,6 +117,10 @@ options! {
     Keymodel => opt("keymodel", "km", Global, Str(""))
         .list()
         .check(|v| items(v, &["startsel", "stopsel"])),
+    /// The number formats CTRL-A and CTRL-X recognise.
+    Nrformats => opt("nrformats", "nf", Buffer, Str("bin,hex"))
+        .list()
+        .check(|v| items(v, &["alpha", "octal", "hex", "bin", "unsigned", "blank"])),
     /// Line numbers (Neovim: off).
     Number => opt("number", "nu", Window, Bool(true)),
     /// Line numbers relative to the cursor's.

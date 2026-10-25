@@ -558,3 +558,294 @@ pub fn tilde(ed: &mut Editor, count: usize) -> bool {
     ed.set_cursor(start.0, b);
     true
 }
+
+/// Neovim's `vim_str2nr()` for CTRL-A: the prefix (`x`, `X`, `b`, `B`, `0`
+/// for octal, 0 for decimal), the bytes taken (with a leading `-`), the
+/// value and whether it overflowed. `maxlen` 0 means no limit.
+fn str2nr(s: &[u8], bin: bool, oct: bool, hex: bool, maxlen: usize) -> (u8, usize, u64, bool) {
+    let at = |i: usize| s.get(i).copied().unwrap_or(0);
+    let mut i = 0;
+    let mut maxlen = maxlen;
+    if at(0) == b'-' {
+        i = 1;
+        maxlen = maxlen.saturating_sub(1);
+    }
+    let start = i;
+    let mut pre = 0u8;
+    if at(i) == b'0' && at(i + 1) != b'8' && at(i + 1) != b'9' && (maxlen == 0 || maxlen > 1) {
+        let p = at(i + 1);
+        let room = maxlen == 0 || maxlen > 2;
+        let hex_pre = hex && matches!(p, b'x' | b'X') && at(i + 2).is_ascii_hexdigit();
+        let bin_pre = bin && matches!(p, b'b' | b'B') && matches!(at(i + 2), b'0' | b'1');
+        if (hex_pre || bin_pre) && room {
+            pre = p;
+            i += 2;
+        } else if oct {
+            // "0", "08" and "0129" are not octal.
+            let mut j = i + 1;
+            while at(j).is_ascii_digit() {
+                if at(j) > b'7' {
+                    pre = 0;
+                    break;
+                }
+                pre = b'0';
+                j += 1;
+            }
+        }
+    }
+    let base: u64 = match pre {
+        b'x' | b'X' => 16,
+        b'b' | b'B' => 2,
+        b'0' => 8,
+        _ => 10,
+    };
+    let limit = if maxlen == 0 {
+        usize::MAX
+    } else {
+        start + maxlen
+    };
+    let (mut n, mut overflow) = (0u64, false);
+    while i < limit {
+        let Some(d) = (at(i) as char).to_digit(base as u32) else {
+            break;
+        };
+        match n.checked_mul(base).and_then(|v| v.checked_add(d as u64)) {
+            Some(v) => n = v,
+            None => {
+                n = u64::MAX;
+                overflow = true;
+            }
+        }
+        i += 1;
+    }
+    (pre, i, n, overflow)
+}
+
+/// CTRL-A and CTRL-X (`sub`): Neovim's `do_addsub()` on line `l` from byte
+/// `col`, within `length` bytes in Visual mode (`linewise`: a Visual-line
+/// selection). Returns whether the number changed; in Normal mode the
+/// cursor ends on its last character.
+pub fn addsub(
+    ed: &mut Editor,
+    l: usize,
+    col: usize,
+    length: Option<usize>,
+    linewise: bool,
+    sub: bool,
+    amount: u64,
+) -> bool {
+    let nf = ed.opts.str(crate::options::Opt::Nrformats);
+    let has = |s: &str| nf.split(',').any(|i| i == s);
+    let (do_hex, do_oct, do_bin) = (has("hex"), has("octal"), has("bin"));
+    let (do_alpha, do_unsigned, do_blank) = (has("alpha"), has("unsigned"), has("blank"));
+    let line = ed.buf.line(l);
+    let p = line.as_bytes();
+    let at = |i: usize| p.get(i).copied().unwrap_or(0);
+    let back1 = |mut c: usize| {
+        c -= 1;
+        while c > 0 && p[c] & 0xc0 == 0x80 {
+            c -= 1;
+        }
+        c
+    };
+    let bdigit = |b: u8| matches!(b, b'0' | b'1');
+    let alpha = |b: u8| do_alpha && b.is_ascii_alphabetic();
+    let white = |b: u8| matches!(b, b' ' | b'\t');
+    let visual = length.is_some();
+    let mut length = length.unwrap_or(0) as isize;
+    let orig = col;
+    let mut col = col;
+    if col >= p.len() {
+        return false;
+    }
+    let (mut negative, mut was_positive, mut blank_unsigned) = (false, true, false);
+    if !visual {
+        // On a hex or binary number, after its "0x"?
+        if do_bin {
+            while col > 0 && bdigit(at(col)) {
+                col = back1(col);
+            }
+        }
+        if do_hex {
+            while col > 0 && at(col).is_ascii_hexdigit() {
+                col = back1(col);
+            }
+        }
+        let hexstart = |c: usize| {
+            c > 0
+                && matches!(at(c), b'x' | b'X')
+                && at(c - 1) == b'0'
+                && at(c + 1).is_ascii_hexdigit()
+        };
+        let binstart = |c: usize| {
+            c > 0 && matches!(at(c), b'b' | b'B') && at(c - 1) == b'0' && bdigit(at(c + 1))
+        };
+        if do_bin && do_hex && !hexstart(col) {
+            col = orig;
+            while col > 0 && at(col).is_ascii_digit() {
+                col = back1(col);
+            }
+        }
+        if (do_hex && hexstart(col)) || (do_bin && binstart(col)) {
+            col = back1(col);
+        } else {
+            col = orig;
+            while at(col) != 0 && !at(col).is_ascii_digit() && !alpha(at(col)) {
+                col += 1;
+            }
+            while col > 0 && at(col - 1).is_ascii_digit() && !alpha(at(col)) {
+                col -= 1;
+            }
+        }
+    } else {
+        while at(col) != 0 && length > 0 && !at(col).is_ascii_digit() && !alpha(at(col)) {
+            let n = line[col..].chars().next().map_or(1, char::len_utf8);
+            col += n;
+            length -= n as isize;
+        }
+        if length <= 0 {
+            return false;
+        }
+        if col > orig && at(col - 1) == b'-' && !do_unsigned {
+            if do_blank && col >= 2 && !white(at(col - 2)) {
+                blank_unsigned = true;
+            } else {
+                negative = true;
+                was_positive = false;
+            }
+        }
+    }
+    let first = at(col);
+    if !first.is_ascii_digit() && !alpha(first) {
+        ed.vim.failed = true;
+        return false;
+    }
+    if alpha(first) {
+        let (lo, hi) = if first.is_ascii_uppercase() {
+            (b'A', b'Z')
+        } else {
+            (b'a', b'z')
+        };
+        let ord = (first - lo) as u64;
+        let new = if sub {
+            if ord < amount {
+                lo
+            } else {
+                first - amount as u8
+            }
+        } else if 25 - ord < amount {
+            hi
+        } else {
+            first + amount as u8
+        };
+        let s = ed.buf.pos_to_char(l, col);
+        ed.apply(Edit {
+            start: s,
+            end: s + 1,
+            text: (new as char).to_string(),
+        });
+        if !visual {
+            ed.set_cursor(l, col);
+        }
+        return true;
+    }
+    if col > 0 && at(col - 1) == b'-' && !visual && !do_unsigned {
+        if do_blank && col >= 2 && !white(at(col - 2)) {
+            blank_unsigned = true;
+        } else {
+            col -= 1;
+            negative = true;
+        }
+    }
+    let maxlen = if visual && !linewise {
+        length as usize
+    } else {
+        0
+    };
+    let (pre, len, mut n, overflow) = str2nr(&p[col..], do_bin, do_oct, do_hex, maxlen);
+    let mut length = len as isize;
+    if pre != 0 && negative {
+        col += 1;
+        length -= 1;
+        negative = false;
+    }
+    let subtract = sub ^ negative;
+    let oldn = n;
+    if !overflow {
+        n = if subtract {
+            n.wrapping_sub(amount)
+        } else {
+            n.wrapping_add(amount)
+        };
+    }
+    if pre == 0 {
+        if subtract {
+            if n > oldn {
+                n = 1u64.wrapping_add(!n);
+                negative ^= true;
+            }
+        } else if n < oldn {
+            n = !n;
+            negative ^= true;
+        }
+        if n == 0 {
+            negative = false;
+        }
+    }
+    if (do_unsigned || blank_unsigned) && negative {
+        n = if subtract { 0 } else { u64::MAX };
+        negative = false;
+    }
+    if visual && !was_positive && !negative && col > 0 {
+        col -= 1;
+        length += 1;
+    }
+    let todel = length.max(0) as usize;
+    if at(col) == b'-' {
+        length -= 1;
+    }
+    for &c in &p[col..(col + todel).min(p.len())] {
+        if c.is_ascii_alphabetic() {
+            ed.vim.hexupper = c.is_ascii_uppercase();
+        }
+    }
+    let mut out = String::new();
+    if negative && (!visual || was_positive) {
+        out.push('-');
+    }
+    if pre != 0 {
+        out.push('0');
+        length -= 1;
+    }
+    if matches!(pre, b'b' | b'B' | b'x' | b'X') {
+        out.push(pre as char);
+        length -= 1;
+    }
+    let digits = match pre {
+        b'b' | b'B' if n == 0 => String::new(),
+        b'b' | b'B' => format!("{n:b}"),
+        0 => n.to_string(),
+        b'0' => format!("{n:o}"),
+        _ if ed.vim.hexupper => format!("{n:X}"),
+        _ => format!("{n:x}"),
+    };
+    length -= digits.len() as isize;
+    // Keep the number's width when it had leading zeros.
+    if first == b'0' && !(do_oct && pre == 0) {
+        for _ in 0..length.max(0) {
+            out.push('0');
+        }
+    }
+    out.push_str(&digits);
+    let s = ed.buf.pos_to_char(l, col);
+    let e = ed.buf.pos_to_char(l, (col + todel).min(p.len()));
+    ed.apply(Edit {
+        start: s,
+        end: e,
+        text: out.clone(),
+    });
+    if !visual {
+        ed.set_cursor(l, col + out.len().saturating_sub(1));
+    }
+    true
+}

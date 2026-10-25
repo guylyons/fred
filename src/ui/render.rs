@@ -1439,6 +1439,7 @@ fn mode_label(ed: &Editor) -> String {
         _ if ed.zap.is_some() => "ZAP".to_string(),
         _ if ed.magit.is_some() => "MAGIT".to_string(),
         (Mode::Insert, _) if ed.term.is_some() => "TERMINAL".to_string(),
+        (Mode::Insert, _) if ed.vim.replace.is_some() => "REPLACE".to_string(),
         (Mode::Normal, Some(d)) if !d.editing => "DIRED".to_string(),
         (Mode::Visual { .. }, _) if ed.vim.select => "SELECT".to_string(),
         (Mode::VisualLine { .. }, _) if ed.vim.select => "SELECT LINE".to_string(),
