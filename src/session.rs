@@ -186,6 +186,7 @@ pub struct Session {
 fn make_editor(buf: Buffer, opts: Options, cfg: &Config) -> Editor {
     let mut ed = Editor::new(buf);
     ed.opts = opts;
+    ed.detect_indent();
     ed.win_height = cfg.height;
     ed
 }

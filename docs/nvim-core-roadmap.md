@@ -31,10 +31,10 @@ track.
 | 3 | Options table, `:set`/`:setlocal`/`:setglobal` | 6 | 0 | 14 global settings in `config.toml` |
 | 4 | Key tables for every mode | 4 | 0 | hand-written `parse()` |
 | 5 | Registers (named, numbered, `-` `0` `_` `+` `*` `.` `:` `%` `/`) | 4 | 0 | one register |
-| 6 | Motions (all of normal-index, `g`, `[ ]`) | 5 | 0 | 21 motions |
-| 7 | Text objects | 4 | 0 | none |
-| 8 | Operators (`> < = g~ gu gU gq gw g? ! zf g@`) | 5 | 0 | `d c y` |
-| 9 | Visual, Visual-line, Visual-block | 5 | 0 | charwise and linewise, few keys; Select mode (`gh`, `gH`, CTRL-G, `<BS>`) |
+| 6 | Motions (all of normal-index, `g`, `[ ]`) | 5 | 0 | `ge gE H M L \| _ g_ % N% ( ) [[ ]] [] ][ [( [{ ]) ]} * # g* g# go` added; no `` ` `` marks, `[m`, `[*`, `gm`, `''` |
+| 7 | Text objects | 4 | 0 | all but `it`/`at` (`src/vim/textobj.rs`) |
+| 8 | Operators (`> < = g~ gu gU gq gw g? ! zf g@`) | 5 | 0 | `d c y > < g~ gu gU g?`, `~`, `gJ` |
+| 9 | Visual, Visual-line, Visual-block | 5 | 0 | charwise and linewise; text objects, `< > u U ~ g? gJ`; Select mode (`gh`, `gH`, CTRL-G, `<BS>`) |
 | 10 | Insert and Replace mode keys | 4 | 0 | basics |
 | 11 | Command-line editing keys | 3 | 0 | basics, history, Tab |
 | 12 | Marks, jumplist, changelist | 3 | 0 | `a-z` line marks |
@@ -117,7 +117,11 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
    windows, `fred_state` windows and the `fred_read` reload fix, oracle
    cases. Part 1 is done.
 3. Registers (track 5), then key tables (track 4).
-4. Tracks 6–13 (the editing grammar), each with oracle cases.
+4. Tracks 6–13 (the editing grammar), each with oracle cases. Done so
+   far: the motions, text objects and operators in the table above. Next:
+   `it`/`at`, `=` `gq` `gw` `!` `g@` `zf`, counts in Visual mode,
+   CTRL-A/CTRL-X, `gp`/`gP`, `gv`, `gi`, `R`, then registers (track 5)
+   and macros.
 5. Track 9 continued: Select block mode (`g CTRL-H`, needs Visual-block),
    Select CTRL-O and CTRL-R, `.` repeating a Select-mode replacement,
    'selection' (exclusive), `<S-Right>`/`<S-Left>` as word motions when
@@ -183,3 +187,17 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
   `selectmode=mouse,key` and `keymodel=startsel,stopsel` unless `[set]`
   says otherwise. Oracle: 157 cases. Track 9 stays at 0: Visual-block and
   most Visual keys remain.
+- 2026-10-25: editing grammar, part 1. Neovim's `inc()`/`dec()` walker,
+  word classes, `findsent()`, `findmatchlimit()` (quotes and `'x'`
+  skipped) and the text objects `iw aw iW aW is as ip ap i( a( ib ab i{
+  a{ iB aB i[ a[ i< a< i" a" i' a' i\` a\`` ported in `src/vim/textobj.rs`,
+  in operators and Visual mode (where they extend the selection). Motions
+  `ge gE H M L | _ g_ % N% ( ) ]] ][ [[ [] [( [{ ]) ]} * # g* g# go`,
+  CTRL-H, CTRL-J; `g0 g^ g$ gj gk` alias the line motions. Operators `> <
+  g~ gu gU g?` with their doubled forms, `~`, `gJ`; Visual `< > u U ~ g?
+  g~ gu gU gJ`. Options 'shiftwidth' and 'expandtab' (Fred sets them for
+  a space-indented file). `G`, `gg`, `H`, `L` and `>>` keep the column
+  ('nostartofline'), and the cursor rests on a tab's last column, as in
+  Neovim. `N%` under an operator is characterwise and exclusive, as with
+  Neovim's default matchit. Ledger: 168 keys done. Oracle: 367 cases. No
+  track is complete yet, so points stay at 3.

@@ -81,6 +81,26 @@ pub fn span(
         let hi = (start.0 + count.unwrap_or(1).max(1) - 1).min(n - 1);
         return Some(Span::Lines(start.0, hi));
     };
+    if let Motion::Object { include, kind } = motion {
+        let o = super::textobj::object(
+            &ed.buf,
+            start,
+            count.unwrap_or(1),
+            include,
+            kind,
+            None,
+            false,
+        )?;
+        if o.linewise {
+            return Some(Span::Lines(o.start.0, o.end.0));
+        }
+        let (from, to) = if o.end < o.start {
+            (o.end, o.start)
+        } else {
+            (o.start, o.end)
+        };
+        return Some(char_span(ed, from, to, o.inclusive));
+    }
     let line = ed.buf.line(start.0);
     let on_word = start.1 < line.len() && !line[start.1..].starts_with(char::is_whitespace);
     let t = match motion {
@@ -106,6 +126,7 @@ pub fn span(
                 inclusive: true,
                 keep_col: false,
                 eol: false,
+                want: None,
             }
         }
         Motion::WordFwd(big) => {
@@ -129,30 +150,53 @@ pub fn span(
                 inclusive: false,
                 keep_col: false,
                 eol: false,
+                want: None,
             }
+        }
+        // Neovim's default matchit plugin makes `d50%` characterwise and
+        // exclusive.
+        Motion::Percent if count.is_some() => {
+            let mut t = motion::target(ed, motion, count)?;
+            let l = ed.buf.line(t.line);
+            t.byte = crate::text::byte_of_col(&l, ed.cur.want_col, ed.tabstop()).min(l.len());
+            t.linewise = false;
+            t.keep_col = false;
+            t.inclusive = false;
+            t
         }
         m => motion::target(ed, m, count)?,
     };
     if t.linewise {
         return Some(Span::Lines(start.0.min(t.line), start.0.max(t.line)));
     }
-    let (mut from, mut to) = if (t.line, t.byte) < start {
+    let (from, to) = if (t.line, t.byte) < start {
         ((t.line, t.byte), start)
     } else {
         (start, (t.line, t.byte))
     };
-    if t.inclusive {
+    Some(char_span(ed, from, to, t.inclusive))
+}
+
+/// A characterwise span. An exclusive one ending in column 0 stops at the
+/// previous line's end instead, and becomes linewise if it starts in the
+/// indent (as in Vi).
+fn char_span(
+    ed: &Editor,
+    mut from: (usize, usize),
+    mut to: (usize, usize),
+    inclusive: bool,
+) -> Span {
+    if inclusive {
         let l = ed.buf.line(to.0);
-        to.1 = next_grapheme(&l, to.1);
+        to.1 = next_grapheme(&l, to.1.min(l.len()));
     } else if to.0 > from.0 && to.1 == 0 {
-        // An exclusive motion ending at column 0 stops at the previous line's end.
         to = (to.0 - 1, ed.buf.line_len(to.0 - 1));
         if from.1 <= ed.first_nonblank(from.0) {
-            return Some(Span::Lines(from.0, to.0));
+            return Span::Lines(from.0, to.0);
         }
     }
     from.1 = floor_grapheme(&ed.buf.line(from.0), from.1);
-    Some(Span::Chars(from, to))
+    Span::Chars(from, to)
 }
 
 fn word_class(g: &str, big: bool) -> u8 {
@@ -175,6 +219,21 @@ pub fn delete_black_hole(ed: &mut Editor, sp: Span) {
 }
 
 fn apply(ed: &mut Editor, op: char, sp: Span, to_reg: bool) {
+    match op {
+        '<' | '>' => {
+            let (lo, hi) = match sp {
+                Span::Lines(lo, hi) => (lo, hi),
+                Span::Chars(a, b) => (a.0, b.0),
+            };
+            shift(ed, lo, hi, op == '<', 1);
+            return;
+        }
+        '~' | 'u' | 'U' | '?' => {
+            change_case(ed, op, sp);
+            return;
+        }
+        _ => {}
+    }
     match sp {
         Span::Lines(lo, hi) => {
             if to_reg {
@@ -293,6 +352,11 @@ pub fn put(ed: &mut Editor, count: usize, after: bool) {
 
 /// `J`: join `count` lines (at least two) starting at `lo`.
 pub fn join(ed: &mut Editor, lo: usize, count: usize) -> bool {
+    join_with(ed, lo, count, true)
+}
+
+/// `J`, or `gJ` (`spaces` false: the lines are joined as they are).
+pub fn join_with(ed: &mut Editor, lo: usize, count: usize, spaces: bool) -> bool {
     let joins = count.max(2) - 1;
     if lo + 1 >= ed.line_count() {
         return false;
@@ -304,7 +368,12 @@ pub fn join(ed: &mut Editor, lo: usize, count: usize) -> bool {
         }
         let cur = ed.buf.line(lo);
         col = cur.len();
-        let joined = crate::text::join_lines(&cur, &ed.buf.line(lo + 1));
+        let next = ed.buf.line(lo + 1);
+        let joined = if spaces {
+            crate::text::join_lines(&cur, &next)
+        } else {
+            cur.clone() + &next
+        };
         splice_lines(ed, lo, 2, &[joined]);
     }
     ed.set_cursor(lo, col);
@@ -339,4 +408,118 @@ pub fn open_line(ed: &mut Editor, below: bool) {
     ed.mode = Mode::Insert;
     ed.cur.line = at;
     ed.cur.byte = indent.len();
+}
+
+/// `>` and `<`: shift lines `lo..=hi` by `times` 'shiftwidth's. Empty
+/// lines stay as they are.
+pub fn shift(ed: &mut Editor, lo: usize, hi: usize, left: bool, times: usize) {
+    let (sw, ts) = (ed.shiftwidth(), ed.tabstop());
+    let et = ed.opts.bool(crate::options::Opt::Expandtab);
+    let lines: Vec<String> = (lo..=hi)
+        .map(|l| {
+            let s = ed.buf.line(l);
+            if s.is_empty() {
+                return s;
+            }
+            let ind = indent_of(&s);
+            let cols = crate::text::display_width(ind, ts, 0);
+            let amount = sw.saturating_mul(times);
+            let new = if left {
+                cols.saturating_sub(amount)
+            } else {
+                cols + amount
+            };
+            let indent = if et {
+                " ".repeat(new)
+            } else {
+                "\t".repeat(new / ts) + &" ".repeat(new % ts)
+            };
+            indent + &s[ind.len()..]
+        })
+        .collect();
+    splice_lines(ed, lo, hi - lo + 1, &lines);
+    // 'nostartofline': keep the remembered column.
+    ed.set_line_keep_col(lo);
+    ed.clamp_cursor();
+    let n = hi - lo + 1;
+    if n > 2 {
+        let dir = if left { "<" } else { ">" };
+        let s = if times == 1 { "" } else { "s" };
+        ed.set_msg(format!("{n} lines {dir}ed {times} time{s}"));
+    }
+}
+
+/// `g~`, `gu`, `gU`, `g?` (named `~ u U ?`) over a span.
+fn change_case(ed: &mut Editor, op: char, sp: Span) {
+    let conv = |s: &str| -> String {
+        s.chars()
+            .flat_map(|c| -> Vec<char> {
+                match op {
+                    'u' => c.to_lowercase().collect(),
+                    'U' => c.to_uppercase().collect(),
+                    '?' => vec![match c {
+                        'a'..='m' | 'A'..='M' => (c as u8 + 13) as char,
+                        'n'..='z' | 'N'..='Z' => (c as u8 - 13) as char,
+                        c => c,
+                    }],
+                    _ if c.is_lowercase() => c.to_uppercase().collect(),
+                    _ => c.to_lowercase().collect(),
+                }
+            })
+            .collect()
+    };
+    match sp {
+        Span::Lines(lo, hi) => {
+            let lines: Vec<String> = (lo..=hi).map(|l| conv(&ed.buf.line(l))).collect();
+            let changed = (lo..=hi).zip(&lines).any(|(l, s)| ed.buf.line(l) != *s);
+            if changed {
+                splice_lines(ed, lo, hi - lo + 1, &lines);
+            }
+            if lo != ed.cur.line {
+                ed.set_line_keep_col(lo);
+            } else {
+                ed.clamp_cursor();
+            }
+        }
+        Span::Chars(from, to) => {
+            let s = ed.buf.pos_to_char(from.0, from.1);
+            let e = ed.buf.pos_to_char(to.0, to.1);
+            let old = ed.buf.slice(s, e);
+            let new = conv(&old);
+            if new != old {
+                ed.apply(Edit {
+                    start: s,
+                    end: e,
+                    text: new,
+                });
+            }
+            ed.set_cursor(from.0, from.1);
+        }
+    }
+}
+
+/// `~` (without 'tildeop'): switch the case of `count` characters and move
+/// past them.
+pub fn tilde(ed: &mut Editor, count: usize) -> bool {
+    let line = ed.buf.line(ed.cur.line);
+    if line.is_empty() {
+        return false;
+    }
+    let start = ed.cur.pos();
+    let mut end = start.1;
+    for _ in 0..count.max(1) {
+        if end >= line.len() {
+            break;
+        }
+        end = next_grapheme(&line, end);
+    }
+    change_case(ed, '~', Span::Chars(start, (start.0, end)));
+    let l = ed.buf.line(start.0);
+    let b = if end >= l.len() {
+        prev_grapheme(&l, l.len())
+    } else {
+        end
+    };
+    ed.set_cursor(start.0, b);
+    true
 }

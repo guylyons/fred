@@ -367,7 +367,8 @@ fn a_click_on_the_first_text_row_lands_on_line_one() {
     g.send(r#"{"t":"keys","seq":4,"keys":"G"}"#);
     g.send(r#"{"t":"mouse","seq":5,"kind":"down","col":1,"row":0}"#);
     let f = g.frame_until(|f| f["seq"] == 5);
-    assert_eq!(f["windows"][0]["status"]["pos"], "3:1");
+    // G keeps the column ('nostartofline').
+    assert_eq!(f["windows"][0]["status"]["pos"], "3:2");
 }
 
 #[test]

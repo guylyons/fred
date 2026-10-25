@@ -94,12 +94,12 @@ key,normal,CTRL-E,,missing,,scroll N lines upwards (N lines Extra)
 key,normal,CTRL-F,motion,partial,present; not yet verified against nvim,scroll N screens Forward
 key,normal,CTRL-G,,missing,,display current file name and position
 key,normal,<BS>,motion,partial,present; not yet verified against nvim,"same as ""h"""
-key,normal,CTRL-H,motion,missing,,"same as ""h"""
+key,normal,CTRL-H,motion,done,oracle cases,"same as ""h"""
 key,normal,<Tab>,motion,missing,,go to N newer entry in jump list
 key,normal,CTRL-I,motion,missing,,same as <Tab>
 key,normal,<NL>,motion,missing,,"same as ""j"""
 key,normal,<S-NL>,motion,missing,,same as CTRL-F
-key,normal,CTRL-J,motion,missing,,"same as ""j"""
+key,normal,CTRL-J,motion,done,oracle cases,"same as ""j"""
 key,normal,CTRL-L,,missing,,redraw screen
 key,normal,<CR>,motion,partial,present; not yet verified against nvim,cursor to the first CHAR N lines lower
 key,normal,<S-CR>,motion,missing,,same as CTRL-F
@@ -107,7 +107,7 @@ key,normal,CTRL-M,motion,missing,,same as <CR>
 key,normal,CTRL-N,motion,partial,present; not yet verified against nvim,"same as ""j"""
 key,normal,CTRL-O,motion,missing,,go to N older entry in jump list
 key,normal,CTRL-P,motion,partial,present; not yet verified against nvim,"same as ""k"""
-key,normal,CTRL-R,change,partial,present; not yet verified against nvim,redo changes which were undone with 'u'
+key,normal,CTRL-R,change,done,oracle cases,redo changes which were undone with 'u'
 key,normal,CTRL-T,,missing,,jump to N older Tag in tag list
 key,normal,CTRL-U,,partial,present; not yet verified against nvim,scroll N lines Upwards (default: half a
 key,normal,CTRL-V,,missing,,start blockwise Visual mode
@@ -124,10 +124,10 @@ key,normal,<Space>,motion,partial,"Fred leader key (Space s/p/g/k/r/b/B/d/-/j/;/
 key,normal,!{motion}{filter},,missing,,
 key,normal,!!{filter},change,missing,,filter N lines through the {filter} command
 key,normal,"""{register}",,missing,,"use {register} for next delete, yank or put"
-key,normal,#,motion,missing,,search backward for the Nth occurrence of
-key,normal,$,motion,partial,present; not yet verified against nvim,cursor to the end of Nth next line
-key,normal,%,motion,missing,,find the next (curly/square) bracket on
-key,normal,{count}%,motion,missing,,go to N percentage in the file
+key,normal,#,motion,done,oracle cases,search backward for the Nth occurrence of
+key,normal,$,motion,done,oracle cases,cursor to the end of Nth next line
+key,normal,%,motion,done,"brackets, skipping ones in quotes; no /* */ or #if (matchit b:match_words); oracle cases",find the next (curly/square) bracket on
+key,normal,{count}%,motion,done,"under an operator characterwise and exclusive, as with the default matchit; oracle cases",go to N percentage in the file
 key,normal,&,change,missing,,repeat last :s
 key,normal,'{a-zA-Z0-9},motion,partial,a-z only,cursor to the first CHAR on the line with
 key,normal,'',motion,missing,,cursor to the first CHAR of the line where
@@ -139,18 +139,18 @@ key,normal,'[,motion,missing,,cursor to the first CHAR on the line of the
 key,normal,'],motion,missing,,cursor to the first CHAR on the line of the
 key,normal,'{,motion,missing,,cursor to the first CHAR on the line of the
 key,normal,'},motion,missing,,cursor to the first CHAR on the line of the
-key,normal,(,motion,missing,,cursor N sentences backward
-key,normal,),motion,missing,,cursor N sentences forward
-key,normal,*,motion,missing,,search forward for the Nth occurrence of
-key,normal,+,motion,partial,present; not yet verified against nvim,same as <CR>
+key,normal,(,motion,done,oracle cases,cursor N sentences backward
+key,normal,),motion,done,oracle cases,cursor N sentences forward
+key,normal,*,motion,done,oracle cases,search forward for the Nth occurrence of
+key,normal,+,motion,done,oracle cases,same as <CR>
 key,normal,<S-+>,motion,missing,,same as CTRL-F
-key,normal,",",motion,partial,present; not yet verified against nvim,"repeat latest f, t, F or T in opposite"
-key,normal,-,motion,partial,present; not yet verified against nvim,cursor to the first CHAR N lines higher
+key,normal,",",motion,done,oracle cases,"repeat latest f, t, F or T in opposite"
+key,normal,-,motion,done,oracle cases,cursor to the first CHAR N lines higher
 key,normal,<S-->,motion,missing,,same as CTRL-B
-key,normal,.,change,partial,present; not yet verified against nvim,repeat last change with count replaced with
+key,normal,.,change,done,oracle cases,repeat last change with count replaced with
 key,normal,/{pattern}<CR>,motion,partial,Vim pattern syntax and smartcase; no \zs \@ \_ or back-references,search forward for the Nth occurrence of
 key,normal,/<CR>,motion,missing,,search forward for {pattern} of last search
-key,normal,0,motion,partial,present; not yet verified against nvim,cursor to the first char of the line
+key,normal,0,motion,done,oracle cases,cursor to the first char of the line
 key,normal,1,,partial,present; not yet verified against nvim,prepend to command to give a count
 key,normal,2,,partial,present; not yet verified against nvim,""""
 key,normal,3,,partial,present; not yet verified against nvim,""""
@@ -161,48 +161,48 @@ key,normal,7,,partial,present; not yet verified against nvim,""""
 key,normal,8,,partial,present; not yet verified against nvim,""""
 key,normal,9,,partial,present; not yet verified against nvim,""""
 key,normal,{count}:,,partial,present; not yet verified against nvim,start entering an Ex command with range
-key,normal,;,motion,partial,present; not yet verified against nvim,"repeat latest f, t, F or T N times"
-key,normal,<{motion},change,missing,,shift Nmove lines one 'shiftwidth'
-key,normal,<<,change,missing,,shift N lines one 'shiftwidth' leftwards
+key,normal,;,motion,done,oracle cases,"repeat latest f, t, F or T N times"
+key,normal,<{motion},change,done,oracle cases,shift Nmove lines one 'shiftwidth'
+key,normal,<<,change,done,oracle cases,shift N lines one 'shiftwidth' leftwards
 key,normal,={motion},change,missing,,"filter Nmove lines through ""indent"""
 key,normal,==,change,missing,,"filter N lines through ""indent"""
-key,normal,>{motion},change,missing,,shift Nmove lines one 'shiftwidth'
-key,normal,>>,change,missing,,shift N lines one 'shiftwidth' rightwards
+key,normal,>{motion},change,done,oracle cases,shift Nmove lines one 'shiftwidth'
+key,normal,>>,change,done,oracle cases,shift N lines one 'shiftwidth' rightwards
 key,normal,?{pattern}<CR>,motion,partial,Vim pattern syntax and smartcase; no \zs \@ \_ or back-references,search backward for the Nth previous
 key,normal,?<CR>,motion,missing,,search backward for {pattern} of last search
 key,normal,@{a-z},change,missing,,execute the contents of register {a-z}
 key,normal,@:,,missing,,"repeat the previous "":"" command N times"
 key,normal,@@,change,missing,,repeat the previous @{a-z} N times
-key,normal,A,change,partial,present; not yet verified against nvim,append text after the end of the line N times
-key,normal,B,motion,partial,present; not yet verified against nvim,cursor N WORDS backward
-key,normal,"[""x]C",change,partial,present; not yet verified against nvim,change from the cursor position to the end
-key,normal,"[""x]D",change,partial,present; not yet verified against nvim,delete the characters under the cursor
-key,normal,E,motion,partial,present; not yet verified against nvim,cursor forward to the end of WORD N
-key,normal,F{char},motion,partial,present; not yet verified against nvim,cursor to the Nth occurrence of {char} to
-key,normal,G,motion,partial,present; not yet verified against nvim,"cursor to line N, default last line"
-key,normal,H,motion,missing,,cursor to line N from top of screen
-key,normal,I,change,partial,present; not yet verified against nvim,insert text before the first CHAR on the
-key,normal,J,change,partial,present; not yet verified against nvim,Join N lines; default is 2
+key,normal,A,change,done,oracle cases,append text after the end of the line N times
+key,normal,B,motion,done,oracle cases,cursor N WORDS backward
+key,normal,"[""x]C",change,done,oracle cases,change from the cursor position to the end
+key,normal,"[""x]D",change,done,oracle cases,delete the characters under the cursor
+key,normal,E,motion,done,oracle cases,cursor forward to the end of WORD N
+key,normal,F{char},motion,done,oracle cases,cursor to the Nth occurrence of {char} to
+key,normal,G,motion,done,keeps the column ('nostartofline'); oracle cases,"cursor to line N, default last line"
+key,normal,H,motion,done,oracle cases,cursor to line N from top of screen
+key,normal,I,change,done,oracle cases,insert text before the first CHAR on the
+key,normal,J,change,done,oracle cases,Join N lines; default is 2
 key,normal,K,,missing,,lookup Keyword under the cursor with
-key,normal,L,motion,missing,,cursor to line N from bottom of screen
-key,normal,M,motion,missing,,cursor to middle line of screen
-key,normal,N,motion,partial,present; not yet verified against nvim,repeat the latest '/' or '?' N times in
-key,normal,O,change,partial,present; not yet verified against nvim,begin a new line above the cursor and
-key,normal,"[""x]P",change,partial,present; not yet verified against nvim,put the text [from register x] before the
+key,normal,L,motion,done,oracle cases,cursor to line N from bottom of screen
+key,normal,M,motion,done,oracle cases,cursor to middle line of screen
+key,normal,N,motion,done,oracle cases,repeat the latest '/' or '?' N times in
+key,normal,O,change,done,oracle cases,begin a new line above the cursor and
+key,normal,"[""x]P",change,done,oracle cases,put the text [from register x] before the
 key,normal,R,change,missing,,enter replace mode: overtype existing
-key,normal,"[""x]S",change,partial,present; not yet verified against nvim,delete N lines [into register x] and start
-key,normal,T{char},motion,partial,present; not yet verified against nvim,cursor till after Nth occurrence of {char}
+key,normal,"[""x]S",change,done,oracle cases,delete N lines [into register x] and start
+key,normal,T{char},motion,done,oracle cases,cursor till after Nth occurrence of {char}
 key,normal,U,change,missing,,undo all latest changes on one line
 key,normal,V,,partial,present; not yet verified against nvim,start linewise Visual mode
-key,normal,W,motion,partial,present; not yet verified against nvim,cursor N WORDS forward
-key,normal,"[""x]X",change,partial,present; not yet verified against nvim,delete N characters before the cursor [into
+key,normal,W,motion,done,oracle cases,cursor N WORDS forward
+key,normal,"[""x]X",change,done,oracle cases,delete N characters before the cursor [into
 key,normal,"[""x]Y",,partial,present; not yet verified against nvim,yank N lines [into register x]; synonym for
 key,normal,ZZ,,partial,present; not yet verified against nvim,write if buffer changed and close window
 key,normal,ZQ,,partial,present; not yet verified against nvim,close window without writing
 key,normal,[{char},,missing,,square bracket command (see |[| below)
 key,normal,]{char},,missing,,square bracket command (see |]| below)
-key,normal,^,motion,partial,present; not yet verified against nvim,cursor to the first CHAR of the line
-key,normal,_,motion,missing,,cursor to the first CHAR N - 1 lines lower
+key,normal,^,motion,done,oracle cases,cursor to the first CHAR of the line
+key,normal,_,motion,done,oracle cases,cursor to the first CHAR N - 1 lines lower
 key,normal,`{a-zA-Z0-9},motion,missing,,cursor to the mark {a-zA-Z0-9}
 key,normal,`(,motion,missing,,cursor to the start of the current sentence
 key,normal,`),motion,missing,,cursor to the end of the current sentence
@@ -213,46 +213,46 @@ key,normal,`],motion,missing,,cursor to the end of last operated text or
 key,normal,"""``""",motion,missing,,cursor to the position before latest jump
 key,normal,`{,motion,missing,,cursor to the start of the current paragraph
 key,normal,`},motion,missing,,cursor to the end of the current paragraph
-key,normal,a,change,partial,present; not yet verified against nvim,append text after the cursor N times
-key,normal,b,motion,partial,present; not yet verified against nvim,cursor N words backward
-key,normal,"[""x]c{motion}",change,partial,present; not yet verified against nvim,delete Nmove text [into register x] and
-key,normal,"[""x]cc",change,partial,present; not yet verified against nvim,delete N lines [into register x] and start
-key,normal,"[""x]d{motion}",change,partial,present; not yet verified against nvim,delete Nmove text [into register x]
-key,normal,"[""x]dd",change,partial,present; not yet verified against nvim,delete N lines [into register x]
+key,normal,a,change,done,oracle cases,append text after the cursor N times
+key,normal,b,motion,done,oracle cases,cursor N words backward
+key,normal,"[""x]c{motion}",change,done,oracle cases,delete Nmove text [into register x] and
+key,normal,"[""x]cc",change,done,oracle cases,delete N lines [into register x] and start
+key,normal,"[""x]d{motion}",change,done,oracle cases,delete Nmove text [into register x]
+key,normal,"[""x]dd",change,done,oracle cases,delete N lines [into register x]
 key,normal,do,change,missing,,"same as "":diffget"""
 key,normal,dp,change,missing,,"same as "":diffput"""
-key,normal,e,motion,partial,present; not yet verified against nvim,cursor forward to the end of word N
-key,normal,f{char},motion,partial,present; not yet verified against nvim,cursor to Nth occurrence of {char} to the
+key,normal,e,motion,done,oracle cases,cursor forward to the end of word N
+key,normal,f{char},motion,done,oracle cases,cursor to Nth occurrence of {char} to the
 key,normal,g{char},,missing,,"extended commands, see |g| below"
-key,normal,h,motion,partial,present; not yet verified against nvim,cursor N chars to the left
-key,normal,i,change,partial,present; not yet verified against nvim,insert text before the cursor N times
-key,normal,j,motion,partial,present; not yet verified against nvim,cursor N lines downward
-key,normal,k,motion,partial,present; not yet verified against nvim,cursor N lines upward
-key,normal,l,motion,partial,present; not yet verified against nvim,cursor N chars to the right
+key,normal,h,motion,done,oracle cases,cursor N chars to the left
+key,normal,i,change,done,oracle cases,insert text before the cursor N times
+key,normal,j,motion,done,oracle cases,cursor N lines downward
+key,normal,k,motion,done,oracle cases,cursor N lines upward
+key,normal,l,motion,done,oracle cases,cursor N chars to the right
 key,normal,m{A-Za-z},,partial,"a-z only, line marks",set mark {A-Za-z} at cursor position
-key,normal,n,motion,partial,present; not yet verified against nvim,repeat the latest '/' or '?' N times
-key,normal,o,change,partial,present; not yet verified against nvim,begin a new line below the cursor and
-key,normal,"[""x]p",change,partial,present; not yet verified against nvim,put the text [from register x] after the
+key,normal,n,motion,done,oracle cases,repeat the latest '/' or '?' N times
+key,normal,o,change,done,oracle cases,begin a new line below the cursor and
+key,normal,"[""x]p",change,done,oracle cases,put the text [from register x] after the
 key,normal,"q{0-9a-zA-Z""}",,missing,,record typed characters into named register
 key,normal,q,,missing,,(while recording) stops recording
 key,normal,Q,change,missing,,replay last recorded register
 key,normal,q:,,missing,,edit : command-line in command-line window
 key,normal,q/,,missing,,edit / command-line in command-line window
 key,normal,q?,,missing,,edit ? command-line in command-line window
-key,normal,r{char},change,partial,present; not yet verified against nvim,replace N chars with {char}
-key,normal,"[""x]s",change,partial,present; not yet verified against nvim,(substitute) delete N characters [into
-key,normal,t{char},motion,partial,present; not yet verified against nvim,cursor till before Nth occurrence of {char}
-key,normal,u,change,partial,present; not yet verified against nvim,undo changes
+key,normal,r{char},change,done,oracle cases,replace N chars with {char}
+key,normal,"[""x]s",change,done,oracle cases,(substitute) delete N characters [into
+key,normal,t{char},motion,done,oracle cases,cursor till before Nth occurrence of {char}
+key,normal,u,change,done,oracle cases,undo changes
 key,normal,v,,partial,present; not yet verified against nvim,start charwise Visual mode
-key,normal,w,motion,partial,present; not yet verified against nvim,cursor N words forward
-key,normal,"[""x]x",change,partial,present; not yet verified against nvim,delete N characters under and after the
-key,normal,"[""x]y{motion}",,partial,present; not yet verified against nvim,yank Nmove text [into register x]
-key,normal,"[""x]yy",,partial,present; not yet verified against nvim,yank N lines [into register x]
+key,normal,w,motion,done,oracle cases,cursor N words forward
+key,normal,"[""x]x",change,done,oracle cases,delete N characters under and after the
+key,normal,"[""x]y{motion}",,done,oracle cases,yank Nmove text [into register x]
+key,normal,"[""x]yy",,done,oracle cases,yank N lines [into register x]
 key,normal,z{char},,missing,,"commands starting with 'z', see |z| below"
-key,normal,{,motion,partial,present; not yet verified against nvim,cursor N paragraphs backward
-key,normal,|,motion,missing,,cursor to column N
-key,normal,},motion,partial,present; not yet verified against nvim,cursor N paragraphs forward
-key,normal,~,change,missing,,'tildeop' off: switch case of N characters
+key,normal,{,motion,done,oracle cases,cursor N paragraphs backward
+key,normal,|,motion,done,oracle cases,cursor to column N
+key,normal,},motion,done,oracle cases,cursor N paragraphs forward
+key,normal,~,change,done,oracle cases,'tildeop' off: switch case of N characters
 key,normal,~{motion},,missing,,'tildeop' on: switch case of Nmove text
 key,normal,<C-End>,motion,missing,,"same as ""G"""
 key,normal,<C-Home>,motion,missing,,"same as ""gg"""
@@ -282,42 +282,42 @@ key,normal,<S-Right>,motion,missing,,"same as ""w"""
 key,normal,<S-Up>,motion,missing,,same as CTRL-B
 key,normal,<Undo>,change,missing,,"same as ""u"""
 key,normal,<Up>,motion,partial,present; not yet verified against nvim,"same as ""k"""
-key,textobject,"a""",,missing,,double quoted string
-key,textobject,a',,missing,,single quoted string
-key,textobject,a(,,missing,,same as ab
-key,textobject,a),,missing,,same as ab
-key,textobject,a<,,missing,,"""a <>"" from '<' to the matching '>'"
-key,textobject,a>,,missing,,same as a<
-key,textobject,aB,,missing,,"""a Block"" from `[{` to `]}` (with brackets)"
-key,textobject,aW,,missing,,"""a WORD"" (with white space)"
-key,textobject,a[,,missing,,"""a []"" from '[' to the matching ']'"
-key,textobject,a],,missing,,same as a[
-key,textobject,a`,,missing,,string in backticks
-key,textobject,ab,,missing,,"""a block"" from ""[("" to ""])"" (with braces)"
-key,textobject,ap,,missing,,"""a paragraph"" (with white space)"
-key,textobject,as,,missing,,"""a sentence"" (with white space)"
+key,textobject,"a""",,done,src/vim/textobj.rs (port of textobject.c); oracle cases,double quoted string
+key,textobject,a',,done,src/vim/textobj.rs (port of textobject.c); oracle cases,single quoted string
+key,textobject,a(,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,same as ab
+key,textobject,a),,done,src/vim/textobj.rs (port of textobject.c); oracle cases,same as ab
+key,textobject,a<,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,"""a <>"" from '<' to the matching '>'"
+key,textobject,a>,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,same as a<
+key,textobject,aB,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,"""a Block"" from `[{` to `]}` (with brackets)"
+key,textobject,aW,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,"""a WORD"" (with white space)"
+key,textobject,a[,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,"""a []"" from '[' to the matching ']'"
+key,textobject,a],,done,src/vim/textobj.rs (port of textobject.c); oracle cases,same as a[
+key,textobject,a`,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,string in backticks
+key,textobject,ab,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,"""a block"" from ""[("" to ""])"" (with braces)"
+key,textobject,ap,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,"""a paragraph"" (with white space)"
+key,textobject,as,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,"""a sentence"" (with white space)"
 key,textobject,at,,missing,,"""a tag block"" (with white space)"
-key,textobject,aw,,missing,,"""a word"" (with white space)"
-key,textobject,a{,,missing,,same as aB
-key,textobject,a},,missing,,same as aB
-key,textobject,"i""",,missing,,double quoted string without the quotes
-key,textobject,i',,missing,,single quoted string without the quotes
-key,textobject,i(,,missing,,same as ib
-key,textobject,i),,missing,,same as ib
-key,textobject,i<,,missing,,"""inner <>"" from '<' to the matching '>'"
-key,textobject,i>,,missing,,same as i<
-key,textobject,iB,,missing,,"""inner Block"" from `[{` and `]}`"
-key,textobject,iW,,missing,,"""inner WORD"""
-key,textobject,i[,,missing,,"""inner []"" from '[' to the matching ']'"
-key,textobject,i],,missing,,same as i[
-key,textobject,i`,,missing,,string in backticks without the backticks
-key,textobject,ib,,missing,,"""inner block"" from ""[("" to ""])"""
-key,textobject,ip,,missing,,"""inner paragraph"""
-key,textobject,is,,missing,,"""inner sentence"""
+key,textobject,aw,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,"""a word"" (with white space)"
+key,textobject,a{,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,same as aB
+key,textobject,a},,done,src/vim/textobj.rs (port of textobject.c); oracle cases,same as aB
+key,textobject,"i""",,done,src/vim/textobj.rs (port of textobject.c); oracle cases,double quoted string without the quotes
+key,textobject,i',,done,src/vim/textobj.rs (port of textobject.c); oracle cases,single quoted string without the quotes
+key,textobject,i(,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,same as ib
+key,textobject,i),,done,src/vim/textobj.rs (port of textobject.c); oracle cases,same as ib
+key,textobject,i<,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,"""inner <>"" from '<' to the matching '>'"
+key,textobject,i>,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,same as i<
+key,textobject,iB,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,"""inner Block"" from `[{` and `]}`"
+key,textobject,iW,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,"""inner WORD"""
+key,textobject,i[,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,"""inner []"" from '[' to the matching ']'"
+key,textobject,i],,done,src/vim/textobj.rs (port of textobject.c); oracle cases,same as i[
+key,textobject,i`,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,string in backticks without the backticks
+key,textobject,ib,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,"""inner block"" from ""[("" to ""])"""
+key,textobject,ip,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,"""inner paragraph"""
+key,textobject,is,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,"""inner sentence"""
 key,textobject,it,,missing,,"""inner tag block"""
-key,textobject,iw,,missing,,"""inner word"""
-key,textobject,i{,,missing,,same as iB
-key,textobject,i},,missing,,same as iB
+key,textobject,iw,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,"""inner word"""
+key,textobject,i{,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,same as iB
+key,textobject,i},,done,src/vim/textobj.rs (port of textobject.c); oracle cases,same as iB
 key,ctrl-w,CTRL-W CTRL-B,,partial,present; not yet verified against nvim,"same as ""CTRL-W b"""
 key,ctrl-w,CTRL-W CTRL-C,,missing,,no-op
 key,ctrl-w,CTRL-W CTRL-D,,missing,,"same as ""CTRL-W d"""
@@ -395,15 +395,15 @@ key,bracket,[ CTRL-D,,missing,,jump to first #define found in current and
 key,bracket,[ CTRL-I,,missing,,jump to first line in current and included
 key,bracket,[#,motion,missing,,"cursor to N previous unmatched #if, #else"
 key,bracket,[',motion,missing,,"cursor to previous lowercase mark, on first"
-key,bracket,[(,motion,missing,,cursor N times back to unmatched '('
+key,bracket,[(,motion,done,oracle cases,cursor N times back to unmatched '('
 key,bracket,[*,motion,missing,,"same as ""[/"""
 key,bracket,[`,motion,missing,,cursor to previous lowercase mark
 key,bracket,[/,motion,missing,,cursor to N previous start of a C comment
 key,bracket,[D,,missing,,list all defines found in current and
 key,bracket,[I,,missing,,list all lines found in current and
 key,bracket,[P,change,missing,,"same as ""[p"""
-key,bracket,[[,motion,missing,,cursor N sections backward
-key,bracket,[],motion,missing,,cursor N SECTIONS backward
+key,bracket,[[,motion,done,oracle cases,cursor N sections backward
+key,bracket,[],motion,done,oracle cases,cursor N SECTIONS backward
 key,bracket,[c,motion,missing,,cursor N times backwards to start of change
 key,bracket,[d,,missing,,show first #define found in current and
 key,bracket,[f,,missing,,"same as ""gf"""
@@ -412,20 +412,20 @@ key,bracket,[m,motion,missing,,cursor N times back to start of member
 key,bracket,[p,change,missing,,"like ""P"", but adjust indent to current line"
 key,bracket,[s,motion,missing,,move to the previous misspelled word
 key,bracket,[z,motion,missing,,move to start of open fold
-key,bracket,[{,motion,missing,,cursor N times back to unmatched '{'
+key,bracket,[{,motion,done,oracle cases,cursor N times back to unmatched '{'
 key,bracket,] CTRL-D,,missing,,jump to first #define found in current and
 key,bracket,] CTRL-I,,missing,,jump to first line in current and included
 key,bracket,]#,motion,missing,,cursor to N next unmatched #endif or #else
 key,bracket,]',motion,missing,,"cursor to next lowercase mark, on first"
-key,bracket,]),motion,missing,,cursor N times forward to unmatched ')'
+key,bracket,]),motion,done,oracle cases,cursor N times forward to unmatched ')'
 key,bracket,]*,motion,missing,,"same as ""]/"""
 key,bracket,]`,motion,missing,,cursor to next lowercase mark
 key,bracket,]/,motion,missing,,cursor to N next end of a C comment
 key,bracket,]D,,missing,,list all #defines found in current and
 key,bracket,]I,,missing,,list all lines found in current and
 key,bracket,]P,change,missing,,"same as ""[p"""
-key,bracket,][,motion,missing,,cursor N SECTIONS forward
-key,bracket,]],motion,missing,,cursor N sections forward
+key,bracket,][,motion,done,oracle cases,cursor N SECTIONS forward
+key,bracket,]],motion,done,oracle cases,cursor N sections forward
 key,bracket,]c,motion,missing,,cursor N times forward to start of change
 key,bracket,]d,,missing,,show first #define found in current and
 key,bracket,]f,,missing,,"same as ""gf"""
@@ -434,66 +434,66 @@ key,bracket,]m,motion,missing,,cursor N times forward to end of member
 key,bracket,]p,change,missing,,"like ""p"", but adjust indent to current line"
 key,bracket,]s,motion,missing,,move to next misspelled word
 key,bracket,]z,motion,missing,,move to end of open fold
-key,bracket,]},motion,missing,,cursor N times forward to unmatched '}'
+key,bracket,]},motion,done,oracle cases,cursor N times forward to unmatched '}'
 key,g,g CTRL-G,,missing,,show information about current cursor
 key,g,g CTRL-H,,missing,,start Select block mode
 key,g,g CTRL-],,missing,,|:tjump| to the tag under the cursor
-key,g,g#,motion,missing,,"like ""#"", but without using ""\<"" and ""\>"""
-key,g,g$,motion,missing,,when 'wrap' off go to rightmost character of
+key,g,g#,motion,done,oracle cases,"like ""#"", but without using ""\<"" and ""\>"""
+key,g,g$,motion,partial,same as $ 0 ^ j k (right while 'wrap' is off),when 'wrap' off go to rightmost character of
 key,g,g&,change,missing,,"repeat last "":s"" on all lines"
 key,g,g'{mark},motion,missing,,like |'| but without changing the jumplist
 key,g,g`{mark},motion,missing,,like |`| but without changing the jumplist
-key,g,g*,motion,missing,,"like ""*"", but without using ""\<"" and ""\>"""
+key,g,g*,motion,done,oracle cases,"like ""*"", but without using ""\<"" and ""\>"""
 key,g,g+,,missing,,go to newer text state N times
 key,g,"g,",motion,missing,,go to N newer position in change list
 key,g,g-,,missing,,go to older text state N times
-key,g,g0,motion,missing,,when 'wrap' off go to leftmost character of
+key,g,g0,motion,partial,same as $ 0 ^ j k (right while 'wrap' is off),when 'wrap' off go to leftmost character of
 key,g,g8,,missing,,print hex value of bytes used in UTF-8
 key,g,g;,motion,missing,,go to N older position in change list
 key,g,g<,,missing,,display previous command output
-key,g,g?,change,missing,,Rot13 encoding operator
-key,g,g??,change,missing,,Rot13 encode current line
-key,g,g?g?,change,missing,,Rot13 encode current line
+key,g,g?,change,done,oracle cases,Rot13 encoding operator
+key,g,g??,change,done,oracle cases,Rot13 encode current line
+key,g,g?g?,change,done,oracle cases,Rot13 encode current line
 key,g,gD,motion,missing,,go to definition of word under the cursor
-key,g,gE,motion,missing,,go backwards to the end of the previous
+key,g,gE,motion,done,oracle cases,go backwards to the end of the previous
 key,g,gH,,done,"Select line mode (src/vim/select.rs); oracle cases",start Select line mode
 key,g,gI,change,missing,,"like ""I"", but always start in column 1"
-key,g,gJ,change,missing,,join lines without inserting space
+key,g,gJ,change,done,oracle cases,join lines without inserting space
 key,g,gN,,missing,,"1,2  find the previous match with the last used"
 key,g,"[""x]gP",change,missing,,put the text [from register x] before the
 key,g,gQ,,missing,,"switch to ""Ex"" mode with Vim editing"
 key,g,gR,change,missing,,enter Virtual Replace mode
 key,g,gT,,missing,,go to the previous tabpage
-key,g,gU{motion},change,missing,,make Nmove text uppercase
+key,g,gU{motion},change,done,oracle cases,make Nmove text uppercase
 key,g,gV,,missing,,don't reselect the previous Visual area
 key,g,g],,missing,,:tselect on the tag under the cursor
-key,g,g^,motion,missing,,when 'wrap' off go to leftmost non-white
-key,g,g_,motion,missing,,cursor to the last CHAR N - 1 lines lower
+key,g,g^,motion,partial,same as $ 0 ^ j k (right while 'wrap' is off),when 'wrap' off go to leftmost non-white
+key,g,g_,motion,done,oracle cases,cursor to the last CHAR N - 1 lines lower
 key,g,ga,,missing,,print ascii value of character under the
 key,g,gd,motion,partial,present; not yet verified against nvim,go to definition of word under the cursor
-key,g,ge,motion,missing,,go backwards to the end of the previous
+key,g,ge,motion,done,oracle cases,go backwards to the end of the previous
 key,g,gf,,missing,,start editing the file whose name is under
 key,g,gF,,missing,,start editing the file whose name is under
-key,g,gg,motion,partial,present; not yet verified against nvim,"cursor to line N, default first line"
+key,g,gg,motion,done,keeps the column ('nostartofline'); oracle cases,"cursor to line N, default first line"
 key,g,gh,,done,"Select mode (src/vim/select.rs): typing replaces, <BS>/<Del> delete; oracle cases. Differs: Select replace/delete fills the unnamed register but never syncs it to the system clipboard ('clipboard'), as other Mac editors",start Select mode
 key,g,gi,change,missing,,"like ""i"", but first move to the |'^| mark"
-key,g,gj,motion,missing,,"like ""j"", but when 'wrap' on go N screen"
-key,g,gk,motion,missing,,"like ""k"", but when 'wrap' on go N screen"
+key,g,gj,motion,partial,same as $ 0 ^ j k (right while 'wrap' is off),"like ""j"", but when 'wrap' on go N screen"
+key,g,gk,motion,partial,same as $ 0 ^ j k (right while 'wrap' is off),"like ""k"", but when 'wrap' on go N screen"
 key,g,gm,motion,missing,,go to character at middle of the screenline
 key,g,gM,motion,missing,,go to character at middle of the text line
 key,g,gn,,missing,,"1,2  find the next match with the last used"
-key,g,go,motion,missing,,cursor to byte N in the buffer
+key,g,go,motion,done,oracle cases,cursor to byte N in the buffer
 key,g,"[""x]gp",change,missing,,put the text [from register x] after the
 key,g,gq{motion},change,missing,,format Nmove text
 key,g,gr{char},change,missing,,virtual replace N chars with {char}
 key,g,gs,,missing,,go to sleep for N seconds (default 1)
 key,g,gt,,missing,,go to the next tabpage
-key,g,gu{motion},change,missing,,make Nmove text lowercase
+key,g,gu{motion},change,done,oracle cases,make Nmove text lowercase
 key,g,gv,,missing,,reselect the previous Visual area
 key,g,gw{motion},change,missing,,format Nmove text and keep cursor
 key,g,gx,,missing,,execute application for filepath at cursor
 key,g,g@{motion},,missing,,call 'operatorfunc'
-key,g,g~{motion},change,missing,,swap case for Nmove text
+key,g,g~{motion},change,done,oracle cases,swap case for Nmove text
 key,g,g<Down>,motion,missing,,"same as ""gj"""
 key,g,g<End>,motion,missing,,"same as ""g$"" but go to the rightmost"
 key,g,g<Home>,motion,missing,,"same as ""g0"""
@@ -568,9 +568,9 @@ key,visual,<Esc>,,partial,present; not yet verified against nvim,stop Visual mod
 key,visual,CTRL-],,missing,,jump to highlighted tag
 key,visual,!{filter},change,missing,,filter the highlighted lines through the
 key,visual,:,,partial,present; not yet verified against nvim,start a command-line with the highlighted
-key,visual,<,change,missing,,shift the highlighted lines one
+key,visual,<,change,partial,shifts once; a count is not taken yet,shift the highlighted lines one
 key,visual,=,change,missing,,filter the highlighted lines through the
-key,visual,>,change,missing,,shift the highlighted lines one
+key,visual,>,change,partial,shifts once; a count is not taken yet,shift the highlighted lines one
 key,visual,A,change,missing,,"block mode: append same text in all lines,"
 key,visual,C,change,partial,present; not yet verified against nvim,delete the highlighted lines and start
 key,visual,D,change,partial,present; not yet verified against nvim,delete the highlighted lines
@@ -581,62 +581,62 @@ key,visual,O,,missing,,move horizontally to other corner of area
 key,visual,P,,missing,,replace highlighted area with register
 key,visual,R,change,missing,,delete the highlighted lines and start
 key,visual,S,change,partial,present; not yet verified against nvim,delete the highlighted lines and start
-key,visual,U,change,missing,,make highlighted area uppercase
+key,visual,U,change,done,no count yet; oracle cases,make highlighted area uppercase
 key,visual,V,,partial,present; not yet verified against nvim,make Visual mode linewise or stop Visual
 key,visual,X,change,partial,present; not yet verified against nvim,delete the highlighted lines
 key,visual,Y,,partial,present; not yet verified against nvim,yank the highlighted lines
-key,visual,"a""",,missing,,extend highlighted area with a double
-key,visual,a',,missing,,extend highlighted area with a single
-key,visual,a(,,missing,,same as ab
-key,visual,a),,missing,,same as ab
-key,visual,a<,,missing,,extend highlighted area with a <> block
-key,visual,a>,,missing,,same as a<
-key,visual,aB,,missing,,extend highlighted area with a {} block
-key,visual,aW,,missing,,"extend highlighted area with ""a WORD"""
-key,visual,a[,,missing,,extend highlighted area with a [] block
-key,visual,a],,missing,,same as a[
-key,visual,a`,,missing,,extend highlighted area with a backtick
-key,visual,ab,,missing,,extend highlighted area with a () block
-key,visual,ap,,missing,,extend highlighted area with a paragraph
-key,visual,as,,missing,,extend highlighted area with a sentence
+key,visual,"a""",,done,extends the selection; oracle cases,extend highlighted area with a double
+key,visual,a',,done,extends the selection; oracle cases,extend highlighted area with a single
+key,visual,a(,,done,extends the selection; oracle cases,same as ab
+key,visual,a),,done,extends the selection; oracle cases,same as ab
+key,visual,a<,,done,extends the selection; oracle cases,extend highlighted area with a <> block
+key,visual,a>,,done,extends the selection; oracle cases,same as a<
+key,visual,aB,,done,extends the selection; oracle cases,extend highlighted area with a {} block
+key,visual,aW,,done,extends the selection; oracle cases,"extend highlighted area with ""a WORD"""
+key,visual,a[,,done,extends the selection; oracle cases,extend highlighted area with a [] block
+key,visual,a],,done,extends the selection; oracle cases,same as a[
+key,visual,a`,,done,extends the selection; oracle cases,extend highlighted area with a backtick
+key,visual,ab,,done,extends the selection; oracle cases,extend highlighted area with a () block
+key,visual,ap,,done,extends the selection; oracle cases,extend highlighted area with a paragraph
+key,visual,as,,done,extends the selection; oracle cases,extend highlighted area with a sentence
 key,visual,at,,missing,,extend highlighted area with a tag block
-key,visual,aw,,missing,,"extend highlighted area with ""a word"""
-key,visual,a{,,missing,,same as aB
-key,visual,a},,missing,,same as aB
+key,visual,aw,,done,extends the selection; oracle cases,"extend highlighted area with ""a word"""
+key,visual,a{,,done,extends the selection; oracle cases,same as aB
+key,visual,a},,done,extends the selection; oracle cases,same as aB
 key,visual,c,change,partial,present; not yet verified against nvim,delete highlighted area and start insert
 key,visual,d,change,partial,present; not yet verified against nvim,delete highlighted area
 key,visual,g CTRL-A,change,missing,,add N to number in highlighted text
 key,visual,g CTRL-X,change,missing,,subtract N from number in highlighted text
-key,visual,gJ,change,missing,,join the highlighted lines without
+key,visual,gJ,change,done,no count yet; oracle cases,join the highlighted lines without
 key,visual,gq,change,missing,,format the highlighted lines
 key,visual,gv,,missing,,exchange current and previous highlighted
-key,visual,"i""",,missing,,extend highlighted area with a double
-key,visual,i',,missing,,extend highlighted area with a single
-key,visual,i(,,missing,,same as ib
-key,visual,i),,missing,,same as ib
-key,visual,i<,,missing,,extend highlighted area with inner <> block
-key,visual,i>,,missing,,same as i<
-key,visual,iB,,missing,,extend highlighted area with inner {} block
-key,visual,iW,,missing,,"extend highlighted area with ""inner WORD"""
-key,visual,i[,,missing,,extend highlighted area with inner [] block
-key,visual,i],,missing,,same as i[
-key,visual,i`,,missing,,extend highlighted area with a backtick
-key,visual,ib,,missing,,extend highlighted area with inner () block
-key,visual,ip,,missing,,extend highlighted area with inner paragraph
-key,visual,is,,missing,,extend highlighted area with inner sentence
+key,visual,"i""",,done,extends the selection; oracle cases,extend highlighted area with a double
+key,visual,i',,done,extends the selection; oracle cases,extend highlighted area with a single
+key,visual,i(,,done,extends the selection; oracle cases,same as ib
+key,visual,i),,done,extends the selection; oracle cases,same as ib
+key,visual,i<,,done,extends the selection; oracle cases,extend highlighted area with inner <> block
+key,visual,i>,,done,extends the selection; oracle cases,same as i<
+key,visual,iB,,done,extends the selection; oracle cases,extend highlighted area with inner {} block
+key,visual,iW,,done,extends the selection; oracle cases,"extend highlighted area with ""inner WORD"""
+key,visual,i[,,done,extends the selection; oracle cases,extend highlighted area with inner [] block
+key,visual,i],,done,extends the selection; oracle cases,same as i[
+key,visual,i`,,done,extends the selection; oracle cases,extend highlighted area with a backtick
+key,visual,ib,,done,extends the selection; oracle cases,extend highlighted area with inner () block
+key,visual,ip,,done,extends the selection; oracle cases,extend highlighted area with inner paragraph
+key,visual,is,,done,extends the selection; oracle cases,extend highlighted area with inner sentence
 key,visual,it,,missing,,extend highlighted area with inner tag block
-key,visual,iw,,missing,,"extend highlighted area with ""inner word"""
-key,visual,i{,,missing,,same as iB
-key,visual,i},,missing,,same as iB
+key,visual,iw,,done,extends the selection; oracle cases,"extend highlighted area with ""inner word"""
+key,visual,i{,,done,extends the selection; oracle cases,same as iB
+key,visual,i},,done,extends the selection; oracle cases,same as iB
 key,visual,o,,partial,present; not yet verified against nvim,move cursor to other corner of area
 key,visual,p,,missing,,replace highlighted area with register
 key,visual,r,change,missing,,replace highlighted area with a character
 key,visual,s,change,partial,present; not yet verified against nvim,delete highlighted area and start insert
-key,visual,u,change,missing,,make highlighted area lowercase
+key,visual,u,change,done,no count yet; oracle cases,make highlighted area lowercase
 key,visual,v,,partial,present; not yet verified against nvim,make Visual mode charwise or stop
 key,visual,x,change,partial,present; not yet verified against nvim,delete the highlighted area
 key,visual,y,,partial,present; not yet verified against nvim,yank the highlighted area
-key,visual,~,change,missing,,swap case for the highlighted area
+key,visual,~,change,done,no count yet; oracle cases,swap case for the highlighted area
 key,cmdline,CTRL-A,,missing,,do completion on the pattern in front of the
 key,cmdline,CTRL-B,,missing,,cursor to begin of command-line
 key,cmdline,CTRL-C,,partial,present; not yet verified against nvim,same as <Esc>
@@ -1333,7 +1333,7 @@ option,,errorfile,ef global string,missing,,name of the errorfile for the QuickF
 option,,errorformat,efm global+buf string,missing,,description of the lines in the error file
 option,,eventignore,ei global string,missing,,autocommand events that are ignored
 option,,eventignorewin,eiw win string,missing,,autocommand events that are ignored in a window
-option,,expandtab,et buf boolean,missing,,use spaces when <Tab> is inserted
+option,,expandtab,et buf boolean,partial,"for >> << and Tab; on for a space-indented file; no softtabstop",use spaces when <Tab> is inserted
 option,,exrc,ex global boolean,excluded,"Vimscript, plugins and other languages",read project-local configuration in parent directories
 option,,fileencoding,fenc buf string,missing,,file encoding for multi-byte text
 option,,fileencodings,fencs global string,missing,,automatically detected character encodings
@@ -1509,7 +1509,7 @@ option,,shelltemp,stmp global boolean,missing,,whether to use a temp file for sh
 option,,shellxescape,sxe global string,missing,,characters to escape when 'shellxquote' is (
 option,,shellxquote,sxq global string,missing,,"like 'shellquote', but include redirection"
 option,,shiftround,sr global boolean,missing,,round indent to multiple of shiftwidth
-option,,shiftwidth,sw buf number,missing,,number of spaces to use for (auto)indent step
+option,,shiftwidth,sw buf number,partial,"for >> << and Tab; set to a space-indented file's indent; no autoindent use",number of spaces to use for (auto)indent step
 option,,shortmess,shm global string,missing,,"list of flags, reduce length of messages"
 option,,showbreak,sbr global+win string,missing,,string to use at the start of wrapped lines
 option,,showcmd,sc global boolean,missing,,show (partial) command in status line

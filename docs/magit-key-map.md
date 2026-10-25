@@ -16,9 +16,9 @@ non-Magit commands are left out.
 | done in place | 423 |
 | equivalent | 137 |
 | no name | 10 |
-| same | 4406 |
+| same | 4410 |
 | unbound | 207 |
-| vim key taken | 7 |
+| vim key taken | 3 |
 
 ## Differences
 
@@ -36,9 +36,7 @@ non-Magit commands are left out.
 | `DEL` | magit-diff-show-or-scroll-down | Vim | log@commit, magit-cherry-mode, magit-log-mode, magit-log-select-mode, magit-process-mode, magit-reflog-mode, magit-refs-mode, magit-stashes-mode, magit-status-mode, refs@branch, refs@tag, status@file, status@hunk, status@module, status@staged, status@stash, status@stashes, status@unstaged, status@untracked | no second window to scroll; RET shows the commit |
 | `M-m` | magit-back-to-indentation | Vim | diff@hunk, log@commit, magit-cherry-mode, magit-diff-mode, magit-log-mode, magit-log-select-mode, magit-process-mode, magit-reflog-mode, magit-refs-mode, magit-revision-mode, magit-stash-mode, magit-stashes-mode, magit-status-mode, refs@branch, refs@tag, revision@hunk, status@file, status@hunk, status@module, status@staged, status@stash, status@stashes, status@unstaged, status@untracked | Vim's ^ |
 | `SPC` | magit-diff-show-or-scroll-up | Vim | log@commit, magit-cherry-mode, magit-log-mode, magit-log-select-mode, magit-process-mode, magit-reflog-mode, magit-refs-mode, magit-stashes-mode, magit-status-mode, refs@branch, refs@tag, status@file, status@hunk, status@module, status@staged, status@stash, status@stashes, status@unstaged, status@untracked | Space is Fred's leader key; RET shows the commit |
-| `[ f` | find-file-at-point | RepolistFetch | magit-repolist-mode, magit-submodule-list-mode | Fred's Vim has no [f; f fetches here |
 | `\` | evil-collection-magit-toggle-text-mode | Vim | diff@hunk, log@commit, magit-cherry-mode, magit-diff-mode, magit-log-mode, magit-log-select-mode, magit-process-mode, magit-reflog-mode, magit-refs-mode, magit-revision-mode, magit-stash-mode, magit-stashes-mode, magit-status-mode, refs@branch, refs@tag, revision@hunk, status@file, status@hunk, status@module, status@staged, status@stash, status@stashes, status@unstaged, status@untracked | gap: no text-mode toggle (Vim visual and yank work) |
-| `] f` | find-file-at-point | RepolistFetch | magit-repolist-mode, magit-submodule-list-mode | Fred's Vim has no ]f; f fetches here |
 | `a` | magit-apply | Vim | status@file, status@hunk | gap: a on status changes does nothing |
 | `g r` | undefined | Refresh | magit-process-mode | Fred refreshes the process buffer as well |
 | `q` | quit-window | Return | magit-repolist-mode, magit-submodule-list-mode | q returns to the previous buffer, as quit-window |

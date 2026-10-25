@@ -313,7 +313,10 @@ mod tests {
         let h = Highlighter::new("Material-Dark", true).unwrap();
         let st = h.one_line(Path::new("x.rs"), "fn main() {}").unwrap();
         let purple = Some(Color::Rgb(0xc7, 0x92, 0xea));
-        assert!(st.iter().any(|(s, r)| r.start == 0 && s.fg == purple), "{st:?}");
+        assert!(
+            st.iter().any(|(s, r)| r.start == 0 && s.fg == purple),
+            "{st:?}"
+        );
     }
 
     const LONG: Duration = Duration::from_secs(5);

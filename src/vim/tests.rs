@@ -145,7 +145,8 @@ fn visual_chars() {
     assert_eq!(txt("abc\nd", "lVvd"), "c\nd");
     assert_eq!(ed("ab", "vl<Esc>").mode, Mode::Normal);
     assert_eq!(ed("ab", "vlv").mode, Mode::Normal);
-    assert_eq!(txt("abc", "vlud"), "c");
+    // `u` and `U` change the selection's case, as in Vim.
+    assert_eq!(txt("ABC", "vlu"), "abC");
 }
 
 #[test]

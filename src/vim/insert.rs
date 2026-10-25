@@ -171,12 +171,12 @@ fn edit_key(ed: &mut Editor, k: Key) {
             }
         }
         KeyCode::Tab => {
-            if ed.indent_spaces == 0 {
+            if !ed.opts.bool(crate::options::Opt::Expandtab) {
                 insert_text(ed, "\t");
             } else {
+                let sw = ed.shiftwidth();
                 let col = col_of_byte(&line, b, ed.tabstop());
-                let n = ed.indent_spaces - col % ed.indent_spaces;
-                insert_text(ed, &" ".repeat(n));
+                insert_text(ed, &" ".repeat(sw - col % sw));
             }
         }
         KeyCode::Left => ed.set_cursor(l, prev_grapheme(&line, b)),

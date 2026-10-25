@@ -1551,7 +1551,8 @@ fn wrap_mode_j_and_k_over_wrapped_lines() {
         ("$", (3, 11), "x"),
         ("j", (4, 9), "2"),
         ("k", (3, 11), "x"),
-        ("gg", (0, 4), "s"),
+        // 'nostartofline': gg keeps the column ($ wants the end).
+        ("gg", (0, 8), "t"),
     ] {
         p.keys(&[keys]);
         assert_eq!(

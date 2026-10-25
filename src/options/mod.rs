@@ -109,6 +109,9 @@ options! {
         .check(|v| items(v, &["unnamed", "unnamedplus"])),
     /// Highlight the cursor's line.
     Cursorline => opt("cursorline", "cul", Window, Bool(false)),
+    /// Indent with spaces. Fred turns it on for a file indented with
+    /// spaces.
+    Expandtab => opt("expandtab", "et", Buffer, Bool(false)),
     /// Shifted special keys start a selection, unshifted ones stop it.
     /// `fred --gui` sets `startsel,stopsel`.
     Keymodel => opt("keymodel", "km", Global, Str(""))
@@ -123,6 +126,9 @@ options! {
     Selectmode => opt("selectmode", "slm", Global, Str(""))
         .list()
         .check(|v| items(v, &["mouse", "key", "cmd"])),
+    /// Columns `>>`, `<<` and Tab indent by (0: 'tabstop'). Fred sets it
+    /// to a space-indented file's indent.
+    Shiftwidth => opt("shiftwidth", "sw", Buffer, Num(8)).check(nonneg),
     /// Columns a tab takes.
     Tabstop => opt("tabstop", "ts", Buffer, Num(8)).check(positive),
     /// Wrap long lines (Neovim: on).
@@ -133,6 +139,13 @@ fn positive(v: &Value) -> Result<(), String> {
     match v {
         Value::Num(n) if *n > 0 => Ok(()),
         _ => Err("E487: Argument must be positive".into()),
+    }
+}
+
+fn nonneg(v: &Value) -> Result<(), String> {
+    match v {
+        Value::Num(n) if *n < 0 => Err("E487: Argument must be positive".into()),
+        _ => Ok(()),
     }
 }
 

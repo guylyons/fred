@@ -327,7 +327,7 @@ mod tests {
         );
         s.handle_keys("<Esc>ggVj");
         assert_eq!(sel(&mut s, &mut term), vec![(0, 0, 4), (1, 0, 1)]);
-        s.handle_keys("<Esc>Ggh<End>");
+        s.handle_keys("<Esc>G0gh<End>");
         assert_eq!(sel(&mut s, &mut term), vec![(2, 0, 7)]);
     }
 

@@ -723,7 +723,7 @@ fn space_g_greps_and_lands_on_the_line() {
     p.keys(&["\r"]);
     p.wait_text("51:9");
     // The pattern is the last search: n finds it again (wrapping around).
-    p.keys(&["gg"]);
+    p.keys(&["gg0"]);
     p.wait_text(" 1:1 ");
     p.keys(&["n"]);
     p.wait_text("51:9");

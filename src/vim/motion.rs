@@ -1,5 +1,6 @@
 //! vim motions: where the cursor goes, and how an operator treats the span.
 
+use super::textobj::{self, W};
 use crate::buffer::Buffer;
 use crate::editor::Editor;
 use crate::text::{next_grapheme, prev_grapheme};
@@ -35,6 +36,41 @@ pub enum Motion {
         reverse: bool,
     },
     Mark(char),
+    /// `ge`, `gE`.
+    WordEndBack(bool),
+    /// `H`, `M`, `L`: a line of the window.
+    ScreenTop,
+    ScreenMiddle,
+    ScreenBottom,
+    /// `|`: screen column N.
+    Column,
+    /// `g_`: last non-blank, N-1 lines down.
+    LastNonBlank,
+    /// `_`: first non-blank, N-1 lines down.
+    FirstNonBlankDown,
+    /// `%`: the matching bracket, or N% of the file with a count.
+    Percent,
+    /// `)` and `(`.
+    Sentence(bool),
+    /// `]]` (fwd, '{'), `][` (fwd, '}'), `[[`, `[]`.
+    Section {
+        fwd: bool,
+        what: char,
+    },
+    /// `[(`, `[{`, `])`, `]}`: an unmatched bracket.
+    Unmatched(char),
+    /// `*`, `#` (`fwd` false), `g*`, `g#` (`whole` false).
+    Star {
+        fwd: bool,
+        whole: bool,
+    },
+    /// `go`: byte N of the buffer.
+    Byte,
+    /// `iw`, `a(`…: a text object (in Visual mode and after an operator).
+    Object {
+        include: bool,
+        kind: char,
+    },
 }
 
 /// Where a motion lands.
@@ -48,6 +84,8 @@ pub struct Target {
     pub keep_col: bool,
     /// `$`: remember "end of line" as the column.
     pub eol: bool,
+    /// `|`: remember this screen column.
+    pub want: Option<usize>,
 }
 
 impl Target {
@@ -59,6 +97,7 @@ impl Target {
             inclusive: false,
             keep_col: false,
             eol: false,
+            want: None,
         }
     }
     fn inclusive(mut self) -> Target {
@@ -243,6 +282,11 @@ pub fn target(ed: &mut Editor, m: Motion, count: Option<usize>) -> Option<Target
     let n = buf.len_lines();
     let line = buf.line(l);
     let fnb = |ed: &Editor, l: usize| Target::at(l, ed.first_nonblank(l)).linewise();
+    let keep = |l: usize| {
+        let mut t = Target::at(l, 0).linewise();
+        t.keep_col = true;
+        t
+    };
     let t = match m {
         Motion::Left => {
             if b == 0 {
@@ -332,8 +376,143 @@ pub fn target(ed: &mut Editor, m: Motion, count: Option<usize>) -> Option<Target
             t.eol = true;
             t
         }
-        Motion::GotoLine => fnb(ed, count.map_or(n - 1, |c| c.clamp(1, n) - 1)),
-        Motion::FileStart => fnb(ed, count.map_or(0, |c| c.clamp(1, n) - 1)),
+        // 'startofline' is off: these keep the column.
+        Motion::GotoLine => keep(count.map_or(n - 1, |c| c.clamp(1, n) - 1)),
+        Motion::FileStart => keep(count.map_or(0, |c| c.clamp(1, n) - 1)),
+        Motion::WordEndBack(big) => {
+            let mut w = W::new(buf, (l, b));
+            w.big = big;
+            if !w.bckend_word(n_count, false) {
+                return None;
+            }
+            Target::at(w.p.0, w.p.1).inclusive()
+        }
+        Motion::ScreenTop | Motion::ScreenMiddle | Motion::ScreenBottom => {
+            let (top, rows) = ed
+                .viewport
+                .map_or((0, ed.win_height), |v| (v.view.top, v.rows));
+            let rows = rows.max(1);
+            let top = top.min(n - 1);
+            let bottom = (top + rows).min(n) - 1;
+            // Fred's view keeps 2 lines of context ('scrolloff').
+            let so = 2.min((rows - 1) / 2);
+            let t = match m {
+                Motion::ScreenTop => {
+                    let so = if top > 0 { so } else { 0 };
+                    (top + (n_count - 1).max(so)).min(bottom)
+                }
+                Motion::ScreenBottom => {
+                    let so = if bottom + 1 < n { so } else { 0 };
+                    bottom.saturating_sub((n_count - 1).max(so)).max(top)
+                }
+                _ => top + (bottom - top + 2) / 2 - 1,
+            };
+            keep(t)
+        }
+        Motion::Column => {
+            let col = n_count - 1;
+            let mut t = Target::at(l, crate::text::byte_of_col(&line, col, ed.tabstop()));
+            t.want = Some(col);
+            t
+        }
+        Motion::LastNonBlank => {
+            let nl = l + n_count - 1;
+            if nl >= n {
+                return None;
+            }
+            let s = buf.line(nl);
+            let end = s.trim_end_matches([' ', '\t']).len();
+            let mut t = Target::at(nl, prev_grapheme(&s, end.max(1).min(s.len())));
+            if end == 0 {
+                t.byte = 0;
+            }
+            t.inclusive()
+        }
+        Motion::FirstNonBlankDown => {
+            let nl = l + n_count - 1;
+            if nl >= n {
+                return None;
+            }
+            fnb(ed, nl)
+        }
+        Motion::Percent => match count {
+            Some(c) if c > 100 => return None,
+            Some(c) => keep(((n * c).div_ceil(100)).clamp(1, n) - 1),
+            None => {
+                let p = textobj::find_match(buf, (l, b), None, None, textobj::MATCHPAIRS, true)?;
+                Target::at(p.0, p.1).inclusive()
+            }
+        },
+        Motion::Sentence(fwd) => {
+            let p = textobj::findsent(buf, (l, b), fwd, n_count)?;
+            at_text(ed, p)
+        }
+        Motion::Section { fwd, what } => {
+            let (p, incl) = findpar(buf, l, fwd, n_count, what, false)?;
+            let t = Target::at(p.0, p.1);
+            if incl { t.inclusive() } else { t }
+        }
+        Motion::Unmatched(c) => {
+            let fwd = matches!(c, ')' | '}');
+            let mut p = (l, b);
+            let mut found = None;
+            for _ in 0..n_count {
+                match textobj::find_match(buf, p, Some(c), Some(fwd), textobj::MATCHPAIRS, true) {
+                    Some(q) => {
+                        found = Some(q);
+                        p = q;
+                    }
+                    None => break,
+                }
+            }
+            let p = found?;
+            Target::at(p.0, p.1)
+        }
+        Motion::Star { fwd, whole } => {
+            let Some((start, end)) = ident_at(&line, b) else {
+                ed.set_err("E348: No string under cursor");
+                return None;
+            };
+            let word = &line[start..end];
+            let special: &[char] = if fwd {
+                &['/', '.', '*', '~', '[', '^', '$', '\\']
+            } else {
+                &['/', '?', '.', '*', '~', '[', '^', '$', '\\']
+            };
+            let mut pat = String::from("\\C");
+            let kw = |c: Option<char>| c.is_some_and(|c| class_of(c) >= 2);
+            if whole && kw(word.chars().next()) {
+                pat.push_str("\\<");
+            }
+            for c in word.chars() {
+                if special.contains(&c) {
+                    pat.push('\\');
+                }
+                pat.push(c);
+            }
+            if whole && kw(word.chars().last()) {
+                pat.push_str("\\>");
+            }
+            ed.last_pat = Some(pat);
+            ed.last_search_fwd = fwd;
+            let saved = ed.cur.byte;
+            ed.cur.byte = start;
+            let r = ed.search_target_n(false, n_count);
+            ed.cur.byte = saved;
+            let (pl, pb) = r?;
+            Target::at(pl, pb)
+        }
+        Motion::Byte => {
+            let rope = buf.rope();
+            let off = count.unwrap_or(1).max(1) - 1;
+            let off = off.min(rope.len_bytes().saturating_sub(1));
+            let nl = rope.byte_to_line(off).min(n - 1);
+            let b = off - rope.line_to_byte(nl);
+            let s = buf.line(nl);
+            Target::at(nl, crate::text::floor_grapheme(&s, b.min(s.len())))
+        }
+        // Handled by `ops::span` and Visual mode.
+        Motion::Object { .. } => return None,
         Motion::ParaFwd => {
             let mut p = l;
             for _ in 0..n_count {
@@ -420,4 +599,102 @@ fn find_target(
     } else {
         t
     })
+}
+
+/// A position from `findsent` as a target: not on a line's end (Neovim's
+/// `adjust_cursor`), where an operator then includes the last character.
+fn at_text(ed: &Editor, p: (usize, usize)) -> Target {
+    let len = ed.buf.line_len(p.0);
+    if p.1 >= len && len > 0 {
+        Target::at(p.0, ed.last_grapheme(p.0)).inclusive()
+    } else {
+        Target::at(p.0, p.1)
+    }
+}
+
+fn class_of(c: char) -> u8 {
+    class(c.encode_utf8(&mut [0; 4]), false)
+}
+
+/// The identifier under or after byte `b` (else the non-blank string), as
+/// Neovim's `find_ident_under_cursor` finds it for `*` and `#`.
+fn ident_at(line: &str, b: usize) -> Option<(usize, usize)> {
+    let cls = |i: usize| class(grapheme_at(line, i), false);
+    for want_ident in [true, false] {
+        let mut col = b.min(line.len());
+        while col < line.len() {
+            let c = cls(col);
+            if c != 0 && (!want_ident || c != 1) {
+                break;
+            }
+            col = next_grapheme(line, col);
+        }
+        if col >= line.len() {
+            continue;
+        }
+        let this = cls(col);
+        while col > 0 && cls(prev_grapheme(line, col)) == this {
+            col = prev_grapheme(line, col);
+        }
+        let mut end = next_grapheme(line, col);
+        while end < line.len()
+            && if want_ident {
+                cls(end) == this
+            } else {
+                cls(end) != 0
+            }
+        {
+            end = next_grapheme(line, end);
+        }
+        return Some((col, end));
+    }
+    None
+}
+
+/// Neovim's `findpar()` for sections: the line after `count` section
+/// starts (`what` '{' or '}'). Returns the position and whether the motion
+/// becomes inclusive (it reached the last line's last character).
+fn findpar(
+    buf: &Buffer,
+    line: usize,
+    fwd: bool,
+    count: usize,
+    what: char,
+    both: bool,
+) -> Option<((usize, usize), bool)> {
+    let n = buf.len_lines();
+    let mut curr = line;
+    for left in (0..count).rev() {
+        let mut did_skip = false;
+        let mut first = true;
+        loop {
+            if buf.line_len(curr) != 0 {
+                did_skip = true;
+            }
+            if !first && did_skip && textobj::start_ps(buf, curr, what, both) {
+                break;
+            }
+            first = false;
+            let next = if fwd {
+                curr.checked_add(1).filter(|&c| c < n)
+            } else {
+                curr.checked_sub(1)
+            };
+            match next {
+                Some(c) => curr = c,
+                None if left > 0 => return None,
+                None => break,
+            }
+        }
+    }
+    if both && buf.line(curr).starts_with('}') {
+        curr = (curr + 1).min(n - 1);
+    }
+    if curr == n - 1 && what != '}' && fwd {
+        let s = buf.line(curr);
+        if !s.is_empty() {
+            return Some(((curr, prev_grapheme(&s, s.len())), true));
+        }
+    }
+    Some(((curr, 0), false))
 }

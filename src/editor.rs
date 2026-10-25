@@ -194,8 +194,6 @@ pub struct Editor {
     pub(crate) zap: Option<crate::zap::Zap>,
     /// Option values (`:set`); see `crate::options`.
     pub opts: crate::options::Options,
-    /// Insert spaces for Tab, this many per indent level (0 = insert a tab).
-    pub indent_spaces: usize,
     /// Undo state of the text as last saved; `u64::MAX` = never matches.
     pub saved_state: u64,
     pub(crate) vim: vim::State,
@@ -221,8 +219,7 @@ pub struct Editor {
 
 impl Editor {
     pub fn new(buf: Buffer) -> Editor {
-        let indent_spaces = detect_indent(&buf);
-        Editor {
+        let mut ed = Editor {
             buf,
             undo: Undo::default(),
             cur: Cursor::default(),
@@ -279,7 +276,6 @@ impl Editor {
             viewport: None,
             zap: None,
             opts: Default::default(),
-            indent_spaces,
             saved_state: 0,
             vim: vim::State::default(),
             popup: None,
@@ -292,6 +288,35 @@ impl Editor {
             cmd_history: vec![],
             prompt_history: std::collections::HashMap::new(),
             search_history: vec![],
+        };
+        ed.detect_indent();
+        ed.set_cursor(0, 0);
+        ed
+    }
+
+    /// A file indented with spaces gets 'expandtab' and its indent as
+    /// 'shiftwidth'.
+    pub fn detect_indent(&mut self) {
+        let n = detect_indent(&self.buf);
+        if n > 0 {
+            let _ = self.opts.put(
+                Opt::Shiftwidth,
+                crate::options::Value::Num(n as i64),
+                crate::options::Level::Local,
+            );
+            let _ = self.opts.put(
+                Opt::Expandtab,
+                crate::options::Value::Bool(true),
+                crate::options::Level::Local,
+            );
+        }
+    }
+
+    /// 'shiftwidth' in effect (0 means 'tabstop').
+    pub fn shiftwidth(&self) -> usize {
+        match self.opts.num(Opt::Shiftwidth) {
+            0 => self.tabstop(),
+            n => n as usize,
         }
     }
 
@@ -623,6 +648,11 @@ impl Editor {
         let l = self.buf.line(self.cur.line);
         self.cur.byte = text::floor_grapheme(&l, byte);
         self.cur.want_col = text::col_of_byte(&l, self.cur.byte, self.tabstop());
+        // In Normal mode the cursor sits on a tab's last column, as in Vim.
+        if self.mode == Mode::Normal && l[self.cur.byte..].starts_with('\t') {
+            let ts = self.tabstop();
+            self.cur.want_col += ts - self.cur.want_col % ts - 1;
+        }
     }
 
     /// Move to `line`, keeping the remembered screen column.
