@@ -1,6 +1,7 @@
 //! vim key handling: Normal and Visual-line mode parsing and dispatch.
 
 pub mod insert;
+pub mod marks;
 pub mod motion;
 pub mod ops;
 pub mod register;
@@ -68,6 +69,8 @@ pub struct State {
     pub(crate) insert_stop: Option<(usize, usize)>,
     /// An Insert-mode key waiting for the next one (CTRL-R, CTRL-V, CTRL-G).
     pub(crate) ins_pending: Option<insert::Pending>,
+    /// The previous context mark, jumplist and changelist.
+    pub(crate) lists: marks::Lists,
     /// CTRL-O: one Normal-mode command, then back to Insert mode (at the
     /// line's end if it was there).
     pub(crate) insert_once: Option<(bool, usize)>,
@@ -272,6 +275,7 @@ fn parse_motion(keys: &[Key], objects: bool) -> Parse<(Motion, usize)> {
             }
             'f' | 'F' | 't' | 'T' => return arg(&|ch| Some(Motion::Find { kind: c, ch })),
             '\'' => return arg(&|ch| Some(Motion::Mark(ch))),
+            '`' => return arg(&|ch| Some(Motion::MarkExact(ch))),
             _ => return Parse::Invalid,
         },
         _ => return Parse::Invalid,
@@ -412,11 +416,11 @@ fn parse_cmd(keys: &[Key], visual: bool) -> Parse<Cmd> {
     let simple_ctrl = k.ctrl
         && matches!(
             k.code,
-            KeyCode::Char('r' | 'd' | 'u' | 'f' | 'b' | '^' | '6' | 'a' | 'x')
+            KeyCode::Char('r' | 'd' | 'u' | 'f' | 'b' | '^' | '6' | 'a' | 'x' | 'o' | 'i')
         );
     let simple_key = matches!(
         k.code,
-        KeyCode::PageUp | KeyCode::PageDown | KeyCode::Delete
+        KeyCode::PageUp | KeyCode::PageDown | KeyCode::Delete | KeyCode::Tab
     );
     match k.char() {
         Some(c) if SIMPLE.contains(&c) => {
@@ -991,10 +995,22 @@ pub(crate) fn execute(ed: &mut Editor, cmd: Cmd) {
             count,
             motion: Motion::Object { include, kind },
         } => visual_object(ed, count, include, kind),
-        Cmd::Move { count, motion } => match motion::target(ed, motion, count) {
-            Some(t) => move_to(ed, t),
-            None => ed.vim.failed = true,
-        },
+        Cmd::Move { count, motion } => {
+            let jump = motion.is_jump();
+            let from = ed.cur.pos();
+            match motion::target(ed, motion, count) {
+                Some(t) => {
+                    if jump {
+                        marks::set(ed, '\'', from);
+                    }
+                    move_to(ed, t);
+                    if jump {
+                        marks::checkpcmark(ed);
+                    }
+                }
+                None => ed.vim.failed = true,
+            }
+        }
         Cmd::Op { op, count, motion } => {
             let sp = ops::span(ed, op, count, motion);
             ed.vim.failed |= sp.is_none();
@@ -1323,6 +1339,17 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
             }
             None => ed.set_err("E173: No previous Visual area"),
         },
+        // `g;` and `g,`: older and newer places in the changelist.
+        (KeyCode::Char('g'), false) if matches!(arg, Some(';' | ',')) => {
+            let n = n as isize;
+            match marks::change(ed, if arg == Some(';') { -n } else { n }) {
+                Ok((l, b)) => {
+                    let l = l.min(ed.line_count() - 1);
+                    ed.set_cursor(l, b);
+                }
+                Err(e) => ed.set_err(e),
+            }
+        }
         // `gJ`: join without inserting or removing spaces.
         (KeyCode::Char('g'), false) if arg == Some('J') => {
             ops::join_with(ed, ed.cur.line, n, false);
@@ -1340,8 +1367,20 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
         // zz centres the cursor line in the window.
         (KeyCode::Char('z'), false) if arg == Some('z') => ed.recenter.set(true),
         (KeyCode::Char('m'), false) => {
-            if let Some(c) = arg.filter(char::is_ascii_lowercase) {
-                ed.marks.insert(c, ed.cur.line);
+            if let Some(c) = arg.filter(|c| c.is_ascii_alphabetic() || "'`[]<>".contains(*c)) {
+                marks::set(ed, c, ed.cur.pos());
+            }
+        }
+        // CTRL-O and CTRL-I (Tab): back and forward in the jumplist.
+        (KeyCode::Char('o' | 'i'), true) | (KeyCode::Tab, _) => {
+            let back = key == Key::ctrl('o');
+            let n = n as isize;
+            match marks::jump(ed, if back { -n } else { n }) {
+                Some((l, b)) => {
+                    let l = l.min(ed.line_count() - 1);
+                    ed.set_cursor(l, b);
+                }
+                None => ed.vim.failed = true,
             }
         }
         _ => {}

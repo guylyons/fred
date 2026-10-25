@@ -95,8 +95,8 @@ key,normal,CTRL-F,motion,partial,present; not yet verified against nvim,scroll N
 key,normal,CTRL-G,,missing,,display current file name and position
 key,normal,<BS>,motion,partial,present; not yet verified against nvim,"same as ""h"""
 key,normal,CTRL-H,motion,done,oracle cases,"same as ""h"""
-key,normal,<Tab>,motion,missing,,go to N newer entry in jump list
-key,normal,CTRL-I,motion,missing,,same as <Tab>
+key,normal,<Tab>,motion,done,oracle cases,go to N newer entry in jump list
+key,normal,CTRL-I,motion,done,oracle cases,same as <Tab>
 key,normal,<NL>,motion,missing,,"same as ""j"""
 key,normal,<S-NL>,motion,missing,,same as CTRL-F
 key,normal,CTRL-J,motion,done,oracle cases,"same as ""j"""
@@ -105,7 +105,7 @@ key,normal,<CR>,motion,partial,present; not yet verified against nvim,cursor to 
 key,normal,<S-CR>,motion,missing,,same as CTRL-F
 key,normal,CTRL-M,motion,missing,,same as <CR>
 key,normal,CTRL-N,motion,partial,present; not yet verified against nvim,"same as ""j"""
-key,normal,CTRL-O,motion,missing,,go to N older entry in jump list
+key,normal,CTRL-O,motion,done,oracle cases,go to N older entry in jump list
 key,normal,CTRL-P,motion,partial,present; not yet verified against nvim,"same as ""k"""
 key,normal,CTRL-R,change,done,oracle cases,redo changes which were undone with 'u'
 key,normal,CTRL-T,,missing,,jump to N older Tag in tag list
@@ -129,16 +129,16 @@ key,normal,$,motion,done,oracle cases,cursor to the end of Nth next line
 key,normal,%,motion,done,"brackets, skipping ones in quotes; no /* */ or #if (matchit b:match_words); oracle cases",find the next (curly/square) bracket on
 key,normal,{count}%,motion,done,"under an operator characterwise and exclusive, as with the default matchit; oracle cases",go to N percentage in the file
 key,normal,&,change,missing,,repeat last :s
-key,normal,'{a-zA-Z0-9},motion,partial,a-z only,cursor to the first CHAR on the line with
-key,normal,'',motion,missing,,cursor to the first CHAR of the line where
-key,normal,'(,motion,missing,,cursor to the first CHAR on the line of the
-key,normal,'),motion,missing,,cursor to the first CHAR on the line of the
-key,normal,'<,motion,missing,,cursor to the first CHAR of the line where
-key,normal,'>,motion,missing,,cursor to the first CHAR of the line where
-key,normal,'[,motion,missing,,cursor to the first CHAR on the line of the
-key,normal,'],motion,missing,,cursor to the first CHAR on the line of the
-key,normal,'{,motion,missing,,cursor to the first CHAR on the line of the
-key,normal,'},motion,missing,,cursor to the first CHAR on the line of the
+key,normal,'{a-zA-Z0-9},motion,partial,a-z; A-Z are local to the buffer; no 0-9 (no shada),cursor to the first CHAR on the line with
+key,normal,'',motion,done,oracle cases,cursor to the first CHAR of the line where
+key,normal,'(,motion,done,oracle cases,cursor to the first CHAR on the line of the
+key,normal,'),motion,done,oracle cases,cursor to the first CHAR on the line of the
+key,normal,'<,motion,done,oracle cases,cursor to the first CHAR of the line where
+key,normal,'>,motion,done,oracle cases,cursor to the first CHAR of the line where
+key,normal,'[,motion,done,oracle cases,cursor to the first CHAR on the line of the
+key,normal,'],motion,done,oracle cases,cursor to the first CHAR on the line of the
+key,normal,'{,motion,done,oracle cases,cursor to the first CHAR on the line of the
+key,normal,'},motion,done,oracle cases,cursor to the first CHAR on the line of the
 key,normal,(,motion,done,oracle cases,cursor N sentences backward
 key,normal,),motion,done,oracle cases,cursor N sentences forward
 key,normal,*,motion,done,oracle cases,search forward for the Nth occurrence of
@@ -203,16 +203,16 @@ key,normal,[{char},,missing,,square bracket command (see |[| below)
 key,normal,]{char},,missing,,square bracket command (see |]| below)
 key,normal,^,motion,done,oracle cases,cursor to the first CHAR of the line
 key,normal,_,motion,done,oracle cases,cursor to the first CHAR N - 1 lines lower
-key,normal,`{a-zA-Z0-9},motion,missing,,cursor to the mark {a-zA-Z0-9}
-key,normal,`(,motion,missing,,cursor to the start of the current sentence
-key,normal,`),motion,missing,,cursor to the end of the current sentence
-key,normal,`<,motion,missing,,cursor to the start of the highlighted area
-key,normal,`>,motion,missing,,cursor to the end of the highlighted area
-key,normal,`[,motion,missing,,cursor to the start of last operated text
-key,normal,`],motion,missing,,cursor to the end of last operated text or
-key,normal,"""``""",motion,missing,,cursor to the position before latest jump
-key,normal,`{,motion,missing,,cursor to the start of the current paragraph
-key,normal,`},motion,missing,,cursor to the end of the current paragraph
+key,normal,`{a-zA-Z0-9},motion,partial,a-z; A-Z are local to the buffer; no 0-9 (no shada),cursor to the mark {a-zA-Z0-9}
+key,normal,`(,motion,done,oracle cases,cursor to the start of the current sentence
+key,normal,`),motion,done,oracle cases,cursor to the end of the current sentence
+key,normal,`<,motion,done,oracle cases,cursor to the start of the highlighted area
+key,normal,`>,motion,done,oracle cases,cursor to the end of the highlighted area
+key,normal,`[,motion,done,oracle cases,cursor to the start of last operated text
+key,normal,`],motion,done,oracle cases,cursor to the end of last operated text or
+key,normal,"""``""",motion,done,oracle cases,cursor to the position before latest jump
+key,normal,`{,motion,done,oracle cases,cursor to the start of the current paragraph
+key,normal,`},motion,done,oracle cases,cursor to the end of the current paragraph
 key,normal,a,change,done,oracle cases,append text after the cursor N times
 key,normal,b,motion,done,oracle cases,cursor N words backward
 key,normal,"[""x]c{motion}",change,done,oracle cases,delete Nmove text [into register x] and
@@ -229,7 +229,7 @@ key,normal,i,change,done,oracle cases,insert text before the cursor N times
 key,normal,j,motion,done,oracle cases,cursor N lines downward
 key,normal,k,motion,done,oracle cases,cursor N lines upward
 key,normal,l,motion,done,oracle cases,cursor N chars to the right
-key,normal,m{A-Za-z},,partial,"a-z only, line marks",set mark {A-Za-z} at cursor position
+key,normal,m{A-Za-z},,partial,with columns; A-Z are local to the buffer; also m' m` m[ m] m< m>,set mark {A-Za-z} at cursor position
 key,normal,n,motion,done,oracle cases,repeat the latest '/' or '?' N times
 key,normal,o,change,done,oracle cases,begin a new line below the cursor and
 key,normal,"[""x]p",change,done,oracle cases,put the text [from register x] after the
@@ -445,11 +445,11 @@ key,g,g'{mark},motion,missing,,like |'| but without changing the jumplist
 key,g,g`{mark},motion,missing,,like |`| but without changing the jumplist
 key,g,g*,motion,done,oracle cases,"like ""*"", but without using ""\<"" and ""\>"""
 key,g,g+,,missing,,go to newer text state N times
-key,g,"g,",motion,missing,,go to N newer position in change list
+key,g,"g,",motion,done,oracle cases,go to N newer position in change list
 key,g,g-,,missing,,go to older text state N times
 key,g,g0,motion,partial,same as $ 0 ^ j k (right while 'wrap' is off),when 'wrap' off go to leftmost character of
 key,g,g8,,missing,,print hex value of bytes used in UTF-8
-key,g,g;,motion,missing,,go to N older position in change list
+key,g,g;,motion,done,oracle cases,go to N older position in change list
 key,g,g<,,missing,,display previous command output
 key,g,g?,change,done,oracle cases,Rot13 encoding operator
 key,g,g??,change,done,oracle cases,Rot13 encode current line

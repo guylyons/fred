@@ -259,6 +259,9 @@ fn apply(ed: &mut Editor, op: char, sp: Span, to_reg: bool) {
             }
             match op {
                 'y' => {
+                    super::marks::set(ed, '[', (lo, 0));
+                    let end = ed.last_grapheme(hi);
+                    super::marks::set(ed, ']', (hi, end));
                     if lo < ed.cur.line {
                         ed.set_cursor(lo, ed.cur.byte);
                     }
@@ -287,6 +290,9 @@ fn apply(ed: &mut Editor, op: char, sp: Span, to_reg: bool) {
                     };
                     super::register::store(ed, r, true, false);
                 }
+                super::marks::set(ed, '[', from);
+                let l = ed.buf.line(to.0);
+                super::marks::set(ed, ']', (to.0, prev_grapheme(&l, to.1.min(l.len()))));
                 ed.set_cursor(from.0, from.1);
                 return;
             }

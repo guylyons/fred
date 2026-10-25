@@ -111,6 +111,8 @@ pub struct Editor {
     /// The other registers and the macro recorder.
     pub regs: vim::register::Registers,
     pub marks: HashMap<char, usize>,
+    /// The byte column of each mark in `marks`.
+    pub mark_cols: HashMap<char, usize>,
     pub last_pat: Option<String>,
     pub last_search_fwd: bool,
     /// Status-row message and whether it is an error.
@@ -229,6 +231,7 @@ impl Editor {
             reg: Register::default(),
             regs: Default::default(),
             marks: HashMap::new(),
+            mark_cols: HashMap::new(),
             last_pat: None,
             last_search_fwd: true,
             msg: None,
@@ -487,6 +490,18 @@ impl Editor {
         }
         if matches!(self.mode, Mode::Visual { .. } | Mode::VisualLine { .. }) {
             self.vim.last_visual = Some((self.mode.clone(), self.cur.pos()));
+            // `'<` and `'>`: the selection's start and end.
+            let cur = self.cur.pos();
+            let (a, b) = match self.mode {
+                Mode::Visual { anchor } => (anchor.min(cur), anchor.max(cur)),
+                Mode::VisualLine { anchor } => {
+                    let hi = anchor.max(cur.0);
+                    ((anchor.min(cur.0), 0), (hi, self.buf.line_len(hi)))
+                }
+                _ => unreachable!(),
+            };
+            vim::marks::set(self, '<', a);
+            vim::marks::set(self, '>', b);
         }
         if !was_insert {
             vim::insert::after_ctrl_o(self);
@@ -618,6 +633,7 @@ impl Editor {
             if let Some(o) = &mut self.org {
                 o.specs.line_change(ch.at, ch.removed, ch.inserted);
             }
+            vim::marks::line_change(&mut self.vim.lists, ch.at, ch.removed, ch.inserted);
             self.marks
                 .retain(|_, l| *l < ch.at || *l >= ch.at + ch.removed);
             for l in self.marks.values_mut() {
@@ -636,6 +652,14 @@ impl Editor {
 
     pub fn apply(&mut self, e: Edit) {
         let inv = self.buf.apply(e);
+        // `'[` and `']` around the new text, `'.` and the changelist.
+        let start = self.buf.char_to_pos(inv.start);
+        let end = self
+            .buf
+            .char_to_pos(inv.end.saturating_sub(1).max(inv.start));
+        vim::marks::set(self, '[', start);
+        vim::marks::set(self, ']', end);
+        vim::marks::changed(self, start);
         self.undo.record(inv);
     }
 
@@ -884,7 +908,11 @@ impl Editor {
                 self.last_search_fwd = kind == '/';
                 match self.vim.pending_op.take() {
                     Some((op, count, reg)) => vim::finish_op_search(self, op, count, reg),
-                    None => self.search_next(false),
+                    None => {
+                        vim::marks::setpcmark(self);
+                        self.search_next(false);
+                        vim::marks::checkpcmark(self);
+                    }
                 }
             }
         }

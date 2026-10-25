@@ -37,7 +37,7 @@ track.
 | 9 | Visual, Visual-line, Visual-block | 5 | 0 | charwise and linewise; text objects, `< > u U ~ g? gJ`; Select mode (`gh`, `gH`, CTRL-G, `<BS>`) |
 | 10 | Insert and Replace mode keys | 4 | 0 | most keys (CTRL-R, CTRL-O, CTRL-V, CTRL-T/CTRL-D, CTRL-A, CTRL-E/CTRL-Y, CTRL-G); counts; Replace mode; no CTRL-X submodes, CTRL-K digraphs, abbreviations |
 | 11 | Command-line editing keys | 3 | 0 | basics, history, Tab |
-| 12 | Marks, jumplist, changelist | 3 | 0 | `a-z` line marks |
+| 12 | Marks, jumplist, changelist | 3 | 0 | marks with columns, `` ` `` and `'`, special marks, CTRL-O/CTRL-I, `g;`/`g,` (`src/vim/marks.rs`); A-Z buffer-local, no 0-9, `:marks`, `:jumps`, `:changes`, `:delmarks` |
 | 13 | Macros, `:normal`, `.`, CTRL-A/CTRL-X | 3 | 0 | `.`, `q`, `@`, `@@`, `@:`, `Q`, CTRL-A/CTRL-X (`g CTRL-A`); no `:normal` |
 | 14 | Search and Vim regex, hlsearch, incsearch | 6 | 0 | Vim magic patterns (no `\zs`, `\@`, `\_`, back-references), `/ ? n N` |
 | 15 | `:substitute` and `:global` in full | 3 | 0 | `g` flag only |
@@ -224,3 +224,10 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
   Neovim does), CTRL-G j/k/u, `<S-Left>`/`<C-Left>` and right,
   `<C-Home>`, `<C-End>`, page keys. Oracle: 543 cases. Ledger: 218 keys
   done.
+- 2026-10-25: marks (`src/vim/marks.rs`, after Neovim's `mark.c`): every
+  mark keeps its column (`` `a ``), `''`/` `` ` the previous context mark
+  (set by the jump motions and searches, checked as `checkpcmark()`),
+  `'[ ']` around the last change or yank, `'< '>`, `'.`, `'^`, `'( ') '{
+  '}`; the jumplist (CTRL-O, CTRL-I/Tab, with `cleanup_jumplist()`) and
+  the changelist (`g;`, `g,`, one entry per line within 79 columns).
+  Oracle: 589 cases. Ledger: 241 keys done.

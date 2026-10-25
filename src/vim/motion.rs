@@ -71,6 +71,33 @@ pub enum Motion {
         include: bool,
         kind: char,
     },
+    /// `` `a ``: a mark's exact position.
+    MarkExact(char),
+}
+
+impl Motion {
+    /// Jumps set the previous context mark and go in the jumplist.
+    pub fn is_jump(self) -> bool {
+        matches!(
+            self,
+            Motion::GotoLine
+                | Motion::FileStart
+                | Motion::Percent
+                | Motion::Sentence(_)
+                | Motion::ParaFwd
+                | Motion::ParaBack
+                | Motion::Section { .. }
+                | Motion::SearchNext { .. }
+                | Motion::Star { .. }
+                | Motion::ScreenTop
+                | Motion::ScreenMiddle
+                | Motion::ScreenBottom
+                | Motion::Mark(_)
+                | Motion::MarkExact(_)
+                | Motion::Unmatched(_)
+                | Motion::Byte
+        )
+    }
 }
 
 /// Where a motion lands.
@@ -573,10 +600,11 @@ pub fn target(ed: &mut Editor, m: Motion, count: Option<usize>) -> Option<Target
             let (pl, pb) = ed.search_target_n(reverse, n_count)?;
             Target::at(pl, pb)
         }
-        Motion::Mark(c) => match ed.marks.get(&c) {
-            Some(&ml) => fnb(ed, ml.min(n - 1)),
+        Motion::Mark(c) | Motion::MarkExact(c) => match super::marks::get(ed, c) {
+            Some((ml, mb)) if matches!(m, Motion::MarkExact(_)) => Target::at(ml, mb),
+            Some((ml, _)) => fnb(ed, ml),
             None => {
-                ed.set_err("mark not set");
+                ed.set_err("E20: Mark not set");
                 return None;
             }
         },
