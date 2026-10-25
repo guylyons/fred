@@ -327,8 +327,9 @@ mod tests {
         );
         s.handle_keys("<Esc>ggVj");
         assert_eq!(sel(&mut s, &mut term), vec![(0, 0, 4), (1, 0, 1)]);
+        // <End> goes onto the line's end, as in Vim: its break is selected.
         s.handle_keys("<Esc>G0gh<End>");
-        assert_eq!(sel(&mut s, &mut term), vec![(2, 0, 7)]);
+        assert_eq!(sel(&mut s, &mut term), vec![(2, 0, 8)]);
     }
 
     #[test]
@@ -346,8 +347,9 @@ mod tests {
         s.handle_keys("gh<Right>");
         assert_eq!(sel(&mut s, &mut term), vec![(0, 0, 3)]);
         // Only line 2's line break is selected: it still gets its cell.
+        // The cursor stays past line 3's end (as Vim's), taking its break.
         s.handle_keys("<Esc>:set km=startsel slm=key<Enter>jA<S-Down>");
-        assert_eq!(sel(&mut s, &mut term), vec![(1, 3, 1), (2, 0, 3)]);
+        assert_eq!(sel(&mut s, &mut term), vec![(1, 3, 1), (2, 0, 4)]);
     }
 
     #[test]

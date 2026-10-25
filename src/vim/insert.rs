@@ -556,6 +556,7 @@ fn auto_wrap(ed: &mut Editor) {
 /// Leave Insert mode: type the text again for a count, close the undo
 /// group and finish dot-repeat recording.
 pub fn leave(ed: &mut Editor) {
+    let block_back = super::block::finish_insert(ed);
     if let Some((cmd, n)) = ed.vim.insert_repeat.take() {
         let keys = match &ed.vim.recording {
             Some(r) => r[ed.vim.recording_split.min(r.len())..].to_vec(),
@@ -587,6 +588,9 @@ pub fn leave(ed: &mut Editor) {
     ed.cur.byte = prev_grapheme(&line, ed.cur.byte);
     let b = ed.cur.byte;
     ed.set_cursor(ed.cur.line, b);
+    if let Some((l, b)) = block_back {
+        ed.set_cursor(l, b);
+    }
     ed.undo.end(ed.cur.pos());
     if let Some(r) = ed.vim.recording.take() {
         ed.vim.finish_recording(r);

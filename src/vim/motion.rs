@@ -343,7 +343,9 @@ pub fn target(ed: &mut Editor, m: Motion, count: Option<usize>) -> Option<Target
             Target::at(l, p)
         }
         Motion::Right => {
-            if line.is_empty() {
+            if line.is_empty()
+                || (b >= line.len() && matches!(ed.mode, crate::editor::Mode::Visual { .. }))
+            {
                 return None;
             }
             let mut p = b;
@@ -426,7 +428,13 @@ pub fn target(ed: &mut Editor, m: Motion, count: Option<usize>) -> Option<Target
         Motion::FirstNonBlank => Target::at(l, ed.first_nonblank(l)),
         Motion::LineEnd => {
             let nl = (l + n_count - 1).min(n - 1);
-            let mut t = Target::at(nl, ed.last_grapheme(nl)).inclusive();
+            // Visual mode goes onto the line's end (its line break).
+            let b = if matches!(ed.mode, crate::editor::Mode::Visual { .. }) {
+                buf.line_len(nl)
+            } else {
+                ed.last_grapheme(nl)
+            };
+            let mut t = Target::at(nl, b).inclusive();
             t.eol = true;
             t
         }

@@ -285,6 +285,7 @@ mod tests {
             crate::clipboard::set(&crate::editor::Register {
                 text: "copied".into(),
                 linewise: false,
+                block: false,
             });
             s.handle_keys(&format!("gh<Right>{keys}"));
             assert_eq!(crate::clipboard::get().as_deref(), Some("copied"), "{keys}");

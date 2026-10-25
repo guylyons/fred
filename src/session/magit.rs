@@ -3890,6 +3890,7 @@ impl Session {
                     crate::editor::Register {
                         text,
                         linewise: false,
+                        block: false,
                     },
                 );
                 self.ed.set_msg(message);

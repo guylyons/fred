@@ -307,6 +307,7 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
             crate::editor::Register {
                 text: rev,
                 linewise: false,
+                block: false,
             },
         );
         return true;

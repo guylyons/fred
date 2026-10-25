@@ -1,5 +1,6 @@
 //! vim key handling: Normal and Visual-line mode parsing and dispatch.
 
+pub mod block;
 pub mod excmd;
 pub mod insert;
 pub mod marks;
@@ -73,6 +74,10 @@ pub struct State {
     pub(crate) ins_pending: Option<insert::Pending>,
     /// The previous context mark, jumplist and changelist.
     pub(crate) lists: marks::Lists,
+    /// The Visual selection is a block (CTRL-V).
+    pub block: bool,
+    /// Text typed after a block `I`, `A` or `c` goes on the other lines.
+    pub(crate) block_insert: Option<block::Insert>,
     /// `v` or `V` forcing the operator's motion (`dvj`).
     pub(crate) force: Option<char>,
     /// `uline`'s column is still to be set by the first edit.
@@ -477,7 +482,22 @@ fn parse_cmd(keys: &[Key], visual: bool) -> Parse<Cmd> {
         && matches!(
             k.code,
             KeyCode::Char(
-                'r' | 'd' | 'u' | 'f' | 'b' | '^' | '6' | 'a' | 'x' | 'o' | 'i' | 'e' | 'y'
+                'r' | 'd'
+                    | 'u'
+                    | 'f'
+                    | 'b'
+                    | '^'
+                    | '6'
+                    | 'a'
+                    | 'x'
+                    | 'o'
+                    | 'i'
+                    | 'e'
+                    | 'y'
+                    | 'g'
+                    | 'l'
+                    | '\\'
+                    | 'v'
             )
         );
     let simple_key = matches!(
@@ -658,7 +678,11 @@ fn visual_key(ed: &mut Editor, k: Key) -> bool {
     if rest == [Key::ch('r')] {
         ed.vim.pending.clear();
         if let Some(c) = k.char() {
-            visual_replace(ed, c);
+            if ed.vim.block {
+                block::replace(ed, c);
+            } else {
+                visual_replace(ed, c);
+            }
         }
         ed.vim.register = None;
         return true;
@@ -666,6 +690,43 @@ fn visual_key(ed: &mut Editor, k: Key) -> bool {
     let g = rest == [Key::ch('g')];
     if !rest.is_empty() && !g {
         return false;
+    }
+    // CTRL-V: blockwise, or out of Visual mode if already.
+    if k == Key::ctrl('v') {
+        if ed.vim.block {
+            ed.mode = Mode::Normal;
+            ed.vim.block = false;
+        } else {
+            if let Mode::VisualLine { anchor } = ed.mode {
+                let line = ed.buf.line(anchor);
+                let b =
+                    crate::text::byte_of_col(&line, ed.cur.want_col, ed.tabstop()).min(line.len());
+                ed.mode = Mode::Visual {
+                    anchor: (anchor, b),
+                };
+            }
+            ed.vim.block = true;
+        }
+        ed.vim.pending.clear();
+        return true;
+    }
+    if ed.vim.block && !g {
+        let c = match k.char() {
+            Some(c) => Some(c),
+            None if k == Key::ctrl('c') => None,
+            None => None,
+        };
+        if c == Some('r') {
+            ed.vim.pending.push(k);
+            return true;
+        }
+        if let Some(c) = c
+            && block::key(ed, c, count)
+        {
+            ed.vim.pending.clear();
+            ed.vim.register = None;
+            return true;
+        }
     }
     let mode = ed.mode.clone();
     match (g, k.char()) {
@@ -1369,6 +1430,13 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
             }
             _ => ed.vim.failed = true,
         },
+        // CTRL-V: Visual-block mode.
+        (KeyCode::Char('v'), true) => {
+            ed.mode = Mode::Visual {
+                anchor: ed.cur.pos(),
+            };
+            ed.vim.block = true;
+        }
         // CTRL-G: the file, its length and where the cursor is.
         (KeyCode::Char('g'), true) => {
             let name = ed

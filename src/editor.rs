@@ -116,6 +116,8 @@ impl CmdLine {
 pub struct Register {
     pub text: String,
     pub linewise: bool,
+    /// From a Visual-block selection: its lines are a rectangle.
+    pub block: bool,
 }
 
 pub struct Editor {
@@ -534,6 +536,9 @@ impl Editor {
             }
             _ => {}
         }
+        if !matches!(self.mode, Mode::Visual { .. }) {
+            self.vim.block = false;
+        }
         if matches!(self.mode, Mode::Visual { .. } | Mode::VisualLine { .. }) {
             if !was_visual {
                 self.vim.prev_visual = self.vim.last_visual.clone();
@@ -586,6 +591,11 @@ impl Editor {
         vp.view.scroll(self, rows, cols, false);
         vp.rows = rows;
         self.viewport = Some(vp);
+    }
+
+    /// Visual mode is Visual-block (CTRL-V).
+    pub fn block_mode(&self) -> bool {
+        matches!(self.mode, Mode::Visual { .. }) && self.vim.block
     }
 
     /// Insert mode is Replace mode (`R`).
@@ -821,7 +831,10 @@ impl Editor {
         self.cur.line = line.min(self.line_count() - 1);
         let l = self.buf.line(self.cur.line);
         self.cur.byte = if self.cur.want_col == usize::MAX {
-            text::prev_grapheme(&l, l.len())
+            match self.mode {
+                Mode::Visual { .. } | Mode::VisualLine { .. } => l.len(),
+                _ => text::prev_grapheme(&l, l.len()),
+            }
         } else {
             text::byte_of_col(&l, self.cur.want_col, self.tabstop())
         };
@@ -833,8 +846,9 @@ impl Editor {
             self.cur.line = n - 1;
         }
         let l = self.buf.line(self.cur.line);
+        // Insert and Visual mode may stand on the line's end.
         let max = match self.mode {
-            Mode::Insert => l.len(),
+            Mode::Insert | Mode::Visual { .. } | Mode::VisualLine { .. } => l.len(),
             _ => text::prev_grapheme(&l, l.len()),
         };
         self.cur.byte = text::floor_grapheme(&l, self.cur.byte.min(max));

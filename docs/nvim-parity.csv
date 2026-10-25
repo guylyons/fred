@@ -110,7 +110,7 @@ key,normal,CTRL-P,motion,partial,present; not yet verified against nvim,"same as
 key,normal,CTRL-R,change,done,oracle cases,redo changes which were undone with 'u'
 key,normal,CTRL-T,,missing,,jump to N older Tag in tag list
 key,normal,CTRL-U,,done,as Neovim's pagescroll()/scroll_redraw() for lines that don't wrap; oracle cases,scroll N lines Upwards (default: half a
-key,normal,CTRL-V,,missing,,start blockwise Visual mode
+key,normal,CTRL-V,,done,Visual-block mode (src/vim/block.rs); a tab across the block's edge counts as in it (Neovim splits it); oracle cases,start blockwise Visual mode
 key,normal,CTRL-W {char},,missing,,"window commands, see |CTRL-W|"
 key,normal,CTRL-X,change,done,port of do_addsub(); oracle cases,subtract N from number at/after cursor
 key,normal,CTRL-Y,,done,as Neovim's pagescroll()/scroll_redraw() for lines that don't wrap; oracle cases,scroll N lines downwards
@@ -562,7 +562,7 @@ key,visual,CTRL-G,,done,oracle cases,toggle between Visual mode and Select mode
 key,visual,<BS>,change,done,"<Del> too; leaves Normal mode, or Insert if the selection began there, as Neovim",Select mode: delete highlighted area
 key,visual,CTRL-H,change,done,oracle case,same as <BS>
 key,visual,CTRL-O,,missing,,switch from Select to Visual mode for one
-key,visual,CTRL-V,,missing,,make Visual mode blockwise or stop Visual
+key,visual,CTRL-V,,done,oracle cases,make Visual mode blockwise or stop Visual
 key,visual,CTRL-X,change,done,oracle cases,subtract N from number in highlighted text
 key,visual,<Esc>,,partial,present; not yet verified against nvim,stop Visual mode
 key,visual,CTRL-],,missing,,jump to highlighted tag
@@ -571,13 +571,13 @@ key,visual,:,,partial,present; not yet verified against nvim,start a command-lin
 key,visual,<,change,partial,shifts once; a count is not taken yet,shift the highlighted lines one
 key,visual,=,change,missing,,filter the highlighted lines through the
 key,visual,>,change,partial,shifts once; a count is not taken yet,shift the highlighted lines one
-key,visual,A,change,missing,,"block mode: append same text in all lines,"
+key,visual,A,change,done,block append (short lines padded; with $ at each end); oracle cases,"block mode: append same text in all lines,"
 key,visual,C,change,partial,present; not yet verified against nvim,delete the highlighted lines and start
 key,visual,D,change,partial,present; not yet verified against nvim,delete the highlighted lines
-key,visual,I,change,missing,,"block mode: insert same text in all lines,"
+key,visual,I,change,done,"block insert, typed again on each line; oracle cases","block mode: insert same text in all lines,"
 key,visual,J,change,partial,present; not yet verified against nvim,join the highlighted lines
 key,visual,K,,partial,Fred: Claude explains the selection (Neovim: keywordprg lookup),run 'keywordprg' on the highlighted area
-key,visual,O,,partial,as o (no Visual-block),move horizontally to other corner of area
+key,visual,O,,done,the other corner on the line; oracle cases,move horizontally to other corner of area
 key,visual,P,,done,keeps the unnamed register; oracle cases,replace highlighted area with register
 key,visual,R,change,done,oracle cases,delete the highlighted lines and start
 key,visual,S,change,partial,present; not yet verified against nvim,delete the highlighted lines and start
@@ -676,9 +676,9 @@ key,cmdline,<C-Left>,,done,oracle cases,cursor one word left
 key,cmdline,<Right>,,partial,present; not yet verified against nvim,cursor right
 key,cmdline,<S-Right>,,partial,present; not yet verified against nvim,cursor one word right
 key,cmdline,<C-Right>,,partial,present; not yet verified against nvim,cursor one word right
-key,cmdline,<Up>,,partial,present; not yet verified against nvim,recall previous command-line from history that
+key,cmdline,<Up>,,done,lines starting with what was typed; oracle cases,recall previous command-line from history that
 key,cmdline,<S-Up>,,partial,"history, any line",recall previous command-line from history
-key,cmdline,<Down>,,partial,present; not yet verified against nvim,recall next command-line from history that
+key,cmdline,<Down>,,done,oracle cases,recall next command-line from history that
 key,cmdline,<S-Down>,,partial,"history, any line",recall next command-line from history
 key,cmdline,<Home>,,partial,present; not yet verified against nvim,cursor to start of command-line
 key,cmdline,<End>,,partial,present; not yet verified against nvim,cursor to end of command-line

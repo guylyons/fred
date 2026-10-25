@@ -208,6 +208,7 @@ fn yank_delete(ed: &mut Editor, c: &Call) -> Result<(), String> {
         Register {
             text,
             linewise: true,
+            block: false,
         },
         !delete,
         true,

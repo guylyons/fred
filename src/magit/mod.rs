@@ -1884,6 +1884,7 @@ fn copy_value(ed: &mut Editor, value: Option<String>) {
                 crate::editor::Register {
                     text: v,
                     linewise: false,
+                    block: false,
                 },
             );
         }

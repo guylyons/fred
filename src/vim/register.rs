@@ -35,10 +35,12 @@ fn append(old: Option<&Register>, new: Register) -> Register {
         Some(o) if o.linewise || new.linewise => Register {
             text: format!("{}\n{}", o.text, new.text),
             linewise: true,
+            block: false,
         },
         Some(o) => Register {
             text: o.text.clone() + &new.text,
             linewise: false,
+            block: false,
         },
     }
 }
@@ -90,6 +92,7 @@ pub(crate) fn get(ed: &Editor, c: char) -> Option<Register> {
         (!text.is_empty()).then_some(Register {
             text,
             linewise: false,
+            block: false,
         })
     };
     match c {
@@ -180,6 +183,7 @@ pub(crate) fn stop_recording(ed: &mut Editor) {
     let r = Register {
         text: keys_to_text(&keys),
         linewise: false,
+        block: false,
     };
     match c {
         c if c.is_ascii_uppercase() => {

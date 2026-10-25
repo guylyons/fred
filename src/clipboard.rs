@@ -80,10 +80,12 @@ pub fn from_clip(text: &str) -> Register {
         Some(lines) => Register {
             text: lines.to_string(),
             linewise: true,
+            block: false,
         },
         None => Register {
             text,
             linewise: false,
+            block: false,
         },
     }
 }
@@ -98,6 +100,7 @@ mod tests {
             let r = Register {
                 text: text.into(),
                 linewise,
+                block: false,
             };
             assert_eq!(from_clip(&to_clip(&r)), r);
         }

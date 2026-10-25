@@ -2084,3 +2084,32 @@ fn a_mouse_selection_from_insert_goes_back_to_insert() {
     assert_eq!(e.buf.text(), " world");
     assert_eq!(e.mode, Mode::Insert);
 }
+
+#[test]
+fn visual_block_highlights_its_columns() {
+    let mut s = Screen::new(20, 5);
+    let mut e = editor("abcd\nefgh\nij", "");
+    e.run_ex("set nonumber");
+    for k in parse_keys("l<C-v>jjl") {
+        e.handle_key(k);
+    }
+    s.draw(&e);
+    let rev = |x: u16, y: u16| {
+        s.term.backend().buffer()[(x, y)]
+            .modifier
+            .contains(Modifier::REVERSED)
+    };
+    // Columns 1 and 2 on each line; the short line has only column 1.
+    for y in 0..2 {
+        assert_eq!(
+            (0..5).map(|x| rev(x, y)).collect::<Vec<_>>(),
+            [false, true, true, false, false],
+            "row {y}"
+        );
+    }
+    assert_eq!(
+        (0..3).map(|x| rev(x, 2)).collect::<Vec<_>>(),
+        [false, true, false]
+    );
+    assert!(s.row(3).contains("V-BLOCK"), "{}", s.row(3));
+}

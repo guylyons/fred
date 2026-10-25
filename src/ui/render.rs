@@ -873,8 +873,11 @@ pub fn draw_window(
         hl.styles(&ed.buf, view.top..last, budget)
     };
     // Charwise Visual: its first and last positions, both included.
+    let block = crate::vim::block::rect(ed);
     let chars = match *mode {
-        Mode::Visual { anchor } => Some((anchor.min(ed.cur.pos()), anchor.max(ed.cur.pos()))),
+        Mode::Visual { anchor } if block.is_none() => {
+            Some((anchor.min(ed.cur.pos()), anchor.max(ed.cur.pos())))
+        }
         _ => None,
     };
     let sel = match *mode {
@@ -931,13 +934,22 @@ pub fn draw_window(
         let in_sel = sel.is_some_and(|(a, b)| l >= a && l <= b);
         // The selection takes this line's line break.
         let with_break = in_sel
+            && block.is_none()
             && chars.is_none_or(|(_, b)| l < b.0 || b.1 >= ed.buf.line_len(l))
             && ed.buf.line_len(l) > 0;
         let sel_before = ed.drawn_sel.borrow().len();
         let mut selected = in_sel;
         // A charwise selection's partial first or last line reverses just its bytes.
-        let st = match chars {
-            Some((a, b)) if in_sel => {
+        let st = match (chars, block) {
+            // A block reverses its columns on each line.
+            (_, Some(r)) if in_sel => {
+                selected = false;
+                match crate::vim::block::part(&line, &r, ed.tabstop()) {
+                    Some((lo, hi)) => reverse_bytes(&st, lo..hi),
+                    None => st,
+                }
+            }
+            (Some((a, b)), _) if in_sel => {
                 let lo = if l == a.0 { a.1 } else { 0 };
                 let hi = if l == b.0 && b.1 < line.len() {
                     crate::text::next_grapheme(&line, b.1)
@@ -1441,6 +1453,7 @@ fn mode_label(ed: &Editor) -> String {
         (Mode::Insert, _) if ed.term.is_some() => "TERMINAL".to_string(),
         (Mode::Insert, _) if ed.vim.replace.is_some() => "REPLACE".to_string(),
         (Mode::Normal, Some(d)) if !d.editing => "DIRED".to_string(),
+        (Mode::Visual { .. }, _) if ed.vim.block => "V-BLOCK".to_string(),
         (Mode::Visual { .. }, _) if ed.vim.select => "SELECT".to_string(),
         (Mode::VisualLine { .. }, _) if ed.vim.select => "SELECT LINE".to_string(),
         (m, _) => mode_name(m).to_string(),

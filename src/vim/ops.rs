@@ -291,6 +291,7 @@ fn apply(ed: &mut Editor, op: char, sp: Span, to_reg: bool) {
                 let r = Register {
                     text: lines_text(ed, lo, hi),
                     linewise: true,
+                    block: false,
                 };
                 super::register::store(ed, r, op == 'y', true);
             }
@@ -324,6 +325,7 @@ fn apply(ed: &mut Editor, op: char, sp: Span, to_reg: bool) {
                     let r = Register {
                         text: ed.buf.slice(s, e),
                         linewise: false,
+                        block: false,
                     };
                     super::register::store(ed, r, true, false);
                 }
@@ -338,6 +340,7 @@ fn apply(ed: &mut Editor, op: char, sp: Span, to_reg: bool) {
                 let r = Register {
                     text: removed,
                     linewise: false,
+                    block: false,
                 };
                 let numbered = ed.vim.numbered_delete;
                 super::register::store(ed, r, false, numbered);
@@ -393,6 +396,9 @@ pub fn put_with(ed: &mut Editor, count: usize, after: bool, past: bool) {
         return;
     }
     let count = count.max(1).min(MAX_PUT / (reg.text.len() + 1)).max(1);
+    if reg.block {
+        return super::block::put(ed, &reg, count, after);
+    }
     if reg.linewise {
         let one: Vec<String> = reg.text.split('\n').map(String::from).collect();
         let lines: Vec<String> = std::iter::repeat_n(one, count).flatten().collect();

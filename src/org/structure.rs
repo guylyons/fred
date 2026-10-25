@@ -579,6 +579,7 @@ pub fn kill_new(ed: &mut Editor, text: &str) {
         crate::editor::Register {
             text: t.to_owned(),
             linewise,
+            block: false,
         },
     );
 }
@@ -1488,6 +1489,7 @@ mod tests {
         e.reg = crate::editor::Register {
             text: "* T\n** U".into(),
             linewise: true,
+            block: false,
         };
         for k in crate::key::parse_keys("A<Esc><C-c><C-x><C-y>") {
             e.handle_key(k);

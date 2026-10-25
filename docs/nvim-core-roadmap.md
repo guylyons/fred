@@ -34,7 +34,7 @@ track.
 | 6 | Motions (all of normal-index, `g`, `[ ]`) | 5 | 0 | `ge gE H M L \| _ g_ % N% ( ) [[ ]] [] ][ [( [{ ]) ]} * # g* g# go` added; no `` ` `` marks, `[m`, `[*`, `gm`, `''` |
 | 7 | Text objects | 4 | 0 | all, `it`/`at` included (`src/vim/textobj.rs`) |
 | 8 | Operators (`> < = g~ gu gU gq gw g? ! zf g@`) | 5 | 0 | `d c y > < g~ gu gU g? gq gw !`, `~`, `gJ`; no `=` (C indenting), `zf`, `g@` |
-| 9 | Visual, Visual-line, Visual-block | 5 | 0 | charwise and linewise; text objects, `< > u U ~ g? gJ`; Select mode (`gh`, `gH`, CTRL-G, `<BS>`) |
+| 9 | Visual, Visual-line, Visual-block | 5 | 0 | all three (`src/vim/block.rs`); text objects, counts, `p`, `r`, CTRL-A; Select mode; no block `p` (replace), Select-block (`g CTRL-H`) |
 | 10 | Insert and Replace mode keys | 4 | 0 | most keys (CTRL-R, CTRL-O, CTRL-V, CTRL-T/CTRL-D, CTRL-A, CTRL-E/CTRL-Y, CTRL-G); counts; Replace mode; no CTRL-X submodes, CTRL-K digraphs, abbreviations |
 | 11 | Command-line editing keys | 3 | 0 | CTRL-R (and CTRL-R CTRL-W…), CTRL-V, CTRL-B/E/H/J/M, word moves, history by prefix; no CTRL-D/CTRL-A/CTRL-L completion lists, 'incsearch' keys |
 | 12 | Marks, jumplist, changelist | 3 | 0 | marks with columns, `` ` `` and `'`, special marks, CTRL-O/CTRL-I, `g;`/`g,` (`src/vim/marks.rs`); A-Z buffer-local, no 0-9, `:marks`, `:jumps`, `:changes`, `:delmarks` |
@@ -271,3 +271,12 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
   codes (shared with Insert mode), CTRL-B/E/H/J/M/I/[, Shift and CTRL
   arrows, Up/Down recalling lines that start with what was typed,
   PageUp/PageDown, CTRL-N/CTRL-P. Oracle: 915 cases.
+- 2026-10-25: Visual-block mode (`src/vim/block.rs`, after Neovim's
+  `block_prep()`): CTRL-V (from Normal, `v` and `V`), `o`, `O`, `$`, `d x
+  D y c s C I A r ~ u U g? > < J`, blockwise registers (`"ay`, `p`, `P`
+  with padding), `I`/`A`/`c` typed again on every line when Insert mode
+  ends (short lines skipped for `I`, padded for `A`), V-BLOCK in the
+  status line and the block's columns highlighted. In Visual mode the
+  cursor may stand on a line's end, as in Vim (`v$`, `l` past the last
+  character), so the line break is selected. Fixed CTRL-G/L/\ and CTRL-V
+  not reaching their handlers. Oracle: 960 cases.
