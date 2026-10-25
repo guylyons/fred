@@ -631,19 +631,51 @@ impl Editor {
         }
     }
 
+    /// `:g` with a command for the editor: run `cmd` on each marked line,
+    /// following the lines as the changes move them; one undo step.
+    fn global(&mut self, lines: Vec<usize>, cmd: &str) {
+        let mut marked = vec![false; self.line_count()];
+        for l in lines {
+            marked[l] = true;
+        }
+        self.sync_marks();
+        let p = self.cur.pos();
+        self.undo.begin(p);
+        while let Some(l) = marked.iter().position(|&m| m) {
+            marked[l] = false;
+            self.set_cursor(l, 0);
+            self.run_ex(cmd);
+            for ch in self.buf.take_line_changes() {
+                let end = (ch.at + ch.removed).min(marked.len());
+                marked.splice(
+                    ch.at.min(marked.len())..end,
+                    std::iter::repeat_n(false, ch.inserted),
+                );
+                self.line_change(ch.at, ch.removed, ch.inserted);
+            }
+        }
+        let p = self.cur.pos();
+        self.undo.end(p);
+    }
+
     pub(crate) fn sync_marks(&mut self) {
         for ch in self.buf.take_line_changes() {
-            self.folds.line_change(ch.at, ch.removed, ch.inserted);
-            if let Some(o) = &mut self.org {
-                o.specs.line_change(ch.at, ch.removed, ch.inserted);
-            }
-            vim::marks::line_change(&mut self.vim.lists, ch.at, ch.removed, ch.inserted);
-            self.marks
-                .retain(|_, l| *l < ch.at || *l >= ch.at + ch.removed);
-            for l in self.marks.values_mut() {
-                if *l >= ch.at + ch.removed {
-                    *l = *l + ch.inserted - ch.removed;
-                }
+            self.line_change(ch.at, ch.removed, ch.inserted);
+        }
+    }
+
+    /// Lines `at..at + removed` were replaced by `inserted` lines: move
+    /// what follows lines.
+    fn line_change(&mut self, at: usize, removed: usize, inserted: usize) {
+        self.folds.line_change(at, removed, inserted);
+        if let Some(o) = &mut self.org {
+            o.specs.line_change(at, removed, inserted);
+        }
+        vim::marks::line_change(&mut self.vim.lists, at, removed, inserted);
+        self.marks.retain(|_, l| *l < at || *l >= at + removed);
+        for l in self.marks.values_mut() {
+            if *l >= at + removed {
+                *l = *l + inserted - removed;
             }
         }
     }
@@ -924,6 +956,47 @@ impl Editor {
 
     /// Run an ex command line.
     pub fn run_ex(&mut self, text: &str) {
+        // Modifiers Fred has nothing to do for: `:silent`, `:keepjumps`…
+        let mut text = text.trim_start();
+        loop {
+            let word_end = text
+                .find(|c: char| !c.is_ascii_alphabetic())
+                .unwrap_or(text.len());
+            let (word, rest) = text.split_at(word_end);
+            let modifier = [
+                "silent",
+                "keepjumps",
+                "keepmarks",
+                "keeppatterns",
+                "lockmarks",
+                "noautocmd",
+                "unsilent",
+                "keepalt",
+            ]
+            .iter()
+            .zip([3, 5, 3, 5, 3, 3, 3, 5])
+            .any(|(m, min)| word.len() >= min && m.starts_with(word));
+            if !modifier {
+                break;
+            }
+            text = rest.strip_prefix('!').unwrap_or(rest).trim_start();
+        }
+        // `|` ends a command, except where the rest is its argument.
+        if let Some((first, rest)) = ex::cmd::split_bar(text) {
+            self.run_ex(first);
+            self.run_ex(rest);
+            return;
+        }
+        // `:0put` is `:1put!`.
+        let zero_put;
+        if let Some(rest) = text.strip_prefix('0')
+            && let Some(rest) = rest.trim_start().strip_prefix("pu")
+        {
+            let rest = rest.strip_prefix('t').unwrap_or(rest);
+            let rest = rest.strip_prefix('!').unwrap_or(rest);
+            zero_put = format!("1put!{rest}");
+            text = &zero_put;
+        }
         if crate::org::ex(self, text) {
             return;
         }
@@ -983,6 +1056,14 @@ impl Editor {
         match eff {
             ExEffect::None => {}
             ExEffect::Message(m) => self.set_msg(m),
+            ExEffect::Editor(call) => {
+                let p = self.cur.pos();
+                self.undo.begin(p);
+                vim::excmd::run(self, call);
+                let p = self.cur.pos();
+                self.undo.end(p);
+            }
+            ExEffect::Global { lines, cmd } => self.global(lines, &cmd),
             ExEffect::Set { args, level } => {
                 match crate::options::set(&mut self.opts, &args, level) {
                     Ok(shown) if !shown.is_empty() => self.set_msg(shown),

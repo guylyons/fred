@@ -749,7 +749,7 @@ ex,,cc,:cc ADDR_QUICKFIX,missing,,ex_cc
 ex,,cclose,:ccl[ose] ADDR_NONE,missing,,ex_cclose
 ex,,cd,:cd ADDR_NONE,partial,present; not yet verified against nvim,ex_cd
 ex,,cdo,:cdo ADDR_QUICKFIX_VALID,missing,,ex_listdo
-ex,,center,:ce[nter] ADDR_LINES,missing,,ex_align
+ex,,center,:ce[nter] ADDR_LINES,done,oracle cases,ex_align
 ex,,cexpr,:cex[pr] ADDR_NONE,missing,,ex_cexpr
 ex,,cfile,:cf[ile] ADDR_NONE,missing,,ex_cfile
 ex,,cfdo,:cfd[o] ADDR_QUICKFIX_VALID,missing,,ex_listdo
@@ -758,7 +758,7 @@ ex,,cgetfile,:cg[etfile] ADDR_NONE,missing,,ex_cfile
 ex,,cgetbuffer,:cgetb[uffer] ADDR_LINES,missing,,ex_cbuffer
 ex,,cgetexpr,:cgete[xpr] ADDR_NONE,missing,,ex_cexpr
 ex,,chdir,:chd[ir] ADDR_NONE,missing,,ex_cd
-ex,,changes,:changes ADDR_NONE,missing,,ex_changes
+ex,,changes,:changes ADDR_NONE,partial,a list in a picker,ex_changes
 ex,,checkhealth,:che[ckhealth] ADDR_NONE,excluded,"other languages, plugins and remote UI",ex_checkhealth
 ex,,checkpath,:checkp[ath] ADDR_NONE,missing,,ex_checkpath
 ex,,checktime,:checkt[ime] ADDR_OTHER,missing,,ex_checktime
@@ -766,7 +766,7 @@ ex,,chistory,:chi[story] ADDR_UNSIGNED,missing,,qf_history
 ex,,clist,:cl[ist] ADDR_NONE,missing,,qf_list
 ex,,clast,:cla[st] ADDR_UNSIGNED,missing,,ex_cc
 ex,,close,:clo[se] ADDR_WINDOWS,partial,present; not yet verified against nvim,ex_close
-ex,,clearjumps,:cle[arjumps] ADDR_NONE,missing,,ex_clearjumps
+ex,,clearjumps,:cle[arjumps] ADDR_NONE,partial,present; not yet verified against nvim,ex_clearjumps
 ex,,cmap,:cm[ap] ADDR_NONE,missing,,ex_map
 ex,,cmapclear,:cmapc[lear] ADDR_NONE,missing,,ex_mapclear
 ex,,cmenu,:cme[nu] ADDR_OTHER,excluded,GUI,ex_menu
@@ -795,15 +795,15 @@ ex,,cunmap,:cu[nmap] ADDR_NONE,missing,,ex_unmap
 ex,,cunabbrev,:cuna[bbrev] ADDR_NONE,missing,,ex_abbreviate
 ex,,cunmenu,:cunme[nu] ADDR_NONE,excluded,GUI,ex_menu
 ex,,cwindow,:cw[indow] ADDR_OTHER,missing,,ex_cwindow
-ex,,delete,:d[elete] ADDR_LINES,partial,present; not yet verified against nvim,ex_operators
-ex,,delmarks,:delm[arks] ADDR_NONE,missing,,ex_delmarks
+ex,,delete,:d[elete] ADDR_LINES,done,"into a register, with a count; oracle cases",ex_operators
+ex,,delmarks,:delm[arks] ADDR_NONE,done,oracle cases,ex_delmarks
 ex,,debug,:deb[ug] ADDR_NONE,excluded,Vimscript language,ex_debug
 ex,,debuggreedy,:debugg[reedy] ADDR_OTHER,excluded,Vimscript language,ex_debuggreedy
 ex,,defer,:defe[r] ADDR_NONE,excluded,Vimscript language,ex_call
 ex,,delcommand,:delc[ommand] ADDR_NONE,missing,,ex_delcommand
 ex,,delfunction,:delf[unction] ADDR_NONE,excluded,Vimscript language,ex_delfunction
 ex,,detach,:detach ADDR_NONE,excluded,"other languages, plugins and remote UI",ex_detach
-ex,,display,:di[splay] ADDR_NONE,missing,,ex_display
+ex,,display,:di[splay] ADDR_NONE,partial,a list in a picker,ex_display
 ex,,diffupdate,:dif[fupdate] ADDR_NONE,deferred,diff mode,ex_diffupdate
 ex,,diffget,:diffg[et] ADDR_LINES,deferred,diff mode,ex_diffgetput
 ex,,diffoff,:diffo[ff] ADDR_NONE,deferred,diff mode,ex_diffoff
@@ -856,7 +856,7 @@ ex,,foldopen,:foldo[pen] ADDR_LINES,missing,,ex_foldopen
 ex,,for,:for ADDR_NONE,excluded,Vimscript language,ex_while
 ex,,function,:fu[nction] ADDR_NONE,excluded,Vimscript language,ex_function
 ex,,fclose,:fc[lose] ADDR_OTHER,missing,,ex_fclose
-ex,,global,:g[lobal] ADDR_LINES,partial,present; not yet verified against nvim,ex_global
+ex,,global,:g[lobal] ADDR_LINES,partial,with editor commands (:g/pat/normal) and | in the command; no nested :g; oracle cases,ex_global
 ex,,goto,:go[to] ADDR_OTHER,missing,,ex_goto
 ex,,grep,:gr[ep] ADDR_OTHER,missing,,ex_make
 ex,,grepadd,:grepa[dd] ADDR_OTHER,missing,,ex_make
@@ -890,13 +890,13 @@ ex,,iunmap,:iu[nmap] ADDR_NONE,missing,,ex_unmap
 ex,,iunabbrev,:iuna[bbrev] ADDR_NONE,missing,,ex_abbreviate
 ex,,iunmenu,:iunme[nu] ADDR_NONE,excluded,GUI,ex_menu
 ex,,join,:j[oin] ADDR_LINES,partial,joins with a space; :j! keeps white space,ex_join
-ex,,jumps,:ju[mps] ADDR_NONE,missing,,ex_jumps
-ex,,k,:k ADDR_LINES,missing,,ex_mark
+ex,,jumps,:ju[mps] ADDR_NONE,partial,a list in a picker,ex_jumps
+ex,,k,:k ADDR_LINES,done,oracle cases,ex_mark
 ex,,keepmarks,:kee[pmarks] ADDR_NONE,missing,,ex_wrongmodifier
-ex,,keepjumps,:keepj[umps] ADDR_NONE,missing,,ex_wrongmodifier
-ex,,keeppatterns,:keepp[atterns] ADDR_NONE,missing,,ex_wrongmodifier
+ex,,keepjumps,:keepj[umps] ADDR_NONE,partial,accepted and ignored,ex_wrongmodifier
+ex,,keeppatterns,:keepp[atterns] ADDR_NONE,partial,accepted and ignored,ex_wrongmodifier
 ex,,keepalt,:keepa[lt] ADDR_NONE,missing,,ex_wrongmodifier
-ex,,list,:l[ist] ADDR_LINES,missing,,ex_print
+ex,,list,:l[ist] ADDR_LINES,partial,the last line in the message,ex_print
 ex,,lNext,:lN[ext] ADDR_UNSIGNED,missing,,ex_cnext
 ex,,lNfile,:lNf[ile] ADDR_UNSIGNED,missing,,ex_cnext
 ex,,last,:la[st] ADDR_NONE,missing,,ex_last
@@ -915,7 +915,7 @@ ex,,lcd,:lc[d] ADDR_NONE,missing,,ex_cd
 ex,,lchdir,:lch[dir] ADDR_NONE,missing,,ex_cd
 ex,,lclose,:lcl[ose] ADDR_OTHER,missing,,ex_cclose
 ex,,ldo,:ld[o] ADDR_QUICKFIX_VALID,missing,,ex_listdo
-ex,,left,:le[ft] ADDR_LINES,missing,,ex_align
+ex,,left,:le[ft] ADDR_LINES,done,oracle cases,ex_align
 ex,,leftabove,:lefta[bove] ADDR_NONE,missing,,ex_wrongmodifier
 ex,,let,:let ADDR_NONE,excluded,Vimscript language,ex_let
 ex,,lexpr,:lex[pr] ADDR_NONE,missing,,ex_cexpr
@@ -941,7 +941,7 @@ ex,,lnewer,:lnew[er] ADDR_UNSIGNED,missing,,qf_age
 ex,,lnfile,:lnf[ile] ADDR_UNSIGNED,missing,,ex_cnext
 ex,,loadview,:lo[adview] ADDR_NONE,deferred,"sessions, views and shada",ex_loadview
 ex,,loadkeymap,:loadk[eymap] ADDR_NONE,missing,,ex_loadkeymap
-ex,,lockmarks,:loc[kmarks] ADDR_NONE,missing,,ex_wrongmodifier
+ex,,lockmarks,:loc[kmarks] ADDR_NONE,partial,accepted and ignored,ex_wrongmodifier
 ex,,lockvar,:lockv[ar] ADDR_NONE,excluded,Vimscript language,ex_lockvar
 ex,,lolder,:lol[der] ADDR_UNSIGNED,missing,,qf_age
 ex,,lopen,:lop[en] ADDR_OTHER,missing,,ex_copen
@@ -959,11 +959,11 @@ ex,,lwindow,:lw[indow] ADDR_OTHER,missing,,ex_cwindow
 ex,,ls,:ls ADDR_NONE,partial,present; not yet verified against nvim,buflist_list
 ex,,lsp,:lsp ADDR_NONE,excluded,"other languages, plugins and remote UI",ex_lsp
 ex,,move,:m[ove] ADDR_LINES,partial,present; not yet verified against nvim,ex_copymove
-ex,,mark,:ma[rk] ADDR_LINES,missing,,ex_mark
+ex,,mark,:ma[rk] ADDR_LINES,done,oracle cases,ex_mark
 ex,,make,:mak[e] ADDR_NONE,missing,,ex_make
 ex,,map,:map ADDR_NONE,missing,,ex_map
 ex,,mapclear,:mapc[lear] ADDR_NONE,missing,,ex_mapclear
-ex,,marks,:marks ADDR_NONE,missing,,ex_marks
+ex,,marks,:marks ADDR_NONE,partial,a list in a picker; picking one goes there,ex_marks
 ex,,match,:mat[ch] ADDR_OTHER,missing,,ex_match
 ex,,menu,:me[nu] ADDR_OTHER,excluded,GUI,ex_menu
 ex,,menutranslate,menutranslate ADDR_NONE,excluded,GUI,ex_menutranslate
@@ -984,13 +984,13 @@ ex,,nmenu,:nme[nu] ADDR_OTHER,excluded,GUI,ex_menu
 ex,,nnoremap,:nn[oremap] ADDR_NONE,missing,,ex_map
 ex,,nnoremenu,:nnoreme[nu] ADDR_OTHER,excluded,GUI,ex_menu
 ex,,noremap,:no[remap] ADDR_NONE,missing,,ex_map
-ex,,noautocmd,:noa[utocmd] ADDR_NONE,missing,,ex_wrongmodifier
-ex,,nohlsearch,:noh[lsearch] ADDR_NONE,missing,,ex_nohlsearch
+ex,,noautocmd,:noa[utocmd] ADDR_NONE,partial,accepted and ignored,ex_wrongmodifier
+ex,,nohlsearch,:noh[lsearch] ADDR_NONE,partial,no-op: Fred doesn't highlight matches,ex_nohlsearch
 ex,,noreabbrev,:norea[bbrev] ADDR_NONE,missing,,ex_abbreviate
 ex,,noremenu,:noreme[nu] ADDR_OTHER,excluded,GUI,ex_menu
 ex,,noswapfile,:nos[wapfile] ADDR_NONE,missing,,ex_wrongmodifier
-ex,,normal,:norm[al] ADDR_LINES,missing,,ex_normal
-ex,,number,:nu[mber] ADDR_LINES,missing,,ex_print
+ex,,normal,:norm[al] ADDR_LINES,done,":normal and :g/pat/normal; incomplete commands end, Visual mode stays; oracle cases",ex_normal
+ex,,number,:nu[mber] ADDR_LINES,partial,the last line in the message,ex_print
 ex,,nunmap,:nun[map] ADDR_NONE,missing,,ex_unmap
 ex,,nunmenu,:nunme[nu] ADDR_NONE,excluded,GUI,ex_menu
 ex,,oldfiles,:ol[dfiles] ADDR_NONE,missing,,ex_oldfiles
@@ -1004,7 +1004,7 @@ ex,,options,:opt[ions] ADDR_NONE,missing,,ex_options
 ex,,ounmap,:ou[nmap] ADDR_NONE,missing,,ex_unmap
 ex,,ounmenu,:ounme[nu] ADDR_NONE,excluded,GUI,ex_menu
 ex,,ownsyntax,ownsyntax ADDR_NONE,missing,,ex_ownsyntax
-ex,,print,:p[rint] ADDR_LINES,missing,,ex_print
+ex,,print,:p[rint] ADDR_LINES,partial,the last line of the range in the message,ex_print
 ex,,packadd,:pa[ckadd] ADDR_NONE,excluded,"other languages, plugins and remote UI",ex_packadd
 ex,,packloadall,:packl[oadall] ADDR_NONE,excluded,"other languages, plugins and remote UI",ex_packloadall
 ex,,pbuffer,:pb[uffer] ADDR_BUFFERS,missing,,ex_pbuffer
@@ -1030,7 +1030,7 @@ ex,,ptnext,:ptn[ext] ADDR_OTHER,missing,,ex_ptag
 ex,,ptprevious,:ptp[revious] ADDR_OTHER,missing,,ex_ptag
 ex,,ptrewind,:ptr[ewind] ADDR_OTHER,missing,,ex_ptag
 ex,,ptselect,:pts[elect] ADDR_NONE,missing,,ex_ptag
-ex,,put,:pu[t] ADDR_LINES,missing,,ex_put
+ex,,put,:pu[t] ADDR_LINES,done,:0put too; oracle cases,ex_put
 ex,,pwd,:pw[d] ADDR_NONE,partial,present; not yet verified against nvim,ex_pwd
 ex,,python,:py[thon] ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_python3
 ex,,pydo,:pyd[o] ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_pydo3
@@ -1048,18 +1048,18 @@ ex,,quitall,:quita[ll] ADDR_NONE,partial,present; not yet verified against nvim,
 ex,,qall,:qa[ll] ADDR_NONE,partial,present; not yet verified against nvim,ex_quitall
 ex,,read,:r[ead] ADDR_LINES,partial,present; not yet verified against nvim,ex_read
 ex,,recover,:rec[over] ADDR_NONE,missing,,ex_recover
-ex,,redo,:red[o] ADDR_NONE,missing,,ex_redo
+ex,,redo,:red[o] ADDR_NONE,done,oracle cases,ex_redo
 ex,,redir,:redi[r] ADDR_NONE,excluded,Vimscript language,ex_redir
 ex,,redraw,:redr[aw] ADDR_NONE,missing,,ex_redraw
 ex,,redrawstatus,:redraws[tatus] ADDR_NONE,missing,,ex_redrawstatus
 ex,,redrawtabline,redrawtabline ADDR_NONE,missing,,ex_redrawtabline
-ex,,registers,:reg[isters] ADDR_NONE,missing,,ex_display
+ex,,registers,:reg[isters] ADDR_NONE,partial,a list in a picker,ex_display
 ex,,resize,:res[ize] ADDR_OTHER,missing,,ex_resize
 ex,,restart,:restart ADDR_NONE,excluded,"other languages, plugins and remote UI",ex_restart
-ex,,retab,:ret[ab] ADDR_LINES,missing,,ex_retab
+ex,,retab,:ret[ab] ADDR_LINES,done,oracle cases,ex_retab
 ex,,return,:retu[rn] ADDR_NONE,excluded,Vimscript language,ex_return
 ex,,rewind,:rew[ind] ADDR_NONE,missing,,ex_rewind
-ex,,right,:ri[ght] ADDR_LINES,missing,,ex_align
+ex,,right,:ri[ght] ADDR_LINES,done,oracle cases,ex_align
 ex,,rightbelow,:rightb[elow] ADDR_NONE,missing,,ex_wrongmodifier
 ex,,rshada,:rsh[ada] ADDR_NONE,deferred,"sessions, views and shada",ex_shada
 ex,,runtime,:ru[ntime] ADDR_NONE,excluded,Vimscript language,ex_runtime
@@ -1093,7 +1093,7 @@ ex,,sfind,:sf[ind] ADDR_OTHER,missing,,ex_splitview
 ex,,sfirst,:sfir[st] ADDR_NONE,missing,,ex_rewind
 ex,,simalt,simalt ADDR_NONE,excluded,GUI,ex_ni
 ex,,sign,:sig[n] ADDR_OTHER,missing,,ex_sign
-ex,,silent,:sil[ent] ADDR_NONE,missing,,ex_wrongmodifier
+ex,,silent,:sil[ent] ADDR_NONE,partial,accepted and ignored,ex_wrongmodifier
 ex,,sleep,:sl[eep] ADDR_OTHER,missing,,ex_sleep
 ex,,slast,:sla[st] ADDR_NONE,missing,,ex_last
 ex,,smagic,:sm[agic] ADDR_LINES,missing,,ex_submagic
@@ -1118,10 +1118,10 @@ ex,,sprevious,:spr[evious] ADDR_OTHER,missing,,ex_previous
 ex,,srewind,:sre[wind] ADDR_NONE,missing,,ex_rewind
 ex,,stop,:st[op] ADDR_NONE,missing,,ex_stop
 ex,,stag,:sta[g] ADDR_OTHER,missing,,ex_stag
-ex,,startinsert,:star[tinsert] ADDR_NONE,missing,,ex_startinsert
+ex,,startinsert,:star[tinsert] ADDR_NONE,done,oracle cases,ex_startinsert
 ex,,startgreplace,startgreplace ADDR_NONE,missing,,ex_startinsert
-ex,,startreplace,:startr[eplace] ADDR_NONE,missing,,ex_startinsert
-ex,,stopinsert,:stopi[nsert] ADDR_NONE,missing,,ex_stopinsert
+ex,,startreplace,:startr[eplace] ADDR_NONE,done,oracle cases,ex_startinsert
+ex,,stopinsert,:stopi[nsert] ADDR_NONE,partial,present; not yet verified against nvim,ex_stopinsert
 ex,,stjump,:stj[ump] ADDR_NONE,missing,,ex_stag
 ex,,stselect,:sts[elect] ADDR_NONE,missing,,ex_stag
 ex,,sunhide,:sun[hide] ADDR_OTHER,missing,,ex_buffer_all
@@ -1178,7 +1178,7 @@ ex,,try,:try ADDR_NONE,excluded,Vimscript language,ex_try
 ex,,tselect,:ts[elect] ADDR_NONE,missing,,ex_tag
 ex,,tunmenu,:tu[nmenu] ADDR_NONE,excluded,GUI,ex_menu
 ex,,tunmap,:tunma[p] ADDR_NONE,missing,,ex_unmap
-ex,,undo,:u[ndo] ADDR_OTHER,missing,,ex_undo
+ex,,undo,:u[ndo] ADDR_OTHER,partial,no :undo N (no undo tree),ex_undo
 ex,,undojoin,:undoj[oin] ADDR_NONE,missing,,ex_undojoin
 ex,,undolist,:undol[ist] ADDR_NONE,missing,,ex_undolist
 ex,,unabbreviate,:una[bbreviate] ADDR_NONE,missing,,ex_abbreviate
@@ -1188,9 +1188,9 @@ ex,,unlet,:unl[et] ADDR_NONE,excluded,Vimscript language,ex_unlet
 ex,,unlockvar,:unlo[ckvar] ADDR_NONE,excluded,Vimscript language,ex_lockvar
 ex,,unmap,:unm[ap] ADDR_NONE,missing,,ex_unmap
 ex,,unmenu,:unme[nu] ADDR_NONE,excluded,GUI,ex_menu
-ex,,unsilent,:uns[ilent] ADDR_NONE,missing,,ex_wrongmodifier
-ex,,update,:up[date] ADDR_LINES,missing,,ex_update
-ex,,vglobal,:v[global] ADDR_LINES,partial,present; not yet verified against nvim,ex_global
+ex,,unsilent,:uns[ilent] ADDR_NONE,partial,accepted and ignored,ex_wrongmodifier
+ex,,update,:up[date] ADDR_LINES,partial,present; not yet verified against nvim,ex_update
+ex,,vglobal,:v[global] ADDR_LINES,partial,as :global,ex_global
 ex,,version,:ve[rsion] ADDR_NONE,missing,,ex_version
 ex,,verbose,:verb[ose] ADDR_OTHER,missing,,ex_wrongmodifier
 ex,,vertical,:vert[ical] ADDR_NONE,missing,,ex_wrongmodifier
@@ -1232,14 +1232,14 @@ ex,,xnoremap,:xn[oremap] ADDR_NONE,missing,,ex_map
 ex,,xnoremenu,:xnoreme[nu] ADDR_OTHER,excluded,GUI,ex_menu
 ex,,xunmap,:xu[nmap] ADDR_NONE,missing,,ex_unmap
 ex,,xunmenu,:xunme[nu] ADDR_NONE,excluded,GUI,ex_menu
-ex,,yank,:y[ank] ADDR_LINES,missing,,ex_operators
+ex,,yank,:y[ank] ADDR_LINES,done,oracle cases,ex_operators
 ex,,z,:z ADDR_LINES,missing,,ex_z
 ex,,!,:! ADDR_LINES,partial,present; not yet verified against nvim,ex_bang
-ex,,#,:# ADDR_LINES,missing,,ex_print
+ex,,#,:# ADDR_LINES,partial,the last line in the message,ex_print
 ex,,&,:& ADDR_LINES,done,:& and :&& with flags and a count; oracle cases,ex_substitute
-ex,,<,:< ADDR_LINES,missing,,ex_operators
-ex,,=,:= ADDR_LINES,missing,,ex_equal
-ex,,>,:> ADDR_LINES,missing,,ex_operators
+ex,,<,:< ADDR_LINES,done,oracle cases,ex_operators
+ex,,=,:= ADDR_LINES,done,oracle cases,ex_equal
+ex,,>,:> ADDR_LINES,done,oracle cases,ex_operators
 ex,,@,:@ ADDR_LINES,missing,,ex_at
 ex,,~,:~ ADDR_LINES,done,oracle cases,ex_substitute
 ex,,Next,:N[ext] ADDR_OTHER,missing,,ex_previous

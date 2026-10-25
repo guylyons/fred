@@ -1,5 +1,6 @@
 //! vim key handling: Normal and Visual-line mode parsing and dispatch.
 
+pub mod excmd;
 pub mod insert;
 pub mod marks;
 pub mod motion;

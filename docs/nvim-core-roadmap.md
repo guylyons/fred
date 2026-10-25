@@ -41,7 +41,7 @@ track.
 | 13 | Macros, `:normal`, `.`, CTRL-A/CTRL-X | 3 | 0 | `.`, `q`, `@`, `@@`, `@:`, `Q`, CTRL-A/CTRL-X (`g CTRL-A`); no `:normal` |
 | 14 | Search and Vim regex, hlsearch, incsearch | 6 | 0 | Vim magic patterns (no `\zs`, `\@`, `\_`, back-references), `/ ? n N` |
 | 15 | `:substitute` and `:global` in full | 3 | 0 | flags `& e g i I n r`, count, `~`, case escapes, `:&` `:&&` `:~` `&` `g&`; no `c` (confirm), `\=` |
-| 16 | Editing, file, buffer and argument-list ex commands | 5 | 0 | 26 commands |
+| 16 | Editing, file, buffer and argument-list ex commands | 5 | 0 | about 60 commands; editor-run ones (`:normal`, `:put`, `:yank`…) in `src/vim/excmd.rs`; `\|` between commands |
 | 17 | Windows and tab pages (`CTRL-W`, `:split`, `:tab*`) | 6 | 0 | none |
 | 18 | Mappings, abbreviations, user commands | 5 | 0 | none |
 | 19 | Autocommands | 3 | 0 | none |
@@ -237,3 +237,15 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
   lines` and the `n` flag's count; E486. `:&`, `:&&`, `:~`, Normal `&`
   and `g&`. Command names of one symbol (`:&`, `:~`) in the table.
   Oracle: 629 cases.
+- 2026-10-25: ex commands that need the editor carry the `EDITOR` flag in
+  `COMMANDS`: the interpreter reads their range, then `src/vim/excmd.rs`
+  runs them. `:normal` (also `:g/pat/normal`), `:yank`, `:put` (`:0put`),
+  `:delete` into registers with a count, `:>`, `:<`, `:k`, `:mark`,
+  `:undo`, `:redo`, `:startinsert`, `:startreplace`, `:stopinsert`,
+  `:retab`, `:left`, `:center`, `:right`, `:registers`/`:display`,
+  `:marks`, `:delmarks`, `:jumps`, `:changes`, `:clearjumps` (lists in
+  a picker), `:=`, `:print`, `:number`, `:#`, `:list`, `:update`;
+  `:silent` and the other modifiers are accepted; `|` separates commands
+  (not in `:g`, `:normal`, `:!` or a `:s` pattern). `:g` with an editor
+  command runs it line by line in the editor, following the lines.
+  Oracle: 704 cases.

@@ -515,7 +515,12 @@ impl Session {
     pub fn perform(&mut self, eff: ExEffect) {
         match eff {
             // The editor applies these itself (`Editor::run_ex`).
-            ExEffect::None | ExEffect::Set { .. } | ExEffect::Help(_) | ExEffect::Message(_) => {}
+            ExEffect::None
+            | ExEffect::Set { .. }
+            | ExEffect::Help(_)
+            | ExEffect::Message(_)
+            | ExEffect::Editor(_)
+            | ExEffect::Global { .. } => {}
             ExEffect::Magit(a) => self.magit_action(a),
             ExEffect::Org(e) => {
                 if let Some(f) = e.take() {

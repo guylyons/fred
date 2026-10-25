@@ -14,6 +14,14 @@ pub enum ExEffect {
     Magit(crate::magit::Action),
     /// Show a message.
     Message(String),
+    /// A command the editor runs (`EDITOR` in the table).
+    Editor(crate::vim::excmd::Call),
+    /// `:g` with such a command: run it on these lines (0-based), as they
+    /// move with the changes.
+    Global {
+        lines: Vec<usize>,
+        cmd: String,
+    },
     /// `:draw`: toggle drawing mode.
     Draw,
     /// Org work that needs the session (other buffers and files).
@@ -241,6 +249,10 @@ pub fn run(st: &mut ExState, line: &str) -> Result<ExEffect, String> {
 }
 
 fn run_one(st: &mut ExState, line: &str, in_global: bool) -> Result<ExEffect, String> {
+    if let Some((first, rest)) = split_bar(line) {
+        run_one(st, first, in_global)?;
+        return run_one(st, rest, in_global);
+    }
     if let Some((n, rest)) = count_prefix(line) {
         let at = Range {
             start: n - 1,
@@ -304,6 +316,12 @@ fn run_named(
             .find(|c: char| !c.is_ascii_alphabetic())
             .unwrap_or(rest.len()),
     };
+    // `:ka`: the mark comes straight after :k.
+    let name_end = if name_end == 2 && rest.starts_with('k') && lookup(&rest[..2]).is_none() {
+        1
+    } else {
+        name_end
+    };
     let name = &rest[..name_end];
     let cmd = lookup(name).ok_or_else(|| format!("E492: Not an editor command: {rest}"))?;
     let mut tail = &rest[name_end..];
@@ -354,6 +372,9 @@ pub const NEEDARG: u8 = 16;
 pub const OPTION: u8 = 32;
 /// A leading number is a count, not a line (`:5split`); it takes RANGE too.
 const COUNT: u8 = 64;
+/// Runs in the editor (`vim::excmd`), which has the registers, options and
+/// Normal mode.
+const EDITOR: u8 = 128;
 
 /// A named command, as in vim's `ex_cmds.lua`: `min` is how short an
 /// abbreviation may be (`:w` for `:write`).
@@ -432,10 +453,63 @@ pub fn typed(line: &str) -> Option<&'static Command> {
             None => break,
         }
     }
+    if let Some(c) = rest.get(..1).filter(|c| "&~<>=#".contains(*c)) {
+        return lookup(c);
+    }
     let name = &rest[..rest
         .find(|c: char| !c.is_ascii_alphabetic())
         .unwrap_or(rest.len())];
-    lookup(name)
+    lookup(name).or_else(|| {
+        (name.len() == 2 && name.starts_with('k'))
+            .then(|| lookup("k"))
+            .flatten()
+    })
+}
+
+/// `cmd1 | cmd2`: the two commands, unless the `|` belongs to the first:
+/// all of `:g`, `:v`, `:normal` and `:!`; the pattern and replacement of
+/// `:s`; a `\|` or CTRL-V `|`.
+pub fn split_bar(text: &str) -> Option<(&str, &str)> {
+    let after_range =
+        text.trim_start_matches(|c: char| c.is_ascii_digit() || " .$%,;+-'".contains(c));
+    if after_range.starts_with('!') {
+        return None;
+    }
+    let mut from = 0;
+    match typed(text).map(|c| c.name) {
+        Some("global" | "vglobal" | "normal") => return None,
+        Some("substitute" | "&" | "~") => {
+            let off = text.len() - after_range.len();
+            let name_len = match after_range.chars().next() {
+                Some('&' | '~') => 1,
+                _ => after_range
+                    .find(|c: char| !c.is_ascii_alphabetic())
+                    .unwrap_or(after_range.len()),
+            };
+            let rest = &after_range[name_len..];
+            if let Some(d) = rest
+                .chars()
+                .next()
+                .filter(|c| !c.is_alphanumeric() && !"\\\"| ".contains(*c))
+            {
+                let (_, r) = read_delimited(&rest[d.len_utf8()..], d);
+                let (_, r) = read_delimited(r, d);
+                from = text.len() - r.len();
+            } else {
+                from = off + name_len;
+            }
+        }
+        _ => {}
+    }
+    let mut prev = '\0';
+    for (i, c) in text[from..].char_indices() {
+        if c == '|' && prev != '\\' && prev != '\x16' {
+            let i = from + i;
+            return Some((&text[..i], &text[i + 1..]));
+        }
+        prev = c;
+    }
+    None
 }
 
 /// Every named command. A prefix runs the first entry it abbreviates, so
@@ -464,12 +538,115 @@ pub const COMMANDS: &[Command] = &[
         global_cmd(st, a, false)
     })
     .about("run a command on every line not matching a pattern"),
-    cmd("delete", 1, RANGE, |st, a| {
-        st.splice(a.at.start, a.at.end - a.at.start + 1, vec![]);
-        st.cur = a.at.start.min(st.buf.len_lines() - 1);
-        Ok(ExEffect::None)
+    cmd("delete", 1, RANGE | EXTRA | EDITOR, |_, a| {
+        on_editor("delete", a)
     })
-    .about("delete lines"),
+    .about("delete lines, into a register")
+    .takes("[x] [count]"),
+    cmd("yank", 1, RANGE | EXTRA | EDITOR, |_, a| {
+        on_editor("yank", a)
+    })
+    .about("copy lines into a register")
+    .takes("[x] [count]"),
+    cmd("put", 2, RANGE | BANG | EXTRA | EDITOR, |_, a| {
+        on_editor("put", a)
+    })
+    .about("put a register's text as lines below the line (! above)")
+    .takes("[x]"),
+    needs("normal", 4, RANGE | BANG | EDITOR, "{commands}", |_, a| {
+        on_editor("normal", a)
+    })
+    .about("run Normal-mode keys, on each line of the range"),
+    cmd(">", 1, RANGE | EXTRA | EDITOR, |_, a| on_editor(">", a))
+        .about("shift lines right ('shiftwidth'; >> twice)")
+        .takes("[count]"),
+    cmd("<", 1, RANGE | EXTRA | EDITOR, |_, a| on_editor("<", a))
+        .about("shift lines left")
+        .takes("[count]"),
+    cmd("k", 1, RANGE | EXTRA | EDITOR, |_, a| on_editor("k", a))
+        .about("set a mark at the line (:ka)")
+        .takes("{a-z}"),
+    cmd("mark", 2, RANGE | EXTRA | EDITOR, |_, a| {
+        on_editor("mark", a)
+    })
+    .about("set a mark at the line")
+    .takes("{a-z}"),
+    cmd("undo", 1, EDITOR, |_, a| on_editor("undo", a)).about("undo the last change"),
+    cmd("redo", 3, EDITOR, |_, a| on_editor("redo", a)).about("redo the last undone change"),
+    cmd("startinsert", 4, BANG | EDITOR, |_, a| {
+        on_editor("startinsert", a)
+    })
+    .about("start Insert mode (! at the line's end)"),
+    cmd("stopinsert", 5, EDITOR, |_, a| on_editor("stopinsert", a)).about("leave Insert mode"),
+    cmd("startreplace", 6, BANG | EDITOR, |_, a| {
+        on_editor("startreplace", a)
+    })
+    .about("start Replace mode"),
+    cmd("nohlsearch", 3, EDITOR, |_, a| on_editor("nohlsearch", a))
+        .about("stop highlighting matches (Fred doesn't highlight them)"),
+    cmd("retab", 3, RANGE | BANG | EXTRA | EDITOR, |_, a| {
+        on_editor("retab", a)
+    })
+    .about("redo tabs and spaces for 'tabstop' and 'expandtab' (! also spaces)")
+    .takes("[tabstop]"),
+    cmd("left", 2, RANGE | EXTRA | EDITOR, |_, a| {
+        on_editor("left", a)
+    })
+    .about("align lines to the left")
+    .takes("[indent]"),
+    cmd("center", 2, RANGE | EXTRA | EDITOR, |_, a| {
+        on_editor("center", a)
+    })
+    .about("center lines")
+    .takes("[width]"),
+    cmd("right", 2, RANGE | EXTRA | EDITOR, |_, a| {
+        on_editor("right", a)
+    })
+    .about("align lines to the right")
+    .takes("[width]"),
+    cmd("registers", 3, EXTRA | EDITOR, |_, a| {
+        on_editor("registers", a)
+    })
+    .about("list the registers")
+    .takes("[names]"),
+    cmd("display", 2, EXTRA | EDITOR, |_, a| on_editor("display", a))
+        .about("list the registers, as :registers")
+        .takes("[names]"),
+    cmd("marks", 5, EXTRA | EDITOR, |_, a| on_editor("marks", a))
+        .about("list the marks; pick one to go there")
+        .takes("[names]"),
+    cmd("delmarks", 4, BANG | EXTRA | EDITOR, |_, a| {
+        on_editor("delmarks", a)
+    })
+    .about("delete marks (! all a-z)")
+    .takes("{marks}"),
+    cmd("jumps", 2, EDITOR, |_, a| on_editor("jumps", a)).about("list the jumplist"),
+    cmd("changes", 7, EDITOR, |_, a| on_editor("changes", a)).about("list the changelist"),
+    cmd("clearjumps", 3, EDITOR, |_, a| on_editor("clearjumps", a)).about("empty the jumplist"),
+    cmd("=", 1, RANGE | EDITOR, |_, a| on_editor("=", a))
+        .about("show the last line's number (with a range, its last line's)"),
+    cmd("print", 1, RANGE | EXTRA | EDITOR, |_, a| {
+        on_editor("print", a)
+    })
+    .about("show a line")
+    .takes("[count]"),
+    cmd("number", 2, RANGE | EXTRA | EDITOR, |_, a| {
+        on_editor("number", a)
+    })
+    .about("show a line with its number")
+    .takes("[count]"),
+    cmd("#", 1, RANGE | EXTRA | EDITOR, |_, a| on_editor("#", a))
+        .about("show a line with its number, as :number")
+        .takes("[count]"),
+    cmd("list", 1, RANGE | EXTRA | EDITOR, |_, a| {
+        on_editor("list", a)
+    })
+    .about("show a line with tabs and its end visible")
+    .takes("[count]"),
+    cmd("update", 2, RANGE | BANG | EXTRA | FILE | EDITOR, |_, a| {
+        on_editor("update", a)
+    })
+    .about("save if changed"),
     cmd("join", 1, RANGE | BANG, join).about("join lines (! without adding spaces)"),
     needs("move", 1, RANGE, "{address}", |st, a| {
         move_copy(st, a, false)
@@ -667,6 +844,24 @@ pub fn lookup(name: &str) -> Option<&'static Command> {
     COMMANDS
         .iter()
         .find(|c| name.len() >= c.min && c.name.starts_with(name))
+}
+
+/// An `EDITOR` command: the editor runs it.
+fn on_editor(name: &'static str, a: Args) -> Result<ExEffect, String> {
+    if a.in_global {
+        return Err("editor command inside :g".into());
+    }
+    Ok(ExEffect::Editor(crate::vim::excmd::Call {
+        name,
+        range: a.range,
+        at: a.at,
+        force: a.force,
+        arg: if name == "normal" {
+            a.raw.trim_start().to_string()
+        } else {
+            a.arg.to_string()
+        },
+    }))
 }
 
 /// A file name argument; `:r` alone reads a command's output.
@@ -1146,6 +1341,23 @@ fn global(st: &mut ExState, r: Range, spec: &str, want: bool) -> Result<ExEffect
     if !marked.contains(&true) {
         return Err("no match".into());
     }
+    // A command for the editor: it runs them, line by line.
+    let mut parts = vec![];
+    let mut rest = cmd;
+    while let Some((a, b)) = split_bar(rest) {
+        parts.push(a);
+        rest = b;
+    }
+    parts.push(rest);
+    if parts
+        .iter()
+        .any(|p| typed(p).is_some_and(|c| c.flags & EDITOR != 0))
+    {
+        return Ok(ExEffect::Global {
+            lines: (0..marked.len()).filter(|&l| marked[l]).collect(),
+            cmd: cmd.to_string(),
+        });
+    }
     // A substitute that finds nothing on one marked line is not an error,
     // as in ed; it is only an error if it found nothing on any line.
     let mut any_ok = false;
@@ -1205,16 +1417,29 @@ mod tests {
         (x, cur, r)
     }
 
+    /// Run `cmd` in an editor (some commands need one): the text, the
+    /// cursor's line, and the error if it failed.
+    fn in_editor(t: &str, cur: usize, cmd: &str) -> (String, usize, Result<(), String>) {
+        let mut e = crate::editor::Editor::new(Buffer::from_text(t));
+        e.set_cursor(cur, 0);
+        e.run_ex(cmd);
+        let r = match e.msg.take() {
+            Some((m, true)) => Err(m.trim_start_matches("? ").to_string()),
+            _ => Ok(()),
+        };
+        (e.buf.text(), e.cur.line, r)
+    }
+
     fn ex(t: &str, cur: usize, cmd: &str) -> (String, usize) {
-        let (x, cur, r) = run_on(t, cur, cmd);
+        let (text, cur, r) = in_editor(t, cur, cmd);
         r.unwrap();
-        (x.buf.text(), cur)
+        (text, cur)
     }
 
     fn ex_err(t: &str, cur: usize, cmd: &str) -> Result<(), String> {
-        let (x, _, r) = run_on(t, cur, cmd);
-        assert_eq!(x.buf.text(), t, "buffer changed by failing {cmd}");
-        r.map(|_| ())
+        let (text, _, r) = in_editor(t, cur, cmd);
+        assert_eq!(text, t, "buffer changed by failing {cmd}");
+        r
     }
 
     #[test]
@@ -1273,7 +1498,10 @@ mod tests {
         // What a command doesn't take is an error.
         assert_eq!(ex_err("a", 0, "1,1q"), Err("no range allowed: q".into()));
         assert_eq!(ex_err("a", 0, "pwd!"), Err("no ! allowed: pwd".into()));
-        assert_eq!(ex_err("a", 0, "d x"), Err("unexpected argument: x".into()));
+        assert_eq!(
+            ex_err("a", 0, "pwd x"),
+            Err("unexpected argument: x".into())
+        );
         assert!(ex_err("a", 0, "w !ls").is_err());
         assert_eq!(ex_err("a", 0, "m"), Err(":move needs {address}".into()));
         // Every command runs bare or says what it needs.
@@ -1334,7 +1562,7 @@ mod tests {
     fn errors_leave_buffer() {
         let t = "a\nb";
         for c in [
-            "100d", "2,1d", "/zz/d", "s/zz/y/", "k", "g//d", "g/a/", "1,2m1", "s/(/x/", "d x",
+            "100d", "2,1d", "/zz/d", "s/zz/y/", "k", "g//d", "g/a/", "1,2m1", "s/(/x/", "d 0",
         ] {
             assert!(ex_err(t, 0, c).is_err(), "{c}");
         }

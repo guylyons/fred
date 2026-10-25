@@ -223,3 +223,19 @@ fn paragraph(ed: &Editor, fwd: bool) -> Pos {
     }
     (p, 0)
 }
+
+/// `:clearjumps`.
+pub(crate) fn clear_jumps(ed: &mut Editor) {
+    ed.vim.lists.jumps.clear();
+    ed.vim.lists.jump_idx = 0;
+}
+
+/// The jumplist (or changelist) and where in it the window is.
+pub(crate) fn list(ed: &mut Editor, jumps: bool) -> (Vec<Pos>, usize) {
+    if jumps {
+        cleanup(ed);
+        (ed.vim.lists.jumps.clone(), ed.vim.lists.jump_idx)
+    } else {
+        (ed.vim.lists.changes.clone(), ed.vim.lists.change_idx)
+    }
+}
