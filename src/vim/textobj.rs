@@ -1312,6 +1312,295 @@ pub(crate) fn object(
         '[' | ']' => block(buf, cur, count, include, '[', ']', visual),
         '<' | '>' => block(buf, cur, count, include, '<', '>', visual),
         '"' | '\'' | '`' => quote(buf, cur, count, include, kind as u8, visual),
+        't' => tag(buf, cur, count, include, visual),
         _ => None,
+    }
+}
+
+/// An HTML/XML tag in the buffer's text (byte offsets into it).
+struct Tag {
+    /// Its `<`.
+    at: usize,
+    /// Its `>` (or the line's end for `<name` alone at the end of a line).
+    gt: usize,
+    end: bool,
+    name: String,
+}
+
+/// The tags `it` and `at` see, as Neovim's patterns match them: a start
+/// tag `<name ...>` not ending in `/>` (nor `<!`), or `<name` at a line's
+/// end; an end tag `</...>`.
+fn scan_tags(text: &str) -> Vec<Tag> {
+    let b = text.as_bytes();
+    let at = |i: usize| b.get(i).copied().unwrap_or(0);
+    let mut tags = vec![];
+    let mut i = 0;
+    while let Some(off) = text[i..].find('<') {
+        let lt = i + off;
+        i = lt + 1;
+        if at(lt + 1) == b'/' {
+            if let Some(g) = text[lt..].find('>') {
+                let name: String = text[lt + 2..lt + g]
+                    .chars()
+                    .take_while(|c| !c.is_whitespace())
+                    .collect();
+                tags.push(Tag {
+                    at: lt,
+                    gt: lt + g,
+                    end: true,
+                    name: name.to_lowercase(),
+                });
+            }
+            continue;
+        }
+        let name_len = text[lt + 1..]
+            .find(|c: char| " \t>/!\n".contains(c))
+            .unwrap_or(text.len() - lt - 1);
+        if name_len == 0 {
+            continue;
+        }
+        let q = lt + 1 + name_len;
+        let white = |c: u8| matches!(c, b' ' | b'\t' | b'\n');
+        let gt = if white(at(q)) {
+            // Attributes: the first `>` after them, not after a `/`.
+            match text[q + 1..].find('>').map(|g| q + 1 + g) {
+                Some(g) if g > q + 1 && !matches!(at(g - 1), b'/' | b'\n') => Some(g),
+                _ if at(q) == b'\n' || at(q + 1) == b'>' => {
+                    if at(q) == b'\n' {
+                        Some(q)
+                    } else {
+                        Some(q + 1)
+                    }
+                }
+                _ => None,
+            }
+        } else if matches!(at(q), b'>' | 0) {
+            Some(q)
+        } else {
+            None
+        };
+        if let Some(gt) = gt {
+            tags.push(Tag {
+                at: lt,
+                gt,
+                end: false,
+                name: text[lt + 1..q].to_lowercase(),
+            });
+        }
+    }
+    tags
+}
+
+/// Neovim's `in_html_tag()`: is the cursor in a start tag (or, with
+/// `end_tag`, an end tag) on its line?
+fn in_html_tag(w: &W, end_tag: bool) -> bool {
+    let line = w.line.as_bytes();
+    let mut p = w.p.1.min(line.len().saturating_sub(1));
+    if line.is_empty() {
+        return false;
+    }
+    loop {
+        if line[p] == b'<' {
+            break;
+        }
+        if p == 0 {
+            break;
+        }
+        p -= 1;
+        if line[p] == b'>' {
+            break;
+        }
+    }
+    if line[p] != b'<' {
+        return false;
+    }
+    let next = line.get(p + 1).copied().unwrap_or(0);
+    if end_tag {
+        return next == b'/';
+    }
+    if next == b'/' {
+        return false;
+    }
+    // The tag's `>` isn't after a `/`.
+    let mut t = W::new(w.buf, (w.p.0, p));
+    let mut last = 0u8;
+    loop {
+        if t.inc() < 0 {
+            return false;
+        }
+        match t.ch() {
+            Some('>') => return last != b'/',
+            Some(c) => last = c as u8,
+            None => last = 0,
+        }
+    }
+}
+
+/// `it` and `at`.
+pub(crate) fn tag(
+    buf: &Buffer,
+    cur: Pos,
+    count: usize,
+    include: bool,
+    visual: Option<Pos>,
+) -> Option<Obj> {
+    let text = buf.text();
+    let tags = scan_tags(&text);
+    // Line starts, to turn offsets into positions and back.
+    let mut starts = vec![0];
+    starts.extend(text.match_indices('\n').map(|(i, _)| i + 1));
+    let to_pos = |off: usize| {
+        let l = starts.partition_point(|&s| s <= off) - 1;
+        (l, off - starts[l])
+    };
+    let to_off = |p: Pos| starts[p.0.min(starts.len() - 1)] + p.1;
+    let mut w = W::new(buf, cur);
+    let (mut old_start, mut old_end) = (cur, cur);
+    if visual.is_none() {
+        let mut e = W::new(buf, cur);
+        e.decl();
+        old_end = e.p;
+    }
+    match visual {
+        Some(v) if v != cur => {
+            if v < cur {
+                old_start = v;
+                w.set(v);
+            } else {
+                old_end = v;
+            }
+        }
+        _ => {
+            while inindent(&w, 1) {
+                if w.inc() != 0 {
+                    break;
+                }
+            }
+            if in_html_tag(&w, false) {
+                while w.ch() != Some('>') {
+                    if w.inc() < 0 {
+                        break;
+                    }
+                }
+            } else if in_html_tag(&w, true) {
+                while w.ch() != Some('<') {
+                    if w.dec() < 0 {
+                        break;
+                    }
+                }
+                w.dec();
+                old_end = w.p;
+            }
+        }
+    }
+    let mut do_include = include;
+    let mut count = count;
+    loop {
+        // Back to an unclosed start tag (`count` of them).
+        let mut c = to_off(w.p);
+        let mut start_tag = None;
+        for _ in 0..count {
+            let mut nest = 0;
+            start_tag = None;
+            for (i, t) in tags.iter().enumerate().rev().filter(|(_, t)| t.at < c) {
+                if t.end {
+                    nest += 1;
+                } else if nest == 0 {
+                    start_tag = Some(i);
+                    break;
+                } else {
+                    nest -= 1;
+                }
+            }
+            c = tags[start_tag?].at;
+        }
+        let st = &tags[start_tag?];
+        let start_pos = to_pos(st.at);
+        // Its end tag, after its name.
+        let mut nest = 0;
+        let mut end_tag = None;
+        for t in tags
+            .iter()
+            .filter(|t| t.at > st.at + 1 && t.name == st.name)
+        {
+            if !t.end {
+                nest += 1;
+            } else if nest == 0 {
+                end_tag = Some(t);
+                break;
+            } else {
+                nest -= 1;
+            }
+        }
+        let Some(et) = end_tag.filter(|et| to_pos(et.at) >= old_end) else {
+            // No end, or it ends before where we were: an enclosing one.
+            count = 1;
+            w.set(start_pos);
+            continue;
+        };
+        let mut is_inclusive = true;
+        let end_pos = if do_include {
+            to_pos(et.gt)
+        } else {
+            let p = to_pos(et.at);
+            if visual.is_none() && p.1 == 0 {
+                is_inclusive = false;
+                p
+            } else {
+                let mut e = W::new(buf, p);
+                e.dec();
+                e.p
+            }
+        };
+        let mut start_pos = start_pos;
+        if !do_include {
+            // After the start tag's `>` (not one in quotes).
+            let mut s = W::new(buf, start_pos);
+            let mut in_quotes = false;
+            while s.inc() >= 0 {
+                match s.ch() {
+                    Some('>') if !in_quotes => {
+                        s.inc();
+                        start_pos = s.p;
+                        break;
+                    }
+                    Some('"' | '\'') => in_quotes = !in_quotes,
+                    _ => {}
+                }
+            }
+            // The same text as the Visual area: take the tags too.
+            if visual.is_some() && start_pos == old_start && end_pos == old_end {
+                do_include = true;
+                w.set(old_start);
+                continue;
+            }
+        }
+        if visual.is_some() {
+            let end = if end_pos < start_pos {
+                start_pos
+            } else {
+                end_pos
+            };
+            return Some(Obj {
+                start: start_pos,
+                end,
+                inclusive: true,
+                linewise: false,
+            });
+        }
+        if end_pos < start_pos {
+            return Some(Obj {
+                start: start_pos,
+                end: start_pos,
+                inclusive: false,
+                linewise: false,
+            });
+        }
+        return Some(Obj {
+            start: start_pos,
+            end: end_pos,
+            inclusive: is_inclusive,
+            linewise: false,
+        });
     }
 }

@@ -32,8 +32,8 @@ track.
 | 4 | Key tables for every mode | 4 | 0 | hand-written `parse()` |
 | 5 | Registers (named, numbered, `-` `0` `_` `+` `*` `.` `:` `%` `/`) | 4 | 0 | all of them (`src/vim/register.rs`); no `:registers`, Insert CTRL-R |
 | 6 | Motions (all of normal-index, `g`, `[ ]`) | 5 | 0 | `ge gE H M L \| _ g_ % N% ( ) [[ ]] [] ][ [( [{ ]) ]} * # g* g# go` added; no `` ` `` marks, `[m`, `[*`, `gm`, `''` |
-| 7 | Text objects | 4 | 0 | all but `it`/`at` (`src/vim/textobj.rs`) |
-| 8 | Operators (`> < = g~ gu gU gq gw g? ! zf g@`) | 5 | 0 | `d c y > < g~ gu gU g?`, `~`, `gJ` |
+| 7 | Text objects | 4 | 0 | all, `it`/`at` included (`src/vim/textobj.rs`) |
+| 8 | Operators (`> < = g~ gu gU gq gw g? ! zf g@`) | 5 | 0 | `d c y > < g~ gu gU g? gq gw !`, `~`, `gJ`; no `=` (C indenting), `zf`, `g@` |
 | 9 | Visual, Visual-line, Visual-block | 5 | 0 | charwise and linewise; text objects, `< > u U ~ g? gJ`; Select mode (`gh`, `gH`, CTRL-G, `<BS>`) |
 | 10 | Insert and Replace mode keys | 4 | 0 | most keys (CTRL-R, CTRL-O, CTRL-V, CTRL-T/CTRL-D, CTRL-A, CTRL-E/CTRL-Y, CTRL-G); counts; Replace mode; no CTRL-X submodes, CTRL-K digraphs, abbreviations |
 | 11 | Command-line editing keys | 3 | 0 | basics, history, Tab |
@@ -119,9 +119,8 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
 3. Registers (track 5), then key tables (track 4).
 4. Tracks 6–13 (the editing grammar), each with oracle cases. Done so
    far: the motions, text objects and operators in the table above. Next:
-   `it`/`at`, `=` `gq` `gw` `!` `g@` `zf`, `:normal`, `:registers`,
-   scrolling (CTRL-E/CTRL-Y, `zt`
-   `zb` `z.`), `&`.
+   `=`, `zf`, scrolling (CTRL-E/CTRL-Y, `zt` `zb` `z.`: needs the view
+   in the editor and 'scrolloff'), `:earlier`/`:later` (undo tree).
 5. Track 9 continued: Select block mode (`g CTRL-H`, needs Visual-block),
    Select CTRL-O and CTRL-R, `.` repeating a Select-mode replacement,
    'selection' (exclusive), `<S-Right>`/`<S-Left>` as word motions when
@@ -249,3 +248,9 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
   (not in `:g`, `:normal`, `:!` or a `:s` pattern). `:g` with an editor
   command runs it line by line in the editor, following the lines.
   Oracle: 704 cases.
+- 2026-10-25: `it`/`at` (tags scanned as Neovim's searchpair patterns
+  match them; an end in column 0 isn't adjusted, as upstream), `gq`/`gw`
+  with 'textwidth' (79 when 0) and auto-wrap while typing past it, the
+  `!` filter operator (`!{motion}`, `!!`, Visual `!`) opening `:.,.+N!`,
+  and `:sort` with `! b f i n o r u x /pat/`. Filters leave the cursor on
+  the first line. Oracle: 765 cases.

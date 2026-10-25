@@ -543,6 +543,9 @@ pub const COMMANDS: &[Command] = &[
     })
     .about("delete lines, into a register")
     .takes("[x] [count]"),
+    cmd("sort", 3, RANGE | BANG | EXTRA, sort)
+        .about("sort lines (! reverse; n x o b f numbers, i, u unique, /pat/)")
+        .takes("[b][f][i][n][o][r][u][x] [/pattern/]"),
     cmd("yank", 1, RANGE | EXTRA | EDITOR, |_, a| {
         on_editor("yank", a)
     })
@@ -864,6 +867,143 @@ fn on_editor(name: &'static str, a: Args) -> Result<ExEffect, String> {
     }))
 }
 
+/// `:[range]sor[t][!] [b][f][i][l][n][o][r][u][x] [/pattern/]`, as Neovim's
+/// `ex_sort()`: without a range the whole buffer; ties keep their order.
+fn sort(st: &mut ExState, a: Args) -> Result<ExEffect, String> {
+    let r = a.range.unwrap_or(Range {
+        start: 0,
+        end: st.buf.len_lines() - 1,
+    });
+    let (mut ic, mut rx, mut unique) = (false, false, false);
+    let mut format = None;
+    let mut formats = 0;
+    let mut re = None;
+    let mut rest = a.arg;
+    while let Some(c) = rest.chars().next() {
+        rest = &rest[c.len_utf8()..];
+        match c {
+            ' ' | '\t' | 'l' => {}
+            'i' => ic = true,
+            'r' => rx = true,
+            'u' => unique = true,
+            'n' | 'f' | 'b' | 'o' | 'x' => {
+                format = Some(c);
+                formats += 1;
+            }
+            '"' => break,
+            c if !c.is_ascii_alphabetic() && re.is_none() => {
+                let (pat, r) = read_delimited(rest, c);
+                rest = r;
+                let pat = use_pattern(pat, st.last_pat)?;
+                re = Some(search::compile_vim(&pat, false)?);
+            }
+            c => return Err(format!("E475: Invalid argument: {c}{rest}")),
+        }
+    }
+    if formats > 1 {
+        return Err("E474: Invalid argument".into());
+    }
+    if r.start >= r.end {
+        return Ok(ExEffect::None);
+    }
+    #[derive(PartialEq, PartialOrd)]
+    enum Key {
+        Text(String),
+        Num(bool, i64),
+        Float(f64),
+    }
+    let lines = st.lines(r);
+    let key = |line: &str| {
+        let (mut from, mut to) = (0, line.len());
+        if let Some(re) = &re {
+            match re.find(line) {
+                Some(m) if rx => (from, to) = (m.start(), m.end()),
+                Some(m) => from = m.end(),
+                None => to = 0,
+            }
+        }
+        let part = &line[from..to.max(from)];
+        match format {
+            Some('f') => {
+                let t = part.trim_start();
+                let t = t.strip_prefix('+').map_or(t, str::trim_start);
+                if t.is_empty() {
+                    return Key::Float(f64::MIN);
+                }
+                let end = (1..=t.len())
+                    .rev()
+                    .find(|&e| t.is_char_boundary(e) && t[..e].parse::<f64>().is_ok())
+                    .unwrap_or(0);
+                Key::Float(t[..end].parse().unwrap_or(0.0))
+            }
+            Some(f) => {
+                let radix = match f {
+                    'x' => 16,
+                    'b' => 2,
+                    'o' => 8,
+                    _ => 10,
+                };
+                let Some(at) = part.find(|c: char| c.is_digit(radix)) else {
+                    return Key::Num(false, 0);
+                };
+                let neg = part[..at].ends_with('-');
+                let mut digits = &part[at..];
+                let prefix = match f {
+                    'x' => Some(["0x", "0X"]),
+                    'b' => Some(["0b", "0B"]),
+                    _ => None,
+                };
+                if let Some(p) = prefix
+                    && let Some(d) = digits
+                        .strip_prefix(p[0])
+                        .or_else(|| digits.strip_prefix(p[1]))
+                    && d.starts_with(|c: char| c.is_digit(radix))
+                {
+                    digits = d;
+                }
+                let n = digits
+                    .chars()
+                    .map_while(|c| c.to_digit(radix))
+                    .fold(0i64, |n, d| {
+                        n.saturating_mul(radix as i64).saturating_add(d as i64)
+                    });
+                Key::Num(true, if neg { -n } else { n })
+            }
+            None if ic => Key::Text(part.to_ascii_lowercase()),
+            None => Key::Text(part.to_string()),
+        }
+    };
+    let keys: Vec<Key> = lines.iter().map(|l| key(l)).collect();
+    let mut order: Vec<usize> = (0..lines.len()).collect();
+    order.sort_by(|&x, &y| {
+        keys[x]
+            .partial_cmp(&keys[y])
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    if a.force {
+        order.reverse();
+    }
+    let mut out: Vec<String> = vec![];
+    for i in order {
+        let line = &lines[i];
+        let same = |prev: &String| {
+            if ic {
+                prev.eq_ignore_ascii_case(line)
+            } else {
+                prev == line
+            }
+        };
+        if !unique || !out.last().is_some_and(same) {
+            out.push(line.clone());
+        }
+    }
+    if out != lines {
+        st.splice(r.start, lines.len(), out);
+    }
+    st.cur = r.start;
+    Ok(ExEffect::None)
+}
+
 /// A file name argument; `:r` alone reads a command's output.
 fn path_arg(arg: &str) -> Result<Option<String>, String> {
     if arg.starts_with('!') {
@@ -991,7 +1131,10 @@ fn move_copy(st: &mut ExState, a: Args, copy: bool) -> Result<ExEffect, String> 
 fn filter(st: &mut ExState, r: Range, cmd: &str) -> Result<ExEffect, String> {
     let input: String = st.lines(r).iter().map(|l| format!("{l}\n")).collect();
     let out = crate::shell::capture(cmd, Some(input))?;
-    replace(st, r, &out)
+    let eff = replace(st, r, &out)?;
+    // The cursor goes to the first filtered line, as in Vim.
+    st.cur = r.start.min(st.buf.len_lines() - 1);
+    Ok(eff)
 }
 
 /// `:[range]ai what to do`: the prompt asking Claude to rewrite the lines,
@@ -1688,8 +1831,9 @@ mod tests {
 
     #[test]
     fn filters_lines_through_a_command() {
-        assert_eq!(ex("c\nb\na", 0, "%!sort"), ("a\nb\nc".into(), 2));
-        assert_eq!(ex("x\nc\nb\ny", 0, "2,3!sort"), ("x\nb\nc\ny".into(), 2));
+        // The cursor goes to the first line, as in Vim.
+        assert_eq!(ex("c\nb\na", 0, "%!sort"), ("a\nb\nc".into(), 0));
+        assert_eq!(ex("x\nc\nb\ny", 0, "2,3!sort"), ("x\nb\nc\ny".into(), 1));
         // Output can be longer or shorter.
         assert_eq!(ex("a b", 0, ".!tr ' ' '\\n'").0, "a\nb");
         assert_eq!(ex("a\nb\nc", 0, "%!head -1").0, "a");

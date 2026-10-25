@@ -266,7 +266,7 @@ fn parse_motion(keys: &[Key], objects: bool) -> Parse<(Motion, usize)> {
             }
             'i' | 'a' if objects => {
                 return arg(&|kind| {
-                    "wWspbB()[]{}<>\"'`"
+                    "wWspbB()[]{}<>\"'`t"
                         .contains(kind)
                         .then_some(Motion::Object {
                             include: c == 'a',
@@ -288,11 +288,11 @@ fn parse_motion(keys: &[Key], objects: bool) -> Parse<(Motion, usize)> {
 /// last four for `g~ gu gU g?`) and the keys it took.
 fn parse_op(keys: &[Key]) -> Parse<(char, usize)> {
     match keys.first().and_then(Key::char) {
-        Some(c @ ('d' | 'c' | 'y' | '<' | '>')) if !keys[0].ctrl => Parse::Done((c, 1)),
+        Some(c @ ('d' | 'c' | 'y' | '<' | '>' | '!')) if !keys[0].ctrl => Parse::Done((c, 1)),
         Some('g') if !keys[0].ctrl => match keys.get(1) {
             None => Parse::Incomplete,
             Some(k) => match k.char() {
-                Some(c @ ('~' | 'u' | 'U' | '?')) if !k.ctrl => Parse::Done((c, 2)),
+                Some(c @ ('~' | 'u' | 'U' | '?' | 'q' | 'w')) if !k.ctrl => Parse::Done((c, 2)),
                 _ => Parse::Invalid,
             },
         },
@@ -590,8 +590,12 @@ fn visual_key(ed: &mut Editor, k: Key) -> bool {
         _ if k == Key::ctrl('a') || k == Key::ctrl('x') => {
             visual_addsub(ed, k == Key::ctrl('x'), g, count)
         }
-        (true, Some(c @ ('~' | 'u' | 'U' | '?' | 'J'))) => {
+        (true, Some(c @ ('~' | 'u' | 'U' | '?' | 'J' | 'q' | 'w'))) => {
             visual_op(ed, if c == 'J' { 'j' } else { c }, count)
+        }
+        (false, Some('!')) => {
+            ed.mode = Mode::Normal;
+            ed.open_cmdline(':', "'<,'>!");
         }
         (true, _) => return false,
         (false, Some(c @ ('p' | 'P'))) => visual_put(ed, c == 'P'),
@@ -875,7 +879,7 @@ fn is_change(cmd: &Cmd) -> bool {
     let g = matches!(cmd, Cmd::Simple { key, arg: Some('J' | 'p' | 'P' | 'i' | 'I' | '&'), .. } if *key == Key::ch('g'))
         || matches!(cmd, Cmd::Simple { key, .. } if *key == Key::ctrl('a') || *key == Key::ctrl('x'));
     g || match cmd {
-        Cmd::Op { op, .. } => *op != 'y',
+        Cmd::Op { op, .. } => !matches!(op, 'y' | '!'),
         // Applied when the search line finishes; not repeatable with `.`.
         Cmd::OpSearch { .. } => false,
         Cmd::Simple { key, .. } => {
@@ -1012,6 +1016,30 @@ pub(crate) fn execute(ed: &mut Editor, cmd: Cmd) {
                 }
                 None => ed.vim.failed = true,
             }
+        }
+        Cmd::Op {
+            op: '!',
+            count,
+            motion,
+        } => {
+            // `!{motion}`: a filter command for those lines.
+            let Some(sp) = ops::span(ed, '!', count, motion) else {
+                ed.vim.failed = true;
+                return;
+            };
+            let (lo, hi) = match sp {
+                ops::Span::Lines(lo, hi) => (lo, hi),
+                ops::Span::Chars(a, b) => (a.0, b.0),
+            };
+            ed.set_line_keep_col(lo);
+            let end = if hi == lo {
+                String::new()
+            } else if hi + 1 == ed.line_count() {
+                ",$".into()
+            } else {
+                format!(",.+{}", hi - lo)
+            };
+            ed.open_cmdline(':', &format!(".{end}!"));
         }
         Cmd::Op { op, count, motion } => {
             let sp = ops::span(ed, op, count, motion);

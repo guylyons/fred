@@ -133,6 +133,9 @@ options! {
     /// Columns `>>`, `<<` and Tab indent by (0: 'tabstop'). Fred sets it
     /// to a space-indented file's indent.
     Shiftwidth => opt("shiftwidth", "sw", Buffer, Num(8)).check(nonneg),
+    /// Lines longer than this are broken while typing and by `gq` (0:
+    /// `gq` uses 79).
+    Textwidth => opt("textwidth", "tw", Buffer, Num(0)).check(nonneg),
     /// Columns a tab takes.
     Tabstop => opt("tabstop", "ts", Buffer, Num(8)).check(positive),
     /// Wrap long lines (Neovim: on).

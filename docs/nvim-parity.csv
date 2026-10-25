@@ -121,8 +121,8 @@ key,normal,CTRL-],,missing,,:ta to ident under cursor
 key,normal,CTRL-^,,partial,present; not yet verified against nvim,edit Nth alternate file (equivalent to
 key,normal,CTRL-<Tab>,,missing,,same as `g<Tab>` : go to last accessed tab
 key,normal,<Space>,motion,partial,"Fred leader key (Space s/p/g/k/r/b/B/d/-/j/;/Enter, Space m Magit)","same as ""l"""
-key,normal,!{motion}{filter},,missing,,
-key,normal,!!{filter},change,missing,,filter N lines through the {filter} command
+key,normal,!{motion}{filter},,done,oracle cases,
+key,normal,!!{filter},change,done,oracle cases,filter N lines through the {filter} command
 key,normal,"""{register}",,done,"a-z A-Z 0-9 - _ + * and read-only . : / %; "" counts on both sides multiply; oracle cases","use {register} for next delete, yank or put"
 key,normal,#,motion,done,oracle cases,search backward for the Nth occurrence of
 key,normal,$,motion,done,oracle cases,cursor to the end of Nth next line
@@ -296,7 +296,7 @@ key,textobject,a`,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,
 key,textobject,ab,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,"""a block"" from ""[("" to ""])"" (with braces)"
 key,textobject,ap,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,"""a paragraph"" (with white space)"
 key,textobject,as,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,"""a sentence"" (with white space)"
-key,textobject,at,,missing,,"""a tag block"" (with white space)"
+key,textobject,at,,done,tags scanned as Neovim's patterns match them; oracle cases,"""a tag block"" (with white space)"
 key,textobject,aw,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,"""a word"" (with white space)"
 key,textobject,a{,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,same as aB
 key,textobject,a},,done,src/vim/textobj.rs (port of textobject.c); oracle cases,same as aB
@@ -314,7 +314,7 @@ key,textobject,i`,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,
 key,textobject,ib,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,"""inner block"" from ""[("" to ""])"""
 key,textobject,ip,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,"""inner paragraph"""
 key,textobject,is,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,"""inner sentence"""
-key,textobject,it,,missing,,"""inner tag block"""
+key,textobject,it,,done,tags scanned as Neovim's patterns match them; oracle cases,"""inner tag block"""
 key,textobject,iw,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,"""inner word"""
 key,textobject,i{,,done,src/vim/textobj.rs (port of textobject.c); oracle cases,same as iB
 key,textobject,i},,done,src/vim/textobj.rs (port of textobject.c); oracle cases,same as iB
@@ -484,13 +484,13 @@ key,g,gM,motion,missing,,go to character at middle of the text line
 key,g,gn,,missing,,"1,2  find the next match with the last used"
 key,g,go,motion,done,oracle cases,cursor to byte N in the buffer
 key,g,"[""x]gp",change,done,oracle cases,put the text [from register x] after the
-key,g,gq{motion},change,missing,,format Nmove text
+key,g,gq{motion},change,done,'textwidth' (79 if 0); first line's indent; no comment leaders ('comments'); oracle cases,format Nmove text
 key,g,gr{char},change,missing,,virtual replace N chars with {char}
 key,g,gs,,missing,,go to sleep for N seconds (default 1)
 key,g,gt,,missing,,go to the next tabpage
 key,g,gu{motion},change,done,oracle cases,make Nmove text lowercase
 key,g,gv,,done,oracle cases,reselect the previous Visual area
-key,g,gw{motion},change,missing,,format Nmove text and keep cursor
+key,g,gw{motion},change,done,"as gq, the cursor stays; oracle cases",format Nmove text and keep cursor
 key,g,gx,,missing,,execute application for filepath at cursor
 key,g,g@{motion},,missing,,call 'operatorfunc'
 key,g,g~{motion},change,done,oracle cases,swap case for Nmove text
@@ -566,7 +566,7 @@ key,visual,CTRL-V,,missing,,make Visual mode blockwise or stop Visual
 key,visual,CTRL-X,change,done,oracle cases,subtract N from number in highlighted text
 key,visual,<Esc>,,partial,present; not yet verified against nvim,stop Visual mode
 key,visual,CTRL-],,missing,,jump to highlighted tag
-key,visual,!{filter},change,missing,,filter the highlighted lines through the
+key,visual,!{filter},change,done,oracle cases,filter the highlighted lines through the
 key,visual,:,,partial,present; not yet verified against nvim,start a command-line with the highlighted
 key,visual,<,change,partial,shifts once; a count is not taken yet,shift the highlighted lines one
 key,visual,=,change,missing,,filter the highlighted lines through the
@@ -599,7 +599,7 @@ key,visual,a`,,done,extends the selection; oracle cases,extend highlighted area 
 key,visual,ab,,done,extends the selection; oracle cases,extend highlighted area with a () block
 key,visual,ap,,done,extends the selection; oracle cases,extend highlighted area with a paragraph
 key,visual,as,,done,extends the selection; oracle cases,extend highlighted area with a sentence
-key,visual,at,,missing,,extend highlighted area with a tag block
+key,visual,at,,done,oracle cases,extend highlighted area with a tag block
 key,visual,aw,,done,extends the selection; oracle cases,"extend highlighted area with ""a word"""
 key,visual,a{,,done,extends the selection; oracle cases,same as aB
 key,visual,a},,done,extends the selection; oracle cases,same as aB
@@ -608,7 +608,7 @@ key,visual,d,change,partial,present; not yet verified against nvim,delete highli
 key,visual,g CTRL-A,change,done,oracle cases,add N to number in highlighted text
 key,visual,g CTRL-X,change,done,oracle cases,subtract N from number in highlighted text
 key,visual,gJ,change,done,no count yet; oracle cases,join the highlighted lines without
-key,visual,gq,change,missing,,format the highlighted lines
+key,visual,gq,change,done,oracle cases,format the highlighted lines
 key,visual,gv,,missing,,exchange current and previous highlighted
 key,visual,"i""",,done,extends the selection; oracle cases,extend highlighted area with a double
 key,visual,i',,done,extends the selection; oracle cases,extend highlighted area with a single
@@ -624,7 +624,7 @@ key,visual,i`,,done,extends the selection; oracle cases,extend highlighted area 
 key,visual,ib,,done,extends the selection; oracle cases,extend highlighted area with inner () block
 key,visual,ip,,done,extends the selection; oracle cases,extend highlighted area with inner paragraph
 key,visual,is,,done,extends the selection; oracle cases,extend highlighted area with inner sentence
-key,visual,it,,missing,,extend highlighted area with inner tag block
+key,visual,it,,done,oracle cases,extend highlighted area with inner tag block
 key,visual,iw,,done,extends the selection; oracle cases,"extend highlighted area with ""inner word"""
 key,visual,i{,,done,extends the selection; oracle cases,same as iB
 key,visual,i},,done,extends the selection; oracle cases,same as iB
@@ -1105,7 +1105,7 @@ ex,,snomagic,:sno[magic] ADDR_LINES,missing,,ex_submagic
 ex,,snoremap,:snor[emap] ADDR_NONE,missing,,ex_map
 ex,,snoremenu,:snoreme[nu] ADDR_OTHER,excluded,GUI,ex_menu
 ex,,source,:so[urce] ADDR_LINES,excluded,Vimscript language,ex_source
-ex,,sort,:sor[t] ADDR_LINES,missing,,ex_sort
+ex,,sort,:sor[t] ADDR_LINES,done,all flags but l (locale) and a /pattern/; oracle cases,ex_sort
 ex,,split,:sp[lit] ADDR_OTHER,partial,present; not yet verified against nvim,ex_splitview
 ex,,spellgood,:spe[llgood] ADDR_OTHER,deferred,spell checking,ex_spell
 ex,,spelldump,:spelld[ump] ADDR_NONE,deferred,spell checking,ex_spelldump
@@ -1561,7 +1561,7 @@ option,,termguicolors,tgc global boolean,missing,,Terminal true color support
 option,,termpastefilter,tpf global string,deferred,terminal,
 option,,termsync, global boolean,deferred,terminal,synchronize redraw output with the host terminal
 option,,terse, global boolean,missing,,Deprecated
-option,,textwidth,tw buf number,missing,,maximum width of text that is being inserted
+option,,textwidth,tw buf number,partial,"gq, gw and auto-wrap while typing (formatoptions t); no 'formatoptions', 'wrapmargin'; oracle cases",maximum width of text that is being inserted
 option,,thesaurus,tsr global+buf string,missing,,list of thesaurus files for keyword completion
 option,,thesaurusfunc,tsrfu global+buf string,missing,,function used for thesaurus completion
 option,,tildeop,top global boolean,missing,,"tilde command \""~\"" behaves like an operator"

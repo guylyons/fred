@@ -108,11 +108,19 @@ pub fn span(
         if o.linewise {
             return Some(Span::Lines(o.start.0, o.end.0));
         }
-        let (from, to) = if o.end < o.start {
+        let (from, mut to) = if o.end < o.start {
             (o.end, o.start)
         } else {
             (o.start, o.end)
         };
+        // Tag blocks keep an end in column 0 (Neovim's CA_NO_ADJ_OP_END).
+        if kind == 't' {
+            if o.inclusive {
+                let l = ed.buf.line(to.0);
+                to.1 = next_grapheme(&l, to.1.min(l.len()));
+            }
+            return Some(Span::Chars(from, to));
+        }
         return Some(char_span(ed, from, to, o.inclusive));
     }
     let line = ed.buf.line(start.0);
@@ -244,6 +252,14 @@ fn apply(ed: &mut Editor, op: char, sp: Span, to_reg: bool) {
         }
         '~' | 'u' | 'U' | '?' => {
             change_case(ed, op, sp);
+            return;
+        }
+        'q' | 'w' => {
+            let (lo, hi) = match sp {
+                Span::Lines(lo, hi) => (lo, hi),
+                Span::Chars(a, b) => (a.0, b.0),
+            };
+            format(ed, lo, hi, op == 'w');
             return;
         }
         _ => {}
@@ -854,4 +870,86 @@ pub fn addsub(
         ed.set_cursor(l, col + out.len().saturating_sub(1));
     }
     true
+}
+
+/// Where to break `line` for 'textwidth' `tw`: the last run of blanks
+/// before byte `limit` that leaves at most `tw` columns before it (or, if
+/// the first word is longer, the first run). The run's start and end.
+pub(crate) fn break_at(line: &str, limit: usize, tw: usize, ts: usize) -> Option<(usize, usize)> {
+    let indent = indent_of(line).len();
+    let mut runs = vec![];
+    let mut i = indent;
+    let b = line.as_bytes();
+    while i < limit.min(line.len()) {
+        if matches!(b[i], b' ' | b'\t') {
+            let s = i;
+            while i < line.len() && matches!(b[i], b' ' | b'\t') {
+                i += 1;
+            }
+            runs.push((s, i));
+        } else {
+            i += 1;
+        }
+    }
+    let fits = |s: usize| crate::text::display_width(&line[..s], ts, 0) <= tw;
+    runs.iter()
+        .rev()
+        .find(|r| fits(r.0))
+        .or(runs.first())
+        .copied()
+}
+
+/// `gq` and `gw` (`keep`: the cursor stays): each paragraph of lines
+/// `lo..=hi` joined and broken again at 'textwidth' (79 if it is 0), with
+/// the first line's indent.
+fn format(ed: &mut Editor, lo: usize, hi: usize, keep: bool) {
+    let tw = match ed.opts.num(crate::options::Opt::Textwidth) {
+        0 => 79,
+        n => n as usize,
+    };
+    let ts = ed.tabstop();
+    let saved = ed.cur.pos();
+    let hi = hi.min(ed.line_count() - 1);
+    let blank = |s: &str| s.trim().is_empty();
+    let mut out: Vec<String> = vec![];
+    let mut l = lo;
+    while l <= hi {
+        let line = ed.buf.line(l);
+        if blank(&line) {
+            out.push(line);
+            l += 1;
+            continue;
+        }
+        let mut joined = line;
+        l += 1;
+        while l <= hi && !blank(&ed.buf.line(l)) {
+            joined = crate::text::join_lines(&joined, &ed.buf.line(l));
+            l += 1;
+        }
+        let indent = indent_of(&joined).to_string();
+        loop {
+            if crate::text::display_width(&joined, ts, 0) <= tw {
+                break;
+            }
+            let Some((s, e)) = break_at(&joined, joined.len(), tw, ts) else {
+                break;
+            };
+            if e >= joined.len() {
+                joined.truncate(s);
+                break;
+            }
+            out.push(joined[..s].to_string());
+            joined = indent.clone() + &joined[e..];
+        }
+        out.push(joined);
+    }
+    let n = out.len();
+    splice_lines(ed, lo, hi - lo + 1, &out);
+    if keep {
+        let l = saved.0.min(ed.line_count() - 1);
+        ed.set_cursor(l, saved.1);
+    } else {
+        let last = lo + n - 1;
+        ed.set_cursor(last, ed.first_nonblank(last));
+    }
 }

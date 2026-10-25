@@ -499,8 +499,40 @@ fn edit_key(ed: &mut Editor, k: Key) {
         KeyCode::Char(c) if !k.ctrl && !k.alt => {
             let mut s = [0u8; 4];
             insert_text(ed, c.encode_utf8(&mut s));
+            if !c.is_whitespace() {
+                auto_wrap(ed);
+            }
         }
         _ => {}
+    }
+}
+
+/// 'textwidth': typing past it breaks the line at a blank before it.
+fn auto_wrap(ed: &mut Editor) {
+    let tw = ed.opts.num(crate::options::Opt::Textwidth) as usize;
+    if tw == 0 {
+        return;
+    }
+    let ts = ed.tabstop();
+    loop {
+        let (l, b) = ed.cur.pos();
+        let line = ed.buf.line(l);
+        if crate::text::display_width(&line[..b], ts, 0) <= tw {
+            return;
+        }
+        let Some((s, e)) = super::ops::break_at(&line, b, tw, ts) else {
+            return;
+        };
+        if e > b {
+            return;
+        }
+        let indent = indent_of(&line).to_string();
+        delete_chars(ed, (l, s), (l, e));
+        ed.cur.line = l;
+        ed.cur.byte = s;
+        insert_text(ed, &format!("\n{indent}"));
+        let nb = ed.cur.byte + (b - e);
+        ed.cur.byte = nb;
     }
 }
 
