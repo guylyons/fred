@@ -30,7 +30,7 @@ track.
 | 2 | Buffer / window separation | 6 | 0 | `Editor` is both |
 | 3 | Options table, `:set`/`:setlocal`/`:setglobal` | 6 | 0 | 14 global settings in `config.toml` |
 | 4 | Key tables for every mode | 4 | 0 | hand-written `parse()` |
-| 5 | Registers (named, numbered, `-` `0` `_` `+` `*` `.` `:` `%` `/`) | 4 | 0 | one register |
+| 5 | Registers (named, numbered, `-` `0` `_` `+` `*` `.` `:` `%` `/`) | 4 | 0 | all of them (`src/vim/register.rs`); no `:registers`, Insert CTRL-R |
 | 6 | Motions (all of normal-index, `g`, `[ ]`) | 5 | 0 | `ge gE H M L \| _ g_ % N% ( ) [[ ]] [] ][ [( [{ ]) ]} * # g* g# go` added; no `` ` `` marks, `[m`, `[*`, `gm`, `''` |
 | 7 | Text objects | 4 | 0 | all but `it`/`at` (`src/vim/textobj.rs`) |
 | 8 | Operators (`> < = g~ gu gU gq gw g? ! zf g@`) | 5 | 0 | `d c y > < g~ gu gU g?`, `~`, `gJ` |
@@ -38,7 +38,7 @@ track.
 | 10 | Insert and Replace mode keys | 4 | 0 | basics |
 | 11 | Command-line editing keys | 3 | 0 | basics, history, Tab |
 | 12 | Marks, jumplist, changelist | 3 | 0 | `a-z` line marks |
-| 13 | Macros, `:normal`, `.`, CTRL-A/CTRL-X | 3 | 0 | `.` only |
+| 13 | Macros, `:normal`, `.`, CTRL-A/CTRL-X | 3 | 0 | `.`, `q`, `@`, `@@`, `@:`, `Q` |
 | 14 | Search and Vim regex, hlsearch, incsearch | 6 | 0 | Vim magic patterns (no `\zs`, `\@`, `\_`, back-references), `/ ? n N` |
 | 15 | `:substitute` and `:global` in full | 3 | 0 | `g` flag only |
 | 16 | Editing, file, buffer and argument-list ex commands | 5 | 0 | 26 commands |
@@ -120,8 +120,8 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
 4. Tracks 6–13 (the editing grammar), each with oracle cases. Done so
    far: the motions, text objects and operators in the table above. Next:
    `it`/`at`, `=` `gq` `gw` `!` `g@` `zf`, counts in Visual mode,
-   CTRL-A/CTRL-X, `gp`/`gP`, `gv`, `gi`, `R`, then registers (track 5)
-   and macros.
+   CTRL-A/CTRL-X, `gv`, `gi`, `R`, `:normal`, `:registers`, Insert
+   CTRL-R.
 5. Track 9 continued: Select block mode (`g CTRL-H`, needs Visual-block),
    Select CTRL-O and CTRL-R, `.` repeating a Select-mode replacement,
    'selection' (exclusive), `<S-Right>`/`<S-Left>` as word motions when
@@ -201,3 +201,12 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
   Neovim. `N%` under an operator is characterwise and exclusive, as with
   Neovim's default matchit. Ledger: 168 keys done. Oracle: 367 cases. No
   track is complete yet, so points stay at 3.
+- 2026-10-25: registers and macros (`src/vim/register.rs`). `"x` before
+  any command (counts on both sides multiply), named `a-z` with `A-Z`
+  appending, `"0` for yanks, `"1`-`"9` shifting for deletes of a line or
+  more (or by `% ( ) / ? n N { }`), `"-`, `"_`, `"+`/`"*`, read-only `".
+  ": "/ "%`; `.` after `"1p` steps to `"2p`. Visual `p` and `P`, `gp`,
+  `gP`, `2dd` on the last line fails. Macros: `q{reg}` records typed keys
+  as register text (the status line shows `recording @x`), `q` stops,
+  `@{reg}`, `@@`, `@:`, `Q`; a failing command ends a run, as in Vim.
+  Oracle: 427 cases. Ledger: 182 keys done.

@@ -77,7 +77,21 @@ pub fn span(
 ) -> Option<Span> {
     let n = ed.line_count();
     let start = ed.cur.pos();
+    ed.vim.numbered_delete = matches!(
+        motion,
+        Some(
+            Motion::Percent
+                | Motion::Sentence(_)
+                | Motion::SearchNext { .. }
+                | Motion::ParaFwd
+                | Motion::ParaBack
+        )
+    );
     let Some(motion) = motion else {
+        // `2dd` on the last line fails, as in Vim.
+        if count.is_some_and(|c| c > 1) && start.0 + 1 >= n {
+            return None;
+        }
         let hi = (start.0 + count.unwrap_or(1).max(1) - 1).min(n - 1);
         return Some(Span::Lines(start.0, hi));
     };
@@ -237,13 +251,11 @@ fn apply(ed: &mut Editor, op: char, sp: Span, to_reg: bool) {
     match sp {
         Span::Lines(lo, hi) => {
             if to_reg {
-                set_reg(
-                    ed,
-                    Register {
-                        text: lines_text(ed, lo, hi),
-                        linewise: true,
-                    },
-                );
+                let r = Register {
+                    text: lines_text(ed, lo, hi),
+                    linewise: true,
+                };
+                super::register::store(ed, r, op == 'y', true);
             }
             match op {
                 'y' => {
@@ -269,26 +281,23 @@ fn apply(ed: &mut Editor, op: char, sp: Span, to_reg: bool) {
                 let s = ed.buf.pos_to_char(from.0, from.1);
                 let e = ed.buf.pos_to_char(to.0, to.1);
                 if to_reg {
-                    set_reg(
-                        ed,
-                        Register {
-                            text: ed.buf.slice(s, e),
-                            linewise: false,
-                        },
-                    );
+                    let r = Register {
+                        text: ed.buf.slice(s, e),
+                        linewise: false,
+                    };
+                    super::register::store(ed, r, true, false);
                 }
                 ed.set_cursor(from.0, from.1);
                 return;
             }
             let removed = delete_chars(ed, from, to);
             if to_reg {
-                set_reg(
-                    ed,
-                    Register {
-                        text: removed,
-                        linewise: false,
-                    },
-                );
+                let r = Register {
+                    text: removed,
+                    linewise: false,
+                };
+                let numbered = ed.vim.numbered_delete;
+                super::register::store(ed, r, false, numbered);
             }
             if op == 'c' {
                 ed.mode = Mode::Insert;
@@ -311,14 +320,32 @@ pub(crate) fn set_reg(ed: &mut Editor, reg: Register) {
 }
 
 pub fn put(ed: &mut Editor, count: usize, after: bool) {
-    // Something copied in another app since our last yank wins.
-    if ed.clipboard()
-        && let Some(c) = crate::clipboard::get()
-        && c != crate::clipboard::to_clip(&ed.reg)
-    {
-        ed.reg = crate::clipboard::from_clip(&c);
-    }
-    let reg = ed.reg.clone();
+    put_with(ed, count, after, false);
+}
+
+/// `p` and `P`, or `gp` and `gP` (`past`: the cursor goes just after the
+/// new text), from the register `"x` named, else the unnamed one.
+pub fn put_with(ed: &mut Editor, count: usize, after: bool, past: bool) {
+    let named = ed.vim.register.filter(|&c| c != '"');
+    let reg = match named {
+        Some(c) => match super::register::get(ed, c) {
+            Some(r) => r,
+            None => {
+                ed.set_err(format!("E353: Nothing in register {c}"));
+                return;
+            }
+        },
+        None => {
+            // Something copied in another app since our last yank wins.
+            if ed.clipboard()
+                && let Some(c) = crate::clipboard::get()
+                && c != crate::clipboard::to_clip(&ed.reg)
+            {
+                ed.reg = crate::clipboard::from_clip(&c);
+            }
+            ed.reg.clone()
+        }
+    };
     if reg.text.is_empty() && !reg.linewise {
         return;
     }
@@ -327,8 +354,13 @@ pub fn put(ed: &mut Editor, count: usize, after: bool) {
         let one: Vec<String> = reg.text.split('\n').map(String::from).collect();
         let lines: Vec<String> = std::iter::repeat_n(one, count).flatten().collect();
         let at = if after { ed.cur.line + 1 } else { ed.cur.line };
+        let n = lines.len();
         splice_lines(ed, at, 0, &lines);
-        ed.set_cursor(at, ed.first_nonblank(at));
+        if past {
+            ed.set_cursor(at + n, 0);
+        } else {
+            ed.set_cursor(at, ed.first_nonblank(at));
+        }
     } else {
         let text = reg.text.repeat(count);
         let line = ed.buf.line(ed.cur.line);
@@ -340,7 +372,10 @@ pub fn put(ed: &mut Editor, count: usize, after: bool) {
         ed.cur.byte = byte;
         let start = ed.cur.pos();
         insert_text(ed, &text);
-        if text.contains('\n') {
+        if past {
+            let (l, b) = ed.cur.pos();
+            ed.set_cursor(l, b);
+        } else if text.contains('\n') {
             ed.set_cursor(start.0, start.1);
         } else {
             let l = ed.buf.line(ed.cur.line);

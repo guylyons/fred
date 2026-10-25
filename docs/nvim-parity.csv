@@ -123,7 +123,7 @@ key,normal,CTRL-<Tab>,,missing,,same as `g<Tab>` : go to last accessed tab
 key,normal,<Space>,motion,partial,"Fred leader key (Space s/p/g/k/r/b/B/d/-/j/;/Enter, Space m Magit)","same as ""l"""
 key,normal,!{motion}{filter},,missing,,
 key,normal,!!{filter},change,missing,,filter N lines through the {filter} command
-key,normal,"""{register}",,missing,,"use {register} for next delete, yank or put"
+key,normal,"""{register}",,done,"a-z A-Z 0-9 - _ + * and read-only . : / %; "" counts on both sides multiply; oracle cases","use {register} for next delete, yank or put"
 key,normal,#,motion,done,oracle cases,search backward for the Nth occurrence of
 key,normal,$,motion,done,oracle cases,cursor to the end of Nth next line
 key,normal,%,motion,done,"brackets, skipping ones in quotes; no /* */ or #if (matchit b:match_words); oracle cases",find the next (curly/square) bracket on
@@ -170,9 +170,9 @@ key,normal,>{motion},change,done,oracle cases,shift Nmove lines one 'shiftwidth'
 key,normal,>>,change,done,oracle cases,shift N lines one 'shiftwidth' rightwards
 key,normal,?{pattern}<CR>,motion,partial,Vim pattern syntax and smartcase; no \zs \@ \_ or back-references,search backward for the Nth previous
 key,normal,?<CR>,motion,missing,,search backward for {pattern} of last search
-key,normal,@{a-z},change,missing,,execute the contents of register {a-z}
-key,normal,@:,,missing,,"repeat the previous "":"" command N times"
-key,normal,@@,change,missing,,repeat the previous @{a-z} N times
+key,normal,@{a-z},change,done,"also @0-9, @"" and the read-only registers; a failing command ends the run; oracle cases",execute the contents of register {a-z}
+key,normal,@:,,done,oracle cases,"repeat the previous "":"" command N times"
+key,normal,@@,change,done,oracle cases,repeat the previous @{a-z} N times
 key,normal,A,change,done,oracle cases,append text after the end of the line N times
 key,normal,B,motion,done,oracle cases,cursor N WORDS backward
 key,normal,"[""x]C",change,done,oracle cases,change from the cursor position to the end
@@ -196,7 +196,7 @@ key,normal,U,change,missing,,undo all latest changes on one line
 key,normal,V,,partial,present; not yet verified against nvim,start linewise Visual mode
 key,normal,W,motion,done,oracle cases,cursor N WORDS forward
 key,normal,"[""x]X",change,done,oracle cases,delete N characters before the cursor [into
-key,normal,"[""x]Y",,partial,present; not yet verified against nvim,yank N lines [into register x]; synonym for
+key,normal,"[""x]Y",,done,"y$, Neovim's default mapping; oracle cases",yank N lines [into register x]; synonym for
 key,normal,ZZ,,partial,present; not yet verified against nvim,write if buffer changed and close window
 key,normal,ZQ,,partial,present; not yet verified against nvim,close window without writing
 key,normal,[{char},,missing,,square bracket command (see |[| below)
@@ -233,9 +233,9 @@ key,normal,m{A-Za-z},,partial,"a-z only, line marks",set mark {A-Za-z} at cursor
 key,normal,n,motion,done,oracle cases,repeat the latest '/' or '?' N times
 key,normal,o,change,done,oracle cases,begin a new line below the cursor and
 key,normal,"[""x]p",change,done,oracle cases,put the text [from register x] after the
-key,normal,"q{0-9a-zA-Z""}",,missing,,record typed characters into named register
-key,normal,q,,missing,,(while recording) stops recording
-key,normal,Q,change,missing,,replay last recorded register
+key,normal,"q{0-9a-zA-Z""}",,done,"keys stored as text (special keys as <Name>); status line shows ""recording @x""; oracle cases",record typed characters into named register
+key,normal,q,,done,oracle cases,(while recording) stops recording
+key,normal,Q,change,done,oracle cases,replay last recorded register
 key,normal,q:,,missing,,edit : command-line in command-line window
 key,normal,q/,,missing,,edit / command-line in command-line window
 key,normal,q?,,missing,,edit ? command-line in command-line window
@@ -460,7 +460,7 @@ key,g,gH,,done,"Select line mode (src/vim/select.rs); oracle cases",start Select
 key,g,gI,change,missing,,"like ""I"", but always start in column 1"
 key,g,gJ,change,done,oracle cases,join lines without inserting space
 key,g,gN,,missing,,"1,2  find the previous match with the last used"
-key,g,"[""x]gP",change,missing,,put the text [from register x] before the
+key,g,"[""x]gP",change,done,oracle cases,put the text [from register x] before the
 key,g,gQ,,missing,,"switch to ""Ex"" mode with Vim editing"
 key,g,gR,change,missing,,enter Virtual Replace mode
 key,g,gT,,missing,,go to the previous tabpage
@@ -483,7 +483,7 @@ key,g,gm,motion,missing,,go to character at middle of the screenline
 key,g,gM,motion,missing,,go to character at middle of the text line
 key,g,gn,,missing,,"1,2  find the next match with the last used"
 key,g,go,motion,done,oracle cases,cursor to byte N in the buffer
-key,g,"[""x]gp",change,missing,,put the text [from register x] after the
+key,g,"[""x]gp",change,done,oracle cases,put the text [from register x] after the
 key,g,gq{motion},change,missing,,format Nmove text
 key,g,gr{char},change,missing,,virtual replace N chars with {char}
 key,g,gs,,missing,,go to sleep for N seconds (default 1)
@@ -578,7 +578,7 @@ key,visual,I,change,missing,,"block mode: insert same text in all lines,"
 key,visual,J,change,partial,present; not yet verified against nvim,join the highlighted lines
 key,visual,K,,partial,Fred: Claude explains the selection (Neovim: keywordprg lookup),run 'keywordprg' on the highlighted area
 key,visual,O,,missing,,move horizontally to other corner of area
-key,visual,P,,missing,,replace highlighted area with register
+key,visual,P,,done,keeps the unnamed register; oracle cases,replace highlighted area with register
 key,visual,R,change,missing,,delete the highlighted lines and start
 key,visual,S,change,partial,present; not yet verified against nvim,delete the highlighted lines and start
 key,visual,U,change,done,no count yet; oracle cases,make highlighted area uppercase
@@ -629,7 +629,7 @@ key,visual,iw,,done,extends the selection; oracle cases,"extend highlighted area
 key,visual,i{,,done,extends the selection; oracle cases,same as iB
 key,visual,i},,done,extends the selection; oracle cases,same as iB
 key,visual,o,,partial,present; not yet verified against nvim,move cursor to other corner of area
-key,visual,p,,missing,,replace highlighted area with register
+key,visual,p,,done,replaced text goes to the unnamed register; oracle cases,replace highlighted area with register
 key,visual,r,change,missing,,replace highlighted area with a character
 key,visual,s,change,partial,present; not yet verified against nvim,delete highlighted area and start insert
 key,visual,u,change,done,no count yet; oracle cases,make highlighted area lowercase

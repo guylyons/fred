@@ -352,6 +352,16 @@ pub fn target(ed: &mut Editor, m: Motion, count: Option<usize>) -> Option<Target
             for _ in 0..n_count {
                 p = word_fwd(buf, p, big).0;
             }
+            // At the end of the buffer `w` can't move: it fails (operators
+            // use their own span).
+            let clamped = if p.1 >= buf.line_len(p.0) {
+                (p.0, ed.last_grapheme(p.0))
+            } else {
+                p
+            };
+            if clamped == (l, b) {
+                return None;
+            }
             Target::at(p.0, p.1)
         }
         Motion::WordBack(big) => {

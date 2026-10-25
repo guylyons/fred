@@ -3,6 +3,7 @@
 pub mod insert;
 pub mod motion;
 pub mod ops;
+pub mod register;
 pub(crate) mod select;
 pub(crate) mod textobj;
 
@@ -26,7 +27,7 @@ pub struct State {
     last_change_split: Option<usize>,
     replaying: bool,
     /// Operator waiting for the search line to finish (`d/pat<Enter>`).
-    pub(crate) pending_op: Option<(char, Option<usize>)>,
+    pub(crate) pending_op: Option<(char, Option<usize>, Option<char>)>,
     /// The last Insert-mode key was a typed `j` (a second one leaves Insert).
     pub(crate) after_j: bool,
     /// Where this Insert session began: `CTRL-W` and `CTRL-U` stop there
@@ -42,11 +43,35 @@ pub struct State {
     /// Select mode is replacing or deleting: the unnamed register gets the
     /// text, the system clipboard doesn't (as in other Mac editors).
     pub(crate) keep_clipboard: bool,
+    /// The register `"x` named for the command being run.
+    pub(crate) register: Option<char>,
+    /// The delete goes to `"1` even within a line (motions `% ( ) / ? n N
+    /// { }`).
+    pub(crate) numbered_delete: bool,
+    /// A command failed (Vim's beep): a running macro stops.
+    pub(crate) failed: bool,
+    /// The text typed in the last Insert session (`".`).
+    pub(crate) last_insert: String,
+    /// `Editor::handle_key` calls in progress.
+    pub(crate) key_depth: usize,
 }
 
 impl State {
     /// A change that went through Insert mode is complete.
     pub(crate) fn finish_recording(&mut self, keys: Vec<Key>) {
+        let mut text = String::new();
+        for k in keys.iter().skip(self.recording_split) {
+            match (k.code, k.ctrl) {
+                (KeyCode::Char(c), false) => text.push(c),
+                (KeyCode::Enter, _) => text.push('\n'),
+                (KeyCode::Tab, _) => text.push('\t'),
+                (KeyCode::Backspace, _) => {
+                    text.pop();
+                }
+                _ => {}
+            }
+        }
+        self.last_insert = text;
         self.last_change = keys;
         self.last_change_split = Some(self.recording_split);
     }
@@ -248,13 +273,44 @@ fn parse_op(keys: &[Key]) -> Parse<(char, usize)> {
 }
 
 /// Commands that take one character argument.
-const ARG_CMDS: &[char] = &['r', 'm', 'Z', 'z', ' ', 'g'];
+const ARG_CMDS: &[char] = &['r', 'm', 'Z', 'z', ' ', 'g', 'q', '@'];
 const SIMPLE: &[char] = &[
     'x', 'X', 's', 'S', 'J', 'p', 'P', 'o', 'O', 'i', 'a', 'I', 'A', 'u', 'D', 'C', 'Y', 'V', 'v',
-    '~', ':', '/', '?', '.', 'r', 'm', 'Z', 'z', ' ', 'g',
+    '~', ':', '/', '?', '.', 'r', 'm', 'Z', 'z', ' ', 'g', 'q', '@', 'Q',
 ];
 
-fn parse(keys: &[Key], visual: bool) -> Parse<Cmd> {
+/// A command, with the register `"x` before it named.
+fn parse(keys: &[Key], visual: bool) -> Parse<(Cmd, Option<char>)> {
+    let (c1, i) = count(keys);
+    if keys.get(i) != Some(&Key::ch('"')) {
+        return match parse_cmd(keys, visual) {
+            Parse::Done(c) => Parse::Done((c, None)),
+            Parse::Incomplete => Parse::Incomplete,
+            Parse::Invalid => Parse::Invalid,
+        };
+    }
+    let Some(r) = keys.get(i + 1) else {
+        return Parse::Incomplete;
+    };
+    let Some(reg) = r.char().filter(|&c| register::valid(c)) else {
+        return Parse::Invalid;
+    };
+    // A count on both sides of `"x` multiplies.
+    let rest = &keys[i + 2..];
+    let (c2, j) = count(rest);
+    let mut cmd_keys: Vec<Key> = match mul(c1, c2) {
+        Some(n) => n.to_string().chars().map(Key::ch).collect(),
+        None => vec![],
+    };
+    cmd_keys.extend_from_slice(&rest[j..]);
+    match parse_cmd(&cmd_keys, visual) {
+        Parse::Done(c) => Parse::Done((c, Some(reg))),
+        Parse::Incomplete => Parse::Incomplete,
+        Parse::Invalid => Parse::Invalid,
+    }
+}
+
+fn parse_cmd(keys: &[Key], visual: bool) -> Parse<Cmd> {
     let (c1, mut i) = count(keys);
     let Some(k) = keys.get(i) else {
         return Parse::Incomplete;
@@ -437,9 +493,21 @@ pub fn normal_key(ed: &mut Editor, k: Key) {
     };
     if k.is(KeyCode::Esc) || k == Key::ctrl('c') {
         ed.vim.pending.clear();
+        ed.vim.register = None;
         if ed.visual_lines().is_some() {
             ed.mode = Mode::Normal;
         }
+        return;
+    }
+    // `q` stops recording a macro.
+    if ed.vim.pending.is_empty() && k == Key::ch('q') && ed.regs.rec.is_some() {
+        register::stop_recording(ed);
+        return;
+    }
+    // `"x` before a Visual-mode key names its register.
+    if ed.visual_lines().is_some() && ed.vim.pending == [Key::ch('"')] {
+        ed.vim.pending.clear();
+        ed.vim.register = k.char().filter(|&c| register::valid(c));
         return;
     }
     // `g~`, `gu`, `gU`, `g?` and `gJ` on the selection.
@@ -449,6 +517,15 @@ pub fn normal_key(ed: &mut Editor, k: Key) {
     {
         ed.vim.pending.clear();
         visual_op(ed, if c == 'J' { 'j' } else { c });
+        ed.vim.register = None;
+        return;
+    }
+    if ed.visual_lines().is_some()
+        && ed.vim.pending.is_empty()
+        && let Some(c @ ('p' | 'P')) = k.char()
+    {
+        visual_put(ed, c == 'P');
+        ed.vim.register = None;
         return;
     }
     if ed.visual_lines().is_some()
@@ -456,6 +533,7 @@ pub fn normal_key(ed: &mut Editor, k: Key) {
         && let Some(c @ ('~' | 'u' | 'U' | '<' | '>')) = k.char()
     {
         visual_op(ed, c);
+        ed.vim.register = None;
         return;
     }
     if let Mode::Visual { anchor } = ed.mode
@@ -464,6 +542,7 @@ pub fn normal_key(ed: &mut Editor, k: Key) {
         && VISUAL.contains(&c)
     {
         visual_chars(ed, anchor, c);
+        ed.vim.register = None;
         return;
     }
     if let Mode::VisualLine { anchor } = ed.mode
@@ -472,14 +551,16 @@ pub fn normal_key(ed: &mut Editor, k: Key) {
         && VISUAL.contains(&c)
     {
         visual(ed, anchor, c);
+        ed.vim.register = None;
         return;
     }
     ed.vim.pending.push(k);
     match parse(&ed.vim.pending, ed.visual_lines().is_some()) {
         Parse::Incomplete => {}
         Parse::Invalid => ed.vim.pending.clear(),
-        Parse::Done(cmd) => {
+        Parse::Done((cmd, reg)) => {
             let keys = std::mem::take(&mut ed.vim.pending);
+            ed.vim.register = reg;
             if ed.visual_lines().is_some() {
                 let allowed = match &cmd {
                     Cmd::Move { .. } => true,
@@ -493,9 +574,11 @@ pub fn normal_key(ed: &mut Editor, k: Key) {
                 if allowed {
                     execute(ed, cmd);
                 }
+                ed.vim.register = None;
                 return;
             }
             run_change(ed, cmd, keys);
+            ed.vim.register = None;
         }
     }
 }
@@ -538,6 +621,75 @@ fn visual_op(ed: &mut Editor, op: char) {
             ops::apply_op(ed, op, span);
         }
     }
+    ed.undo.end(ed.cur.pos());
+}
+
+/// `p` and `P` in Visual mode: replace the selection with a register.
+/// With `p` the replaced text goes to the unnamed register.
+fn visual_put(ed: &mut Editor, keep: bool) {
+    let mode = ed.mode.clone();
+    let Some(span) = selection(ed, &mode) else {
+        return;
+    };
+    ed.mode = Mode::Normal;
+    if ed.generated() {
+        ed.set_err("generated Git buffer is read-only");
+        return;
+    }
+    let reg = match ed.vim.register.filter(|&c| c != '"') {
+        Some(c) => register::get(ed, c),
+        None => Some(ed.reg.clone()),
+    };
+    let Some(reg) = reg.filter(|r| r.linewise || !r.text.is_empty()) else {
+        ed.set_err("E353: Nothing in register");
+        return;
+    };
+    ed.undo.begin(ed.cur.pos());
+    let name = ed.vim.register.take();
+    let lines_left = match span {
+        ops::Span::Lines(lo, hi) => hi - lo + 1 < ed.line_count(),
+        _ => true,
+    };
+    if keep {
+        ops::delete_black_hole(ed, span);
+    } else {
+        ops::apply_op(ed, 'd', span);
+    }
+    let saved = std::mem::replace(&mut ed.reg, reg.clone());
+    let saved_clip = std::mem::replace(&mut ed.vim.keep_clipboard, true);
+    match span {
+        ops::Span::Lines(lo, _) => {
+            let lines: Vec<String> = reg.text.split('\n').map(String::from).collect();
+            if !lines_left {
+                // The whole buffer was replaced: its one empty line goes.
+                ops::splice_lines(ed, 0, 1, &lines);
+                ed.set_cursor(0, ed.first_nonblank(0));
+            } else {
+                let at = lo.min(ed.line_count());
+                ops::splice_lines(ed, at, 0, &lines);
+                ed.set_cursor(at, ed.first_nonblank(at));
+            }
+        }
+        ops::Span::Chars(from, _) => {
+            if reg.linewise {
+                // The lines go between the two halves of the line.
+                ed.set_cursor(from.0, from.1);
+                ed.cur.byte = from.1;
+                ops::insert_text(ed, &format!("\n{}\n", reg.text));
+                let at = from.0 + 1;
+                ed.set_cursor(at, ed.first_nonblank(at));
+            } else {
+                let len = ed.buf.line_len(from.0);
+                let after = from.1 >= len && len > 0;
+                ed.set_cursor(from.0, if after { len } else { from.1 });
+                ops::put_with(ed, 1, after, false);
+            }
+        }
+    }
+    ed.vim.keep_clipboard = saved_clip;
+    // The unnamed register: what `p` replaced, or as it was for `P`.
+    ed.reg = saved;
+    ed.vim.register = name;
     ed.undo.end(ed.cur.pos());
 }
 
@@ -656,7 +808,8 @@ fn visual(ed: &mut Editor, anchor: usize, c: char) {
 
 /// Commands that change text (and so are repeated by `.`).
 fn is_change(cmd: &Cmd) -> bool {
-    let g = matches!(cmd, Cmd::Simple { key, arg: Some('J'), .. } if *key == Key::ch('g'));
+    let g =
+        matches!(cmd, Cmd::Simple { key, arg: Some('J' | 'p' | 'P'), .. } if *key == Key::ch('g'));
     g || match cmd {
         Cmd::Op { op, .. } => *op != 'y',
         // Applied when the search line finishes; not repeatable with `.`.
@@ -720,6 +873,14 @@ fn repeat(ed: &mut Editor, count: Option<usize>) {
     if ed.vim.last_change.is_empty() || ed.vim.replaying {
         return;
     }
+    // After `"1p`, `.` puts from `"2` (and so on).
+    let (_, used) = self::count(&ed.vim.last_change);
+    if let [q, d, ..] = ed.vim.last_change[used..]
+        && q == Key::ch('"')
+        && let Some(n @ '1'..='8') = d.char()
+    {
+        ed.vim.last_change[used + 1] = Key::ch(char::from(n as u8 + 1));
+    }
     let mut keys = ed.vim.last_change.clone();
     let mut split = ed.vim.last_change_split;
     if let Some(n) = count {
@@ -770,13 +931,14 @@ pub(crate) fn execute(ed: &mut Editor, cmd: Cmd) {
             count,
             motion: Motion::Object { include, kind },
         } => visual_object(ed, count, include, kind),
-        Cmd::Move { count, motion } => {
-            if let Some(t) = motion::target(ed, motion, count) {
-                move_to(ed, t);
-            }
-        }
+        Cmd::Move { count, motion } => match motion::target(ed, motion, count) {
+            Some(t) => move_to(ed, t),
+            None => ed.vim.failed = true,
+        },
         Cmd::Op { op, count, motion } => {
-            if let Some(sp) = ops::span(ed, op, count, motion) {
+            let sp = ops::span(ed, op, count, motion);
+            ed.vim.failed |= sp.is_none();
+            if let Some(sp) = sp {
                 // `gUU` and `g~~` leave the cursor where the operated text
                 // starts: at the first non-blank of the last line if that
                 // comes first.
@@ -791,7 +953,7 @@ pub(crate) fn execute(ed: &mut Editor, cmd: Cmd) {
         }
         Cmd::Simple { count, key, arg } => simple(ed, count, key, arg),
         Cmd::OpSearch { op, count, kind } => {
-            ed.vim.pending_op = Some((op, count));
+            ed.vim.pending_op = Some((op, count, ed.vim.register));
             ed.open_cmdline(kind, "");
         }
     }
@@ -830,14 +992,22 @@ fn visual_object(ed: &mut Editor, count: Option<usize>, include: bool, kind: cha
 }
 
 /// Finish `d/pat<Enter>`: apply the pending operator up to the match.
-pub(crate) fn finish_op_search(ed: &mut Editor, op: char, count: Option<usize>) {
+pub(crate) fn finish_op_search(ed: &mut Editor, op: char, count: Option<usize>, reg: Option<char>) {
+    ed.vim.register = reg;
+    finish_op_search_with(ed, op, count);
+    ed.vim.register = None;
+}
+
+fn finish_op_search_with(ed: &mut Editor, op: char, count: Option<usize>) {
     let start = ed.cur.pos();
     let Some(t) = ed.search_target_n(false, count.unwrap_or(1)) else {
         return;
     };
     let (from, to) = if t < start { (t, start) } else { (start, t) };
     ed.undo.begin(start);
+    ed.vim.numbered_delete = true;
     ops::apply_op(ed, op, ops::Span::Chars(from, to));
+    ed.vim.numbered_delete = false;
     if ed.mode != Mode::Insert {
         ed.undo.end(ed.cur.pos());
     }
@@ -899,7 +1069,8 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
         (KeyCode::Char('X'), false) => op(ed, 'd', count, Some(Motion::Left)),
         (KeyCode::Char('D'), false) => op(ed, 'd', count, Some(Motion::LineEnd)),
         (KeyCode::Char('C'), false) => op(ed, 'c', count, Some(Motion::LineEnd)),
-        (KeyCode::Char('Y'), false) => op(ed, 'y', count, None),
+        // Neovim's default mapping: `Y` is `y$`.
+        (KeyCode::Char('Y'), false) => op(ed, 'y', count, Some(Motion::LineEnd)),
         (KeyCode::Char('S'), false) => op(ed, 'c', count, None),
         (KeyCode::Char('s'), false) => {
             if ed.buf.line_len(ed.cur.line) == 0 {
@@ -1030,6 +1201,24 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
         (KeyCode::Char(c @ ('/' | '?')), false) => ed.open_cmdline(c, ""),
         // `gd`, as in vim (`gg` is a motion).
         (KeyCode::Char('g'), false) if arg == Some('d') => crate::pick::definition(ed),
+        (KeyCode::Char('q'), false) => {
+            if let Some(c) = arg {
+                register::start_recording(ed, c);
+            }
+        }
+        (KeyCode::Char('@'), false) => {
+            if let Some(c) = arg {
+                register::execute(ed, c, n);
+            }
+        }
+        // `Q`: run the last recorded macro.
+        (KeyCode::Char('Q'), false) => match ed.regs.last_rec {
+            Some(c) => register::execute(ed, c, n),
+            None => ed.set_err("E748: No previously used register"),
+        },
+        (KeyCode::Char('g'), false) if matches!(arg, Some('p' | 'P')) => {
+            ops::put_with(ed, n, arg == Some('p'), true)
+        }
         // `gJ`: join without inserting or removing spaces.
         (KeyCode::Char('g'), false) if arg == Some('J') => {
             ops::join_with(ed, ed.cur.line, n, false);

@@ -1427,6 +1427,14 @@ fn mode_color(m: &Mode) -> Color {
 
 /// The mode label the status line shows.
 pub(crate) fn status_label(ed: &Editor) -> String {
+    let label = mode_label(ed);
+    match &ed.regs.rec {
+        Some((c, _)) => format!("{label} recording @{c}"),
+        None => label,
+    }
+}
+
+fn mode_label(ed: &Editor) -> String {
     match (&ed.mode, &ed.dired) {
         _ if ed.zap.is_some() => "ZAP".to_string(),
         _ if ed.magit.is_some() => "MAGIT".to_string(),

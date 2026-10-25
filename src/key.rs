@@ -94,6 +94,39 @@ pub fn parse_keys(s: &str) -> Vec<Key> {
     out
 }
 
+/// A key in the notation `parse_keys` reads: `<C-M-Up>`, `<Esc>`, `a`.
+pub fn notation(k: &Key) -> String {
+    let name = match k.code {
+        KeyCode::Char('<') => "lt".to_string(),
+        KeyCode::Char(c) => c.to_string(),
+        KeyCode::Esc => "Esc".into(),
+        KeyCode::Enter => "CR".into(),
+        KeyCode::Backspace => "BS".into(),
+        KeyCode::Tab => "Tab".into(),
+        KeyCode::BackTab => "S-Tab".into(),
+        KeyCode::Up => "Up".into(),
+        KeyCode::Down => "Down".into(),
+        KeyCode::Left => "Left".into(),
+        KeyCode::Right => "Right".into(),
+        KeyCode::Home => "Home".into(),
+        KeyCode::End => "End".into(),
+        KeyCode::PageUp => "PageUp".into(),
+        KeyCode::PageDown => "PageDown".into(),
+        KeyCode::Delete => "Del".into(),
+    };
+    let mods = format!(
+        "{}{}{}",
+        if k.ctrl { "C-" } else { "" },
+        if k.alt { "M-" } else { "" },
+        if k.shift { "S-" } else { "" }
+    );
+    if mods.is_empty() && matches!(k.code, KeyCode::Char(c) if c != '<') {
+        name
+    } else {
+        format!("<{mods}{name}>")
+    }
+}
+
 fn named(name: &str) -> Option<Key> {
     // Modifier prefixes C- M- S- in any order, then a key name or character.
     let (mut ctrl, mut alt, mut shift, mut rest) = (false, false, false, name);

@@ -108,6 +108,8 @@ pub struct Editor {
     pub cur: Cursor,
     pub mode: Mode,
     pub reg: Register,
+    /// The other registers and the macro recorder.
+    pub regs: vim::register::Registers,
     pub marks: HashMap<char, usize>,
     pub last_pat: Option<String>,
     pub last_search_fwd: bool,
@@ -225,6 +227,7 @@ impl Editor {
             cur: Cursor::default(),
             mode: Mode::Normal,
             reg: Register::default(),
+            regs: Default::default(),
             marks: HashMap::new(),
             last_pat: None,
             last_search_fwd: true,
@@ -324,6 +327,7 @@ impl Editor {
     /// file: the register, last search, histories and project.
     pub fn inherit(&mut self, old: &mut Editor) {
         self.reg = std::mem::take(&mut old.reg);
+        self.regs = std::mem::take(&mut old.regs);
         self.revision_stack = std::mem::take(&mut old.revision_stack);
         self.last_pat = old.last_pat.take();
         self.last_search_fwd = old.last_search_fwd;
@@ -335,6 +339,16 @@ impl Editor {
     }
 
     pub fn handle_key(&mut self, k: Key) {
+        // Keys typed (not run by a macro, nor sent again below) are recorded.
+        if self.vim.key_depth == 0 {
+            vim::register::record(self, k);
+        }
+        self.vim.key_depth += 1;
+        self.dispatch_key(k);
+        self.vim.key_depth -= 1;
+    }
+
+    fn dispatch_key(&mut self, k: Key) {
         self.magit_input_generation = self.magit_input_generation.wrapping_add(1);
         // The open right-click menu has the keys first.
         if self.menu.is_some() && crate::menu::key(self, k) {
@@ -623,7 +637,13 @@ impl Editor {
         self.msg = Some((m.into(), false));
     }
 
+    /// The last command line run (`":`).
+    pub fn last_cmd(&self) -> Option<String> {
+        self.cmd_history.last().cloned()
+    }
+
     pub fn set_err(&mut self, m: impl Into<String>) {
+        self.vim.failed = true;
         self.msg = Some((format!("? {}", m.into()), true));
     }
 
@@ -847,7 +867,7 @@ impl Editor {
                 }
                 self.last_search_fwd = kind == '/';
                 match self.vim.pending_op.take() {
-                    Some((op, count)) => vim::finish_op_search(self, op, count),
+                    Some((op, count, reg)) => vim::finish_op_search(self, op, count, reg),
                     None => self.search_next(false),
                 }
             }
