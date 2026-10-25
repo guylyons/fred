@@ -528,3 +528,25 @@ fn select_mode_label() {
     let e = ed("a\nb", "gH");
     assert_eq!(crate::ui::render::status_label(&e), "SELECT LINE");
 }
+
+#[test]
+fn source_runs_a_file_of_ex_commands() {
+    let dir = tempfile::tempdir().unwrap();
+    let f = dir.path().join("init.vim");
+    std::fs::write(
+        &f,
+        "\" mappings\nnnoremap Q dd\n\n:set sw=2\nnmap R\n  \\ x\n",
+    )
+    .unwrap();
+    // Q deletes the line, R (continued onto the next line) a character.
+    let e = ed("a\nb\nc", &format!(":source {}<CR>QR", f.display()));
+    assert_eq!(e.buf.text(), "\nc");
+    assert_eq!(e.opts.num(crate::options::Opt::Shiftwidth), 2);
+    // An error says which line.
+    std::fs::write(&f, "set nosuch\n").unwrap();
+    let e = ed("a", &format!(":so {}<CR>", f.display()));
+    assert!(e.msg.unwrap().0.contains("line 1"));
+    // `!`: the file is keys.
+    std::fs::write(&f, "dd").unwrap();
+    assert_eq!(txt("a\nb", &format!(":so! {}<CR>", f.display())), "b");
+}

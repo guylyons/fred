@@ -651,6 +651,10 @@ pub const COMMANDS: &[Command] = &[
     cmd("cmapclear", 5, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
         .about("remove all mappings on the command line")
         .takes("[<buffer>]"),
+    needs("source", 2, BANG | FILE | EDITOR, "{file}", |_, a| {
+        on_editor("source", a)
+    })
+    .about("run the ex commands in a file (! its Normal-mode keys)"),
     cmd("yank", 1, RANGE | EXTRA | EDITOR, |_, a| {
         on_editor("yank", a)
     })

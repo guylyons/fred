@@ -144,6 +144,7 @@ pub fn run(ed: &mut Editor, c: Call) {
         }
         "print" | "number" | "#" | "list" => print(ed, &c),
         n if n.contains("map") => super::mappings::command(ed, n, c.force, &c.arg),
+        "source" => source(ed, &c.arg, c.force),
         "update" => {
             if ed.buf.modified {
                 ed.pending_effect = Some(crate::ex::ExEffect::Write {
@@ -585,4 +586,52 @@ fn print(ed: &mut Editor, c: &Call) -> Result<(), String> {
     ed.set_cursor(l, ed.first_nonblank(l));
     ed.set_msg(text);
     Ok(())
+}
+
+/// `:so[urce][!] {file}`: each line an ex command (`"` comments, `\`
+/// continuing the line before), or with `!` Normal-mode keys.
+fn source(ed: &mut Editor, file: &str, keys: bool) -> Result<(), String> {
+    let path = match file.strip_prefix("~/") {
+        Some(rest) => {
+            std::path::PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(rest)
+        }
+        None => std::path::PathBuf::from(file),
+    };
+    let text =
+        std::fs::read_to_string(&path).map_err(|e| format!("E484: Can't open file {file}: {e}"))?;
+    if keys {
+        for k in register::text_to_keys(&text) {
+            ed.handle_key(k);
+        }
+        return Ok(());
+    }
+    let mut lines: Vec<(usize, String)> = vec![];
+    for (i, raw) in text.lines().enumerate() {
+        let t = raw.trim_start();
+        if let Some(cont) = t.strip_prefix('\\')
+            && let Some(last) = lines.last_mut()
+        {
+            last.1.push_str(cont);
+            continue;
+        }
+        lines.push((i + 1, t.to_string()));
+    }
+    let mut first_err = None;
+    for (n, line) in lines {
+        let cmd = line.trim_start_matches([':', ' ', '\t']);
+        if cmd.is_empty() || cmd.starts_with('"') {
+            continue;
+        }
+        ed.msg = None;
+        ed.run_ex(cmd);
+        if let Some((m, true)) = &ed.msg
+            && first_err.is_none()
+        {
+            first_err = Some(format!("{file} line {n}: {}", m.trim_start_matches("? ")));
+        }
+    }
+    match first_err {
+        Some(e) => Err(e),
+        None => Ok(()),
+    }
 }
