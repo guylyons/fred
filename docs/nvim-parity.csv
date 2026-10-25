@@ -87,11 +87,11 @@ key,insert,CTRL-X CTRL-Z,,missing,,"stop completion, text is unchanged"
 key,insert,CTRL-X CTRL-],,missing,,complete tags
 key,insert,CTRL-X s,,missing,,spelling suggestions
 key,normal,CTRL-A,change,done,"port of do_addsub(): decimal, hex, bin, 'nrformats'; oracle cases",add N to number at/after cursor
-key,normal,CTRL-B,motion,partial,present; not yet verified against nvim,scroll N screens Backwards
+key,normal,CTRL-B,motion,done,as Neovim's pagescroll()/scroll_redraw() for lines that don't wrap; oracle cases,scroll N screens Backwards
 key,normal,CTRL-C,,missing,,interrupt current (search) command
-key,normal,CTRL-D,,partial,present; not yet verified against nvim,scroll Down N lines (default: half a screen)
-key,normal,CTRL-E,,missing,,scroll N lines upwards (N lines Extra)
-key,normal,CTRL-F,motion,partial,present; not yet verified against nvim,scroll N screens Forward
+key,normal,CTRL-D,,done,as Neovim's pagescroll()/scroll_redraw() for lines that don't wrap; oracle cases,scroll Down N lines (default: half a screen)
+key,normal,CTRL-E,,done,as Neovim's pagescroll()/scroll_redraw() for lines that don't wrap; oracle cases,scroll N lines upwards (N lines Extra)
+key,normal,CTRL-F,motion,done,as Neovim's pagescroll()/scroll_redraw() for lines that don't wrap; oracle cases,scroll N screens Forward
 key,normal,CTRL-G,,missing,,display current file name and position
 key,normal,<BS>,motion,partial,present; not yet verified against nvim,"same as ""h"""
 key,normal,CTRL-H,motion,done,oracle cases,"same as ""h"""
@@ -109,11 +109,11 @@ key,normal,CTRL-O,motion,done,oracle cases,go to N older entry in jump list
 key,normal,CTRL-P,motion,partial,present; not yet verified against nvim,"same as ""k"""
 key,normal,CTRL-R,change,done,oracle cases,redo changes which were undone with 'u'
 key,normal,CTRL-T,,missing,,jump to N older Tag in tag list
-key,normal,CTRL-U,,partial,present; not yet verified against nvim,scroll N lines Upwards (default: half a
+key,normal,CTRL-U,,done,as Neovim's pagescroll()/scroll_redraw() for lines that don't wrap; oracle cases,scroll N lines Upwards (default: half a
 key,normal,CTRL-V,,missing,,start blockwise Visual mode
 key,normal,CTRL-W {char},,missing,,"window commands, see |CTRL-W|"
 key,normal,CTRL-X,change,done,port of do_addsub(); oracle cases,subtract N from number at/after cursor
-key,normal,CTRL-Y,,missing,,scroll N lines downwards
+key,normal,CTRL-Y,,done,as Neovim's pagescroll()/scroll_redraw() for lines that don't wrap; oracle cases,scroll N lines downwards
 key,normal,CTRL-Z,,missing,,suspend program (or start new shell)
 key,normal,CTRL-\ CTRL-N,,missing,,go to Normal mode (no-op)
 key,normal,CTRL-\ CTRL-G,,missing,,go to Normal mode (no-op)
@@ -271,8 +271,8 @@ key,normal,<Insert>,change,missing,,"same as ""i"""
 key,normal,<Left>,motion,partial,present; not yet verified against nvim,"same as ""h"""
 key,normal,<LeftMouse>,motion,partial,present; not yet verified against nvim,move cursor to the mouse click position
 key,normal,<MiddleMouse>,change,missing,,"same as ""gP"" at the mouse click position"
-key,normal,<PageDown>,,partial,present; not yet verified against nvim,same as CTRL-F
-key,normal,<PageUp>,,partial,present; not yet verified against nvim,same as CTRL-B
+key,normal,<PageDown>,,done,as CTRL-F; oracle cases,same as CTRL-F
+key,normal,<PageUp>,,done,as CTRL-B; oracle cases,same as CTRL-B
 key,normal,<Right>,motion,partial,present; not yet verified against nvim,"same as ""l"""
 key,normal,<RightMouse>,,partial,"popup_setpos: the PopUp menu (src/menu.rs); no Inspect, diagnostics or help items","start Visual mode, move cursor to the mouse"
 key,normal,<S-Down>,motion,missing,,same as CTRL-F
@@ -501,11 +501,11 @@ key,g,g<LeftMouse>,,missing,,same as <C-LeftMouse>
 key,g,g<RightMouse>,,missing,,same as <C-RightMouse>
 key,g,g<Tab>,,missing,,go to last accessed tabpage
 key,g,g<Up>,motion,missing,,"same as ""gk"""
-key,z,z<CR>,,missing,,"redraw, cursor line to top of window,"
+key,z,z<CR>,,done,lines that don't wrap or fold; oracle cases,"redraw, cursor line to top of window,"
 key,z,z{height}<CR>,,missing,,"redraw, make window {height} lines high"
-key,z,z+,,missing,,cursor on line N (default line below
-key,z,z-,,missing,,"redraw, cursor line at bottom of window,"
-key,z,z.,,missing,,"redraw, cursor line to center of window,"
+key,z,z+,,done,lines that don't wrap or fold; oracle cases,cursor on line N (default line below
+key,z,z-,,done,lines that don't wrap or fold; oracle cases,"redraw, cursor line at bottom of window,"
+key,z,z.,,done,lines that don't wrap or fold; oracle cases,"redraw, cursor line to center of window,"
 key,z,z=,,missing,,give spelling suggestions
 key,z,zA,,missing,,open a closed fold or close an open fold
 key,z,zC,,missing,,close folds recursively
@@ -521,9 +521,9 @@ key,z,zO,,missing,,open folds recursively
 key,z,zR,,missing,,set 'foldlevel' to the deepest fold
 key,z,zW,,missing,,temporarily mark word as incorrectly spelled
 key,z,zX,,missing,,re-apply 'foldlevel'
-key,z,z^,,missing,,cursor on line N (default line above
+key,z,z^,,done,lines that don't wrap or fold; oracle cases,cursor on line N (default line above
 key,z,za,,missing,,"open a closed fold, close an open fold"
-key,z,zb,,missing,,"redraw, cursor line at bottom of window"
+key,z,zb,,done,lines that don't wrap or fold; oracle cases,"redraw, cursor line at bottom of window"
 key,z,zc,,missing,,close a fold
 key,z,zd,,missing,,delete a fold
 key,z,ze,,missing,,when 'wrap' off scroll horizontally to
@@ -541,7 +541,7 @@ key,z,zp,,missing,,paste in block-mode without trailing spaces
 key,z,zP,,missing,,paste in block-mode without trailing spaces
 key,z,zr,,missing,,add one to 'foldlevel'
 key,z,zs,,missing,,when 'wrap' off scroll horizontally to
-key,z,zt,,missing,,"redraw, cursor line at top of window"
+key,z,zt,,done,lines that don't wrap or fold; oracle cases,"redraw, cursor line at top of window"
 key,z,zuw,,missing,,undo |zw|
 key,z,zug,,missing,,undo |zg|
 key,z,zuW,,missing,,undo |zW|
@@ -550,7 +550,7 @@ key,z,zv,,missing,,open enough folds to view the cursor line
 key,z,zw,,missing,,permanently mark word as incorrectly spelled
 key,z,zx,,missing,,"re-apply 'foldlevel' and do ""zv"""
 key,z,zy,,missing,,yank without trailing spaces
-key,z,zz,,partial,present; not yet verified against nvim,"redraw, cursor line at center of window"
+key,z,zz,,done,lines that don't wrap or fold; oracle cases,"redraw, cursor line at center of window"
 key,z,z<Left>,,missing,,"same as ""zh"""
 key,z,z<Right>,,missing,,"same as ""zl"""
 key,operator-pending,v,,missing,,force operator to work charwise
@@ -1490,7 +1490,7 @@ option,,scroll,scr win number,missing,,lines to scroll with CTRL-U and CTRL-D
 option,,scrollback,scbk buf number,deferred,terminal,lines to scroll with CTRL-U and CTRL-D
 option,,scrollbind,scb win boolean,missing,,scroll in window as other windows scroll
 option,,scrolljump,sj global number,missing,,minimum number of lines to scroll
-option,,scrolloff,so global+win number,missing,,minimum nr. of lines above and below cursor
+option,,scrolloff,so global+win number,done,Fred's default is 2 (Neovim: 0); oracle cases,minimum nr. of lines above and below cursor
 option,,scrollopt,sbo global string,missing,,how 'scrollbind' should behave
 option,,sections,sect global string,missing,,nroff macros that separate sections
 option,,secure, global boolean,excluded,"Vimscript, plugins and other languages",Deprecated

@@ -308,6 +308,12 @@ fn zz_centers_the_cursor_line() {
         s.view.top, 2,
         "scrolloff alone leaves line 10 near the bottom"
     );
+    e.viewport = Some(crate::zap::Viewport {
+        view: s.view,
+        rows: 10,
+        cols: 20,
+        wrap: false,
+    });
     for k in crate::key::parse_keys("zz") {
         e.handle_key(k);
     }

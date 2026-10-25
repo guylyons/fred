@@ -6,6 +6,7 @@ pub mod marks;
 pub mod motion;
 pub mod ops;
 pub mod register;
+pub mod scroll;
 pub(crate) mod select;
 pub(crate) mod textobj;
 
@@ -72,6 +73,8 @@ pub struct State {
     pub(crate) ins_pending: Option<insert::Pending>,
     /// The previous context mark, jumplist and changelist.
     pub(crate) lists: marks::Lists,
+    /// 'scroll': lines CTRL-D and CTRL-U move (half the window if None).
+    pub(crate) scroll: Option<usize>,
     /// CTRL-O: one Normal-mode command, then back to Insert mode (at the
     /// line's end if it was there).
     pub(crate) insert_once: Option<(bool, usize)>,
@@ -417,7 +420,9 @@ fn parse_cmd(keys: &[Key], visual: bool) -> Parse<Cmd> {
     let simple_ctrl = k.ctrl
         && matches!(
             k.code,
-            KeyCode::Char('r' | 'd' | 'u' | 'f' | 'b' | '^' | '6' | 'a' | 'x' | 'o' | 'i')
+            KeyCode::Char(
+                'r' | 'd' | 'u' | 'f' | 'b' | '^' | '6' | 'a' | 'x' | 'o' | 'i' | 'e' | 'y'
+            )
         );
     let simple_key = matches!(
         k.code,
@@ -431,7 +436,7 @@ fn parse_cmd(keys: &[Key], visual: bool) -> Parse<Cmd> {
                     // `Space Enter` saves: Enter is the leader's one non-char key.
                     Some(a) => match a
                         .char()
-                        .or((c == ' ' && a.is(KeyCode::Enter)).then_some('\n'))
+                        .or((matches!(c, ' ' | 'z') && a.is(KeyCode::Enter)).then_some('\n'))
                     {
                         Some(ch) => Parse::Done(Cmd::Simple {
                             count: c1,
@@ -1124,7 +1129,6 @@ fn op(ed: &mut Editor, op: char, count: Option<usize>, motion: Option<Motion>) {
 }
 
 fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
-    let half = (ed.win_height / 2).max(1);
     let n = count.unwrap_or(1).max(1);
     match (key.code, key.ctrl) {
         // Undo/redo would corrupt the history while a change is open.
@@ -1234,22 +1238,12 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
             let select = ed.opts.has(crate::options::Opt::Selectmode, "cmd");
             select::start(ed, ed.cur.pos(), c == 'V', select);
         }
-        (KeyCode::Char('d'), true) | (KeyCode::PageDown, _) | (KeyCode::Char('f'), true) => {
-            let n = count.unwrap_or(if matches!(key.code, KeyCode::Char('d')) {
-                half
-            } else {
-                ed.win_height.max(1)
-            });
-            ed.set_line_keep_col(ed.cur.line.saturating_add(n));
-        }
-        (KeyCode::Char('u'), true) | (KeyCode::PageUp, _) | (KeyCode::Char('b'), true) => {
-            let n = count.unwrap_or(if matches!(key.code, KeyCode::Char('u')) {
-                half
-            } else {
-                ed.win_height.max(1)
-            });
-            ed.set_line_keep_col(ed.cur.line.saturating_sub(n));
-        }
+        (KeyCode::Char('d'), true) => scroll::page(ed, true, count, true),
+        (KeyCode::Char('u'), true) => scroll::page(ed, false, count, true),
+        (KeyCode::Char('f'), true) | (KeyCode::PageDown, _) => scroll::page(ed, true, count, false),
+        (KeyCode::Char('b'), true) | (KeyCode::PageUp, _) => scroll::page(ed, false, count, false),
+        (KeyCode::Char('e'), true) => scroll::lines(ed, true, n),
+        (KeyCode::Char('y'), true) => scroll::lines(ed, false, n),
         (KeyCode::Char(':'), false) => ed.open_cmdline(':', ""),
         // Space is the leader: `Space s` zaps to words, `Space p` finds files, `Space g` greps,
         // `Space k` searches this file's lines, `Space j` browses files,
@@ -1399,7 +1393,11 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
             _ => {}
         },
         // zz centres the cursor line in the window.
-        (KeyCode::Char('z'), false) if arg == Some('z') => ed.recenter.set(true),
+        (KeyCode::Char('z'), false)
+            if matches!(arg, Some('t' | 'b' | 'z' | '.' | '-' | '\n' | '+' | '^')) =>
+        {
+            scroll::z(ed, arg.unwrap_or('z'), count)
+        }
         (KeyCode::Char('m'), false) => {
             if let Some(c) = arg.filter(|c| c.is_ascii_alphabetic() || "'`[]<>".contains(*c)) {
                 marks::set(ed, c, ed.cur.pos());

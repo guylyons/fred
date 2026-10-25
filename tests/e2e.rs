@@ -674,12 +674,14 @@ fn paging_with_height_max_moves_one_screen() {
     p.wait_text("NORMAL");
     // The window is ROWS - 2 tall: ROWS - 4 text rows plus status and command.
     let page = ROWS as usize - 4;
+    // As Vim: a page less two lines of overlap, the cursor at the new top
+    // (then 'scrolloff', 2, below it); CTRL-B puts it at the bottom.
     p.keys(&["\x06"]);
     p.wait_text(&format!("{}:1", 1 + page));
     p.keys(&["\x06"]);
-    p.wait_text(&format!("{}:1", 1 + 2 * page));
+    p.wait_text(&format!("{}:1", 2 * page - 1));
     p.keys(&["\x02"]);
-    p.wait_text(&format!("{}:1", 1 + page));
+    p.wait_text(&format!("{}:1", 2 * page - 4));
     p.keys(&[":q\r"]);
     assert_eq!(p.wait_exit(), 0);
 }

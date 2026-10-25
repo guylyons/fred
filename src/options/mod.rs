@@ -125,6 +125,8 @@ options! {
     Number => opt("number", "nu", Window, Bool(true)),
     /// Line numbers relative to the cursor's.
     Relativenumber => opt("relativenumber", "rnu", Window, Bool(false)),
+    /// Lines kept above and below the cursor (Neovim: 0).
+    Scrolloff => opt("scrolloff", "so", Global, Num(2)).check(nonneg),
     /// Ways of selecting that start Select mode instead of Visual mode.
     /// `fred --gui` sets `mouse,key`.
     Selectmode => opt("selectmode", "slm", Global, Str(""))

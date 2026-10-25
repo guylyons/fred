@@ -431,8 +431,8 @@ pub fn target(ed: &mut Editor, m: Motion, count: Option<usize>) -> Option<Target
             let rows = rows.max(1);
             let top = top.min(n - 1);
             let bottom = (top + rows).min(n) - 1;
-            // Fred's view keeps 2 lines of context ('scrolloff').
-            let so = 2.min((rows - 1) / 2);
+            let so =
+                (ed.opts.num(crate::options::Opt::Scrolloff).max(0) as usize).min((rows - 1) / 2);
             let t = match m {
                 Motion::ScreenTop => {
                     let so = if top > 0 { so } else { 0 };

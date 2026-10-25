@@ -119,8 +119,8 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
 3. Registers (track 5), then key tables (track 4).
 4. Tracks 6–13 (the editing grammar), each with oracle cases. Done so
    far: the motions, text objects and operators in the table above. Next:
-   `=`, `zf`, scrolling (CTRL-E/CTRL-Y, `zt` `zb` `z.`: needs the view
-   in the editor and 'scrolloff'), `:earlier`/`:later` (undo tree).
+   `=`, `zf`, `zh`/`zl`/`zs`/`ze`, scrolling with wrapped lines and
+   folds, `:earlier`/`:later` (undo tree).
 5. Track 9 continued: Select block mode (`g CTRL-H`, needs Visual-block),
    Select CTRL-O and CTRL-R, `.` repeating a Select-mode replacement,
    'selection' (exclusive), `<S-Right>`/`<S-Left>` as word motions when
@@ -254,3 +254,11 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
   `!` filter operator (`!{motion}`, `!!`, Visual `!`) opening `:.,.+N!`,
   and `:sort` with `! b f i n o r u x /pat/`. Filters leave the cursor on
   the first line. Oracle: 765 cases.
+- 2026-10-25: scrolling (`src/vim/scroll.rs`, after Neovim's
+  `pagescroll()`, `scroll_redraw()`, `scroll_cursor_top/bot/halfway()`):
+  CTRL-E, CTRL-Y, CTRL-D/CTRL-U (a count sets 'scroll'), CTRL-F/CTRL-B
+  and the page keys, `zt zb zz z<CR> z. z- z+ z^`. The editor asks the
+  window for a top line (`Editor::view_req`); after a scroll command the
+  view may show past the end, as Vim's. 'scrolloff' is an option (Fred's
+  default 2; Neovim's 0) and `H`/`L` use it. The oracle now emulates a
+  22-row window (`Editor::follow_view`). Oracle: 838 cases.

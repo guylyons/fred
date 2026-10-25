@@ -151,6 +151,8 @@ pub struct Editor {
     pub org_keys: Vec<Key>,
     /// `zz`: the next draw puts the cursor line in the middle of the window.
     pub recenter: std::cell::Cell<bool>,
+    /// A scroll command wants this line at the top of the window.
+    pub view_req: std::cell::Cell<Option<usize>>,
     /// The selection as the last draw showed it: (text row, column, width)
     /// in the window, for the GUI to draw instead of reversed cells.
     pub drawn_sel: std::cell::RefCell<Vec<(u16, u16, u16)>>,
@@ -256,6 +258,7 @@ impl Editor {
             org_menu_typed: String::new(),
             org_keys: vec![],
             recenter: Default::default(),
+            view_req: Default::default(),
             drawn_sel: Default::default(),
             org_arg: crate::org::Prefix::None,
             org_region: None,
@@ -529,6 +532,20 @@ impl Editor {
     }
 
     /// The Visual selection is in Select mode (`gh`, 'selectmode').
+    /// Without a window: keep `viewport` as a `rows`-line window would
+    /// scroll after each key (for tests and other headless use).
+    pub fn follow_view(&mut self, rows: usize, cols: usize) {
+        let mut vp = self.viewport.unwrap_or(crate::zap::Viewport {
+            view: Default::default(),
+            rows,
+            cols,
+            wrap: false,
+        });
+        vp.view.scroll(self, rows, cols, false);
+        vp.rows = rows;
+        self.viewport = Some(vp);
+    }
+
     /// Insert mode is Replace mode (`R`).
     pub fn replace_mode(&self) -> bool {
         self.mode == Mode::Insert && self.vim.replace.is_some()
@@ -1274,10 +1291,12 @@ pub(crate) mod tests {
             .join("\n");
         let mut e = Editor::new(Buffer::from_text(&t));
         e.win_height = 10;
+        // The window scrolls half its height and the cursor with it, then
+        // keeps 'scrolloff' (2) lines above it.
         e.handle_key(crate::key::Key::ctrl('d'));
-        assert_eq!(e.cur.line, 5);
+        assert_eq!(e.cur.line, 7);
         e.handle_key(crate::key::Key::ctrl('u'));
-        assert_eq!(e.cur.line, 0);
+        assert_eq!(e.cur.line, 2);
     }
 
     #[test]

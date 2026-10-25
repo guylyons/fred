@@ -21,6 +21,8 @@ pub struct View {
     pub left: usize,
     /// Wheel scrolling leaves the editing position alone until keyboard input.
     pub detached: bool,
+    /// A scroll command put the top here: it may show past the end.
+    pub(crate) free_top: bool,
     pub(crate) picker_offset: usize,
     pub(crate) last_click: Option<(std::time::Instant, bool, usize)>,
     /// A double-click in the text: when and on which line, for a triple-click.
@@ -126,6 +128,11 @@ impl View {
         if ed.recenter.take() {
             self.recenter(ed, rows.max(1), cols.max(1), wrap);
         }
+        if let Some(top) = ed.view_req.take() {
+            self.top = top.min(ed.line_count() - 1);
+            self.top_row = 0;
+            self.free_top = true;
+        }
         if wrap {
             self.scroll_wrapped(ed, rows.max(1), cols.max(1));
             return;
@@ -145,14 +152,23 @@ impl View {
             };
             self.scroll_rows(ed, rows, (c, virtual_rows(ed, c)), &rows_of);
         } else {
-            let so = 2.min((rows - 1) / 2);
-            if c < self.top + so {
-                self.top = c.saturating_sub(so);
+            let so = scrolloff(ed, rows);
+            let (above, below) = (so.min(c), so.min(n - 1 - c));
+            let old = self.top;
+            if c < self.top + above {
+                self.top = c - above;
             }
-            if c + so >= self.top + rows {
-                self.top = c + so + 1 - rows;
+            if c + below >= self.top + rows {
+                self.top = c + below + 1 - rows;
             }
-            self.top = self.top.min(n.saturating_sub(rows)).min(c);
+            if self.top != old {
+                self.free_top = false;
+            }
+            // Past the end only after a scroll command (CTRL-E, zt).
+            if !self.free_top {
+                self.top = self.top.min(n.saturating_sub(rows));
+            }
+            self.top = self.top.min(c);
         }
         let line = ed.buf.line(c);
         let cc = col_of_byte(&line, ed.cur.byte, ed.tabstop());
@@ -241,7 +257,7 @@ impl View {
         let (c, cr) = cursor;
         self.top = ed.folds.prev_visible(self.top.min(n - 1));
         self.top_row = self.top_row.min(rows_of(self.top).max(1) - 1);
-        let so = 2.min((rows - 1) / 2);
+        let so = scrolloff(ed, rows);
         let cursor = (c, cr);
         let above = so.min(rows_before(cursor, so, rows_of));
         let below = so.min(rows_after(cursor, n, so, rows_of));
@@ -263,6 +279,11 @@ impl View {
             self.top_row = r;
         }
     }
+}
+
+/// 'scrolloff' for a window of `rows`.
+fn scrolloff(ed: &Editor, rows: usize) -> usize {
+    (ed.opts.num(crate::options::Opt::Scrolloff).max(0) as usize).min((rows - 1) / 2)
 }
 
 /// Screen rows from `a` to `b` (`a` <= `b`), counting at most past `cap`.
