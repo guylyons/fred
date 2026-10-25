@@ -73,6 +73,23 @@ pub enum Motion {
     },
     /// `` `a ``: a mark's exact position.
     MarkExact(char),
+    /// `g'a`, `` g`a ``: a mark, not a jump.
+    MarkNoJump {
+        mark: char,
+        exact: bool,
+    },
+    /// `gm`: half the window's width; `gM`: half the line (or N%).
+    ScreenHalf,
+    LineMiddle,
+    /// `['`, `` [` ``, `]'`, `` ]` ``: the previous or next lowercase mark.
+    NextMark {
+        fwd: bool,
+        exact: bool,
+    },
+    /// `<C-End>`: the last line's last character (line N with a count).
+    BufferEnd,
+    /// `gn`, `gN`: the next (or previous) match of the last pattern.
+    Gn(bool),
 }
 
 impl Motion {
@@ -549,7 +566,77 @@ pub fn target(ed: &mut Editor, m: Motion, count: Option<usize>) -> Option<Target
             Target::at(nl, crate::text::floor_grapheme(&s, b.min(s.len())))
         }
         // Handled by `ops::span` and Visual mode.
-        Motion::Object { .. } => return None,
+        Motion::Object { .. } | Motion::Gn(_) => return None,
+        Motion::MarkNoJump { mark, exact } => {
+            let m = if exact {
+                Motion::MarkExact(mark)
+            } else {
+                Motion::Mark(mark)
+            };
+            return target(ed, m, count);
+        }
+        Motion::ScreenHalf => {
+            let (left, cols) = ed.viewport.map_or((0, 80), |v| (v.view.left, v.cols));
+            let col = left + cols / 2;
+            let mut t = Target::at(
+                l,
+                crate::text::byte_of_col(&line, col, ed.tabstop()).min(line.len()),
+            );
+            if t.byte >= line.len() && !line.is_empty() {
+                t.byte = ed.last_grapheme(l);
+            }
+            t
+        }
+        Motion::LineMiddle => {
+            let w = crate::text::display_width(&line, ed.tabstop(), 0);
+            let pct = count.unwrap_or(50).min(100);
+            let col = w * pct / 100;
+            let b = crate::text::byte_of_col(&line, col, ed.tabstop()).min(line.len());
+            let b = if b >= line.len() {
+                ed.last_grapheme(l)
+            } else {
+                b
+            };
+            Target::at(l, b)
+        }
+        Motion::NextMark { fwd, exact } => {
+            let mut marks: Vec<(usize, usize)> = ('a'..='z')
+                .filter_map(|c| super::marks::get(ed, c))
+                .collect();
+            marks.sort();
+            let cur = if exact { (l, b) } else { (l, usize::MAX) };
+            let mut p = cur;
+            for _ in 0..n_count {
+                let next = if fwd {
+                    marks
+                        .iter()
+                        .find(|&&m| if exact { m > p } else { m.0 > p.0 })
+                } else {
+                    marks
+                        .iter()
+                        .rev()
+                        .find(|&&m| if exact { m < p } else { m.0 < p.0 })
+                };
+                match next {
+                    Some(&m) => p = m,
+                    None => break,
+                }
+            }
+            if p == cur {
+                return None;
+            }
+            if exact {
+                Target::at(p.0, p.1)
+            } else {
+                fnb(ed, p.0)
+            }
+        }
+        Motion::BufferEnd => {
+            let nl = count.map_or(n - 1, |c| c.clamp(1, n) - 1);
+            let mut t = Target::at(nl, ed.last_grapheme(nl)).inclusive();
+            t.eol = true;
+            t
+        }
         Motion::ParaFwd => {
             let mut p = l;
             for _ in 0..n_count {
@@ -735,4 +822,39 @@ fn findpar(
         }
     }
     Some(((curr, 0), false))
+}
+
+/// `gn` (`fwd`) and `gN`: the match of the last search pattern under the
+/// cursor, else the next (previous) one: its start and last character.
+pub(crate) fn gn_match(ed: &mut Editor, fwd: bool) -> Option<((usize, usize), (usize, usize))> {
+    let Some(pat) = ed.last_pat.clone() else {
+        ed.set_err("E35: No previous regular expression");
+        return None;
+    };
+    let re = match crate::search::compile_vim(&pat, true) {
+        Ok(re) => re,
+        Err(e) => {
+            ed.set_err(e);
+            return None;
+        }
+    };
+    let (l, b) = ed.cur.pos();
+    let line = ed.buf.line(l);
+    let span = |l: usize, line: &str, s: usize, e: usize| {
+        let last = if e > s { prev_grapheme(line, e) } else { s };
+        ((l, s), (l, last))
+    };
+    if let Some(m) = re
+        .find_iter(&line)
+        .find(|m| m.start() <= b && (b < m.end() || m.start() == b))
+    {
+        return Some(span(l, &line, m.start(), m.end()));
+    }
+    let Some((ml, mb)) = crate::search::find(&ed.buf, &re, (l, b), fwd, true) else {
+        ed.set_err(format!("E486: Pattern not found: {pat}"));
+        return None;
+    };
+    let mline = ed.buf.line(ml);
+    let m = re.find_at(&mline, mb)?;
+    Some(span(ml, &mline, m.start(), m.end()))
 }

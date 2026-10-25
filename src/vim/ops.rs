@@ -95,6 +95,11 @@ pub fn span(
         let hi = (start.0 + count.unwrap_or(1).max(1) - 1).min(n - 1);
         return Some(Span::Lines(start.0, hi));
     };
+    if let Motion::Gn(fwd) = motion {
+        let (s, e) = motion::gn_match(ed, fwd)?;
+        let l = ed.buf.line(e.0);
+        return Some(Span::Chars(s, (e.0, next_grapheme(&l, e.1.min(l.len())))));
+    }
     if let Motion::Object { include, kind } = motion {
         let o = super::textobj::object(
             &ed.buf,
@@ -188,6 +193,22 @@ pub fn span(
         }
         m => motion::target(ed, m, count)?,
     };
+    let mut t = t;
+    match ed.vim.force {
+        Some('V') => return Some(Span::Lines(start.0.min(t.line), start.0.max(t.line))),
+        // `v`: a linewise motion becomes exclusive charwise; a charwise one
+        // switches inclusive and exclusive.
+        Some('v') if t.linewise => {
+            t.linewise = false;
+            t.inclusive = false;
+            if t.keep_col {
+                let l = ed.buf.line(t.line);
+                t.byte = crate::text::byte_of_col(&l, ed.cur.want_col, ed.tabstop()).min(l.len());
+            }
+        }
+        Some('v') => t.inclusive = !t.inclusive,
+        _ => {}
+    }
     if t.linewise {
         return Some(Span::Lines(start.0.min(t.line), start.0.max(t.line)));
     }
@@ -952,4 +973,44 @@ fn format(ed: &mut Editor, lo: usize, hi: usize, keep: bool) {
         let last = lo + n - 1;
         ed.set_cursor(last, ed.first_nonblank(last));
     }
+}
+
+/// `]p` (`after`), `[p`, `[P`, `]P`: put a linewise register with its
+/// indent changed to the cursor line's (others as `p` and `P`).
+pub fn put_indented(ed: &mut Editor, count: usize, after: bool) {
+    let reg = match ed.vim.register.filter(|&c| c != '"') {
+        Some(c) => super::register::get(ed, c),
+        None => Some(ed.reg.clone()),
+    };
+    let Some(reg) = reg.filter(|r| r.linewise) else {
+        return put(ed, count, after);
+    };
+    let ts = ed.tabstop();
+    let et = ed.opts.bool(crate::options::Opt::Expandtab);
+    let want = crate::text::display_width(indent_of(&ed.buf.line(ed.cur.line)), ts, 0);
+    let lines: Vec<&str> = reg.text.split('\n').collect();
+    let first = lines
+        .first()
+        .map_or(0, |l| crate::text::display_width(indent_of(l), ts, 0));
+    let indent = |cols: usize| {
+        if et {
+            " ".repeat(cols)
+        } else {
+            "\t".repeat(cols / ts) + &" ".repeat(cols % ts)
+        }
+    };
+    let one: Vec<String> = lines
+        .iter()
+        .map(|l| {
+            if l.is_empty() {
+                return String::new();
+            }
+            let cols = crate::text::display_width(indent_of(l), ts, 0);
+            indent((cols + want).saturating_sub(first)) + l.trim_start_matches([' ', '\t'])
+        })
+        .collect();
+    let all: Vec<String> = std::iter::repeat_n(one, count.max(1)).flatten().collect();
+    let at = if after { ed.cur.line + 1 } else { ed.cur.line };
+    splice_lines(ed, at, 0, &all);
+    ed.set_cursor(at, ed.first_nonblank(at));
 }

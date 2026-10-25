@@ -239,59 +239,76 @@ pub(crate) struct Literal {
 }
 
 /// A key after CTRL-V.
-fn literal_key(ed: &mut Editor, mut st: Literal, k: Key) {
-    let mut stop = None;
-    match k.char() {
-        None => stop = Some(k),
-        Some('x' | 'X') => st.hex = true,
-        Some('o' | 'O') => st.octal = true,
-        Some(u @ ('u' | 'U')) => st.unicode = Some(u),
-        Some(c) => {
-            let base = if st.hex || st.unicode.is_some() {
-                16
-            } else if st.octal {
-                8
-            } else {
-                10
-            };
-            match c.to_digit(base) {
-                Some(d) => {
-                    st.cc = st.cc.saturating_mul(base).saturating_add(d);
-                    st.digits += 1;
+/// What a key after CTRL-V did.
+pub(crate) enum LiteralStep {
+    /// More digits may come.
+    More(Literal),
+    /// The text to insert, then a key to handle as usual.
+    Done(String, Option<Key>),
+}
+
+impl Literal {
+    /// The next key after CTRL-V (Insert mode and the command line).
+    pub(crate) fn step(mut self, k: Key) -> LiteralStep {
+        let mut stop = None;
+        match k.char() {
+            None => stop = Some(k),
+            Some('x' | 'X') => self.hex = true,
+            Some('o' | 'O') => self.octal = true,
+            Some(u @ ('u' | 'U')) => self.unicode = Some(u),
+            Some(c) => {
+                let base = if self.hex || self.unicode.is_some() {
+                    16
+                } else if self.octal {
+                    8
+                } else {
+                    10
+                };
+                match c.to_digit(base) {
+                    Some(d) => {
+                        self.cc = self.cc.saturating_mul(base).saturating_add(d);
+                        self.digits += 1;
+                    }
+                    None => stop = Some(k),
                 }
-                None => stop = Some(k),
             }
         }
-    }
-    if stop.is_none() {
-        if st.cc > 255 && st.unicode.is_none() {
-            st.cc = 255;
+        if stop.is_none() {
+            if self.cc > 255 && self.unicode.is_none() {
+                self.cc = 255;
+            }
+            let done = match self.unicode {
+                _ if self.hex => self.digits >= 2,
+                Some('u') => self.digits >= 4,
+                Some(_) => self.digits >= 8,
+                None => self.digits >= 3,
+            };
+            if !done {
+                return LiteralStep::More(self);
+            }
         }
-        let done = match st.unicode {
-            _ if st.hex => st.digits >= 2,
-            Some('u') => st.digits >= 4,
-            Some(_) => st.digits >= 8,
-            None => st.digits >= 3,
-        };
-        if !done {
-            ed.vim.ins_pending = Some(Pending::Literal(st));
-            return;
+        if self.digits == 0 {
+            // No code: the key itself.
+            let text = stop.map_or_else(String::new, |k| super::register::keys_to_text(&[k]));
+            return LiteralStep::Done(text, None);
         }
+        let text = char::from_u32(self.cc)
+            .filter(|&c| c != '\0')
+            .map_or_else(String::new, String::from);
+        LiteralStep::Done(text, stop)
     }
-    if st.digits == 0 {
-        // No code: the key itself.
-        if let Some(k) = stop {
-            let text = super::register::keys_to_text(&[k]);
+}
+
+fn literal_key(ed: &mut Editor, st: Literal, k: Key) {
+    match st.step(k) {
+        LiteralStep::More(st) => ed.vim.ins_pending = Some(Pending::Literal(st)),
+        LiteralStep::Done(text, then) => {
             insert_text(ed, &text);
+            // The key that ended the code does what it does.
+            if let Some(k) = then {
+                edit_key(ed, k);
+            }
         }
-        return;
-    }
-    if let Some(c) = char::from_u32(st.cc).filter(|&c| c != '\0') {
-        insert_text(ed, &c.to_string());
-    }
-    // The key that ended the code does what it does.
-    if let Some(k) = stop {
-        edit_key(ed, k);
     }
 }
 

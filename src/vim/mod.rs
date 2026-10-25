@@ -73,6 +73,14 @@ pub struct State {
     pub(crate) ins_pending: Option<insert::Pending>,
     /// The previous context mark, jumplist and changelist.
     pub(crate) lists: marks::Lists,
+    /// `v` or `V` forcing the operator's motion (`dvj`).
+    pub(crate) force: Option<char>,
+    /// `uline`'s column is still to be set by the first edit.
+    pub(crate) uline_fresh: bool,
+    /// The Visual selection before the last (`gv` in Visual mode).
+    pub(crate) prev_visual: Option<(Mode, (usize, usize))>,
+    /// `U`: the line last changed, as it was before, and the column.
+    pub(crate) uline: Option<(usize, String, usize)>,
     /// 'scroll': lines CTRL-D and CTRL-U move (half the window if None).
     pub(crate) scroll: Option<usize>,
     /// CTRL-O: one Normal-mode command, then back to Insert mode (at the
@@ -114,10 +122,12 @@ pub(crate) enum Cmd {
         motion: Motion,
     },
     /// Operator `op` over a motion, or over whole lines when `motion` is None (`dd`).
+    /// `force`: `v` or `V` typed before the motion (`dvj`).
     Op {
         op: char,
         count: Option<usize>,
         motion: Option<Motion>,
+        force: Option<char>,
     },
     Simple {
         count: Option<usize>,
@@ -178,10 +188,14 @@ fn parse_motion(keys: &[Key], objects: bool) -> Parse<(Motion, usize)> {
     };
     let m = match k.code {
         _ if k.alt => return Parse::Invalid,
+        KeyCode::Left if k.ctrl => Motion::WordBack(false),
+        KeyCode::Right if k.ctrl => Motion::WordFwd(false),
         KeyCode::Left | KeyCode::Backspace => Motion::Left,
         KeyCode::Right => Motion::Right,
         KeyCode::Up => Motion::Up,
         KeyCode::Down => Motion::Down,
+        KeyCode::Home if k.ctrl => Motion::FileStart,
+        KeyCode::End if k.ctrl => Motion::BufferEnd,
         KeyCode::Home => Motion::LineStart,
         KeyCode::End => Motion::LineEnd,
         KeyCode::Enter => Motion::NextLine,
@@ -230,6 +244,33 @@ fn parse_motion(keys: &[Key], objects: bool) -> Parse<(Motion, usize)> {
             'n' => Motion::SearchNext { reverse: false },
             'N' => Motion::SearchNext { reverse: true },
             // Without 'wrap' the screen-line motions are the line ones.
+            // `g'a` and `` g`a ``: a mark without a jump.
+            'g' if matches!(keys.get(1).and_then(Key::char), Some('\'' | '`')) => {
+                let exact = keys[1] == Key::ch('`');
+                return match keys.get(2) {
+                    None => Parse::Incomplete,
+                    Some(m) => match m.char() {
+                        Some(mark) => Parse::Done((Motion::MarkNoJump { mark, exact }, 3)),
+                        None => Parse::Invalid,
+                    },
+                };
+            }
+            // g<Down>, g<Up>, g<Home>, g<End>: as gj, gk, g0, g$.
+            'g' if keys.get(1).is_some_and(|k| {
+                matches!(
+                    k.code,
+                    KeyCode::Down | KeyCode::Up | KeyCode::Home | KeyCode::End
+                )
+            }) =>
+            {
+                let m = match keys[1].code {
+                    KeyCode::Down => Motion::Down,
+                    KeyCode::Up => Motion::Up,
+                    KeyCode::Home => Motion::LineStart,
+                    _ => Motion::LineEnd,
+                };
+                return Parse::Done((m, 2));
+            }
             'g' => {
                 return arg(&|c| {
                     Some(match c {
@@ -243,6 +284,10 @@ fn parse_motion(keys: &[Key], objects: bool) -> Parse<(Motion, usize)> {
                         '$' => Motion::LineEnd,
                         'j' => Motion::Down,
                         'k' => Motion::Up,
+                        'm' => Motion::ScreenHalf,
+                        'n' => Motion::Gn(true),
+                        'N' => Motion::Gn(false),
+                        'M' => Motion::LineMiddle,
                         '*' => Motion::Star {
                             fwd: true,
                             whole: false,
@@ -261,6 +306,10 @@ fn parse_motion(keys: &[Key], objects: bool) -> Parse<(Motion, usize)> {
                     '[' | ']' => Some(Motion::Section {
                         fwd,
                         what: if (a == '[') == fwd { '}' } else { '{' },
+                    }),
+                    '\'' | '`' => Some(Motion::NextMark {
+                        fwd,
+                        exact: a == '`',
                     }),
                     '(' | '{' if !fwd => Some(Motion::Unmatched(a)),
                     ')' | '}' if fwd => Some(Motion::Unmatched(a)),
@@ -304,10 +353,10 @@ fn parse_op(keys: &[Key]) -> Parse<(char, usize)> {
 }
 
 /// Commands that take one character argument.
-const ARG_CMDS: &[char] = &['r', 'm', 'Z', 'z', ' ', 'g', 'q', '@'];
+const ARG_CMDS: &[char] = &['r', 'm', 'Z', 'z', ' ', 'g', 'q', '@', '[', ']'];
 const SIMPLE: &[char] = &[
     'x', 'X', 's', 'S', 'J', 'p', 'P', 'o', 'O', 'i', 'a', 'I', 'A', 'u', 'D', 'C', 'Y', 'V', 'v',
-    '~', ':', '/', '?', '.', 'r', 'm', 'Z', 'z', ' ', 'g', 'q', '@', 'Q', 'R', '&',
+    '~', ':', '/', '?', '.', 'r', 'm', 'Z', 'z', ' ', 'g', 'q', '@', 'Q', 'R', '&', 'U', '[', ']',
 ];
 
 /// A command, with the register `"x` before it named.
@@ -367,6 +416,7 @@ fn parse_cmd(keys: &[Key], visual: bool) -> Parse<Cmd> {
                 op,
                 count,
                 motion: None,
+                force: None,
             });
             if k2.char() == Some(op) && !k2.ctrl {
                 return linewise;
@@ -381,11 +431,17 @@ fn parse_cmd(keys: &[Key], visual: bool) -> Parse<Cmd> {
                     _ => {}
                 }
             }
+            // `v` and `V` before the motion force it charwise or linewise.
+            let force = k2.char().filter(|c| matches!(c, 'v' | 'V'));
+            if force.is_some() {
+                i += 1;
+            }
             return match parse_motion(&keys[i..], true) {
                 Parse::Done((motion, _)) => Parse::Done(Cmd::Op {
                     op,
                     count,
                     motion: Some(motion),
+                    force,
                 }),
                 Parse::Incomplete => Parse::Incomplete,
                 Parse::Invalid => Parse::Invalid,
@@ -537,6 +593,18 @@ pub fn normal_key(ed: &mut Editor, k: Key) {
         register::stop_recording(ed);
         return;
     }
+    // `{count}<Del>` takes the last digit off the count.
+    if k.is(KeyCode::Delete)
+        && !ed.vim.pending.is_empty()
+        && ed
+            .vim
+            .pending
+            .iter()
+            .all(|p| p.char().is_some_and(|c| c.is_ascii_digit()))
+    {
+        ed.vim.pending.pop();
+        return;
+    }
     if ed.visual_lines().is_some() && visual_key(ed, k) {
         return;
     }
@@ -586,6 +654,15 @@ fn visual_key(ed: &mut Editor, k: Key) -> bool {
         ed.vim.register = k.char().filter(|&c| register::valid(c));
         return true;
     }
+    // `r{c}`: every selected character becomes c.
+    if rest == [Key::ch('r')] {
+        ed.vim.pending.clear();
+        if let Some(c) = k.char() {
+            visual_replace(ed, c);
+        }
+        ed.vim.register = None;
+        return true;
+    }
     let g = rest == [Key::ch('g')];
     if !rest.is_empty() && !g {
         return false;
@@ -602,8 +679,26 @@ fn visual_key(ed: &mut Editor, k: Key) -> bool {
             ed.mode = Mode::Normal;
             ed.open_cmdline(':', "'<,'>!");
         }
+        (true, Some('v')) => {
+            // `gv` in Visual mode: swap with the previous selection.
+            let now = (ed.mode.clone(), ed.cur.pos());
+            if let Some((m, p)) = ed.vim.prev_visual.replace(now) {
+                ed.mode = m;
+                ed.set_cursor(p.0, p.1);
+            }
+        }
         (true, _) => return false,
         (false, Some(c @ ('p' | 'P'))) => visual_put(ed, c == 'P'),
+        (false, Some('O')) => {
+            visual_key(ed, Key::ch('o'));
+        }
+        (false, Some('R')) => {
+            visual_key(ed, Key::ch('S'));
+        }
+        (false, Some('r')) => {
+            ed.vim.pending.push(k);
+            return true;
+        }
         (false, Some(c @ ('~' | 'u' | 'U' | '<' | '>'))) => visual_op(ed, c, count),
         (false, Some(c)) if VISUAL.contains(&c) => match mode {
             Mode::Visual { anchor } => visual_chars(ed, anchor, c),
@@ -615,6 +710,39 @@ fn visual_key(ed: &mut Editor, k: Key) -> bool {
     ed.vim.pending.clear();
     ed.vim.register = None;
     true
+}
+
+/// Visual `r{c}`: replace each selected character with `c` (line breaks
+/// stay).
+fn visual_replace(ed: &mut Editor, c: char) {
+    let mode = ed.mode.clone();
+    let Some(span) = selection(ed, &mode) else {
+        return;
+    };
+    ed.mode = Mode::Normal;
+    if ed.generated() {
+        ed.set_err("generated Git buffer is read-only");
+        return;
+    }
+    let (from, to) = match span {
+        ops::Span::Lines(lo, hi) => ((lo, 0), (hi, ed.buf.line_len(hi))),
+        ops::Span::Chars(a, b) => (a, b),
+    };
+    let s = ed.buf.pos_to_char(from.0, from.1);
+    let e = ed.buf.pos_to_char(to.0, to.1);
+    let old = ed.buf.slice(s, e);
+    let new: String = old
+        .chars()
+        .map(|ch| if ch == '\n' { ch } else { c })
+        .collect();
+    ed.undo.begin(ed.cur.pos());
+    ed.apply(crate::buffer::Edit {
+        start: s,
+        end: e,
+        text: new,
+    });
+    ed.set_cursor(from.0, from.1);
+    ed.undo.end(ed.cur.pos());
 }
 
 /// CTRL-A and CTRL-X on the selection: the first number of each line;
@@ -882,6 +1010,7 @@ fn visual(ed: &mut Editor, anchor: usize, c: char) {
 /// Commands that change text (and so are repeated by `.`).
 fn is_change(cmd: &Cmd) -> bool {
     let g = matches!(cmd, Cmd::Simple { key, arg: Some('J' | 'p' | 'P' | 'i' | 'I' | '&'), .. } if *key == Key::ch('g'))
+        || matches!(cmd, Cmd::Simple { key, arg: Some('p' | 'P'), .. } if matches!(key.char(), Some('[' | ']')))
         || matches!(cmd, Cmd::Simple { key, .. } if *key == Key::ctrl('a') || *key == Key::ctrl('x'));
     g || match cmd {
         Cmd::Op { op, .. } => !matches!(op, 'y' | '!'),
@@ -910,6 +1039,7 @@ fn is_change(cmd: &Cmd) -> bool {
                             | '~'
                             | 'R'
                             | '&'
+                            | 'U'
                     )
                 )
         }
@@ -927,8 +1057,19 @@ fn run_change(ed: &mut Editor, cmd: Cmd, keys: Vec<Key>) {
         execute(ed, cmd);
         return;
     }
+    // `U` puts back the line as it was before the changes on it.
+    let lines_before = ed.line_count();
+    let is_u = matches!(cmd, Cmd::Simple { key, .. } if key == Key::ch('U'));
+    if !is_u && ed.vim.uline.as_ref().is_none_or(|u| u.0 != ed.cur.line) {
+        ed.vim.uline = Some((ed.cur.line, ed.buf.line(ed.cur.line), ed.cur.byte));
+        // Its column is where the first edit happens.
+        ed.vim.uline_fresh = true;
+    }
     ed.undo.begin(ed.cur.pos());
     execute(ed, cmd);
+    if !is_u && ed.line_count() != lines_before {
+        ed.vim.uline = None;
+    }
     if ed.mode == Mode::Insert {
         if !ed.vim.replaying {
             ed.vim.recording_split = keys.len();
@@ -1006,6 +1147,27 @@ pub(crate) fn execute(ed: &mut Editor, cmd: Cmd) {
             count,
             motion: Motion::Object { include, kind },
         } => visual_object(ed, count, include, kind),
+        Cmd::Move {
+            motion: Motion::Gn(fwd),
+            ..
+        } => {
+            let Some((s, e)) = motion::gn_match(ed, fwd) else {
+                ed.vim.failed = true;
+                return;
+            };
+            match ed.mode {
+                // Visual: the selection goes to the match's far end.
+                Mode::Visual { .. } | Mode::VisualLine { .. } => {
+                    let p = if fwd { e } else { s };
+                    ed.set_cursor(p.0, p.1);
+                }
+                _ => {
+                    let (a, c) = if fwd { (s, e) } else { (e, s) };
+                    ed.mode = Mode::Visual { anchor: a };
+                    ed.set_cursor(c.0, c.1);
+                }
+            }
+        }
         Cmd::Move { count, motion } => {
             let jump = motion.is_jump();
             let from = ed.cur.pos();
@@ -1026,6 +1188,7 @@ pub(crate) fn execute(ed: &mut Editor, cmd: Cmd) {
             op: '!',
             count,
             motion,
+            ..
         } => {
             // `!{motion}`: a filter command for those lines.
             let Some(sp) = ops::span(ed, '!', count, motion) else {
@@ -1046,8 +1209,16 @@ pub(crate) fn execute(ed: &mut Editor, cmd: Cmd) {
             };
             ed.open_cmdline(':', &format!(".{end}!"));
         }
-        Cmd::Op { op, count, motion } => {
+        Cmd::Op {
+            op,
+            count,
+            motion,
+            force,
+        } => {
+            ed.vim.force = force;
             let sp = ops::span(ed, op, count, motion);
+            ed.vim.force = None;
+            let keep_col = force == Some('V') && op == 'd';
             ed.vim.failed |= sp.is_none();
             if let Some(sp) = sp {
                 // `gUU` and `g~~` leave the cursor where the operated text
@@ -1059,7 +1230,14 @@ pub(crate) fn execute(ed: &mut Editor, cmd: Cmd) {
                         ed.set_cursor(end.0, end.1);
                     }
                 }
+                let want = ed.cur.want_col;
                 ops::apply_op(ed, op, sp);
+                // `dV{motion}` keeps the column.
+                if keep_col {
+                    ed.cur.want_col = want;
+                    ed.set_line_keep_col(ed.cur.line);
+                    ed.clamp_cursor();
+                }
             }
         }
         Cmd::Simple { count, key, arg } => simple(ed, count, key, arg),
@@ -1125,7 +1303,15 @@ fn finish_op_search_with(ed: &mut Editor, op: char, count: Option<usize>) {
 }
 
 fn op(ed: &mut Editor, op: char, count: Option<usize>, motion: Option<Motion>) {
-    execute(ed, Cmd::Op { op, count, motion });
+    execute(
+        ed,
+        Cmd::Op {
+            op,
+            count,
+            motion,
+            force: None,
+        },
+    );
 }
 
 fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
@@ -1173,6 +1359,34 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
             }
         }
         (KeyCode::Char('.'), false) => repeat(ed, count),
+        (KeyCode::Char('U'), false) => match ed.vim.uline.take() {
+            Some((l, text, col)) if l < ed.line_count() => {
+                let now = ed.buf.line(l);
+                let cur_col = if ed.cur.line == l { ed.cur.byte } else { col };
+                ops::splice_lines(ed, l, 1, std::slice::from_ref(&text));
+                ed.set_cursor(l, col);
+                ed.vim.uline = Some((l, now, cur_col));
+            }
+            _ => ed.vim.failed = true,
+        },
+        // CTRL-G: the file, its length and where the cursor is.
+        (KeyCode::Char('g'), true) => {
+            let name = ed
+                .path
+                .as_deref()
+                .map_or("[No Name]".to_string(), |p| p.display().to_string());
+            let n = ed.line_count();
+            let modified = if ed.buf.modified { " [Modified]" } else { "" };
+            let pct = (ed.cur.line + 1) * 100 / n;
+            let lines = if n == 1 && ed.buf.len_bytes() == 0 {
+                "--No lines in buffer--".to_string()
+            } else {
+                format!("{n} line{} --{pct}%--", if n == 1 { "" } else { "s" })
+            };
+            ed.set_msg(format!("\"{name}\"{modified} {lines}"));
+        }
+        // CTRL-L redraws (the screen always is); CTRL-\ CTRL-N is Esc.
+        (KeyCode::Char('l' | '\\'), true) => {}
         // `&`: the last :s again on this line; `g&`: on every line, with
         // the last search pattern and the same flags.
         (KeyCode::Char('&'), false) => ed.run_ex("s"),
@@ -1377,6 +1591,32 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
                 }
                 Err(e) => ed.set_err(e),
             }
+        }
+        // `ga`, `g8`: the character under the cursor.
+        (KeyCode::Char('g'), false) if matches!(arg, Some('a' | '8')) => {
+            let line = ed.buf.line(ed.cur.line);
+            let g = line
+                .get(ed.cur.byte..crate::text::next_grapheme(&line, ed.cur.byte))
+                .unwrap_or("");
+            if g.is_empty() {
+                ed.set_msg("NUL");
+            } else if arg == Some('8') {
+                let hex: Vec<String> = g.bytes().map(|b| format!("{b:02x}")).collect();
+                ed.set_msg(hex.join(" "));
+            } else {
+                let c = g.chars().next().unwrap_or('\0');
+                let shown = if c.is_control() {
+                    format!("^{}", char::from(c as u8 ^ 0x40))
+                } else {
+                    c.to_string()
+                };
+                let n = c as u32;
+                ed.set_msg(format!("<{shown}> {n}, Hex {n:02x}, Oct {n:03o}"));
+            }
+        }
+        // `[p`, `]p`, `[P`, `]P`: put lines with the cursor line's indent.
+        (KeyCode::Char(b @ ('[' | ']')), false) if matches!(arg, Some('p' | 'P')) => {
+            ops::put_indented(ed, n, b == ']' && arg == Some('p'));
         }
         // `gJ`: join without inserting or removing spaces.
         (KeyCode::Char('g'), false) if arg == Some('J') => {

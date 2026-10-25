@@ -36,7 +36,7 @@ track.
 | 8 | Operators (`> < = g~ gu gU gq gw g? ! zf g@`) | 5 | 0 | `d c y > < g~ gu gU g? gq gw !`, `~`, `gJ`; no `=` (C indenting), `zf`, `g@` |
 | 9 | Visual, Visual-line, Visual-block | 5 | 0 | charwise and linewise; text objects, `< > u U ~ g? gJ`; Select mode (`gh`, `gH`, CTRL-G, `<BS>`) |
 | 10 | Insert and Replace mode keys | 4 | 0 | most keys (CTRL-R, CTRL-O, CTRL-V, CTRL-T/CTRL-D, CTRL-A, CTRL-E/CTRL-Y, CTRL-G); counts; Replace mode; no CTRL-X submodes, CTRL-K digraphs, abbreviations |
-| 11 | Command-line editing keys | 3 | 0 | basics, history, Tab |
+| 11 | Command-line editing keys | 3 | 0 | CTRL-R (and CTRL-R CTRL-W…), CTRL-V, CTRL-B/E/H/J/M, word moves, history by prefix; no CTRL-D/CTRL-A/CTRL-L completion lists, 'incsearch' keys |
 | 12 | Marks, jumplist, changelist | 3 | 0 | marks with columns, `` ` `` and `'`, special marks, CTRL-O/CTRL-I, `g;`/`g,` (`src/vim/marks.rs`); A-Z buffer-local, no 0-9, `:marks`, `:jumps`, `:changes`, `:delmarks` |
 | 13 | Macros, `:normal`, `.`, CTRL-A/CTRL-X | 3 | 0 | `.`, `q`, `@`, `@@`, `@:`, `Q`, CTRL-A/CTRL-X (`g CTRL-A`); no `:normal` |
 | 14 | Search and Vim regex, hlsearch, incsearch | 6 | 0 | Vim magic patterns (no `\zs`, `\@`, `\_`, back-references), `/ ? n N` |
@@ -262,3 +262,12 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
   view may show past the end, as Vim's. 'scrolloff' is an option (Fred's
   default 2; Neovim's 0) and `H`/`L` use it. The oracle now emulates a
   22-row window (`Editor::follow_view`). Oracle: 838 cases.
+- 2026-10-25: operator-pending `v`/`V` (`dvj`, `dVw`), `gn`/`gN` (with
+  `cgn` and `.`), `U`, CTRL-G, `ga`, `g8`, `gm`, `gM`, `g'`/`` g` ``,
+  `['` `]'` `` [` `` `` ]` ``, `[p` `]p` `[P` `]P`, `{count}<Del>`, the
+  CTRL and Shift arrows and `<C-Home>`/`<C-End>`; Visual `O`, `R`,
+  `r{c}`, CTRL-C and `gv` swapping with the previous selection.
+  Command-line keys: CTRL-R {reg} (and CTRL-R CTRL-W/A/L/F), CTRL-V with
+  codes (shared with Insert mode), CTRL-B/E/H/J/M/I/[, Shift and CTRL
+  arrows, Up/Down recalling lines that start with what was typed,
+  PageUp/PageDown, CTRL-N/CTRL-P. Oracle: 915 cases.

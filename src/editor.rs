@@ -58,6 +58,11 @@ pub struct CmdLine {
     stash: String,
     /// Tab completion in progress: candidates, current index, text before Tab.
     pub(crate) comp: Option<(Vec<String>, usize, String)>,
+    /// CTRL-R ('r', or 'R' after CTRL-R CTRL-R) or CTRL-V ('v') waiting
+    /// for its key.
+    pending: Option<char>,
+    /// CTRL-V's code so far.
+    literal: Option<vim::insert::Literal>,
 }
 
 impl CmdLine {
@@ -73,6 +78,17 @@ impl CmdLine {
             KeyCode::Delete if self.cursor < self.text.len() => {
                 let n = next_char(&self.text, self.cursor);
                 self.text.replace_range(self.cursor..n, "");
+            }
+            // With Shift or CTRL: a WORD at a time.
+            KeyCode::Left if k.shift || k.ctrl => {
+                let before = self.text[..self.cursor].trim_end_matches(' ');
+                self.cursor = before.rfind(' ').map_or(0, |i| i + 1);
+            }
+            KeyCode::Right if k.shift || k.ctrl => {
+                let rest = &self.text[self.cursor..];
+                let word = rest.find(' ').unwrap_or(rest.len());
+                let gap = rest[word..].len() - rest[word..].trim_start_matches(' ').len();
+                self.cursor += word + gap;
             }
             KeyCode::Left => self.cursor = prev_char(&self.text, self.cursor),
             KeyCode::Right => self.cursor = next_char(&self.text, self.cursor),
@@ -382,6 +398,28 @@ impl Editor {
                 k.code,
                 KeyCode::Left | KeyCode::Right | KeyCode::Up | KeyCode::Down
             );
+        // Shifted arrows that don't select: S-Left and S-Right move by
+        // words, S-Up and S-Down by pages.
+        if k.shift
+            && !k.ctrl
+            && !k.alt
+            && matches!(
+                self.mode,
+                Mode::Normal | Mode::Visual { .. } | Mode::VisualLine { .. }
+            )
+            && !vim::select::shift_selects(self, k)
+        {
+            let key = match k.code {
+                KeyCode::Left => Some(Key::ch('b')),
+                KeyCode::Right => Some(Key::ch('w')),
+                KeyCode::Up => Some(Key::ctrl('b')),
+                KeyCode::Down => Some(Key::ctrl('f')),
+                _ => None,
+            };
+            if let Some(key) = key {
+                return self.handle_key(key);
+            }
+        }
         if k.shift && !insert_arrow && !vim::select::shift_selects(self, k) {
             return self.handle_key(Key { shift: false, ..k });
         }
@@ -469,6 +507,7 @@ impl Editor {
             self.msg = None;
         }
         let was_insert = self.mode == Mode::Insert;
+        let was_visual = matches!(self.mode, Mode::Visual { .. } | Mode::VisualLine { .. });
         // A selection that ended elsewhere (a mouse click) ends Select too.
         if self.visual_lines().is_none() {
             self.vim.select = false;
@@ -496,6 +535,9 @@ impl Editor {
             _ => {}
         }
         if matches!(self.mode, Mode::Visual { .. } | Mode::VisualLine { .. }) {
+            if !was_visual {
+                self.vim.prev_visual = self.vim.last_visual.clone();
+            }
             self.vim.last_visual = Some((self.mode.clone(), self.cur.pos()));
             // `'<` and `'>`: the selection's start and end.
             let cur = self.cur.pos();
@@ -713,6 +755,12 @@ impl Editor {
         vim::marks::set(self, '[', start);
         vim::marks::set(self, ']', end);
         vim::marks::changed(self, start);
+        if std::mem::take(&mut self.vim.uline_fresh)
+            && let Some(u) = self.vim.uline.as_mut()
+            && u.0 == start.0
+        {
+            u.2 = start.1;
+        }
         self.undo.record(inv);
     }
 
@@ -800,9 +848,7 @@ impl Editor {
             prompt: String::new(),
             text: text.into(),
             cursor: text.len(),
-            hist: None,
-            stash: String::new(),
-            comp: None,
+            ..Default::default()
         });
     }
 
@@ -845,11 +891,96 @@ impl Editor {
             '=' => self.prompt_history.get(&cl.prompt).unwrap_or(&empty),
             _ => &self.search_history,
         };
-        let k = match k.code {
-            KeyCode::Char('p') if k.alt && cl.kind == '=' => Key::new(KeyCode::Up),
-            KeyCode::Char('n') if k.alt && cl.kind == '=' => Key::new(KeyCode::Down),
+        // CTRL-R {reg} and CTRL-V {key}.
+        if let Some(p) = cl.pending.take() {
+            let mut then = None;
+            let text = match (p, k.code, k.ctrl) {
+                ('v', _, _) => match cl.literal.take().unwrap_or_default().step(k) {
+                    vim::insert::LiteralStep::More(st) => {
+                        cl.literal = Some(st);
+                        cl.pending = Some('v');
+                        return;
+                    }
+                    vim::insert::LiteralStep::Done(text, key) => {
+                        then = key;
+                        text
+                    }
+                },
+                (_, KeyCode::Char('r' | 'o' | 'p'), true) => {
+                    cl.pending = Some('R');
+                    return;
+                }
+                // The word, WORD, line or file name under the cursor.
+                (_, KeyCode::Char(c @ ('w' | 'a' | 'l' | 'f')), true) => {
+                    let line = self.buf.line(self.cur.line);
+                    let b = self.cur.byte.min(line.len());
+                    match c {
+                        'l' => line,
+                        _ => {
+                            let class = |ch: char| match c {
+                                'w' => ch.is_alphanumeric() || ch == '_',
+                                'f' => !ch.is_whitespace() && !"\"'<>|".contains(ch),
+                                _ => !ch.is_whitespace(),
+                            };
+                            let start = line[..b].rfind(|ch: char| !class(ch)).map_or(0, |i| {
+                                i + line[i..].chars().next().map_or(1, char::len_utf8)
+                            });
+                            let end = line[b..]
+                                .find(|ch: char| !class(ch))
+                                .map_or(line.len(), |i| b + i);
+                            line[start..end.max(start)].to_string()
+                        }
+                    }
+                }
+                (_, KeyCode::Char(c), false) => {
+                    let Mode::Command(_) = &self.mode else { return };
+                    match vim::register::get(self, c) {
+                        Some(r) if r.linewise => r.text + "\r",
+                        Some(r) => r.text,
+                        None => String::new(),
+                    }
+                }
+                _ => String::new(),
+            };
+            let Mode::Command(cl) = &mut self.mode else {
+                return;
+            };
+            cl.text.insert_str(cl.cursor, &text);
+            cl.cursor += text.len();
+            if let Some(k) = then {
+                self.cmdline_key(k);
+            }
+            return;
+        }
+        let k = match (k.code, k.ctrl, k.shift) {
+            (KeyCode::Char('p'), false, _) if k.alt && cl.kind == '=' => Key::new(KeyCode::Up),
+            (KeyCode::Char('n'), false, _) if k.alt && cl.kind == '=' => Key::new(KeyCode::Down),
+            (KeyCode::Char('r'), true, _) => {
+                cl.pending = Some('r');
+                return;
+            }
+            (KeyCode::Char('v' | 'q'), true, _) => {
+                cl.pending = Some('v');
+                return;
+            }
+            (KeyCode::Char('b'), true, _) => Key::new(KeyCode::Home),
+            (KeyCode::Char('e'), true, _) => Key::new(KeyCode::End),
+            (KeyCode::Char('h'), true, _) => Key::new(KeyCode::Backspace),
+            (KeyCode::Char('j' | 'm'), true, _) => Key::new(KeyCode::Enter),
+            (KeyCode::Char('i'), true, _) => Key::new(KeyCode::Tab),
+            (KeyCode::Char('['), true, _) => Key::new(KeyCode::Esc),
+            // CTRL-N and CTRL-P: the next completion, else history.
+            (KeyCode::Char('n'), true, _) if cl.comp.is_some() => Key::new(KeyCode::Tab),
+            (KeyCode::Char('p'), true, _) if cl.comp.is_some() => Key::new(KeyCode::BackTab),
+            (KeyCode::Char('n'), true, _) => Key::with(KeyCode::PageDown, ""),
+            (KeyCode::Char('p'), true, _) => Key::with(KeyCode::PageUp, ""),
+            (KeyCode::Up, _, true) => Key::new(KeyCode::PageUp),
+            (KeyCode::Down, _, true) => Key::new(KeyCode::PageDown),
             _ => k,
         };
+        if !matches!(k.code, KeyCode::Tab | KeyCode::BackTab) {
+            cl.comp = None;
+        }
         match k.code {
             KeyCode::Esc => self.mode = Mode::Normal,
             KeyCode::Char('c') if k.ctrl => self.mode = Mode::Normal,
@@ -865,14 +996,26 @@ impl Editor {
                 self.run_cmdline(cl.kind, &cl.text);
             }
             KeyCode::Backspace if cl.text.is_empty() => self.mode = Mode::Normal,
-            KeyCode::Up | KeyCode::Down => {
+            // Up and Down recall the lines starting with what was typed;
+            // PageUp and PageDown (S-Up, S-Down) any line.
+            KeyCode::Up | KeyCode::Down | KeyCode::PageUp | KeyCode::PageDown => {
+                let older = matches!(k.code, KeyCode::Up | KeyCode::PageUp);
+                let prefix = if matches!(k.code, KeyCode::Up | KeyCode::Down) {
+                    if cl.hist.is_none() {
+                        cl.text.clone()
+                    } else {
+                        cl.stash.clone()
+                    }
+                } else {
+                    String::new()
+                };
+                let fits = |i: usize| hist[i].starts_with(&prefix);
                 let len = hist.len();
-                let next = match (k.code, cl.hist) {
-                    (KeyCode::Up, None) if len > 0 => Some(len - 1),
-                    (KeyCode::Up, Some(i)) => Some(i.saturating_sub(1)),
-                    (KeyCode::Down, Some(i)) if i + 1 < len => Some(i + 1),
-                    (KeyCode::Down, Some(_)) => None,
-                    (_, h) => h,
+                let next = if older {
+                    let below = cl.hist.unwrap_or(len);
+                    (0..below).rev().find(|&i| fits(i)).or(cl.hist)
+                } else {
+                    cl.hist.and_then(|h| (h + 1..len).find(|&i| fits(i)))
                 };
                 if cl.hist.is_none() {
                     cl.stash = cl.text.clone();
