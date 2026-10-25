@@ -43,7 +43,7 @@ track.
 | 15 | `:substitute` and `:global` in full | 3 | 0 | flags `& e g i I n r`, count, `~`, case escapes, `:&` `:&&` `:~` `&` `g&`; no `c` (confirm), `\=` |
 | 16 | Editing, file, buffer and argument-list ex commands | 5 | 0 | about 60 commands; editor-run ones (`:normal`, `:put`, `:yank`…) in `src/vim/excmd.rs`; `\|` between commands |
 | 17 | Windows and tab pages (`CTRL-W`, `:split`, `:tab*`) | 6 | 0 | none |
-| 18 | Mappings, abbreviations, user commands | 5 | 0 | none |
+| 18 | Mappings, abbreviations, user commands | 5 | 0 | mappings for every mode (`src/vim/mappings.rs`); no 'timeout', abbreviations, `:command` |
 | 19 | Autocommands | 3 | 0 | none |
 | 20 | Undo tree, `:earlier`/`:later`, undofile | 3 | 0 | linear undo |
 | 21 | Folding (`z` commands, foldmethods) | 3 | 0 | Org-only hidden ranges |
@@ -280,3 +280,12 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
   cursor may stand on a line's end, as in Vim (`v$`, `l` past the last
   character), so the line break is selected. Fixed CTRL-G/L/\ and CTRL-V
   not reaching their handlers. Oracle: 960 cases.
+- 2026-10-25: key mappings (`src/vim/mappings.rs`): `:map`, `:noremap`,
+  `:unmap`, `:mapclear` for `n x s o i c` (and `:map!`), `<buffer>`,
+  `<silent>`, `<nowait>`, `<unique>`, `<Nop>`, `<leader>` (Space, Fred's
+  leader); typed keys are matched (buffer maps first), remapped as Vim
+  does (not where the rhs starts with its own lhs; E223 for a loop);
+  `:normal` maps, `:normal!` doesn't; listings in a picker. Key notation
+  is case-insensitive and knows `<Space> <Bar> <Bslash> <NL> <Return>`.
+  No 'timeout': a key that starts a longer mapping waits for the next.
+  Oracle: 993 cases.

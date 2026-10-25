@@ -128,6 +128,9 @@ pub struct Editor {
     pub reg: Register,
     /// The other registers and the macro recorder.
     pub regs: vim::register::Registers,
+    /// Key mappings (`:map`), and this buffer's own (`<buffer>`).
+    pub maps: vim::mappings::Maps,
+    pub buf_maps: vim::mappings::Maps,
     pub marks: HashMap<char, usize>,
     /// The byte column of each mark in `marks`.
     pub mark_cols: HashMap<char, usize>,
@@ -252,6 +255,8 @@ impl Editor {
             mode: Mode::Normal,
             reg: Register::default(),
             regs: Default::default(),
+            maps: Default::default(),
+            buf_maps: Default::default(),
             marks: HashMap::new(),
             mark_cols: HashMap::new(),
             last_pat: None,
@@ -355,6 +360,7 @@ impl Editor {
     pub fn inherit(&mut self, old: &mut Editor) {
         self.reg = std::mem::take(&mut old.reg);
         self.regs = std::mem::take(&mut old.regs);
+        self.maps = std::mem::take(&mut old.maps);
         self.revision_stack = std::mem::take(&mut old.revision_stack);
         self.last_pat = old.last_pat.take();
         self.last_sub = std::mem::take(&mut old.last_sub);
@@ -371,12 +377,18 @@ impl Editor {
         if self.vim.key_depth == 0 {
             vim::register::record(self, k);
         }
+        let typed = self.vim.key_depth == 0;
         self.vim.key_depth += 1;
-        self.dispatch_key(k);
+        // Typed keys go through the mappings.
+        if typed && (!self.maps.list.is_empty() || !self.buf_maps.list.is_empty()) {
+            vim::mappings::typed(self, k);
+        } else {
+            self.dispatch_key(k);
+        }
         self.vim.key_depth -= 1;
     }
 
-    fn dispatch_key(&mut self, k: Key) {
+    pub(crate) fn dispatch_key(&mut self, k: Key) {
         self.magit_input_generation = self.magit_input_generation.wrapping_add(1);
         // The open right-click menu has the keys first.
         if self.menu.is_some() && crate::menu::key(self, k) {

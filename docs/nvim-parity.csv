@@ -767,13 +767,13 @@ ex,,clist,:cl[ist] ADDR_NONE,missing,,qf_list
 ex,,clast,:cla[st] ADDR_UNSIGNED,missing,,ex_cc
 ex,,close,:clo[se] ADDR_WINDOWS,partial,present; not yet verified against nvim,ex_close
 ex,,clearjumps,:cle[arjumps] ADDR_NONE,partial,present; not yet verified against nvim,ex_clearjumps
-ex,,cmap,:cm[ap] ADDR_NONE,missing,,ex_map
-ex,,cmapclear,:cmapc[lear] ADDR_NONE,missing,,ex_mapclear
+ex,,cmap,:cm[ap] ADDR_NONE,done,<buffer> <silent> <nowait> <unique>; remaps as Vim (not an rhs's own lhs); no 'timeout' (a prefix waits for the next key); <leader> is Space; no <expr>; oracle cases,ex_map
+ex,,cmapclear,:cmapc[lear] ADDR_NONE,done,oracle cases,ex_mapclear
 ex,,cmenu,:cme[nu] ADDR_OTHER,excluded,GUI,ex_menu
 ex,,cnext,:cn[ext] ADDR_UNSIGNED,missing,,ex_cnext
 ex,,cnewer,:cnew[er] ADDR_UNSIGNED,missing,,qf_age
 ex,,cnfile,:cnf[ile] ADDR_UNSIGNED,missing,,ex_cnext
-ex,,cnoremap,:cno[remap] ADDR_NONE,missing,,ex_map
+ex,,cnoremap,:cno[remap] ADDR_NONE,done,<buffer> <silent> <nowait> <unique>; remaps as Vim (not an rhs's own lhs); no 'timeout' (a prefix waits for the next key); <leader> is Space; no <expr>; oracle cases,ex_map
 ex,,cnoreabbrev,:cnorea[bbrev] ADDR_NONE,missing,,ex_abbreviate
 ex,,cnoremenu,:cnoreme[nu] ADDR_OTHER,excluded,GUI,ex_menu
 ex,,copy,:co[py] ADDR_LINES,partial,present; not yet verified against nvim,ex_copymove
@@ -791,7 +791,7 @@ ex,,cprevious,:cp[revious] ADDR_UNSIGNED,missing,,ex_cnext
 ex,,cpfile,:cpf[ile] ADDR_OTHER,missing,,ex_cnext
 ex,,cquit,:cq[uit] ADDR_UNSIGNED,missing,,ex_cquit
 ex,,crewind,:cr[ewind] ADDR_UNSIGNED,missing,,ex_cc
-ex,,cunmap,:cu[nmap] ADDR_NONE,missing,,ex_unmap
+ex,,cunmap,:cu[nmap] ADDR_NONE,done,oracle cases,ex_unmap
 ex,,cunabbrev,:cuna[bbrev] ADDR_NONE,missing,,ex_abbreviate
 ex,,cunmenu,:cunme[nu] ADDR_NONE,excluded,GUI,ex_menu
 ex,,cwindow,:cw[indow] ADDR_OTHER,missing,,ex_cwindow
@@ -876,17 +876,17 @@ ex,,iabclear,:iabc[lear] ADDR_NONE,missing,,ex_abclear
 ex,,if,:if ADDR_NONE,excluded,Vimscript language,ex_if
 ex,,ijump,:ij[ump] ADDR_LINES,missing,,ex_findpat
 ex,,ilist,:il[ist] ADDR_LINES,missing,,ex_findpat
-ex,,imap,:im[ap] ADDR_NONE,missing,,ex_map
-ex,,imapclear,:imapc[lear] ADDR_NONE,missing,,ex_mapclear
+ex,,imap,:im[ap] ADDR_NONE,done,<buffer> <silent> <nowait> <unique>; remaps as Vim (not an rhs's own lhs); no 'timeout' (a prefix waits for the next key); <leader> is Space; no <expr>; oracle cases,ex_map
+ex,,imapclear,:imapc[lear] ADDR_NONE,done,oracle cases,ex_mapclear
 ex,,imenu,:ime[nu] ADDR_OTHER,excluded,GUI,ex_menu
-ex,,inoremap,:ino[remap] ADDR_NONE,missing,,ex_map
+ex,,inoremap,:ino[remap] ADDR_NONE,done,<buffer> <silent> <nowait> <unique>; remaps as Vim (not an rhs's own lhs); no 'timeout' (a prefix waits for the next key); <leader> is Space; no <expr>; oracle cases,ex_map
 ex,,inoreabbrev,:inorea[bbrev] ADDR_NONE,missing,,ex_abbreviate
 ex,,inoremenu,:inoreme[nu] ADDR_OTHER,excluded,GUI,ex_menu
 ex,,intro,:int[ro] ADDR_NONE,missing,,ex_intro
 ex,,iput,:ip[ut] ADDR_LINES,missing,,ex_iput
 ex,,isearch,:is[earch] ADDR_LINES,missing,,ex_findpat
 ex,,isplit,:isp[lit] ADDR_LINES,missing,,ex_findpat
-ex,,iunmap,:iu[nmap] ADDR_NONE,missing,,ex_unmap
+ex,,iunmap,:iu[nmap] ADDR_NONE,done,oracle cases,ex_unmap
 ex,,iunabbrev,:iuna[bbrev] ADDR_NONE,missing,,ex_abbreviate
 ex,,iunmenu,:iunme[nu] ADDR_NONE,excluded,GUI,ex_menu
 ex,,join,:j[oin] ADDR_LINES,partial,joins with a space; :j! keeps white space,ex_join
@@ -961,8 +961,8 @@ ex,,lsp,:lsp ADDR_NONE,excluded,"other languages, plugins and remote UI",ex_lsp
 ex,,move,:m[ove] ADDR_LINES,partial,present; not yet verified against nvim,ex_copymove
 ex,,mark,:ma[rk] ADDR_LINES,done,oracle cases,ex_mark
 ex,,make,:mak[e] ADDR_NONE,missing,,ex_make
-ex,,map,:map ADDR_NONE,missing,,ex_map
-ex,,mapclear,:mapc[lear] ADDR_NONE,missing,,ex_mapclear
+ex,,map,:map ADDR_NONE,done,<buffer> <silent> <nowait> <unique>; remaps as Vim (not an rhs's own lhs); no 'timeout' (a prefix waits for the next key); <leader> is Space; no <expr>; oracle cases,ex_map
+ex,,mapclear,:mapc[lear] ADDR_NONE,done,oracle cases,ex_mapclear
 ex,,marks,:marks ADDR_NONE,partial,a list in a picker; picking one goes there,ex_marks
 ex,,match,:mat[ch] ADDR_OTHER,missing,,ex_match
 ex,,menu,:me[nu] ADDR_OTHER,excluded,GUI,ex_menu
@@ -978,30 +978,30 @@ ex,,mzscheme,mzscheme ADDR_LINES,excluded,"other languages, plugins and remote U
 ex,,mzfile,mzfile ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_ni
 ex,,next,:n[ext] ADDR_OTHER,missing,,ex_next
 ex,,new,:new ADDR_OTHER,partial,present; not yet verified against nvim,ex_splitview
-ex,,nmap,:nm[ap] ADDR_NONE,missing,,ex_map
-ex,,nmapclear,:nmapc[lear] ADDR_NONE,missing,,ex_mapclear
+ex,,nmap,:nm[ap] ADDR_NONE,done,<buffer> <silent> <nowait> <unique>; remaps as Vim (not an rhs's own lhs); no 'timeout' (a prefix waits for the next key); <leader> is Space; no <expr>; oracle cases,ex_map
+ex,,nmapclear,:nmapc[lear] ADDR_NONE,done,oracle cases,ex_mapclear
 ex,,nmenu,:nme[nu] ADDR_OTHER,excluded,GUI,ex_menu
-ex,,nnoremap,:nn[oremap] ADDR_NONE,missing,,ex_map
+ex,,nnoremap,:nn[oremap] ADDR_NONE,done,<buffer> <silent> <nowait> <unique>; remaps as Vim (not an rhs's own lhs); no 'timeout' (a prefix waits for the next key); <leader> is Space; no <expr>; oracle cases,ex_map
 ex,,nnoremenu,:nnoreme[nu] ADDR_OTHER,excluded,GUI,ex_menu
-ex,,noremap,:no[remap] ADDR_NONE,missing,,ex_map
+ex,,noremap,:no[remap] ADDR_NONE,done,<buffer> <silent> <nowait> <unique>; remaps as Vim (not an rhs's own lhs); no 'timeout' (a prefix waits for the next key); <leader> is Space; no <expr>; oracle cases,ex_map
 ex,,noautocmd,:noa[utocmd] ADDR_NONE,partial,accepted and ignored,ex_wrongmodifier
 ex,,nohlsearch,:noh[lsearch] ADDR_NONE,partial,no-op: Fred doesn't highlight matches,ex_nohlsearch
 ex,,noreabbrev,:norea[bbrev] ADDR_NONE,missing,,ex_abbreviate
 ex,,noremenu,:noreme[nu] ADDR_OTHER,excluded,GUI,ex_menu
 ex,,noswapfile,:nos[wapfile] ADDR_NONE,missing,,ex_wrongmodifier
-ex,,normal,:norm[al] ADDR_LINES,done,":normal and :g/pat/normal; incomplete commands end, Visual mode stays; oracle cases",ex_normal
+ex,,normal,:norm[al] ADDR_LINES,done,":normal maps keys, :normal! does not; also under :g; oracle cases",ex_normal
 ex,,number,:nu[mber] ADDR_LINES,partial,the last line in the message,ex_print
-ex,,nunmap,:nun[map] ADDR_NONE,missing,,ex_unmap
+ex,,nunmap,:nun[map] ADDR_NONE,done,oracle cases,ex_unmap
 ex,,nunmenu,:nunme[nu] ADDR_NONE,excluded,GUI,ex_menu
 ex,,oldfiles,:ol[dfiles] ADDR_NONE,missing,,ex_oldfiles
-ex,,omap,:om[ap] ADDR_NONE,missing,,ex_map
-ex,,omapclear,:omapc[lear] ADDR_NONE,missing,,ex_mapclear
+ex,,omap,:om[ap] ADDR_NONE,done,<buffer> <silent> <nowait> <unique>; remaps as Vim (not an rhs's own lhs); no 'timeout' (a prefix waits for the next key); <leader> is Space; no <expr>; oracle cases,ex_map
+ex,,omapclear,:omapc[lear] ADDR_NONE,done,oracle cases,ex_mapclear
 ex,,omenu,:ome[nu] ADDR_OTHER,excluded,GUI,ex_menu
 ex,,only,:on[ly] ADDR_WINDOWS,partial,present; not yet verified against nvim,ex_only
-ex,,onoremap,:ono[remap] ADDR_NONE,missing,,ex_map
+ex,,onoremap,:ono[remap] ADDR_NONE,done,<buffer> <silent> <nowait> <unique>; remaps as Vim (not an rhs's own lhs); no 'timeout' (a prefix waits for the next key); <leader> is Space; no <expr>; oracle cases,ex_map
 ex,,onoremenu,:onoreme[nu] ADDR_OTHER,excluded,GUI,ex_menu
 ex,,options,:opt[ions] ADDR_NONE,missing,,ex_options
-ex,,ounmap,:ou[nmap] ADDR_NONE,missing,,ex_unmap
+ex,,ounmap,:ou[nmap] ADDR_NONE,done,oracle cases,ex_unmap
 ex,,ounmenu,:ounme[nu] ADDR_NONE,excluded,GUI,ex_menu
 ex,,ownsyntax,ownsyntax ADDR_NONE,missing,,ex_ownsyntax
 ex,,print,:p[rint] ADDR_LINES,partial,the last line of the range in the message,ex_print
@@ -1097,12 +1097,12 @@ ex,,silent,:sil[ent] ADDR_NONE,partial,accepted and ignored,ex_wrongmodifier
 ex,,sleep,:sl[eep] ADDR_OTHER,missing,,ex_sleep
 ex,,slast,:sla[st] ADDR_NONE,missing,,ex_last
 ex,,smagic,:sm[agic] ADDR_LINES,missing,,ex_submagic
-ex,,smap,:smap ADDR_NONE,missing,,ex_map
-ex,,smapclear,:smapc[lear] ADDR_NONE,missing,,ex_mapclear
+ex,,smap,:smap ADDR_NONE,done,<buffer> <silent> <nowait> <unique>; remaps as Vim (not an rhs's own lhs); no 'timeout' (a prefix waits for the next key); <leader> is Space; no <expr>; oracle cases,ex_map
+ex,,smapclear,:smapc[lear] ADDR_NONE,done,oracle cases,ex_mapclear
 ex,,smenu,:sme[nu] ADDR_OTHER,excluded,GUI,ex_menu
 ex,,snext,:sn[ext] ADDR_OTHER,missing,,ex_next
 ex,,snomagic,:sno[magic] ADDR_LINES,missing,,ex_submagic
-ex,,snoremap,:snor[emap] ADDR_NONE,missing,,ex_map
+ex,,snoremap,:snor[emap] ADDR_NONE,done,<buffer> <silent> <nowait> <unique>; remaps as Vim (not an rhs's own lhs); no 'timeout' (a prefix waits for the next key); <leader> is Space; no <expr>; oracle cases,ex_map
 ex,,snoremenu,:snoreme[nu] ADDR_OTHER,excluded,GUI,ex_menu
 ex,,source,:so[urce] ADDR_LINES,excluded,Vimscript language,ex_source
 ex,,sort,:sor[t] ADDR_LINES,done,all flags but l (locale) and a /pattern/; oracle cases,ex_sort
@@ -1125,7 +1125,7 @@ ex,,stopinsert,:stopi[nsert] ADDR_NONE,partial,present; not yet verified against
 ex,,stjump,:stj[ump] ADDR_NONE,missing,,ex_stag
 ex,,stselect,:sts[elect] ADDR_NONE,missing,,ex_stag
 ex,,sunhide,:sun[hide] ADDR_OTHER,missing,,ex_buffer_all
-ex,,sunmap,:sunm[ap] ADDR_NONE,missing,,ex_unmap
+ex,,sunmap,:sunm[ap] ADDR_NONE,done,oracle cases,ex_unmap
 ex,,sunmenu,:sunme[nu] ADDR_NONE,excluded,GUI,ex_menu
 ex,,suspend,:sus[pend] ADDR_NONE,missing,,ex_stop
 ex,,sview,:sv[iew] ADDR_OTHER,missing,,ex_splitview
@@ -1186,7 +1186,7 @@ ex,,unhide,:unh[ide] ADDR_OTHER,missing,,ex_buffer_all
 ex,,uniq,:uni[q] ADDR_LINES,missing,,ex_uniq
 ex,,unlet,:unl[et] ADDR_NONE,excluded,Vimscript language,ex_unlet
 ex,,unlockvar,:unlo[ckvar] ADDR_NONE,excluded,Vimscript language,ex_lockvar
-ex,,unmap,:unm[ap] ADDR_NONE,missing,,ex_unmap
+ex,,unmap,:unm[ap] ADDR_NONE,done,oracle cases,ex_unmap
 ex,,unmenu,:unme[nu] ADDR_NONE,excluded,GUI,ex_menu
 ex,,unsilent,:uns[ilent] ADDR_NONE,partial,accepted and ignored,ex_wrongmodifier
 ex,,update,:up[date] ADDR_LINES,partial,present; not yet verified against nvim,ex_update
@@ -1199,14 +1199,14 @@ ex,,view,:vie[w] ADDR_NONE,missing,,ex_edit
 ex,,vimgrep,:vim[grep] ADDR_OTHER,missing,,ex_vimgrep
 ex,,vimgrepadd,:vimgrepa[dd] ADDR_OTHER,missing,,ex_vimgrep
 ex,,viusage,:viu[sage] ADDR_NONE,missing,,ex_viusage
-ex,,vmap,:vm[ap] ADDR_NONE,missing,,ex_map
-ex,,vmapclear,:vmapc[lear] ADDR_NONE,missing,,ex_mapclear
+ex,,vmap,:vm[ap] ADDR_NONE,done,<buffer> <silent> <nowait> <unique>; remaps as Vim (not an rhs's own lhs); no 'timeout' (a prefix waits for the next key); <leader> is Space; no <expr>; oracle cases,ex_map
+ex,,vmapclear,:vmapc[lear] ADDR_NONE,done,oracle cases,ex_mapclear
 ex,,vmenu,:vme[nu] ADDR_OTHER,excluded,GUI,ex_menu
-ex,,vnoremap,:vn[oremap] ADDR_NONE,missing,,ex_map
+ex,,vnoremap,:vn[oremap] ADDR_NONE,done,<buffer> <silent> <nowait> <unique>; remaps as Vim (not an rhs's own lhs); no 'timeout' (a prefix waits for the next key); <leader> is Space; no <expr>; oracle cases,ex_map
 ex,,vnew,:vne[w] ADDR_OTHER,partial,present; not yet verified against nvim,ex_splitview
 ex,,vnoremenu,:vnoreme[nu] ADDR_OTHER,excluded,GUI,ex_menu
 ex,,vsplit,:vs[plit] ADDR_OTHER,partial,present; not yet verified against nvim,ex_splitview
-ex,,vunmap,:vu[nmap] ADDR_NONE,missing,,ex_unmap
+ex,,vunmap,:vu[nmap] ADDR_NONE,done,oracle cases,ex_unmap
 ex,,vunmenu,:vunme[nu] ADDR_NONE,excluded,GUI,ex_menu
 ex,,write,:w[rite] ADDR_LINES,partial,present; not yet verified against nvim,ex_write
 ex,,wNext,:wN[ext] ADDR_OTHER,missing,,ex_wnext
@@ -1225,12 +1225,12 @@ ex,,wundo,:wu[ndo] ADDR_NONE,missing,,ex_wundo
 ex,,wviminfo,wviminfo ADDR_NONE,deferred,"sessions, views and shada",ex_shada
 ex,,xit,:x[it] ADDR_LINES,partial,present; not yet verified against nvim,ex_exit
 ex,,xall,:xa[ll] ADDR_NONE,partial,present; not yet verified against nvim,do_wqall
-ex,,xmap,:xm[ap] ADDR_NONE,missing,,ex_map
-ex,,xmapclear,:xmapc[lear] ADDR_NONE,missing,,ex_mapclear
+ex,,xmap,:xm[ap] ADDR_NONE,done,<buffer> <silent> <nowait> <unique>; remaps as Vim (not an rhs's own lhs); no 'timeout' (a prefix waits for the next key); <leader> is Space; no <expr>; oracle cases,ex_map
+ex,,xmapclear,:xmapc[lear] ADDR_NONE,done,oracle cases,ex_mapclear
 ex,,xmenu,:xme[nu] ADDR_OTHER,excluded,GUI,ex_menu
-ex,,xnoremap,:xn[oremap] ADDR_NONE,missing,,ex_map
+ex,,xnoremap,:xn[oremap] ADDR_NONE,done,<buffer> <silent> <nowait> <unique>; remaps as Vim (not an rhs's own lhs); no 'timeout' (a prefix waits for the next key); <leader> is Space; no <expr>; oracle cases,ex_map
 ex,,xnoremenu,:xnoreme[nu] ADDR_OTHER,excluded,GUI,ex_menu
-ex,,xunmap,:xu[nmap] ADDR_NONE,missing,,ex_unmap
+ex,,xunmap,:xu[nmap] ADDR_NONE,done,oracle cases,ex_unmap
 ex,,xunmenu,:xunme[nu] ADDR_NONE,excluded,GUI,ex_menu
 ex,,yank,:y[ank] ADDR_LINES,done,oracle cases,ex_operators
 ex,,z,:z ADDR_LINES,missing,,ex_z

@@ -345,6 +345,7 @@ fn run_named(
     (cmd.run)(
         st,
         Args {
+            name: cmd.name,
             range,
             at: range.unwrap_or(Range {
                 start: cur,
@@ -393,6 +394,8 @@ pub struct Command {
 /// What a command was given.
 #[derive(Clone, Copy)]
 struct Args<'a> {
+    /// The command's full name.
+    name: &'static str,
     range: Option<Range>,
     /// The range, or the current line.
     at: Range,
@@ -546,6 +549,108 @@ pub const COMMANDS: &[Command] = &[
     cmd("sort", 3, RANGE | BANG | EXTRA, sort)
         .about("sort lines (! reverse; n x o b f numbers, i, u unique, /pat/)")
         .takes("[b][f][i][n][o][r][u][x] [/pattern/]"),
+    cmd("map", 3, BANG | EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("map keys (Normal, Visual, Op-pending; ! Insert and Cmdline)")
+        .takes("[<buffer>] {lhs} {rhs}"),
+    cmd("nmap", 2, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("map keys in Normal mode")
+        .takes("[<buffer>] {lhs} {rhs}"),
+    cmd("vmap", 2, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("map keys in Visual and Select mode")
+        .takes("[<buffer>] {lhs} {rhs}"),
+    cmd("xmap", 2, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("map keys in Visual mode")
+        .takes("[<buffer>] {lhs} {rhs}"),
+    cmd("smap", 4, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("map keys in Select mode")
+        .takes("[<buffer>] {lhs} {rhs}"),
+    cmd("omap", 2, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("map keys in Operator-pending mode")
+        .takes("[<buffer>] {lhs} {rhs}"),
+    cmd("imap", 2, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("map keys in Insert mode")
+        .takes("[<buffer>] {lhs} {rhs}"),
+    cmd("cmap", 2, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("map keys on the command line")
+        .takes("[<buffer>] {lhs} {rhs}"),
+    cmd("noremap", 2, BANG | EXTRA | EDITOR, |_, a| {
+        on_editor(a.name, a)
+    })
+    .about("map keys, not remapping the result (Normal, Visual, Op-pending; ! Insert and Cmdline)")
+    .takes("[<buffer>] {lhs} {rhs}"),
+    cmd("nnoremap", 2, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("map keys, not remapping the result in Normal mode")
+        .takes("[<buffer>] {lhs} {rhs}"),
+    cmd("vnoremap", 2, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("map keys, not remapping the result in Visual and Select mode")
+        .takes("[<buffer>] {lhs} {rhs}"),
+    cmd("xnoremap", 2, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("map keys, not remapping the result in Visual mode")
+        .takes("[<buffer>] {lhs} {rhs}"),
+    cmd("snoremap", 4, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("map keys, not remapping the result in Select mode")
+        .takes("[<buffer>] {lhs} {rhs}"),
+    cmd("onoremap", 3, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("map keys, not remapping the result in Operator-pending mode")
+        .takes("[<buffer>] {lhs} {rhs}"),
+    cmd("inoremap", 3, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("map keys, not remapping the result in Insert mode")
+        .takes("[<buffer>] {lhs} {rhs}"),
+    cmd("cnoremap", 3, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("map keys, not remapping the result on the command line")
+        .takes("[<buffer>] {lhs} {rhs}"),
+    cmd("unmap", 3, BANG | EXTRA | EDITOR, |_, a| {
+        on_editor(a.name, a)
+    })
+    .about("remove a mapping (Normal, Visual, Op-pending; ! Insert and Cmdline)")
+    .takes("[<buffer>] {lhs}"),
+    cmd("nunmap", 3, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("remove a mapping in Normal mode")
+        .takes("[<buffer>] {lhs}"),
+    cmd("vunmap", 2, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("remove a mapping in Visual and Select mode")
+        .takes("[<buffer>] {lhs}"),
+    cmd("xunmap", 2, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("remove a mapping in Visual mode")
+        .takes("[<buffer>] {lhs}"),
+    cmd("sunmap", 4, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("remove a mapping in Select mode")
+        .takes("[<buffer>] {lhs}"),
+    cmd("ounmap", 2, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("remove a mapping in Operator-pending mode")
+        .takes("[<buffer>] {lhs}"),
+    cmd("iunmap", 2, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("remove a mapping in Insert mode")
+        .takes("[<buffer>] {lhs}"),
+    cmd("cunmap", 2, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("remove a mapping on the command line")
+        .takes("[<buffer>] {lhs}"),
+    cmd("mapclear", 4, BANG | EXTRA | EDITOR, |_, a| {
+        on_editor(a.name, a)
+    })
+    .about("remove all mappings (Normal, Visual, Op-pending; ! Insert and Cmdline)")
+    .takes("[<buffer>]"),
+    cmd("nmapclear", 5, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("remove all mappings in Normal mode")
+        .takes("[<buffer>]"),
+    cmd("vmapclear", 5, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("remove all mappings in Visual and Select mode")
+        .takes("[<buffer>]"),
+    cmd("xmapclear", 5, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("remove all mappings in Visual mode")
+        .takes("[<buffer>]"),
+    cmd("smapclear", 5, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("remove all mappings in Select mode")
+        .takes("[<buffer>]"),
+    cmd("omapclear", 5, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("remove all mappings in Operator-pending mode")
+        .takes("[<buffer>]"),
+    cmd("imapclear", 5, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("remove all mappings in Insert mode")
+        .takes("[<buffer>]"),
+    cmd("cmapclear", 5, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("remove all mappings on the command line")
+        .takes("[<buffer>]"),
     cmd("yank", 1, RANGE | EXTRA | EDITOR, |_, a| {
         on_editor("yank", a)
     })
@@ -859,7 +964,8 @@ fn on_editor(name: &'static str, a: Args) -> Result<ExEffect, String> {
         range: a.range,
         at: a.at,
         force: a.force,
-        arg: if name == "normal" {
+        // `:normal` and the map commands keep trailing blanks.
+        arg: if name == "normal" || name.contains("map") {
             a.raw.trim_start().to_string()
         } else {
             a.arg.to_string()

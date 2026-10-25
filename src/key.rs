@@ -130,16 +130,21 @@ pub fn notation(k: &Key) -> String {
 fn named(name: &str) -> Option<Key> {
     // Modifier prefixes C- M- S- in any order, then a key name or character.
     let (mut ctrl, mut alt, mut shift, mut rest) = (false, false, false, name);
+    // (Any case: `<c-w>`; `A-` is `M-`.)
+    fn prefix<'a>(s: &'a str, p: &[&str]) -> Option<&'a str> {
+        p.iter()
+            .find_map(|p| s.strip_prefix(p))
+            .filter(|r| !r.is_empty())
+    }
     loop {
-        if let Some(r) = rest.strip_prefix("C-").filter(|r| !r.is_empty()) {
+        if let Some(r) = prefix(rest, &["C-", "c-"]) {
             ctrl = true;
             rest = r;
-        } else if let Some(r) = rest.strip_prefix("M-").filter(|r| !r.is_empty()) {
+        } else if let Some(r) = prefix(rest, &["M-", "m-", "A-", "a-"]) {
             alt = true;
             rest = r;
-        } else if let Some(r) = rest
-            .strip_prefix("S-")
-            .filter(|r| *r != "Tab" && !r.is_empty())
+        } else if let Some(r) =
+            prefix(rest, &["S-", "s-"]).filter(|r| !r.eq_ignore_ascii_case("tab"))
         {
             shift = true;
             rest = r;
@@ -147,23 +152,28 @@ fn named(name: &str) -> Option<Key> {
             break;
         }
     }
-    let code = match rest {
-        "Esc" => KeyCode::Esc,
-        "Enter" | "CR" => KeyCode::Enter,
-        "BS" => KeyCode::Backspace,
-        "Tab" => KeyCode::Tab,
-        "S-Tab" => KeyCode::BackTab,
-        "Up" => KeyCode::Up,
-        "Down" => KeyCode::Down,
-        "Left" => KeyCode::Left,
-        "Right" => KeyCode::Right,
-        "Home" => KeyCode::Home,
-        "End" => KeyCode::End,
-        "PageUp" => KeyCode::PageUp,
-        "PageDown" => KeyCode::PageDown,
-        "Del" => KeyCode::Delete,
+    // Vim's names are not case sensitive (`<cr>`, `<ESC>`).
+    let lower = rest.to_ascii_lowercase();
+    let code = match lower.as_str() {
+        "esc" => KeyCode::Esc,
+        "enter" | "cr" | "return" | "nl" => KeyCode::Enter,
+        "bs" => KeyCode::Backspace,
+        "tab" => KeyCode::Tab,
+        "s-tab" => KeyCode::BackTab,
+        "up" => KeyCode::Up,
+        "down" => KeyCode::Down,
+        "left" => KeyCode::Left,
+        "right" => KeyCode::Right,
+        "home" => KeyCode::Home,
+        "end" => KeyCode::End,
+        "pageup" => KeyCode::PageUp,
+        "pagedown" => KeyCode::PageDown,
+        "del" => KeyCode::Delete,
         "lt" => KeyCode::Char('<'),
         "gt" => KeyCode::Char('>'),
+        "space" => KeyCode::Char(' '),
+        "bar" => KeyCode::Char('|'),
+        "bslash" => KeyCode::Char('\\'),
         _ => {
             let mut it = rest.chars();
             let ch = it.next()?;

@@ -3,6 +3,7 @@
 pub mod block;
 pub mod excmd;
 pub mod insert;
+pub mod mappings;
 pub mod marks;
 pub mod motion;
 pub mod ops;
@@ -588,6 +589,17 @@ pub fn which_key(ed: &Editor) -> Option<(&'static str, Vec<(String, &'static str
         title,
         table.iter().map(|&(c, what)| (name(c), what)).collect(),
     ))
+}
+
+/// An operator waits for its motion (Operator-pending mode).
+pub(crate) fn operator_pending(ed: &Editor) -> bool {
+    let p = &ed.vim.pending;
+    let (_, mut i) = count(p);
+    if p.get(i) == Some(&Key::ch('"')) {
+        i += 2;
+        i += count(p.get(i..).unwrap_or(&[])).1;
+    }
+    matches!(parse_op(p.get(i..).unwrap_or(&[])), Parse::Done(_))
 }
 
 /// Handle a key in Normal or Visual-line mode.

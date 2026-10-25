@@ -19,6 +19,38 @@ pub struct Call {
 
 /// Commands that leave the text alone (and so run in generated buffers).
 const READ_ONLY: &[&str] = &[
+    "map",
+    "nmap",
+    "vmap",
+    "xmap",
+    "smap",
+    "omap",
+    "imap",
+    "cmap",
+    "noremap",
+    "nnoremap",
+    "vnoremap",
+    "xnoremap",
+    "snoremap",
+    "onoremap",
+    "inoremap",
+    "cnoremap",
+    "unmap",
+    "nunmap",
+    "vunmap",
+    "xunmap",
+    "sunmap",
+    "ounmap",
+    "iunmap",
+    "cunmap",
+    "mapclear",
+    "nmapclear",
+    "vmapclear",
+    "xmapclear",
+    "smapclear",
+    "omapclear",
+    "imapclear",
+    "cmapclear",
     "yank",
     "registers",
     "display",
@@ -111,6 +143,7 @@ pub fn run(ed: &mut Editor, c: Call) {
             Ok(())
         }
         "print" | "number" | "#" | "list" => print(ed, &c),
+        n if n.contains("map") => super::mappings::command(ed, n, c.force, &c.arg),
         "update" => {
             if ed.buf.modified {
                 ed.pending_effect = Some(crate::ex::ExEffect::Write {
@@ -178,8 +211,14 @@ fn normal(ed: &mut Editor, c: &Call) {
             ed.set_cursor(l, 0);
         }
         for &k in &keys {
-            ed.handle_key(k);
+            // Without `!` the keys are mapped.
+            if c.force {
+                ed.handle_key(k);
+            } else {
+                super::mappings::typed(ed, k);
+            }
         }
+        super::mappings::flush(ed);
         // End what the keys left unfinished (Visual mode stays).
         ed.vim.pending.clear();
         match ed.mode {
