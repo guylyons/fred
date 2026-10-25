@@ -19,6 +19,18 @@ pub struct Call {
 
 /// Commands that leave the text alone (and so run in generated buffers).
 const READ_ONLY: &[&str] = &[
+    "abbreviate",
+    "iabbrev",
+    "cabbrev",
+    "noreabbrev",
+    "inoreabbrev",
+    "cnoreabbrev",
+    "unabbreviate",
+    "iunabbrev",
+    "cunabbrev",
+    "abclear",
+    "iabclear",
+    "cabclear",
     "map",
     "nmap",
     "vmap",
@@ -144,6 +156,7 @@ pub fn run(ed: &mut Editor, c: Call) {
         }
         "print" | "number" | "#" | "list" => print(ed, &c),
         n if n.contains("map") => super::mappings::command(ed, n, c.force, &c.arg),
+        n if n.contains("ab") => super::mappings::abbrev_command(ed, n, &c.arg),
         "source" => source(ed, &c.arg, c.force),
         "update" => {
             if ed.buf.modified {

@@ -655,6 +655,48 @@ pub const COMMANDS: &[Command] = &[
         on_editor("source", a)
     })
     .about("run the ex commands in a file (! its Normal-mode keys)"),
+    cmd("abbreviate", 2, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("define an abbreviation")
+        .takes("[<buffer>] {lhs} {rhs}"),
+    cmd("iabbrev", 3, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("define an abbreviation in Insert mode")
+        .takes("[<buffer>] {lhs} {rhs}"),
+    cmd("cabbrev", 2, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("define an abbreviation on the command line")
+        .takes("[<buffer>] {lhs} {rhs}"),
+    cmd("noreabbrev", 5, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("define an abbreviation, not remapped")
+        .takes("[<buffer>] {lhs} {rhs}"),
+    cmd("inoreabbrev", 6, EXTRA | EDITOR, |_, a| {
+        on_editor(a.name, a)
+    })
+    .about("define an abbreviation, not remapped in Insert mode")
+    .takes("[<buffer>] {lhs} {rhs}"),
+    cmd("cnoreabbrev", 6, EXTRA | EDITOR, |_, a| {
+        on_editor(a.name, a)
+    })
+    .about("define an abbreviation, not remapped on the command line")
+    .takes("[<buffer>] {lhs} {rhs}"),
+    cmd("unabbreviate", 3, EXTRA | EDITOR, |_, a| {
+        on_editor(a.name, a)
+    })
+    .about("remove an abbreviation")
+    .takes("[<buffer>] {lhs} {rhs}"),
+    cmd("iunabbrev", 4, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("remove an abbreviation in Insert mode")
+        .takes("[<buffer>] {lhs} {rhs}"),
+    cmd("cunabbrev", 4, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("remove an abbreviation on the command line")
+        .takes("[<buffer>] {lhs} {rhs}"),
+    cmd("abclear", 3, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("remove all abbreviations")
+        .takes("[<buffer>] {lhs} {rhs}"),
+    cmd("iabclear", 4, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("remove all abbreviations in Insert mode")
+        .takes("[<buffer>] {lhs} {rhs}"),
+    cmd("cabclear", 4, EXTRA | EDITOR, |_, a| on_editor(a.name, a))
+        .about("remove all abbreviations on the command line")
+        .takes("[<buffer>] {lhs} {rhs}"),
     cmd("yank", 1, RANGE | EXTRA | EDITOR, |_, a| {
         on_editor("yank", a)
     })
@@ -969,7 +1011,7 @@ fn on_editor(name: &'static str, a: Args) -> Result<ExEffect, String> {
         at: a.at,
         force: a.force,
         // `:normal` and the map commands keep trailing blanks.
-        arg: if name == "normal" || name.contains("map") {
+        arg: if name == "normal" || name.contains("map") || name.contains("ab") {
             a.raw.trim_start().to_string()
         } else {
             a.arg.to_string()

@@ -332,6 +332,13 @@ fn edit_key(ed: &mut Editor, k: Key) {
     if let Some(p) = ed.vim.ins_pending.take() {
         return pending_key(ed, p, k);
     }
+    // An abbreviation before the cursor expands (CTRL-] only does that).
+    if super::mappings::ends_word(k) {
+        super::mappings::expand_insert(ed);
+        if k == Key::ctrl(']') {
+            return;
+        }
+    }
     let (l, b) = ed.cur.pos();
     let line = ed.buf.line(l);
     if k.ctrl && !k.alt {

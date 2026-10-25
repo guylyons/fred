@@ -24,6 +24,8 @@ pub struct Map {
 #[derive(Debug, Default)]
 pub struct Maps {
     pub(crate) list: Vec<Map>,
+    /// Abbreviations (`:ab`), modes `i` and `c`.
+    pub(crate) abbrevs: Vec<Map>,
     /// Typed keys waiting to be matched.
     pending: Vec<Key>,
 }
@@ -304,4 +306,191 @@ fn list(ed: &mut Editor, modes: &str, lhs: &str) {
         return;
     }
     crate::pick::choose(ed, "mappings", rows, "");
+}
+
+/// A keyword character ('iskeyword' default).
+fn keyword(c: char) -> bool {
+    c.is_alphanumeric() || c == '_'
+}
+
+/// `:ab`, `:iab`, `:cab`, `:noreab`…, `:una`…, `:abc`…
+pub(crate) fn abbrev_command(ed: &mut Editor, name: &str, arg: &str) -> Result<(), String> {
+    let modes = match name.chars().next() {
+        Some('i') => "i",
+        Some('c') => "c",
+        _ => "ic",
+    };
+    let stem = name.trim_start_matches(['i', 'c']);
+    let mut rest = arg.trim_start();
+    let mut buffer = false;
+    while let Some(r) = ["<buffer>", "<silent>", "<expr>"]
+        .into_iter()
+        .find_map(|t| rest.strip_prefix(t).map(|r| (t, r)))
+    {
+        match r.0 {
+            "<buffer>" => buffer = true,
+            "<expr>" => return Err("E1: <expr> needs Vimscript, which Fred doesn't have".into()),
+            _ => {}
+        }
+        rest = r.1.trim_start();
+    }
+    let lhs_end = lhs_end(rest);
+    let (lhs, rhs) = (&rest[..lhs_end], rest[lhs_end..].trim_start());
+    let table = if buffer {
+        &mut ed.buf_maps
+    } else {
+        &mut ed.maps
+    };
+    match stem {
+        s if s.starts_with("abc") => {
+            table.abbrevs.retain(|m| !modes.contains(m.mode));
+            Ok(())
+        }
+        s if s.starts_with("una") => {
+            let before = table.abbrevs.len();
+            table
+                .abbrevs
+                .retain(|m| !(modes.contains(m.mode) && m.lhs_text == lhs));
+            if table.abbrevs.len() == before {
+                return Err("E24: No such abbreviation".into());
+            }
+            Ok(())
+        }
+        _ if lhs.is_empty() || rhs.is_empty() => {
+            let rows: Vec<String> = table
+                .abbrevs
+                .iter()
+                .filter(|m| modes.contains(m.mode) && m.lhs_text.starts_with(lhs))
+                .map(|m| {
+                    format!(
+                        "{}  {:<12} {}{}",
+                        m.mode,
+                        m.lhs_text,
+                        if m.noremap { "*" } else { " " },
+                        m.rhs_text
+                    )
+                })
+                .collect();
+            if rows.is_empty() {
+                ed.set_msg("No abbreviation found");
+            } else {
+                crate::pick::choose(ed, "abbreviations", rows, "");
+            }
+            Ok(())
+        }
+        _ => {
+            // An lhs is all keyword characters, or ends in one with none
+            // before (`#i`), or ends in a non-keyword character.
+            if lhs.contains([' ', '\t']) {
+                return Err("E474: Invalid argument".into());
+            }
+            for mode in modes.chars() {
+                table
+                    .abbrevs
+                    .retain(|m| !(m.mode == mode && m.lhs_text == lhs));
+                table.abbrevs.push(Map {
+                    lhs: keys(lhs),
+                    rhs: keys(rhs),
+                    lhs_text: lhs.to_string(),
+                    rhs_text: rhs.to_string(),
+                    noremap: stem.starts_with("norea"),
+                    mode,
+                });
+            }
+            Ok(())
+        }
+    }
+}
+
+/// The abbreviation `text` (the typed part of a line, up to the cursor)
+/// ends with, if one: (its length in bytes, its rhs keys).
+fn find_abbrev(
+    ed: &Editor,
+    mode: char,
+    text: &str,
+    typed_from: usize,
+) -> Option<(usize, Vec<Key>)> {
+    ed.buf_maps
+        .abbrevs
+        .iter()
+        .chain(ed.maps.abbrevs.iter())
+        .filter(|m| m.mode == mode)
+        .find(|m| {
+            let lhs = m.lhs_text.as_str();
+            let Some(start) = text.len().checked_sub(lhs.len()) else {
+                return false;
+            };
+            if !text.ends_with(lhs) || !text.is_char_boundary(start) {
+                return false;
+            }
+            let before = text[..start].chars().next_back();
+            let last_kw = lhs.chars().next_back().is_some_and(keyword);
+            let all_kw = lhs.chars().all(keyword);
+            if !last_kw {
+                // Non-id abbreviations: not supported (as Neovim, in practice).
+                return false;
+            }
+            let free = start <= typed_from || before.is_none_or(|b| b == ' ' || b == '\t');
+            if all_kw {
+                free || before.is_some_and(|b| !keyword(b))
+            } else {
+                free
+            }
+        })
+        .map(|m| (m.lhs_text.len(), m.rhs.clone()))
+}
+
+/// Insert mode, before a non-keyword character, Esc, Enter or CTRL-]:
+/// expand an abbreviation before the cursor.
+pub(crate) fn expand_insert(ed: &mut Editor) {
+    if ed.vim.in_abbrev {
+        return;
+    }
+    let (l, b) = ed.cur.pos();
+    let line = ed.buf.line(l);
+    let from = if ed.vim.insert_start.0 == l {
+        ed.vim.insert_start.1
+    } else {
+        0
+    };
+    let Some((len, rhs)) = find_abbrev(ed, 'i', &line[..b], from) else {
+        return;
+    };
+    super::ops::delete_chars(ed, (l, b - len), (l, b));
+    ed.cur.byte = b - len;
+    ed.vim.in_abbrev = true;
+    for k in rhs {
+        super::insert::insert_key(ed, k);
+    }
+    ed.vim.in_abbrev = false;
+}
+
+/// The command line, before a non-keyword character or Enter.
+pub(crate) fn expand_cmdline(ed: &mut Editor) {
+    let Mode::Command(cl) = &ed.mode else {
+        return;
+    };
+    let text = cl.text[..cl.cursor].to_string();
+    let Some((len, rhs)) = find_abbrev(ed, 'c', &text, 0) else {
+        return;
+    };
+    if let Mode::Command(cl) = &mut ed.mode {
+        let at = cl.cursor - len;
+        cl.text.replace_range(at..cl.cursor, "");
+        cl.cursor = at;
+        let rhs_text = super::register::keys_to_text(&rhs);
+        cl.text.insert_str(at, &rhs_text);
+        cl.cursor += rhs_text.len();
+    }
+}
+
+/// Whether `k` (typed in Insert mode or on the command line) ends a word
+/// for abbreviations.
+pub(crate) fn ends_word(k: Key) -> bool {
+    match k.code {
+        crate::key::KeyCode::Char(c) if !k.ctrl && !k.alt => !keyword(c),
+        crate::key::KeyCode::Char(']') => k.ctrl,
+        crate::key::KeyCode::Esc | crate::key::KeyCode::Enter => true,
+        _ => false,
+    }
 }

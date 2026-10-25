@@ -35,7 +35,7 @@ key,insert,CTRL-X {mode},,missing,,"enter CTRL-X sub mode, see |i_CTRL-X_index|"
 key,insert,CTRL-Y,,done,oracle cases,insert the character which is above the cursor
 key,insert,<Esc>,,partial,present; not yet verified against nvim,end insert mode
 key,insert,CTRL-[,,partial,the terminal sends Esc,same as <Esc>
-key,insert,CTRL-],,missing,,trigger abbreviation
+key,insert,CTRL-],,done,expands an abbreviation; oracle cases,trigger abbreviation
 key,insert,CTRL-^,,missing,,toggle use of |:lmap| mappings
 key,insert,CTRL-_,,missing,,When 'allowrevins' set: toggle 'revins'
 key,insert,0 CTRL-D,,done,oracle cases,delete all indent in the current line
@@ -667,7 +667,7 @@ key,cmdline,CTRL-W,,partial,present; not yet verified against nvim,delete the wo
 key,cmdline,<Esc>,,partial,present; not yet verified against nvim,abandon command-line without executing it
 key,cmdline,CTRL-[,,done,oracle cases,same as <Esc>
 key,cmdline,CTRL-\ e {expr} replace the command line with the result of,,missing,,
-key,cmdline,CTRL-],,missing,,trigger abbreviation
+key,cmdline,CTRL-],,done,expands an abbreviation; oracle cases,trigger abbreviation
 key,cmdline,CTRL-^,,missing,,toggle use of |:lmap| mappings
 key,cmdline,<Del>,,partial,present; not yet verified against nvim,delete the character under the cursor
 key,cmdline,<Left>,,partial,present; not yet verified against nvim,cursor left
@@ -687,8 +687,8 @@ key,cmdline,<PageUp>,,partial,as <S-Up>,same as <S-Up>
 key,cmdline,<Insert>,,missing,,toggle insert/overstrike mode
 key,cmdline,<LeftMouse>,,missing,,cursor at mouse click
 ex,,append,:a[ppend] ADDR_LINES,missing,,ex_append
-ex,,abbreviate,:ab[breviate] ADDR_NONE,missing,,ex_abbreviate
-ex,,abclear,:abc[lear] ADDR_NONE,missing,,ex_abclear
+ex,,abbreviate,:ab[breviate] ADDR_NONE,done,"full-id and end-id abbreviations, before a non-keyword character, Esc, Enter or CTRL-]; <buffer>; no non-id ones, <expr>; oracle cases",ex_abbreviate
+ex,,abclear,:abc[lear] ADDR_NONE,done,"full-id and end-id abbreviations, before a non-keyword character, Esc, Enter or CTRL-]; <buffer>; no non-id ones, <expr>; oracle cases",ex_abclear
 ex,,aboveleft,:abo[veleft] ADDR_NONE,missing,,ex_wrongmodifier
 ex,,all,:al[l] ADDR_OTHER,missing,,ex_all
 ex,,amenu,:am[enu] ADDR_OTHER,excluded,GUI,ex_menu
@@ -732,8 +732,8 @@ ex,,bwipeout,:bw[ipeout] ADDR_BUFFERS,missing,,ex_bunload
 ex,,change,:c[hange] ADDR_LINES,missing,,ex_change
 ex,,cNext,:cN[ext] ADDR_UNSIGNED,missing,,ex_cnext
 ex,,cNfile,:cNf[ile] ADDR_UNSIGNED,missing,,ex_cnext
-ex,,cabbrev,:ca[bbrev] ADDR_NONE,missing,,ex_abbreviate
-ex,,cabclear,:cabc[lear] ADDR_NONE,missing,,ex_abclear
+ex,,cabbrev,:ca[bbrev] ADDR_NONE,done,"full-id and end-id abbreviations, before a non-keyword character, Esc, Enter or CTRL-]; <buffer>; no non-id ones, <expr>; oracle cases",ex_abbreviate
+ex,,cabclear,:cabc[lear] ADDR_NONE,done,"full-id and end-id abbreviations, before a non-keyword character, Esc, Enter or CTRL-]; <buffer>; no non-id ones, <expr>; oracle cases",ex_abclear
 ex,,cabove,:cabo[ve] ADDR_UNSIGNED,missing,,ex_cbelow
 ex,,caddbuffer,:cad[dbuffer] ADDR_LINES,missing,,ex_cbuffer
 ex,,caddexpr,:cadde[xpr] ADDR_NONE,missing,,ex_cexpr
@@ -774,7 +774,7 @@ ex,,cnext,:cn[ext] ADDR_UNSIGNED,missing,,ex_cnext
 ex,,cnewer,:cnew[er] ADDR_UNSIGNED,missing,,qf_age
 ex,,cnfile,:cnf[ile] ADDR_UNSIGNED,missing,,ex_cnext
 ex,,cnoremap,:cno[remap] ADDR_NONE,done,<buffer> <silent> <nowait> <unique>; remaps as Vim (not an rhs's own lhs); no 'timeout' (a prefix waits for the next key); <leader> is Space; no <expr>; oracle cases,ex_map
-ex,,cnoreabbrev,:cnorea[bbrev] ADDR_NONE,missing,,ex_abbreviate
+ex,,cnoreabbrev,:cnorea[bbrev] ADDR_NONE,done,"full-id and end-id abbreviations, before a non-keyword character, Esc, Enter or CTRL-]; <buffer>; no non-id ones, <expr>; oracle cases",ex_abbreviate
 ex,,cnoremenu,:cnoreme[nu] ADDR_OTHER,excluded,GUI,ex_menu
 ex,,copy,:co[py] ADDR_LINES,partial,present; not yet verified against nvim,ex_copymove
 ex,,colder,:col[der] ADDR_UNSIGNED,missing,,qf_age
@@ -792,7 +792,7 @@ ex,,cpfile,:cpf[ile] ADDR_OTHER,missing,,ex_cnext
 ex,,cquit,:cq[uit] ADDR_UNSIGNED,missing,,ex_cquit
 ex,,crewind,:cr[ewind] ADDR_UNSIGNED,missing,,ex_cc
 ex,,cunmap,:cu[nmap] ADDR_NONE,done,oracle cases,ex_unmap
-ex,,cunabbrev,:cuna[bbrev] ADDR_NONE,missing,,ex_abbreviate
+ex,,cunabbrev,:cuna[bbrev] ADDR_NONE,done,"full-id and end-id abbreviations, before a non-keyword character, Esc, Enter or CTRL-]; <buffer>; no non-id ones, <expr>; oracle cases",ex_abbreviate
 ex,,cunmenu,:cunme[nu] ADDR_NONE,excluded,GUI,ex_menu
 ex,,cwindow,:cw[indow] ADDR_OTHER,missing,,ex_cwindow
 ex,,delete,:d[elete] ADDR_LINES,done,"into a register, with a count; oracle cases",ex_operators
@@ -871,8 +871,8 @@ ex,,hide,:hid[e] ADDR_WINDOWS,partial,present; not yet verified against nvim,ex_
 ex,,history,:his[tory] ADDR_NONE,missing,,ex_history
 ex,,horizontal,:hor[izontal] ADDR_NONE,missing,,ex_wrongmodifier
 ex,,insert,:i[nsert] ADDR_LINES,missing,,ex_append
-ex,,iabbrev,:ia[bbrev] ADDR_NONE,missing,,ex_abbreviate
-ex,,iabclear,:iabc[lear] ADDR_NONE,missing,,ex_abclear
+ex,,iabbrev,:ia[bbrev] ADDR_NONE,done,"full-id and end-id abbreviations, before a non-keyword character, Esc, Enter or CTRL-]; <buffer>; no non-id ones, <expr>; oracle cases",ex_abbreviate
+ex,,iabclear,:iabc[lear] ADDR_NONE,done,"full-id and end-id abbreviations, before a non-keyword character, Esc, Enter or CTRL-]; <buffer>; no non-id ones, <expr>; oracle cases",ex_abclear
 ex,,if,:if ADDR_NONE,excluded,Vimscript language,ex_if
 ex,,ijump,:ij[ump] ADDR_LINES,missing,,ex_findpat
 ex,,ilist,:il[ist] ADDR_LINES,missing,,ex_findpat
@@ -880,14 +880,14 @@ ex,,imap,:im[ap] ADDR_NONE,done,<buffer> <silent> <nowait> <unique>; remaps as V
 ex,,imapclear,:imapc[lear] ADDR_NONE,done,oracle cases,ex_mapclear
 ex,,imenu,:ime[nu] ADDR_OTHER,excluded,GUI,ex_menu
 ex,,inoremap,:ino[remap] ADDR_NONE,done,<buffer> <silent> <nowait> <unique>; remaps as Vim (not an rhs's own lhs); no 'timeout' (a prefix waits for the next key); <leader> is Space; no <expr>; oracle cases,ex_map
-ex,,inoreabbrev,:inorea[bbrev] ADDR_NONE,missing,,ex_abbreviate
+ex,,inoreabbrev,:inorea[bbrev] ADDR_NONE,done,"full-id and end-id abbreviations, before a non-keyword character, Esc, Enter or CTRL-]; <buffer>; no non-id ones, <expr>; oracle cases",ex_abbreviate
 ex,,inoremenu,:inoreme[nu] ADDR_OTHER,excluded,GUI,ex_menu
 ex,,intro,:int[ro] ADDR_NONE,missing,,ex_intro
 ex,,iput,:ip[ut] ADDR_LINES,missing,,ex_iput
 ex,,isearch,:is[earch] ADDR_LINES,missing,,ex_findpat
 ex,,isplit,:isp[lit] ADDR_LINES,missing,,ex_findpat
 ex,,iunmap,:iu[nmap] ADDR_NONE,done,oracle cases,ex_unmap
-ex,,iunabbrev,:iuna[bbrev] ADDR_NONE,missing,,ex_abbreviate
+ex,,iunabbrev,:iuna[bbrev] ADDR_NONE,done,"full-id and end-id abbreviations, before a non-keyword character, Esc, Enter or CTRL-]; <buffer>; no non-id ones, <expr>; oracle cases",ex_abbreviate
 ex,,iunmenu,:iunme[nu] ADDR_NONE,excluded,GUI,ex_menu
 ex,,join,:j[oin] ADDR_LINES,partial,joins with a space; :j! keeps white space,ex_join
 ex,,jumps,:ju[mps] ADDR_NONE,partial,a list in a picker,ex_jumps
@@ -986,7 +986,7 @@ ex,,nnoremenu,:nnoreme[nu] ADDR_OTHER,excluded,GUI,ex_menu
 ex,,noremap,:no[remap] ADDR_NONE,done,<buffer> <silent> <nowait> <unique>; remaps as Vim (not an rhs's own lhs); no 'timeout' (a prefix waits for the next key); <leader> is Space; no <expr>; oracle cases,ex_map
 ex,,noautocmd,:noa[utocmd] ADDR_NONE,partial,accepted and ignored,ex_wrongmodifier
 ex,,nohlsearch,:noh[lsearch] ADDR_NONE,partial,no-op: Fred doesn't highlight matches,ex_nohlsearch
-ex,,noreabbrev,:norea[bbrev] ADDR_NONE,missing,,ex_abbreviate
+ex,,noreabbrev,:norea[bbrev] ADDR_NONE,done,"full-id and end-id abbreviations, before a non-keyword character, Esc, Enter or CTRL-]; <buffer>; no non-id ones, <expr>; oracle cases",ex_abbreviate
 ex,,noremenu,:noreme[nu] ADDR_OTHER,excluded,GUI,ex_menu
 ex,,noswapfile,:nos[wapfile] ADDR_NONE,missing,,ex_wrongmodifier
 ex,,normal,:norm[al] ADDR_LINES,done,":normal maps keys, :normal! does not; also under :g; oracle cases",ex_normal
@@ -1104,7 +1104,7 @@ ex,,snext,:sn[ext] ADDR_OTHER,missing,,ex_next
 ex,,snomagic,:sno[magic] ADDR_LINES,missing,,ex_submagic
 ex,,snoremap,:snor[emap] ADDR_NONE,done,<buffer> <silent> <nowait> <unique>; remaps as Vim (not an rhs's own lhs); no 'timeout' (a prefix waits for the next key); <leader> is Space; no <expr>; oracle cases,ex_map
 ex,,snoremenu,:snoreme[nu] ADDR_OTHER,excluded,GUI,ex_menu
-ex,,source,:so[urce] ADDR_LINES,excluded,Vimscript language,ex_source
+ex,,source,:so[urce] ADDR_LINES,partial,"ex commands with "" comments and \ continuation lines, ! for keys; no Vimscript (unit test)",ex_source
 ex,,sort,:sor[t] ADDR_LINES,done,all flags but l (locale) and a /pattern/; oracle cases,ex_sort
 ex,,split,:sp[lit] ADDR_OTHER,partial,present; not yet verified against nvim,ex_splitview
 ex,,spellgood,:spe[llgood] ADDR_OTHER,deferred,spell checking,ex_spell
@@ -1181,7 +1181,7 @@ ex,,tunmap,:tunma[p] ADDR_NONE,missing,,ex_unmap
 ex,,undo,:u[ndo] ADDR_OTHER,partial,no :undo N (no undo tree),ex_undo
 ex,,undojoin,:undoj[oin] ADDR_NONE,missing,,ex_undojoin
 ex,,undolist,:undol[ist] ADDR_NONE,missing,,ex_undolist
-ex,,unabbreviate,:una[bbreviate] ADDR_NONE,missing,,ex_abbreviate
+ex,,unabbreviate,:una[bbreviate] ADDR_NONE,done,"full-id and end-id abbreviations, before a non-keyword character, Esc, Enter or CTRL-]; <buffer>; no non-id ones, <expr>; oracle cases",ex_abbreviate
 ex,,unhide,:unh[ide] ADDR_OTHER,missing,,ex_buffer_all
 ex,,uniq,:uni[q] ADDR_LINES,missing,,ex_uniq
 ex,,unlet,:unl[et] ADDR_NONE,excluded,Vimscript language,ex_unlet

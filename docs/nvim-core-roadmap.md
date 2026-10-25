@@ -43,7 +43,7 @@ track.
 | 15 | `:substitute` and `:global` in full | 3 | 0 | flags `& e g i I n r`, count, `~`, case escapes, `:&` `:&&` `:~` `&` `g&`; no `c` (confirm), `\=` |
 | 16 | Editing, file, buffer and argument-list ex commands | 5 | 0 | about 60 commands; editor-run ones (`:normal`, `:put`, `:yank`…) in `src/vim/excmd.rs`; `\|` between commands |
 | 17 | Windows and tab pages (`CTRL-W`, `:split`, `:tab*`) | 6 | 0 | none |
-| 18 | Mappings, abbreviations, user commands | 5 | 0 | mappings for every mode (`src/vim/mappings.rs`); no 'timeout', abbreviations, `:command` |
+| 18 | Mappings, abbreviations, user commands | 5 | 0 | mappings and abbreviations (`src/vim/mappings.rs`), `:source`; no 'timeout', `:command` |
 | 19 | Autocommands | 3 | 0 | none |
 | 20 | Undo tree, `:earlier`/`:later`, undofile | 3 | 0 | linear undo |
 | 21 | Folding (`z` commands, foldmethods) | 3 | 0 | Org-only hidden ranges |
@@ -289,3 +289,8 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
   is case-insensitive and knows `<Space> <Bar> <Bslash> <NL> <Return>`.
   No 'timeout': a key that starts a longer mapping waits for the next.
   Oracle: 993 cases.
+- 2026-10-25: `:source` (ex commands, `"` comments, `\` continuations;
+  `!` for keys) and abbreviations (`:ab :iab :cab :noreab :una :abc` and
+  their Insert/Cmdline forms, `<buffer>`): full-id and end-id ones expand
+  before a non-keyword character, Esc, Enter or CTRL-], when the word
+  starts there or where Insert mode began, as in Vim. Oracle: 1011 cases.

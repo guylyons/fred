@@ -79,6 +79,8 @@ pub struct State {
     pub block: bool,
     /// Text typed after a block `I`, `A` or `c` goes on the other lines.
     pub(crate) block_insert: Option<block::Insert>,
+    /// An abbreviation's rhs is being typed (it isn't expanded again).
+    pub(crate) in_abbrev: bool,
     /// `v` or `V` forcing the operator's motion (`dvj`).
     pub(crate) force: Option<char>,
     /// `uline`'s column is still to be set by the first edit.

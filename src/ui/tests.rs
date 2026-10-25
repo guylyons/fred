@@ -192,7 +192,7 @@ fn modeline_metadata_yields_to_filename_and_unsaved_flags() {
 #[test]
 fn ex_completion_popup_cycles_and_esc_dismisses_it() {
     let mut s = Screen::new(40, 12);
-    let mut e = editor("text", ":<Tab>");
+    let mut e = editor("text", ":a<Tab>");
     s.draw(&e);
     let rows: Vec<_> = (0..11).map(|y| s.row(y)).collect();
     // Each name, then what it does.
@@ -202,25 +202,28 @@ fn ex_completion_popup_cycles_and_esc_dismisses_it() {
             .any(|r| name(r) == "ai" && r.contains("have Claude")),
         "{rows:?}"
     );
-    assert!(rows.iter().any(|r| name(r) == "buffer"), "{rows:?}");
-    let ai_y = (0..11).find(|&y| name(&s.row(y)) == "ai").unwrap();
+    assert!(rows.iter().any(|r| name(r) == "abclear"), "{rows:?}");
+    // The first is picked and highlighted.
+    let first_y = (0..11).find(|&y| name(&s.row(y)) == "abbreviate").unwrap();
     assert_eq!(
-        s.term.backend().buffer()[(0, ai_y)].bg,
+        s.term.backend().buffer()[(0, first_y)].bg,
         ratatui::style::Color::Cyan
     );
-    // `:ai` needs an argument, so it comes with the space before it.
-    assert_eq!(s.cursor(), (4, 11));
+    assert!(matches!(&e.mode, Mode::Command(cl) if cl.text == "abbreviate"));
     e.handle_key(crate::key::Key::new(crate::key::KeyCode::Tab));
-    assert!(matches!(&e.mode, Mode::Command(cl) if cl.text == "bdelete"));
-    e.handle_key(crate::key::Key::new(crate::key::KeyCode::BackTab));
+    assert!(matches!(&e.mode, Mode::Command(cl) if cl.text == "abclear"));
+    e.handle_key(crate::key::Key::new(crate::key::KeyCode::Tab));
+    // `:ai` needs an argument, so it comes with the space before it.
     assert!(matches!(&e.mode, Mode::Command(cl) if cl.text == "ai "));
+    e.handle_key(crate::key::Key::new(crate::key::KeyCode::BackTab));
+    assert!(matches!(&e.mode, Mode::Command(cl) if cl.text == "abclear"));
     e.handle_key(crate::key::Key::new(crate::key::KeyCode::Esc));
     assert!(
         matches!(&e.mode, Mode::Command(_)),
         "first Esc only closes completion"
     );
     s.draw(&e);
-    assert!(!(0..11).any(|y| name(&s.row(y)) == "buffer"));
+    assert!(!(0..11).any(|y| name(&s.row(y)) == "abclear"));
     e.handle_key(crate::key::Key::new(crate::key::KeyCode::Esc));
     assert_eq!(e.mode, Mode::Normal);
 }

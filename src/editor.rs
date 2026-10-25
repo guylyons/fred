@@ -887,6 +887,16 @@ impl Editor {
     }
 
     fn cmdline_key(&mut self, k: Key) {
+        // `:` abbreviations expand before a non-keyword character or Enter.
+        if matches!(&self.mode, Mode::Command(cl) if cl.kind == ':' && cl.pending.is_none())
+            && vim::mappings::ends_word(k)
+            && !matches!(k.code, KeyCode::Esc | KeyCode::Tab)
+        {
+            vim::mappings::expand_cmdline(self);
+            if k == Key::ctrl(']') {
+                return;
+            }
+        }
         let Mode::Command(cl) = &mut self.mode else {
             return;
         };
