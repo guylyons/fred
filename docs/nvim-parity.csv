@@ -128,7 +128,7 @@ key,normal,#,motion,done,oracle cases,search backward for the Nth occurrence of
 key,normal,$,motion,done,oracle cases,cursor to the end of Nth next line
 key,normal,%,motion,done,"brackets, skipping ones in quotes; no /* */ or #if (matchit b:match_words); oracle cases",find the next (curly/square) bracket on
 key,normal,{count}%,motion,done,"under an operator characterwise and exclusive, as with the default matchit; oracle cases",go to N percentage in the file
-key,normal,&,change,missing,,repeat last :s
+key,normal,&,change,done,oracle cases,repeat last :s
 key,normal,'{a-zA-Z0-9},motion,partial,a-z; A-Z are local to the buffer; no 0-9 (no shada),cursor to the first CHAR on the line with
 key,normal,'',motion,done,oracle cases,cursor to the first CHAR of the line where
 key,normal,'(,motion,done,oracle cases,cursor to the first CHAR on the line of the
@@ -440,7 +440,7 @@ key,g,g CTRL-H,,missing,,start Select block mode
 key,g,g CTRL-],,missing,,|:tjump| to the tag under the cursor
 key,g,g#,motion,done,oracle cases,"like ""#"", but without using ""\<"" and ""\>"""
 key,g,g$,motion,partial,same as $ 0 ^ j k (right while 'wrap' is off),when 'wrap' off go to rightmost character of
-key,g,g&,change,missing,,"repeat last "":s"" on all lines"
+key,g,g&,change,done,oracle cases,"repeat last "":s"" on all lines"
 key,g,g'{mark},motion,missing,,like |'| but without changing the jumplist
 key,g,g`{mark},motion,missing,,like |`| but without changing the jumplist
 key,g,g*,motion,done,oracle cases,"like ""*"", but without using ""\<"" and ""\>"""
@@ -1068,7 +1068,7 @@ ex,,ruby,:rub[y] ADDR_LINES,excluded,"other languages, plugins and remote UI",ex
 ex,,rubydo,:rubyd[o] ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_rubydo
 ex,,rubyfile,:rubyf[ile] ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_rubyfile
 ex,,rviminfo,rviminfo ADDR_NONE,deferred,"sessions, views and shada",ex_shada
-ex,,substitute,:s[ubstitute] ADDR_LINES,partial,g flag only; Vim pattern syntax; no \zs \@ \_ or back-references,ex_substitute
+ex,,substitute,:s[ubstitute] ADDR_LINES,partial,"flags & e g i I n r, a count, ~ and \u \U \l \L \e \E \r \t in the replacement; no c (confirm), no \= (expressions); \n splits the line as in ed; oracle cases",ex_substitute
 ex,,sNext,:sN[ext] ADDR_OTHER,missing,,ex_previous
 ex,,sargument,:sa[rgument] ADDR_ARGUMENTS,missing,,ex_argument
 ex,,sall,:sal[l] ADDR_OTHER,missing,,ex_all
@@ -1236,12 +1236,12 @@ ex,,yank,:y[ank] ADDR_LINES,missing,,ex_operators
 ex,,z,:z ADDR_LINES,missing,,ex_z
 ex,,!,:! ADDR_LINES,partial,present; not yet verified against nvim,ex_bang
 ex,,#,:# ADDR_LINES,missing,,ex_print
-ex,,&,:& ADDR_LINES,missing,,ex_substitute
+ex,,&,:& ADDR_LINES,done,:& and :&& with flags and a count; oracle cases,ex_substitute
 ex,,<,:< ADDR_LINES,missing,,ex_operators
 ex,,=,:= ADDR_LINES,missing,,ex_equal
 ex,,>,:> ADDR_LINES,missing,,ex_operators
 ex,,@,:@ ADDR_LINES,missing,,ex_at
-ex,,~,:~ ADDR_LINES,missing,,ex_substitute
+ex,,~,:~ ADDR_LINES,done,oracle cases,ex_substitute
 ex,,Next,:N[ext] ADDR_OTHER,missing,,ex_previous
 option,,aleph,al global number,deferred,right-to-left text and input methods,ASCII code of the letter Aleph (Hebrew)
 option,,allowrevins,ari global boolean,deferred,right-to-left text and input methods,allow CTRL-_ in Insert mode

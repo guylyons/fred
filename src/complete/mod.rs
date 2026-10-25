@@ -140,7 +140,9 @@ pub fn cmdline_candidates(text: &str, cwd: &Path) -> Vec<String> {
     if text.chars().all(|c| c.is_ascii_alphabetic()) {
         let mut names: Vec<String> = crate::ex::cmd::COMMANDS
             .iter()
+            // Names typed as one symbol (`:&`, `:>`) aren't completed.
             .filter(|c| c.name.starts_with(text) && c.name != text)
+            .filter(|c| c.name.starts_with(|ch: char| ch.is_ascii_alphabetic()))
             // One that needs an argument comes with the space before it.
             .map(|c| match c.flags & crate::ex::cmd::NEEDARG {
                 0 => c.name.to_string(),

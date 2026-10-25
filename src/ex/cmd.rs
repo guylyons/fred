@@ -12,6 +12,8 @@ use std::collections::HashMap;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExEffect {
     Magit(crate::magit::Action),
+    /// Show a message.
+    Message(String),
     /// `:draw`: toggle drawing mode.
     Draw,
     /// Org work that needs the session (other buffers and files).
@@ -148,8 +150,29 @@ pub struct ExState<'a> {
     pub last_pat: &'a mut Option<String>,
     /// The file being edited, for `%` in shell commands.
     pub file: Option<std::path::PathBuf>,
+    /// The last `:substitute`, for `:&`, `:~` and `~` in a replacement.
+    pub last_sub: Option<&'a mut LastSub>,
     /// Line splices applied by the running command: (at, removed, inserted).
     log: Vec<(usize, usize, usize)>,
+}
+
+/// What `:s` did last: its pattern, replacement and flags.
+#[derive(Clone, Debug, Default)]
+pub struct LastSub {
+    pat: Option<String>,
+    rep: Option<String>,
+    flags: SubFlags,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct SubFlags {
+    global: bool,
+    /// `i` (Some(true)) or `I`.
+    ignore_case: Option<bool>,
+    /// `e`: no error when nothing matches.
+    quiet: bool,
+    /// `n`: count the matches, change nothing.
+    count_only: bool,
 }
 
 impl<'a> ExState<'a> {
@@ -167,6 +190,7 @@ impl<'a> ExState<'a> {
             marks,
             last_pat,
             file: None,
+            last_sub: None,
             log: vec![],
         }
     }
@@ -273,11 +297,15 @@ fn run_named(
     cur: usize,
     in_global: bool,
 ) -> Result<ExEffect, String> {
-    let name_end = rest
-        .find(|c: char| !c.is_ascii_alphabetic())
-        .unwrap_or(rest.len());
+    // `:&`, `:~`, `:<`, `:>`, `:=` are named by one character.
+    let name_end = match rest.chars().next() {
+        Some('&' | '~' | '<' | '>' | '=' | '#') => 1,
+        _ => rest
+            .find(|c: char| !c.is_ascii_alphabetic())
+            .unwrap_or(rest.len()),
+    };
     let name = &rest[..name_end];
-    let cmd = lookup(name).ok_or_else(|| format!("unknown command: {rest}"))?;
+    let cmd = lookup(name).ok_or_else(|| format!("E492: Not an editor command: {rest}"))?;
     let mut tail = &rest[name_end..];
     let force = tail.starts_with('!');
     if force {
@@ -413,14 +441,21 @@ pub fn typed(line: &str) -> Option<&'static Command> {
 /// Every named command. A prefix runs the first entry it abbreviates, so
 /// order decides ties, as in vim (`:s` is `:substitute`).
 pub const COMMANDS: &[Command] = &[
-    needs(
-        "substitute",
-        1,
-        RANGE,
-        "/pattern/replacement/[g]",
-        |st, a| substitute(st, a.at, a.raw),
-    )
-    .about("replace a pattern in lines"),
+    cmd("substitute", 1, RANGE | EXTRA, |st, a| {
+        substitute(st, a, Repeat::No)
+    })
+    .about("replace a pattern in lines")
+    .takes("/pattern/replacement/[&cegiInr] [count]"),
+    cmd("&", 1, RANGE | EXTRA, |st, a| {
+        substitute(st, a, Repeat::Last)
+    })
+    .about("repeat the last :substitute (&& keeps its flags)")
+    .takes("[&][flags] [count]"),
+    cmd("~", 1, RANGE | EXTRA, |st, a| {
+        substitute(st, a, Repeat::Search)
+    })
+    .about("repeat the last :substitute with the last search pattern")
+    .takes("[&][flags] [count]"),
     needs("global", 1, RANGE | BANG, "/pattern/command", |st, a| {
         global_cmd(st, a, !a.force)
     })
@@ -844,73 +879,257 @@ fn read(st: &mut ExState, at: usize, arg: &str) -> Result<ExEffect, String> {
     Ok(ExEffect::None)
 }
 
+/// How `:s` gets its pattern and replacement.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Repeat {
+    /// `:s/pat/rep/`, or `:s [flags]` repeating the last.
+    No,
+    /// `:&`: the last pattern and replacement.
+    Last,
+    /// `:~`: the last search pattern with the last replacement.
+    Search,
+}
+
+/// A replacement as Vim expands it: `&` and `\0` the match, `\1`-`\9`
+/// groups, `\u \l` the next character's case, `\U \L` until `\E`/`\e`,
+/// `\r` (and `\n`, as ed) a line break, `\t` a tab.
 fn expand(rep: &str, caps: &Captures) -> String {
+    #[derive(Clone, Copy, PartialEq)]
+    enum Case {
+        None,
+        Upper,
+        Lower,
+    }
     let mut out = String::new();
+    let mut one = Case::None;
+    let mut all = Case::None;
+    let push = |out: &mut String, s: &str, one: &mut Case, all: Case| {
+        for c in s.chars() {
+            let case = match *one {
+                Case::None => all,
+                o => {
+                    *one = Case::None;
+                    o
+                }
+            };
+            match case {
+                Case::Upper => out.extend(c.to_uppercase()),
+                Case::Lower => out.extend(c.to_lowercase()),
+                Case::None => out.push(c),
+            }
+        }
+    };
     let mut it = rep.chars();
     while let Some(c) = it.next() {
         match c {
-            '&' => out.push_str(&caps[0]),
+            '&' => push(&mut out, &caps[0], &mut one, all),
+            '\r' => out.push('\n'),
             '\\' => match it.next() {
                 Some(d @ '0'..='9') => {
                     let i = d as usize - '0' as usize;
-                    out.push_str(caps.get(i).map_or("", |m| m.as_str()));
+                    push(
+                        &mut out,
+                        caps.get(i).map_or("", |m| m.as_str()),
+                        &mut one,
+                        all,
+                    );
                 }
                 // `\r` is vim's way to split a line; `\n` is ed's.
-                Some('n' | 'r') => out.push('\n'),
+                Some('n' | 'r' | '\r') => out.push('\n'),
                 Some('t') => out.push('\t'),
-                Some(o) => out.push(o),
+                Some('u') => one = Case::Upper,
+                Some('l') => one = Case::Lower,
+                Some('U') => all = Case::Upper,
+                Some('L') => all = Case::Lower,
+                Some('e' | 'E') => {
+                    all = Case::None;
+                    one = Case::None;
+                }
+                Some(o) => push(&mut out, &o.to_string(), &mut one, all),
                 None => out.push('\\'),
             },
-            _ => out.push(c),
+            _ => push(&mut out, &c.to_string(), &mut one, all),
         }
     }
     out
 }
 
-fn substitute(st: &mut ExState, r: Range, spec: &str) -> Result<ExEffect, String> {
-    let delim = spec.chars().next().ok_or("bad substitute")?;
-    let (pat, rest) = read_delimited(&spec[delim.len_utf8()..], delim);
-    let (rep, flags) = read_delimited(rest, delim);
-    let mut global = false;
-    for f in flags.trim().chars() {
-        match f {
-            'g' => global = true,
-            _ => return Err(format!("unknown flag: {f}")),
+/// `~` in a new replacement is the previous one (`\~` a tilde).
+fn regtilde(rep: &str, prev: Option<&str>) -> String {
+    let mut out = String::new();
+    let mut it = rep.chars();
+    while let Some(c) = it.next() {
+        match c {
+            '~' => out.push_str(prev.unwrap_or("")),
+            '\\' => {
+                out.push('\\');
+                if let Some(n) = it.next() {
+                    out.push(n);
+                }
+            }
+            c => out.push(c),
         }
     }
-    let pat = use_pattern(pat, st.last_pat)?;
-    let re = search::compile_vim(&pat, false)?;
-    let mut last = None;
-    for l in (r.start..=r.end).rev() {
-        let line = st.buf.line(l);
-        if let Some(new) = subst_line(&re, &line, &rep, global) {
-            let parts: Vec<String> = new.split('\n').map(String::from).collect();
-            let added = parts.len() - 1;
-            st.splice(l, 1, parts);
-            if last.is_none() {
-                last = Some(l + added);
+    out
+}
+
+/// `:s`, `:&` and `:~`: flags `& c e g i I n r` and a count after them.
+fn substitute(st: &mut ExState, a: Args, repeat: Repeat) -> Result<ExEffect, String> {
+    let mut last = st.last_sub.as_deref().cloned().unwrap_or_default();
+    let spec = a.raw.trim_start();
+    let delim = spec
+        .chars()
+        .next()
+        .filter(|c| repeat == Repeat::No && !c.is_alphanumeric() && !"\\\"| &".contains(*c));
+    let (mut pat, rest, mut flags) = match delim {
+        Some(d) => {
+            let (pat, rest) = read_delimited(&spec[d.len_utf8()..], d);
+            let (rep, rest) = read_delimited(rest, d);
+            last.rep = Some(regtilde(&rep, last.rep.as_deref()));
+            (Some(pat), rest, SubFlags::default())
+        }
+        None => {
+            let pat = match repeat {
+                Repeat::Search => st.last_pat.clone(),
+                _ => last.pat.clone(),
+            };
+            (
+                Some(pat.ok_or("E35: No previous regular expression")?),
+                spec,
+                SubFlags::default(),
+            )
+        }
+    };
+    // `&` first keeps the flags of the last one.
+    let mut rest = rest;
+    if let Some(r) = rest.strip_prefix('&') {
+        flags = last.flags;
+        rest = r;
+    }
+    let mut chars = rest.char_indices().peekable();
+    let mut end = rest.len();
+    while let Some(&(i, f)) = chars.peek() {
+        match f {
+            'g' => flags.global = !flags.global,
+            'i' => flags.ignore_case = Some(true),
+            'I' => flags.ignore_case = Some(false),
+            'e' => flags.quiet = true,
+            'n' => flags.count_only = true,
+            // The last search pattern instead of the last :s one.
+            'r' if delim.is_none() => pat = st.last_pat.clone(),
+            'c' => return Err("E1: confirm (c) is not supported".into()),
+            'p' | '#' | 'l' => {}
+            _ => {
+                end = i;
+                break;
             }
         }
+        chars.next();
     }
-    st.cur = last.ok_or("no match")?;
+    let tail = rest[end..].trim();
+    let count: Option<usize> = match tail {
+        "" => None,
+        t if t.chars().all(|c| c.is_ascii_digit()) => {
+            Some(t.parse().map_err(|_| "E939: Positive count required")?)
+        }
+        t => return Err(format!("E488: Trailing characters: {t}")),
+    };
+    let pat = pat.unwrap_or_default();
+    let pat = use_pattern(pat, st.last_pat)?;
+    last.pat = Some(pat.clone());
+    last.flags = flags;
+    let rep = last.rep.clone().unwrap_or_default();
+    if let Some(slot) = st.last_sub.as_deref_mut() {
+        *slot = last;
+    }
+    let mut r = a.at;
+    if let Some(n) = count {
+        if n == 0 {
+            return Err("E939: Positive count required".into());
+        }
+        r = Range {
+            start: r.end,
+            end: (r.end + n - 1).min(st.buf.len_lines() - 1),
+        };
+    }
+    let case = match flags.ignore_case {
+        Some(true) => "\\c",
+        Some(false) => "\\C",
+        None => "",
+    };
+    let re = search::compile_vim(&format!("{case}{pat}"), false)?;
+    let mut last_line = None;
+    let (mut subs, mut lines) = (0, 0);
+    for l in (r.start..=r.end).rev() {
+        let line = st.buf.line(l);
+        let Some((new, n)) = subst_line(&re, &line, &rep, flags.global) else {
+            continue;
+        };
+        subs += n;
+        lines += 1;
+        if flags.count_only {
+            continue;
+        }
+        let parts: Vec<String> = new.split('\n').map(String::from).collect();
+        let added = parts.len() - 1;
+        st.splice(l, 1, parts);
+        if last_line.is_none() {
+            last_line = Some(l + added);
+        }
+    }
+    if subs == 0 {
+        return if flags.quiet || a.in_global {
+            Err(NO_MATCH.into())
+        } else {
+            Err(format!("E486: Pattern not found: {pat}"))
+        };
+    }
+    if let Some(l) = last_line {
+        st.cur = l;
+    }
+    let s = |n: usize, one: &str, many: &str| {
+        if n == 1 {
+            format!("1 {one}")
+        } else {
+            format!("{n} {many}")
+        }
+    };
+    if flags.count_only {
+        return Ok(ExEffect::Message(format!(
+            "{} on {}",
+            s(subs, "match", "matches"),
+            s(lines, "line", "lines")
+        )));
+    }
+    if subs > 2 {
+        return Ok(ExEffect::Message(format!(
+            "{} on {}",
+            s(subs, "substitution", "substitutions"),
+            s(lines, "line", "lines")
+        )));
+    }
     Ok(ExEffect::None)
 }
 
-fn subst_line(re: &Regex, line: &str, rep: &str, global: bool) -> Option<String> {
+/// A substitute inside `:g` that found nothing on its line (not an error
+/// unless it found nothing on any), or one with the `e` flag.
+const NO_MATCH: &str = "no match";
+
+fn subst_line(re: &Regex, line: &str, rep: &str, global: bool) -> Option<(String, usize)> {
     let mut out = String::new();
     let mut prev = 0;
-    let mut any = false;
+    let mut n = 0;
     for caps in re.captures_iter(line) {
         let m = caps.get(0).expect("group 0");
         out.push_str(&line[prev..m.start()]);
         out.push_str(&expand(rep, &caps));
         prev = m.end();
-        any = true;
+        n += 1;
         if !global {
             break;
         }
     }
-    any.then(|| out + &line[prev..])
+    (n > 0).then(|| (out + &line[prev..], n))
 }
 
 fn global(st: &mut ExState, r: Range, spec: &str, want: bool) -> Result<ExEffect, String> {
@@ -941,7 +1160,7 @@ fn global(st: &mut ExState, r: Range, spec: &str, want: bool) -> Result<ExEffect
                 any_ok = true;
                 last_cur = st.cur;
             }
-            Err(e) if e == "no match" => no_match = true,
+            Err(e) if e == NO_MATCH || e.starts_with("E486") => no_match = true,
             Err(e) => return Err(e),
         }
         for &(at, removed, inserted) in &st.log[before..] {
@@ -1061,7 +1280,11 @@ mod tests {
         for c in COMMANDS {
             let (_, _, r) = run_on("a\nb", 0, c.name);
             if let Err(e) = r {
-                assert!(e.starts_with(&format!(":{} needs", c.name)), "{e}");
+                // Or, repeating the last of something, that there is none.
+                assert!(
+                    e.starts_with(&format!(":{} needs", c.name)) || e.starts_with("E35"),
+                    "{e}"
+                );
             }
         }
     }
@@ -1089,7 +1312,10 @@ mod tests {
     #[test]
     fn synopsis_and_typed() {
         let syn = |n: &str| lookup(n).unwrap().synopsis();
-        assert_eq!(syn("s"), ":[range]s[ubstitute]/pattern/replacement/[g]");
+        assert_eq!(
+            syn("s"),
+            ":[range]s[ubstitute]/pattern/replacement/[&cegiInr] [count]"
+        );
         assert_eq!(syn("q"), ":q[uit][!]");
         assert_eq!(syn("sp"), ":[N]sp[lit] [file]");
         assert_eq!(syn("b"), ":b[uffer][!] [N|name]");

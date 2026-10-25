@@ -303,7 +303,7 @@ fn parse_op(keys: &[Key]) -> Parse<(char, usize)> {
 const ARG_CMDS: &[char] = &['r', 'm', 'Z', 'z', ' ', 'g', 'q', '@'];
 const SIMPLE: &[char] = &[
     'x', 'X', 's', 'S', 'J', 'p', 'P', 'o', 'O', 'i', 'a', 'I', 'A', 'u', 'D', 'C', 'Y', 'V', 'v',
-    '~', ':', '/', '?', '.', 'r', 'm', 'Z', 'z', ' ', 'g', 'q', '@', 'Q', 'R',
+    '~', ':', '/', '?', '.', 'r', 'm', 'Z', 'z', ' ', 'g', 'q', '@', 'Q', 'R', '&',
 ];
 
 /// A command, with the register `"x` before it named.
@@ -871,7 +871,7 @@ fn visual(ed: &mut Editor, anchor: usize, c: char) {
 
 /// Commands that change text (and so are repeated by `.`).
 fn is_change(cmd: &Cmd) -> bool {
-    let g = matches!(cmd, Cmd::Simple { key, arg: Some('J' | 'p' | 'P' | 'i' | 'I'), .. } if *key == Key::ch('g'))
+    let g = matches!(cmd, Cmd::Simple { key, arg: Some('J' | 'p' | 'P' | 'i' | 'I' | '&'), .. } if *key == Key::ch('g'))
         || matches!(cmd, Cmd::Simple { key, .. } if *key == Key::ctrl('a') || *key == Key::ctrl('x'));
     g || match cmd {
         Cmd::Op { op, .. } => *op != 'y',
@@ -899,6 +899,7 @@ fn is_change(cmd: &Cmd) -> bool {
                             | 'r'
                             | '~'
                             | 'R'
+                            | '&'
                     )
                 )
         }
@@ -1139,6 +1140,10 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
             }
         }
         (KeyCode::Char('.'), false) => repeat(ed, count),
+        // `&`: the last :s again on this line; `g&`: on every line, with
+        // the last search pattern and the same flags.
+        (KeyCode::Char('&'), false) => ed.run_ex("s"),
+        (KeyCode::Char('g'), false) if arg == Some('&') => ed.run_ex("%s//~/&"),
         (KeyCode::Char(c @ ('a' | 'x')), true) => {
             let (l, b) = ed.cur.pos();
             ops::addsub(ed, l, b, None, false, c == 'x', n as u64);

@@ -40,7 +40,7 @@ track.
 | 12 | Marks, jumplist, changelist | 3 | 0 | marks with columns, `` ` `` and `'`, special marks, CTRL-O/CTRL-I, `g;`/`g,` (`src/vim/marks.rs`); A-Z buffer-local, no 0-9, `:marks`, `:jumps`, `:changes`, `:delmarks` |
 | 13 | Macros, `:normal`, `.`, CTRL-A/CTRL-X | 3 | 0 | `.`, `q`, `@`, `@@`, `@:`, `Q`, CTRL-A/CTRL-X (`g CTRL-A`); no `:normal` |
 | 14 | Search and Vim regex, hlsearch, incsearch | 6 | 0 | Vim magic patterns (no `\zs`, `\@`, `\_`, back-references), `/ ? n N` |
-| 15 | `:substitute` and `:global` in full | 3 | 0 | `g` flag only |
+| 15 | `:substitute` and `:global` in full | 3 | 0 | flags `& e g i I n r`, count, `~`, case escapes, `:&` `:&&` `:~` `&` `g&`; no `c` (confirm), `\=` |
 | 16 | Editing, file, buffer and argument-list ex commands | 5 | 0 | 26 commands |
 | 17 | Windows and tab pages (`CTRL-W`, `:split`, `:tab*`) | 6 | 0 | none |
 | 18 | Mappings, abbreviations, user commands | 5 | 0 | none |
@@ -231,3 +231,9 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
   '}`; the jumplist (CTRL-O, CTRL-I/Tab, with `cleanup_jumplist()`) and
   the changelist (`g;`, `g,`, one entry per line within 79 columns).
   Oracle: 589 cases. Ledger: 241 keys done.
+- 2026-10-25: `:substitute` in full but confirm: flags `& e g i I n r`
+  (and `p # l` accepted), a count, `~` for the previous replacement,
+  `\u \U \l \L \e \E` case changes, `\r`, `\t`; `N substitutions on M
+  lines` and the `n` flag's count; E486. `:&`, `:&&`, `:~`, Normal `&`
+  and `g&`. Command names of one symbol (`:&`, `:~`) in the table.
+  Oracle: 629 cases.

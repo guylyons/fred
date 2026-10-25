@@ -114,6 +114,8 @@ pub struct Editor {
     /// The byte column of each mark in `marks`.
     pub mark_cols: HashMap<char, usize>,
     pub last_pat: Option<String>,
+    /// The last `:substitute` (for `:&`, `&`, `g&`).
+    pub last_sub: crate::ex::cmd::LastSub,
     pub last_search_fwd: bool,
     /// Status-row message and whether it is an error.
     pub msg: Option<(String, bool)>,
@@ -233,6 +235,7 @@ impl Editor {
             marks: HashMap::new(),
             mark_cols: HashMap::new(),
             last_pat: None,
+            last_sub: Default::default(),
             last_search_fwd: true,
             msg: None,
             claude_working: None,
@@ -333,6 +336,7 @@ impl Editor {
         self.regs = std::mem::take(&mut old.regs);
         self.revision_stack = std::mem::take(&mut old.revision_stack);
         self.last_pat = old.last_pat.take();
+        self.last_sub = std::mem::take(&mut old.last_sub);
         self.last_search_fwd = old.last_search_fwd;
         self.project = Arc::clone(&old.project);
         self.cmd_history = std::mem::take(&mut old.cmd_history);
@@ -958,6 +962,7 @@ impl Editor {
             &mut self.last_pat,
         );
         st.file = self.path.clone();
+        st.last_sub = Some(&mut self.last_sub);
         let r = ex::run(&mut st, text);
         let new_cur = st.cur;
         match r {
@@ -977,6 +982,7 @@ impl Editor {
     fn effect(&mut self, eff: ExEffect) {
         match eff {
             ExEffect::None => {}
+            ExEffect::Message(m) => self.set_msg(m),
             ExEffect::Set { args, level } => {
                 match crate::options::set(&mut self.opts, &args, level) {
                     Ok(shown) if !shown.is_empty() => self.set_msg(shown),
