@@ -1,62 +1,62 @@
 kind,mode,symbol,detail,state,fred_behavior,doc
-key,insert,CTRL-@,,missing,,insert previously inserted text and stop
-key,insert,CTRL-A,,missing,,insert previously inserted text
+key,insert,CTRL-@,,done,oracle cases,insert previously inserted text and stop
+key,insert,CTRL-A,,done,oracle cases,insert previously inserted text
 key,insert,CTRL-C,,partial,present; not yet verified against nvim,"quit insert mode, without checking for"
-key,insert,CTRL-D,,missing,,delete one shiftwidth of indent in the current
-key,insert,CTRL-E,,missing,,insert the character which is below the cursor
-key,insert,CTRL-G CTRL-J,,missing,,"line down, to column where inserting started"
-key,insert,CTRL-G j,,missing,,"line down, to column where inserting started"
-key,insert,CTRL-G <Down>,,missing,,"line down, to column where inserting started"
-key,insert,CTRL-G CTRL-K,,missing,,"line up, to column where inserting started"
-key,insert,CTRL-G k,,missing,,"line up, to column where inserting started"
-key,insert,CTRL-G <Up>,,missing,,"line up, to column where inserting started"
-key,insert,CTRL-G u,,missing,,start new undoable edit
-key,insert,CTRL-G U,,missing,,don't break undo with next cursor movement
+key,insert,CTRL-D,,done,oracle cases,delete one shiftwidth of indent in the current
+key,insert,CTRL-E,,done,oracle cases,insert the character which is below the cursor
+key,insert,CTRL-G CTRL-J,,done,oracle cases,"line down, to column where inserting started"
+key,insert,CTRL-G j,,done,oracle cases,"line down, to column where inserting started"
+key,insert,CTRL-G <Down>,,partial,present; not yet verified against nvim,"line down, to column where inserting started"
+key,insert,CTRL-G CTRL-K,,done,oracle cases,"line up, to column where inserting started"
+key,insert,CTRL-G k,,done,oracle cases,"line up, to column where inserting started"
+key,insert,CTRL-G <Up>,,partial,present; not yet verified against nvim,"line up, to column where inserting started"
+key,insert,CTRL-G u,,done,oracle cases,start new undoable edit
+key,insert,CTRL-G U,,partial,no-op: Fred's arrows never break undo,don't break undo with next cursor movement
 key,insert,<BS>,,partial,present; not yet verified against nvim,delete character before the cursor
 key,insert,{char1}<BS>{char2},,missing,,
-key,insert,CTRL-H,,missing,,same as <BS>
+key,insert,CTRL-H,,done,oracle cases,same as <BS>
 key,insert,<Tab>,,partial,inserts the detected indent; cycles the completion popup,insert a <Tab> character
-key,insert,CTRL-I,,missing,,same as <Tab>
-key,insert,<NL>,,missing,,same as <CR>
-key,insert,CTRL-J,,missing,,same as <CR>
+key,insert,CTRL-I,,done,oracle cases,same as <Tab>
+key,insert,<NL>,,partial,same as CTRL-J,same as <CR>
+key,insert,CTRL-J,,done,oracle cases,same as <CR>
 key,insert,CTRL-K {char1} {char2},,missing,,
 key,insert,<CR>,,partial,present; not yet verified against nvim,begin new line
-key,insert,CTRL-M,,missing,,same as <CR>
+key,insert,CTRL-M,,done,oracle cases,same as <CR>
 key,insert,CTRL-N,,partial,present; not yet verified against nvim,find next match for keyword in front of the
-key,insert,CTRL-O,,missing,,execute a single command and return to insert
+key,insert,CTRL-O,,done,returns after the last character as Neovim does; oracle cases,execute a single command and return to insert
 key,insert,CTRL-P,,partial,present; not yet verified against nvim,find previous match for keyword in front of
-key,insert,CTRL-Q,,missing,,"same as CTRL-V, unless used for terminal"
-key,insert,CTRL-R {register},,missing,,
-key,insert,CTRL-T,,missing,,insert one shiftwidth of indent in current
+key,insert,CTRL-Q,,partial,same as CTRL-V,"same as CTRL-V, unless used for terminal"
+key,insert,CTRL-R {register},,done,"also CTRL-R CTRL-R/CTRL-O/CTRL-P {register}, inserted as text; oracle cases",
+key,insert,CTRL-T,,done,oracle cases,insert one shiftwidth of indent in current
 key,insert,CTRL-U,,partial,present; not yet verified against nvim,delete all entered characters in the current
-key,insert,CTRL-V {char},,missing,,insert next non-digit literally
+key,insert,CTRL-V {char},,done,"port of get_literal(): decimal, x, o, u, U codes; oracle cases",insert next non-digit literally
 key,insert,CTRL-W,,partial,present; not yet verified against nvim,delete word before the cursor
 key,insert,CTRL-X {mode},,missing,,"enter CTRL-X sub mode, see |i_CTRL-X_index|"
-key,insert,CTRL-Y,,missing,,insert the character which is above the cursor
+key,insert,CTRL-Y,,done,oracle cases,insert the character which is above the cursor
 key,insert,<Esc>,,partial,present; not yet verified against nvim,end insert mode
-key,insert,CTRL-[,,missing,,same as <Esc>
+key,insert,CTRL-[,,partial,the terminal sends Esc,same as <Esc>
 key,insert,CTRL-],,missing,,trigger abbreviation
 key,insert,CTRL-^,,missing,,toggle use of |:lmap| mappings
 key,insert,CTRL-_,,missing,,When 'allowrevins' set: toggle 'revins'
-key,insert,0 CTRL-D,,missing,,delete all indent in the current line
-key,insert,^ CTRL-D,,missing,,"delete all indent in the current line, restore"
+key,insert,0 CTRL-D,,done,oracle cases,delete all indent in the current line
+key,insert,^ CTRL-D,,partial,deletes the indent; the next line does not get it back,"delete all indent in the current line, restore"
 key,insert,<Del>,,partial,present; not yet verified against nvim,delete character under the cursor
 key,insert,<Left>,,partial,present; not yet verified against nvim,cursor one character left
-key,insert,<S-Left>,,missing,,cursor one word left
-key,insert,<C-Left>,,missing,,cursor one word left
+key,insert,<S-Left>,,done,oracle cases,cursor one word left
+key,insert,<C-Left>,,done,oracle cases,cursor one word left
 key,insert,<Right>,,partial,present; not yet verified against nvim,cursor one character right
-key,insert,<S-Right>,,missing,,cursor one word right
-key,insert,<C-Right>,,missing,,cursor one word right
+key,insert,<S-Right>,,done,oracle cases,cursor one word right
+key,insert,<C-Right>,,done,oracle cases,cursor one word right
 key,insert,<Up>,,partial,present; not yet verified against nvim,cursor one line up
-key,insert,<S-Up>,,missing,,same as <PageUp>
+key,insert,<S-Up>,,partial,same as <PageUp>: 'window height' lines,same as <PageUp>
 key,insert,<Down>,,partial,present; not yet verified against nvim,cursor one line down
-key,insert,<S-Down>,,missing,,same as <PageDown>
+key,insert,<S-Down>,,partial,same as <PageDown>,same as <PageDown>
 key,insert,<Home>,,partial,present; not yet verified against nvim,cursor to start of line
-key,insert,<C-Home>,,missing,,cursor to start of file
+key,insert,<C-Home>,,done,oracle cases,cursor to start of file
 key,insert,<End>,,partial,present; not yet verified against nvim,cursor past end of line
-key,insert,<C-End>,,missing,,cursor past end of file
-key,insert,<PageUp>,,missing,,one screenful backward
-key,insert,<PageDown>,,missing,,one screenful forward
+key,insert,<C-End>,,done,oracle cases,cursor past end of file
+key,insert,<PageUp>,,partial,moves the window height in lines,one screenful backward
+key,insert,<PageDown>,,partial,moves the window height in lines,one screenful forward
 key,insert,<F1>,,missing,,same as <Help>
 key,insert,<Help>,,missing,,stop insert mode and display help window
 key,insert,<Insert>,,missing,,toggle Insert/Replace mode

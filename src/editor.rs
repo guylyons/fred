@@ -367,7 +367,12 @@ impl Editor {
             return;
         }
         // A Shift key nothing took is the plain key (unless it selects).
-        if k.shift && !vim::select::shift_selects(self, k) {
+        let insert_arrow = self.mode == Mode::Insert
+            && matches!(
+                k.code,
+                KeyCode::Left | KeyCode::Right | KeyCode::Up | KeyCode::Down
+            );
+        if k.shift && !insert_arrow && !vim::select::shift_selects(self, k) {
             return self.handle_key(Key { shift: false, ..k });
         }
         // An Alt key nothing took: Fred's usual Esc, key (except a Magit
@@ -482,6 +487,9 @@ impl Editor {
         }
         if matches!(self.mode, Mode::Visual { .. } | Mode::VisualLine { .. }) {
             self.vim.last_visual = Some((self.mode.clone(), self.cur.pos()));
+        }
+        if !was_insert {
+            vim::insert::after_ctrl_o(self);
         }
         if self.mode == Mode::Insert && !was_insert {
             self.vim.insert_start = self.cur.pos();

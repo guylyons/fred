@@ -66,6 +66,11 @@ pub struct State {
     pub(crate) last_visual: Option<(Mode, (usize, usize))>,
     /// Where Insert mode last ended (`gi`, Vim's `'^` mark).
     pub(crate) insert_stop: Option<(usize, usize)>,
+    /// An Insert-mode key waiting for the next one (CTRL-R, CTRL-V, CTRL-G).
+    pub(crate) ins_pending: Option<insert::Pending>,
+    /// CTRL-O: one Normal-mode command, then back to Insert mode (at the
+    /// line's end if it was there).
+    pub(crate) insert_once: Option<(bool, usize)>,
 }
 
 /// The text a run of Insert-mode keys typed.

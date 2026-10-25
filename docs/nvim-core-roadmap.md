@@ -35,7 +35,7 @@ track.
 | 7 | Text objects | 4 | 0 | all but `it`/`at` (`src/vim/textobj.rs`) |
 | 8 | Operators (`> < = g~ gu gU gq gw g? ! zf g@`) | 5 | 0 | `d c y > < g~ gu gU g?`, `~`, `gJ` |
 | 9 | Visual, Visual-line, Visual-block | 5 | 0 | charwise and linewise; text objects, `< > u U ~ g? gJ`; Select mode (`gh`, `gH`, CTRL-G, `<BS>`) |
-| 10 | Insert and Replace mode keys | 4 | 0 | basics; counts (`3ix<Esc>`), Replace mode (`R`), `gi`, `gI` |
+| 10 | Insert and Replace mode keys | 4 | 0 | most keys (CTRL-R, CTRL-O, CTRL-V, CTRL-T/CTRL-D, CTRL-A, CTRL-E/CTRL-Y, CTRL-G); counts; Replace mode; no CTRL-X submodes, CTRL-K digraphs, abbreviations |
 | 11 | Command-line editing keys | 3 | 0 | basics, history, Tab |
 | 12 | Marks, jumplist, changelist | 3 | 0 | `a-z` line marks |
 | 13 | Macros, `:normal`, `.`, CTRL-A/CTRL-X | 3 | 0 | `.`, `q`, `@`, `@@`, `@:`, `Q`, CTRL-A/CTRL-X (`g CTRL-A`); no `:normal` |
@@ -120,7 +120,7 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
 4. Tracks 6–13 (the editing grammar), each with oracle cases. Done so
    far: the motions, text objects and operators in the table above. Next:
    `it`/`at`, `=` `gq` `gw` `!` `g@` `zf`, `:normal`, `:registers`,
-   Insert CTRL-R/CTRL-O/CTRL-T/CTRL-D, scrolling (CTRL-E/CTRL-Y, `zt`
+   scrolling (CTRL-E/CTRL-Y, `zt`
    `zb` `z.`), `&`.
 5. Track 9 continued: Select block mode (`g CTRL-H`, needs Visual-block),
    Select CTRL-O and CTRL-R, `.` repeating a Select-mode replacement,
@@ -217,3 +217,10 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
   (`3>`). Counts on `i a I A o O` type the text again; Replace mode `R`
   (with counts, `<BS>` putting text back, REPLACE in the status line);
   `gi`, `gI`, `gv`. Oracle: 495 cases. Ledger: 193 keys done.
+- 2026-10-25: Insert-mode keys: CTRL-R {reg} (and CTRL-R CTRL-R/O/P),
+  CTRL-A, CTRL-@, CTRL-T, CTRL-D, `0 CTRL-D`, CTRL-E, CTRL-Y, CTRL-V as
+  Neovim's `get_literal()` (decimal, `x`, `o`, `u`, `U`), CTRL-J/M/I,
+  CTRL-O (one Normal command, coming back after the last character as
+  Neovim does), CTRL-G j/k/u, `<S-Left>`/`<C-Left>` and right,
+  `<C-Home>`, `<C-End>`, page keys. Oracle: 543 cases. Ledger: 218 keys
+  done.

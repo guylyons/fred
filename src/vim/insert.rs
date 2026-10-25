@@ -140,9 +140,269 @@ fn replace_char(ed: &mut Editor, c: char) {
     }
 }
 
+/// An Insert-mode key that takes the next key too.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Pending {
+    /// CTRL-R: a register's text.
+    Reg,
+    /// CTRL-V: the next key literally, or a character by its code.
+    Literal(Literal),
+    /// CTRL-G.
+    CtrlG,
+}
+
+/// CTRL-O ran its command: back to Insert mode.
+pub(crate) fn after_ctrl_o(ed: &mut Editor) {
+    if ed.mode != Mode::Normal || !ed.vim.pending.is_empty() {
+        return;
+    }
+    let Some((eol, line)) = ed.vim.insert_once.take() else {
+        return;
+    };
+    // Back after the last character if Insert mode was there (on the same
+    // line) or the command wants a column further right (`$`).
+    let (l, b) = ed.cur.pos();
+    let s = ed.buf.line(l);
+    let col = col_of_byte(&s, b, ed.tabstop());
+    if b < s.len()
+        && next_grapheme(&s, b) == s.len()
+        && ((eol && l == line) || ed.cur.want_col > col)
+    {
+        ed.cur.byte = s.len();
+    }
+    ed.mode = Mode::Insert;
+    ed.undo.begin(ed.cur.pos());
+}
+
+/// The key after CTRL-R, CTRL-V or CTRL-G.
+fn pending_key(ed: &mut Editor, p: Pending, k: Key) {
+    match p {
+        Pending::Reg => {
+            let c = match k.code {
+                // CTRL-R CTRL-R, CTRL-O, CTRL-P {reg}: the same here.
+                KeyCode::Char('r' | 'o' | 'p') if k.ctrl => {
+                    ed.vim.ins_pending = Some(Pending::Reg);
+                    return;
+                }
+                KeyCode::Char(c) if !k.ctrl && !k.alt => c,
+                _ => return,
+            };
+            if let Some(r) = super::register::get(ed, c) {
+                let text = if r.linewise {
+                    format!("{}\n", r.text)
+                } else {
+                    r.text
+                };
+                insert_text(ed, &text);
+            }
+        }
+        Pending::Literal(st) => literal_key(ed, st, k),
+        Pending::CtrlG => {
+            let (l, _) = ed.cur.pos();
+            let col = col_of_byte(
+                &ed.buf.line(ed.vim.insert_start.0.min(ed.line_count() - 1)),
+                ed.vim.insert_start.1,
+                ed.tabstop(),
+            );
+            let to = |ed: &mut Editor, nl: usize| {
+                let s = ed.buf.line(nl);
+                ed.cur.line = nl;
+                ed.cur.byte = crate::text::byte_of_col(&s, col, ed.tabstop());
+                ed.vim.insert_start = ed.cur.pos();
+            };
+            match (k.code, k.ctrl) {
+                (KeyCode::Char('j'), _) | (KeyCode::Down, _) if l + 1 < ed.line_count() => {
+                    to(ed, l + 1)
+                }
+                (KeyCode::Char('k'), _) | (KeyCode::Up, _) if l > 0 => to(ed, l - 1),
+                // A new undoable change starts here.
+                (KeyCode::Char('u'), false) => {
+                    let p = ed.cur.pos();
+                    ed.undo.end(p);
+                    ed.undo.begin(p);
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+/// CTRL-V's state, as Neovim's `get_literal()`: `x`, `o`, `u` or `U`
+/// (typed at any point) pick the base; the code so far and its digits.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Literal {
+    hex: bool,
+    octal: bool,
+    unicode: Option<char>,
+    cc: u32,
+    digits: usize,
+}
+
+/// A key after CTRL-V.
+fn literal_key(ed: &mut Editor, mut st: Literal, k: Key) {
+    let mut stop = None;
+    match k.char() {
+        None => stop = Some(k),
+        Some('x' | 'X') => st.hex = true,
+        Some('o' | 'O') => st.octal = true,
+        Some(u @ ('u' | 'U')) => st.unicode = Some(u),
+        Some(c) => {
+            let base = if st.hex || st.unicode.is_some() {
+                16
+            } else if st.octal {
+                8
+            } else {
+                10
+            };
+            match c.to_digit(base) {
+                Some(d) => {
+                    st.cc = st.cc.saturating_mul(base).saturating_add(d);
+                    st.digits += 1;
+                }
+                None => stop = Some(k),
+            }
+        }
+    }
+    if stop.is_none() {
+        if st.cc > 255 && st.unicode.is_none() {
+            st.cc = 255;
+        }
+        let done = match st.unicode {
+            _ if st.hex => st.digits >= 2,
+            Some('u') => st.digits >= 4,
+            Some(_) => st.digits >= 8,
+            None => st.digits >= 3,
+        };
+        if !done {
+            ed.vim.ins_pending = Some(Pending::Literal(st));
+            return;
+        }
+    }
+    if st.digits == 0 {
+        // No code: the key itself.
+        if let Some(k) = stop {
+            let text = super::register::keys_to_text(&[k]);
+            insert_text(ed, &text);
+        }
+        return;
+    }
+    if let Some(c) = char::from_u32(st.cc).filter(|&c| c != '\0') {
+        insert_text(ed, &c.to_string());
+    }
+    // The key that ended the code does what it does.
+    if let Some(k) = stop {
+        edit_key(ed, k);
+    }
+}
+
+/// CTRL-T and CTRL-D: shift the line one 'shiftwidth', keeping the cursor
+/// on the same text.
+fn shift_line(ed: &mut Editor, left: bool) {
+    let (l, b) = ed.cur.pos();
+    let before = ed.buf.line_len(l);
+    super::ops::shift(ed, l, l, left, 1);
+    let after = ed.buf.line_len(l);
+    ed.cur.line = l;
+    ed.cur.byte = (b + after).saturating_sub(before).min(after);
+    let ind = indent_of(&ed.buf.line(l)).len();
+    if b < before && ed.cur.byte < ind {
+        ed.cur.byte = ind;
+    }
+    ed.msg = None;
+}
+
 fn edit_key(ed: &mut Editor, k: Key) {
+    if let Some(p) = ed.vim.ins_pending.take() {
+        return pending_key(ed, p, k);
+    }
     let (l, b) = ed.cur.pos();
     let line = ed.buf.line(l);
+    if k.ctrl && !k.alt {
+        match k.code {
+            KeyCode::Char('r') => return ed.vim.ins_pending = Some(Pending::Reg),
+            KeyCode::Char('v' | 'q') => {
+                return ed.vim.ins_pending = Some(Pending::Literal(Literal::default()));
+            }
+            KeyCode::Char('g') => return ed.vim.ins_pending = Some(Pending::CtrlG),
+            // The last inserted text (CTRL-@ also leaves Insert mode).
+            KeyCode::Char(c @ ('a' | '@' | ' ')) => {
+                let text = ed.vim.last_insert.clone();
+                insert_text(ed, &text);
+                if c != 'a' {
+                    leave(ed);
+                }
+                return;
+            }
+            KeyCode::Char('t') => return shift_line(ed, false),
+            KeyCode::Char('d') => {
+                // `0 CTRL-D` and `^ CTRL-D` delete all the indent.
+                let typed = &line[..b];
+                let rest = typed.trim_start_matches([' ', '\t']);
+                if rest == "0" || rest == "^" {
+                    delete_chars(ed, (l, 0), (l, b));
+                    ed.cur.byte = 0;
+                    return;
+                }
+                return shift_line(ed, true);
+            }
+            // The character below or above the cursor.
+            KeyCode::Char(c @ ('e' | 'y')) => {
+                let other = if c == 'e' { l + 1 } else { l.wrapping_sub(1) };
+                if other < ed.line_count() {
+                    let s = ed.buf.line(other);
+                    let col = col_of_byte(&line, b, ed.tabstop());
+                    let ob = crate::text::byte_of_col(&s, col, ed.tabstop());
+                    if ob < s.len() && col_of_byte(&s, ob, ed.tabstop()) == col {
+                        let g = s[ob..next_grapheme(&s, ob)].to_string();
+                        insert_text(ed, &g);
+                    }
+                }
+                return;
+            }
+            KeyCode::Char('j' | 'm') => return edit_key(ed, Key::new(KeyCode::Enter)),
+            KeyCode::Char('i') => return edit_key(ed, Key::new(KeyCode::Tab)),
+            KeyCode::Char('[') => return edit_key(ed, Key::new(KeyCode::Esc)),
+            // One Normal-mode command, then back.
+            KeyCode::Char('o') => {
+                let eol = b >= line.len() && !line.is_empty();
+                ed.undo.end(ed.cur.pos());
+                ed.mode = Mode::Normal;
+                ed.vim.after_j = false;
+                if eol {
+                    ed.cur.byte = prev_grapheme(&line, b);
+                }
+                ed.vim.insert_once = Some((eol, l));
+                return;
+            }
+            KeyCode::Left => {
+                let p = super::motion::word_back(&ed.buf, (l, b), false);
+                return ed.set_cursor(p.0, p.1);
+            }
+            KeyCode::Right => {
+                let p = super::motion::word_fwd(&ed.buf, (l, b), false).0;
+                ed.cur.line = p.0;
+                ed.cur.byte = p.1;
+                return;
+            }
+            KeyCode::Home => return ed.set_cursor(0, 0),
+            KeyCode::End => {
+                let last = ed.line_count() - 1;
+                ed.cur.line = last;
+                ed.cur.byte = ed.buf.line_len(last);
+                return;
+            }
+            _ => {}
+        }
+    }
+    if k.shift && !k.ctrl {
+        match k.code {
+            KeyCode::Left => return edit_key(ed, Key::with(KeyCode::Left, "C")),
+            KeyCode::Right => return edit_key(ed, Key::with(KeyCode::Right, "C")),
+            KeyCode::Up => return edit_key(ed, Key::new(KeyCode::PageUp)),
+            KeyCode::Down => return edit_key(ed, Key::new(KeyCode::PageDown)),
+            _ => {}
+        }
+    }
     if ed.vim.replace.is_some() {
         match k.code {
             KeyCode::Char(c) if !k.ctrl && !k.alt => return replace_char(ed, c),
@@ -234,6 +494,8 @@ fn edit_key(ed: &mut Editor, k: Key) {
         KeyCode::End => ed.set_cursor(l, line.len()),
         KeyCode::Up if l > 0 => ed.set_line_keep_col(l - 1),
         KeyCode::Down => ed.set_line_keep_col(l + 1),
+        KeyCode::PageUp => ed.set_line_keep_col(l.saturating_sub(ed.win_height.max(1))),
+        KeyCode::PageDown => ed.set_line_keep_col(l + ed.win_height.max(1)),
         KeyCode::Char(c) if !k.ctrl && !k.alt => {
             let mut s = [0u8; 4];
             insert_text(ed, c.encode_utf8(&mut s));
