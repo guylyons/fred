@@ -1386,6 +1386,8 @@ const CASES: &[(&str, &str)] = &[
     ("abcd", "xxxuuxg-:undo! 1<CR>g-g-g+g+"),
     ("abcd", "xxxu:undo!<CR>:undo! 0<CR>"),
     ("abcd", "xx:undo! 2<CR>"),
+    ("abcd", "xx:undo! 2<CR>u"),
+    ("abcd", "xx:undo! 2<CR>g-g-g+"),
     ("abcd", "xx:later 99999999999999999999<CR>"),
     ("abcd", "xxu:later 99999999999999999999<CR>"),
     ("abcd", "xx:earlier 99999999999999999999<CR>"),

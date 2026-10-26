@@ -312,8 +312,9 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
   id that is never reused (`:undo!` gives its seq to the next change, as
   Vim, which had cleared 'modified' over unsaved text); undo files are
   0600 in a 0700 'undodir', entries expand `~` and `$VAR` and drop `//`,
-  a corrupt or tampered file is refused (links, `cur`, edit ranges)
-  instead of panicking, an existing non-undo file is never overwritten;
+  a corrupt or tampered file is refused (links, `cur`, edit ranges,
+  counters near overflow) instead of panicking, an existing
+  non-undo file is never overwritten;
   `:earlier`/`:later` counts past an int are 0 as `getdigits_int()`;
   tree moves wait while a change is open. `zg zw zG zW zuw zug zuW zuG`
-  deferred with spell checking. Oracle: 1083 cases.
+  deferred with spell checking. Oracle: 1085 cases.

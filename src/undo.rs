@@ -600,6 +600,20 @@ impl Undo {
         if kids != self.nodes.len() - 1 {
             return Err("children");
         }
+        // Counters that later changes and writes add to must not be near
+        // overflowing (seq_last wrapping to 0 would clobber the root).
+        let limit = u64::MAX / 2;
+        if [
+            self.seq_last,
+            self.next_id,
+            self.root_gen,
+            self.save_nr_last,
+        ]
+        .iter()
+        .any(|&c| c >= limit)
+        {
+            return Err("counter");
+        }
         // Lengths: up from the current state, then down every branch.
         let apply = |len: usize, edits: &[Edit]| {
             edits.iter().rev().try_fold(len, |l, e| {
@@ -1019,7 +1033,11 @@ mod tests {
         assert!(Undo::from_file(&data, &text).is_ok());
         assert!(Undo::from_file(&data[..data.len() / 2], &text).is_err());
         let mut v: serde_json::Value = serde_json::from_str(&data).unwrap();
-        let tampers: [fn(&mut serde_json::Value); 6] = [
+        let tampers: [fn(&mut serde_json::Value); 10] = [
+            |t| t["seq_last"] = u64::MAX.into(),
+            |t| t["nodes"]["1"]["id"] = u64::MAX.into(),
+            |t| t["root_gen"] = u64::MAX.into(),
+            |t| t["save_nr_last"] = u64::MAX.into(),
             |t| t["cur"] = 9.into(),
             |t| t["seq_last"] = 0.into(),
             |t| t["nodes"]["2"]["parent"] = 2.into(),
