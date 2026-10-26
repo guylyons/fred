@@ -140,6 +140,17 @@ options! {
     Textwidth => opt("textwidth", "tw", Buffer, Num(0)).check(nonneg),
     /// Columns a tab takes.
     Tabstop => opt("tabstop", "ts", Buffer, Num(8)).check(positive),
+    /// Where undo files go (comma-separated; `.` is the file's directory).
+    /// Empty: `$XDG_STATE_HOME/fred/undo` (Neovim: `$XDG_STATE_HOME/nvim/undo//`).
+    Undodir => opt("undodir", "udir", Global, Str("")).list(),
+    /// Keep the undo tree in a file and read it back on opening.
+    Undofile => opt("undofile", "udf", Buffer, Bool(false)),
+    /// Changes kept for undo; -1: none. Global-local upstream; here a
+    /// buffer option (`:set` sets both values).
+    Undolevels => opt("undolevels", "ul", Buffer, Num(1000)),
+    /// `:e!` keeps the text before reloading as a change to undo when the
+    /// file has fewer lines than this (negative: always; 0: never).
+    Undoreload => opt("undoreload", "ur", Global, Num(10000)),
     /// Wrap long lines (Neovim: on).
     Wrap => opt("wrap", "", Window, Bool(false)),
 }

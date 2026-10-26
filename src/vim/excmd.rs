@@ -80,6 +80,8 @@ const READ_ONLY: &[&str] = &[
     "stopinsert",
     "delmarks",
     "clearjumps",
+    "undolist",
+    "wundo",
 ];
 
 pub fn run(ed: &mut Editor, c: Call) {
@@ -96,6 +98,15 @@ pub fn run(ed: &mut Editor, c: Call) {
         "put" => put(ed, &c),
         "<" | ">" => shift(ed, &c),
         "k" | "mark" => mark(ed, &c),
+        "undo" if c.force || !c.arg.is_empty() => undo_n(ed, &c),
+        "earlier" | "later" => later(ed, &c),
+        "undojoin" => ed.undo.join_next(),
+        "undolist" => {
+            undolist(ed);
+            Ok(())
+        }
+        "wundo" => wundo(ed, &c),
+        "rundo" => rundo(ed, &c),
         "undo" | "redo" => {
             let redo = c.name == "redo";
             let p = if redo {
@@ -647,4 +658,119 @@ fn source(ed: &mut Editor, file: &str, keys: bool) -> Result<(), String> {
         Some(e) => Err(e),
         None => Ok(()),
     }
+}
+
+/// Put the cursor where an undo-tree move left it, or say why it didn't
+/// move ("Already at oldest change" is a message, E830 an error).
+fn moved(ed: &mut Editor, r: Result<Option<(usize, usize)>, String>) -> Result<(), String> {
+    match r {
+        Ok(Some(p)) => ed.set_cursor(p.0, p.1),
+        Ok(None) => {}
+        Err(e) if e.starts_with('E') => return Err(e),
+        Err(e) => ed.set_msg(e),
+    }
+    Ok(())
+}
+
+/// `g-`, `g+`, `:earlier`, `:later`.
+pub fn time_travel(ed: &mut Editor, step: i64, unit: crate::undo::Unit) {
+    let r = ed.undo.time_travel(&mut ed.buf, step, unit);
+    if let Err(e) = moved(ed, r) {
+        ed.set_err(e);
+    }
+}
+
+/// `:undo N`, `:undo!`, `:undo! N`.
+fn undo_n(ed: &mut Editor, c: &Call) -> Result<(), String> {
+    let n = match c.arg.as_str() {
+        "" => None,
+        a => Some(
+            a.parse::<u64>()
+                .map_err(|_| format!("E488: Trailing characters: {a}"))?,
+        ),
+    };
+    let r = match n {
+        None => Ok(ed.undo.undo_forget(&mut ed.buf, 1)),
+        Some(n) if c.force => ed.undo.undo_forget_to(&mut ed.buf, n),
+        Some(n) => ed.undo.undo_to(&mut ed.buf, n),
+    };
+    moved(ed, r)
+}
+
+/// `:earlier {N}` / `:later {N}`, `{N}s m h d` by time, `{N}f` by writes.
+fn later(ed: &mut Editor, c: &Call) -> Result<(), String> {
+    use crate::undo::Unit;
+    let a = c.arg.as_str();
+    let digits = a.find(|ch: char| !ch.is_ascii_digit()).unwrap_or(a.len());
+    let n: i64 = if digits == 0 {
+        1
+    } else {
+        a[..digits].parse().unwrap_or(i64::MAX)
+    };
+    let (unit, mul) = match &a[digits..] {
+        "" => (Unit::Changes, 1),
+        "s" if digits > 0 => (Unit::Seconds, 1),
+        "m" if digits > 0 => (Unit::Seconds, 60),
+        "h" if digits > 0 => (Unit::Seconds, 60 * 60),
+        "d" if digits > 0 => (Unit::Seconds, 24 * 60 * 60),
+        "f" if digits > 0 => (Unit::Writes, 1),
+        _ => return Err(format!("E475: Invalid argument: {a}")),
+    };
+    let step = n.saturating_mul(mul);
+    let step = if c.name == "earlier" { -step } else { step };
+    let r = ed.undo.time_travel(&mut ed.buf, step, unit);
+    moved(ed, r)
+}
+
+/// `:undolist`: the leaves of the undo tree; picking one goes there.
+fn undolist(ed: &mut Editor) {
+    let rows = ed.undo.list();
+    if rows.is_empty() {
+        ed.set_msg("Nothing to undo");
+        return;
+    }
+    crate::pick::choose(ed, "number changes  when               saved", rows, "");
+    ed.org_then = Some(Box::new(|ed, picked| {
+        if let Some(n) = picked.split_whitespace().next() {
+            ed.run_ex(&format!("undo {n}"));
+        }
+    }));
+}
+
+/// `:wundo[!] {file}`: write the undo tree. Without `!` a file that isn't
+/// an undo file is left alone.
+fn wundo(ed: &mut Editor, c: &Call) -> Result<(), String> {
+    let path = crate::session::expand_tilde(&c.arg);
+    if !c.force
+        && let Ok(old) = std::fs::read_to_string(&path)
+        && !crate::undo::is_undo_file(&old)
+    {
+        return Err(format!(
+            "Will not overwrite, this is not an undo file: {}",
+            c.arg
+        ));
+    }
+    std::fs::write(&path, ed.undo.to_file(&ed.buf.text()))
+        .map_err(|_| format!("E828: Cannot open undo file for writing: {}", c.arg))
+}
+
+/// `:rundo {file}`: read an undo tree written for this text.
+fn rundo(ed: &mut Editor, c: &Call) -> Result<(), String> {
+    let path = crate::session::expand_tilde(&c.arg);
+    let data = std::fs::read_to_string(&path)
+        .map_err(|_| format!("E822: Cannot open undo file for reading: {}", c.arg))?;
+    match crate::undo::Undo::from_file(&data, &ed.buf.text()) {
+        Ok(mut u) => {
+            u.levels = ed.undo.levels;
+            ed.undo = u;
+            // An unmodified buffer is saved in the state read back.
+            ed.saved_state = if ed.buf.modified {
+                u64::MAX
+            } else {
+                ed.undo.state_id()
+            };
+        }
+        Err(e) => ed.set_msg(e),
+    }
+    Ok(())
 }

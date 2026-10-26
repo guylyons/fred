@@ -725,7 +725,29 @@ pub const COMMANDS: &[Command] = &[
     })
     .about("set a mark at the line")
     .takes("{a-z}"),
-    cmd("undo", 1, EDITOR, |_, a| on_editor("undo", a)).about("undo the last change"),
+    cmd("undo", 1, BANG | EXTRA | EDITOR, |_, a| {
+        on_editor("undo", a)
+    })
+    .about("undo the last change; N: go to after change N; ! forgets it")
+    .takes("[N]"),
+    cmd("undojoin", 5, EDITOR, |_, a| on_editor("undojoin", a))
+        .about("join the next change to the last one's undo block"),
+    cmd("undolist", 5, EDITOR, |_, a| on_editor("undolist", a))
+        .about("list the undo tree's leaves; pick one to go there"),
+    cmd("earlier", 2, EXTRA | EDITOR, |_, a| on_editor("earlier", a))
+        .about("go to an older text state: N changes, Ns m h d of time, Nf writes")
+        .takes("[N][smhdf]"),
+    cmd("later", 3, EXTRA | EDITOR, |_, a| on_editor("later", a))
+        .about("go to a newer text state: N changes, Ns m h d of time, Nf writes")
+        .takes("[N][smhdf]"),
+    needs("wundo", 2, BANG | FILE | EDITOR, "{file}", |_, a| {
+        on_editor("wundo", a)
+    })
+    .about("write the undo tree to a file (! over a file that isn't one)"),
+    needs("rundo", 4, FILE | EDITOR, "{file}", |_, a| {
+        on_editor("rundo", a)
+    })
+    .about("read the undo tree back from a file"),
     cmd("redo", 3, EDITOR, |_, a| on_editor("redo", a)).about("redo the last undone change"),
     cmd("startinsert", 4, BANG | EDITOR, |_, a| {
         on_editor("startinsert", a)

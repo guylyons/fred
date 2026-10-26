@@ -8,7 +8,7 @@ use crate::ex::{BufCmd, ExEffect};
 use crate::fileio::{self, FileStamp};
 use crate::highlight::Highlighter;
 use crate::key::Key;
-use crate::options::Options;
+use crate::options::{Opt, Options};
 use crate::swap::{self, SwapInfo};
 use crate::ui::View;
 use crate::window::{Node, Placed, Window};
@@ -186,12 +186,13 @@ pub struct Session {
 fn make_editor(buf: Buffer, opts: Options, cfg: &Config) -> Editor {
     let mut ed = Editor::new(buf);
     ed.opts = opts;
+    ed.undo.levels = ed.opts.num(crate::options::Opt::Undolevels);
     ed.detect_indent();
     ed.win_height = cfg.height;
     ed
 }
 
-fn expand_tilde(p: &str) -> PathBuf {
+pub(crate) fn expand_tilde(p: &str) -> PathBuf {
     match p.strip_prefix("~/") {
         Some(rest) => PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(rest),
         None => PathBuf::from(p),
@@ -241,6 +242,13 @@ fn open_file(path: Option<&Path>, opts: Options, cfg: &Config) -> Result<Opened,
     let mut ed = make_editor(l.buf, opts, cfg);
     ed.path = Some(p.to_path_buf());
     ed.readonly = l.readonly;
+    if ed.opts.bool(Opt::Undofile)
+        && let Some(mut u) = crate::undo::read_for(&ed.opts.str(Opt::Undodir), p, &ed.buf.text())
+    {
+        u.levels = ed.undo.levels;
+        ed.undo = u;
+        ed.saved_state = ed.undo.state_id();
+    }
     crate::org::attach(&mut ed);
     let name = p.display();
     match l.notice.as_deref() {
@@ -724,12 +732,25 @@ impl Session {
             Ok(st) => {
                 self.stamp = Some(st);
                 self.ed.mark_saved();
+                self.ed.undo.written();
+                let undo_err = self
+                    .ed
+                    .opts
+                    .bool(Opt::Undofile)
+                    .then(|| {
+                        let dirs = self.ed.opts.str(Opt::Undodir);
+                        self.ed.undo.write_for(&dirs, p, &self.ed.buf.text())
+                    })
+                    .and_then(Result::err);
                 // magit-wip-after-save-mode.
                 if self.wip_mode {
                     self.wip_after_save(p);
                 }
                 let msg = summary(p, &data);
                 self.ed.set_msg(msg.clone());
+                if let Some(e) = undo_err {
+                    self.ed.set_err(e);
+                }
                 self.written = Some(msg);
                 if self.swap_state != SwapState::None {
                     self.write_lock();
@@ -974,6 +995,19 @@ impl Session {
         }
         self.remember_place();
         let mut ed = o.ed;
+        // 'undoreload': a reload of this file is a change to undo.
+        let ur = self.ed.opts.num(Opt::Undoreload);
+        if ed.path.is_some()
+            && ed.path == self.ed.path
+            && (ur < 0 || self.ed.line_count() as i64 <= ur)
+        {
+            let mut undo = std::mem::take(&mut self.ed.undo);
+            let at = self.ed.cur.pos();
+            undo.record_reload(self.ed.buf.text(), ed.buf.len_chars(), at);
+            undo.levels = ed.undo.levels;
+            ed.undo = undo;
+            ed.saved_state = ed.undo.state_id();
+        }
         ed.inherit(&mut self.ed);
         self.ed = ed;
         self.arrived();
@@ -2375,6 +2409,44 @@ mod tests {
         let mut u = T::open(None, None);
         u.keys(":e!<Enter>");
         assert!(u.msg().contains("no file name"), "{}", u.msg());
+    }
+
+    #[test]
+    fn undofile_undoreload_wundo_rundo() {
+        let mut t = T::open(Some("f"), Some("one\n"));
+        let dir = t.dir.path().join("undo");
+        // 'undoreload': `:e!` is a change `u` undoes.
+        t.keys("x:e!<Enter>");
+        assert_eq!(t.s.ed.buf.text(), "one");
+        assert!(!t.s.ed.buf.modified);
+        t.keys("u");
+        assert_eq!(t.s.ed.buf.text(), "ne");
+        assert!(t.s.ed.buf.modified);
+        // 'undofile': written with the file, read back when it is read.
+        t.keys(&format!(":set undofile undodir={}<Enter>", dir.display()));
+        t.keys("x:w<Enter>:set ur=0<Enter>:e!<Enter>");
+        assert_eq!(fs::read_dir(&dir).unwrap().count(), 1);
+        assert_eq!(t.s.ed.buf.text(), "e");
+        t.keys("u");
+        assert_eq!(t.s.ed.buf.text(), "ne");
+        t.keys("g-g-");
+        assert_eq!(t.s.ed.buf.text(), "one");
+        t.keys(":earlier 1f<Enter>");
+        // `:wundo` / `:rundo`; not over a file that isn't an undo file.
+        let w = t.dir.path().join("w");
+        t.keys(&format!(":later 9<Enter>:wundo {}<Enter>", w.display()));
+        assert!(crate::undo::is_undo_file(&fs::read_to_string(&w).unwrap()));
+        t.keys(&format!(
+            ":wundo {}<Enter>",
+            t.dir.path().join("f").display()
+        ));
+        assert!(t.msg().contains("not an undo file"), "{}", t.msg());
+        t.keys(":set ul=-1<Enter>x:set ul=1000<Enter>u");
+        assert_eq!(t.s.ed.buf.text(), "");
+        t.keys(&format!(":rundo {}<Enter>", w.display()));
+        assert!(t.msg().contains("File contents changed"), "{}", t.msg());
+        t.keys(&format!("ie<Esc>:rundo {}<Enter>u", w.display()));
+        assert_eq!(t.s.ed.buf.text(), "ne");
     }
 
     #[test]

@@ -45,7 +45,7 @@ track.
 | 17 | Windows and tab pages (`CTRL-W`, `:split`, `:tab*`) | 6 | 0 | none |
 | 18 | Mappings, abbreviations, user commands | 5 | 0 | mappings and abbreviations (`src/vim/mappings.rs`), `:source`; no 'timeout', `:command` |
 | 19 | Autocommands | 3 | 0 | none |
-| 20 | Undo tree, `:earlier`/`:later`, undofile | 3 | 0 | linear undo |
+| 20 | Undo tree, `:earlier`/`:later`, undofile | 3 | 0 | undo tree (`src/undo.rs`): `g-` `g+`, `:undo N`/`:undo!`, `:earlier`/`:later` (count, time, writes), `:undojoin`, `:undolist`, `:wundo`/`:rundo`, 'undolevels' 'undofile' 'undodir' 'undoreload'; review open |
 | 21 | Folding (`z` commands, foldmethods) | 3 | 0 | Org-only hidden ranges |
 | 22 | Quickfix, location lists, `:grep`, `:make`, tags | 5 | 0 | pickers stand in |
 | 23 | Option behaviors (statusline, listchars, scrolloff, textwidth…) | 5 | 0 | a few |
@@ -120,7 +120,7 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
 4. Tracks 6–13 (the editing grammar), each with oracle cases. Done so
    far: the motions, text objects and operators in the table above. Next:
    `=`, `zf`, `zh`/`zl`/`zs`/`ze`, scrolling with wrapped lines and
-   folds, `:earlier`/`:later` (undo tree).
+   folds. Track 20 (undo tree) awaits review.
 5. Track 9 continued: Select block mode (`g CTRL-H`, needs Visual-block),
    Select CTRL-O and CTRL-R, `.` repeating a Select-mode replacement,
    'selection' (exclusive), `<S-Right>`/`<S-Left>` as word motions when
@@ -294,3 +294,17 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
   their Insert/Cmdline forms, `<buffer>`): full-id and end-id ones expand
   before a non-keyword character, Esc, Enter or CTRL-], when the word
   starts there or where Insert mode began, as in Vim. Oracle: 1011 cases.
+- 2026-10-26: undo tree (`src/undo.rs`, after Neovim's `undo.c`): a
+  change made after undoing starts a branch; `u`/CTRL-R follow the branch
+  last used, `g-`/`g+` and `:earlier`/`:later` move through the states in
+  the order they were made (`{N}`, `{N}s m h d`, `{N}f` by writes, as
+  `undo_time()`), `:undo N` (E830), `:undo!` and `:undo! N` (E5767),
+  `:undojoin` (for the rest of the command line, E790), `:undolist` (a
+  picker). Undo and redo put the cursor where the change started (Vim's
+  `uh_cursor`, taken at the first edit). 'undolevels' (0: `u` undoes
+  itself, -1: none, N trims as `u_savecommon()`; a buffer option until
+  global-local exists), 'undoreload' (`:e!` is a change to undo),
+  'undofile'/'undodir' and `:wundo`/`:rundo` in Fred's own JSON format
+  with a text hash, the default 'undodir' `$XDG_STATE_HOME/fred/undo`.
+  `<Undo>` excluded: no key sends it. The oracle now clears undo after
+  setting the text. Oracle: 1078 cases.

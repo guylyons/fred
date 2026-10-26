@@ -1394,6 +1394,17 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
     match (key.code, key.ctrl) {
         // Undo/redo would corrupt the history while a change is open.
         (KeyCode::Char('r'), true) | (KeyCode::Char('u'), false) if ed.undo.in_group() => {}
+        // `g-`, `g+`: older and newer text states, across undo branches.
+        (KeyCode::Char('g'), false) if matches!(arg, Some('-' | '+')) => {
+            if !ed.undo.in_group() {
+                let step = if arg == Some('-') {
+                    -(n as i64)
+                } else {
+                    n as i64
+                };
+                excmd::time_travel(ed, step, crate::undo::Unit::Changes);
+            }
+        }
         (KeyCode::Char('w'), true) => {
             if let Some(cmd) = arg {
                 ed.pending_effect = Some(ExEffect::Window { cmd, count });

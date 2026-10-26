@@ -378,6 +378,10 @@ impl Editor {
             vim::register::record(self, k);
         }
         let typed = self.vim.key_depth == 0;
+        if typed {
+            // Vim syncs undo while it waits for a key: `:undojoin` ends.
+            self.undo.sync();
+        }
         self.vim.key_depth += 1;
         // Typed keys go through the mappings.
         if typed && (!self.maps.list.is_empty() || !self.buf_maps.list.is_empty()) {
@@ -783,7 +787,8 @@ impl Editor {
         {
             u.2 = start.1;
         }
-        self.undo.record(inv);
+        let at = self.cur.pos();
+        self.undo.record_at(inv, at);
     }
 
     /// Claude's reply to `:ai` in place of lines `r`, as one undo step.
@@ -1261,7 +1266,9 @@ impl Editor {
             }
             ExEffect::Global { lines, cmd } => self.global(lines, &cmd),
             ExEffect::Set { args, level } => {
-                match crate::options::set(&mut self.opts, &args, level) {
+                let r = crate::options::set(&mut self.opts, &args, level);
+                self.undo.levels = self.opts.num(crate::options::Opt::Undolevels);
+                match r {
                     Ok(shown) if !shown.is_empty() => self.set_msg(shown),
                     Ok(_) => {}
                     Err(e) => self.set_err(e),

@@ -280,7 +280,7 @@ key,normal,<S-Left>,motion,done,oracle cases,"same as ""b"""
 key,normal,<S-LeftMouse>,,missing,,"same as ""*"" at the mouse click position"
 key,normal,<S-Right>,motion,done,oracle cases,"same as ""w"""
 key,normal,<S-Up>,motion,partial,as CTRL-B,same as CTRL-B
-key,normal,<Undo>,change,missing,,"same as ""u"""
+key,normal,<Undo>,change,excluded,no terminal or Fred GUI key sends <Undo> (no key code for it); `u` is the same,"same as ""u"""
 key,normal,<Up>,motion,partial,present; not yet verified against nvim,"same as ""k"""
 key,textobject,"a""",,done,src/vim/textobj.rs (port of textobject.c); oracle cases,double quoted string
 key,textobject,a',,done,src/vim/textobj.rs (port of textobject.c); oracle cases,single quoted string
@@ -444,9 +444,9 @@ key,g,g&,change,done,oracle cases,"repeat last "":s"" on all lines"
 key,g,g'{mark},motion,done,oracle cases,like |'| but without changing the jumplist
 key,g,g`{mark},motion,done,oracle cases,like |`| but without changing the jumplist
 key,g,g*,motion,done,oracle cases,"like ""*"", but without using ""\<"" and ""\>"""
-key,g,g+,,missing,,go to newer text state N times
+key,g,g+,,done,"undo tree, across branches (src/undo.rs); oracle cases",go to newer text state N times
 key,g,"g,",motion,done,oracle cases,go to N newer position in change list
-key,g,g-,,missing,,go to older text state N times
+key,g,g-,,done,"undo tree, across branches (src/undo.rs); oracle cases",go to older text state N times
 key,g,g0,motion,partial,same as $ 0 ^ j k (right while 'wrap' is off),when 'wrap' off go to leftmost character of
 key,g,g8,,partial,the bytes in the message,print hex value of bytes used in UTF-8
 key,g,g;,motion,done,oracle cases,go to N older position in change list
@@ -820,7 +820,7 @@ ex,,drop,:dr[op] ADDR_NONE,missing,,ex_drop
 ex,,dsearch,:ds[earch] ADDR_LINES,missing,,ex_findpat
 ex,,dsplit,:dsp[lit] ADDR_LINES,missing,,ex_findpat
 ex,,edit,:e[dit] ADDR_NONE,partial,present; not yet verified against nvim,ex_edit
-ex,,earlier,:ea[rlier] ADDR_NONE,missing,,ex_later
+ex,,earlier,:ea[rlier] ADDR_NONE,done,"{N}, {N}s m h d, {N}f as undo_time(); counts by oracle cases, time and writes by Rust tests with an injectable clock",ex_later
 ex,,echo,:ec[ho] ADDR_NONE,excluded,Vimscript language,ex_echo
 ex,,echoerr,:echoe[rr] ADDR_NONE,excluded,Vimscript language,ex_execute
 ex,,echohl,:echoh[l] ADDR_NONE,excluded,Vimscript language,ex_echohl
@@ -906,7 +906,7 @@ ex,,laddexpr,:lad[dexpr] ADDR_NONE,missing,,ex_cexpr
 ex,,laddbuffer,:laddb[uffer] ADDR_LINES,missing,,ex_cbuffer
 ex,,laddfile,:laddf[ile] ADDR_NONE,missing,,ex_cfile
 ex,,lafter,:laf[ter] ADDR_UNSIGNED,missing,,ex_cbelow
-ex,,later,:lat[er] ADDR_NONE,missing,,ex_later
+ex,,later,:lat[er] ADDR_NONE,done,"{N}, {N}s m h d, {N}f as undo_time(); counts by oracle cases, time and writes by Rust tests with an injectable clock",ex_later
 ex,,lbuffer,:lb[uffer] ADDR_LINES,missing,,ex_cbuffer
 ex,,lbefore,:lbe[fore] ADDR_UNSIGNED,missing,,ex_cbelow
 ex,,lbelow,:lbel[ow] ADDR_UNSIGNED,missing,,ex_cbelow
@@ -1063,7 +1063,7 @@ ex,,right,:ri[ght] ADDR_LINES,done,oracle cases,ex_align
 ex,,rightbelow,:rightb[elow] ADDR_NONE,missing,,ex_wrongmodifier
 ex,,rshada,:rsh[ada] ADDR_NONE,deferred,"sessions, views and shada",ex_shada
 ex,,runtime,:ru[ntime] ADDR_NONE,excluded,Vimscript language,ex_runtime
-ex,,rundo,:rund[o] ADDR_NONE,missing,,ex_rundo
+ex,,rundo,:rund[o] ADDR_NONE,done,Fred's own format; refuses a tree written for other text; session test,ex_rundo
 ex,,ruby,:rub[y] ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_ruby
 ex,,rubydo,:rubyd[o] ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_rubydo
 ex,,rubyfile,:rubyf[ile] ADDR_LINES,excluded,"other languages, plugins and remote UI",ex_rubyfile
@@ -1178,9 +1178,9 @@ ex,,try,:try ADDR_NONE,excluded,Vimscript language,ex_try
 ex,,tselect,:ts[elect] ADDR_NONE,missing,,ex_tag
 ex,,tunmenu,:tu[nmenu] ADDR_NONE,excluded,GUI,ex_menu
 ex,,tunmap,:tunma[p] ADDR_NONE,missing,,ex_unmap
-ex,,undo,:u[ndo] ADDR_OTHER,partial,no :undo N (no undo tree),ex_undo
-ex,,undojoin,:undoj[oin] ADDR_NONE,missing,,ex_undojoin
-ex,,undolist,:undol[ist] ADDR_NONE,missing,,ex_undolist
+ex,,undo,:u[ndo] ADDR_OTHER,done,":undo N (0: before the first change), :undo!, :undo! N, E830, E5767; oracle cases",ex_undo
+ex,,undojoin,:undoj[oin] ADDR_NONE,done,"joins changes for the rest of the command line (a typed key ends it, as Vim), E790; oracle cases",ex_undojoin
+ex,,undolist,:undol[ist] ADDR_NONE,done,the leaves (number changes when saved) in a picker; picking one does :undo N; Rust test,ex_undolist
 ex,,unabbreviate,:una[bbreviate] ADDR_NONE,done,"full-id and end-id abbreviations, before a non-keyword character, Esc, Enter or CTRL-]; <buffer>; no non-id ones, <expr>; oracle cases",ex_abbreviate
 ex,,unhide,:unh[ide] ADDR_OTHER,missing,,ex_buffer_all
 ex,,uniq,:uni[q] ADDR_LINES,missing,,ex_uniq
@@ -1221,7 +1221,7 @@ ex,,wprevious,:wp[revious] ADDR_OTHER,missing,,ex_wnext
 ex,,wq,:wq ADDR_LINES,partial,present; not yet verified against nvim,ex_exit
 ex,,wqall,:wqa[ll] ADDR_NONE,partial,present; not yet verified against nvim,do_wqall
 ex,,wshada,:wsh[ada] ADDR_NONE,deferred,"sessions, views and shada",ex_shada
-ex,,wundo,:wu[ndo] ADDR_NONE,missing,,ex_wundo
+ex,,wundo,:wu[ndo] ADDR_NONE,done,"Fred's own format (JSON with a text hash, not Vim's binary); ! over a non-undo file; session test",ex_wundo
 ex,,wviminfo,wviminfo ADDR_NONE,deferred,"sessions, views and shada",ex_shada
 ex,,xit,:x[it] ADDR_LINES,partial,present; not yet verified against nvim,ex_exit
 ex,,xall,:xa[ll] ADDR_NONE,partial,present; not yet verified against nvim,do_wqall
@@ -1574,10 +1574,10 @@ option,,titlestring, global string,missing,,to use for the Vim window title
 option,,ttimeout, global boolean,missing,,out on mappings
 option,,ttimeoutlen,ttm global number,missing,,time out time for key codes in milliseconds
 option,,ttyfast,tf global boolean,missing,,"assume terminal responds quickly, enabling more features"
-option,,undodir,udir global string,missing,,where to store undo files
-option,,undofile,udf buf boolean,missing,,save undo information in a file
-option,,undolevels,ul global+buf number,missing,,maximum number of changes that can be undone
-option,,undoreload,ur global number,missing,,max nr of lines to save for undo on a buffer reload
+option,,undodir,udir global string,done,"comma list, `.` = beside the file, last dir created; empty default = $XDG_STATE_HOME/fred/undo (beside the swap dir; Neovim: $XDG_STATE_HOME/nvim/undo//)",where to store undo files
+option,,undofile,udf buf boolean,done,"written on :w, read on opening when the text hash matches; Fred's own file format; session test",save undo information in a file
+option,,undolevels,ul global+buf number,done,"0 (u undoes itself), -1 (none), N trims as u_savecommon(); global-local upstream, a buffer option here until track 3 has global-local; oracle cases",maximum number of changes that can be undone
+option,,undoreload,ur global number,done,:e! and autoread reloads of <= N lines are a change to undo; session test,max nr of lines to save for undo on a buffer reload
 option,,updatecount,uc global number,missing,,after this many characters flush swap file
 option,,updatetime,ut global number,missing,,after this many milliseconds flush swap file
 option,,varsofttabstop,vsts buf string,missing,,list of numbers of spaces that <Tab> uses while editing

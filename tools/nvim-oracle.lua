@@ -7,7 +7,11 @@
 
 local text, keys = arg[1] or '', arg[2] or ''
 vim.o.showmode = false
+-- Setting the text is not a change to undo (Fred starts from it too):
+-- 'undolevels' -1 drops it, as `:h clear-undo`.
+vim.o.undolevels = -1
 vim.api.nvim_buf_set_lines(0, 0, -1, false, vim.split(text, '\n', { plain = true }))
+vim.o.undolevels = 1000
 vim.api.nvim_win_set_cursor(0, { 1, 0 })
 
 -- Runs as the last key (<Cmd> keeps the mode), so it sees where KEYS left off.

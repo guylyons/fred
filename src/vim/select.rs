@@ -201,6 +201,8 @@ pub(crate) fn change(ed: &mut Editor, black_hole: bool) -> bool {
     ed.vim.restart_insert = false;
     let from = start_of(&span);
     ed.undo.begin(from);
+    // Undo comes back to the selection's start, as Vim's.
+    ed.set_cursor(from.0, from.1);
     if black_hole {
         ops::delete_black_hole(ed, span);
         ed.mode = Mode::Insert;
