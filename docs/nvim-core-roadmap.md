@@ -8,7 +8,7 @@ a few non-blocking subsystems are deferred (see below).
 
 ## Percentage and accounting
 
-**Verified roadmap completion: 3 / 100 points = 3%. Remaining: 97%.**
+**Verified roadmap completion: 6 / 100 points = 6%. Remaining: 94%.**
 
 Points measure accepted deliverables, not lines written. A track's points are
 awarded together only when all five gates pass:
@@ -45,11 +45,11 @@ track.
 | 17 | Windows and tab pages (`CTRL-W`, `:split`, `:tab*`) | 6 | 0 | none |
 | 18 | Mappings, abbreviations, user commands | 5 | 0 | mappings and abbreviations (`src/vim/mappings.rs`), `:source`; no 'timeout', `:command` |
 | 19 | Autocommands | 3 | 0 | none |
-| 20 | Undo tree, `:earlier`/`:later`, undofile | 3 | 0 | undo tree (`src/undo.rs`): `g-` `g+`, `:undo N`/`:undo!`, `:earlier`/`:later` (count, time, writes), `:undojoin`, `:undolist`, `:wundo`/`:rundo`, 'undolevels' 'undofile' 'undodir' 'undoreload'; review open |
+| 20 | Undo tree, `:earlier`/`:later`, undofile | 3 | 3 | undo tree (`src/undo.rs`): `g-` `g+`, `:undo N`/`:undo!`, `:earlier`/`:later` (count, time, writes), `:undojoin`, `:undolist`, `:wundo`/`:rundo`, 'undolevels' 'undofile' 'undodir' 'undoreload'; accepted 2026-10-26 (no `:{N}undo`) |
 | 21 | Folding (`z` commands, foldmethods) | 3 | 0 | Org-only hidden ranges |
 | 22 | Quickfix, location lists, `:grep`, `:make`, tags | 5 | 0 | pickers stand in |
 | 23 | Option behaviors (statusline, listchars, scrolloff, textwidth…) | 5 | 0 | a few |
-| | Total | 100 | 3 | |
+| | Total | 100 | 6 | |
 
 ## Scope
 
@@ -318,3 +318,9 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
   `:earlier`/`:later` counts past an int are 0 as `getdigits_int()`;
   tree moves wait while a change is open. `zg zw zG zW zuw zug zuW zuG`
   deferred with spell checking. Oracle: 1085 cases.
+- 2026-10-26: track 20 accepted (3 points; 6/100). Gate-5 review found
+  and the fixes closed: the save state reusing a forgotten seq after
+  `:undo!`, private undo files (0600/0700), `~`/`$VAR` in 'undodir',
+  corrupt or crafted undo files refused without panicking, saturating
+  `:earlier`/`:later` counts. Next: make `tests/fuzz.rs` pass again
+  (seed 808 hangs on `1000000i<Tab>`; two failure classes to triage).
