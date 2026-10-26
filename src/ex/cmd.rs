@@ -212,6 +212,9 @@ impl<'a> ExState<'a> {
     fn splice(&mut self, at: usize, remove: usize, insert: Vec<String>) {
         if let Some((edit, inserted)) = self.buf.splice_edit(at, remove, &insert) {
             self.apply(edit);
+            if insert.is_empty() {
+                self.buf.deleted_lines(at, remove, inserted);
+            }
             self.log.push((at, remove, inserted));
         }
     }

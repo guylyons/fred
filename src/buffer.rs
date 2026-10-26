@@ -214,6 +214,23 @@ impl Buffer {
         Some(self.splices.iter().skip(self.splices.len().checked_sub(n)?))
     }
 
+    /// After applying `splice_edit(at, remove, [])` (which made `inserted`
+    /// lines): say exactly which lines went. The edit alone can be
+    /// ambiguous: on ["", ""] deleting line 1 removes the same "\n" as
+    /// deleting line 0, and `:g/^/+d` must not lose line 0's mark.
+    pub fn deleted_lines(&mut self, at: usize, remove: usize, inserted: usize) {
+        // (Deleting a buffer's only line removes no line break: no change.)
+        if remove > inserted
+            && let Some(c) = self.line_changes.last_mut()
+        {
+            *c = LineChange {
+                at,
+                removed: remove,
+                inserted,
+            };
+        }
+    }
+
     /// Line structure changes since the last call, oldest first.
     pub fn take_line_changes(&mut self) -> Vec<LineChange> {
         std::mem::take(&mut self.line_changes)

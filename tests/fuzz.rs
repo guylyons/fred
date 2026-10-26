@@ -465,8 +465,13 @@ impl Gen {
             }
             8 => {
                 if self.r.one_in(6) {
+                    // A count repeats the typed text when Insert mode ends.
+                    // Neovim does that in time quadratic in the line length
+                    // (`1000000i<Tab><Esc>` takes 145 s in nvim 0.12.6, a
+                    // 2 MB line), as Fred does: cap it like `small_count`
+                    // (same draw, so other seeds' cases don't change).
                     let c = self.count();
-                    self.typed(&c);
+                    self.typed(if c.len() > 2 { "40" } else { &c });
                 }
                 let k = self.r.pick(&["i", "a", "I", "A", "o", "O"]);
                 self.k(k);

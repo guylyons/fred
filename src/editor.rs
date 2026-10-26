@@ -1184,7 +1184,14 @@ impl Editor {
         }
         // `|` ends a command, except where the rest is its argument.
         if let Some((first, rest)) = ex::cmd::split_bar(text) {
+            // An error ends the chain: `:s/q/r/|d` deletes nothing when
+            // the pattern isn't found (do_cmdline stops on did_emsg).
+            let failed = std::mem::replace(&mut self.vim.failed, false);
             self.run_ex(first);
+            if self.vim.failed {
+                return;
+            }
+            self.vim.failed = failed;
             self.run_ex(rest);
             return;
         }

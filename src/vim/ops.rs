@@ -56,8 +56,11 @@ pub fn delete_chars(ed: &mut Editor, from: (usize, usize), to: (usize, usize)) -
 
 /// Replace lines `lo..=hi` with `with`.
 pub fn splice_lines(ed: &mut Editor, at: usize, remove: usize, with: &[String]) {
-    if let Some((edit, _)) = ed.buf.splice_edit(at, remove, with) {
+    if let Some((edit, inserted)) = ed.buf.splice_edit(at, remove, with) {
         ed.apply(edit);
+        if with.is_empty() {
+            ed.buf.deleted_lines(at, remove, inserted);
+        }
     }
 }
 
