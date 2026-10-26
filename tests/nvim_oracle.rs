@@ -1385,6 +1385,11 @@ const CASES: &[(&str, &str)] = &[
     ("abcd", "xxxuuxg-:undo! 1<CR>"),
     ("abcd", "xxxuuxg-:undo! 1<CR>g-g-g+g+"),
     ("abcd", "xxxu:undo!<CR>:undo! 0<CR>"),
+    ("abcd", "xx:undo! 2<CR>"),
+    ("abcd", "xx:later 99999999999999999999<CR>"),
+    ("abcd", "xxu:later 99999999999999999999<CR>"),
+    ("abcd", "xx:earlier 99999999999999999999<CR>"),
+    ("abcd", "xx:earlier 99999999999999999999d<CR>"),
     // 'undolevels': 0 lets `u` undo itself, -1 keeps no undo, N keeps N+1.
     ("abcd", ":set ul=0<CR>xxu"),
     ("abcd", ":set ul=0<CR>xxuu"),

@@ -705,7 +705,8 @@ fn later(ed: &mut Editor, c: &Call) -> Result<(), String> {
     let n: i64 = if digits == 0 {
         1
     } else {
-        a[..digits].parse().unwrap_or(i64::MAX)
+        // As getdigits_int(): a count past an int is 0 (no move).
+        a[..digits].parse::<i32>().map_or(0, i64::from)
     };
     let (unit, mul) = match &a[digits..] {
         "" => (Unit::Changes, 1),
@@ -741,21 +742,14 @@ fn undolist(ed: &mut Editor) {
 /// an undo file is left alone.
 fn wundo(ed: &mut Editor, c: &Call) -> Result<(), String> {
     let path = crate::session::expand_tilde(&c.arg);
-    if !c.force
-        && let Ok(old) = std::fs::read_to_string(&path)
-        && !crate::undo::is_undo_file(&old)
-    {
-        return Err(format!(
-            "Will not overwrite, this is not an undo file: {}",
-            c.arg
-        ));
-    }
-    std::fs::write(&path, ed.undo.to_file(&ed.buf.text()))
-        .map_err(|_| format!("E828: Cannot open undo file for writing: {}", c.arg))
+    crate::undo::write_file(&ed.undo, &path, &ed.buf.text(), c.force)
 }
 
 /// `:rundo {file}`: read an undo tree written for this text.
 fn rundo(ed: &mut Editor, c: &Call) -> Result<(), String> {
+    if ed.undo.open_len() > 0 {
+        return Ok(());
+    }
     let path = crate::session::expand_tilde(&c.arg);
     let data = std::fs::read_to_string(&path)
         .map_err(|_| format!("E822: Cannot open undo file for reading: {}", c.arg))?;

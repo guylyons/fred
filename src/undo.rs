@@ -25,6 +25,9 @@ struct Group {
 /// text before the first change.
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct Node {
+    /// Names this node's text for `state_id`: never reused, unlike the
+    /// seq (`:undo!` gives its seq to the next change, as Vim).
+    id: u64,
     parent: u64,
     /// The last used first: CTRL-R redoes it.
     children: Vec<u64>,
@@ -73,6 +76,8 @@ pub struct Undo {
     /// The text state node 0 stands for changed this many times (history
     /// dropped by 'undolevels'), so `state_id` stays unique.
     root_gen: u64,
+    /// The last node id given out.
+    next_id: u64,
     #[serde(skip)]
     open: Option<Group>,
     #[serde(skip)]
@@ -100,6 +105,7 @@ impl Default for Undo {
             save_nr_last: 0,
             save_nr_cur: 0,
             root_gen: 0,
+            next_id: 0,
             open: None,
             depth: 0,
             levels: default_levels(),
@@ -109,7 +115,7 @@ impl Default for Undo {
     }
 }
 
-const MAGIC: &str = "fred-undo 1";
+const MAGIC: &str = "fred-undo 2";
 
 impl Undo {
     fn node(&mut self, n: u64) -> &mut Node {
@@ -176,9 +182,13 @@ impl Undo {
     }
 
     fn commit(&mut self, g: Group) {
+        self.next_id += 1;
+        let id = self.next_id;
         if let Some(j) = g.join {
+            // The joined node's text changed: a new id for it.
             let n = self.node(j);
             n.edits.extend(g.edits);
+            n.id = id;
             return;
         }
         self.trim();
@@ -194,6 +204,7 @@ impl Undo {
         self.nodes.insert(
             seq,
             Node {
+                id,
                 parent: self.cur,
                 children: vec![],
                 edits: g.edits,
@@ -327,9 +338,14 @@ impl Undo {
 
     /// Undo and redo until the text is in node `target`'s state.
     fn goto(&mut self, buf: &mut Buffer, target: u64) -> Option<Pos> {
+        if self.open_len() > 0 {
+            // A change is being made: moving would tangle it in history.
+            return None;
+        }
         let path = self.path(target);
+        let on_path: std::collections::HashSet<u64> = path.iter().copied().collect();
         let mut pos = None;
-        while !path.contains(&self.cur) {
+        while !on_path.contains(&self.cur) {
             pos = Some(self.up(buf));
         }
         let at = path.iter().position(|&n| n == self.cur).unwrap_or(0);
@@ -358,19 +374,21 @@ impl Undo {
         let back = step < 0;
         let mut unit = unit;
         let mut target = match unit {
-            Unit::Changes => self.cur as i64 + step,
-            Unit::Seconds => self.time_cur as i64 + step,
+            Unit::Changes => (self.cur as i64).saturating_add(step),
+            Unit::Seconds => (self.time_cur as i64).saturating_add(step),
             Unit::Writes if back => {
                 // Changes since the last write count as one write.
                 let unsaved = self.cur == 0 || self.nodes[&self.cur].save_nr == 0;
-                let t = self.save_nr_cur as i64 + step + i64::from(unsaved);
+                let t = (self.save_nr_cur as i64)
+                    .saturating_add(step)
+                    .saturating_add(i64::from(unsaved));
                 if t <= 0 {
                     unit = Unit::Changes;
                 }
                 t
             }
             Unit::Writes => {
-                let t = self.save_nr_cur as i64 + step;
+                let t = (self.save_nr_cur as i64).saturating_add(step);
                 if t > self.save_nr_last as i64 {
                     unit = Unit::Changes;
                     self.seq_last as i64 + 1
@@ -384,7 +402,7 @@ impl Undo {
         } else {
             let limit = match unit {
                 Unit::Changes => self.seq_last as i64 + 1,
-                Unit::Seconds => (self.clock)() as i64 + 1,
+                Unit::Seconds => ((self.clock)() as i64).saturating_add(1),
                 Unit::Writes => self.save_nr_last as i64 + 1,
             };
             target = target.min(limit);
@@ -413,7 +431,7 @@ impl Undo {
             .filter(|&(&s, n)| s != 0 && real(n) && if back { s <= self.cur } else { s > self.cur })
             .min_by_key(|&(&s, n)| {
                 let tie = if back { s as i64 } else { -(s as i64) };
-                ((value(n, s) - target).abs(), tie)
+                (value(n, s).saturating_sub(target).saturating_abs(), tie)
             })
             .map(|(&s, n)| (s, n.parent));
         match best {
@@ -427,6 +445,9 @@ impl Undo {
 
     /// `:undo!`: undo `count` changes and forget them.
     pub fn undo_forget(&mut self, buf: &mut Buffer, count: usize) -> Option<Pos> {
+        if self.open_len() > 0 {
+            return None;
+        }
         let mut pos = None;
         let mut last = None;
         for _ in 0..count {
@@ -483,7 +504,7 @@ impl Undo {
         match (self.cur, self.root_gen) {
             (0, 0) => 0,
             (0, g) => u64::MAX - g,
-            (n, _) => n,
+            (n, _) => self.nodes[&n].id,
         }
     }
 
@@ -535,9 +556,109 @@ impl Undo {
         if h != hash(text) {
             return Err("File contents changed, cannot use undo info".into());
         }
-        u.node(0); // node 0 must be there
+        u.check(text.chars().count())
+            .map_err(|e| format!("Undo file corrupt: {e}"))?;
         Ok(u)
     }
+}
+
+impl Undo {
+    /// A tree read from a file is whole: node 0, `cur`, parent and child
+    /// links that agree (a child's seq above its parent's, so no cycles),
+    /// and every edit within the text it applies to, the current text
+    /// being `len` chars long.
+    fn check(&mut self, len: usize) -> Result<(), &'static str> {
+        let root = self.nodes.get_mut(&0).ok_or("no root")?;
+        root.parent = 0;
+        if !self.nodes.contains_key(&self.cur) {
+            return Err("no current state");
+        }
+        if self
+            .nodes
+            .keys()
+            .next_back()
+            .is_some_and(|&k| k > self.seq_last)
+        {
+            return Err("seq_last");
+        }
+        let mut kids = 0;
+        for (&k, n) in &self.nodes {
+            if k != 0 && (n.parent >= k || !self.nodes.contains_key(&n.parent)) {
+                return Err("parent");
+            }
+            if k != 0 && !self.nodes[&n.parent].children.contains(&k) {
+                return Err("child link");
+            }
+            for c in &n.children {
+                if self.nodes.get(c).is_none_or(|cn| cn.parent != k || *c == 0) {
+                    return Err("child");
+                }
+            }
+            kids += n.children.len();
+            self.next_id = self.next_id.max(n.id);
+        }
+        if kids != self.nodes.len() - 1 {
+            return Err("children");
+        }
+        // Lengths: up from the current state, then down every branch.
+        let apply = |len: usize, edits: &[Edit]| {
+            edits.iter().rev().try_fold(len, |l, e| {
+                (e.start <= e.end && e.end <= l)
+                    .then(|| l - (e.end - e.start) + e.text.chars().count())
+            })
+        };
+        let mut lens = BTreeMap::new();
+        lens.insert(self.cur, len);
+        let (mut n, mut l) = (self.cur, len);
+        while n != 0 {
+            l = apply(l, &self.nodes[&n].edits).ok_or("edit")?;
+            n = self.nodes[&n].parent;
+            lens.insert(n, l);
+        }
+        let mut stack = vec![0];
+        while let Some(n) = stack.pop() {
+            let l = lens[&n];
+            for &c in &self.nodes[&n].children {
+                if let std::collections::btree_map::Entry::Vacant(v) = lens.entry(c) {
+                    v.insert(apply(l, &self.nodes[&c].edits).ok_or("edit")?);
+                }
+                stack.push(c);
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Write `data` readable by the owner only (it holds deleted text), as
+/// the swap files.
+fn write_private(path: &Path, data: &str) -> std::io::Result<()> {
+    use std::io::Write;
+    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+    let mut f = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .mode(0o600)
+        .open(path)?;
+    f.set_permissions(std::fs::Permissions::from_mode(0o600))?;
+    f.write_all(data.as_bytes())
+}
+
+/// `:wundo` and 'undofile': write the tree for `text` to `path`, unless
+/// something that isn't an undo file is there (`force` writes anyway).
+pub fn write_file(undo: &Undo, path: &Path, text: &str, force: bool) -> Result<(), String> {
+    if !force && path.exists() && !std::fs::read_to_string(path).is_ok_and(|d| is_undo_file(&d)) {
+        return Err(format!(
+            "Will not overwrite, this is not an undo file: {}",
+            path.display()
+        ));
+    }
+    write_private(path, &undo.to_file(text)).map_err(|_| {
+        format!(
+            "E828: Cannot open undo file for writing: {}",
+            path.display()
+        )
+    })
 }
 
 /// 'undofile': the tree kept for `file` in 'undodir' (`dirs`), if it was
@@ -552,12 +673,7 @@ impl Undo {
     pub fn write_for(&self, dirs: &str, file: &Path, text: &str) -> Result<(), String> {
         let name = file_name(dirs, file, false)
             .ok_or("Cannot write undo file in any directory in 'undodir'")?;
-        std::fs::write(&name, self.to_file(text)).map_err(|_| {
-            format!(
-                "E828: Cannot open undo file for writing: {}",
-                name.display()
-            )
-        })
+        write_file(self, &name, text, false)
     }
 }
 
@@ -596,6 +712,48 @@ pub fn default_dir() -> PathBuf {
     crate::swap::swap_dir().with_file_name("undo")
 }
 
+/// An 'undodir' entry with `~` and `$VAR`/`${VAR}` expanded and a
+/// trailing `//` (Vim's "full path" marker, always so here) dropped.
+fn expand(dir: &str) -> PathBuf {
+    let mut out = String::new();
+    let mut rest = dir;
+    while let Some(i) = rest.find('$') {
+        out += &rest[..i];
+        let after = &rest[i + 1..];
+        let (name, tail) = match after.strip_prefix('{') {
+            Some(b) => match b.find('}') {
+                Some(e) => (&b[..e], &b[e + 1..]),
+                None => (b, ""),
+            },
+            None => {
+                let e = after
+                    .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+                    .unwrap_or(after.len());
+                (&after[..e], &after[e..])
+            }
+        };
+        match std::env::var(name) {
+            Ok(v) if !name.is_empty() => out += &v,
+            _ => {
+                out.push('$');
+                out += &after[..after.len() - tail.len()];
+            }
+        }
+        rest = tail;
+    }
+    out += rest;
+    let trimmed = out.trim_end_matches('/');
+    let out = if trimmed.is_empty() {
+        &out[..out.len().min(1)]
+    } else {
+        trimmed
+    };
+    if out == "~" {
+        return PathBuf::from(std::env::var_os("HOME").unwrap_or_default());
+    }
+    crate::session::expand_tilde(out)
+}
+
 /// The undo file for `file` in 'undodir' (`dirs`, comma-separated; `.` is
 /// the file's own directory), as `u_get_undo_file_name()`: when reading
 /// the first that exists, when writing the first directory that exists
@@ -606,7 +764,7 @@ pub fn file_name(dirs: &str, file: &Path, reading: bool) -> Option<PathBuf> {
     let dirs: Vec<PathBuf> = if dirs.is_empty() {
         vec![default]
     } else {
-        dirs.split(',').map(PathBuf::from).collect()
+        dirs.split(',').map(expand).collect()
     };
     for (i, d) in dirs.iter().enumerate() {
         let name = if d.as_os_str() == "." {
@@ -614,7 +772,12 @@ pub fn file_name(dirs: &str, file: &Path, reading: bool) -> Option<PathBuf> {
             file.with_file_name(format!(".{tail}.un~"))
         } else {
             if !d.is_dir() && i + 1 == dirs.len() && !reading {
-                std::fs::create_dir_all(d).ok()?;
+                use std::os::unix::fs::DirBuilderExt;
+                std::fs::DirBuilder::new()
+                    .recursive(true)
+                    .mode(0o700)
+                    .create(d)
+                    .ok()?;
             }
             if !d.is_dir() {
                 continue;
@@ -822,5 +985,98 @@ mod tests {
         let mut v = Undo::from_file(&data, &b.text()).unwrap();
         v.undo(&mut b);
         assert_eq!(b.text(), "abc");
+    }
+
+    #[test]
+    fn forgotten_seq_reused_is_not_the_saved_state() {
+        // `xx:w`, `:undo!`, `x`: the new change takes seq 2 again but
+        // isn't the text that was saved.
+        let mut b = Buffer::from_text("abc");
+        let mut u = Undo::default();
+        change(&mut u, &mut b, "1");
+        change(&mut u, &mut b, "2");
+        let saved = u.state_id();
+        u.undo_forget(&mut b, 1);
+        change(&mut u, &mut b, "3");
+        assert_eq!(u.cur, 2);
+        assert_ne!(u.state_id(), saved);
+        // A joined change is new text too.
+        let before = u.state_id();
+        u.join_next().unwrap();
+        change(&mut u, &mut b, "4");
+        assert_ne!(u.state_id(), before);
+    }
+
+    #[test]
+    fn corrupt_files_are_refused() {
+        let mut b = Buffer::from_text("abc");
+        let mut u = Undo::default();
+        change(&mut u, &mut b, "1");
+        change(&mut u, &mut b, "2");
+        u.undo(&mut b);
+        let text = b.text();
+        let data = u.to_file(&text);
+        assert!(Undo::from_file(&data, &text).is_ok());
+        assert!(Undo::from_file(&data[..data.len() / 2], &text).is_err());
+        let mut v: serde_json::Value = serde_json::from_str(&data).unwrap();
+        let tampers: [fn(&mut serde_json::Value); 6] = [
+            |t| t["cur"] = 9.into(),
+            |t| t["seq_last"] = 0.into(),
+            |t| t["nodes"]["2"]["parent"] = 2.into(),
+            |t| t["nodes"]["0"]["children"] = serde_json::json!([1, 1]),
+            |t| t["nodes"]["1"]["edits"][0]["end"] = 99.into(),
+            |t| t["nodes"]["2"]["edits"][0]["start"] = 5.into(),
+        ];
+        for (i, f) in tampers.iter().enumerate() {
+            let mut t = v.clone();
+            f(&mut t[2]);
+            let bad = serde_json::to_string(&t).unwrap();
+            assert!(Undo::from_file(&bad, &text).is_err(), "tamper {i}");
+        }
+        v[2]["nodes"].as_object_mut().unwrap().remove("0");
+        assert!(Undo::from_file(&v.to_string(), &text).is_err());
+    }
+
+    #[test]
+    fn huge_counts_saturate() {
+        let mut b = Buffer::from_text("abc");
+        let mut u = Undo::default();
+        change(&mut u, &mut b, "1");
+        for unit in [Unit::Changes, Unit::Seconds, Unit::Writes] {
+            let _ = u.time_travel(&mut b, i64::MAX, unit);
+            let _ = u.time_travel(&mut b, i64::MIN, unit);
+            let _ = u.time_travel(&mut b, -i64::MAX, unit);
+        }
+    }
+
+    #[test]
+    fn undo_files_are_private_and_dirs_expand() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("f");
+        std::fs::write(&file, "abc").unwrap();
+        // SAFETY: set before reading, in this test only.
+        unsafe { std::env::set_var("FRED_UNDO_TEST_DIR", dir.path()) };
+        let udir = "$FRED_UNDO_TEST_DIR/u//";
+        let u = Undo::default();
+        u.write_for(udir, &file, "abc").unwrap();
+        let name = file_name(udir, &file, true).unwrap();
+        assert!(name.starts_with(dir.path().join("u")));
+        let mode = |p: &Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode(&name), 0o600);
+        assert_eq!(mode(&dir.path().join("u")), 0o700);
+        assert!(read_for(udir, &file, "abc").is_some());
+        // Not over a file that isn't an undo file.
+        std::fs::write(&name, "mine").unwrap();
+        assert!(u.write_for(udir, &file, "abc").is_err());
+        assert_eq!(
+            expand("~"),
+            PathBuf::from(std::env::var_os("HOME").unwrap())
+        );
+        assert_eq!(expand("/"), PathBuf::from("/"));
+        assert_eq!(
+            expand("$NO_SUCH_VAR_X/a"),
+            PathBuf::from("$NO_SUCH_VAR_X/a")
+        );
     }
 }
