@@ -6,7 +6,7 @@
 //! Checked after every step:
 //!   1. no panic (each case runs under `catch_unwind`; seed and step are kept),
 //!   2. cursor line in range, byte <= line length, byte on a grapheme boundary,
-//!      and outside Insert mode never past the last grapheme; the Visual-line
+//!      and outside Insert and Visual modes never past the last grapheme; the Visual-line
 //!      anchor is a valid line; an undo group is open exactly while in Insert
 //!      mode; no completion popup outside Insert mode; the rope's line count
 //!      agrees with the `\n`-only line model the rest of the editor uses,
@@ -1220,7 +1220,12 @@ fn check_state(ed: &Editor, step: usize) -> Result<(), Failure> {
         );
     }
     let insert = *mode == Mode::Insert;
-    if !insert && c.byte > prev_grapheme(&line, line.len()) {
+    // Insert and Visual modes may stand on the line's end (`vll` on "ab").
+    let at_end_ok = matches!(
+        mode,
+        Mode::Insert | Mode::Visual { .. } | Mode::VisualLine { .. }
+    );
+    if !at_end_ok && c.byte > prev_grapheme(&line, line.len()) {
         return fail(
             "cursor-past-last-grapheme",
             step,
@@ -1333,6 +1338,9 @@ impl Snap {
 /// What the harness knew right before a step.
 struct Before {
     cmdline_enter: bool,
+    /// The `:` line runs several commands (`:g`, `:v`, `:normal`, `a|b`):
+    /// an error in a later one keeps what the earlier ones changed, as Vim.
+    multi_cmd: bool,
     dot: bool,
     msg: Option<(String, bool)>,
 }
@@ -1348,6 +1356,9 @@ struct Runner {
     /// redo must only reach states that were actually seen.
     seen: std::collections::HashMap<u64, Snap>,
     max_seen: u64,
+    /// States completed inside a key that left an undo group open (an
+    /// Insert CTRL-O command): never shown, so undo may reach them first.
+    hidden: std::collections::HashSet<u64>,
     /// A command line failed after editing (its edits were rolled back).
     failed_cmdline_edited: bool,
     /// Harness-side guess of the count being typed in Normal/Visual mode.
@@ -1370,6 +1381,11 @@ impl CountGuess {
     /// Feed a Normal-mode key; returns the effective count once a command
     /// completes (1 if none was typed).
     fn key(&mut self, k: &Key) -> Option<u64> {
+        // `{count}<Del>` takes the last digit off.
+        if k.is(KeyCode::Delete) && self.run > 0 {
+            self.run /= 10;
+            return None;
+        }
         if let Some(c) = k.char() {
             if let Some(d) = c.to_digit(10)
                 && (d != 0 || self.run > 0)
@@ -1435,6 +1451,17 @@ impl Runner {
                     return Some((bug, esc));
                 }
                 let n = self.count.key(k)?;
+                // A huge count on an insert (or `.` of one) is slow in Neovim too (see the
+                // generator's cap); digits typed in pieces slip past that.
+                if n > 1000
+                    && self.ed.mode == Mode::Normal
+                    && matches!(
+                        k.char(),
+                        Some('i' | 'a' | 'I' | 'A' | 'o' | 'O' | 's' | 'S' | 'C' | 'R' | '.')
+                    )
+                {
+                    return Some(("huge_insert_count", esc));
+                }
                 let bug = "counted_search_freezes";
                 if matches!(k.char(), Some('n' | 'N')) {
                     self.searched = true;
@@ -1485,7 +1512,11 @@ impl Runner {
             if err && before.cmdline_enter {
                 self.failed_cmdline_edited = true;
             }
-            if err && text != self.text && (before.cmdline_enter || !before.dot) {
+            if err
+                && text != self.text
+                && !before.multi_cmd
+                && (before.cmdline_enter || !before.dot)
+            {
                 let sig = if before.cmdline_enter {
                     "cmdline-error-changed-text"
                 } else {
@@ -1508,7 +1539,14 @@ impl Runner {
             self.version = version;
         }
         let id = self.ed.undo.state_id();
-        if self.ed.undo.in_group() || (!changed && id == self.last_id) {
+        if self.ed.undo.in_group() {
+            if id != self.last_id {
+                self.hidden.insert(id);
+                self.last_id = id;
+            }
+            return Ok(());
+        }
+        if !changed && id == self.last_id {
             return Ok(());
         }
         self.last_id = id;
@@ -1529,7 +1567,9 @@ impl Runner {
             }
             None => {
                 let redo = matches!(step, Some(Step::Key(k)) if *k == Key::ctrl('r'));
-                let r = if redo {
+                let r = if self.hidden.contains(&id) {
+                    Ok(())
+                } else if redo {
                     fail(
                         "redo-reached-unseen-state",
                         i,
@@ -1569,6 +1609,10 @@ impl Runner {
         let before = Before {
             cmdline_enter: matches!(step, Step::Key(k) if *k == Key::new(KeyCode::Enter))
                 && matches!(self.ed.mode, Mode::Command(_)),
+            multi_cmd: matches!(&self.ed.mode, Mode::Command(cl) if cl.kind == ':' && {
+                let t = cl.text.trim_start_matches(|c: char| !c.is_ascii_alphabetic());
+                cl.text.contains('|') || t.starts_with(['g', 'v']) || t.starts_with("norm")
+            }),
             dot: matches!(step, Step::Key(k) if k.char() == Some('.'))
                 && matches!(self.ed.mode, Mode::Normal),
             msg: self.ed.msg.clone(),
@@ -1615,6 +1659,7 @@ fn exec(case: &Case) -> Result<(), Failure> {
         last_id: ed.undo.state_id(),
         seen: std::collections::HashMap::from([(ed.undo.state_id(), Snap::of(&initial))]),
         max_seen: ed.undo.state_id(),
+        hidden: Default::default(),
         ed,
         failed_cmdline_edited: false,
         count: CountGuess::default(),

@@ -20,7 +20,7 @@ key,insert,CTRL-I,,done,oracle cases,same as <Tab>
 key,insert,<NL>,,partial,same as CTRL-J,same as <CR>
 key,insert,CTRL-J,,done,oracle cases,same as <CR>
 key,insert,CTRL-K {char1} {char2},,missing,,
-key,insert,<CR>,,partial,present; not yet verified against nvim,begin new line
+key,insert,<CR>,,done,copies the indent; an unused indent left behind goes (did_ai); oracle cases,begin new line
 key,insert,CTRL-M,,done,oracle cases,same as <CR>
 key,insert,CTRL-N,,partial,present; not yet verified against nvim,find next match for keyword in front of the
 key,insert,CTRL-O,,done,returns after the last character as Neovim does; oracle cases,execute a single command and return to insert
@@ -33,7 +33,7 @@ key,insert,CTRL-V {char},,done,"port of get_literal(): decimal, x, o, u, U codes
 key,insert,CTRL-W,,partial,present; not yet verified against nvim,delete word before the cursor
 key,insert,CTRL-X {mode},,missing,,"enter CTRL-X sub mode, see |i_CTRL-X_index|"
 key,insert,CTRL-Y,,done,oracle cases,insert the character which is above the cursor
-key,insert,<Esc>,,partial,present; not yet verified against nvim,end insert mode
+key,insert,<Esc>,,done,repeats the insert for a count unless a cursor key was used; drops an unused auto-indent; oracle cases,end insert mode
 key,insert,CTRL-[,,partial,the terminal sends Esc,same as <Esc>
 key,insert,CTRL-],,done,expands an abbreviation; oracle cases,trigger abbreviation
 key,insert,CTRL-^,,missing,,toggle use of |:lmap| mappings
@@ -41,19 +41,19 @@ key,insert,CTRL-_,,missing,,When 'allowrevins' set: toggle 'revins'
 key,insert,0 CTRL-D,,done,oracle cases,delete all indent in the current line
 key,insert,^ CTRL-D,,partial,deletes the indent; the next line does not get it back,"delete all indent in the current line, restore"
 key,insert,<Del>,,partial,present; not yet verified against nvim,delete character under the cursor
-key,insert,<Left>,,partial,present; not yet verified against nvim,cursor one character left
+key,insert,<Left>,,done,"starts a new insert (no count repeat, `.` restarts as `i`, as start_arrow()); oracle cases",cursor one character left
 key,insert,<S-Left>,,done,oracle cases,cursor one word left
 key,insert,<C-Left>,,done,oracle cases,cursor one word left
-key,insert,<Right>,,partial,present; not yet verified against nvim,cursor one character right
+key,insert,<Right>,,done,as <Left>; oracle cases,cursor one character right
 key,insert,<S-Right>,,done,oracle cases,cursor one word right
 key,insert,<C-Right>,,done,oracle cases,cursor one word right
-key,insert,<Up>,,partial,present; not yet verified against nvim,cursor one line up
+key,insert,<Up>,,done,keeps the typed column; as <Left> when it moves; oracle cases,cursor one line up
 key,insert,<S-Up>,,partial,same as <PageUp>: 'window height' lines,same as <PageUp>
-key,insert,<Down>,,partial,present; not yet verified against nvim,cursor one line down
+key,insert,<Down>,,done,as <Up>; oracle cases,cursor one line down
 key,insert,<S-Down>,,partial,same as <PageDown>,same as <PageDown>
-key,insert,<Home>,,partial,present; not yet verified against nvim,cursor to start of line
+key,insert,<Home>,,done,starts a new insert even when the cursor stays; oracle cases,cursor to start of line
 key,insert,<C-Home>,,done,oracle cases,cursor to start of file
-key,insert,<End>,,partial,present; not yet verified against nvim,cursor past end of line
+key,insert,<End>,,done,as <Home>; oracle cases,cursor past end of line
 key,insert,<C-End>,,done,oracle cases,cursor past end of file
 key,insert,<PageUp>,,partial,moves the window height in lines,one screenful backward
 key,insert,<PageDown>,,partial,moves the window height in lines,one screenful forward
@@ -856,7 +856,7 @@ ex,,foldopen,:foldo[pen] ADDR_LINES,missing,,ex_foldopen
 ex,,for,:for ADDR_NONE,excluded,Vimscript language,ex_while
 ex,,function,:fu[nction] ADDR_NONE,excluded,Vimscript language,ex_function
 ex,,fclose,:fc[lose] ADDR_OTHER,missing,,ex_fclose
-ex,,global,:g[lobal] ADDR_LINES,partial,with editor commands (:g/pat/normal) and | in the command; no nested :g; oracle cases,ex_global
+ex,,global,:g[lobal] ADDR_LINES,partial,"with editor commands (:g/pat/normal) and | in the command; stops at the first error, a :s finding nothing is quiet until the end (E486 if none matched), the cursor goes to the first non-blank after substituting; no nested :g; oracle cases",ex_global
 ex,,goto,:go[to] ADDR_OTHER,missing,,ex_goto
 ex,,grep,:gr[ep] ADDR_OTHER,missing,,ex_make
 ex,,grepadd,:grepa[dd] ADDR_OTHER,missing,,ex_make
@@ -1252,7 +1252,7 @@ option,,autochdir,acd global boolean,missing,,change directory to the file in th
 option,,autocomplete,ac global+buf boolean,partial,"Fred default on; buffer, nearby-file and path words",automatic completion in insert mode
 option,,autocompletedelay,acl global number,missing,,delay in msec before menu appears after typing
 option,,autocompletetimeout,act global number,missing,,initial decay timeout for autocompletion algorithm
-option,,autoindent,ai buf boolean,missing,,take indent for new line from previous line
+option,,autoindent,ai buf boolean,partial,"always on (o, O, cc, S, Enter copy the indent; an unused one is removed, did_ai); no option to turn it off",take indent for new line from previous line
 option,,autoread,ar global+buf boolean,missing,,autom. read file when changed outside of Vim
 option,,autowrite,aw global boolean,missing,,automatically write file if changed
 option,,autowriteall,awa global boolean,missing,,"as 'autowrite', but works with more commands"

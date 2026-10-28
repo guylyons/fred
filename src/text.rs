@@ -100,8 +100,13 @@ pub fn display_width(s: &str, tabstop: usize, start_col: usize) -> usize {
 }
 
 /// Screen column where the grapheme at `byte` starts.
+/// A byte inside a character counts from that character's start.
 pub fn col_of_byte(line: &str, byte: usize, tabstop: usize) -> usize {
-    display_width(&line[..byte.min(line.len())], tabstop, 0)
+    let mut byte = byte.min(line.len());
+    while !line.is_char_boundary(byte) {
+        byte -= 1;
+    }
+    display_width(&line[..byte], tabstop, 0)
 }
 
 /// Byte offset of the grapheme covering screen column `col` (or `line.len()`).

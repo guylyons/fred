@@ -27,7 +27,12 @@ pub struct State {
     pub recording: Option<Vec<Key>>,
     /// How many of the recorded keys are the command (the rest is the
     /// text typed in Insert mode).
-    recording_split: usize,
+    pub(crate) recording_split: usize,
+    /// A cursor key moved in this insert; typing next restarts the
+    /// recording.
+    pub(crate) arrow_used: bool,
+    /// The line holding only an auto-inserted indent (Vim's did_ai).
+    pub(crate) ai_line: Option<usize>,
     /// `last_change` entered Insert mode after this many keys.
     last_change_split: Option<usize>,
     replaying: bool,
@@ -55,6 +60,9 @@ pub struct State {
     pub(crate) numbered_delete: bool,
     /// A command failed (Vim's beep): a running macro stops.
     pub(crate) failed: bool,
+    /// While the editor runs a `:g`: substitutions made, and whether a
+    /// substitute found nothing on some line.
+    pub(crate) global: Option<(usize, bool)>,
     /// The text typed in the last Insert session (`".`).
     pub(crate) last_insert: String,
     /// `Editor::handle_key` calls in progress.
@@ -681,6 +689,12 @@ const VISUAL: &[char] = &[
 /// A key in Visual mode that acts on the selection, after the count, `"x`
 /// or `g` that may be pending. False if it isn't one: the parser gets it.
 fn visual_key(ed: &mut Editor, k: Key) -> bool {
+    // `<Del>` is `x` in Visual mode (Neovim's nv_abbrev).
+    let k = if k.is(KeyCode::Delete) {
+        Key::ch('x')
+    } else {
+        k
+    };
     let (count, used) = count(&ed.vim.pending);
     let rest = ed.vim.pending[used..].to_vec();
     if rest == [Key::ch('"')] {

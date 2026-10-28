@@ -28,7 +28,59 @@ pub fn insert_key(ed: &mut Editor, k: Key) {
     if popup_key(ed, k) {
         return;
     }
+    let pending = ed.vim.ins_pending.is_some();
+    let before = ed.cur.pos();
+    let version = ed.buf.version;
+    let ai = ed.vim.ai_line;
     edit_key(ed, k);
+    // Typed text uses the indent; leaving the line drops an unused one.
+    if ed.vim.ai_line == ai && ed.vim.ai_line.is_some() {
+        if ed.buf.version != version {
+            ed.vim.ai_line = None;
+        } else if ed.cur.line != before.0 {
+            super::ops::drop_unused_indent(ed);
+        }
+    }
+    // A cursor key starts a new insert (Vim's start_arrow()): no count
+    // to repeat, and CTRL-W/CTRL-U stop here. <Home>/<End> count even
+    // when the cursor stays; CTRL-O drops the count too.
+    let moved = ed.cur.pos() != before;
+    let arrow = !pending
+        && match k.code {
+            KeyCode::Home | KeyCode::End => true,
+            KeyCode::Left | KeyCode::Right | KeyCode::Up | KeyCode::Down => moved,
+            KeyCode::PageUp | KeyCode::PageDown => moved,
+            KeyCode::Char('o') => k.ctrl,
+            _ => false,
+        };
+    // Backspacing onto the line before moves the insert's start to the
+    // join (ins_bs() moves Insstart up a line).
+    if arrow || ed.cur.line < ed.vim.insert_start.0 {
+        ed.vim.insert_start = ed.cur.pos();
+    }
+    if arrow {
+        ed.vim.insert_repeat = None;
+    }
+    // `.` repeats what came before the cursor key; typing after it
+    // starts the repeat afresh as `i` (stop_arrow(): "1i" in the redo
+    // buffer).
+    if arrow
+        && k.code != KeyCode::Char('o')
+        && let Some(r) = ed.vim.recording.as_mut()
+    {
+        r.pop();
+        ed.vim.arrow_used = true;
+    }
+    if ed.buf.version != version && ed.mode == Mode::Insert {
+        // Typed text moves the column <Up>/<Down> keep (curswant).
+        let (l, b) = ed.cur.pos();
+        ed.set_cursor(l, b);
+    }
+    if !arrow && ed.vim.arrow_used && ed.buf.version != version && ed.mode == Mode::Insert {
+        ed.vim.arrow_used = false;
+        ed.vim.recording_split = 1;
+        ed.vim.recording = Some(vec![Key::ch('i'), k]);
+    }
     let typed = match k.code {
         KeyCode::Char(c) if !k.ctrl && !k.alt => {
             is_word_char(c) || matches!(c, '/' | '.' | '~' | '-')
@@ -153,7 +205,15 @@ pub(crate) enum Pending {
 
 /// CTRL-O ran its command: back to Insert mode.
 pub(crate) fn after_ctrl_o(ed: &mut Editor) {
-    if ed.mode != Mode::Normal || !ed.vim.pending.is_empty() {
+    if !ed.vim.pending.is_empty() {
+        return;
+    }
+    // The command started an insert of its own (`o`, `S`…): its Esc ends
+    // in Normal mode.
+    if ed.mode == Mode::Insert {
+        ed.vim.insert_once = None;
+    }
+    if ed.mode != Mode::Normal {
         return;
     }
     let Some((eol, line)) = ed.vim.insert_once.take() else {
@@ -388,6 +448,8 @@ fn edit_key(ed: &mut Editor, k: Key) {
             KeyCode::Char('[') => return edit_key(ed, Key::new(KeyCode::Esc)),
             // One Normal-mode command, then back.
             KeyCode::Char('o') => {
+                super::ops::drop_unused_indent(ed);
+                let (b, line) = (ed.cur.byte, ed.buf.line(l));
                 let eol = b >= line.len() && !line.is_empty();
                 ed.undo.end(ed.cur.pos());
                 ed.mode = Mode::Normal;
@@ -465,6 +527,17 @@ fn edit_key(ed: &mut Editor, k: Key) {
         KeyCode::Enter => {
             let indent = indent_of(&line[..b]).to_string();
             insert_text(ed, &format!("\n{indent}"));
+            // The line left behind loses an unused indent; the new one
+            // holds one.
+            if ed.vim.ai_line == Some(l) {
+                ed.vim.ai_line = Some(l + 1);
+                let left = ed.buf.line(l);
+                if indent_of(&left).len() == left.len() && !left.is_empty() {
+                    delete_chars(ed, (l, 0), (l, left.len()));
+                }
+            } else {
+                ed.vim.ai_line = (!indent.is_empty()).then_some(l + 1);
+            }
         }
         KeyCode::Backspace | KeyCode::Char('h') if k.code == KeyCode::Backspace || k.ctrl => {
             if b > 0 {
@@ -563,6 +636,8 @@ fn auto_wrap(ed: &mut Editor) {
 /// Leave Insert mode: type the text again for a count, close the undo
 /// group and finish dot-repeat recording.
 pub fn leave(ed: &mut Editor) {
+    ed.vim.arrow_used = false;
+    super::ops::drop_unused_indent(ed);
     let block_back = super::block::finish_insert(ed);
     if let Some((cmd, n)) = ed.vim.insert_repeat.take() {
         let keys = match &ed.vim.recording {
@@ -578,6 +653,9 @@ pub fn leave(ed: &mut Editor) {
             if matches!(cmd, 'o' | 'O') {
                 super::ops::open_line(ed, true);
                 insert_text(ed, &text);
+                if !text.is_empty() {
+                    ed.vim.ai_line = None;
+                }
             } else if cmd == 'R' {
                 for c in text.chars() {
                     replace_char(ed, c);
@@ -587,6 +665,8 @@ pub fn leave(ed: &mut Editor) {
             }
         }
     }
+    // Lines the count opened (`3o<Esc>`) keep no unused indent either.
+    super::ops::drop_unused_indent(ed);
     ed.vim.replace = None;
     ed.vim.insert_stop = Some(ed.cur.pos());
     ed.mode = Mode::Normal;

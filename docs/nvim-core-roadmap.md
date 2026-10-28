@@ -126,7 +126,15 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
    'selection' (exclusive), `<S-Right>`/`<S-Left>` as word motions when
    'keymodel' lacks startsel. Done so far: Select mode, 'keymodel',
    'selectmode'.
-6. Track 14 continued: `\zs`/`\ze`, `\@` look-around, `\_` multi-line
+6. Fuzz findings outside the default seed range (`FRED_FUZZ_SEED=30000
+   FRED_FUZZ_ITERS=100000`): Visual-block panics (`<PageDown><C-v>s<BS>`
+   on "\n\n"; `old<Esc><C-v>c<C-w>` + U+2028), `@2` after
+   `Ox'…Vy3pS<Esc>dd` changing text on E20, and undo reaching an unseen
+   state after `V<C-n>S<Esc>3ggVDVs<Esc>dG@3`.
+7. Track 13: `.` after a Visual-mode operator (Vim repeats it on the same
+   amount of text; Fred does nothing). Search offsets under an operator
+   (`d/x/e`).
+8. Track 14 continued: `\zs`/`\ze`, `\@` look-around, `\_` multi-line
    and back-references (the `regex` crate has none of them), `~`, hlsearch,
    incsearch. Done so far: Vim pattern syntax for `/ ? :s :g` and range
    addresses (`src/search.rs` `compile_vim`).
@@ -324,3 +332,24 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
   corrupt or crafted undo files refused without panicking, saturating
   `:earlier`/`:later` counts. Next: make `tests/fuzz.rs` pass again
   (seed 808 hangs on `1000000i<Tab>`; two failure classes to triage).
+- 2026-10-28: `tests/fuzz.rs` passes again (seeds 0..30000), checked
+  against Neovim. Fixes: Visual `<Del>` deletes the selection; `:g` stops
+  at the first error, a `:s` that finds nothing inside it is quiet (E486
+  at the end only if nothing matched) and the cursor goes to the first
+  non-blank after substituting; line 0 is line 1 for ranges
+  (`correct_range()`, `:0d`; `:0r` refused until reading above line 1
+  exists); a `|` command line is one undo step; a cursor key in Insert
+  mode starts a new insert (`start_arrow()`: no count repeat, `.` repeats
+  what came before it or restarts as `i`), typing sets the column
+  `<Up>`/`<Down>` keep, `<BS>` onto the line before moves the insert
+  start; an unused auto-indent from `o O cc S <CR>` goes on `<Esc>`,
+  CTRL-O, `<CR>` or leaving the line (did_ai); a CTRL-O command that
+  starts its own insert (`o`, `S`) ends in Normal mode; a multi-line
+  charwise `d` from the indent to trailing blanks is linewise
+  (`op_delete()`); `col_of_byte` tolerates a byte inside a character.
+  Fuzz harness: `:g`, `:normal` and `|` lines may change text and fail,
+  Visual modes may stand on the line end, undo states made inside a key
+  (Insert CTRL-O) count as seen, insert counts and `{count}.` over 1000
+  are steered away, `{count}<Del>` is understood. Known difference: Neovim
+  records one more (empty) undo step in `o<C-o>X<Esc>`. Oracle: 1168
+  cases.

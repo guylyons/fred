@@ -146,9 +146,8 @@ pub fn parse_range<'i>(
             None => return Ok((None, rest)),
         },
     };
-    if a < 1 || b < 1 {
-        return Err("invalid address".into());
-    }
+    // Line 0 is line 1 (Vim's correct_range(); `:0put` is rewritten first).
+    let (a, b) = (a.max(1), b.max(1));
     if a > b {
         return Err("invalid range".into());
     }
@@ -203,7 +202,8 @@ mod tests {
         assert_eq!(r(t, "'a,$d", 0), Ok(Some((1, 4))));
         assert_eq!(r(t, "2;+1d", 0), Ok(Some((1, 2))));
         assert_eq!(r(t, "100d", 0), Err("invalid address".into()));
-        assert_eq!(r(t, "0d", 0), Err("invalid address".into()));
+        assert_eq!(r(t, "0d", 0), Ok(Some((0, 0))));
+        assert_eq!(r(t, "0,2d", 0), Ok(Some((0, 1))));
         assert_eq!(r(t, "4,2d", 0), Err("invalid range".into()));
         assert_eq!(r(t, "/zz/d", 0), Err("no match".into()));
         assert_eq!(r(t, "'z", 0), Err("mark not set".into()));

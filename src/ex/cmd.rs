@@ -162,6 +162,8 @@ pub struct ExState<'a> {
     pub last_sub: Option<&'a mut LastSub>,
     /// Line splices applied by the running command: (at, removed, inserted).
     log: Vec<(usize, usize, usize)>,
+    /// Substitutions made by `:s` (for the editor's `:g`).
+    pub subs: usize,
 }
 
 /// What `:s` did last: its pattern, replacement and flags.
@@ -200,6 +202,7 @@ impl<'a> ExState<'a> {
             file: None,
             last_sub: None,
             log: vec![],
+            subs: 0,
         }
     }
 
@@ -1599,6 +1602,7 @@ fn substitute(st: &mut ExState, a: Args, repeat: Repeat) -> Result<ExEffect, Str
             Err(format!("E486: Pattern not found: {pat}"))
         };
     }
+    st.subs += subs;
     if let Some(l) = last_line {
         st.cur = l;
     }

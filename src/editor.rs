@@ -726,7 +726,13 @@ impl Editor {
         self.sync_marks();
         let p = self.cur.pos();
         self.undo.begin(p);
+        let failed = std::mem::replace(&mut self.vim.failed, false);
+        self.vim.global = Some((0, false));
         while let Some(l) = marked.iter().position(|&m| m) {
+            // An error ends `:g` (emsg() bumps global_busy).
+            if self.vim.failed {
+                break;
+            }
             marked[l] = false;
             self.set_cursor(l, 0);
             self.run_ex(cmd);
@@ -739,6 +745,18 @@ impl Editor {
                 self.line_change(ch.at, ch.removed, ch.inserted);
             }
         }
+        // As global_exe(): after substituting, the cursor goes to the
+        // first non-blank; E486 if no substitute matched anywhere.
+        match self.vim.global.take() {
+            Some((0, true)) if !self.vim.failed => self.set_err("no match"),
+            Some((n, _)) if n > 0 => {
+                let l = self.cur.line;
+                let b = self.first_nonblank(l);
+                self.set_cursor(l, b);
+            }
+            _ => {}
+        }
+        self.vim.failed |= failed;
         let p = self.cur.pos();
         self.undo.end(p);
     }
@@ -1186,13 +1204,23 @@ impl Editor {
         if let Some((first, rest)) = ex::cmd::split_bar(text) {
             // An error ends the chain: `:s/q/r/|d` deletes nothing when
             // the pattern isn't found (do_cmdline stops on did_emsg).
+            // One undo step for the whole line, as Vim (`:undojoin` joins
+            // the rest with the step before instead).
+            let join = first.trim_start().starts_with("undoj");
+            let p = self.cur.pos();
+            if !join {
+                self.undo.begin(p);
+            }
             let failed = std::mem::replace(&mut self.vim.failed, false);
             self.run_ex(first);
-            if self.vim.failed {
-                return;
+            if !self.vim.failed {
+                self.vim.failed = failed;
+                self.run_ex(rest);
             }
-            self.vim.failed = failed;
-            self.run_ex(rest);
+            if !join {
+                let p = self.cur.pos();
+                self.undo.end(p);
+            }
             return;
         }
         // `:0put` is `:1put!`.
@@ -1204,6 +1232,19 @@ impl Editor {
             let rest = rest.strip_prefix('!').unwrap_or(rest);
             zero_put = format!("1put!{rest}");
             text = &zero_put;
+        }
+        // ponytail: `:0r` (read above line 1) isn't supported; refuse it
+        // rather than let line 0 become line 1.
+        if let Some(r) = text.strip_prefix('0')
+            && let r = r.trim_start()
+            && ["r", "re", "rea", "read"].contains(
+                &&r[..r
+                    .find(|c: char| !c.is_ascii_alphabetic())
+                    .unwrap_or(r.len())],
+            )
+        {
+            self.set_err("invalid address");
+            return;
         }
         if crate::org::ex(self, text) {
             return;
@@ -1246,6 +1287,9 @@ impl Editor {
         st.last_sub = Some(&mut self.last_sub);
         let r = ex::run(&mut st, text);
         let new_cur = st.cur;
+        if let Some(g) = &mut self.vim.global {
+            g.0 += st.subs;
+        }
         match r {
             Ok(eff) => {
                 if new_cur != line || self.undo.state_id() != before {
@@ -1254,6 +1298,12 @@ impl Editor {
                 }
                 self.effect(eff);
             }
+            // In `:g` a substitute that finds nothing is no error
+            // (do_sub() under global_busy); `:g` reports it at the end.
+            Err(e) if e == "no match" || e.starts_with("E486") => match &mut self.vim.global {
+                Some(g) => g.1 = true,
+                None => self.set_err(e),
+            },
             Err(e) => self.set_err(e),
         }
     }

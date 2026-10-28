@@ -220,7 +220,20 @@ pub fn span(
     } else {
         (start, (t.line, t.byte))
     };
-    Some(char_span(ed, from, to, t.inclusive))
+    let sp = char_span(ed, from, to, t.inclusive);
+    // op_delete(): a delete over lines from within the indent to where
+    // only blanks follow is linewise.
+    if let Span::Chars(f, t) = sp
+        && op == 'd'
+        && ed.vim.force.is_none()
+        && t.0 > f.0
+    {
+        let blank = |s: &str| s.trim_start_matches([' ', '\t']).is_empty();
+        if blank(&ed.buf.line(f.0)[..f.1]) && blank(&ed.buf.line(t.0)[t.1..]) {
+            return Some(Span::Lines(f.0, t.0));
+        }
+    }
+    Some(sp)
 }
 
 /// A characterwise span. An exclusive one ending in column 0 stops at the
@@ -317,6 +330,7 @@ fn apply(ed: &mut Editor, op: char, sp: Span, to_reg: bool) {
                     splice_lines(ed, lo, hi - lo + 1, std::slice::from_ref(&indent));
                     ed.mode = Mode::Insert;
                     ed.set_cursor(lo, indent.len());
+                    ed.vim.ai_line = (!indent.is_empty()).then_some(lo);
                 }
             }
         }
@@ -495,6 +509,26 @@ pub fn open_line(ed: &mut Editor, below: bool) {
     ed.mode = Mode::Insert;
     ed.cur.line = at;
     ed.cur.byte = indent.len();
+    ed.vim.ai_line = (!indent.is_empty()).then_some(at);
+}
+
+/// Vim's did_ai: the line still holds only the indent Fred put there
+/// (`o`, `cc`, Enter); it goes when Insert mode ends or the cursor
+/// leaves the line.
+pub fn drop_unused_indent(ed: &mut Editor) {
+    let Some(l) = ed.vim.ai_line.take() else {
+        return;
+    };
+    if l >= ed.line_count() {
+        return;
+    }
+    let line = ed.buf.line(l);
+    if !line.is_empty() && indent_of(&line).len() == line.len() {
+        delete_chars(ed, (l, 0), (l, line.len()));
+        if ed.cur.line == l {
+            ed.cur.byte = 0;
+        }
+    }
 }
 
 /// `>` and `<`: shift lines `lo..=hi` by `times` 'shiftwidth's. Empty
