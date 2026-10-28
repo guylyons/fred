@@ -1956,6 +1956,11 @@ fn describe(seed: u64, case: &Case) -> String {
 #[test]
 fn fuzz() {
     install_hook();
+    // Generated `:w name` and `:wundo name` write to the current
+    // directory: keep them out of the repo.
+    let dir = std::env::temp_dir().join(format!("fred-fuzz-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::env::set_current_dir(&dir).unwrap();
     let all_known = env_flag("FRED_FUZZ_KNOWN");
     let do_shrink = std::env::var("FRED_FUZZ_SHRINK").map_or(true, |v| v != "0");
 
