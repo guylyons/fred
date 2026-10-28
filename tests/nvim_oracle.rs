@@ -396,6 +396,16 @@ const CASES: &[(&str, &str)] = &[
     ("  abc\n  def", "Vj<"),
     ("abc\ndef", ">>j."),
     ("a\nb\nc\nd", ">ip"),
+    // Operators: = (C-indenting by braces).
+    ("f() {\nx;\n\t\ty;\n}", "=G"),
+    ("f() {\nx;\n}", "j=="),
+    ("f() {\nif (a) {\nb;\n}\n}", "gg=G"),
+    ("f() {\nif (a) {\nb;\n}\n}", ":set sw=4 et<CR>=G"),
+    ("f() {\ns = \"{\";\nt;\n}", "=G"),
+    ("f() {\n// {\nt;\n}", "=G"),
+    ("f() {\nx;\ny;\n}", "jVj="),
+    ("f() {\nx;\ny;\n}", "j==j."),
+    ("f() {\n\nx;\n}", "=G"),
     // Operators: case.
     ("abc def", "g~w"),
     ("abc def", "g~~"),

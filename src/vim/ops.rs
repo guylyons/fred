@@ -287,6 +287,14 @@ fn apply(ed: &mut Editor, op: char, sp: Span, to_reg: bool) {
             shift(ed, lo, hi, op == '<', 1);
             return;
         }
+        '=' => {
+            let (lo, hi) = match sp {
+                Span::Lines(lo, hi) => (lo, hi),
+                Span::Chars(a, b) => (a.0, b.0),
+            };
+            reindent(ed, lo, hi);
+            return;
+        }
         '~' | 'u' | 'U' | '?' => {
             change_case(ed, op, sp);
             return;
@@ -550,12 +558,7 @@ pub fn shift(ed: &mut Editor, lo: usize, hi: usize, left: bool, times: usize) {
             } else {
                 cols + amount
             };
-            let indent = if et {
-                " ".repeat(new)
-            } else {
-                "\t".repeat(new / ts) + &" ".repeat(new % ts)
-            };
-            indent + &s[ind.len()..]
+            make_indent(new, et, ts) + &s[ind.len()..]
         })
         .collect();
     splice_lines(ed, lo, hi - lo + 1, &lines);
@@ -567,6 +570,127 @@ pub fn shift(ed: &mut Editor, lo: usize, hi: usize, left: bool, times: usize) {
         let dir = if left { "<" } else { ">" };
         let s = if times == 1 { "" } else { "s" };
         ed.set_msg(format!("{n} lines {dir}ed {times} time{s}"));
+    }
+}
+
+fn make_indent(cols: usize, et: bool, ts: usize) -> String {
+    if et {
+        " ".repeat(cols)
+    } else {
+        "\t".repeat(cols / ts) + &" ".repeat(cols % ts)
+    }
+}
+
+/// `=`: re-indent lines `lo..=hi` by bracket depth, as C-indenting does
+/// for braces: a line inside `{ ( [` sits one 'shiftwidth' past the line
+/// that opened it, and a line starting with the closer lines up with it.
+// shortcut: no 'indentexpr', 'cindent' options, continuation lines or
+// `case:` labels, and lines outside any bracket keep their indent (so
+// Python or prose isn't flattened); add per-filetype rules when wanted.
+pub fn reindent(ed: &mut Editor, lo: usize, hi: usize) {
+    let (sw, ts) = (ed.shiftwidth(), ed.tabstop());
+    let et = ed.opts.bool(crate::options::Opt::Expandtab);
+    let hi = hi.min(ed.line_count().saturating_sub(1));
+    // Open brackets: the indent (in columns) of the line each is on.
+    let mut open: Vec<usize> = vec![];
+    let mut scan = Scan::default();
+    let mut out = vec![];
+    for l in 0..=hi {
+        let line = ed.buf.line(l);
+        let body = line.trim_start_matches([' ', '\t']);
+        let mut cols = crate::text::display_width(indent_of(&line), ts, 0);
+        if l >= lo && !body.is_empty() && !scan.inside() {
+            let closers = body
+                .chars()
+                .take_while(|c| matches!(c, ')' | ']' | '}'))
+                .count();
+            cols = match open.len().checked_sub(closers.max(1)) {
+                _ if open.is_empty() => cols,
+                Some(i) if closers == 0 => open[i] + sw,
+                Some(i) => open[i],
+                None => open[0],
+            };
+        }
+        if l >= lo {
+            out.push(if body.is_empty() {
+                line.clone()
+            } else {
+                make_indent(cols, et, ts) + body
+            });
+        }
+        scan.line(body, |opens| {
+            if opens {
+                open.push(cols);
+            } else {
+                open.pop();
+            }
+        });
+    }
+    if out.is_empty() {
+        return;
+    }
+    let changed: Vec<String> = (lo..=hi).map(|l| ed.buf.line(l)).collect();
+    if changed != out {
+        splice_lines(ed, lo, out.len(), &out);
+    }
+    // 'nostartofline': keep the remembered column.
+    ed.set_line_keep_col(lo);
+    ed.clamp_cursor();
+    let n = hi - lo + 1;
+    if n > 2 {
+        ed.set_msg(format!("{n} lines indented "));
+    }
+}
+
+/// Where bracket scanning is: inside a block comment or a string that
+/// runs on to the next line.
+#[derive(Default)]
+struct Scan {
+    comment: bool,
+    string: bool,
+}
+
+impl Scan {
+    fn inside(&self) -> bool {
+        self.comment || self.string
+    }
+
+    /// Call `f(true)` for each opening bracket in `s` and `f(false)` for
+    /// each closing one, skipping strings, char literals and comments.
+    fn line(&mut self, s: &str, mut f: impl FnMut(bool)) {
+        let c: Vec<char> = s.chars().collect();
+        let mut i = 0;
+        while i < c.len() {
+            let next = c.get(i + 1).copied();
+            if self.comment {
+                if c[i] == '*' && next == Some('/') {
+                    self.comment = false;
+                    i += 1;
+                }
+            } else if self.string {
+                match c[i] {
+                    '\\' => i += 1,
+                    '"' => self.string = false,
+                    _ => {}
+                }
+            } else {
+                match (c[i], next) {
+                    ('/', Some('/')) => return,
+                    ('/', Some('*')) => {
+                        self.comment = true;
+                        i += 1;
+                    }
+                    ('"', _) => self.string = true,
+                    // A char literal, not a Rust lifetime: 'x' or '\x'.
+                    ('\'', Some('\\')) if c.get(i + 3) == Some(&'\'') => i += 3,
+                    ('\'', Some(_)) if c.get(i + 2) == Some(&'\'') => i += 2,
+                    ('(' | '[' | '{', _) => f(true),
+                    (')' | ']' | '}', _) => f(false),
+                    _ => {}
+                }
+            }
+            i += 1;
+        }
     }
 }
 
@@ -1056,4 +1180,34 @@ pub fn put_indented(ed: &mut Editor, count: usize, after: bool) {
     let at = if after { ed.cur.line + 1 } else { ed.cur.line };
     splice_lines(ed, at, 0, &all);
     ed.set_cursor(at, ed.first_nonblank(at));
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::buffer::Buffer;
+    use crate::editor::Editor;
+
+    fn reindent(text: &str, keys: &str) -> String {
+        let mut ed = Editor::new(Buffer::from_text(text));
+        for k in crate::key::parse_keys(keys) {
+            ed.handle_key(k);
+        }
+        ed.buf.text() + "\n"
+    }
+
+    #[test]
+    fn equal_indents_by_brackets_and_leaves_the_rest() {
+        // Lines outside any bracket keep their indent.
+        assert_eq!(reindent("if a:\n  b\n", "=G"), "if a:\n  b\n");
+        // A lifetime is not a char literal; `})` lines up with its line.
+        assert_eq!(
+            reindent("fn f<'a>(x: &'a u8) {\ng(|| {\nx\n})\n}\n", "=G"),
+            "fn f<'a>(x: &'a u8) {\n\tg(|| {\n\t\tx\n\t})\n}\n"
+        );
+        // A block comment's lines are left alone.
+        assert_eq!(
+            reindent("{\n/* {\n\t\t x */\ny\n}\n", "=G"),
+            "{\n\t/* {\n\t\t x */\n\ty\n}\n"
+        );
+    }
 }

@@ -352,11 +352,11 @@ fn parse_motion(keys: &[Key], objects: bool) -> Parse<(Motion, usize)> {
     Parse::Done((m, 1))
 }
 
-/// An operator at the start of `keys`: its name (`d c y < > ~ u U ?`, the
+/// An operator at the start of `keys`: its name (`d c y < > = ~ u U ?`, the
 /// last four for `g~ gu gU g?`) and the keys it took.
 fn parse_op(keys: &[Key]) -> Parse<(char, usize)> {
     match keys.first().and_then(Key::char) {
-        Some(c @ ('d' | 'c' | 'y' | '<' | '>' | '!')) if !keys[0].ctrl => Parse::Done((c, 1)),
+        Some(c @ ('d' | 'c' | 'y' | '<' | '>' | '=' | '!')) if !keys[0].ctrl => Parse::Done((c, 1)),
         Some('g') if !keys[0].ctrl => match keys.get(1) {
             None => Parse::Incomplete,
             Some(k) => match k.char() {
@@ -788,7 +788,7 @@ fn visual_key(ed: &mut Editor, k: Key) -> bool {
             ed.vim.pending.push(k);
             return true;
         }
-        (false, Some(c @ ('~' | 'u' | 'U' | '<' | '>'))) => visual_op(ed, c, count),
+        (false, Some(c @ ('~' | 'u' | 'U' | '<' | '>' | '='))) => visual_op(ed, c, count),
         (false, Some(c)) if VISUAL.contains(&c) => match mode {
             Mode::Visual { anchor } => visual_chars(ed, anchor, c),
             Mode::VisualLine { anchor } => visual(ed, anchor, c),
@@ -899,6 +899,7 @@ fn visual_op(ed: &mut Editor, op: char, count: Option<usize>) {
     ed.undo.begin(ed.cur.pos());
     match op {
         '<' | '>' => ops::shift(ed, lo, hi, op == '<', count.unwrap_or(1).max(1)),
+        '=' => ops::reindent(ed, lo, hi),
         'j' => {
             ops::join_with(ed, lo, (hi - lo + 1).max(2), false);
         }

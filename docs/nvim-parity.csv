@@ -164,8 +164,8 @@ key,normal,{count}:,,partial,present; not yet verified against nvim,start enteri
 key,normal,;,motion,done,oracle cases,"repeat latest f, t, F or T N times"
 key,normal,<{motion},change,done,oracle cases,shift Nmove lines one 'shiftwidth'
 key,normal,<<,change,done,oracle cases,shift N lines one 'shiftwidth' leftwards
-key,normal,={motion},change,missing,,"filter Nmove lines through ""indent"""
-key,normal,==,change,missing,,"filter N lines through ""indent"""
+key,normal,={motion},change,partial,"oracle cases; brace depth only (no indentexpr/cindent options or continuation lines; lines outside brackets keep their indent)","filter Nmove lines through ""indent"""
+key,normal,==,change,partial,"oracle cases; brace depth only (no indentexpr/cindent options or continuation lines; lines outside brackets keep their indent)","filter N lines through ""indent"""
 key,normal,>{motion},change,done,oracle cases,shift Nmove lines one 'shiftwidth'
 key,normal,>>,change,done,oracle cases,shift N lines one 'shiftwidth' rightwards
 key,normal,?{pattern}<CR>,motion,partial,Vim pattern syntax and smartcase; no \zs \@ \_ or back-references,search backward for the Nth previous
@@ -569,7 +569,7 @@ key,visual,CTRL-],,missing,,jump to highlighted tag
 key,visual,!{filter},change,done,oracle cases,filter the highlighted lines through the
 key,visual,:,,partial,present; not yet verified against nvim,start a command-line with the highlighted
 key,visual,<,change,partial,shifts once; a count is not taken yet,shift the highlighted lines one
-key,visual,=,change,missing,,filter the highlighted lines through the
+key,visual,=,change,partial,"oracle cases; brace depth only (no indentexpr/cindent options or continuation lines; lines outside brackets keep their indent)",filter the highlighted lines through the
 key,visual,>,change,partial,shifts once; a count is not taken yet,shift the highlighted lines one
 key,visual,A,change,done,block append (short lines padded; with $ at each end); oracle cases,"block mode: append same text in all lines,"
 key,visual,C,change,partial,present; not yet verified against nvim,delete the highlighted lines and start

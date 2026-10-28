@@ -118,8 +118,8 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
    cases. Part 1 is done.
 3. Registers (track 5), then key tables (track 4).
 4. Tracks 6–13 (the editing grammar), each with oracle cases. Done so
-   far: the motions, text objects and operators in the table above. Next:
-   `=`, `zf`, `zh`/`zl`/`zs`/`ze`, scrolling with wrapped lines and
+   far: the motions, text objects and operators in the table above, and
+   `=` (brace depth only). Next: `zf`, `zh`/`zl`/`zs`/`ze`, scrolling with wrapped lines and
    folds. Track 20 (undo tree) awaits review.
 5. Track 9 continued: Select block mode (`g CTRL-H`, needs Visual-block),
    Select CTRL-O and CTRL-R, `.` repeating a Select-mode replacement,
@@ -355,3 +355,10 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
   cursor move if the block's last line was joined away (both were
   panics). Fuzz harness: a macro (`@x`) may change text and fail, as `.`;
   undo ids skipped within one key count as seen. Oracle: 1181 cases.
+- 2026-10-28: `=` operator (`==`, `={motion}`, Visual `=`): C-indenting
+  by bracket depth, skipping strings, char literals and comments; a line
+  starting with a closer lines up with its opener; the cursor keeps its
+  column ('nostartofline'). Lines outside any bracket keep their indent
+  rather than going to column 0 (Neovim's default `filetype indent on`
+  would use 'indentexpr' there). Ledger: `={motion}`, `==`, Visual `=`
+  partial. Oracle: 1190 cases.
