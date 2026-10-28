@@ -20,21 +20,33 @@ pub enum Tool {
     Spray,
     Fill,
     Rect,
+    Line,
+    Oval,
     Eraser,
     Text,
+    /// Drag over art to apply the chosen effect to it.
+    Fx,
 }
 
-const TOOLS: [(Tool, &str); 7] = [
+const TOOLS: [(Tool, &str); 10] = [
     (Tool::Pen, "Pen"),
     (Tool::Brush, "Brush"),
     (Tool::Spray, "Spray"),
     (Tool::Fill, "Fill"),
     (Tool::Rect, "Rect"),
+    (Tool::Line, "Line"),
+    (Tool::Oval, "Oval"),
     (Tool::Eraser, "Eraser"),
     (Tool::Text, "Text"),
+    (Tool::Fx, "Fx"),
 ];
 
-const FONTS: [&str; 4] = ["standard", "small", "big", "slant"];
+/// figlet-rs's own fonts: FIGlet's, then toilet's.
+const FONTS: [&str; 9] = [
+    "standard", "small", "big", "slant", "smblock", "mono9", "mono12", "future", "wideterm",
+];
+
+const EFFECTS: [&str; 4] = ["border", "shadow", "mirror", "flip"];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Button {
@@ -43,6 +55,7 @@ pub enum Button {
     Bigger,
     Char,
     Font,
+    Effect,
     Done,
 }
 
@@ -52,7 +65,9 @@ pub struct Draw {
     /// Brush and spray diameter.
     pub size: usize,
     pub ch: char,
-    pub font: usize,
+    /// A name in FONTS, or the path of a .flf or .tlf file.
+    pub font: String,
+    pub effect: usize,
     /// The stroke in progress: where it started, the last cell, and the
     /// undo mark that Rect and Eraser roll back to as they are dragged.
     from: Option<Cell>,
@@ -69,7 +84,8 @@ impl Default for Draw {
             tool: Tool::Pen,
             size: 3,
             ch: '#',
-            font: 0,
+            font: FONTS[0].into(),
+            effect: 0,
             from: None,
             last: None,
             mark: 0,
@@ -119,9 +135,12 @@ pub fn toolbar(d: &Draw) -> Vec<(String, Option<Button>, bool)> {
     v.push((format!("size {}", d.size), None, false));
     v.push((" + ".into(), Some(Button::Bigger), false));
     v.push((format!(" char {} ", d.ch), Some(Button::Char), false));
+    let font = std::path::Path::new(&d.font).file_stem();
+    let font = font.map_or(d.font.as_str().into(), |f| f.to_string_lossy());
+    v.push((format!(" font {font} "), Some(Button::Font), false));
     v.push((
-        format!(" font {} ", FONTS[d.font]),
-        Some(Button::Font),
+        format!(" fx {} ", EFFECTS[d.effect]),
+        Some(Button::Effect),
         false,
     ));
     v.push((" ✕ ".into(), Some(Button::Done), false));
@@ -148,7 +167,25 @@ fn press(ed: &mut Editor, b: Button) {
         Button::Tool(t) => d.tool = t,
         Button::Smaller => d.size = d.size.saturating_sub(1).max(1),
         Button::Bigger => d.size = (d.size + 1).min(15),
-        Button::Font => d.font = (d.font + 1) % FONTS.len(),
+        Button::Font => {
+            crate::pick::choose(ed, "fonts", fonts(), "");
+            ed.org_require_match = true;
+            ed.org_then = Some(Box::new(|ed, picked| {
+                if let Some(d) = ed.draw.as_mut() {
+                    d.font = picked;
+                }
+            }));
+        }
+        Button::Effect => {
+            crate::pick::choose(ed, "effects", EFFECTS.map(String::from).to_vec(), "");
+            ed.org_require_match = true;
+            ed.org_then = Some(Box::new(|ed, picked| {
+                if let Some(d) = ed.draw.as_mut() {
+                    d.effect = EFFECTS.iter().position(|&e| e == picked).unwrap_or(0);
+                    d.tool = Tool::Fx;
+                }
+            }));
+        }
         Button::Char => {
             d.text_at = None;
             ask(ed, "Draw with: ");
@@ -171,8 +208,8 @@ pub fn answer(ed: &mut Editor, text: &str) {
     };
     match d.text_at.take() {
         Some(at) => {
-            let font = FONTS[d.font];
-            match banner(font, text) {
+            let font = d.font.clone();
+            match banner(&font, text) {
                 Some(lines) => stroke(ed, at, |ed| stamp(ed, at, &lines)),
                 None => ed.set_err(format!("{font} can't write that")),
             }
@@ -185,17 +222,50 @@ pub fn answer(ed: &mut Editor, text: &str) {
     }
 }
 
-/// `text` in a FIGlet font, as lines.
-pub fn banner(font: &str, text: &str) -> Option<Vec<String>> {
-    use figlet_rs::FIGlet;
-    let f = match font {
-        "small" => FIGlet::small(),
-        "big" => FIGlet::big(),
-        "slant" => FIGlet::slant(),
-        _ => FIGlet::standard(),
+/// The fonts to pick from: figlet-rs's, then font files in the usual
+/// figlet directories and ~/.config/fred/fonts.
+fn fonts() -> Vec<String> {
+    let mut v: Vec<String> = FONTS.map(String::from).to_vec();
+    let mut dirs = vec![crate::config::config_path().with_file_name("fonts")];
+    for d in [
+        "/opt/homebrew/share/figlet",
+        "/usr/local/share/figlet",
+        "/usr/share/figlet",
+    ] {
+        dirs.push(d.into());
     }
-    .ok()?;
-    let fig = f.convert(text)?.as_str();
+    for dir in dirs {
+        let Ok(rd) = std::fs::read_dir(dir) else {
+            continue;
+        };
+        let mut files: Vec<String> = rd
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.extension().is_some_and(|x| x == "flf" || x == "tlf"))
+            .map(|p| p.to_string_lossy().into_owned())
+            .collect();
+        files.sort();
+        v.extend(files);
+    }
+    v
+}
+
+/// `text` in a FIGlet or toilet font, as lines.
+pub fn banner(font: &str, text: &str) -> Option<Vec<String>> {
+    use figlet_rs::{FIGlet, Toilet};
+    let fig = match font {
+        "small" => FIGlet::small().ok()?.convert(text)?.as_str(),
+        "big" => FIGlet::big().ok()?.convert(text)?.as_str(),
+        "slant" => FIGlet::slant().ok()?.convert(text)?.as_str(),
+        "smblock" => Toilet::smblock().ok()?.convert(text)?.as_str(),
+        "mono9" => Toilet::mono9().ok()?.convert(text)?.as_str(),
+        "mono12" => Toilet::mono12().ok()?.convert(text)?.as_str(),
+        "future" => Toilet::future().ok()?.convert(text)?.as_str(),
+        "wideterm" => Toilet::wideterm().ok()?.convert(text)?.as_str(),
+        f if f.ends_with(".tlf") => Toilet::from_file(f).ok()?.convert(text)?.as_str(),
+        f if f.ends_with(".flf") => FIGlet::from_file(f).ok()?.convert(text)?.as_str(),
+        _ => FIGlet::standard().ok()?.convert(text)?.as_str(),
+    };
     let mut lines: Vec<String> = fig.lines().map(|l| l.trim_end().to_string()).collect();
     while lines.last().is_some_and(String::is_empty) {
         lines.pop();
@@ -289,10 +359,14 @@ pub fn drag(ed: &mut Editor, at: Cell) {
                 .map(|c| (c, ch))
                 .collect()
         }
-        Tool::Rect | Tool::Eraser => {
+        Tool::Rect | Tool::Line | Tool::Oval | Tool::Eraser => {
             ed.undo.rollback_to(&mut ed.buf, d.mark);
             if d.tool == Tool::Rect {
                 outline(from, at)
+            } else if d.tool == Tool::Line {
+                line(from, at).into_iter().map(|c| (c, ch)).collect()
+            } else if d.tool == Tool::Oval {
+                oval(from, at).into_iter().map(|c| (c, ch)).collect()
             } else {
                 // Only what is there to erase: no new lines for blank space.
                 let n = ed.line_count();
@@ -303,6 +377,8 @@ pub fn drag(ed: &mut Editor, at: Cell) {
                     .collect()
             }
         }
+        // Applied when the button comes up.
+        Tool::Fx => return,
         Tool::Fill | Tool::Text => return,
     };
     put(ed, &cells);
@@ -310,12 +386,113 @@ pub fn drag(ed: &mut Editor, at: Cell) {
 }
 
 fn end_stroke(ed: &mut Editor) {
-    if let Some(d) = ed.draw.as_mut()
-        && d.from.take().is_some()
-    {
-        d.last = None;
-        ed.undo.end((ed.cur.line, ed.cur.byte));
+    let Some(d) = ed.draw.as_mut() else {
+        return;
+    };
+    let (Some(from), last) = (d.from.take(), d.last.take()) else {
+        return;
+    };
+    if d.tool == Tool::Fx {
+        let e = EFFECTS[d.effect];
+        apply(ed, from, last.unwrap_or(from), e);
     }
+    ed.undo.end((ed.cur.line, ed.cur.byte));
+}
+
+/// Apply effect `e` to the art in the box with corners `a` and `b`.
+fn apply(ed: &mut Editor, a: Cell, b: Cell, e: &str) {
+    let (top, left, bottom, right) = corners(a, b);
+    let lines: Vec<String> = (top..=bottom)
+        .map(|y| (left..=right).map(|x| char_at(ed, (y, x))).collect())
+        .collect();
+    let (out, at) = match e {
+        "border" => (
+            border(&lines),
+            (top.saturating_sub(1), left.saturating_sub(1)),
+        ),
+        "shadow" => (shadow(&lines), (top, left)),
+        "mirror" => (mirror(&lines), (top, left)),
+        _ => (flip(&lines), (top, left)),
+    };
+    let n = ed.line_count();
+    let blank: Vec<(Cell, char)> = area(a, b)
+        .into_iter()
+        .filter(|c| c.0 < n)
+        .map(|c| (c, ' '))
+        .collect();
+    put(ed, &blank);
+    stamp(ed, at, &out);
+}
+
+/// `lines` in a `+-|` box.
+fn border(lines: &[String]) -> Vec<String> {
+    let w = lines.iter().map(|l| l.chars().count()).max().unwrap_or(0);
+    let edge = format!("+{}+", "-".repeat(w));
+    let mut v = vec![edge.clone()];
+    v.extend(lines.iter().map(|l| format!("|{l:<w$}|")));
+    v.push(edge);
+    v
+}
+
+/// `lines` with a shadow one cell down and right.
+fn shadow(lines: &[String]) -> Vec<String> {
+    let w = lines.iter().map(|l| l.chars().count()).max().unwrap_or(0) + 1;
+    let mut g = vec![vec![' '; w]; lines.len() + 1];
+    for (y, l) in lines.iter().enumerate() {
+        for (x, c) in l.chars().enumerate() {
+            if c != ' ' {
+                g[y + 1][x + 1] = '░';
+            }
+        }
+    }
+    for (y, l) in lines.iter().enumerate() {
+        for (x, c) in l.chars().enumerate() {
+            if c != ' ' {
+                g[y][x] = c;
+            }
+        }
+    }
+    g.into_iter().map(String::from_iter).collect()
+}
+
+/// `lines` left to right, as in a mirror.
+fn mirror(lines: &[String]) -> Vec<String> {
+    let w = lines.iter().map(|l| l.chars().count()).max().unwrap_or(0);
+    let swap = |c| match c {
+        '/' => '\\',
+        '\\' => '/',
+        '(' => ')',
+        ')' => '(',
+        '<' => '>',
+        '>' => '<',
+        '[' => ']',
+        ']' => '[',
+        '{' => '}',
+        '}' => '{',
+        c => c,
+    };
+    lines
+        .iter()
+        .map(|l| format!("{l:<w$}").chars().rev().map(swap).collect())
+        .collect()
+}
+
+/// `lines` upside down.
+fn flip(lines: &[String]) -> Vec<String> {
+    let swap = |c| match c {
+        '/' => '\\',
+        '\\' => '/',
+        '^' => 'v',
+        'v' => '^',
+        '_' => '‾',
+        '‾' => '_',
+        c => c,
+    };
+    lines
+        .iter()
+        .rev()
+        .map(|l| l.chars().map(swap).collect())
+        .collect()
 }
 
 /// `f` as one undo step, leaving the cursor on `at`'s line.
@@ -371,6 +548,27 @@ fn disc(c: Cell, r: usize) -> Vec<Cell> {
             if dx * dx + dy * dy <= r * r + r && y >= 0 && x >= 0 {
                 v.push((y as usize, x as usize));
             }
+        }
+    }
+    v
+}
+
+/// The ellipse inside the box with corners `a` and `b`.
+fn oval(a: Cell, b: Cell) -> Vec<Cell> {
+    let (top, left, bottom, right) = corners(a, b);
+    let (cy, cx) = ((top + bottom) as f64 / 2.0, (left + right) as f64 / 2.0);
+    let (ry, rx) = ((bottom - top) as f64 / 2.0, (right - left) as f64 / 2.0);
+    let mut v = vec![];
+    // Step around finely enough to touch every cell on the edge.
+    let steps = (4.0 * (rx + ry) + 4.0) as usize * 2;
+    for i in 0..steps {
+        let t = i as f64 / steps as f64 * std::f64::consts::TAU;
+        let c = (
+            (cy + ry * t.sin()).round() as usize,
+            (cx + rx * t.cos()).round() as usize,
+        );
+        if v.last() != Some(&c) && !v.contains(&c) {
+            v.push(c);
         }
     }
     v
@@ -614,5 +812,76 @@ mod tests {
         assert_eq!(ed.draw.as_ref().unwrap().tool, Tool::Spray);
         press(&mut ed, Button::Done);
         assert!(ed.draw.is_none());
+    }
+
+    #[test]
+    fn line_is_straight_whatever_the_drag() {
+        let mut ed = ed("\n");
+        tool(&mut ed, Tool::Line);
+        down(&mut ed, (0, 0));
+        drag(&mut ed, (2, 0));
+        drag(&mut ed, (0, 4));
+        end_stroke(&mut ed);
+        assert_eq!(text(&ed), "#####\n");
+    }
+
+    #[test]
+    fn oval_fits_its_box() {
+        let mut ed = ed("\n");
+        tool(&mut ed, Tool::Oval);
+        down(&mut ed, (0, 0));
+        drag(&mut ed, (4, 8));
+        end_stroke(&mut ed);
+        let t = text(&ed);
+        assert_eq!(ed.line_count(), 5, "{t}");
+        assert!(t.lines().all(|l| l.len() <= 9), "{t}");
+        assert_eq!(ed.buf.line(2), "#       #", "{t}");
+        assert_eq!(ed.buf.line(0).trim(), ed.buf.line(4).trim(), "{t}");
+    }
+
+    fn fx(ed: &mut Editor, e: &str, a: Cell, b: Cell) {
+        tool(ed, Tool::Fx);
+        ed.draw.as_mut().unwrap().effect = EFFECTS.iter().position(|&x| x == e).unwrap();
+        down(ed, a);
+        drag(ed, b);
+        end_stroke(ed);
+    }
+
+    #[test]
+    fn effects_apply_to_the_dragged_box_as_one_undo_step() {
+        let mut ed = super::tests::ed("\n ab\n");
+        fx(&mut ed, "border", (1, 1), (1, 2));
+        assert_eq!(text(&ed), "+--+\n|ab|\n+--+\n");
+        ed.undo.undo(&mut ed.buf);
+        assert_eq!(text(&ed), "\n ab\n");
+
+        let mut ed = super::tests::ed("/a(\n");
+        fx(&mut ed, "mirror", (0, 0), (0, 2));
+        assert_eq!(text(&ed), ")a\\\n");
+
+        let mut ed = super::tests::ed("/_\n^\n");
+        fx(&mut ed, "flip", (0, 0), (1, 1));
+        assert_eq!(text(&ed), "v\n\\‾\n");
+
+        let mut ed = super::tests::ed("#\n");
+        fx(&mut ed, "shadow", (0, 0), (0, 0));
+        assert_eq!(text(&ed), "#\n ░\n");
+    }
+
+    #[test]
+    fn font_button_picks_from_every_font() {
+        let mut ed = ed("\n");
+        press(&mut ed, Button::Font);
+        let Mode::Pick(p) = &ed.mode else {
+            panic!("no picker: {:?}", ed.mode)
+        };
+        assert_eq!(p.title, "fonts");
+        ed.mode = Mode::Normal;
+        let then = ed.org_then.take().unwrap();
+        then(&mut ed, "mono9".into());
+        assert_eq!(ed.draw.as_ref().unwrap().font, "mono9");
+        for f in FONTS {
+            assert!(banner(f, "Hi").is_some_and(|l| !l.is_empty()), "{f}");
+        }
     }
 }
