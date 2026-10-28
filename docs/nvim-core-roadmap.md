@@ -126,15 +126,10 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
    'selection' (exclusive), `<S-Right>`/`<S-Left>` as word motions when
    'keymodel' lacks startsel. Done so far: Select mode, 'keymodel',
    'selectmode'.
-6. Fuzz findings outside the default seed range (`FRED_FUZZ_SEED=30000
-   FRED_FUZZ_ITERS=100000`): Visual-block panics (`<PageDown><C-v>s<BS>`
-   on "\n\n"; `old<Esc><C-v>c<C-w>` + U+2028), `@2` after
-   `Ox'…Vy3pS<Esc>dd` changing text on E20, and undo reaching an unseen
-   state after `V<C-n>S<Esc>3ggVDVs<Esc>dG@3`.
-7. Track 13: `.` after a Visual-mode operator (Vim repeats it on the same
+6. Track 13: `.` after a Visual-mode operator (Vim repeats it on the same
    amount of text; Fred does nothing). Search offsets under an operator
    (`d/x/e`).
-8. Track 14 continued: `\zs`/`\ze`, `\@` look-around, `\_` multi-line
+7. Track 14 continued: `\zs`/`\ze`, `\@` look-around, `\_` multi-line
    and back-references (the `regex` crate has none of them), `~`, hlsearch,
    incsearch. Done so far: Vim pattern syntax for `/ ? :s :g` and range
    addresses (`src/search.rs` `compile_vim`).
@@ -353,3 +348,10 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
   are steered away, `{count}<Del>` is understood. Known difference: Neovim
   records one more (empty) undo step in `o<C-o>X<Esc>`. Oracle: 1168
   cases.
+- 2026-10-28: fuzz clean over seeds 0..530000. Visual-block `I`/`A`/`c`
+  take the typed text as op_insert() does: the first line's growth in
+  bytes, from where typing began (so CTRL-W or `<BS>` past the start
+  works as in Vim), nothing if the cursor left the line, and only the
+  cursor move if the block's last line was joined away (both were
+  panics). Fuzz harness: a macro (`@x`) may change text and fail, as `.`;
+  undo ids skipped within one key count as seen. Oracle: 1181 cases.

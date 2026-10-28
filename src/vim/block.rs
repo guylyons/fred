@@ -29,8 +29,9 @@ pub(crate) struct Insert {
     eol: bool,
     /// Short lines get spaces up to the column (`A`); else they're left.
     pad: bool,
-    /// Where typing began on the first line.
+    /// Where typing began on the first line, and that line's length then.
     start: usize,
+    pre_len: usize,
     /// The block's left column, where the cursor ends up.
     left: usize,
 }
@@ -335,6 +336,7 @@ fn start_insert(ed: &mut Editor, r: &Rect, col: usize, eol: bool, pad: bool) {
         eol,
         pad,
         start: ed.cur.byte,
+        pre_len: ed.buf.line_len(ed.cur.line),
         left: r.left,
     });
 }
@@ -343,19 +345,26 @@ fn start_insert(ed: &mut Editor, r: &Rect, col: usize, eol: bool, pad: bool) {
 pub(crate) fn finish_insert(ed: &mut Editor) -> Option<(usize, usize)> {
     let bi = ed.vim.block_insert.take()?;
     let ts = ed.tabstop();
+    let (l, b) = ed.cur.pos();
+    if l != bi.lo {
+        return None;
+    }
     // Afterwards the cursor goes to the block's top left.
     let back = {
         let line = ed.buf.line(bi.lo);
         (bi.lo, byte_of_col(&line, bi.left, ts).min(line.len()))
     };
-    let (l, b) = ed.cur.pos();
-    if l != bi.lo || b < bi.start {
-        return None;
+    // Joined away lines leave nothing to copy into (Vim checks the
+    // block's last line still exists).
+    if bi.hi >= ed.line_count() {
+        return Some(back);
     }
-    let typed = ed.buf.line(l)[bi.start..b].to_string();
-    if typed.is_empty() {
-        return None;
-    }
+    // As op_insert(): the first line grew by some bytes; that many from
+    // where typing began are the text, wherever the cursor is now.
+    let first = ed.buf.line(l);
+    let n = first.len().checked_sub(bi.pre_len).filter(|&n| n > 0)?;
+    // ponytail: Vim copies the bytes even mid-character; Fred skips that.
+    let typed = first.get(bi.start..bi.start + n)?.to_string();
     let lines: Vec<String> = (bi.lo + 1..=bi.hi)
         .map(|li| {
             let line = ed.buf.line(li);

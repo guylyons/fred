@@ -1365,6 +1365,8 @@ struct Runner {
     count: CountGuess,
     /// n or N was used in this case.
     searched: bool,
+    /// The last key fed was `@` in Normal mode (a macro runs next).
+    after_at: bool,
 }
 
 /// Tracks digits typed before a Normal-mode command (approximately: keys
@@ -1586,6 +1588,11 @@ impl Runner {
                 };
                 self.excuse(r, step)?;
                 self.seen.insert(id, snap);
+                // Ids are handed out in order: ones skipped were made and
+                // passed within one key (a macro, Insert CTRL-O).
+                if id > self.max_seen && id < u64::MAX / 2 && self.max_seen < u64::MAX / 2 {
+                    self.hidden.extend(self.max_seen + 1..id);
+                }
                 self.max_seen = self.max_seen.max(id);
                 Ok(())
             }
@@ -1613,10 +1620,13 @@ impl Runner {
                 let t = cl.text.trim_start_matches(|c: char| !c.is_ascii_alphabetic());
                 cl.text.contains('|') || t.starts_with(['g', 'v']) || t.starts_with("norm")
             }),
-            dot: matches!(step, Step::Key(k) if k.char() == Some('.'))
+            // `.` and a macro (`@x`) stop at an error, keeping what ran.
+            dot: (self.after_at || matches!(step, Step::Key(k) if k.char() == Some('.')))
                 && matches!(self.ed.mode, Mode::Normal),
             msg: self.ed.msg.clone(),
         };
+        self.after_at = matches!(step, Step::Key(k) if k.char() == Some('@'))
+            && matches!(self.ed.mode, Mode::Normal);
         let t0 = Instant::now();
         match step {
             Step::Key(k) => self.ed.handle_key(*k),
@@ -1664,6 +1674,7 @@ fn exec(case: &Case) -> Result<(), Failure> {
         failed_cmdline_edited: false,
         count: CountGuess::default(),
         searched: false,
+        after_at: false,
     };
     r.excuse(check_state(&r.ed, 0), None)?;
     r.excuse(check_text(&r.ed, &initial, 0), None)?;
