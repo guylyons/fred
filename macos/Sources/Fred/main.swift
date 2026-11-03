@@ -152,12 +152,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
 
     /// tag 1 bigger, -1 smaller, 0 actual size; 9–36 pt.
     @objc private func zoom(_ s: NSMenuItem) {
-        let size = s.tag == 0 ? 13 : min(36, max(9, view.font.pointSize + CGFloat(s.tag)))
-        view.font = .monospacedSystemFont(ofSize: size, weight: .regular)
+        let size = s.tag == 0 ? EditorView.defaultSize : min(36, max(9, view.font.pointSize + CGFloat(s.tag)))
+        view.font = EditorView.editorFont(size)
     }
 
     func applicationDidFinishLaunching(_ n: Notification) {
-        guard let path = pathToOpen() else { NSApp.terminate(nil); return }
+        let path = pathToOpen()
         var isDir: ObjCBool = false
         FileManager.default.fileExists(atPath: path.path, isDirectory: &isDir)
         // Symlinks resolved: the core reports canonical paths.
@@ -193,6 +193,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
             if window!.title != f.title { window!.title = f.title }
             sidebar.follow(f.windows.first(where: \.active)?.path)
             sidebar.showZap(f.zap_nav ?? [])
+            if f.focus_nav == true { self.showSidebar(); sidebar.focusTree() }
         }
         core.onMinimap = { view.applyMinimap($0) }
         core.onExit = { [window] code, tail in
@@ -215,7 +216,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         let split = split(sidebar: sidebar, editor: view)
         self.split = split
         window.contentViewController = withActivityBar(split)
-        window.setContentSize(NSSize(width: 1140, height: 640))
+        // Most of the screen: room for the splash logo at full size.
+        let screen = NSScreen.main?.visibleFrame.size ?? NSSize(width: 1425, height: 800)
+        window.setContentSize(NSSize(width: max(1140, screen.width * 0.8), height: max(640, screen.height * 0.85)))
         window.makeFirstResponder(view)
         self.view = view
         buildMenus()
@@ -227,6 +230,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
             window.makeKeyAndOrderFront(nil)
             NSApp.activate()
         }
+    }
+
+    private func showSidebar() {
+        let side = split.splitViewItems[0]
+        if side.isCollapsed { side.animator().isCollapsed = false; activity.refresh() }
     }
 
     /// The activity bar at the window's left edge, then the sidebar and editor.
@@ -317,15 +325,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         return false
     }
 
-    /// The first non-flag argument, else an open panel (nil when cancelled).
-    private func pathToOpen() -> URL? {
-        if let arg = CommandLine.arguments.dropFirst().first(where: { !$0.hasPrefix("-") }) {
-            return URL(fileURLWithPath: arg).standardizedFileURL
-        }
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = true
-        return panel.runModal() == .OK ? panel.url : nil
+    /// The first non-flag argument, else the home folder (a folder opens on the splash screen).
+    private func pathToOpen() -> URL {
+        CommandLine.arguments.dropFirst().first(where: { !$0.hasPrefix("-") })
+            .map { URL(fileURLWithPath: $0).standardizedFileURL } ?? FileManager.default.homeDirectoryForCurrentUser
     }
 }
 

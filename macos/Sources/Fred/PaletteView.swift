@@ -14,10 +14,10 @@ final class PaletteView: NSView {
     private var hover: Int?
 
     static let queryH: CGFloat = 38, rowH: CGFloat = 24, pad: CGFloat = 6
-    private static let ui = NSFont.systemFont(ofSize: 13)
-    private static let bold = NSFont.systemFont(ofSize: 13, weight: .semibold)
-    private static let mono = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
-    private static let small = NSFont.systemFont(ofSize: 11)
+    private static let ui = NSFont.systemFont(ofSize: 14)
+    private static let bold = NSFont.systemFont(ofSize: 14, weight: .semibold)
+    private static let mono = EditorView.editorFont(13)
+    private static let small = NSFont.systemFont(ofSize: 12)
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -123,7 +123,7 @@ final class PaletteView: NSView {
             let a = max(0, h[0] - nameStart), b = min(name.count, h[1] - nameStart)
             guard a < b else { continue }
             let lo = name.index(name.startIndex, offsetBy: a), hi = name.index(name.startIndex, offsetBy: b)
-            s.addAttributes([.font: files ? PaletteView.bold : NSFont.monospacedSystemFont(ofSize: 12, weight: .bold),
+            s.addAttributes([.font: files ? PaletteView.bold : (NSFont(descriptor: PaletteView.mono.fontDescriptor.withSymbolicTraits(.bold), size: 13) ?? PaletteView.mono),
                              .foregroundColor: NSColor.controlAccentColor.blended(withFraction: 0.4, of: .white)!],
                             range: NSRange(lo..<hi, in: name))
         }

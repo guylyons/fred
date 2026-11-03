@@ -169,6 +169,9 @@ pub struct Session {
     prev_win: Option<usize>,
     /// `Space w`: the windows show their numbers until the next key.
     pub picking_window: bool,
+    /// The GUI's sidebar takes the keyboard (`Space w 0`, `CTRL-W h` from
+    /// the leftmost window); the next frame carries it, once.
+    pub focus_nav: bool,
     /// A window edge being dragged with the mouse: its direction, where it
     /// is now, and the row or column it was grabbed at.
     grab: Option<(crate::window::Dir, u16, u16)>,
@@ -402,6 +405,7 @@ impl Session {
             active: 1,
             prev_win: None,
             picking_window: false,
+            focus_nav: false,
             grab: None,
             grid_pending: false,
             which_key: false,
@@ -492,6 +496,14 @@ impl Session {
             if k == Key::ch('c') {
                 self.grid_pending = true;
                 return self.ed.set_msg("how many windows? 1-9");
+            }
+            // h j k l move as `CTRL-W`; in the GUI, 0 is the sidebar.
+            if let Some(c @ ('h' | 'j' | 'k' | 'l')) = k.char() {
+                return self.wincmd(c, None);
+            }
+            if self.gui && k == Key::ch('0') {
+                self.focus_nav = true;
+                return;
             }
             // A digit picks a window; any other key just puts the numbers away.
             if let Some(n) = k.char().and_then(|c| c.to_digit(10)).filter(|&n| n > 0)
@@ -2205,6 +2217,22 @@ mod tests {
             t.s.placed().iter().map(|p| (p.id, p.rect.height)).collect();
         assert_eq!(heights, vec![(top, 7), (bottom, 16)]);
         assert!(t.s.grab.is_none());
+    }
+
+    #[test]
+    fn space_w_moves_by_direction_and_reaches_the_gui_sidebar() {
+        let mut t = T::open(Some("a"), Some("1\n"));
+        t.s.gui = true;
+        t.keys("<C-w>v");
+        let order = t.s.tree.order();
+        t.keys(" wl");
+        assert_eq!((t.s.active, t.s.focus_nav), (order[1], false));
+        t.keys(" wh");
+        assert_eq!((t.s.active, t.s.focus_nav), (order[0], false));
+        t.keys("<C-w>h");
+        assert!(std::mem::take(&mut t.s.focus_nav));
+        t.keys(" w0");
+        assert!(t.s.focus_nav);
     }
 
     #[test]

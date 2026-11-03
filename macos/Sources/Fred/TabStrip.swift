@@ -30,9 +30,9 @@ final class TabStrip: NSView {
     /// Whether this strip's window is the active one.
     private var active = true
 
-    private static let font = NSFont.systemFont(ofSize: 12)
+    private static let font = NSFont.systemFont(ofSize: 13)
     private static let italic: NSFont = {
-        let f = NSFont.systemFont(ofSize: 12)
+        let f = NSFont.systemFont(ofSize: 13)
         return NSFont(descriptor: f.fontDescriptor.withSymbolicTraits(.italic), size: 12) ?? f
     }()
     private static let pad: CGFloat = 12, closeW: CGFloat = 16, icon: CGFloat = 14, iconGap: CGFloat = 6

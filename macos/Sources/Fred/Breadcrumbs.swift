@@ -12,7 +12,7 @@ final class Breadcrumbs: NSView {
     private var frames: [CGRect] = []
     private var hover: Int?
 
-    private static let font = NSFont.systemFont(ofSize: 12)
+    private static let font = NSFont.systemFont(ofSize: 13)
     private static let sep = " › "
 
     override var isFlipped: Bool { true }

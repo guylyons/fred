@@ -391,6 +391,9 @@ impl Session {
                         .neighbor(self.area, self.active, c, n, self.cursor_cell())
                 {
                     self.focus(id);
+                } else if self.gui && c == 'h' {
+                    // Past the leftmost window: the GUI's sidebar.
+                    self.focus_nav = true;
                 }
             }
             'w' => self.focus(count.map_or(order[(at + 1) % order.len()], nth)),
@@ -398,8 +401,11 @@ impl Session {
             // Fred's own: `Space w` numbers the windows to pick one.
             '#' => {
                 self.picking_window = true;
-                self.ed
-                    .set_msg("window number, or c then how many for a grid");
+                self.ed.set_msg(if self.gui {
+                    "window number, h/j/k/l, 0 the sidebar, or c then how many for a grid"
+                } else {
+                    "window number, h/j/k/l, or c then how many for a grid"
+                });
             }
             't' => self.focus(order[0]),
             'b' => self.focus(order[order.len() - 1]),

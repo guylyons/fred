@@ -115,6 +115,9 @@ pub struct Frame {
     /// Zap's labels on the sidebar's rows (see `In::Nav`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub zap_nav: Vec<NavLabel>,
+    /// Give the sidebar the keyboard.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub focus_nav: bool,
 }
 
 /// A zap label on sidebar row `row` (an index into the last `nav`), on

@@ -19,6 +19,9 @@ final class StatusBar: NSView {
 
     required init?(coder: NSCoder) { fatalError() }
 
+    /// Clicks fall through to the editor, which drags the edge to resize.
+    override func hitTest(_ p: NSPoint) -> NSView? { nil }
+
     func update(_ s: Status, active: Bool) {
         alphaValue = active ? 1 : 0.5
         guard s != content.status else { return }
@@ -51,7 +54,7 @@ private final class StatusContent: NSView {
         NSRect(x: 0, y: 0, width: bounds.width, height: 1).fill()
         guard let s = status else { return }
         let mid = bounds.midY
-        let badgeFont = NSFont.systemFont(ofSize: 11, weight: .semibold)
+        let badgeFont = NSFont.systemFont(ofSize: 12, weight: .semibold)
         let badge = NSAttributedString(string: s.mode, attributes: [.font: badgeFont, .foregroundColor: NSColor.white])
         let bs = badge.size()
         let rect = NSRect(x: 6, y: mid - (bs.height + 2) / 2, width: bs.width + 12, height: bs.height + 2)
@@ -59,7 +62,7 @@ private final class StatusContent: NSView {
         NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4).fill()
         badge.draw(at: NSPoint(x: rect.minX + 6, y: rect.minY + 1))
 
-        let font = NSFont.systemFont(ofSize: 12)
+        let font = NSFont.systemFont(ofSize: 13)
         let name = NSAttributedString(string: s.name + (s.modified ? " ●" : ""),
                                       attributes: [.font: font, .foregroundColor: NSColor.labelColor])
         name.draw(at: NSPoint(x: rect.maxX + 8, y: mid - name.size().height / 2))

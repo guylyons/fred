@@ -66,7 +66,7 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         let v = EditorBackground(frame: NSRect(x: 0, y: 0, width: 240, height: 600))
         v.color = background
         let header = NSTextField(labelWithString: root.name.uppercased())
-        header.font = .systemFont(ofSize: 11, weight: .semibold)
+        header.font = .systemFont(ofSize: 12, weight: .semibold)
         header.textColor = .secondaryLabelColor
         header.lineBreakMode = .byTruncatingTail
 
@@ -75,7 +75,7 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         outline.outlineTableColumn = col
         outline.headerView = nil
         outline.style = .sourceList
-        outline.rowSizeStyle = .small
+        outline.rowSizeStyle = .medium
         outline.dataSource = self
         outline.delegate = self
         // Files drag into the editor (and out, as copies, to other apps).
@@ -154,7 +154,7 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
             let c = NSTableCellView()
             c.identifier = id
             let image = NSImageView(), text = NSTextField(labelWithString: "")
-            text.font = .systemFont(ofSize: 13)
+            text.font = .systemFont(ofSize: 14)
             text.lineBreakMode = .byTruncatingMiddle
             text.delegate = self
             for s in [image, text] as [NSView] {
@@ -173,7 +173,7 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
             c.textField = text
             return c
         }()
-        cell.imageView!.image = FileIcon.image(for: n.name, isDir: n.isDir, size: 15)
+        cell.imageView!.image = FileIcon.image(for: n.name, isDir: n.isDir, size: 16)
         cell.textField!.stringValue = n.name
         cell.textField!.textColor = n.ignored ? .tertiaryLabelColor : .labelColor
         cell.textField!.isEditable = false
@@ -237,7 +237,7 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         for l in labels where l.row < navRows.count {
             guard let cell = outline.view(atColumn: 0, row: navRows[l.row], makeIfNecessary: false) as? NSTableCellView,
                   let tf = cell.textField else { continue }
-            let name = tf.stringValue, font = tf.font ?? .systemFont(ofSize: 13)
+            let name = tf.stringValue, font = tf.font ?? .systemFont(ofSize: 14)
             func width(_ n: Int) -> CGFloat {
                 NSAttributedString(string: String(name.prefix(n)), attributes: [.font: font]).size().width
             }
@@ -250,7 +250,7 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
                 zapViews.append(hi)
             }
             let tag = NSTextField(labelWithString: l.label)
-            tag.font = .monospacedSystemFont(ofSize: 11, weight: .bold)
+            tag.font = .monospacedSystemFont(ofSize: 12, weight: .bold)
             tag.textColor = .black
             tag.drawsBackground = true
             tag.backgroundColor = .systemPink
@@ -264,6 +264,15 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
     /// Reveal in Sidebar (a tab's menu): select `path` without making it
     /// the followed file, so the next frame doesn't undo it.
     func revealInTree(_ path: String) { select(path) }
+
+    /// The tree takes the keyboard, on the current file's row (else the first).
+    func focusTree() {
+        if outline.selectedRow < 0, outline.numberOfRows > 0 {
+            outline.selectRowIndexes([0], byExtendingSelection: false)
+        }
+        outline.scrollRowToVisible(max(0, outline.selectedRow))
+        view.window?.makeFirstResponder(outline)
+    }
 
     private func select(_ path: String?) {
         guard let raw = path, case let path = FileTree.canonical(raw),
@@ -472,12 +481,17 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
     }
 }
 
-/// Enter or Space opens the selected row; Esc goes back to the editor.
+/// Enter or Space opens the selected row; j/k move; Esc or Ctrl-L goes back to the editor.
 final class SidebarOutline: NSOutlineView {
     var activate: () -> Void = {}
     var leave: () -> Void = {}
     override func keyDown(with e: NSEvent) {
-        if [36, 76, 49].contains(e.keyCode) { activate() } else if e.keyCode == 53 { leave() } else { super.keyDown(with: e) }
+        let ctrl = e.modifierFlags.contains(.control), c = e.charactersIgnoringModifiers
+        if [36, 76, 49].contains(e.keyCode) { activate() }
+        else if e.keyCode == 53 || (ctrl && c == "l") { leave() }
+        else if !ctrl, c == "j" { moveDown(nil) }
+        else if !ctrl, c == "k" { moveUp(nil) }
+        else { super.keyDown(with: e) }
     }
 }
 

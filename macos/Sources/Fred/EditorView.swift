@@ -4,7 +4,12 @@ import FredKit
 /// Draws core frames with Core Text: opaque layer, pixel-snapped glyphs,
 /// only changed rows redrawn.
 final class EditorView: NSView {
-    var font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular) { didSet { metricsChanged() } }
+    /// Source Code Pro when installed, else the system monospace.
+    static func editorFont(_ size: CGFloat) -> NSFont {
+        NSFont(name: "SourceCodePro-Regular", size: size) ?? .monospacedSystemFont(ofSize: size, weight: .regular)
+    }
+    static let defaultSize: CGFloat = 15
+    var font = EditorView.editorFont(EditorView.defaultSize) { didSet { metricsChanged() } }
     var palette = Palette.materialDark {
         didSet { lines.removeAll(); needsDisplay = true }
     }
@@ -91,7 +96,7 @@ final class EditorView: NSView {
         dropHint.isHidden = true
         addSubview(dropHint)
         registerForDraggedTypes([.fileURL])
-        ghost.font = .systemFont(ofSize: 12)
+        ghost.font = .systemFont(ofSize: 13)
         ghost.drawsBackground = true
         ghost.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.9)
         ghost.wantsLayer = true
@@ -250,6 +255,9 @@ final class EditorView: NSView {
         blinkFrom = CACurrentMediaTime()
         blinkAlpha = 1
         layoutStatusBars(f)
+        if old.map({ o in o.windows.count != f.windows.count || !zip(o.windows, f.windows).allSatisfy { sameRect($0, $1) } }) ?? true {
+            window?.invalidateCursorRects(for: self)
+        }
         layoutTabStrips(f)
         layoutMinimaps(f)
         layoutPicker(f, was: old?.palette != nil)
@@ -277,6 +285,22 @@ final class EditorView: NSView {
         if old.cursor != f.cursor {
             if let c = old.cursor { setNeedsDisplay(rowRect(c.y)) }
             if let c = f.cursor { setNeedsDisplay(rowRect(c.y)) }
+        }
+    }
+
+    /// Status lines and dividers between windows drag to resize (the core moves them).
+    override func resetCursorRects() {
+        guard let f = current, f.windows.count > 1 else { return }
+        let bottom = bottomTop(f)
+        for w in f.windows {
+            let (l, r) = span(w.x, w.w)
+            if w.y + w.h < bottom {
+                addCursorRect(NSRect(x: l, y: CGFloat(w.y + w.h - 1) * cell.height, width: r - l, height: cell.height), cursor: .resizeUpDown)
+            }
+            if w.divider {
+                let (dl, dr) = span(w.x + w.w - 1, 1)
+                addCursorRect(NSRect(x: dl, y: CGFloat(w.y) * cell.height, width: dr - dl, height: CGFloat(w.h - 1) * cell.height), cursor: .resizeLeftRight)
+            }
         }
     }
 
@@ -651,7 +675,20 @@ final class EditorView: NSView {
             let flags = run.f ?? 0
             let (l, r) = span(col + run.x, cellWidth(run.s))
             func key(_ s: String) -> LineKey { LineKey(s: s, fg: run.fg, bg: flags & 8 != 0 ? run.bg : nil, f: flags) }
-            if cellWidth(run.s) == run.s.count {
+            if run.s.unicodeScalars.contains(where: { (0x2580...0x2590).contains($0.value) }) {
+                var at = col + run.x
+                for ch in run.s {
+                    let s = String(ch)
+                    if let b = block(ch, at: at, row: row) {
+                        ctx.setFillColor(colors(run).fg.cgColor)
+                        ctx.fill(b)
+                    } else {
+                        ctx.textPosition = CGPoint(x: span(at, 1).0, y: base)
+                        CTLineDraw(line(key(s)), ctx)
+                    }
+                    at += cellWidth(s)
+                }
+            } else if cellWidth(run.s) == run.s.count {
                 ctx.textPosition = CGPoint(x: l, y: base)
                 CTLineDraw(line(key(run.s)), ctx)
             } else {
@@ -673,6 +710,26 @@ final class EditorView: NSView {
                     ctx.fill(CGRect(x: l, y: snap(base - font.xHeight / 2, scale: scale), width: r - l, height: 1 / scale))
                 }
             }
+        }
+    }
+
+    /// Block elements (▀ ▄ █ ▌ ▐, eighths) as cell rectangles: their glyphs
+    /// leave gaps in rows taller than the font, which breaks the splash logo.
+    private func block(_ ch: Character, at col: Int, row: Int) -> CGRect? {
+        guard ch.unicodeScalars.count == 1, let v = ch.unicodeScalars.first?.value, (0x2580...0x2590).contains(v) else { return nil }
+        let (l, r) = span(col, 1)
+        let top = CGFloat(row) * cell.height, h = cell.height
+        switch v {
+        case 0x2580: // upper half
+            return CGRect(x: l, y: top, width: r - l, height: snap(top + h / 2, scale: scale) - top)
+        case 0x2581...0x2588: // lower n eighths, to full
+            let t = snap(top + h * (1 - CGFloat(v - 0x2580) / 8), scale: scale)
+            return CGRect(x: l, y: t, width: r - l, height: top + h - t)
+        case 0x2589...0x258F: // left n eighths
+            return CGRect(x: l, y: top, width: snap(l + (r - l) * CGFloat(0x2590 - v) / 8, scale: scale) - l, height: h)
+        default: // right half
+            let m = snap((l + r) / 2, scale: scale)
+            return CGRect(x: m, y: top, width: r - m, height: h)
         }
     }
 

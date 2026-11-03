@@ -43,14 +43,22 @@ pub fn dashboard(buf: &mut Screen, area: Rect, ed: &crate::editor::Editor, icons
         }
     }
     let recent = recent(ed);
-    let columns = actions
+    let mut columns = actions
         .len()
         .div_ceil(area.height.saturating_sub(1).max(1) as usize)
         .min((area.width as usize / 19).max(1));
+    // Full size beats more recent files or one menu column: the half-size logo drops pixels.
+    let full_logo = LOGO.lines().count().div_ceil(2) as u16 + 2;
+    let fits = |c: usize| area.height.saturating_sub(actions.len().div_ceil(c) as u16) >= full_logo + 3;
+    if !fits(columns) && fits(2) && area.width >= 88 {
+        columns = columns.max(2);
+    }
     let action_rows = actions.len().div_ceil(columns) as u16;
     let spare = area.height.saturating_sub(action_rows);
     let compact_logo = LOGO.lines().count().div_ceil(4) as u16 + 2;
-    let minimum_logo = if area.width >= 12 && spare >= compact_logo {
+    let minimum_logo = if area.width >= 24 && spare >= full_logo + 3 {
+        full_logo
+    } else if area.width >= 12 && spare >= compact_logo {
         compact_logo
     } else {
         spare.min(1)
@@ -81,6 +89,8 @@ pub fn dashboard(buf: &mut Screen, area: Rect, ed: &crate::editor::Editor, icons
         let cx = x + (i % columns) as u16 * column_width;
         // Drop icons before sacrificing labels on narrow terminals.
         let inset = if column_width >= 19 { 3 } else { 0 };
+        // Between columns: the key stays clear of the next column's icon.
+        let gap = if columns > 1 && column_width >= 30 { 4 } else { 0 };
         if inset > 0 {
             let icon = if icons { icon } else { fallback };
             buf.set_stringn(cx, y, icon.to_string(), 2, label_style);
@@ -89,10 +99,10 @@ pub fn dashboard(buf: &mut Screen, area: Rect, ed: &crate::editor::Editor, icons
             cx + inset,
             y,
             label,
-            column_width.saturating_sub(inset + 2) as usize,
+            column_width.saturating_sub(inset + 2 + gap) as usize,
             label_style,
         );
-        buf.set_stringn(cx + column_width - 1, y, key.to_string(), 1, key_style);
+        buf.set_stringn(cx + column_width - 1 - gap, y, key.to_string(), 1, key_style);
     }
     let heading_y = area.y + logo_height + action_rows + 1;
     if recent_rows > 0 {

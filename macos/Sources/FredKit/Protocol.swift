@@ -95,6 +95,8 @@ public struct Frame: Codable, Sendable {
     public var palette: PickerFrame?
     /// Zap's labels on the sidebar's rows (the last `nav` sent).
     public var zap_nav: [NavLabel]?
+    /// Give the sidebar the keyboard (`Space w 0`, `CTRL-W h` from the leftmost window).
+    public var focus_nav: Bool?
 }
 
 /// A zap label on sidebar row `row`, at character `at` of its name.

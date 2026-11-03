@@ -108,7 +108,9 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
     let bottom = (s.area.bottom()..buf.area.bottom())
         .map(|y| runs(buf, y, 0, buf.area.right(), None))
         .collect();
-    let cursor = be.cursor_visible().then(|| {
+    // The splash screen has no cursor, nor the current-line band it brings.
+    let splash = s.ed.mode == Mode::Normal && crate::ui::splash::active(&s.ed);
+    let cursor = (be.cursor_visible() && !splash).then(|| {
         let p = be.cursor_position();
         let bar = s.ed.mode == Mode::Insert && s.ed.term.is_none();
         // ponytail: no "underline" (Replace) shape; Fred has no Replace mode.
@@ -134,6 +136,7 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
         cursor,
         palette: palette(s),
         zap_nav: zap_nav(s),
+        focus_nav: std::mem::take(&mut s.focus_nav),
     }
 }
 
