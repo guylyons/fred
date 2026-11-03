@@ -754,7 +754,7 @@ fn emphasize(spans: LineStyles, changed: &[std::ops::Range<usize>], shift: usize
 
 /// Draw the editor; the frame area is the whole inline window.
 /// The picker or Magit menu panel's height, below the command row.
-fn panel_height(ed: &Editor, area: Rect) -> usize {
+fn panel_height(ed: &Editor, area: Rect, cfg: &Config) -> usize {
     // Text rows; a terminal under 3 rows tall keeps only the bottom rows.
     let text_rows = (area.height as usize).saturating_sub(2);
     // A picker takes a panel at the bottom; the file stays as it was above.
@@ -764,6 +764,7 @@ fn panel_height(ed: &Editor, area: Rect) -> usize {
             let lines = transient_lines(ed, p.sel, area.width as usize).len();
             lines.clamp(1, text_rows.saturating_sub(1).max(1))
         }
+        Mode::Pick(_) if cfg.floating_picker => 0,
         Mode::Pick(ref p) => panel_rows(text_rows, p.rows.len()),
         _ => 0,
     };
@@ -771,8 +772,8 @@ fn panel_height(ed: &Editor, area: Rect) -> usize {
 }
 
 /// Rows below the windows: the command row and any picker panel.
-pub fn chrome_rows(ed: &Editor, area: Rect) -> u16 {
-    1 + panel_height(ed, area) as u16
+pub fn chrome_rows(ed: &Editor, area: Rect, cfg: &Config) -> u16 {
+    1 + panel_height(ed, area, cfg) as u16
 }
 
 /// One window, the whole screen but the command row and panel.
@@ -789,7 +790,7 @@ pub fn draw(
         return;
     }
     let win = Rect {
-        height: area.height.saturating_sub(chrome_rows(ed, area)),
+        height: area.height.saturating_sub(chrome_rows(ed, area, cfg)),
         ..area
     };
     let win = crate::window::Placed {
@@ -1269,7 +1270,7 @@ pub fn draw_chrome(
     if area.height == 0 || area.width == 0 {
         return;
     }
-    let panel = panel_height(ed, area);
+    let panel = panel_height(ed, area, cfg);
     let rows = (area.height as usize).saturating_sub(2) - panel;
     if let Mode::Pick(p) = &ed.mode {
         view.picker_offset = view.picker_offset.min(p.rows.len().saturating_sub(panel));
@@ -1289,7 +1290,12 @@ pub fn draw_chrome(
         let typing = ed.mode != Mode::Normal || !ed.vim.pending.is_empty();
         draw_approval(buf, Rect::new(ox, oy, area.width, rows as u16), q, typing);
     }
-    if let Mode::Pick(p) = &ed.mode {
+    // The GUI's own palette shows the query and rows.
+    let floating =
+        cfg.floating_picker && matches!(&ed.mode, Mode::Pick(p) if p.kind != Kind::MagitMenu);
+    if let Mode::Pick(p) = &ed.mode
+        && !floating
+    {
         let list = Rect::new(
             ox,
             oy + area.height - panel as u16,
@@ -1309,7 +1315,11 @@ pub fn draw_chrome(
         }
     }
     let input_area = Rect::new(ox, oy, area.width, area.height - panel as u16);
-    let cmd_cursor = draw_command_row(buf, input_area, ed);
+    let cmd_cursor = if floating {
+        None
+    } else {
+        draw_command_row(buf, input_area, ed)
+    };
     view.menu_box = ed.menu.as_ref().and_then(|m| draw_menu(buf, area, m));
     if let Mode::Command(cl) = &ed.mode {
         draw_ex_completion(buf, input_area, cl);
@@ -2284,7 +2294,7 @@ pub(crate) fn draw_zap(
     rows: usize,
 ) {
     for (word, label) in zap.choices() {
-        if word.win != win || !label.starts_with(&zap.label_prefix) {
+        if word.win != win || word.nav.is_some() || !label.starts_with(&zap.label_prefix) {
             continue;
         }
         let highlight = Style::default().bg(Color::Yellow).fg(Color::Black);

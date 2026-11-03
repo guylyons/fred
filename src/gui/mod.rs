@@ -37,6 +37,8 @@ use std::time::{Duration, Instant};
 
 /// A window's minimap is sent at most this often.
 const MINIMAP_EVERY: Duration = Duration::from_millis(250);
+/// Rows per window above its text: the tab strip (two, VS Code's height) and breadcrumbs.
+const TAB_ROWS: u16 = 3;
 /// Highlighting time per minimap; lines past it go uncolored.
 const MINIMAP_BUDGET: Duration = Duration::from_millis(4);
 
@@ -99,11 +101,15 @@ fn select_like_a_mac(cfg: &mut Config) {
 
 pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> {
     select_like_a_mac(&mut cfg);
+    cfg.floating_picker = true;
     let (input, output) = take_stdio()?;
     let mut out = BufWriter::new(output);
     let unknown = crate::magit::options::set(cfg.magit.0.clone());
     let cfg_err = cfg_err.or_else(|| unknown.into_iter().next());
-    let (mut s, leftover) = match Session::open(args.file.clone(), &cfg, &swap::swap_dir()) {
+    // A folder opens on the splash screen (the sidebar lists it; the app
+    // runs us in it, so it is the project), not on dired.
+    let file = args.file.clone().filter(|p| !p.is_dir());
+    let (mut s, leftover) = match Session::open(file, &cfg, &swap::swap_dir()) {
         Ok(x) => x,
         Err(e) => {
             let name = args
@@ -153,7 +159,7 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
     // Tabs: `:bn` and `:bp` follow the window's.
     s.gui = true;
     // The tab row is there before the app's first resize.
-    s.chrome = (1, 0);
+    s.chrome = (TAB_ROWS, 0);
     s.lock();
     let remote = crate::remote::Remote::listen().ok();
     let stop = Arc::new(AtomicBool::new(false));
@@ -234,7 +240,7 @@ fn event_loop(
     let mut first = match rx.recv_timeout(std::time::Duration::from_millis(200)) {
         Ok(In::Resize { cols, rows, margin }) => {
             term.backend_mut().resize(cols, rows);
-            s.chrome = (1, margin);
+            s.chrome = (TAB_ROWS, margin);
             None
         }
         Ok(m) => Some(m),
@@ -390,8 +396,10 @@ fn seq_of(m: &In) -> Option<u64> {
         | In::Mac { seq, .. }
         | In::Open { seq, .. }
         | In::Tab { seq, .. }
-        | In::Scroll { seq, .. } => Some(*seq),
-        In::Resize { .. } | In::Quit => None,
+        | In::Scroll { seq, .. }
+        | In::Pick { seq, .. }
+        | In::Panel { seq, .. } => Some(*seq),
+        In::Resize { .. } | In::Quit | In::Nav { .. } => None,
     }
 }
 
@@ -516,7 +524,7 @@ fn input(s: &mut Session, term: &mut Terminal<TestBackend>, m: In) {
     match m {
         In::Resize { cols, rows, margin } => {
             term.backend_mut().resize(cols, rows);
-            s.chrome = (1, margin);
+            s.chrome = (TAB_ROWS, margin);
             s.ed.zap = None;
         }
         In::Keys { keys, .. } if terminal => {
@@ -553,17 +561,40 @@ fn input(s: &mut Session, term: &mut Terminal<TestBackend>, m: In) {
         }
         In::Mac { key, shift, .. } => mac::mac_key(s, key, shift),
         // Canonical, so a path under the working directory shows relative to it.
-        In::Open { path, preview, .. } => {
-            s.open_preview(&std::fs::canonicalize(&path).unwrap_or(path), preview)
+        In::Open {
+            path,
+            preview,
+            target,
+            zone,
+            ..
+        } => {
+            let path = std::fs::canonicalize(&path).unwrap_or(path);
+            match target {
+                Some(t) => {
+                    if let Err(e) = s.drop_file(&path, t, &zone)
+                        && e != crate::session::NO_TAB
+                    {
+                        s.ed.set_err(e);
+                    }
+                }
+                None => s.open_preview(&path, preview),
+            }
         }
         In::Tab {
-            win, op, index, to, ..
+            win,
+            op,
+            index,
+            to,
+            target,
+            zone,
+            ..
         } => {
             let done = match op.as_str() {
                 "select" => s.select_tab(win, index),
                 "close" => s.close_tab(win, index),
                 "move" => s.move_tab(win, index, to),
                 "keep" => s.keep_tab(win, index),
+                "drop" => s.drop_tab(win, index, target, &zone, to),
                 _ => Err(format!("unknown tab op {op:?}")),
             };
             // A stale index (a fast double close) is no error to show.
@@ -574,6 +605,26 @@ fn input(s: &mut Session, term: &mut Terminal<TestBackend>, m: In) {
             }
         }
         In::Scroll { win, top, .. } => scroll(s, win, top),
+        In::Nav { rows } => {
+            s.nav = rows
+                .into_iter()
+                .map(|r| (r.name, std::path::PathBuf::from(r.path)))
+                .collect();
+        }
+        In::Panel { op, .. } => match crate::shell::guard() {
+            Err(e) => s.ed.set_err(e),
+            Ok(()) if op == "maximize" => s.maximize_panel(),
+            Ok(()) => s.toggle_panel(),
+        },
+        In::Pick { index, .. } => {
+            if let Mode::Pick(p) = &mut s.ed.mode
+                && index < p.rows.len()
+            {
+                p.sel = index;
+                p.prompt = false;
+                handle_keys(s, "<Enter>");
+            }
+        }
         In::Quit => handle_keys(s, "<Esc>:qa<Enter>"),
     }
     if keyboard && !keep_view && s.ed.zap.is_none() && s.ed.vim.pending != [Key::ch(' ')] {
@@ -685,7 +736,9 @@ mod tests {
             In::Open {
                 seq: 3,
                 path: "/a/b".into(),
-                preview: false
+                preview: false,
+                target: None,
+                zone: String::new(),
             }
         );
         assert_eq!(
@@ -695,7 +748,23 @@ mod tests {
                 win: 3,
                 op: "move".into(),
                 index: 2,
-                to: 0
+                to: 0,
+                target: 0,
+                zone: String::new(),
+            }
+        );
+        assert_eq!(
+            p(
+                r#"{"t":"tab","seq":9,"win":3,"op":"drop","index":1,"to":2,"target":5,"zone":"left"}"#
+            ),
+            In::Tab {
+                seq: 9,
+                win: 3,
+                op: "drop".into(),
+                index: 1,
+                to: 2,
+                target: 5,
+                zone: "left".into(),
             }
         );
         assert_eq!(

@@ -63,12 +63,22 @@ pub struct CmdLine {
     pending: Option<char>,
     /// CTRL-V's code so far.
     literal: Option<vim::insert::Literal>,
+    /// Cmd-A selected the whole text: typing, Backspace or Delete replaces
+    /// it; any other key just drops the selection.
+    pub all: bool,
 }
 
 impl CmdLine {
     /// Keys that edit the text: typing, Backspace, Delete, Ctrl-W, Ctrl-U,
     /// and cursor movement.
     pub fn edit(&mut self, k: Key) {
+        if std::mem::take(&mut self.all) {
+            match k.code {
+                KeyCode::Backspace | KeyCode::Delete => return self.clear(),
+                KeyCode::Char(_) if !k.ctrl && !k.alt => self.clear(),
+                _ => {}
+            }
+        }
         match k.code {
             KeyCode::Backspace if self.cursor > 0 => {
                 let p = prev_char(&self.text, self.cursor);
@@ -109,6 +119,11 @@ impl CmdLine {
             }
             _ => {}
         }
+    }
+
+    fn clear(&mut self) {
+        self.text.clear();
+        self.cursor = 0;
     }
 }
 
@@ -668,6 +683,9 @@ impl Editor {
         match &mut self.mode {
             Mode::Command(cl) => {
                 cl.comp = None;
+                if std::mem::take(&mut cl.all) {
+                    cl.clear();
+                }
                 let first = text.lines().next().unwrap_or("");
                 cl.text.insert_str(cl.cursor, first);
                 cl.cursor += first.len();

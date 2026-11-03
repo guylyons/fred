@@ -46,6 +46,11 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
     /// The active window's file, as last revealed.
     private var current: String?
     private var editing: Node?
+    /// The visible rows changed: (name, path) top to bottom, for zap.
+    var navChanged: ([(name: String, path: String)]) -> Void = { _ in }
+    private var navRows: [Int] = []
+    private var navSent: [String] = []
+    private var zapViews: [NSView] = []
 
     init(root: URL) {
         self.root = Node(URL(fileURLWithPath: FileTree.canonical(root.path)), isDir: true)
@@ -54,8 +59,12 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
 
     required init?(coder: NSCoder) { fatalError() }
 
+    /// Solid, not the sidebar glass (which takes on the wallpaper's color).
+    var background = NSColor.black
+
     override func loadView() {
-        let v = NSView(frame: NSRect(x: 0, y: 0, width: 240, height: 600))
+        let v = EditorBackground(frame: NSRect(x: 0, y: 0, width: 240, height: 600))
+        v.color = background
         let header = NSTextField(labelWithString: root.name.uppercased())
         header.font = .systemFont(ofSize: 11, weight: .semibold)
         header.textColor = .secondaryLabelColor
@@ -69,6 +78,8 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         outline.rowSizeStyle = .small
         outline.dataSource = self
         outline.delegate = self
+        // Files drag into the editor (and out, as copies, to other apps).
+        outline.setDraggingSourceOperationMask(.copy, forLocal: false)
         outline.target = self
         outline.action = #selector(clicked)
         outline.doubleAction = #selector(doubleClicked)
@@ -130,6 +141,12 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
     func outlineView(_ o: NSOutlineView, child i: Int, ofItem item: Any?) -> Any { kids(item)[i] }
     func outlineView(_ o: NSOutlineView, isItemExpandable item: Any) -> Bool { (item as! Node).isDir }
 
+    /// A file row drags as its URL: EditorView drops it into a window or a split.
+    func outlineView(_ o: NSOutlineView, pasteboardWriterForItem item: Any) -> (any NSPasteboardWriting)? {
+        guard let n = item as? Node, !n.pending else { return nil } // a folder drops as dired
+        return n.url as NSURL
+    }
+
     func outlineView(_ o: NSOutlineView, viewFor col: NSTableColumn?, item: Any) -> NSView? {
         let n = item as! Node
         let id = NSUserInterfaceItemIdentifier("cell")
@@ -156,9 +173,7 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
             c.textField = text
             return c
         }()
-        cell.imageView!.image = NSImage(systemSymbolName: FileTree.symbol(for: n.name, isDir: n.isDir), accessibilityDescription: nil)?
-            .withSymbolConfiguration(.init(pointSize: 12, weight: .regular))
-        cell.imageView!.contentTintColor = n.isDir ? .controlAccentColor.withAlphaComponent(0.85) : .secondaryLabelColor
+        cell.imageView!.image = FileIcon.image(for: n.name, isDir: n.isDir, size: 15)
         cell.textField!.stringValue = n.name
         cell.textField!.textColor = n.ignored ? .tertiaryLabelColor : .labelColor
         cell.textField!.isEditable = false
@@ -195,9 +210,55 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
     /// Select and reveal the active window's file, expanding its folders;
     /// keyboard focus stays where it is.
     func follow(_ path: String?) {
+        sendNav()
         guard path != current else { return }
         current = path
         select(path)
+    }
+
+    /// Tell the core the rows on screen, when they change.
+    private func sendNav() {
+        guard isViewLoaded else { return }
+        let r = outline.rows(in: outline.visibleRect)
+        let rows = (r.location..<r.location + r.length).filter { (outline.item(atRow: $0) as? Node)?.pending == false }
+        let nodes = rows.compactMap { outline.item(atRow: $0) as? Node }
+        let paths = nodes.map(\.url.path)
+        guard paths != navSent else { return }
+        navSent = paths
+        navRows = rows
+        navChanged(nodes.map { ($0.name, $0.url.path) })
+    }
+
+    /// Zap's labels over the sidebar rows: the typed letters in yellow, the label in magenta.
+    func showZap(_ labels: [NavLabel]) {
+        guard isViewLoaded, !(labels.isEmpty && zapViews.isEmpty) else { return }
+        zapViews.forEach { $0.removeFromSuperview() }
+        zapViews = []
+        for l in labels where l.row < navRows.count {
+            guard let cell = outline.view(atColumn: 0, row: navRows[l.row], makeIfNecessary: false) as? NSTableCellView,
+                  let tf = cell.textField else { continue }
+            let name = tf.stringValue, font = tf.font ?? .systemFont(ofSize: 13)
+            func width(_ n: Int) -> CGFloat {
+                NSAttributedString(string: String(name.prefix(n)), attributes: [.font: font]).size().width
+            }
+            let x = tf.frame.minX + 2 + width(l.at), h = tf.frame.height
+            if l.typed > 0 {
+                let hi = NSView(frame: NSRect(x: x, y: tf.frame.minY, width: width(l.at + l.typed) - width(l.at), height: h))
+                hi.wantsLayer = true
+                hi.layer?.backgroundColor = NSColor.systemYellow.withAlphaComponent(0.45).cgColor
+                cell.addSubview(hi)
+                zapViews.append(hi)
+            }
+            let tag = NSTextField(labelWithString: l.label)
+            tag.font = .monospacedSystemFont(ofSize: 11, weight: .bold)
+            tag.textColor = .black
+            tag.drawsBackground = true
+            tag.backgroundColor = .systemPink
+            tag.sizeToFit()
+            tag.frame.origin = NSPoint(x: x + width(l.at + l.typed) - width(l.at), y: tf.frame.midY - tag.frame.height / 2)
+            cell.addSubview(tag)
+            zapViews.append(tag)
+        }
     }
 
     /// Reveal in Sidebar (a tab's menu): select `path` without making it

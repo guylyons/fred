@@ -27,6 +27,16 @@ pub struct Status {
     pub modified: bool,
     pub pos: String,
     pub branch: Option<String>,
+    /// For the app's status bar: the language ("Rust"; empty for plain
+    /// text), indent ("Spaces: 4", "Tab Size: 8"), "LF"/"CRLF", "UTF-8".
+    #[serde(default)]
+    pub lang: String,
+    #[serde(default)]
+    pub indent: String,
+    #[serde(default)]
+    pub eol: String,
+    #[serde(default)]
+    pub enc: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -99,6 +109,58 @@ pub struct Frame {
     pub windows: Vec<Win>,
     pub bottom: Vec<Vec<Run>>,
     pub cursor: Option<Cursor>,
+    /// An open picker, for the app's floating palette.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub palette: Option<Palette>,
+    /// Zap's labels on the sidebar's rows (see `In::Nav`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub zap_nav: Vec<NavLabel>,
+}
+
+/// A zap label on sidebar row `row` (an index into the last `nav`), on
+/// the word starting at character `at` of its name, `typed` characters matched.
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct NavLabel {
+    pub row: usize,
+    pub at: usize,
+    pub typed: usize,
+    pub label: String,
+}
+
+/// A sidebar row for zap: its name and path.
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct NavRow {
+    pub name: String,
+    pub path: String,
+}
+
+/// A picker as the GUI shows it: the query and a window of its rows.
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct Palette {
+    pub title: String,
+    pub query: String,
+    /// The caret, in characters of `query`.
+    pub caret: usize,
+    /// Cmd-A selected the whole query.
+    #[serde(default)]
+    pub all: bool,
+    /// Rows `first..first + rows.len()` of `total`.
+    pub rows: Vec<PaletteRow>,
+    pub first: usize,
+    pub total: usize,
+    /// The selected row's index in `rows`; none while the typed text itself is.
+    pub sel: Option<usize>,
+    /// Counts, or why it can't search.
+    pub status: String,
+    /// Rows are file paths (show a name and its folder).
+    pub files: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct PaletteRow {
+    pub text: String,
+    /// Matched character ranges of `text`.
+    pub hl: Vec<(usize, usize)>,
 }
 
 /// Window `win`'s buffer as minimap runs; `lines` is None for huge files.
@@ -172,9 +234,15 @@ pub enum In {
         /// A sidebar single-click: a preview tab, which the next replaces.
         #[serde(default)]
         preview: bool,
+        /// A drag and drop: onto window `target`'s `zone` (as a tab drop).
+        #[serde(default)]
+        target: Option<usize>,
+        #[serde(default)]
+        zone: String,
     },
     /// A tab strip action on window `win`'s tab `index`: `select`,
-    /// `close`, `move` (to `to`) or `keep`.
+    /// `close`, `move` (to `to`), `keep`, or `drop` on window `target`'s
+    /// `zone` (`center` as its tab `to`, or an edge to split it).
     Tab {
         seq: u64,
         win: usize,
@@ -182,6 +250,24 @@ pub enum In {
         index: usize,
         #[serde(default)]
         to: usize,
+        #[serde(default)]
+        target: usize,
+        #[serde(default)]
+        zone: String,
+    },
+    /// The sidebar's visible rows, top to bottom, for zap to label.
+    Nav {
+        rows: Vec<NavRow>,
+    },
+    /// The terminal panel: `op` toggle (Ctrl-`) or maximize.
+    Panel {
+        seq: u64,
+        op: String,
+    },
+    /// A click on palette row `index` (absolute): select it and accept.
+    Pick {
+        seq: u64,
+        index: usize,
     },
     /// The minimap: show window `win` from line `top`.
     Scroll {

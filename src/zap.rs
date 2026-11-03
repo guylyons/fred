@@ -39,10 +39,13 @@ pub(crate) struct Word {
     pub cells: Vec<(usize, usize, usize)>,
     /// The other window it's in; `None` for the editor's own.
     pub win: Option<usize>,
+    /// The GUI sidebar's visible row it's in (`Session::nav`), not text:
+    /// `cells` holds its character offset in the row's name.
+    pub nav: Option<usize>,
 }
 
-/// Where a jump goes: a window (`None`: this one) and a point.
-type Target = (Option<usize>, (usize, usize));
+/// Where a jump goes: a window (`None`: this one) and a point, or a sidebar row.
+type Target = (Option<usize>, (usize, usize), Option<usize>);
 
 /// Scan only the visible byte slice of each on-screen line. The same Layout
 /// and right-edge cut-marker rule as rendering determine that slice.
@@ -127,6 +130,7 @@ pub(crate) fn words(ed: &Editor, vp: Viewport) -> Vec<Word> {
                         })
                         .collect(),
                     win: None,
+                    nav: None,
                 });
             }
         }
@@ -240,7 +244,7 @@ impl Zap {
                 }
             })
             .collect();
-        (exact.len() == 1).then(|| (exact[0].win, exact[0].point))
+        (exact.len() == 1).then(|| (exact[0].win, exact[0].point, exact[0].nav))
     }
 }
 
@@ -279,7 +283,7 @@ pub(crate) fn key(ed: &mut Editor, k: Key) {
                 target = choices
                     .iter()
                     .find(|(_, label)| *label == prefix)
-                    .map(|(w, _)| (w.win, w.point));
+                    .map(|(w, _)| (w.win, w.point, w.nav));
                 zap.selecting = true;
                 zap.label_prefix = prefix;
             }
@@ -295,7 +299,11 @@ pub(crate) fn key(ed: &mut Editor, k: Key) {
 }
 
 /// Go to `target`; the session moves to another window.
-fn jump(ed: &mut Editor, (win, (line, byte)): Target) {
+fn jump(ed: &mut Editor, (win, (line, byte), nav): Target) {
+    if let Some(row) = nav {
+        ed.pending_effect = Some(ExEffect::ZapNav(row));
+        return;
+    }
     match win {
         None => ed.set_cursor(line, byte),
         Some(win) => ed.pending_effect = Some(ExEffect::ZapTo { win, line, byte }),

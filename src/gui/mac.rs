@@ -30,6 +30,32 @@ pub fn mac_key(s: &mut Session, key: char, shift: bool) {
     if !"szcxawf".contains(key) {
         return;
     }
+    // A picker or `:` line: Cmd-A, C and X work on its text, not the buffer.
+    let line = match &mut s.ed.mode {
+        Mode::Pick(p) if p.kind != crate::pick::Kind::MagitMenu => Some(&mut p.query),
+        Mode::Command(cl) => Some(cl),
+        _ => None,
+    };
+    if let Some(cl) = line {
+        match key {
+            'a' => {
+                cl.all = !cl.text.is_empty();
+                cl.cursor = cl.text.len();
+            }
+            'c' | 'x' => {
+                crate::clipboard::set(&crate::editor::Register {
+                    text: cl.text.clone(),
+                    ..Default::default()
+                });
+                if key == 'x' {
+                    cl.cursor = cl.text.len();
+                    keys(s, "<C-u>"); // through the picker, which searches again
+                }
+            }
+            _ => return,
+        }
+        return;
+    }
     let insert = s.ed.mode == Mode::Insert;
     let visual = matches!(s.ed.mode, Mode::Visual { .. } | Mode::VisualLine { .. });
     // Copy, cut and select-all type Visual keys, which Select would type over.
@@ -103,6 +129,31 @@ mod tests {
         )
         .unwrap();
         (s, d)
+    }
+
+    #[test]
+    fn cmd_a_in_a_picker_or_command_line_selects_its_text_not_the_buffer() {
+        let (mut s, _d) = open("one\ntwo\n");
+        s.handle_keys(":abc");
+        mac_key(&mut s, 'a', false);
+        s.handle_keys("x");
+        let Mode::Command(cl) = &s.ed.mode else {
+            panic!("left the command line")
+        };
+        assert_eq!(cl.text, "x");
+        s.handle_keys("<Esc><Space>pzz");
+        mac_key(&mut s, 'a', false);
+        s.handle_keys("<BS>q");
+        let Mode::Pick(p) = &s.ed.mode else {
+            panic!("left the picker")
+        };
+        assert_eq!(p.query.text, "q");
+        mac_key(&mut s, 'x', false);
+        let Mode::Pick(p) = &s.ed.mode else {
+            panic!("left the picker")
+        };
+        assert_eq!(p.query.text, "");
+        assert!(!s.ed.buf.modified);
     }
 
     #[test]

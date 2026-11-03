@@ -87,6 +87,13 @@ pub struct Typing {
     reply: crate::remote::Reply,
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct Panel {
+    pub win: Option<usize>,
+    pub buf: Option<usize>,
+    pub restore: Option<Vec<u16>>,
+}
+
 pub struct Session {
     pub ed: Editor,
     /// Claude typing (see `tick_typing`); your keys wait until it's done.
@@ -178,6 +185,13 @@ pub struct Session {
     pub hl_incomplete: bool,
     /// Run by the native Mac app: `:bn` and `:bp` follow the window's tabs.
     pub gui: bool,
+    /// The GUI palette's first shown picker row.
+    pub palette_top: usize,
+    /// The GUI's terminal panel, VS Code's: its window while shown, its
+    /// buffer while hidden, the sizes to restore while maximized.
+    pub panel: Panel,
+    /// The GUI sidebar's visible rows (name, path), for zap.
+    pub nav: Vec<(String, PathBuf)>,
     /// Each window's GUI chrome: rows for its tab strip and columns for
     /// its minimap. (0, 0) in the terminal.
     pub chrome: (u16, u16),
@@ -382,6 +396,7 @@ impl Session {
                 tabs: vec![0],
                 preview: None,
                 preview_mark: (0, false),
+                stand_in: None,
             }],
             tree: Node::Leaf(1),
             active: 1,
@@ -395,6 +410,9 @@ impl Session {
             hl: Highlighter::new("ansi", false)?,
             hl_incomplete: false,
             gui: false,
+            palette_top: 0,
+            panel: Panel::default(),
+            nav: vec![],
             chrome: (0, 0),
         };
         let dir = browse.clone().or_else(|| {
@@ -588,6 +606,11 @@ impl Session {
                 self.focus(win);
                 self.ed.set_cursor(line, byte);
             }
+            ExEffect::ZapNav(row) => {
+                if let Some((_, path)) = self.nav.get(row).cloned() {
+                    self.open_preview(&path, false);
+                }
+            }
             ExEffect::Close { .. } => self.close_active(),
             ExEffect::Only => self.only(),
             ExEffect::QuitAll { force, write } => {
@@ -609,6 +632,8 @@ impl Session {
             },
             ExEffect::Draw => crate::draw::toggle(&mut self.ed),
             ExEffect::Terminal { split } => match crate::shell::guard() {
+                // `Space t` in the GUI: VS Code's panel at the bottom.
+                Ok(()) if split && self.gui => self.show_panel(),
                 Ok(()) => self.terminal(split),
                 Err(e) => self.ed.set_err(e),
             },
@@ -1032,6 +1057,7 @@ impl Session {
             return;
         };
         if choice == SwapChoice::Cancel {
+            self.win_mut().stand_in = None;
             self.ed.set_msg(format!("still editing {}", self.name()));
             return;
         }
@@ -1092,6 +1118,11 @@ impl Session {
         if !w.tabs.contains(&i) {
             let at = w.tabs.iter().position(|&t| t == from);
             w.tabs.insert(at.map_or(w.tabs.len(), |a| a + 1), i);
+        }
+        if let Some(s) = w.stand_in.take() {
+            w.tabs.retain(|&t| t != s);
+            w.prev = w.prev.filter(|&p| p != s);
+            w.preview = w.preview.filter(|&p| p != s);
         }
     }
 

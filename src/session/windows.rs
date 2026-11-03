@@ -38,10 +38,20 @@ impl Session {
         let cur = self.ed.cur;
         let mut w = self.win().clone();
         w.id = id;
+        if self.gui {
+            // As VS Code: a new window starts with only the tab it splits off.
+            w.tabs = vec![w.buf];
+            w.preview = w.preview.filter(|&p| p == w.buf);
+            w.prev = None;
+        }
+        let from = w.buf;
         self.win_mut().cur = cur;
         self.windows.push(w);
         self.prev_win = Some(self.active);
         self.active = id;
+        if self.gui && !matches!(what, SplitWhat::Same) {
+            self.win_mut().stand_in = Some(from);
+        }
         match what {
             SplitWhat::Same => {}
             SplitWhat::File(p) => self.perform(ExEffect::Edit {
@@ -54,6 +64,10 @@ impl Session {
                 force: false,
             }),
             SplitWhat::Empty => self.new_buffer(),
+        }
+        // Opened, failed or `:vsplit` of itself: nothing will replace it.
+        if self.pending_edit.is_none() {
+            self.win_mut().stand_in = None;
         }
     }
 
@@ -297,6 +311,17 @@ impl Session {
             more.extend(crate::zap::words(ed, vp).into_iter().map(|mut x| {
                 x.win = Some(w.id);
                 x
+            }));
+        }
+        // The GUI sidebar's rows: each word of a name.
+        let word = regex::Regex::new(r"\w+").expect("valid");
+        for (i, (name, _)) in self.nav.iter().enumerate() {
+            more.extend(word.find_iter(name).map(|m| crate::zap::Word {
+                text: m.as_str().to_string(),
+                point: (0, 0),
+                cells: vec![(name[..m.start()].chars().count(), 0, 0)],
+                win: None,
+                nav: Some(i),
             }));
         }
         if let Some(z) = &mut self.ed.zap {

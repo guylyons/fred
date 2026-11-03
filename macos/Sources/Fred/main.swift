@@ -7,6 +7,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
     var core: Core!
     var view: EditorView!
     var sidebar: Sidebar!
+    var split: NSSplitViewController!
+    var activity: ActivityBar!
+    private var minimapItem: NSMenuItem!
 
     // MARK: - Menus
 
@@ -76,7 +79,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
                 item("Smaller", #selector(zoom(_:)), "-", tag: -1),
                 item("Actual Size", #selector(zoom(_:)), "0"),
                 .separator(),
-                item(view.showMinimap ? "Hide Minimap" : "Show Minimap", #selector(toggleMinimap(_:))),
+                item("Toggle Terminal", #selector(panel(_:)), "`", [.control]),
+                item("Maximize Terminal", #selector(panel(_:)), "~", [.control, .shift], tag: 1),
+                .separator(),
+                { minimapItem = item(view.showMinimap ? "Hide Minimap" : "Show Minimap", #selector(toggleMinimap), "m", [.command, .control]); return minimapItem }(),
             ]),
             windowMenu,
         ].forEach(bar.addItem)
@@ -124,10 +130,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         view.transmit { .paste(seq: $0, text: t) }
     }
 
-    @objc private func toggleMinimap(_ s: NSMenuItem) {
+    @objc private func toggleMinimap() {
         view.showMinimap.toggle()
         UserDefaults.standard.set(view.showMinimap, forKey: "FredMinimap")
-        s.title = view.showMinimap ? "Hide Minimap" : "Show Minimap"
+        minimapItem.title = view.showMinimap ? "Hide Minimap" : "Show Minimap"
+        activity.refresh()
+    }
+
+    /// VS Code's terminal panel: tag 0 toggles, 1 maximizes (or restores).
+    @objc private func panel(_ s: NSMenuItem) {
+        let op = s.tag == 1 ? "maximize" : "toggle"
+        view.transmit { .panel(seq: $0, op: op) }
+        window.makeFirstResponder(view)
+    }
+
+    /// An activity bar command: leader keys, from Normal mode.
+    private func run(_ keys: String) {
+        view.transmit { .keys(seq: $0, keys: "<Esc>" + keys) }
+        window.makeFirstResponder(view)
     }
 
     /// tag 1 bigger, -1 smaller, 0 actual size; 9–36 pt.
@@ -148,26 +168,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         core = Core(executable: exe, args: ["--gui", path.path], cwd: cwd)
 
         let view = EditorView(frame: NSRect(x: 0, y: 0, width: 900, height: 600))
+        self.view = view
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1140, height: 640),
                           styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                           backing: .buffered, defer: false)
         window.title = "Fred"
         window.delegate = self
         view.send = { [core] in core!.send($0) }
+        view.root = cwd.path
         view.showMinimap = UserDefaults.standard.object(forKey: "FredMinimap") as? Bool ?? true
         view.onResize = { [core] cols, rows, margin in core!.send(.resize(cols: cols, rows: rows, margin: margin)) }
         let sidebar = Sidebar(root: cwd)
+        sidebar.background = view.palette.bg.blended(withFraction: 0.12, of: .black)!
         sidebar.open = { url, preview in
             view.transmit { .open(seq: $0, path: url.path, preview: preview) }
             view.window?.makeFirstResponder(view)
         }
         view.reveal = { sidebar.revealInTree($0) }
+        sidebar.navChanged = { [core] rows in core!.send(.nav(rows: rows)) }
         sidebar.leave = { view.window?.makeFirstResponder(view) }
         self.sidebar = sidebar
         core.onFrame = { [window] f in
             view.apply(f)
             if window!.title != f.title { window!.title = f.title }
             sidebar.follow(f.windows.first(where: \.active)?.path)
+            sidebar.showZap(f.zap_nav ?? [])
         }
         core.onMinimap = { view.applyMinimap($0) }
         core.onExit = { [window] code, tail in
@@ -185,7 +210,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         bar.displayMode = .iconOnly
         window.toolbar = bar
         window.toolbarStyle = .unified
-        window.contentViewController = split(sidebar: sidebar, editor: view)
+        // The title strip shows the theme color under it, not tinted glass.
+        window.titlebarAppearsTransparent = true
+        let split = split(sidebar: sidebar, editor: view)
+        self.split = split
+        window.contentViewController = withActivityBar(split)
         window.setContentSize(NSSize(width: 1140, height: 640))
         window.makeFirstResponder(view)
         self.view = view
@@ -198,6 +227,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
             window.makeKeyAndOrderFront(nil)
             NSApp.activate()
         }
+    }
+
+    /// The activity bar at the window's left edge, then the sidebar and editor.
+    private func withActivityBar(_ split: NSSplitViewController) -> NSViewController {
+        let c = NSViewController()
+        // Solid like the sidebar: no wallpaper showing through.
+        let glass = EditorBackground()
+        glass.color = view.palette.bg.blended(withFraction: 0.12, of: .black)!
+        c.view = glass
+        c.addChild(split)
+        let bar = ActivityBar(top: [
+            .init(symbol: "doc.on.doc", tip: "Explorer (⌃⌘S)", run: { [unowned self] in self.split.toggleSidebar(nil) },
+                  on: { [unowned self] in !self.split.splitViewItems[0].isCollapsed }),
+            .init(symbol: "magnifyingglass", tip: "Grep (Space g)", run: { [unowned self] in self.run("<Space>g") }),
+            .init(symbol: "doc.text.magnifyingglass", tip: "Find a File (Space p)", run: { [unowned self] in self.run("<Space>p") }),
+            .init(symbol: "arrow.triangle.branch", tip: "Magit Status (Space m s)", run: { [unowned self] in self.run("<Space>ms") }),
+            .init(symbol: "folder", tip: "Dired This Directory (Space -)", run: { [unowned self] in self.run("<Space>-") }),
+            .init(symbol: "terminal", tip: "Toggle Terminal (⌃`); ⌃⇧` Maximize", run: { [unowned self] in
+                self.view.transmit { .panel(seq: $0, op: "toggle") }
+                self.window.makeFirstResponder(self.view)
+            }),
+            .init(symbol: "sparkles", tip: "Claude (Space c c)", run: { [unowned self] in self.run("<Space>cc") }),
+        ], bottom: [
+            .init(symbol: "map", tip: "Minimap (⌃⌘M)", run: { [unowned self] in self.toggleMinimap() },
+                  on: { [unowned self] in self.view.showMinimap }),
+            .init(symbol: "questionmark.circle", tip: "Help: Search Commands (Space h)", run: { [unowned self] in self.run("<Space>h") }),
+        ])
+        activity = bar
+        for v in [bar, split.view] { v.translatesAutoresizingMaskIntoConstraints = false; glass.addSubview(v) }
+        NSLayoutConstraint.activate([
+            bar.leadingAnchor.constraint(equalTo: glass.leadingAnchor),
+            bar.topAnchor.constraint(equalTo: glass.topAnchor), // under the traffic lights too: one shade
+            bar.bottomAnchor.constraint(equalTo: glass.bottomAnchor),
+            bar.widthAnchor.constraint(equalToConstant: 48),
+            split.view.leadingAnchor.constraint(equalTo: bar.trailingAnchor),
+            split.view.topAnchor.constraint(equalTo: glass.topAnchor),
+            split.view.bottomAnchor.constraint(equalTo: glass.bottomAnchor),
+            split.view.trailingAnchor.constraint(equalTo: glass.trailingAnchor),
+        ])
+        glass.frame = NSRect(x: 0, y: 0, width: 1140, height: 640)
+        return c
     }
 
     /// The folder sidebar (glass, width remembered) beside the editor.
@@ -231,7 +301,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
     }
 
     func toolbarDefaultItemIdentifiers(_ t: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.toggleSidebar, .sidebarTrackingSeparator]
+        [.sidebarTrackingSeparator] // the activity bar's Explorer button toggles the sidebar
     }
 
     /// Required, or AppKit drops the delegate; the system items need nothing from us.

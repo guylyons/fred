@@ -1,23 +1,20 @@
 import AppKit
 import FredKit
 
-/// Native status strip laid over a window's last cell row: a blur with the
-/// text view on top (a view's own drawing sits under its subviews, so the
-/// text can't be drawn by the view that holds the blur).
+/// Native status strip laid over a window's last cell row: a shade darker
+/// than the editor, with a hairline on top, so it reads apart from the text.
 final class StatusBar: NSView {
-    private let blur = NSVisualEffectView()
     private let content = StatusContent()
+    var editorBg: NSColor {
+        get { content.bg }
+        set { content.bg = newValue }
+    }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        blur.material = .titlebar
-        blur.blendingMode = .withinWindow
-        blur.state = .active
-        for v in [blur, content] {
-            v.frame = bounds
-            v.autoresizingMask = [.width, .height]
-            addSubview(v)
-        }
+        content.frame = bounds
+        content.autoresizingMask = [.width, .height]
+        addSubview(content)
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -32,8 +29,10 @@ final class StatusBar: NSView {
 
 private final class StatusContent: NSView {
     var status: Status?
+    var bg = NSColor.black
 
     override var isFlipped: Bool { true }
+    override var isOpaque: Bool { true }
 
     static func color(_ mode: String) -> NSColor {
         switch mode {
@@ -46,6 +45,10 @@ private final class StatusContent: NSView {
     }
 
     override func draw(_ dirty: NSRect) {
+        bg.blended(withFraction: 0.18, of: .black)!.setFill()
+        bounds.fill()
+        NSColor.black.withAlphaComponent(0.45).setFill()
+        NSRect(x: 0, y: 0, width: bounds.width, height: 1).fill()
         guard let s = status else { return }
         let mid = bounds.midY
         let badgeFont = NSFont.systemFont(ofSize: 11, weight: .semibold)
@@ -61,8 +64,36 @@ private final class StatusContent: NSView {
                                       attributes: [.font: font, .foregroundColor: NSColor.labelColor])
         name.draw(at: NSPoint(x: rect.maxX + 8, y: mid - name.size().height / 2))
 
-        let right = NSAttributedString(string: [s.branch, s.pos].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "  "),
-                                       attributes: [.font: font, .foregroundColor: NSColor.secondaryLabelColor])
-        right.draw(at: NSPoint(x: bounds.maxX - right.size().width - 8, y: mid - right.size().height / 2))
+        // VS Code's right side, right to left; what doesn't fit beside the name is left out.
+        let parts = s.pos.split(separator: ":")
+        let pos = parts.count == 2 ? "Ln \(parts[0]), Col \(parts[1])" : s.pos
+        let items: [(String?, String)] = [
+            (s.branch.map { _ in "arrow.triangle.branch" }, s.branch ?? ""),
+            (s.lang?.isEmpty == false ? "curlybraces" : nil, s.lang ?? ""),
+            (nil, s.eol ?? ""),
+            (nil, s.enc ?? ""),
+            (nil, s.indent ?? ""),
+            (nil, pos),
+        ].filter { !$0.1.isEmpty }
+        let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.secondaryLabelColor]
+        var x = bounds.maxX - 10
+        let floor = rect.maxX + 8 + name.size().width + 16
+        for (symbol, text) in items {
+            let t = NSAttributedString(string: text, attributes: attrs)
+            let img = symbol.flatMap { NSImage(systemSymbolName: $0, accessibilityDescription: nil) }?
+                .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 10, weight: .medium)
+                    .applying(.init(paletteColors: [.secondaryLabelColor])))
+            let iw = img.map { $0.size.width + 4 } ?? 0
+            let w = t.size().width + iw
+            guard x - w >= floor else { break }
+            x -= w
+            if let img {
+                let z = img.size
+                let r = NSRect(x: x, y: mid - z.height / 2, width: z.width, height: z.height)
+                img.draw(in: r, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+            }
+            t.draw(at: NSPoint(x: x + iw, y: mid - t.size().height / 2))
+            x -= 16
+        }
     }
 }

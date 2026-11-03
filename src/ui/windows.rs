@@ -18,7 +18,7 @@ pub fn draw_session(f: &mut Frame, s: &mut Session, cfg: &Config, budget: Durati
         return;
     }
     s.area = Rect {
-        height: area.height.saturating_sub(chrome_rows(&s.ed, area)),
+        height: area.height.saturating_sub(chrome_rows(&s.ed, area, cfg)),
         ..area
     };
     let start = Instant::now();

@@ -14,6 +14,11 @@ public struct Status: Codable, Equatable, Sendable {
     public var modified: Bool
     public var pos: String
     public var branch: String?
+    /// For the status bar; absent from an older core, empty lang for plain text.
+    public var lang: String?
+    public var indent: String?
+    public var eol: String?
+    public var enc: String?
 }
 
 public struct Win: Codable, Equatable, Sendable {
@@ -32,7 +37,7 @@ public struct Win: Codable, Equatable, Sendable {
     // Phase 2, all absent from an older core.
     /// The window id, for `tab` and `scroll`.
     public var id: Int?
-    /// Rows reserved at the top for the tab strip (0 or 1); `rows` start below them.
+    /// Rows reserved at the top for the tab strip and breadcrumbs; `rows` start below them.
     public var header: Int?
     /// Columns reserved at the right for the minimap.
     public var margin: Int?
@@ -86,6 +91,41 @@ public struct Frame: Codable, Sendable {
     public var windows: [Win]
     public var bottom: [[Run]]
     public var cursor: Cursor?
+    /// An open picker, drawn as a floating palette; absent otherwise.
+    public var palette: PickerFrame?
+    /// Zap's labels on the sidebar's rows (the last `nav` sent).
+    public var zap_nav: [NavLabel]?
+}
+
+/// A zap label on sidebar row `row`, at character `at` of its name.
+public struct NavLabel: Codable, Equatable, Sendable {
+    public var row: Int
+    public var at: Int
+    public var typed: Int
+    public var label: String
+}
+
+/// A picker: the query and rows `first..<first + rows.count` of `total`.
+public struct PickerFrame: Codable, Equatable, Sendable {
+    public var title: String
+    public var query: String
+    /// The caret, in characters.
+    public var caret: Int
+    /// Cmd-A selected the whole query; absent from an older core.
+    public var all: Bool?
+    public var rows: [PickerRow]
+    public var first: Int
+    public var total: Int
+    /// In `rows`; nil while the typed text itself is selected.
+    public var sel: Int?
+    public var status: String
+    public var files: Bool
+}
+
+public struct PickerRow: Codable, Equatable, Sendable {
+    public var text: String
+    /// Matched character ranges, [start, end).
+    public var hl: [[Int]]
 }
 
 /// A window's buffer in miniature: per line, `[col, len, color]` runs
@@ -127,9 +167,19 @@ public enum Outgoing {
     case mac(seq: Int, key: String, shift: Bool)
     /// `preview` is left out when false, its default.
     case open(seq: Int, path: String, preview: Bool)
+    /// A file dropped on window `target`'s `zone` (center or an edge).
+    case dropFile(seq: Int, path: String, target: Int, zone: String)
     /// `op`: select, close, move (to `to`) or keep.
     case tab(seq: Int, win: Int, op: String, index: Int, to: Int?)
+    /// A tab dragged out of window `win` onto window `target`'s `zone`.
+    case drop(seq: Int, win: Int, index: Int, target: Int, zone: String, to: Int)
     case scroll(seq: Int, win: Int, top: Int)
+    /// A click on picker row `index` (absolute).
+    case pick(seq: Int, index: Int)
+    /// The terminal panel: `op` toggle or maximize.
+    case panel(seq: Int, op: String)
+    /// The sidebar's visible rows (name, path), for zap.
+    case nav(rows: [(name: String, path: String)])
     case quit
 
     /// One JSON object plus "\n", fields in a fixed order.
@@ -146,9 +196,17 @@ public enum Outgoing {
         case .mouse(let s, let k, let c, let r): body = #""mouse","seq":\#(s),"kind":\#(q(k)),"col":\#(c),"row":\#(r)"#
         case .mac(let s, let k, let sh): body = #""mac","seq":\#(s),"key":\#(q(k)),"shift":\#(sh)"#
         case .open(let s, let p, let pv): body = #""open","seq":\#(s),"path":\#(q(p))"# + (pv ? #","preview":true"# : "")
+        case .dropFile(let s, let p, let tg, let z):
+            body = #""open","seq":\#(s),"path":\#(q(p)),"target":\#(tg),"zone":\#(q(z))"#
         case .tab(let s, let w, let op, let i, let to):
             body = #""tab","seq":\#(s),"win":\#(w),"op":\#(q(op)),"index":\#(i)"# + (to.map { #","to":\#($0)"# } ?? "")
+        case .drop(let s, let w, let i, let tg, let z, let to):
+            body = #""tab","seq":\#(s),"win":\#(w),"op":"drop","index":\#(i),"to":\#(to),"target":\#(tg),"zone":\#(q(z))"#
         case .scroll(let s, let w, let t): body = #""scroll","seq":\#(s),"win":\#(w),"top":\#(t)"#
+        case .pick(let s, let i): body = #""pick","seq":\#(s),"index":\#(i)"#
+        case .panel(let s, let op): body = #""panel","seq":\#(s),"op":\#(q(op))"#
+        case .nav(let rows):
+            body = #""nav","rows":["# + rows.map { #"{"name":\#(q($0.name)),"path":\#(q($0.path))}"# }.joined(separator: ",") + "]"
         case .quit: body = #""quit""#
         }
         return Data((#"{"t":"# + body + "}\n").utf8)

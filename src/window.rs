@@ -63,6 +63,10 @@ pub struct Window {
     /// The preview's text version when it opened, and whether that open
     /// created its buffer.
     pub preview_mark: (u64, bool),
+    /// A new split's borrowed tab: the next buffer it shows replaces it
+    /// (the GUI's `:vsplit file` or a dropped file, which may open later,
+    /// after a swap question).
+    pub stand_in: Option<usize>,
 }
 
 const E36: &str = "E36: Not enough room";
@@ -240,6 +244,43 @@ impl Node {
             kids: pair((Node::Leaf(target), rest), (Node::Leaf(new), n)),
         };
         Ok(())
+    }
+
+    /// The GUI's panel: `new` gets `n` rows across the whole bottom.
+    pub fn split_bottom(&mut self, area: Rect, new: usize, n: u16) -> Result<(), &'static str> {
+        self.fit(area);
+        if n < 2 || area.height < n + 2 {
+            return Err(E36);
+        }
+        let old = std::mem::replace(self, Node::Leaf(new));
+        *self = Node::Split {
+            dir: Dir::Col,
+            kids: vec![(old, area.height - n), (Node::Leaf(new), n)],
+        };
+        Ok(())
+    }
+
+    /// The top-level stacked sizes, when the bottom kid holds `id`: for
+    /// maximizing the panel and putting it back. Set with `set_sizes`.
+    pub fn bottom_sizes(&mut self, area: Rect, id: usize) -> Option<Vec<u16>> {
+        self.fit(area);
+        match self {
+            Node::Split {
+                dir: Dir::Col,
+                kids,
+            } if kids.last()?.0.order().contains(&id) => Some(kids.iter().map(|k| k.1).collect()),
+            _ => None,
+        }
+    }
+
+    pub fn set_sizes(&mut self, sizes: &[u16]) {
+        if let Node::Split { kids, .. } = self
+            && kids.len() == sizes.len()
+        {
+            for (k, &n) in kids.iter_mut().zip(sizes) {
+                k.1 = n;
+            }
+        }
     }
 
     pub fn close(&mut self, area: Rect, id: usize) -> Result<(), &'static str> {

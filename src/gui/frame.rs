@@ -18,7 +18,7 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
     app::drawn(s);
     let mut status = vec![];
     let cwd = std::env::current_dir().ok();
-    s.each_window(|ed, view, _, p, _| {
+    s.each_window(|ed, view, hl, p, _| {
         let name = render::term_title(ed).unwrap_or_else(|| match &ed.path {
             Some(path) => cwd
                 .as_deref()
@@ -41,6 +41,21 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
                 modified: ed.buf.modified,
                 pos: format!("{}:{col}", ed.cur.line + 1),
                 branch: ed.git.branch().map(|b| b.to_string()),
+                lang: Some(hl.syntax_name())
+                    .filter(|&n| n != "Plain Text")
+                    .unwrap_or_default()
+                    .to_string(),
+                indent: if ed.opts.bool(crate::options::Opt::Expandtab) {
+                    format!("Spaces: {}", ed.shiftwidth())
+                } else {
+                    format!("Tab Size: {}", ed.tabstop())
+                },
+                eol: match ed.buf.line_ending {
+                    crate::buffer::LineEnding::Lf => "LF",
+                    crate::buffer::LineEnding::CrLf => "CRLF",
+                }
+                .into(),
+                enc: format!("UTF-8{}", if ed.buf.bom { " with BOM" } else { "" }),
             },
         ));
     });
@@ -117,7 +132,75 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
         windows,
         bottom,
         cursor,
+        palette: palette(s),
+        zap_nav: zap_nav(s),
     }
+}
+
+fn zap_nav(s: &Session) -> Vec<proto::NavLabel> {
+    let Some(z) = &s.ed.zap else { return vec![] };
+    let typed = z.query.chars().count();
+    z.choices()
+        .into_iter()
+        .filter_map(|(w, label)| {
+            let row = w.nav?;
+            let rest = label.strip_prefix(z.label_prefix.as_str())?;
+            Some(proto::NavLabel {
+                row,
+                at: w.cells.first().map_or(0, |c| c.0),
+                typed,
+                label: rest.to_string(),
+            })
+        })
+        .collect()
+}
+
+/// Rows the app's palette shows at once.
+const PALETTE_ROWS: usize = 12;
+
+fn palette(s: &mut Session) -> Option<proto::Palette> {
+    let Mode::Pick(p) = &s.ed.mode else {
+        return None;
+    };
+    if p.kind == crate::pick::Kind::MagitMenu {
+        return None;
+    }
+    // Scrolled as little as keeps the selection in view.
+    let top = &mut s.palette_top;
+    *top = (*top).min(p.rows.len().saturating_sub(PALETTE_ROWS));
+    if p.sel < *top {
+        *top = p.sel;
+    } else if p.sel >= *top + PALETTE_ROWS {
+        *top = p.sel + 1 - PALETTE_ROWS;
+    }
+    let chars = |t: &str, b: usize| t[..b.min(t.len())].chars().count();
+    Some(proto::Palette {
+        title: p.prompt().to_string(),
+        query: p.query.text.clone(),
+        caret: chars(&p.query.text, p.query.cursor),
+        all: p.query.all,
+        rows: p.rows[*top..(*top + PALETTE_ROWS).min(p.rows.len())]
+            .iter()
+            .map(|r| proto::PaletteRow {
+                text: r.text.clone(),
+                hl: r
+                    .hl
+                    .iter()
+                    .map(|&(a, b)| (chars(&r.text, a), chars(&r.text, b)))
+                    .collect(),
+            })
+            .collect(),
+        first: *top,
+        total: p.rows.len(),
+        sel: (!p.prompt && p.sel >= *top)
+            .then(|| p.sel - *top)
+            .filter(|&i| i < PALETTE_ROWS),
+        status: p.status.clone(),
+        files: matches!(
+            p.kind,
+            crate::pick::Kind::Files | crate::pick::Kind::Browse | crate::pick::Kind::Recent
+        ),
+    })
 }
 
 /// A file's absolute path; none for no-name and special buffers.

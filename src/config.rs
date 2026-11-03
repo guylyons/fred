@@ -24,6 +24,9 @@ pub struct Config {
     pub autocomplete: bool,
     /// File-type icons in the file pickers (needs a Nerd Font).
     pub icons: bool,
+    /// The GUI draws pickers as its own floating palette: no bottom panel.
+    #[serde(skip)]
+    pub floating_picker: bool,
     /// Share yanks and puts with the system clipboard.
     pub clipboard: bool,
     /// What `:claude` runs for each prompt (on stdin), plus `--resume ID`.
@@ -79,6 +82,7 @@ impl Default for Config {
             tabstop: 8,
             autocomplete: true,
             icons: false,
+            floating_picker: false,
             clipboard: true,
             // --safe-mode skips your plugins, hooks, MCP servers and
             // CLAUDE.md: much faster, ~100x fewer tokens per call.

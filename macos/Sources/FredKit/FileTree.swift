@@ -37,6 +37,61 @@ public enum FileTree {
         return parts.map { at += "/" + $0; return at }
     }
 
+    /// Breadcrumbs for `path`: each component with its full path, relative
+    /// to `root` when under it, else from `/`.
+    public static func crumbs(_ path: String, root: String) -> [(name: String, path: String)] {
+        let base = root.hasSuffix("/") ? root : root + "/"
+        let under = path.hasPrefix(base)
+        var at = under ? String(base.dropLast()) : ""
+        return (under ? String(path.dropFirst(base.count)) : path).split(separator: "/").map {
+            at += "/" + $0
+            return (String($0), at)
+        }
+    }
+
+    /// A VS Code–style file-type badge: short text in the language's color
+    /// (0xRRGGBB); nil for types that use the plain symbol.
+    public static func badge(for name: String) -> (text: String, rgb: UInt32)? {
+        let lower = name.lowercased()
+        switch lower {
+        case "dockerfile": return ("🐳", 0x0DB7ED)
+        case "makefile", "justfile": return ("M", 0x6D8086)
+        case "cargo.toml", "cargo.lock": return ("RS", 0xDEA584)
+        case "package.json": return ("npm", 0xCB3837)
+        default: break
+        }
+        switch (lower as NSString).pathExtension {
+        case "rs": return ("RS", 0xDEA584)
+        case "php", "module", "install", "inc", "theme": return ("php", 0x8993BE)
+        case "js", "mjs", "cjs": return ("JS", 0xF1E05A)
+        case "jsx": return ("JSX", 0x61DAFB)
+        case "ts": return ("TS", 0x3178C6)
+        case "tsx": return ("TSX", 0x3178C6)
+        case "py": return ("PY", 0x3572A5)
+        case "rb": return ("RB", 0xCC342D)
+        case "go": return ("GO", 0x00ADD8)
+        case "c", "h": return ("C", 0x5E97D0)
+        case "cpp", "cc", "hpp": return ("C++", 0xF34B7D)
+        case "java": return ("J", 0xB07219)
+        case "kt": return ("KT", 0xA97BFF)
+        case "lua": return ("LUA", 0x6C7EF8)
+        case "sh", "bash", "zsh", "fish": return ("$", 0x89E051)
+        case "html", "htm": return ("<>", 0xE34C26)
+        case "twig": return ("{%", 0xBACF29)
+        case "css": return ("#", 0x563D7C)
+        case "scss", "sass": return ("#", 0xC6538C)
+        case "json": return ("{}", 0xCBCB41)
+        case "yaml", "yml": return ("Y", 0xCB171E)
+        case "toml": return ("T", 0x9C4221)
+        case "xml", "plist": return ("<>", 0x0060AC)
+        case "md", "markdown": return ("M↓", 0x519ABA)
+        case "org": return ("org", 0x77AA99)
+        case "sql": return ("SQL", 0xE38C00)
+        case "lock": return ("🔒", 0x8B949E)
+        default: return nil
+        }
+    }
+
     /// An SF Symbol for a row.
     public static func symbol(for name: String, isDir: Bool) -> String {
         if isDir { return "folder" }

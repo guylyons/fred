@@ -41,3 +41,34 @@ public func scrollLines(_ dy: CGFloat, precise: Bool, acc: inout CGFloat) -> Int
     acc -= CGFloat(n) * 3
     return n
 }
+
+/// The cursor's blink, VS Code's "smooth": solid for `hold` seconds after
+/// the last change, then a cosine fade out and in every `period` seconds.
+public enum Blink {
+    public static func alpha(_ t: Double, hold: Double = 0.6, period: Double = 1.1) -> CGFloat {
+        guard t > hold else { return 1 }
+        let p = (t - hold).truncatingRemainder(dividingBy: period) / period
+        return CGFloat(0.5 + 0.5 * cos(2 * .pi * p))
+    }
+}
+
+/// Chrome's overscroll: past an end the text follows the fingers with more
+/// and more resistance up to `limit` points, then springs back.
+public enum Rubber {
+    /// `offset` moved by scroll delta `d`; back toward 0 freely, stopping at 0.
+    public static func pull(_ offset: CGFloat, by d: CGFloat, limit: CGFloat = 140) -> CGFloat {
+        if offset != 0, (offset > 0) != (d > 0) {
+            let back = offset + d
+            return (back > 0) == (offset > 0) ? back : 0
+        }
+        let resist = max(0, 1 - abs(offset) / limit)
+        let next = offset + d * 0.5 * resist
+        return max(-limit, min(limit, next))
+    }
+
+    /// One 60 Hz step of the spring back; 0 once it's under half a point.
+    public static func settle(_ offset: CGFloat) -> CGFloat {
+        let next = offset * 0.8
+        return abs(next) < 0.5 ? 0 : next
+    }
+}

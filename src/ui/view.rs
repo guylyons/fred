@@ -67,9 +67,11 @@ impl View {
             } else {
                 self.top.saturating_sub(3)
             }
-            .min(ed.line_count().saturating_sub(rows));
+            // As VS Code and Vim's CTRL-E: down until the last line is at the top.
+            .min(ed.line_count().saturating_sub(1));
             self.top_row = 0;
-            self.reattach(ed, down && self.top == ed.line_count().saturating_sub(rows));
+            self.free_top = self.top > ed.line_count().saturating_sub(rows);
+            self.reattach(ed, down && self.top >= ed.line_count().saturating_sub(rows));
             return;
         }
         let rows_of = |l| {
@@ -104,9 +106,11 @@ impl View {
             top = up(top, 3, &rows_of);
         }
         let last = ed.folds.prev_visible(ed.line_count() - 1);
-        let max_top = up((last, rows_of(last) - 1), rows.saturating_sub(1), &rows_of);
-        (self.top, self.top_row) = top.min(max_top);
-        self.reattach(ed, down && (self.top, self.top_row) == max_top);
+        let end = up((last, rows_of(last) - 1), rows.saturating_sub(1), &rows_of);
+        // Past the end, as without wrapping: the last line can reach the top.
+        (self.top, self.top_row) = top.min((last, rows_of(last) - 1));
+        self.free_top = (self.top, self.top_row) > end;
+        self.reattach(ed, down && (self.top, self.top_row) >= end);
         if wrap {
             self.left = 0;
         }

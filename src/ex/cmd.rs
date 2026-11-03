@@ -109,6 +109,8 @@ pub enum ExEffect {
         line: usize,
         byte: usize,
     },
+    /// Zap picked a row of the GUI sidebar: open its file.
+    ZapNav(usize),
     /// A `CTRL-W` command (`:wincmd`), with its count.
     Window {
         cmd: char,

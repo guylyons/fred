@@ -1092,6 +1092,20 @@ fn mouse_scroll_and_click_use_screen_coordinates() {
 }
 
 #[test]
+fn the_wheel_scrolls_until_the_last_line_is_at_the_top() {
+    let e = editor(&"x\n".repeat(30), "");
+    let mut v = View::default();
+    for _ in 0..20 {
+        v.wheel(&e, 10, 80, false, true);
+    }
+    assert_eq!(v.top, e.line_count() - 1);
+    for _ in 0..20 {
+        v.wheel(&e, 10, 80, true, true);
+    }
+    assert_eq!((v.top, v.top_row), (e.line_count() - 1, 0));
+}
+
+#[test]
 fn splash_shows_actions_and_hotkeys() {
     let dir = tempfile::tempdir().unwrap();
     let recent = dir.path().join("recent");

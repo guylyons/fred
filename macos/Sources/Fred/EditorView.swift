@@ -20,7 +20,19 @@ final class EditorView: NSView {
     private var printed = 0
     private var statusBars: [StatusBar] = []
     private var tabStrips: [TabStrip] = []
+    private var crumbs: [Breadcrumbs] = []
+    private let picker = PaletteView(frame: .zero)
+    /// The cursor's blink: solid since this time (the last frame), then a smooth fade.
+    private var blinkFrom = CACurrentMediaTime()
+    private var blinkAlpha: CGFloat = 1
+    /// The project folder: breadcrumbs start below it.
+    var root = ""
     private var minimapViews: [MinimapView] = []
+    /// Where a dragged tab would land: a window, an edge half, or a strip gap.
+    private let dropHint = NSView()
+    private var hintShown = false
+    /// The dragged tab's name, following the pointer.
+    private let ghost = NSTextField(labelWithString: "")
     /// The rendered map per window id; `mapGen` and `mapPending` drop stale renders.
     private var maps: [Int: MapImage] = [:]
     private var mapGen = 0
@@ -32,6 +44,10 @@ final class EditorView: NSView {
     var send: (Outgoing) -> Void = { _ in }
     private var lastSeq = 0
     private var scrollAcc: CGFloat = 0
+    /// Chrome's rubber band: a window's text pulled past its first or last
+    /// line by `dy` points (down positive), springing back on release.
+    private var bounce: (win: Int, dy: CGFloat)?
+    private var spring: Timer?
 
     /// Sends the message `make` builds from the next seq; returns that seq.
     @discardableResult
@@ -67,6 +83,34 @@ final class EditorView: NSView {
         overlay.isHidden = true
         overlay.autoresizingMask = [.minXMargin, .maxYMargin]
         addSubview(overlay)
+        dropHint.wantsLayer = true
+        dropHint.layer?.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(0.18).cgColor
+        dropHint.layer?.borderColor = NSColor.controlAccentColor.withAlphaComponent(0.6).cgColor
+        dropHint.layer?.borderWidth = 1
+        dropHint.layer?.cornerRadius = 3
+        dropHint.isHidden = true
+        addSubview(dropHint)
+        registerForDraggedTypes([.fileURL])
+        ghost.font = .systemFont(ofSize: 12)
+        ghost.drawsBackground = true
+        ghost.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.9)
+        ghost.wantsLayer = true
+        ghost.layer?.cornerRadius = 4
+        ghost.isHidden = true
+        addSubview(ghost)
+        let blink = Timer(timeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.blinkTick() }
+        }
+        RunLoop.main.add(blink, forMode: .common)
+    }
+
+    /// Redraws just the cursor cell when its blink alpha changes; solid when the window isn't key.
+    private func blinkTick() {
+        let a = window?.isKeyWindow == true ? Blink.alpha(CACurrentMediaTime() - blinkFrom) : 1
+        guard abs(a - blinkAlpha) > 0.02 || (a != blinkAlpha && (a == 1 || a == 0)), let c = current?.cursor else { return }
+        blinkAlpha = a
+        let (l, r) = span(max(0, c.x - 1), 3)
+        setNeedsDisplay(NSRect(x: l, y: CGFloat(c.y) * cell.height, width: r - l, height: cell.height))
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -152,8 +196,50 @@ final class EditorView: NSView {
     override func rightMouseDown(with e: NSEvent) { mouse("right", e) }
 
     override func scrollWheel(with e: NSEvent) {
+        if rubberBand(e) { return }
         let n = scrollLines(e.scrollingDeltaY, precise: e.hasPreciseScrollingDeltas, acc: &scrollAcc)
         for _ in 0..<abs(n) { mouse(n > 0 ? "scroll_up" : "scroll_down", e) }
+    }
+
+    /// A trackpad scroll past either end stretches that window instead; true when it took the event.
+    private func rubberBand(_ e: NSEvent) -> Bool {
+        let d = e.scrollingDeltaY
+        let released = e.phase == .ended || e.phase == .cancelled
+        if spring != nil, !e.momentumPhase.isEmpty { return true } // momentum into an edge already sprang back
+        guard e.hasPreciseScrollingDeltas, let f = current else { return false }
+        let (c, r) = cellAt(e)
+        guard let w = f.windows.first(where: { c >= $0.x && c < $0.x + $0.w && r >= $0.y && r < $0.y + $0.h }),
+              let id = w.id, let top = w.top, let lines = w.lines else { return false }
+        let over = bounce?.win == id ? bounce!.dy : 0
+        let atTop = top == 0 && d > 0, atEnd = top >= lines - 1 && d < 0
+        guard over != 0 || atTop || atEnd || (released && bounce != nil) else { return false }
+        spring?.invalidate()
+        spring = nil
+        let dy = Rubber.pull(over, by: d)
+        bounce = dy == 0 ? nil : (id, dy)
+        redrawText(w)
+        if released || e.momentumPhase == .ended || !e.momentumPhase.isEmpty { springBack() }
+        return true
+    }
+
+    private func springBack() {
+        guard bounce != nil, spring == nil else { return }
+        let t = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, let b = self.bounce else { return }
+                let dy = Rubber.settle(b.dy)
+                self.bounce = dy == 0 ? nil : (b.win, dy)
+                if let w = self.current?.windows.first(where: { $0.id == b.win }) { self.redrawText(w) }
+                if dy == 0 { self.spring?.invalidate(); self.spring = nil }
+            }
+        }
+        spring = t
+        RunLoop.main.add(t, forMode: .common)
+    }
+
+    private func redrawText(_ w: Win) {
+        let (l, r) = span(w.x, w.w)
+        setNeedsDisplay(NSRect(x: l, y: CGFloat(textY(w)) * cell.height, width: r - l, height: CGFloat(w.rows.count) * cell.height))
     }
 
     // MARK: - Frames
@@ -161,9 +247,12 @@ final class EditorView: NSView {
     func apply(_ f: Frame) {
         let old = current
         current = f
+        blinkFrom = CACurrentMediaTime()
+        blinkAlpha = 1
         layoutStatusBars(f)
         layoutTabStrips(f)
         layoutMinimaps(f)
+        layoutPicker(f, was: old?.palette != nil)
         defer { if !needsDisplay { frameShown(f) } } // nothing to draw: the echo is already on screen
         guard let old, old.cols == f.cols, old.rows == f.rows, old.windows.count == f.windows.count,
               zip(old.windows, f.windows).allSatisfy({ sameRect($0, $1) })
@@ -195,6 +284,7 @@ final class EditorView: NSView {
     private func layoutStatusBars(_ f: Frame) {
         while statusBars.count < f.windows.count {
             let b = StatusBar(frame: .zero)
+            b.editorBg = palette.bg
             addSubview(b, positioned: .below, relativeTo: overlay)
             statusBars.append(b)
         }
@@ -216,19 +306,164 @@ final class EditorView: NSView {
             s.reveal = { [weak self] in self?.reveal($0) }
             addSubview(s, positioned: .below, relativeTo: overlay)
             tabStrips.append(s)
+            let c = Breadcrumbs(frame: .zero)
+            c.editorBg = palette.bg
+            c.reveal = { [weak self] in self?.reveal($0) }
+            addSubview(c, positioned: .below, relativeTo: overlay)
+            crumbs.append(c)
         }
         for (i, s) in tabStrips.enumerated() {
             guard i < f.windows.count, case let w = f.windows[i], let id = w.id, let tabs = w.tabs, (w.header ?? 0) > 0 else {
                 s.isHidden = true
+                crumbs[i].isHidden = true
                 continue
             }
             let (l, r) = span(w.x, w.w - (w.divider ? 1 : 0))
-            let f = NSRect(x: l, y: CGFloat(w.y) * cell.height, width: r - l, height: CGFloat(w.header!) * cell.height)
+            // The last header row is the breadcrumbs' (an older core's single row is all tabs).
+            let crumbRows = w.header! >= 3 ? 1 : 0
+            let y = CGFloat(w.y) * cell.height, th = CGFloat(w.header! - crumbRows) * cell.height
+            let f = NSRect(x: l, y: y, width: r - l, height: th)
             if s.frame != f { s.frame = f }
             s.isHidden = false
+            let c = crumbs[i]
+            c.isHidden = crumbRows == 0
+            let cf = NSRect(x: l, y: y + th, width: r - l, height: CGFloat(crumbRows) * cell.height)
+            if c.frame != cf { c.frame = cf }
+            c.open = { [weak self] p in self?.transmit { .dropFile(seq: $0, path: p, target: id, zone: "center") } }
+            c.update(path: w.path, root: root)
             s.op = { [weak self] op, index, to in self?.transmit { .tab(seq: $0, win: id, op: op, index: index, to: to) } }
+            s.dragOut = { [weak self] index, p in
+                guard let self else { return }
+                let at = p.map { self.convert($0, from: nil) }
+                self.showDrop(from: id, at)
+                self.ghost.isHidden = at == nil
+                if let at, index < tabs.count {
+                    self.ghost.stringValue = "  \(tabs[index].name)  "
+                    self.ghost.sizeToFit()
+                    self.ghost.frame.origin = NSPoint(x: at.x + 12, y: at.y + 8)
+                }
+            }
+            s.dropOut = { [weak self] index, p in
+                guard let self, let d = self.dropTarget(from: id, self.convert(p, from: nil)) else { return }
+                self.transmit { .drop(seq: $0, win: id, index: index, target: d.win, zone: d.zone, to: d.to) }
+            }
             s.update(tabs, active: w.active)
         }
+    }
+
+    /// The palette floats at the top center of the editor, fading in when a picker opens.
+    private func layoutPicker(_ f: Frame, was: Bool) {
+        guard let p = f.palette else {
+            if was {
+                NSAnimationContext.runAnimationGroup({ $0.duration = 0.08; picker.animator().alphaValue = 0 },
+                                                     completionHandler: { [picker] in MainActor.assumeIsolated { if picker.alphaValue == 0 { picker.isHidden = true } } })
+                if let c = f.cursor { setNeedsDisplay(rowRect(c.y)) }
+            }
+            return
+        }
+        if picker.superview == nil {
+            picker.editorBg = palette.bg
+            picker.pick = { [weak self] i in self?.transmit { .pick(seq: $0, index: i) } }
+            addSubview(picker)
+        }
+        let w = min(640, bounds.width - 40)
+        let top = CGFloat(f.windows.map(\.y).min() ?? 0) * cell.height + 6
+        picker.frame = NSRect(x: (bounds.width - w) / 2, y: top, width: w, height: PaletteView.height(p))
+        picker.update(p)
+        if !was {
+            if let c = f.cursor { setNeedsDisplay(rowRect(c.y)) }
+            picker.isHidden = false
+            picker.alphaValue = 0
+            NSAnimationContext.runAnimationGroup { $0.duration = 0.1; picker.animator().alphaValue = 1 }
+        }
+    }
+
+    // MARK: - Tab drag and drop
+
+    private struct Drop { var win: Int; var zone: String; var to: Int; var hint: NSRect }
+
+    /// Where a tab from window `from` dropped at `p` (view coordinates)
+    /// goes, as VS Code: a tab strip inserts at its gap; an editor's middle
+    /// moves it there, a third from an edge splits that way. Nil where it
+    /// would change nothing.
+    private func dropTarget(from: Int, _ p: NSPoint) -> Drop? {
+        guard let f = current else { return nil }
+        for (i, w) in f.windows.enumerated() {
+            guard let id = w.id, let tabs = w.tabs else { continue }
+            let (l, r) = span(w.x, w.w - (w.divider ? 1 : 0))
+            let header = CGFloat(w.header ?? 0) * cell.height
+            let full = NSRect(x: l, y: CGFloat(w.y) * cell.height, width: r - l, height: CGFloat(w.h - 1) * cell.height)
+            guard full.contains(p) else { continue }
+            if p.y < full.minY + header, i < tabStrips.count {
+                let strip = tabStrips[i], gap = strip.slot(atX: p.x - strip.frame.minX)
+                return Drop(win: id, zone: "center", to: gap.index,
+                            hint: NSRect(x: strip.frame.minX + gap.x - 1, y: full.minY, width: 2, height: header))
+            }
+            let body = NSRect(x: full.minX, y: full.minY + header, width: full.width, height: full.height - header)
+            let z = TabMath.dropZone(p, in: body)
+            if id == from && (z.zone == "center" || tabs.count < 2) { return nil }
+            return Drop(win: id, zone: z.zone, to: tabs.count, hint: z.hint)
+        }
+        return nil
+    }
+
+    /// The drop hint for a drag at `p` (view coordinates); nil fades it
+    /// out. As VS Code's, it fades in and slides between zones.
+    private func showDrop(from: Int, _ p: NSPoint?) {
+        guard let p, let d = dropTarget(from: from, p) else {
+            guard !dropHint.isHidden, hintShown else { return }
+            hintShown = false
+            NSAnimationContext.runAnimationGroup({ c in
+                c.duration = 0.1
+                dropHint.animator().alphaValue = 0
+            }, completionHandler: { [weak self] in
+                MainActor.assumeIsolated { if self?.hintShown == false { self?.dropHint.isHidden = true } }
+            })
+            return
+        }
+        if !hintShown {
+            hintShown = true
+            if dropHint.isHidden || dropHint.alphaValue == 0 { dropHint.frame = d.hint }
+            dropHint.isHidden = false
+            NSAnimationContext.runAnimationGroup { c in
+                c.duration = 0.1
+                dropHint.animator().alphaValue = 1
+                dropHint.animator().frame = d.hint
+            }
+        } else if dropHint.frame != d.hint {
+            NSAnimationContext.runAnimationGroup { c in
+                c.duration = 0.15
+                c.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                dropHint.animator().frame = d.hint
+            }
+        }
+    }
+
+    /// Files and folders (as dired) dragged in from the sidebar or Finder: any window, any zone.
+    private func fileURLs(_ s: NSDraggingInfo) -> [URL] {
+        s.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
+    }
+
+    override func draggingEntered(_ s: NSDraggingInfo) -> NSDragOperation { draggingUpdated(s) }
+
+    override func draggingUpdated(_ s: NSDraggingInfo) -> NSDragOperation {
+        guard !fileURLs(s).isEmpty else { return [] }
+        let p = convert(s.draggingLocation, from: nil)
+        showDrop(from: -1, p)
+        return dropTarget(from: -1, p) == nil ? [] : .copy
+    }
+
+    override func draggingExited(_ s: NSDraggingInfo?) { showDrop(from: -1, nil) }
+
+    override func performDragOperation(_ s: NSDraggingInfo) -> Bool {
+        showDrop(from: -1, nil)
+        let urls = fileURLs(s)
+        guard let first = urls.first, let d = dropTarget(from: -1, convert(s.draggingLocation, from: nil)) else { return false }
+        transmit { .dropFile(seq: $0, path: first.path, target: d.win, zone: d.zone) }
+        // The rest join the window the first landed in, now the active one.
+        for u in urls.dropFirst() { transmit { .open(seq: $0, path: u.path, preview: false) } }
+        window?.makeFirstResponder(self)
+        return true
     }
 
     /// Every message renders: the core sends one only on a change, and
@@ -323,10 +558,28 @@ final class EditorView: NSView {
         ctx.textMatrix = CGAffineTransform(scaleX: 1, y: -1)
         for w in f.windows {
             let y = textY(w)
-            let dirty = w.rows.indices.filter { needsToDraw(rowRect(y + $0)) }
+            // A stretched window: all its rows move, clipped to its text.
+            let stretch = bounce.flatMap { $0.win == w.id ? $0.dy : nil }
+            if let dy = stretch {
+                ctx.saveGState()
+                let (l, r) = span(w.x, w.w - (w.divider ? 1 : 0))
+                ctx.clip(to: CGRect(x: l, y: CGFloat(y) * cell.height, width: r - l, height: CGFloat(w.rows.count) * cell.height))
+                ctx.translateBy(x: 0, y: dy)
+            }
+            let dirty = stretch != nil ? Array(w.rows.indices) : w.rows.indices.filter { needsToDraw(rowRect(y + $0)) }
+            // VS Code's current line: a faint band in the active window, without a selection.
+            if w.active, w.sel?.isEmpty ?? true, let c = f.cursor, case let r = c.y - y, dirty.contains(r) {
+                let (l, rr) = span(w.x, w.w - (w.divider ? 1 : 0))
+                ctx.setFillColor(palette.fg.withAlphaComponent(0.045).cgColor)
+                ctx.fill(CGRect(x: l, y: CGFloat(c.y) * cell.height, width: rr - l, height: cell.height))
+            }
             for r in dirty { drawBackgrounds(ctx, w.rows[r], col: w.x, row: y + r) }
             if let sel = w.sel, !sel.isEmpty { drawSelection(ctx, sel, w) }
             for r in dirty { drawText(ctx, w.rows[r], col: w.x, row: y + r) }
+            if stretch != nil {
+                if w.active, f.palette == nil, let c = f.cursor, c.y >= y, c.y < y + w.rows.count { drawCursor(ctx, c, f) }
+                ctx.restoreGState()
+            }
             if w.divider {
                 let x = snap((CGFloat(w.x + w.w - 1) + 0.5) * cell.width, scale: scale)
                 ctx.setFillColor(NSColor.separatorColor.cgColor)
@@ -339,7 +592,13 @@ final class EditorView: NSView {
             drawBackgrounds(ctx, runs, col: 0, row: top + r)
             drawText(ctx, runs, col: 0, row: top + r)
         }
-        if let c = f.cursor, needsToDraw(rowRect(c.y)) { drawCursor(ctx, c, f) }
+        // With the palette open, its own caret is the cursor.
+        // A stretched window drew its own cursor.
+        var stretched = false
+        if let b = bounce, let w = f.windows.first(where: { $0.id == b.win }), let c = f.cursor {
+            stretched = c.y >= textY(w) && c.y < textY(w) + w.rows.count
+        }
+        if f.palette == nil, !stretched, let c = f.cursor, needsToDraw(rowRect(c.y)) { drawCursor(ctx, c, f) }
         frameShown(f)
     }
 
@@ -440,6 +699,9 @@ final class EditorView: NSView {
     }
 
     private func drawCursor(_ ctx: CGContext, _ c: Cursor, _ f: Frame) {
+        ctx.saveGState()
+        defer { ctx.restoreGState() }
+        ctx.setAlpha(blinkAlpha)
         let under = character(at: c.x, c.y, f)
         let (l, r) = span(under?.col ?? c.x, under?.width ?? 1)
         let y = CGFloat(c.y) * cell.height

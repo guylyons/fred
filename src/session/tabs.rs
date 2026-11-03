@@ -89,6 +89,88 @@ impl Session {
         Ok(())
     }
 
+    /// A tab dragged out of its strip and dropped on window `target`: on
+    /// its `center` (body or tab strip) it moves there as tab `to`; on an
+    /// edge (`left`, `right`, `top`, `bottom`) that window splits and the
+    /// new one holds just this tab. It leaves `win` (closing it if it was
+    /// the last tab) and the window it lands in becomes active.
+    pub fn drop_tab(
+        &mut self,
+        win: usize,
+        index: usize,
+        target: usize,
+        zone: &str,
+        to: usize,
+    ) -> Result<(), String> {
+        let b = self.tab(win, index)?;
+        if !self.windows.iter().any(|w| w.id == target) {
+            return Err(NO_TAB.into());
+        }
+        let alone = self.window(win).tabs.len() == 1;
+        let split = split_of(zone)?;
+        if split.is_none() && target == win {
+            return self.move_tab(win, index, to);
+        }
+        // Splitting a window off its own only tab would change nothing.
+        if split.is_some() && target == win && alone {
+            return Ok(());
+        }
+        self.focus(target);
+        if let Some((vertical, after)) = split {
+            let before = self.windows.len();
+            self.split_at(vertical, after, crate::ex::SplitWhat::Same, None);
+            if self.windows.len() == before {
+                return Ok(()); // E36: no room; split_at said so
+            }
+        }
+        self.show(b);
+        let w = self.win_mut();
+        w.preview = w.preview.filter(|&p| p != b);
+        if split.is_some() {
+            w.tabs = vec![b];
+            w.prev = None;
+        } else {
+            w.tabs.retain(|&t| t != b);
+            w.tabs.insert(to.min(w.tabs.len()), b);
+            w.prev = w.prev.filter(|&p| p != b);
+        }
+        let landed = self.active;
+        let from = self.windows.iter().find(|w| w.id == win).expect("source");
+        let at = from.tabs.iter().position(|&t| t == b).expect("dragged tab");
+        self.close_tab(win, at)?;
+        self.focus(landed);
+        self.check_tabs();
+        Ok(())
+    }
+
+    /// A file (from the sidebar or Finder) dropped on window `target`'s
+    /// `zone`: `center` opens it there as a tab; an edge splits that window
+    /// and the new one holds just this file.
+    pub fn drop_file(&mut self, path: &Path, target: usize, zone: &str) -> Result<(), String> {
+        if !self.windows.iter().any(|w| w.id == target) {
+            return Err(NO_TAB.into());
+        }
+        let split = split_of(zone)?;
+        self.focus(target);
+        if let Some((vertical, after)) = split {
+            let before = self.windows.len();
+            self.split_at(vertical, after, crate::ex::SplitWhat::Same, None);
+            if self.windows.len() == before {
+                return Ok(()); // E36: no room; split_at said so
+            }
+        }
+        if split.is_some() {
+            let cur = self.cur;
+            self.win_mut().stand_in = Some(cur);
+        }
+        self.open_preview(path, false);
+        if self.pending_edit.is_none() {
+            self.win_mut().stand_in = None;
+        }
+        self.check_tabs();
+        Ok(())
+    }
+
     /// A double-click on a preview tab: it stays.
     pub fn keep_tab(&mut self, win: usize, index: usize) -> Result<(), String> {
         let b = self.tab(win, index)?;
@@ -175,6 +257,18 @@ impl Session {
             );
         }
     }
+}
+
+/// A drop zone as a split: (vertical, after), or None for `center`.
+fn split_of(zone: &str) -> Result<Option<(bool, bool)>, String> {
+    Ok(match zone {
+        "center" => None,
+        "left" => Some((true, false)),
+        "right" => Some((true, true)),
+        "top" => Some((false, false)),
+        "bottom" => Some((false, true)),
+        _ => return Err(format!("unknown drop zone {zone:?}")),
+    })
 }
 
 #[cfg(test)]
@@ -481,6 +575,180 @@ mod tests {
         assert_eq!(t.tabs(), ["a", "b", "c"]);
         assert_eq!(t.s.move_tab(id, 3, 0), Err("no such tab".into()));
         assert_eq!(t.current(), "c");
+        t.s.check_tabs();
+    }
+
+    #[test]
+    fn a_gui_split_starts_with_only_the_split_off_tab() {
+        let mut t = T::new(&["a", "b", "c"]);
+        t.s.gui = true;
+        t.e("b");
+        t.e("c");
+        let first = t.id();
+        t.keys(":vsplit<Enter>");
+        assert_eq!(t.tabs(), ["c"]);
+        // `:vsplit file` holds just that file.
+        let p = t.path("a");
+        t.keys(&format!(":vsplit {}<Enter>", p.display()));
+        assert_eq!(t.tabs(), ["a"]);
+        t.s.focus(first);
+        assert_eq!(t.tabs(), ["a", "b", "c"]);
+        t.s.check_tabs();
+    }
+
+    #[test]
+    fn dropping_a_tab_moves_it_or_splits_it_off() {
+        let mut t = T::new(&["a", "b", "c"]);
+        t.s.gui = true;
+        t.e("b");
+        t.e("c");
+        let left = t.id();
+        // Tab b onto its own window's right edge: a new window with b.
+        t.s.drop_tab(left, 1, left, "right", 0).unwrap();
+        let right = t.id();
+        assert_ne!(right, left);
+        assert_eq!((t.tabs(), t.current()), (vec!["b".to_string()], "b".into()));
+        t.s.focus(left);
+        assert_eq!(t.tabs(), ["a", "c"]);
+        // Tab a into the right window's strip, first: it moves there.
+        t.s.drop_tab(left, 0, right, "center", 0).unwrap();
+        assert_eq!(t.id(), right);
+        assert_eq!(t.tabs(), ["a", "b"]);
+        assert_eq!(t.current(), "a");
+        // Its last tab dragged away, the left window closes.
+        t.s.drop_tab(left, 0, right, "center", 9).unwrap();
+        assert_eq!(t.s.windows.len(), 1);
+        assert_eq!(t.tabs(), ["a", "b", "c"]);
+        // A lone tab onto its own edge changes nothing.
+        let one = T::new(&["a"]);
+        let mut one = one;
+        let id = one.id();
+        one.s.gui = true;
+        one.s.drop_tab(id, 0, id, "left", 0).unwrap();
+        assert_eq!(one.s.windows.len(), 1);
+        t.s.check_tabs();
+    }
+
+    #[test]
+    fn a_gui_grid_gives_each_new_window_only_the_current_tab() {
+        let mut t = T::new(&["a", "b", "c"]);
+        t.s.gui = true;
+        t.e("b");
+        t.e("c");
+        t.s.grid(4);
+        assert_eq!(t.s.windows.len(), 4);
+        let ids: Vec<usize> = t.s.windows.iter().map(|w| w.id).collect();
+        let tabs: Vec<Vec<String>> = ids
+            .iter()
+            .map(|&id| {
+                t.s.focus(id);
+                t.tabs()
+            })
+            .collect();
+        // The first keeps its tabs; the three new ones hold just c.
+        assert_eq!(tabs.iter().filter(|t| t.len() == 3).count(), 1);
+        assert_eq!(tabs.iter().filter(|t| *t == &["c"]).count(), 3);
+        t.s.check_tabs();
+    }
+
+    #[test]
+    fn dropping_a_file_opens_it_there_or_splits_it_off() {
+        let mut t = T::new(&["a", "b", "c"]);
+        t.s.gui = true;
+        let first = t.id();
+        t.s.drop_file(&t.path("b"), first, "right").unwrap();
+        assert_ne!(t.id(), first);
+        assert_eq!((t.tabs(), t.current()), (vec!["b".to_string()], "b".into()));
+        t.s.drop_file(&t.path("c"), first, "center").unwrap();
+        assert_eq!(t.id(), first);
+        assert_eq!(t.tabs(), ["a", "c"]);
+        assert_eq!(t.preview(), None);
+        assert!(t.s.drop_file(&t.path("c"), first, "middle").is_err());
+        t.s.check_tabs();
+    }
+
+    #[test]
+    fn the_terminal_panel_spans_the_bottom_hides_and_maximizes() {
+        let mut t = T::new(&["a"]);
+        t.s.gui = true;
+        t.s.area = ratatui::layout::Rect::new(0, 0, 80, 30);
+        t.keys(":vsplit<Enter>");
+        t.s.show_panel();
+        if !cfg!(feature = "ghostty") {
+            // No terminal in this build: no panel either, and nothing left behind.
+            assert_eq!((t.s.windows.len(), t.s.panel.win), (2, None));
+            return t.s.check_tabs();
+        }
+        let panel = t.id();
+        let placed = t.s.placed();
+        let p = placed.iter().find(|p| p.id == panel).unwrap();
+        assert_eq!(
+            (p.rect.x, p.rect.width, p.rect.bottom()),
+            (0, 80, 30),
+            "full width, at the bottom"
+        );
+        assert!(t.s.ed.term.is_some());
+        let shell = t.s.cur;
+        // Toggled while focused: hidden, its shell kept.
+        t.s.toggle_panel();
+        assert_eq!(t.s.windows.len(), 2);
+        assert_eq!(t.s.panel.buf, Some(shell));
+        t.s.toggle_panel();
+        assert_eq!(
+            (t.s.windows.len(), t.s.cur),
+            (3, shell),
+            "the same shell comes back"
+        );
+        let panel = t.id();
+        t.s.maximize_panel();
+        assert_eq!(
+            t.s.placed().iter().map(|p| p.id).collect::<Vec<_>>(),
+            [panel]
+        );
+        t.s.maximize_panel();
+        assert_eq!(t.s.placed().len(), 3);
+        t.s.check_tabs();
+    }
+
+    #[test]
+    fn a_dropped_folder_opens_dired_there() {
+        let mut t = T::new(&["a"]);
+        t.s.gui = true;
+        fs::create_dir(t.dir.path().join("sub")).unwrap();
+        let first = t.id();
+        t.s.drop_file(&t.dir.path().join("sub"), first, "right")
+            .unwrap();
+        assert_ne!(t.id(), first);
+        assert_eq!(t.s.win().tabs.len(), 1);
+        assert!(t.s.ed.dired.is_some(), "{}", t.current());
+        t.s.check_tabs();
+    }
+
+    #[test]
+    fn a_dropped_file_behind_a_swap_question_still_replaces_the_stand_in() {
+        let mut t = T::new(&["a", "b"]);
+        t.s.gui = true;
+        // Another (dead) fred's swap file for b: opening it asks first.
+        let b = t.path("b");
+        let sp = crate::swap::swap_path_in(&t.dir.path().join("swap"), Some(&b));
+        crate::swap::write(
+            &sp,
+            Some(&b),
+            &crate::buffer::Buffer::from_text("b recovered\n").snapshot(),
+        )
+        .unwrap();
+        let text = fs::read_to_string(&sp).unwrap().replacen(
+            &format!("\"pid\":{}", std::process::id()),
+            "\"pid\":999999",
+            1,
+        );
+        fs::write(&sp, text).unwrap();
+        let first = t.id();
+        t.s.drop_file(&b, first, "right").unwrap();
+        assert!(t.s.pending_edit.is_some());
+        assert_eq!(t.tabs(), ["a"]);
+        t.s.resolve_edit(crate::session::SwapChoice::ReadOnly);
+        assert_eq!(t.tabs(), ["b"]);
         t.s.check_tabs();
     }
 }

@@ -1,7 +1,7 @@
 //! Terminal buffers (`:terminal`, `Space t`): a Ghostty terminal in a
 //! window, like any other buffer.
 
-use super::{Parked, Session, SwapState, make_editor};
+use super::{Panel, Parked, Session, SwapState, make_editor};
 use crate::buffer::Buffer;
 use crate::editor::Mode;
 use crate::ex::{BufCmd, ExEffect, SplitWhat};
@@ -53,6 +53,117 @@ impl Session {
         self.ed.mode = Mode::Insert;
     }
 
+    /// The GUI's terminal panel, shown and focused: a full-width window
+    /// across the bottom, a third of the height, with the hidden panel's
+    /// shell if it is still running, else a new one.
+    pub fn show_panel(&mut self) {
+        if let Some(w) = self
+            .panel
+            .win
+            .filter(|w| self.windows.iter().any(|x| x.id == *w))
+        {
+            self.focus(w);
+            if self.ed.term.is_some() {
+                self.ed.mode = Mode::Insert;
+            }
+            return;
+        }
+        let hidden = self.panel_buf();
+        let id = self.next_win_id;
+        let n = (self.area.height / 3).max(6);
+        if let Err(e) = self.tree.split_bottom(self.area, id, n) {
+            return self.ed.set_err(e);
+        }
+        self.next_win_id += 1;
+        let mut w = self.win().clone();
+        let from = w.buf;
+        w.id = id;
+        w.tabs = vec![from];
+        w.preview = None;
+        w.prev = None;
+        w.stand_in = Some(from); // the terminal's tab replaces it
+        let cur = self.ed.cur;
+        self.win_mut().cur = cur;
+        self.windows.push(w);
+        self.prev_win = Some(self.active);
+        self.active = id;
+        self.panel = Panel {
+            win: Some(id),
+            ..Panel::default()
+        };
+        match hidden {
+            Some(b) => {
+                self.show(b);
+                self.ed.mode = Mode::Insert;
+            }
+            None => self.terminal(false),
+        }
+        self.win_mut().stand_in = None;
+        if self.ed.term.is_none() {
+            // No shell: no panel.
+            self.panel.win = None;
+            self.close_active();
+        }
+    }
+
+    /// The hidden panel's terminal, if its shell is still there.
+    fn panel_buf(&self) -> Option<usize> {
+        let b = self.panel.buf?;
+        (b < self.bufs.len()
+            && (b == self.cur || self.bufs[b].is_some())
+            && self.ed_at(b).term.is_some())
+        .then_some(b)
+    }
+
+    /// Ctrl-`: show the panel, focus it, or (focused) hide it with its shell running.
+    pub fn toggle_panel(&mut self) {
+        match self
+            .panel
+            .win
+            .filter(|w| self.windows.iter().any(|x| x.id == *w))
+        {
+            Some(w) if w == self.active => {
+                self.restore_panel();
+                let buf = self.win().buf;
+                if self.close_window(w).is_ok() {
+                    self.panel = Panel {
+                        buf: Some(buf),
+                        ..Panel::default()
+                    };
+                }
+            }
+            _ => self.show_panel(),
+        }
+    }
+
+    /// The panel takes the full height, or goes back to its size.
+    pub fn maximize_panel(&mut self) {
+        if self.panel.restore.is_some() {
+            return self.restore_panel();
+        }
+        let Some(w) = self
+            .panel
+            .win
+            .filter(|w| self.windows.iter().any(|x| x.id == *w))
+        else {
+            return self.show_panel();
+        };
+        let Some(sizes) = self.tree.bottom_sizes(self.area, w) else {
+            return;
+        };
+        let mut full = vec![0; sizes.len()];
+        *full.last_mut().expect("a split") = self.area.height;
+        self.tree.set_sizes(&full);
+        self.panel.restore = Some(sizes);
+        self.focus(w);
+    }
+
+    fn restore_panel(&mut self) {
+        if let Some(sizes) = self.panel.restore.take() {
+            self.tree.set_sizes(&sizes);
+        }
+    }
+
     /// In terminal mode: the active window's terminal has the keys.
     pub fn in_terminal(&self) -> bool {
         self.ed.term.is_some() && self.ed.mode == Mode::Insert
@@ -97,6 +208,11 @@ impl Session {
         }
         // Highest first: deleting one renumbers those above it.
         for i in done.into_iter().rev() {
+            self.panel.buf = match self.panel.buf {
+                Some(b) if b == i => None,
+                Some(b) if b > i => Some(b - 1),
+                b => b,
+            };
             let mode = (i == self.cur).then_some(Mode::Normal);
             self.perform(ExEffect::Buffer {
                 cmd: BufCmd::Delete,

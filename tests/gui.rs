@@ -226,9 +226,9 @@ fn mouse_drag_selects() {
     let mut g = Gui::spawn("f", "hello world\n");
     g.send(r#"{"t":"resize","cols":40,"rows":10}"#);
     g.send(r#"{"t":"keys","seq":1,"keys":":set nonumber<Enter>"}"#);
-    g.send(r#"{"t":"mouse","seq":2,"kind":"down","col":0,"row":1}"#);
-    g.send(r#"{"t":"mouse","seq":3,"kind":"drag","col":4,"row":1}"#);
-    g.send(r#"{"t":"mouse","seq":4,"kind":"up","col":4,"row":1}"#);
+    g.send(r#"{"t":"mouse","seq":2,"kind":"down","col":0,"row":3}"#);
+    g.send(r#"{"t":"mouse","seq":3,"kind":"drag","col":4,"row":3}"#);
+    g.send(r#"{"t":"mouse","seq":4,"kind":"up","col":4,"row":3}"#);
     let f = g.frame_until(|f| f["seq"] == 4);
     // `fred --gui` sets selectmode=mouse: the drag starts Select mode.
     assert_eq!(f["windows"][0]["status"]["mode"], "SELECT");
@@ -353,13 +353,13 @@ fn a_click_on_the_first_text_row_lands_on_line_one() {
     let mut g = Gui::spawn("f", "one\ntwo\nthree\n");
     g.send(r#"{"t":"resize","cols":40,"rows":10,"margin":8}"#);
     g.send(r#"{"t":"keys","seq":1,"keys":"jj"}"#);
-    g.send(r#"{"t":"mouse","seq":2,"kind":"down","col":1,"row":1}"#);
-    g.send(r#"{"t":"mouse","seq":3,"kind":"up","col":1,"row":1}"#);
+    g.send(r#"{"t":"mouse","seq":2,"kind":"down","col":1,"row":3}"#);
+    g.send(r#"{"t":"mouse","seq":3,"kind":"up","col":1,"row":3}"#);
     let f = g.frame_until(|f| f["seq"] == 3);
     let w = &f["windows"][0];
     assert_eq!(
         (w["header"].as_u64(), w["margin"].as_u64()),
-        (Some(1), Some(8))
+        (Some(3), Some(8))
     );
     assert_eq!(w["status"]["pos"], "1:2");
     assert_eq!(row_text(&f, 0, 0), "one");
@@ -621,4 +621,76 @@ fn narrow_windows_get_no_minimap_margin() {
     g.send(r#"{"t":"keys","seq":2,"keys":"<C-w>o"}"#);
     let f = g.frame_until(|f| f["seq"] == 2);
     assert_eq!(f["windows"][0]["margin"], 8);
+}
+
+#[test]
+fn a_picker_comes_as_a_palette_and_a_click_opens_its_row() {
+    let mut g = Gui::spawn("f", "one\n");
+    g.send(r#"{"t":"resize","cols":60,"rows":20}"#);
+    g.send(r#"{"t":"keys","seq":1,"keys":"<Space>p"}"#);
+    let f = g.frame_until(|f| {
+        f["palette"]["rows"]
+            .as_array()
+            .is_some_and(|r| !r.is_empty())
+    });
+    // No panel at the bottom: the window keeps its rows.
+    assert_eq!(f["bottom"].as_array().unwrap().len(), 1);
+    assert_eq!(f["palette"]["sel"], 0);
+    assert!(f["palette"]["files"].as_bool().unwrap());
+    g.send(r#"{"t":"pick","seq":2,"index":0}"#);
+    let f = g.frame_until(|f| f["seq"] == 2);
+    assert!(f.get("palette").is_none());
+}
+
+#[test]
+fn the_terminal_panel_opens_across_the_bottom_and_maximizes() {
+    if !cfg!(feature = "ghostty") {
+        return; // no terminal in this build
+    }
+    let mut g = Gui::spawn("f", "one\n");
+    g.send(r#"{"t":"resize","cols":60,"rows":30}"#);
+    g.send(r#"{"t":"keys","seq":1,"keys":":vsplit<Enter>"}"#);
+    g.send(r#"{"t":"panel","seq":2,"op":"toggle"}"#);
+    let f = g.frame_until(|f| f["seq"] == 2);
+    let ws = f["windows"].as_array().unwrap();
+    assert_eq!(ws.len(), 3);
+    let p = ws.iter().find(|w| w["active"] == true).unwrap();
+    assert_eq!(
+        (p["x"].as_u64(), p["w"].as_u64()),
+        (Some(0), Some(60)),
+        "full width"
+    );
+    g.send(r#"{"t":"panel","seq":3,"op":"maximize"}"#);
+    let f = g.frame_until(|f| f["seq"] == 3);
+    assert_eq!(
+        f["windows"].as_array().unwrap().len(),
+        1,
+        "only the panel shows"
+    );
+    g.send(r#"{"t":"panel","seq":4,"op":"maximize"}"#);
+    g.send(r#"{"t":"keys","seq":5,"keys":"<C-\\><C-n>"}"#);
+    g.send(r#"{"t":"panel","seq":6,"op":"toggle"}"#);
+    let f = g.frame_until(|f| f["seq"] == 6);
+    assert_eq!(f["windows"].as_array().unwrap().len(), 2, "hidden again");
+}
+
+#[test]
+fn zap_labels_sidebar_rows_and_opens_the_one_picked() {
+    let mut g = Gui::spawn("f", "one two\n");
+    g.send(r#"{"t":"resize","cols":60,"rows":20}"#);
+    g.send(r#"{"t":"nav","rows":[{"name":"src","path":"src"},{"name":"zebra.txt","path":"g"}]}"#);
+    g.send(r#"{"t":"keys","seq":1,"keys":"<Space>sz"}"#);
+    let f = g.frame_until(|f| f["seq"] == 1);
+    let labels = f["zap_nav"].as_array().expect("sidebar labels");
+    assert_eq!(
+        (labels.len(), &labels[0]["row"], &labels[0]["typed"]),
+        (1, &1.into(), &1.into())
+    );
+    g.send(r#"{"t":"keys","seq":2,"keys":"ebra"}"#);
+    let f = g.frame_until(|f| f["seq"] == 2);
+    assert!(
+        f["windows"][0]["path"].as_str().unwrap().ends_with("/g"),
+        "{}",
+        f["windows"][0]["path"]
+    );
 }

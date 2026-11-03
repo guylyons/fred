@@ -125,6 +125,20 @@ check("ancestors top level", FileTree.ancestors(of: "/r/a.rs", under: "/r/") == 
 check("ancestors outside", FileTree.ancestors(of: "/rx/a.rs", under: "/r") == nil && FileTree.ancestors(of: "/r", under: "/r") == nil)
 check("symbols", FileTree.symbol(for: "x", isDir: true) == "folder" && FileTree.symbol(for: "a.RS", isDir: false) == "chevron.left.forwardslash.chevron.right"
       && FileTree.symbol(for: "README.md", isDir: false) == "doc.text" && FileTree.symbol(for: "a.bin", isDir: false) == "doc")
+check("crumbs under the root", FileTree.crumbs("/r/src/a.rs", root: "/r").map(\.path) == ["/r/src", "/r/src/a.rs"]
+      && FileTree.crumbs("/x/a.rs", root: "/r").map(\.name) == ["x", "a.rs"])
+check("blink holds, then fades out and back", Blink.alpha(0.3) == 1 && Blink.alpha(0.6 + 0.55) < 0.01 && Blink.alpha(0.6 + 1.1) > 0.99)
+check("a picker frame decodes", (try? JSONDecoder().decode(PickerFrame.self, from: Data(#"{"title":"Find:","query":"fr","caret":2,"rows":[{"text":"src/frame.rs","hl":[[4,6]]}],"first":0,"total":1,"sel":0,"status":"1/9","files":true}"#.utf8)))?.rows.first?.hl == [[4, 6]])
+check("pick line", String(decoding: Outgoing.pick(seq: 3, index: 7).line(), as: UTF8.self) == #"{"t":"pick","seq":3,"index":7}"# + "\n")
+check("rubber band resists, comes back to 0, and settles", Rubber.pull(0, by: 20) == 10 && Rubber.pull(100, by: 20) < 10 + 100
+      && Rubber.pull(10, by: -30) == 0 && Rubber.settle(0.4) == 0 && Rubber.settle(10) == 8)
+check("panel line", String(decoding: Outgoing.panel(seq: 4, op: "toggle").line(), as: UTF8.self) == #"{"t":"panel","seq":4,"op":"toggle"}"# + "\n")
+check("nav line", String(decoding: Outgoing.nav(rows: [("a b", "/x/a b")]).line(), as: UTF8.self) == #"{"t":"nav","rows":[{"name":"a b","path":"/x/a b"}]}"# + "\n")
+check("badges", FileTree.badge(for: "x.PHP")?.text == "php" && FileTree.badge(for: "Cargo.toml")?.text == "RS"
+      && FileTree.badge(for: "a.bin") == nil)
+check("status bar fields decode, and are optional",
+      (try? JSONDecoder().decode(Status.self, from: Data(#"{"mode":"NORMAL","name":"a","modified":false,"pos":"1:1","lang":"PHP","indent":"Spaces: 2","eol":"LF","enc":"UTF-8"}"#.utf8)))?.lang == "PHP"
+      && (try? JSONDecoder().decode(Status.self, from: Data(#"{"mode":"NORMAL","name":"a","modified":false,"pos":"1:1"}"#.utf8)))?.lang == nil)
 
 // Tab strip layout.
 do {
@@ -160,6 +174,16 @@ if case .frame(let f) = try Incoming.decode(Data(line.utf8)) {
 } else { check("old frame decodes", false) }
 func out(_ o: Outgoing) -> String { String(decoding: o.line(), as: UTF8.self) }
 check("tab line", out(.tab(seq: 6, win: 3, op: "move", index: 2, to: 0)) == #"{"t":"tab","seq":6,"win":3,"op":"move","index":2,"to":0}"# + "\n")
+check("drop line", out(.drop(seq: 7, win: 3, index: 1, target: 5, zone: "left", to: 0)) == #"{"t":"tab","seq":7,"win":3,"op":"drop","index":1,"to":0,"target":5,"zone":"left"}"# + "\n")
+check("drop file line", out(.dropFile(seq: 4, path: "/a/b.rs", target: 2, zone: "right")) == #"{"t":"open","seq":4,"path":"/a/b.rs","target":2,"zone":"right"}"# + "\n")
+do {
+    let body = CGRect(x: 100, y: 50, width: 300, height: 600)
+    check("drop near the left edge splits left", TabMath.dropZone(CGPoint(x: 110, y: 350), in: body) == ("left", CGRect(x: 100, y: 50, width: 150, height: 600)))
+    check("drop near the bottom splits down", TabMath.dropZone(CGPoint(x: 250, y: 620), in: body).zone == "bottom")
+    check("drop in the middle is center", TabMath.dropZone(CGPoint(x: 250, y: 350), in: body) == ("center", body))
+    let f = [CGRect(x: 0, y: 0, width: 100, height: 0), CGRect(x: 100, y: 0, width: 100, height: 0)]
+    check("drop slots", TabMath.slot(atX: 10, frames: f, offset: 0) == 0 && TabMath.slot(atX: 60, frames: f, offset: 0) == 1 && TabMath.slot(atX: 190, frames: f, offset: 0) == 2)
+}
 check("tab line without to", out(.tab(seq: 6, win: 3, op: "select", index: 2, to: nil)) == #"{"t":"tab","seq":6,"win":3,"op":"select","index":2}"# + "\n")
 check("scroll line", out(.scroll(seq: 10, win: 3, top: 400)) == #"{"t":"scroll","seq":10,"win":3,"top":400}"# + "\n")
 check("open preview line", out(.open(seq: 5, path: "/f", preview: true)) == #"{"t":"open","seq":5,"path":"/f","preview":true}"# + "\n")

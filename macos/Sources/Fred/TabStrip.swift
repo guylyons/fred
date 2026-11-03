@@ -1,13 +1,19 @@
 import AppKit
 import FredKit
 
-/// Sublime's tab strip over a window's header row: rounded-top tabs, the
-/// current one in the editor background so it joins the text.
+/// VS Code's tab strip over a window's header rows: square tabs split by
+/// thin lines, each with its file-type icon, the current one in the editor
+/// background. A tab dragged off the strip goes to
+/// `dragOut`/`dropOut`, which EditorView turns into a move or a split.
 final class TabStrip: NSView {
     /// (op, index, to): a `tab` message for this strip's window.
     var op: (String, Int, Int?) -> Void = { _, _, _ in }
     /// Reveal in Sidebar.
     var reveal: (String) -> Void = { _ in }
+    /// Tab `index` dragged off the strip, at this window point; nil when it comes back or ends.
+    var dragOut: (Int, NSPoint?) -> Void = { _, _ in }
+    /// Tab `index` released off the strip at this window point.
+    var dropOut: (Int, NSPoint) -> Void = { _, _ in }
     var editorBg = NSColor.black
 
     private var tabs: [Tab] = []
@@ -19,6 +25,8 @@ final class TabStrip: NSView {
     private var hoverClose = false
     private var press: (index: Int, x: CGFloat, onClose: Bool)?
     private var dragDX: CGFloat?
+    /// The pressed tab is being dragged off the strip.
+    private var out = false
     /// Whether this strip's window is the active one.
     private var active = true
 
@@ -27,7 +35,7 @@ final class TabStrip: NSView {
         let f = NSFont.systemFont(ofSize: 12)
         return NSFont(descriptor: f.fontDescriptor.withSymbolicTraits(.italic), size: 12) ?? f
     }()
-    private static let pad: CGFloat = 12, closeW: CGFloat = 16
+    private static let pad: CGFloat = 12, closeW: CGFloat = 16, icon: CGFloat = 14, iconGap: CGFloat = 6
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -46,12 +54,14 @@ final class TabStrip: NSView {
         guard tabs != self.tabs else { return }
         // A press or hover on a tab that moved or went away would index past the end.
         if tabs.count != self.tabs.count || press.map({ tabs[$0.index].name != self.tabs[$0.index].name }) == true {
+            if out, let pr = press { dragOut(pr.index, nil) }
             press = nil
             dragDX = nil
+            out = false
             hover = nil
         }
         self.tabs = tabs
-        widths = tabs.map { name($0).size().width + 2 * TabStrip.pad + TabStrip.closeW }
+        widths = tabs.map { name($0).size().width + 2 * TabStrip.pad + TabStrip.closeW + TabStrip.icon + TabStrip.iconGap }
         relayout()
     }
 
@@ -97,7 +107,7 @@ final class TabStrip: NSView {
     // MARK: - Drawing
 
     override func draw(_ dirty: NSRect) {
-        editorBg.blended(withFraction: 0.06, of: .black)!.setFill()
+        editorBg.blended(withFraction: 0.12, of: .black)!.setFill()
         bounds.fill()
         // The dragged tab draws last, over its neighbours.
         let order = tabs.indices.filter { $0 != press?.index || dragDX == nil } + (dragDX == nil ? [] : [press!.index])
@@ -106,43 +116,46 @@ final class TabStrip: NSView {
 
     private func drawTab(_ i: Int) {
         let t = tabs[i], r = rect(i)
-        if t.current || (i == press?.index && dragDX != nil) {
+        let lifted = i == press?.index && dragDX != nil
+        if t.current || lifted {
             editorBg.setFill()
-            topRounded(r.divided(atDistance: 3, from: .minYEdge).remainder, radius: 6).fill()
+            r.fill()
+            if i == hover, !lifted {
+                NSColor.white.withAlphaComponent(0.03).setFill()
+                r.fill()
+            }
         } else if i == hover {
             NSColor.white.withAlphaComponent(0.04).setFill()
-            topRounded(r.divided(atDistance: 3, from: .minYEdge).remainder, radius: 6).fill()
+            r.fill()
         }
+        NSColor.black.withAlphaComponent(0.3).setFill()
+        CGRect(x: r.maxX - 1, y: r.minY, width: 1, height: r.height).fill()
         let s = name(t), h = s.size().height
         let close = closeRect(r)
-        s.draw(with: CGRect(x: r.minX + TabStrip.pad, y: r.midY - h / 2 + 1,
-                            width: close.minX - r.minX - TabStrip.pad - 2, height: h),
+        let alpha: CGFloat = i == press?.index && out ? 0.4 : 1 // dragged away: a ghost
+        NSGraphicsContext.current?.cgContext.setAlpha(alpha)
+        defer { NSGraphicsContext.current?.cgContext.setAlpha(1) }
+        let ix = r.minX + TabStrip.pad
+        FileIcon.image(for: t.name, isDir: false, size: TabStrip.icon)
+            .draw(in: CGRect(x: ix, y: r.midY - TabStrip.icon / 2, width: TabStrip.icon, height: TabStrip.icon),
+                  from: .zero, operation: .sourceOver, fraction: t.current ? 1 : 0.75, respectFlipped: true, hints: nil)
+        let tx = ix + TabStrip.icon + TabStrip.iconGap
+        s.draw(with: CGRect(x: tx, y: r.midY - h / 2 + 1, width: close.minX - tx - 2, height: h),
                options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
-        // ● for modified, × on hover (a hovered ● turns into ×).
-        let glyph = i == hover ? "×" : t.modified ? "●" : nil
+        // ● for modified, × on the current or hovered tab (a hovered ● turns into ×).
+        let showClose = i == hover || (t.current && !t.modified)
+        let glyph = showClose ? "×" : t.modified ? "●" : nil
         guard let glyph else { return }
         if i == hover, hoverClose {
             NSColor.white.withAlphaComponent(0.12).setFill()
             NSBezierPath(roundedRect: close, xRadius: 3, yRadius: 3).fill()
         }
         let g = NSAttributedString(string: glyph, attributes: [
-            .font: NSFont.systemFont(ofSize: glyph == "●" ? 9 : 13),
+            .font: NSFont.systemFont(ofSize: glyph == "●" ? 9 : 14),
             .foregroundColor: t.current ? NSColor.labelColor : NSColor.secondaryLabelColor,
         ])
         let gs = g.size()
         g.draw(at: NSPoint(x: close.midX - gs.width / 2, y: close.midY - gs.height / 2))
-    }
-
-    private func topRounded(_ r: CGRect, radius: CGFloat) -> NSBezierPath {
-        let p = NSBezierPath()
-        p.move(to: NSPoint(x: r.minX, y: r.maxY))
-        p.line(to: NSPoint(x: r.minX, y: r.minY + radius))
-        p.appendArc(withCenter: NSPoint(x: r.minX + radius, y: r.minY + radius), radius: radius, startAngle: 180, endAngle: 270)
-        p.line(to: NSPoint(x: r.maxX - radius, y: r.minY))
-        p.appendArc(withCenter: NSPoint(x: r.maxX - radius, y: r.minY + radius), radius: radius, startAngle: 270, endAngle: 360)
-        p.line(to: NSPoint(x: r.maxX, y: r.maxY))
-        p.close()
-        return p
     }
 
     // MARK: - Mouse
@@ -193,16 +206,29 @@ final class TabStrip: NSView {
 
     override func mouseDragged(with e: NSEvent) {
         guard let pr = press, !pr.onClose else { return }
-        let dx = point(e).x - pr.x
+        let p = point(e)
+        // Well off the strip: a drag to another window or an edge.
+        if !bounds.insetBy(dx: -8, dy: -8).contains(p) {
+            out = true
+            dragDX = nil
+            dragOut(pr.index, e.locationInWindow)
+            needsDisplay = true
+            return
+        }
+        if out { out = false; dragOut(pr.index, nil) }
+        let dx = p.x - pr.x
         guard dragDX != nil || abs(dx) > 4 else { return }
         dragDX = dx
         needsDisplay = true
     }
 
     override func mouseUp(with e: NSEvent) {
-        defer { press = nil; dragDX = nil; setHover(point(e)) }
+        defer { press = nil; dragDX = nil; out = false; setHover(point(e)); needsDisplay = true }
         guard let pr = press else { return }
-        if pr.onClose {
+        if out {
+            dragOut(pr.index, nil)
+            dropOut(pr.index, e.locationInWindow)
+        } else if pr.onClose {
             if index(at: point(e)) == pr.index, closeRect(rect(pr.index)).contains(point(e)) { op("close", pr.index, nil) }
         } else if dragDX != nil {
             // The last slot whose left edge the dragged tab's middle has passed.
@@ -210,6 +236,13 @@ final class TabStrip: NSView {
             let to = frames.lastIndex { $0.minX <= mid } ?? 0
             if to != pr.index { op("move", pr.index, to) }
         }
+    }
+
+    /// Where a tab dropped at strip point x would go, and that gap's x.
+    func slot(atX x: CGFloat) -> (index: Int, x: CGFloat) {
+        let i = TabMath.slot(atX: x, frames: frames, offset: offset)
+        let gap = i < frames.count ? frames[i].minX : frames.last?.maxX ?? 0
+        return (i, gap - offset)
     }
 
     override func otherMouseDown(with e: NSEvent) {
