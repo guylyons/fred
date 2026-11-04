@@ -139,16 +139,28 @@ fn digits(n: usize) -> usize {
 }
 
 pub fn gutter_width(ed: &Editor) -> usize {
+    let cols = number_width(ed) + git_column(ed) + blame_column(ed);
+    cols + gui_pad(cols)
+}
+
+/// The line-number column, with its trailing space; 0 when off.
+fn number_width(ed: &Editor) -> usize {
     // magit-section-disable-line-numbers.
     let magit_off = ed.magit.is_some()
         && crate::magit::options::flag("magit-section-disable-line-numbers", true);
-    let numbers = if (ed.opts.bool(Opt::Number) || ed.opts.bool(Opt::Relativenumber)) && !magit_off
-    {
+    if (ed.opts.bool(Opt::Number) || ed.opts.bool(Opt::Relativenumber)) && !magit_off {
         digits(ed.line_count()).max(3) + 1
     } else {
         0
-    };
-    numbers + git_column(ed) + blame_column(ed)
+    }
+}
+
+/// Set once by the GUI: text with no gutter there gets a column of padding.
+pub static GUI_PAD: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// One blank column when the GUI would otherwise put text at the edge.
+fn gui_pad(gutter: usize) -> usize {
+    usize::from(gutter == 0 && GUI_PAD.load(std::sync::atomic::Ordering::Relaxed))
 }
 
 /// Rows drawn above buffer line L that are not text: magit-blame's
@@ -1040,7 +1052,7 @@ pub fn draw_window(
                     );
                     style = style.fg(color);
                 }
-                let numbers = gutter - sign - blame_w;
+                let numbers = number_width(ed).min(gutter - sign - blame_w);
                 if numbers > 0 {
                     let text = format!("{num:>w$} ", w = numbers - 1);
                     buf.set_stringn(

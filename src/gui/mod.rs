@@ -102,6 +102,7 @@ fn select_like_a_mac(cfg: &mut Config) {
 pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> {
     select_like_a_mac(&mut cfg);
     cfg.floating_picker = true;
+    crate::ui::render::GUI_PAD.store(true, std::sync::atomic::Ordering::Relaxed);
     let (input, output) = take_stdio()?;
     let mut out = BufWriter::new(output);
     let unknown = crate::magit::options::set(cfg.magit.0.clone());
