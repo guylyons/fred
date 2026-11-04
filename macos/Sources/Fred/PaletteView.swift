@@ -127,6 +127,10 @@ final class PaletteView: NSView {
                              .foregroundColor: NSColor.controlAccentColor.blended(withFraction: 0.4, of: .white)!],
                             range: NSRange(lo..<hi, in: name))
         }
+        // A grep hit's `path:line: ` is where, not what: dim it.
+        if !files, let m = name.range(of: #"^[^:\s]+:\d+: "#, options: .regularExpression) {
+            s.addAttribute(.foregroundColor, value: NSColor.secondaryLabelColor, range: NSRange(m, in: name))
+        }
         let para = NSMutableParagraphStyle()
         para.lineBreakMode = .byTruncatingTail
         para.allowsDefaultTighteningForTruncation = false // squeezed rows would break the padded columns
