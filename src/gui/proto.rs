@@ -82,6 +82,9 @@ pub struct Tab {
     pub modified: bool,
     pub preview: bool,
     pub current: bool,
+    /// A directory (dired): the app shows a folder icon.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub dir: bool,
 }
 
 /// Selected cells `x..x + w` of text row `y`.

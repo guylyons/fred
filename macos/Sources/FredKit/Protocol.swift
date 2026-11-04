@@ -54,6 +54,8 @@ public struct Tab: Codable, Equatable, Sendable {
     public var modified: Bool
     public var preview: Bool
     public var current: Bool
+    /// A directory (dired): shown with a folder icon.
+    public var dir: Bool?
 
     public init(name: String, path: String? = nil, modified: Bool = false, preview: Bool = false, current: Bool = false) {
         self.name = name

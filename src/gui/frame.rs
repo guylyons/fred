@@ -247,6 +247,7 @@ fn tabs(s: &Session, id: usize) -> Vec<proto::Tab> {
                 modified: ed.buf.modified,
                 preview: w.preview == Some(b),
                 current: w.buf == b,
+                dir: ed.dired.is_some(),
             }
         })
         .collect()

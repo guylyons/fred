@@ -136,7 +136,7 @@ final class TabStrip: NSView {
         NSGraphicsContext.current?.cgContext.setAlpha(alpha)
         defer { NSGraphicsContext.current?.cgContext.setAlpha(1) }
         let ix = r.minX + TabStrip.pad
-        FileIcon.image(for: t.name, isDir: false, size: TabStrip.icon)
+        FileIcon.image(for: t.name, isDir: t.dir == true, size: TabStrip.icon)
             .draw(in: CGRect(x: ix, y: r.midY - TabStrip.icon / 2, width: TabStrip.icon, height: TabStrip.icon),
                   from: .zero, operation: .sourceOver, fraction: t.current ? 1 : 0.75, respectFlipped: true, hints: nil)
         let tx = ix + TabStrip.icon + TabStrip.iconGap
