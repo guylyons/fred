@@ -6,10 +6,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
     var window: NSWindow!
     var core: Core!
     var view: EditorView!
-    var sidebar: Sidebar!
+    /// The folder tree, once a project is open; before that the split shows a WelcomePane.
+    var sidebar: Sidebar?
+    /// The open project (the core's working directory); nil until one is chosen.
+    private var project: URL?
+    /// The last frame's cwd: a change (a chosen folder, `:cd`) is a new project.
+    private var lastCwd: String?
+    /// `Space w`'s number on the sidebar.
+    private let badge = NSTextField(labelWithString: " 0 ")
     var split: NSSplitViewController!
     var activity: ActivityBar!
     private var minimapItem: NSMenuItem!
+    private var glassItem: NSMenuItem!
+    /// The window's backdrop and the editor's box (recolored by `applyTheme`).
+    private let backdrop = EditorBackground()
+    private let editorBox = EditorBackground()
+    /// View ▸ Glass Theme: the Ghostty look, translucent over a blurred desktop.
+    private var glass = UserDefaults.standard.string(forKey: "FredTheme") == "glass"
 
     // MARK: - Menus
 
@@ -52,7 +65,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
                 item("Quit Fred", #selector(quitCore), "q"),
             ]),
             menu("File", [
-                item("Open…", nil, "o"), // disabled in Phase 1
+                item("Open Folder…", #selector(chooseFolder), "o"),
                 item("Save", #selector(macKey(_:)), "s", rep: "s"),
                 item("Close Tab", #selector(macKey(_:)), "w", rep: "w"),
             ]),
@@ -83,6 +96,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
                 item("Maximize Terminal", #selector(panel(_:)), "~", [.control, .shift], tag: 1),
                 .separator(),
                 { minimapItem = item(view.showMinimap ? "Hide Minimap" : "Show Minimap", #selector(toggleMinimap), "m", [.command, .control]); return minimapItem }(),
+                .separator(),
+                { glassItem = item("Glass Theme", #selector(toggleGlass), "t", [.command, .control]); glassItem.state = glass ? .on : .off; return glassItem }(),
             ]),
             windowMenu,
         ].forEach(bar.addItem)
@@ -137,6 +152,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         activity.refresh()
     }
 
+    @objc private func toggleGlass() {
+        glass.toggle()
+        UserDefaults.standard.set(glass ? "glass" : "default", forKey: "FredTheme")
+        glassItem.state = glass ? .on : .off
+        applyTheme()
+        installSidebar(project) // the sidebar takes its color when built
+    }
+
+    /// The two themes: solid Material Darker, or Glass, where only the
+    /// bottom layer of each region paints the 90% tint so it isn't doubled.
+    private func applyTheme() {
+        let p = glass ? Palette.glass : .materialDark
+        view.palette = p
+        let chrome = p.bg.blended(withFraction: 0.12, of: .black)!
+        backdrop.color = glass ? .clear : chrome
+        activity?.tint = glass ? chrome : .clear
+        editorBox.color = p.bg
+        window.isOpaque = !glass
+        window.backgroundColor = glass ? .clear : .windowBackgroundColor
+        setBlur(window, radius: glass ? 20 : 0)
+        func redraw(_ v: NSView) { v.needsDisplay = true; v.subviews.forEach(redraw) }
+        window.contentView.map(redraw)
+    }
+
     /// VS Code's terminal panel: tag 0 toggles, 1 maximizes (or restores).
     @objc private func panel(_ s: NSMenuItem) {
         let op = s.tag == 1 ? "maximize" : "toggle"
@@ -157,15 +196,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
     }
 
     func applicationDidFinishLaunching(_ n: Notification) {
-        let path = pathToOpen()
+        // A file or folder argument opens its folder as the project; none
+        // opens on the splash screen with no project, as VS Code does.
+        let arg = pathArgument()
         var isDir: ObjCBool = false
-        FileManager.default.fileExists(atPath: path.path, isDirectory: &isDir)
+        if let arg { FileManager.default.fileExists(atPath: arg.path, isDirectory: &isDir) }
         // Symlinks resolved: the core reports canonical paths.
-        let cwd = URL(fileURLWithPath: FileTree.canonical((isDir.boolValue ? path : path.deletingLastPathComponent()).path))
+        project = arg.map { URL(fileURLWithPath: FileTree.canonical((isDir.boolValue ? $0 : $0.deletingLastPathComponent()).path)) }
+        let cwd = project ?? FileManager.default.homeDirectoryForCurrentUser
 
         let exe = ProcessInfo.processInfo.environment["FRED_CORE"].map { URL(fileURLWithPath: $0) }
             ?? Bundle.main.executableURL!.deletingLastPathComponent().appendingPathComponent("fred-core")
-        core = Core(executable: exe, args: ["--gui", path.path], cwd: cwd)
+        core = Core(executable: exe, args: ["--gui"] + (arg.map { [$0.path] } ?? []), cwd: cwd)
 
         let view = EditorView(frame: NSRect(x: 0, y: 0, width: 900, height: 600))
         self.view = view
@@ -178,23 +220,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         view.root = cwd.path
         view.showMinimap = UserDefaults.standard.object(forKey: "FredMinimap") as? Bool ?? true
         view.onResize = { [core] cols, rows, margin in core!.send(.resize(cols: cols, rows: rows, margin: margin)) }
-        let sidebar = Sidebar(root: cwd)
-        sidebar.background = view.palette.bg.blended(withFraction: 0.12, of: .black)!
-        sidebar.open = { url, preview in
-            view.transmit { .open(seq: $0, path: url.path, preview: preview) }
-            view.window?.makeFirstResponder(view)
-        }
-        view.reveal = { sidebar.revealInTree($0) }
-        sidebar.navChanged = { [core] rows in core!.send(.nav(rows: rows)) }
-        sidebar.leave = { view.window?.makeFirstResponder(view) }
-        self.sidebar = sidebar
-        core.onFrame = { [window] f in
-            view.apply(f)
-            if window!.title != f.title { window!.title = f.title }
-            sidebar.follow(f.windows.first(where: \.active)?.path)
-            sidebar.showZap(f.zap_nav ?? [])
-            if f.focus_nav == true { self.showSidebar(); sidebar.focusTree() }
-        }
+        view.reveal = { [unowned self] in self.sidebar?.revealInTree($0) }
+        core.onFrame = { [unowned self] f in self.frame(f) }
         core.onMinimap = { view.applyMinimap($0) }
         core.onExit = { [window] code, tail in
             if code != 0 {
@@ -213,9 +240,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         window.toolbarStyle = .unified
         // The title strip shows the theme color under it, not tinted glass.
         window.titlebarAppearsTransparent = true
-        let split = split(sidebar: sidebar, editor: view)
+        let split = split(editor: view)
         self.split = split
-        window.contentViewController = withActivityBar(split)
+        let content = withActivityBar(split)
+        applyTheme()
+        installSidebar(project)
+        if let project { remember(project) }
+        let saved = UserDefaults.standard.object(forKey: "NSSplitView Subview Frames FredSidebar") != nil
+        split.splitView.autosaveName = "FredSidebar"
+        if !saved { split.splitView.setPosition(240, ofDividerAt: 0) }
+        window.contentViewController = content
         // Most of the screen: room for the splash logo at full size.
         let screen = NSScreen.main?.visibleFrame.size ?? NSSize(width: 1425, height: 800)
         window.setContentSize(NSSize(width: max(1140, screen.width * 0.8), height: max(640, screen.height * 0.85)))
@@ -232,6 +266,139 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         }
     }
 
+    private func frame(_ f: Frame) {
+        view.apply(f)
+        if window.title != f.title { window.title = f.title }
+        if let cwd = f.cwd, cwd != lastCwd {
+            // The first frame is where we started; a later change is a new project.
+            if lastCwd != nil { setProject(URL(fileURLWithPath: cwd)) }
+            lastCwd = cwd
+        }
+        sidebar?.follow(f.windows.first(where: \.active)?.path)
+        sidebar?.showZap(f.zap_nav ?? [])
+        if f.focus_nav == true { focusSidebar() }
+        if f.open_folder == true { chooseFolder() }
+        showBadge(f.picking == true && !split.splitViewItems[0].isCollapsed)
+    }
+
+    /// Open Folder…: the chosen folder becomes the core's working directory
+    /// (`cd`); the next frame's cwd brings the new sidebar.
+    @objc private func chooseFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.prompt = "Open"
+        panel.message = "Choose a project folder: it becomes Fred's working directory."
+        panel.beginSheetModal(for: window) { [weak self] r in
+            guard r == .OK, let url = panel.url else { return }
+            MainActor.assumeIsolated { self?.open(folder: url) }
+        }
+    }
+
+    private func open(folder: URL) {
+        view.transmit { .cd(seq: $0, path: folder.path) }
+        window.makeFirstResponder(view)
+    }
+
+    private func setProject(_ url: URL) {
+        guard url != project else { return }
+        project = url
+        view.root = url.path
+        remember(url)
+        installSidebar(url)
+    }
+
+    private static let recentKey = "FredRecentFolders"
+
+    private func recentFolders() -> [URL] {
+        (UserDefaults.standard.stringArray(forKey: Self.recentKey) ?? [])
+            .filter { FileManager.default.fileExists(atPath: $0) }.map { URL(fileURLWithPath: $0) }
+    }
+
+    private func remember(_ url: URL) {
+        let list = [url.path] + recentFolders().map(\.path).filter { $0 != url.path }
+        UserDefaults.standard.set(Array(list.prefix(9)), forKey: Self.recentKey)
+    }
+
+    /// The sidebar for `root`: its folder tree, or with no project the
+    /// welcome pane. Collapsed stays collapsed.
+    private func installSidebar(_ root: URL?) {
+        let bg = view.palette.bg.blended(withFraction: 0.12, of: .black)!
+        let toEditor = { [unowned self] in self.window.makeFirstResponder(self.view); return }
+        let vc: NSViewController
+        sidebar?.stop()
+        sidebar = nil
+        if let root {
+            let tree = Sidebar(root: root)
+            tree.background = bg
+            tree.open = { [unowned self] url, preview in
+                self.view.transmit { .open(seq: $0, path: url.path, preview: preview) }
+                toEditor()
+            }
+            tree.navChanged = { [unowned self] rows in self.core.send(.nav(rows: rows)) }
+            tree.leave = toEditor
+            tree.close = { [unowned self] in self.closeSidebar() }
+            tree.forward = { [unowned self] in self.run($0) }
+            sidebar = tree
+            vc = tree
+        } else {
+            let pane = WelcomePane()
+            pane.background = bg
+            pane.recent = recentFolders()
+            pane.choose = { [unowned self] in self.chooseFolder() }
+            pane.openRecent = { [unowned self] in self.open(folder: $0) }
+            pane.leave = toEditor
+            pane.close = { [unowned self] in self.closeSidebar() }
+            vc = pane
+        }
+        let item = NSSplitViewItem(sidebarWithViewController: vc)
+        item.minimumThickness = 140
+        item.maximumThickness = 600
+        item.canCollapse = true
+        let old = split.splitViewItems.count > 1 ? split.splitViewItems[0] : nil
+        let width = old.map { $0.viewController.view.frame.width } ?? 0
+        item.isCollapsed = old?.isCollapsed ?? false
+        if let old { split.removeSplitViewItem(old) }
+        split.insertSplitViewItem(item, at: 0)
+        if width > 0, !item.isCollapsed { split.splitView.setPosition(width, ofDividerAt: 0) }
+        badge.removeFromSuperview()
+        activity?.refresh()
+    }
+
+    /// `Space w`'s number for the sidebar, like the core's on each window.
+    private func showBadge(_ on: Bool) {
+        let v = split.splitViewItems[0].viewController.view
+        guard on else { badge.isHidden = true; return }
+        if badge.superview !== v {
+            badge.font = .monospacedSystemFont(ofSize: 22, weight: .bold)
+            badge.textColor = .systemYellow
+            badge.wantsLayer = true
+            badge.layer?.cornerRadius = 8
+            badge.layer?.borderWidth = 2
+            badge.layer?.borderColor = NSColor.systemYellow.cgColor
+            badge.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.6).cgColor
+            badge.translatesAutoresizingMaskIntoConstraints = false
+            v.addSubview(badge)
+            NSLayoutConstraint.activate([badge.centerXAnchor.constraint(equalTo: v.centerXAnchor),
+                                         badge.centerYAnchor.constraint(equalTo: v.centerYAnchor)])
+        }
+        badge.isHidden = false
+    }
+
+    private func focusSidebar() {
+        showSidebar()
+        if let sidebar { sidebar.focusTree() } else { (split.splitViewItems[0].viewController as? WelcomePane)?.focus() }
+    }
+
+    /// q or CTRL-W c in the sidebar: it closes like a window (Space w 0,
+    /// CTRL-W h from the leftmost window or ⌃⌘S bring it back).
+    private func closeSidebar() {
+        let side = split.splitViewItems[0]
+        if !side.isCollapsed { side.animator().isCollapsed = true }
+        window.makeFirstResponder(view)
+        activity.refresh()
+    }
+
     private func showSidebar() {
         let side = split.splitViewItems[0]
         if side.isCollapsed { side.animator().isCollapsed = false; activity.refresh() }
@@ -241,8 +408,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
     private func withActivityBar(_ split: NSSplitViewController) -> NSViewController {
         let c = NSViewController()
         // Solid like the sidebar: no wallpaper showing through.
-        let glass = EditorBackground()
-        glass.color = view.palette.bg.blended(withFraction: 0.12, of: .black)!
+        let glass = backdrop
         c.view = glass
         c.addChild(split)
         let bar = ActivityBar(top: [
@@ -278,16 +444,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         return c
     }
 
-    /// The folder sidebar (glass, width remembered) beside the editor.
-    private func split(sidebar: Sidebar, editor: EditorView) -> NSSplitViewController {
+    /// The editor, with room for the sidebar (`installSidebar`) beside it; its width is remembered.
+    private func split(editor: EditorView) -> NSSplitViewController {
         let split = NSSplitViewController()
-        let side = NSSplitViewItem(sidebarWithViewController: sidebar)
-        side.minimumThickness = 140
-        side.maximumThickness = 600
-        side.canCollapse = true
         let content = NSViewController()
-        let box = EditorBackground()
-        box.color = editor.palette.bg
+        let box = editorBox
         editor.translatesAutoresizingMaskIntoConstraints = false
         box.addSubview(editor)
         // Below the toolbar; the box keeps the theme color under it.
@@ -298,13 +459,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
             editor.bottomAnchor.constraint(equalTo: box.bottomAnchor),
         ])
         content.view = box
-        split.addSplitViewItem(side)
         split.addSplitViewItem(NSSplitViewItem(viewController: content))
         split.view.frame = NSRect(x: 0, y: 0, width: 1140, height: 640)
-        let key = "NSSplitView Subview Frames FredSidebar"
-        let saved = UserDefaults.standard.object(forKey: key) != nil
-        split.splitView.autosaveName = "FredSidebar"
-        if !saved { split.splitView.setPosition(240, ofDividerAt: 0) }
         return split
     }
 
@@ -325,10 +481,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         return false
     }
 
-    /// The first non-flag argument, else the home folder (a folder opens on the splash screen).
-    private func pathToOpen() -> URL {
+    /// The first non-flag argument, if any.
+    private func pathArgument() -> URL? {
         CommandLine.arguments.dropFirst().first(where: { !$0.hasPrefix("-") })
-            .map { URL(fileURLWithPath: $0).standardizedFileURL } ?? FileManager.default.homeDirectoryForCurrentUser
+            .map { URL(fileURLWithPath: $0).standardizedFileURL }
     }
 }
 
@@ -340,8 +496,19 @@ app.delegate = delegate
 app.run()
 
 /// Opaque theme background behind the editor (and under the toolbar).
-final class EditorBackground: NSView {
-    var color = NSColor.black
-    override var isOpaque: Bool { true }
+class EditorBackground: NSView {
+    var color = NSColor.black { didSet { needsDisplay = true } }
+    override var isOpaque: Bool { color.alphaComponent == 1 }
     override func draw(_ r: NSRect) { color.setFill(); r.fill() }
+}
+
+/// Ghostty's background-blur: the private window-server call it uses (looked
+/// up at run time, so a missing symbol only loses the blur).
+@MainActor func setBlur(_ w: NSWindow, radius: Int) {
+    typealias Conn = @convention(c) () -> UnsafeMutableRawPointer?
+    typealias Set = @convention(c) (UnsafeMutableRawPointer?, Int, Int) -> Int32
+    guard let h = dlopen(nil, RTLD_NOW),
+          let c = dlsym(h, "CGSDefaultConnectionForThread"),
+          let f = dlsym(h, "CGSSetWindowBackgroundBlurRadius") else { return }
+    _ = unsafeBitCast(f, to: Set.self)(unsafeBitCast(c, to: Conn.self)(), w.windowNumber, radius)
 }

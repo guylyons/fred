@@ -28,7 +28,7 @@ final class MinimapView: NSView {
     required init?(coder: NSCoder) { fatalError() }
 
     override var isFlipped: Bool { true }
-    override var isOpaque: Bool { true }
+    override var isOpaque: Bool { !palette.clear }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     func update(_ map: MapImage?, top: Int, visible: Int, lines: Int?) {
@@ -75,8 +75,7 @@ final class MinimapView: NSView {
 
     override func draw(_ dirty: NSRect) {
         guard let ctx = NSGraphicsContext.current?.cgContext else { return }
-        ctx.setFillColor(palette.bg.cgColor)
-        ctx.fill(dirty)
+        if palette.clear { ctx.clear(dirty) } else { ctx.setFillColor(palette.bg.cgColor); ctx.fill(dirty) }
         guard let image = map?.image, let mapLines = map?.lines, mapLines > 0 else { return }
         // Only the visible slice: the whole map can be ~100k pt tall.
         let total = CGFloat(mapLines) * MinimapMath.lineHeight, off = offset

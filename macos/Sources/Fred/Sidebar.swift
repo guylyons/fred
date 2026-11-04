@@ -41,6 +41,10 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
     var open: (URL, Bool) -> Void = { _, _ in }
     /// Esc in the tree: back to the editor.
     var leave: () -> Void = {}
+    /// q or CTRL-W c in the tree: hide the sidebar, as closing a window.
+    var close: () -> Void = {}
+    /// Space and `:` in the tree: these keys, typed in the editor.
+    var forward: (String) -> Void = { _ in }
     private let outline = SidebarOutline()
     private var stream: FSEventStreamRef?
     /// The active window's file, as last revealed.
@@ -85,6 +89,8 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         outline.doubleAction = #selector(doubleClicked)
         outline.activate = { [weak self] in self?.activateSelected() }
         outline.leave = { [weak self] in self?.leave() }
+        outline.close = { [weak self] in self?.close() }
+        outline.forward = { [weak self] in self?.forward($0) }
         outline.menu = NSMenu()
         outline.menu!.delegate = self
         let scroll = NSScrollView()
@@ -294,6 +300,15 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
 
     // MARK: - Live updates
 
+    /// Stop watching (before this sidebar is replaced): FSEvents holds it unretained.
+    func stop() {
+        guard let s = stream else { return }
+        FSEventStreamStop(s)
+        FSEventStreamInvalidate(s)
+        FSEventStreamRelease(s)
+        stream = nil
+    }
+
     private func watch() {
         var ctx = FSEventStreamContext(version: 0, info: Unmanaged.passUnretained(self).toOpaque(),
                                        retain: nil, release: nil, copyDescription: nil)
@@ -481,17 +496,73 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
     }
 }
 
-/// Enter or Space opens the selected row; j/k move; Esc or Ctrl-L goes back to the editor.
+/// The tree as a vim window: j/k, h/l (collapse or parent / expand or
+/// open), gg/G, Ctrl-D/U, Enter or o opens; Esc, Ctrl-L or CTRL-W l back
+/// to the editor; q or CTRL-W c/q closes it; Space and : are the editor's.
 final class SidebarOutline: NSOutlineView {
     var activate: () -> Void = {}
     var leave: () -> Void = {}
+    var close: () -> Void = {}
+    var forward: (String) -> Void = { _ in }
+    private var pending: Character?
+
     override func keyDown(with e: NSEvent) {
-        let ctrl = e.modifierFlags.contains(.control), c = e.charactersIgnoringModifiers
-        if [36, 76, 49].contains(e.keyCode) { activate() }
-        else if e.keyCode == 53 || (ctrl && c == "l") { leave() }
-        else if !ctrl, c == "j" { moveDown(nil) }
-        else if !ctrl, c == "k" { moveUp(nil) }
-        else { super.keyDown(with: e) }
+        let ctrl = e.modifierFlags.contains(.control)
+        guard let c = e.charactersIgnoringModifiers?.first else { return super.keyDown(with: e) }
+        let was = pending
+        pending = nil
+        if was == "w" {
+            if "cq".contains(c) { close() } else if "lwWp".contains(c) { leave() }
+            return
+        }
+        if ctrl {
+            switch c {
+            case "w": pending = "w"
+            case "l": leave()
+            case "d": go(selectedRow + halfPage)
+            case "u": go(selectedRow - halfPage)
+            default: super.keyDown(with: e)
+            }
+            return
+        }
+        switch c {
+        case _ where [36, 76].contains(e.keyCode): activate()
+        case _ where e.keyCode == 53: leave()
+        case "o": activate()
+        case "j": go(selectedRow + 1)
+        case "k": go(selectedRow - 1)
+        case "G": go(numberOfRows - 1)
+        case "g": if was == "g" { go(0) } else { pending = "g" }
+        case "l": right()
+        case "h": left()
+        case "q": close()
+        case " ": forward("<Space>")
+        case ":": forward(":")
+        default: super.keyDown(with: e)
+        }
+    }
+
+    private var halfPage: Int { max(1, Int(visibleRect.height / max(1, rowHeight)) / 2) }
+
+    private func go(_ row: Int) {
+        guard numberOfRows > 0 else { return }
+        let r = min(max(0, row), numberOfRows - 1)
+        selectRowIndexes([r], byExtendingSelection: false)
+        scrollRowToVisible(r)
+    }
+
+    /// A folder opens, an open one steps into its first entry; a file opens.
+    private func right() {
+        guard let n = item(atRow: selectedRow) as? Node else { return }
+        if !n.isDir { return activate() }
+        if isItemExpanded(n) { go(selectedRow + 1) } else { expandItem(n) }
+    }
+
+    /// An open folder closes; otherwise up to the parent folder.
+    private func left() {
+        guard let n = item(atRow: selectedRow) else { return }
+        if isItemExpanded(n) { return collapseItem(n) }
+        if let p = parent(forItem: n) { go(row(forItem: p)) }
     }
 }
 

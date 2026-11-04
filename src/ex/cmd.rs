@@ -36,6 +36,8 @@ pub enum ExEffect {
     WriteIfModifiedQuit,
     /// Show a directory in the system's file manager.
     Reveal(std::path::PathBuf),
+    /// Choose a project folder to work in (the splash's `o`).
+    OpenFolder,
     Quit {
         force: bool,
     },

@@ -25,6 +25,7 @@ pub fn recent(ed: &crate::editor::Editor) -> Vec<std::path::PathBuf> {
 
 pub fn dashboard(buf: &mut Screen, area: Rect, ed: &crate::editor::Editor, icons: bool) {
     let actions = [
+        ('\u{f0770}', '>', "Open folder", 'o'),
         ('\u{f0214}', '+', "New file", 'e'),
         ('\u{f0219}', '?', "Find file", 'f'),
         ('\u{f025a}', '*', "Recent files", 'r'),

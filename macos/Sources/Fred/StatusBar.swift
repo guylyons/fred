@@ -35,7 +35,7 @@ private final class StatusContent: NSView {
     var bg = NSColor.black
 
     override var isFlipped: Bool { true }
-    override var isOpaque: Bool { true }
+    override var isOpaque: Bool { bg.alphaComponent == 1 }
 
     static func color(_ mode: String) -> NSColor {
         switch mode {

@@ -15,6 +15,18 @@ public struct Palette: Sendable {
     /// The default: Material Theme Darker, matching the core's `material-dark` syntax theme.
     public static var materialDark: Palette { Palette(fg: rgb(0xeeffff), bg: rgb(0x212121)) }
 
+    /// Glass: the user's Ghostty look (Material Ocean, their overrides), 90%
+    /// opaque so the blurred desktop shows through.
+    public static var glass: Palette {
+        var p = Palette(fg: rgb(0xc9cedc), bg: rgb(0x101521).withAlphaComponent(0.9))
+        p.selFill = rgb(0x2d3450)
+        p.selBorder = rgb(0x3d4566)
+        return p
+    }
+
+    /// True when the background lets the desktop show through.
+    public var clear: Bool { bg.alphaComponent < 1 }
+
     // Material Dark ANSI set, ratatui order: black, red, green, yellow, blue,
     // magenta, cyan, gray, then the dark gray and bright variants.
     static let ansi: [Int] = [

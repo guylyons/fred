@@ -398,6 +398,7 @@ fn seq_of(m: &In) -> Option<u64> {
         | In::Tab { seq, .. }
         | In::Scroll { seq, .. }
         | In::Pick { seq, .. }
+        | In::Cd { seq, .. }
         | In::Panel { seq, .. } => Some(*seq),
         In::Resize { .. } | In::Quit | In::Nav { .. } => None,
     }
@@ -605,6 +606,7 @@ fn input(s: &mut Session, term: &mut Terminal<TestBackend>, m: In) {
             }
         }
         In::Scroll { win, top, .. } => scroll(s, win, top),
+        In::Cd { path, .. } => s.cd(Some(&path)),
         In::Nav { rows } => {
             s.nav = rows
                 .into_iter()

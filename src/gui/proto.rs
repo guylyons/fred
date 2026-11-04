@@ -118,6 +118,15 @@ pub struct Frame {
     /// Give the sidebar the keyboard.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub focus_nav: bool,
+    /// Ask for a project folder (then send `cd`).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub open_folder: bool,
+    /// `Space w` is numbering the windows: the sidebar shows its 0.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub picking: bool,
+    /// The working directory (the project), absolute.
+    #[serde(default)]
+    pub cwd: String,
 }
 
 /// A zap label on sidebar row `row` (an index into the last `nav`), on
@@ -271,6 +280,11 @@ pub enum In {
     Pick {
         seq: u64,
         index: usize,
+    },
+    /// Work in folder `path` (`:cd`): the chosen project.
+    Cd {
+        seq: u64,
+        path: String,
     },
     /// The minimap: show window `win` from line `top`.
     Scroll {

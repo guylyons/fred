@@ -11,7 +11,15 @@ final class EditorView: NSView {
     static let defaultSize: CGFloat = 15
     var font = EditorView.editorFont(EditorView.defaultSize) { didSet { metricsChanged() } }
     var palette = Palette.materialDark {
-        didSet { lines.removeAll(); needsDisplay = true }
+        didSet {
+            lines.removeAll()
+            layer?.isOpaque = !palette.clear
+            statusBars.forEach { $0.editorBg = palette.bg }
+            tabStrips.forEach { $0.editorBg = palette.bg }
+            crumbs.forEach { $0.editorBg = palette.bg }
+            minimapViews.forEach { $0.palette = palette }
+            needsDisplay = true
+        }
     }
     /// Called with (cols, rows, minimap margin) whenever one of them changes.
     var onResize: (Int, Int, Int) -> Void = { _, _, _ in }
@@ -120,7 +128,7 @@ final class EditorView: NSView {
 
     required init?(coder: NSCoder) { fatalError() }
 
-    override var isOpaque: Bool { true }
+    override var isOpaque: Bool { !palette.clear }
     override var isFlipped: Bool { true }
 
     override func viewDidChangeBackingProperties() {
@@ -576,8 +584,8 @@ final class EditorView: NSView {
 
     override func draw(_ dirty: NSRect) {
         guard let ctx = NSGraphicsContext.current?.cgContext else { return }
-        ctx.setFillColor(palette.bg.cgColor)
-        ctx.fill(dirty)
+        // Glass: the box behind us paints the tint, so it isn't doubled here.
+        if palette.clear { ctx.clear(dirty) } else { ctx.setFillColor(palette.bg.cgColor); ctx.fill(dirty) }
         guard let f = current else { return }
         ctx.textMatrix = CGAffineTransform(scaleX: 1, y: -1)
         for w in f.windows {

@@ -16,7 +16,7 @@ final class Breadcrumbs: NSView {
     private static let sep = " › "
 
     override var isFlipped: Bool { true }
-    override var isOpaque: Bool { true }
+    override var isOpaque: Bool { editorBg.alphaComponent == 1 }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     func update(path: String?, root: String) {

@@ -97,6 +97,12 @@ public struct Frame: Codable, Sendable {
     public var zap_nav: [NavLabel]?
     /// Give the sidebar the keyboard (`Space w 0`, `CTRL-W h` from the leftmost window).
     public var focus_nav: Bool?
+    /// Ask for a project folder (the splash's `o`), then send `cd`.
+    public var open_folder: Bool?
+    /// `Space w` is numbering the windows: the sidebar shows its 0.
+    public var picking: Bool?
+    /// The core's working directory: the project.
+    public var cwd: String?
 }
 
 /// A zap label on sidebar row `row`, at character `at` of its name.
@@ -180,6 +186,8 @@ public enum Outgoing {
     case pick(seq: Int, index: Int)
     /// The terminal panel: `op` toggle or maximize.
     case panel(seq: Int, op: String)
+    /// Work in folder `path` (`:cd`): the chosen project.
+    case cd(seq: Int, path: String)
     /// The sidebar's visible rows (name, path), for zap.
     case nav(rows: [(name: String, path: String)])
     case quit
@@ -207,6 +215,7 @@ public enum Outgoing {
         case .scroll(let s, let w, let t): body = #""scroll","seq":\#(s),"win":\#(w),"top":\#(t)"#
         case .pick(let s, let i): body = #""pick","seq":\#(s),"index":\#(i)"#
         case .panel(let s, let op): body = #""panel","seq":\#(s),"op":\#(q(op))"#
+        case .cd(let s, let p): body = #""cd","seq":\#(s),"path":\#(q(p))"#
         case .nav(let rows):
             body = #""nav","rows":["# + rows.map { #"{"name":\#(q($0.name)),"path":\#(q($0.path))}"# }.joined(separator: ",") + "]"
         case .quit: body = #""quit""#

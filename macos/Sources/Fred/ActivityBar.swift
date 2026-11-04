@@ -12,6 +12,8 @@ final class ActivityBar: NSView {
     }
 
     private var buttons: [Button] = []
+    /// Glass: the bar paints its own chrome tint (nothing solid behind it).
+    var tint = NSColor.clear { didSet { needsDisplay = true } }
 
     init(top: [Item], bottom: [Item]) {
         super.init(frame: .zero)
@@ -39,6 +41,8 @@ final class ActivityBar: NSView {
     func refresh() { buttons.forEach { $0.needsDisplay = true } }
 
     override func draw(_ r: NSRect) {
+        tint.setFill()
+        bounds.fill()
         NSColor.black.withAlphaComponent(0.15).setFill()
         bounds.fill()
         NSColor.black.withAlphaComponent(0.35).setFill()

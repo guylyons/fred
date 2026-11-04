@@ -172,6 +172,8 @@ pub struct Session {
     /// The GUI's sidebar takes the keyboard (`Space w 0`, `CTRL-W h` from
     /// the leftmost window); the next frame carries it, once.
     pub focus_nav: bool,
+    /// The GUI asks for a project folder (the splash's `o`); once, like `focus_nav`.
+    pub open_folder: bool,
     /// A window edge being dragged with the mouse: its direction, where it
     /// is now, and the row or column it was grabbed at.
     grab: Option<(crate::window::Dir, u16, u16)>,
@@ -406,6 +408,7 @@ impl Session {
             prev_win: None,
             picking_window: false,
             focus_nav: false,
+            open_folder: false,
             grab: None,
             grid_pending: false,
             which_key: false,
@@ -660,6 +663,9 @@ impl Session {
             },
             ExEffect::Cd(dir) => self.cd(dir.as_deref()),
             ExEffect::Reveal(dir) => self.browse(&dir.to_string_lossy()),
+            // The app's folder panel; in the terminal, browse from home.
+            ExEffect::OpenFolder if self.gui => self.open_folder = true,
+            ExEffect::OpenFolder => self.browse(&expand_tilde("~/").to_string_lossy()),
             ExEffect::Open {
                 path,
                 line,
@@ -851,7 +857,7 @@ impl Session {
 
     /// `:cd [dir]`: change directory (home without one). Relative paths,
     /// `Space p` and `Space g` follow.
-    fn cd(&mut self, dir: Option<&str>) {
+    pub fn cd(&mut self, dir: Option<&str>) {
         let to = dir.map_or_else(|| expand_tilde("~/"), expand_tilde);
         // Pin the files' paths first: `src/x.rs` must not come to mean a
         // file in the new directory.
@@ -2233,6 +2239,14 @@ mod tests {
         assert!(std::mem::take(&mut t.s.focus_nav));
         t.keys(" w0");
         assert!(t.s.focus_nav);
+    }
+
+    #[test]
+    fn splash_o_asks_the_gui_for_a_project_folder() {
+        let mut t = T::open(None, None);
+        t.s.gui = true;
+        t.keys("o");
+        assert!(t.s.open_folder);
     }
 
     #[test]

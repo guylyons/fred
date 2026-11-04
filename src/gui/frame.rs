@@ -137,6 +137,11 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
         palette: palette(s),
         zap_nav: zap_nav(s),
         focus_nav: std::mem::take(&mut s.focus_nav),
+        open_folder: std::mem::take(&mut s.open_folder),
+        picking: s.picking_window,
+        cwd: std::env::current_dir()
+            .map(|d| d.display().to_string())
+            .unwrap_or_default(),
     }
 }
 

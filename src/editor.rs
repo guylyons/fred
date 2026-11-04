@@ -479,6 +479,10 @@ impl Editor {
                     vim::normal_key(self, Key::ch('i'));
                     return;
                 }
+                KeyCode::Char('o') => {
+                    self.pending_effect = Some(ExEffect::OpenFolder);
+                    return;
+                }
                 KeyCode::Char('a') => {
                     self.open_cmdline(':', "ai ");
                     return;

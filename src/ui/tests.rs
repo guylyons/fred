@@ -1289,12 +1289,13 @@ fn hl_line_does_not_change_splash() {
 #[test]
 fn splash_reflows_in_small_windows() {
     let e = editor("", "");
-    for (w, h) in [(80, 20), (44, 12), (40, 8), (20, 10)] {
+    for (w, h) in [(80, 20), (44, 12), (40, 8), (20, 11)] {
         let mut s = Screen::new(w, h);
         s.draw(&e);
         let text = (0..h - 2).map(|y| s.row(y)).collect::<Vec<_>>().join("\n");
         for label in [
             "Dr. Fred",
+            "Open folder",
             "New file",
             "Find file",
             "Recent files",
