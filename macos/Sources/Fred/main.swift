@@ -188,7 +188,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
     private func applyTheme() {
         let image = backgroundImage
         var p = glass || image != nil ? Palette.glass : .materialDark
-        if image != nil { p.bg = p.bg.withAlphaComponent(0.8) }
+        if image != nil { p.bg = p.bg.withAlphaComponent(0.88) }
         view.palette = p
         let chrome = p.bg.blended(withFraction: 0.12, of: .black)!
         backdrop.color = p.clear ? .clear : chrome
