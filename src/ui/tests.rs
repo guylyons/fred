@@ -207,7 +207,7 @@ fn ex_completion_popup_cycles_and_esc_dismisses_it() {
     let first_y = (0..11).find(|&y| name(&s.row(y)) == "abbreviate").unwrap();
     assert_eq!(
         s.term.backend().buffer()[(0, first_y)].bg,
-        ratatui::style::Color::Cyan
+        ratatui::style::Color::Indexed(24)
     );
     assert!(matches!(&e.mode, Mode::Command(cl) if cl.text == "abbreviate"));
     e.handle_key(crate::key::Key::new(crate::key::KeyCode::Tab));

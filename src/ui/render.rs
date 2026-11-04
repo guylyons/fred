@@ -1404,7 +1404,8 @@ fn draw_completions(
     let top = area.bottom() - 1 - height as u16;
     for (row, item) in items.iter().enumerate().skip(off).take(height) {
         let style = if row == selected {
-            Style::default().bg(Color::Cyan).fg(Color::Black)
+            // A dark blue, as VS Code's list selection: legible on any theme.
+            Style::default().bg(Color::Indexed(24)).fg(Color::White)
         } else {
             Style::default()
                 .bg(Color::Indexed(235))

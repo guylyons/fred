@@ -398,7 +398,7 @@ final class EditorView: NSView {
             picker.pick = { [weak self] i in self?.transmit { .pick(seq: $0, index: i) } }
             addSubview(picker)
         }
-        let w = min(640, bounds.width - 40)
+        let w = min(800, bounds.width - 40) // room for command descriptions
         let top = CGFloat(f.windows.map(\.y).min() ?? 0) * cell.height + 6
         picker.frame = NSRect(x: (bounds.width - w) / 2, y: top, width: w, height: PaletteView.height(p))
         picker.update(p)
