@@ -182,7 +182,7 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         }()
         cell.imageView!.image = FileIcon.image(for: n.name, isDir: n.isDir, size: 16)
         cell.textField!.stringValue = n.name
-        cell.textField!.textColor = n.ignored ? .tertiaryLabelColor : .labelColor
+        cell.textField!.textColor = n.ignored ? .secondaryLabelColor : .labelColor // dimmed, still readable
         cell.textField!.isEditable = false
         return cell
     }

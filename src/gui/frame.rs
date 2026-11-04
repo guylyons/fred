@@ -130,7 +130,10 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
             "{} — {}",
             s.ed.path.as_ref().and_then(|p| p.file_name()).map_or("[No Name]".into(), |n| n.to_string_lossy()),
             std::env::current_dir().ok().as_deref().and_then(|d| d.file_name()).map_or("fred".into(), |n| n.to_string_lossy())
-        ),
+        )
+        // No project yet (the app starts in home): no folder name to show.
+        .trim_end_matches(&format!(" — {}", home_name()))
+        .to_string(),
         windows,
         bottom,
         cursor,
@@ -545,4 +548,12 @@ mod tests {
         };
         assert_eq!(serde_json::to_string(&run).unwrap(), r#"{"x":0,"s":"a"}"#);
     }
+}
+
+fn home_name() -> String {
+    std::env::var_os("HOME")
+        .map(std::path::PathBuf::from)
+        .filter(|h| std::env::current_dir().is_ok_and(|d| d == *h))
+        .and_then(|h| h.file_name().map(|n| n.to_string_lossy().into_owned()))
+        .unwrap_or_else(|| "\0".into())
 }
