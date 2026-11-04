@@ -1245,6 +1245,13 @@ pub(crate) fn term_title(ed: &Editor) -> Option<String> {
     })
 }
 
+/// A name for buffers that aren't files: a terminal, a Magit view, Claude.
+pub(crate) fn special_title(ed: &Editor) -> Option<String> {
+    term_title(ed)
+        .or_else(|| ed.magit.as_ref().map(|v| v.title()))
+        .or_else(|| ed.claude.as_ref().map(|c| c.title()))
+}
+
 /// The `│` between this window and the one to its right.
 fn draw_divider(buf: &mut Screen, rect: Rect, divider: bool) {
     if divider {

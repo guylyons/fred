@@ -19,7 +19,7 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
     let mut status = vec![];
     let cwd = std::env::current_dir().ok();
     s.each_window(|ed, view, hl, p, _| {
-        let name = render::term_title(ed).unwrap_or_else(|| match &ed.path {
+        let name = render::special_title(ed).unwrap_or_else(|| match &ed.path {
             Some(path) => cwd
                 .as_deref()
                 .and_then(|c| path.strip_prefix(c).ok())
@@ -233,7 +233,7 @@ fn tabs(s: &Session, id: usize) -> Vec<proto::Tab> {
         .iter()
         .map(|&b| {
             let ed = s.ed_at(b);
-            let name = render::term_title(ed)
+            let name = render::special_title(ed)
                 .or_else(|| {
                     ed.path
                         .as_ref()?
@@ -492,6 +492,19 @@ mod tests {
         assert_eq!((w.header, w.margin), (0, 0));
         assert_eq!(w.rows.len(), w.h as usize - 1);
         assert_eq!(f.cursor.map(|c| c.y), Some(0));
+    }
+
+    #[test]
+    fn a_magit_view_is_named_by_its_title_not_its_state_file() {
+        let (mut s, mut term, _d) = setup(40, 8, "x\n");
+        s.ed.path = Some("/state/magit-views/0123abcd".into());
+        s.ed.magit = Some(Box::new(crate::magit::View::status(
+            crate::magit::repo::Repo { root: "/repo".into() },
+            Default::default(),
+        )));
+        s.chrome = (1, 0);
+        let f = build(&mut s, &Config::default(), &mut term, 0);
+        assert_eq!(f.windows[0].tabs[0].name, "Magit status");
     }
 
     #[test]
