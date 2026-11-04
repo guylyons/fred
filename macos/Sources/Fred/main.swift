@@ -1,5 +1,6 @@
 import AppKit
 import FredKit
+import UniformTypeIdentifiers
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSToolbarDelegate {
@@ -82,8 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
             ]),
             menu("View", [
                 {
-                    // The split view controller answers, and retitles it Show/Hide Sidebar.
-                    let i = NSMenuItem(title: "Show Sidebar", action: #selector(NSSplitViewController.toggleSidebar(_:)), keyEquivalent: "s")
+                    let i = NSMenuItem(title: "Toggle Sidebar", action: #selector(toggleExplorer), keyEquivalent: "s")
                     i.keyEquivalentModifierMask = [.command, .control]
                     return i
                 }(),
@@ -98,6 +98,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
                 { minimapItem = item(view.showMinimap ? "Hide Minimap" : "Show Minimap", #selector(toggleMinimap), "m", [.command, .control]); return minimapItem }(),
                 .separator(),
                 { glassItem = item("Glass Theme", #selector(toggleGlass), "t", [.command, .control]); glassItem.state = glass ? .on : .off; return glassItem }(),
+                item("Background Image…", #selector(chooseBackground)),
+                item("Remove Background Image", #selector(removeBackground)),
             ]),
             windowMenu,
         ].forEach(bar.addItem)
@@ -152,6 +154,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         activity.refresh()
     }
 
+    /// View ▸ Background Image…: a picture behind the whole window, seen
+    /// through translucent panes (Ghostty's background-image).
+    private var backgroundImage = UserDefaults.standard.string(forKey: "FredBackgroundImage").flatMap(NSImage.init(contentsOfFile:))
+
+    @objc private func chooseBackground() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.image]
+        guard panel.runModal() == .OK, let url = panel.url, let image = NSImage(contentsOf: url) else { return }
+        UserDefaults.standard.set(url.path, forKey: "FredBackgroundImage")
+        backgroundImage = image
+        applyTheme()
+        installSidebar(project)
+    }
+
+    @objc private func removeBackground() {
+        UserDefaults.standard.removeObject(forKey: "FredBackgroundImage")
+        backgroundImage = nil
+        applyTheme()
+        installSidebar(project)
+    }
+
     @objc private func toggleGlass() {
         glass.toggle()
         UserDefaults.standard.set(glass ? "glass" : "default", forKey: "FredTheme")
@@ -163,11 +186,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
     /// The two themes: solid Material Darker, or Glass, where only the
     /// bottom layer of each region paints the 90% tint so it isn't doubled.
     private func applyTheme() {
-        let p = glass ? Palette.glass : .materialDark
+        let image = backgroundImage
+        var p = glass || image != nil ? Palette.glass : .materialDark
+        if image != nil { p.bg = p.bg.withAlphaComponent(0.8) }
         view.palette = p
         let chrome = p.bg.blended(withFraction: 0.12, of: .black)!
-        backdrop.color = glass ? .clear : chrome
-        activity?.tint = glass ? chrome : .clear
+        backdrop.color = p.clear ? .clear : chrome
+        backdrop.image = image
+        activity?.tint = p.clear ? chrome : .clear
+        (split?.splitView as? DividerSplit)?.color = chrome.blended(withFraction: 0.3, of: .black)!
         editorBox.color = p.bg
         window.isOpaque = !glass
         window.backgroundColor = glass ? .clear : .windowBackgroundColor
@@ -225,7 +252,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         view.send = { [core] in core!.send($0) }
         view.root = cwd.path
         view.showMinimap = UserDefaults.standard.object(forKey: "FredMinimap") as? Bool ?? true
-        view.onResize = { [core] cols, rows, margin in core!.send(.resize(cols: cols, rows: rows, margin: margin)) }
+        view.onResize = { [core, unowned view] cols, rows, margin in
+            core!.send(.resize(cols: cols, rows: rows, margin: margin, aspect: Int((view.cell.height / view.cell.width * 100).rounded())))
+        }
         view.reveal = { [unowned self] in self.sidebar?.revealInTree($0) }
         core.onFrame = { [unowned self] f in self.frame(f) }
         core.onMinimap = { view.applyMinimap($0) }
@@ -239,6 +268,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
             window!.close()
             NSApp.terminate(nil)
         }
+        let split = split(editor: view)
+        self.split = split
+        // After the split: its divider places the title, past the sidebar.
         let bar = NSToolbar(identifier: "main")
         bar.delegate = self
         bar.displayMode = .iconOnly
@@ -246,8 +278,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         window.toolbarStyle = .unified
         // The title strip shows the theme color under it, not tinted glass.
         window.titlebarAppearsTransparent = true
-        let split = split(editor: view)
-        self.split = split
+        // The tab and breadcrumbs name the file; the title (kept for Mission
+        // Control and the Window menu) would sit over the plain sidebar pane.
+        window.titleVisibility = .hidden
         let content = withActivityBar(split)
         applyTheme()
         installSidebar(project)
@@ -357,7 +390,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
             pane.close = { [unowned self] in self.closeSidebar() }
             vc = pane
         }
-        let item = NSSplitViewItem(sidebarWithViewController: vc)
+        // A plain pane: a sidebar item wraps it in system glass that would hide
+        // a background image or the Glass theme.
+        let item = NSSplitViewItem(viewController: vc)
         item.minimumThickness = 140
         item.maximumThickness = 600
         item.canCollapse = true
@@ -405,6 +440,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         activity.refresh()
     }
 
+    @objc private func toggleExplorer() {
+        let side = split.splitViewItems[0]
+        side.animator().isCollapsed.toggle()
+        activity.refresh()
+    }
+
     private func showSidebar() {
         let side = split.splitViewItems[0]
         if side.isCollapsed { side.animator().isCollapsed = false; activity.refresh() }
@@ -418,7 +459,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         c.view = glass
         c.addChild(split)
         let bar = ActivityBar(top: [
-            .init(symbol: "doc.on.doc", tip: "Explorer (⌃⌘S)", run: { [unowned self] in self.split.toggleSidebar(nil) },
+            .init(symbol: "doc.on.doc", tip: "Explorer (⌃⌘S)", run: { [unowned self] in self.toggleExplorer() },
                   on: { [unowned self] in !self.split.splitViewItems[0].isCollapsed }),
             .init(symbol: "magnifyingglass", tip: "Grep (Space g)", run: { [unowned self] in self.run("<Space>g") }),
             .init(symbol: "doc.text.magnifyingglass", tip: "Find a File (Space p)", run: { [unowned self] in self.run("<Space>p") }),
@@ -453,6 +494,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
     /// The editor, with room for the sidebar (`installSidebar`) beside it; its width is remembered.
     private func split(editor: EditorView) -> NSSplitViewController {
         let split = NSSplitViewController()
+        split.splitView = DividerSplit()
+        split.splitView.isVertical = true
+        split.splitView.dividerStyle = .thin
         let content = NSViewController()
         let box = editorBox
         editor.translatesAutoresizingMaskIntoConstraints = false
@@ -471,11 +515,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
     }
 
     func toolbarDefaultItemIdentifiers(_ t: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.sidebarTrackingSeparator] // the activity bar's Explorer button toggles the sidebar
+        [Self.track] // the activity bar's Explorer button toggles the sidebar
     }
 
-    /// Required, or AppKit drops the delegate; the system items need nothing from us.
-    func toolbar(_ t: NSToolbar, itemForItemIdentifier id: NSToolbarItem.Identifier, willBeInsertedIntoToolbar: Bool) -> NSToolbarItem? { nil }
+    /// Keeps the title past the sidebar (the system one needs a sidebar item).
+    private static let track = NSToolbarItem.Identifier("FredTrack")
+
+    func toolbar(_ t: NSToolbar, itemForItemIdentifier id: NSToolbarItem.Identifier, willBeInsertedIntoToolbar: Bool) -> NSToolbarItem? {
+        id == Self.track ? NSTrackingSeparatorToolbarItem(identifier: id, splitView: split.splitView, dividerIndex: 0) : nil
+    }
 
     func toolbarAllowedItemIdentifiers(_ t: NSToolbar) -> [NSToolbarItem.Identifier] {
         toolbarDefaultItemIdentifiers(t)
@@ -501,11 +549,29 @@ let delegate = AppDelegate()
 app.delegate = delegate
 app.run()
 
+/// The sidebar's edge: a hairline that doesn't show the backdrop through.
+final class DividerSplit: NSSplitView {
+    var color = NSColor.black { didSet { needsDisplay = true } }
+    override var dividerColor: NSColor { color }
+    override func drawDivider(in rect: NSRect) { color.setFill(); rect.fill() }
+}
+
 /// Opaque theme background behind the editor (and under the toolbar).
 class EditorBackground: NSView {
     var color = NSColor.black { didSet { needsDisplay = true } }
-    override var isOpaque: Bool { color.alphaComponent == 1 }
-    override func draw(_ r: NSRect) { color.setFill(); r.fill() }
+    /// Drawn under `color`, filling the view (cropped, not stretched).
+    var image: NSImage? { didSet { needsDisplay = true } }
+    override var isOpaque: Bool { color.alphaComponent == 1 || image != nil }
+    override func draw(_ r: NSRect) {
+        if let image, image.size.width > 0, image.size.height > 0 {
+            let s = max(bounds.width / image.size.width, bounds.height / image.size.height)
+            let size = NSSize(width: image.size.width * s, height: image.size.height * s)
+            image.draw(in: NSRect(x: bounds.midX - size.width / 2, y: bounds.midY - size.height / 2,
+                                  width: size.width, height: size.height))
+        }
+        color.setFill()
+        r.fill(using: .sourceOver)
+    }
 }
 
 /// Ghostty's background-blur: the private window-server call it uses (looked

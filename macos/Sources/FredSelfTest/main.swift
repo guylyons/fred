@@ -190,6 +190,7 @@ check("open preview line", out(.open(seq: 5, path: "/f", preview: true)) == #"{"
 check("open line omits preview false", out(.open(seq: 5, path: "/f", preview: false)) == #"{"t":"open","seq":5,"path":"/f"}"# + "\n")
 check("resize margin", out(.resize(cols: 120, rows: 40, margin: 8)) == #"{"t":"resize","cols":120,"rows":40,"margin":8}"# + "\n")
 check("resize margin 0 omitted", out(.resize(cols: 120, rows: 40, margin: 0)) == #"{"t":"resize","cols":120,"rows":40}"# + "\n")
+check("resize aspect", out(.resize(cols: 120, rows: 40, margin: 0, aspect: 267)) == #"{"t":"resize","cols":120,"rows":40,"aspect":267}"# + "\n")
 
 // Minimap: 2 pt per line; scrolls only when taller than the view.
 do {

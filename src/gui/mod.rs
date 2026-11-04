@@ -238,7 +238,8 @@ fn event_loop(
     let mut minimapped = HashMap::new();
     // The app sends its size first; without it the first frame would be 80x24.
     let mut first = match rx.recv_timeout(std::time::Duration::from_millis(200)) {
-        Ok(In::Resize { cols, rows, margin }) => {
+        Ok(In::Resize { cols, rows, margin, aspect }) => {
+            crate::ui::splash::set_cell_aspect(aspect);
             term.backend_mut().resize(cols, rows);
             s.chrome = (TAB_ROWS, margin);
             None
@@ -523,7 +524,8 @@ fn input(s: &mut Session, term: &mut Terminal<TestBackend>, m: In) {
     }
     let terminal = s.in_terminal() && s.ed.menu.is_none();
     match m {
-        In::Resize { cols, rows, margin } => {
+        In::Resize { cols, rows, margin, aspect } => {
+            crate::ui::splash::set_cell_aspect(aspect);
             term.backend_mut().resize(cols, rows);
             s.chrome = (TAB_ROWS, margin);
             s.ed.zap = None;
@@ -774,7 +776,8 @@ mod tests {
             In::Resize {
                 cols: 1,
                 rows: 2,
-                margin: 8
+                margin: 8,
+                aspect: 0
             }
         );
         assert!(serde_json::from_str::<In>(r#"{"t":"bogus"}"#).is_err());
@@ -811,6 +814,7 @@ mod tests {
             cols: 50,
             rows: 7,
             margin: 0,
+            aspect: 0,
         })
         .unwrap();
         tx.send(In::Quit).unwrap();

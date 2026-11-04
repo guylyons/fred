@@ -219,6 +219,9 @@ pub enum In {
         /// Columns per window for the minimap; 0 turns it off.
         #[serde(default)]
         margin: u16,
+        /// Cell height / width × 100 (a terminal's is about 200); 0 = unknown.
+        #[serde(default)]
+        aspect: u16,
     },
     Keys {
         seq: u64,

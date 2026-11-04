@@ -168,7 +168,7 @@ public enum Incoming {
 
 public enum Outgoing {
     /// `margin` (minimap columns) is left out when 0, its default.
-    case resize(cols: Int, rows: Int, margin: Int)
+    case resize(cols: Int, rows: Int, margin: Int, aspect: Int = 0)
     case keys(seq: Int, keys: String)
     case paste(seq: Int, text: String)
     case mouse(seq: Int, kind: String, col: Int, row: Int)
@@ -200,7 +200,7 @@ public enum Outgoing {
         }
         let body: String
         switch self {
-        case .resize(let c, let r, let m): body = #""resize","cols":\#(c),"rows":\#(r)"# + (m == 0 ? "" : #","margin":\#(m)"#)
+        case .resize(let c, let r, let m, let a): body = #""resize","cols":\#(c),"rows":\#(r)"# + (m == 0 ? "" : #","margin":\#(m)"#) + (a == 0 ? "" : #","aspect":\#(a)"#)
         case .keys(let s, let k): body = #""keys","seq":\#(s),"keys":\#(q(k))"#
         case .paste(let s, let t): body = #""paste","seq":\#(s),"text":\#(q(t))"#
         case .mouse(let s, let k, let c, let r): body = #""mouse","seq":\#(s),"kind":\#(q(k)),"col":\#(c),"row":\#(r)"#

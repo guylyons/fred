@@ -41,12 +41,9 @@ final class ActivityBar: NSView {
     func refresh() { buttons.forEach { $0.needsDisplay = true } }
 
     override func draw(_ r: NSRect) {
+        // The sidebar's color, no edge: the bar blends into it.
         tint.setFill()
         bounds.fill()
-        NSColor.black.withAlphaComponent(0.15).setFill()
-        bounds.fill()
-        NSColor.black.withAlphaComponent(0.35).setFill()
-        NSRect(x: bounds.maxX - 1, y: 0, width: 1, height: bounds.height).fill()
     }
 
     private final class Button: NSView {

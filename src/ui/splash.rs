@@ -148,13 +148,24 @@ fn color(px: u8) -> Option<Color> {
     })
 }
 
+static CELL_ASPECT: std::sync::atomic::AtomicU16 = std::sync::atomic::AtomicU16::new(200);
+
+/// The GUI's cell height / width × 100, so the logo's pixels stay square in
+/// fonts taller than a terminal's 1:2 cell; 0 keeps the terminal's.
+pub fn set_cell_aspect(aspect: u16) {
+    CELL_ASPECT.store(if aspect == 0 { 200 } else { aspect.clamp(100, 400) }, std::sync::atomic::Ordering::Relaxed);
+}
+
 /// Draw the logo and its title centered in `area`: pixels twice the size
 /// when there's room, half size when the menu needs more space.
 pub fn draw(buf: &mut Screen, area: Rect) {
     let rows: Vec<&[u8]> = LOGO.lines().map(str::as_bytes).collect();
     let (w, h) = (rows[0].len(), rows.len());
+    // Columns per logo pixel at full size: 2 in a 1:2 cell.
+    let a = CELL_ASPECT.load(std::sync::atomic::Ordering::Relaxed) as usize;
+    let cols = |px: usize| (px * a).div_ceil(100);
     // Pixel dimensions, plus the original gap and title below.
-    let Some((cw, ph)) = [(w * 2, h * 2), (w, h), (w / 2, h.div_ceil(2))]
+    let Some((cw, ph)) = [(cols(w), h * 2), (cols(w) / 2, h), (cols(w) / 4, h.div_ceil(2))]
         .into_iter()
         .find(|&(cw, ph)| cw <= area.width as usize && ph.div_ceil(2) + 2 <= area.height as usize)
     else {
