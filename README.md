@@ -164,6 +164,7 @@ open macos/Fred.app --args "$PWD/file"  # an absolute path (the app starts in /)
 the binary directly: `FRED_LATENCY=1 macos/Fred.app/Contents/MacOS/Fred PATH`.
 
 - `FRED_CORE=/path/to/fred` runs a different core binary than the bundled one.
+- `FRED_KEYS='<Space>p'` types those keys once the app starts.
 - `FRED_LATENCY=1` shows keypress-to-pixels p50/p99 in an overlay at the top
   right, and prints it to stderr every 100 samples.
 

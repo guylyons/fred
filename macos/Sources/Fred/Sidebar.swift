@@ -79,6 +79,7 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         outline.outlineTableColumn = col
         outline.headerView = nil
         outline.style = .sourceList
+        outline.backgroundColor = .clear // no source-list material over our color or a background image
         outline.rowSizeStyle = .custom
         outline.rowHeight = 24 // VS Code's compact rows
         outline.dataSource = self

@@ -285,6 +285,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         applyTheme()
         installSidebar(project)
         if let project { remember(project) }
+        // FRED_KEYS=… types keys once the core is up: screenshots of a state without focus.
+        if let keys = ProcessInfo.processInfo.environment["FRED_KEYS"] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [unowned self] in run(keys) }
+        }
         let saved = UserDefaults.standard.object(forKey: "NSSplitView Subview Frames FredSidebar") != nil
         split.splitView.autosaveName = "FredSidebar"
         if !saved { split.splitView.setPosition(240, ofDividerAt: 0) }
