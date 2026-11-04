@@ -829,6 +829,9 @@ pub fn draw_window(
         1,
     );
     if let Some(t) = &ed.term {
+        // The GUI's terminal gets a column of padding, like VS Code's panel.
+        let pad = u16::from(placed.header > 0 && area.width > 1);
+        let area = Rect { x: area.x + pad, width: area.width - pad, ..area };
         let cursor = t.borrow_mut().draw(buf, area);
         draw_status(buf, status, ed, hl, active);
         draw_divider(buf, rect, divider);
