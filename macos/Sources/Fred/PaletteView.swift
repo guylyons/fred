@@ -129,6 +129,7 @@ final class PaletteView: NSView {
         }
         let para = NSMutableParagraphStyle()
         para.lineBreakMode = .byTruncatingTail
+        para.allowsDefaultTighteningForTruncation = false // squeezed rows would break the padded columns
         s.addAttribute(.paragraphStyle, value: para, range: NSRange(location: 0, length: s.length))
         let h = s.size().height
         let nameW = min(s.size().width, rr.maxX - 10 - x)
