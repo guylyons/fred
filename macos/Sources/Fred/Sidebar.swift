@@ -79,7 +79,8 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         outline.outlineTableColumn = col
         outline.headerView = nil
         outline.style = .sourceList
-        outline.rowSizeStyle = .medium
+        outline.rowSizeStyle = .custom
+        outline.rowHeight = 24 // VS Code's compact rows
         outline.dataSource = self
         outline.delegate = self
         // Files drag into the editor (and out, as copies, to other apps).
@@ -160,7 +161,7 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
             let c = NSTableCellView()
             c.identifier = id
             let image = NSImageView(), text = NSTextField(labelWithString: "")
-            text.font = .systemFont(ofSize: 14)
+            text.font = .systemFont(ofSize: 13)
             text.lineBreakMode = .byTruncatingMiddle
             text.delegate = self
             for s in [image, text] as [NSView] {
@@ -243,7 +244,7 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         for l in labels where l.row < navRows.count {
             guard let cell = outline.view(atColumn: 0, row: navRows[l.row], makeIfNecessary: false) as? NSTableCellView,
                   let tf = cell.textField else { continue }
-            let name = tf.stringValue, font = tf.font ?? .systemFont(ofSize: 14)
+            let name = tf.stringValue, font = tf.font ?? .systemFont(ofSize: 13)
             func width(_ n: Int) -> CGFloat {
                 NSAttributedString(string: String(name.prefix(n)), attributes: [.font: font]).size().width
             }

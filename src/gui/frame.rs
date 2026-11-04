@@ -125,11 +125,11 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
         seq,
         cols: buf.area.width,
         rows: buf.area.height,
+        // VS Code's order: the file, then the project.
         title: format!(
-            "fred — {}",
-            s.ed.path
-                .as_ref()
-                .map_or("[No Name]".into(), |p| p.display().to_string())
+            "{} — {}",
+            s.ed.path.as_ref().and_then(|p| p.file_name()).map_or("[No Name]".into(), |n| n.to_string_lossy()),
+            std::env::current_dir().ok().as_deref().and_then(|d| d.file_name()).map_or("fred".into(), |n| n.to_string_lossy())
         ),
         windows,
         bottom,

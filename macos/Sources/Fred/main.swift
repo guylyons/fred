@@ -202,7 +202,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         var isDir: ObjCBool = false
         if let arg { FileManager.default.fileExists(atPath: arg.path, isDirectory: &isDir) }
         // Symlinks resolved: the core reports canonical paths.
-        project = arg.map { URL(fileURLWithPath: FileTree.canonical((isDir.boolValue ? $0 : $0.deletingLastPathComponent()).path)) }
+        project = arg.map { a in
+            let dir = isDir.boolValue ? a : a.deletingLastPathComponent()
+            // A file inside a repository opens the repository, as `code` in a checkout does.
+            var d = dir
+            while d.path != "/" && !FileManager.default.fileExists(atPath: d.appendingPathComponent(".git").path) { d.deleteLastPathComponent() }
+            return URL(fileURLWithPath: FileTree.canonical((isDir.boolValue || d.path == "/" ? dir : d).path))
+        }
         let cwd = project ?? FileManager.default.homeDirectoryForCurrentUser
 
         let exe = ProcessInfo.processInfo.environment["FRED_CORE"].map { URL(fileURLWithPath: $0) }
