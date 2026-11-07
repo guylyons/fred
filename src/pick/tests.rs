@@ -73,6 +73,17 @@ fn space_is_the_leader() {
 }
 
 #[test]
+fn colon_in_find_file_opens_the_commands() {
+    let (_d, mut ed) = setup(&[]);
+    keys(&mut ed, " p:vspl");
+    let p = picker(&ed);
+    assert_eq!(
+        (p.kind, p.prompt(), p.query.text.as_str()),
+        (Kind::OrgChoice, "commands", "vspl")
+    );
+}
+
+#[test]
 fn find_a_file() {
     let (d, mut ed) = setup(&[
         ("src/search.rs", ""),

@@ -46,6 +46,10 @@ public struct Win: Codable, Equatable, Sendable {
     public var lines: Int?
     /// In display order, exactly one `current`.
     public var tabs: [Tab]?
+    /// The last row is draw mode's toolbar, not the status bar's.
+    public var toolbar: Bool?
+    /// A terminal: the wheel scrolls its shell.
+    public var term: Bool?
 }
 
 public struct Tab: Codable, Equatable, Sendable {

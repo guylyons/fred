@@ -1,0 +1,60 @@
+        assert_eq!(ed("a\nb\nc", "2j").cur.pos(), (2, 0));
+        assert_eq!(ed("a\nb\nc", "9j").cur.pos(), (2, 0));
+        assert_eq!(ed("a\nb", "<Down><Right>").cur.pos(), (1, 0));
+    }
+
+    #[test]
+    fn search_motions() {
+        assert_eq!(ed("abc\nfoo\nabc", "/abc<Enter>").cur.pos(), (2, 0));
+        assert_eq!(ed("abc\nfoo\nabc", "/abc<Enter>n").cur.pos(), (0, 0));
+        assert_eq!(ed("abc\nfoo\nabc", "/abc<Enter>N").cur.pos(), (0, 0));
+        assert_eq!(ed("abc\nfoo\nabc", "?foo<Enter>").cur.pos(), (1, 0));
+        assert_eq!(ed("x abc", "/b<Enter>").cur.pos(), (0, 3));
+        let e = ed("abc", "/zzz<Enter>");
+        assert_eq!(e.cur.pos(), (0, 0));
+        assert!(e.msg.unwrap().1);
+    }
+
+    #[test]
+    fn marks_motion() {
+        assert_eq!(ed("a\n  b\nc", "jmaG'a").cur.pos(), (1, 2));
+    }
+
+    #[test]
+    fn grapheme_motion() {
+        assert_eq!(ed("e\u{301}漢x", "l").cur.pos(), (0, 3));
+        assert_eq!(ed("e\u{301}漢x", "ll").cur.pos(), (0, 6));
+        assert_eq!(ed("e\u{301}漢x", "$h").cur.pos(), (0, 3));
+        // j/k keep the screen column across wide chars
+        assert_eq!(ed("漢字x\nabcde", "$j").cur.pos(), (1, 4));
+        assert_eq!(ed("abcd\n漢字", "lllj").cur.pos(), (1, 3));
+    }
+
+    #[test]
+    fn half_page() {
+        let t = (0..30)
+            .map(|i| i.to_string())
+            .collect::<Vec<_>>()
+            .join("\n");
+        let mut e = Editor::new(Buffer::from_text(&t));
+        e.win_height = 10;
+        // The window scrolls half its height and the cursor with it, then
+        // keeps 'scrolloff' (2) lines above it.
+        e.handle_key(crate::key::Key::ctrl('d'));
+        assert_eq!(e.cur.line, 7);
+        e.handle_key(crate::key::Key::ctrl('u'));
+        assert_eq!(e.cur.line, 2);
+    }
+
+    #[test]
+    fn empty_buffer_motions_dont_panic() {
+        for k in [
+            "j", "k", "G", "gg", "w", "b", "e", "W", "B", "E", "$", "0", "^", "}", "{", "n", "N",
+            "x", "X", "dd", "p", "P", "J", "u", "<C-r>", "D", "C<Esc>", "fz", ";", "'a", "o<Esc>",
+            "dw", "db", "de", "cw<Esc>", "yy", "Vd", "~", "r", ".",
+        ] {
+            ed("", k);
+            ed("\n\n", k);
+        }
+    }
+}

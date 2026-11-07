@@ -37,8 +37,8 @@ use std::time::{Duration, Instant};
 
 /// A window's minimap is sent at most this often.
 const MINIMAP_EVERY: Duration = Duration::from_millis(250);
-/// Rows per window above its text: the tab strip (two, VS Code's height) and breadcrumbs.
-const TAB_ROWS: u16 = 3;
+/// Rows per window above its text: the tab strip.
+const TAB_ROWS: u16 = 1;
 /// Highlighting time per minimap; lines past it go uncolored.
 const MINIMAP_BUDGET: Duration = Duration::from_millis(4);
 
@@ -239,7 +239,12 @@ fn event_loop(
     let mut minimapped = HashMap::new();
     // The app sends its size first; without it the first frame would be 80x24.
     let mut first = match rx.recv_timeout(std::time::Duration::from_millis(200)) {
-        Ok(In::Resize { cols, rows, margin, aspect }) => {
+        Ok(In::Resize {
+            cols,
+            rows,
+            margin,
+            aspect,
+        }) => {
             crate::ui::splash::set_cell_aspect(aspect);
             term.backend_mut().resize(cols, rows);
             s.chrome = (TAB_ROWS, margin);
@@ -525,7 +530,12 @@ fn input(s: &mut Session, term: &mut Terminal<TestBackend>, m: In) {
     }
     let terminal = s.in_terminal() && s.ed.menu.is_none();
     match m {
-        In::Resize { cols, rows, margin, aspect } => {
+        In::Resize {
+            cols,
+            rows,
+            margin,
+            aspect,
+        } => {
             crate::ui::splash::set_cell_aspect(aspect);
             term.backend_mut().resize(cols, rows);
             s.chrome = (TAB_ROWS, margin);
@@ -630,6 +640,11 @@ fn input(s: &mut Session, term: &mut Terminal<TestBackend>, m: In) {
                 handle_keys(s, "<Enter>");
             }
         }
+        // A focused terminal would hand `:qa` to its shell.
+        In::Quit if s.ed.term.is_some() => s.perform(crate::ex::ExEffect::QuitAll {
+            force: false,
+            write: false,
+        }),
         In::Quit => handle_keys(s, "<Esc>:qa<Enter>"),
     }
     if keyboard && !keep_view && s.ed.zap.is_none() && s.ed.vim.pending != [Key::ch(' ')] {
@@ -790,6 +805,28 @@ mod tests {
         std::fs::write(&path, text).unwrap();
         let (s, _) = Session::open(Some(path), &Config::default(), &d.path().join("swap")).unwrap();
         (s, d)
+    }
+
+    #[test]
+    fn quit_works_from_a_terminal() {
+        let (mut s, _d) = session("1\n");
+        s.gui = true;
+        s.show_panel();
+        if s.ed.term.is_none() {
+            return; // no terminal in this build
+        }
+        let (tx, rx) = mpsc::channel();
+        tx.send(In::Quit).unwrap();
+        drop(tx); // a failed quit ends the loop instead of waiting
+        let _ = event_loop(
+            &mut s,
+            &Config::default(),
+            &rx,
+            &AtomicBool::new(false),
+            None,
+            &mut vec![],
+        );
+        assert!(s.quit);
     }
 
     #[test]

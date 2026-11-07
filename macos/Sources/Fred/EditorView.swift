@@ -61,6 +61,10 @@ final class EditorView: NSView {
     /// line by `dy` points (down positive), springing back on release.
     private var bounce: (win: Int, dy: CGFloat)?
     private var spring: Timer?
+    /// VS Code's smooth trackpad scroll: window `win` is wanted `px` points
+    /// down its lines. The core shows whole lines from `sent` (asked for in
+    /// message `seq`); the text slides by the rest.
+    private var smooth: (win: Int, px: CGFloat, sent: Int, seq: Int)?
 
     /// Sends the message `make` builds from the next seq; returns that seq.
     @discardableResult
@@ -193,7 +197,9 @@ final class EditorView: NSView {
     }
 
     private func cellAt(_ e: NSEvent) -> (Int, Int) {
-        let p = convert(e.locationInWindow, from: nil)
+        var p = convert(e.locationInWindow, from: nil)
+        // A slid window: the cell under the pointer is the one drawn there.
+        if let w = current?.windows.first(where: { textRect($0).contains(p) }) { p.y -= offset(w) }
         let cols = current?.cols ?? Int.max, rows = current?.rows ?? Int.max
         return (min(max(0, Int(p.x / cell.width)), cols - 1), min(max(0, Int(p.y / cell.height)), rows - 1))
     }
@@ -209,8 +215,9 @@ final class EditorView: NSView {
     override func rightMouseDown(with e: NSEvent) { mouse("right", e) }
 
     override func scrollWheel(with e: NSEvent) {
-        if rubberBand(e) { return }
-        let n = scrollLines(e.scrollingDeltaY, precise: e.hasPreciseScrollingDeltas, acc: &scrollAcc)
+        if rubberBand(e) || slide(e) { return }
+        // A terminal scrolls 3 lines a step: one per 3 lines of finger travel.
+        let n = scrollLines(e.scrollingDeltaY, precise: e.hasPreciseScrollingDeltas, unit: 3 * cell.height, acc: &scrollAcc)
         for _ in 0..<abs(n) { mouse(n > 0 ? "scroll_up" : "scroll_down", e) }
     }
 
@@ -224,7 +231,8 @@ final class EditorView: NSView {
         guard let w = f.windows.first(where: { c >= $0.x && c < $0.x + $0.w && r >= $0.y && r < $0.y + $0.h }),
               let id = w.id, let top = w.top, let lines = w.lines else { return false }
         let over = bounce?.win == id ? bounce!.dy : 0
-        let atTop = top == 0 && d > 0, atEnd = top >= lines - 1 && d < 0
+        let px = smooth?.win == id ? smooth!.px : CGFloat(top) * cell.height
+        let atTop = px <= 0 && d > 0, atEnd = px >= CGFloat(maxTop(w, top: top, lines: lines)) * cell.height && d < 0
         guard over != 0 || atTop || atEnd || (released && bounce != nil) else { return false }
         spring?.invalidate()
         spring = nil
@@ -233,6 +241,48 @@ final class EditorView: NSView {
         redrawText(w)
         if released || e.momentumPhase == .ended || !e.momentumPhase.isEmpty { springBack() }
         return true
+    }
+
+    /// A trackpad scroll by points: the core shows the whole lines, the
+    /// text slides by the rest. False for a terminal (its shell scrolls).
+    private func slide(_ e: NSEvent) -> Bool {
+        guard e.hasPreciseScrollingDeltas, let f = current else { return false }
+        let (c, r) = cellAt(e)
+        guard let w = f.windows.first(where: { c >= $0.x && c < $0.x + $0.w && r >= $0.y && r < $0.y + $0.h }),
+              w.term != true, let id = w.id, let top = w.top, let lines = w.lines else { return false }
+        var s = smooth?.win == id ? smooth! : (win: id, px: CGFloat(top) * cell.height, sent: top, seq: 0)
+        s.px = min(max(0, s.px - e.scrollingDeltaY), CGFloat(maxTop(w, top: top, lines: lines)) * cell.height)
+        let want = Int(s.px / cell.height)
+        if want != s.sent {
+            s.sent = want
+            s.seq = transmit { .scroll(seq: $0, win: id, top: want) }
+        }
+        smooth = s
+        redrawText(w)
+        return true
+    }
+
+    /// The last top the core takes (its `scroll` clamp); one already past it stays.
+    private func maxTop(_ w: Win, top: Int, lines: Int) -> Int { max(top, lines - visibleRows(w)) }
+
+    /// Text rows on screen: the frame's last row is the next line, under the status bar, unless it is draw mode's toolbar.
+    private func visibleRows(_ w: Win) -> Int {
+        min(w.rows.count, max(0, w.h - (w.header ?? 0) - (w.toolbar == true ? 0 : 1)))
+    }
+
+    private func textRect(_ w: Win) -> NSRect {
+        let (l, r) = span(w.x, w.w - (w.divider ? 1 : 0))
+        return NSRect(x: l, y: CGFloat(textY(w)) * cell.height, width: r - l, height: CGFloat(visibleRows(w)) * cell.height)
+    }
+
+    /// How far window `w`'s text is drawn moved down: the rubber band plus the slide.
+    private func offset(_ w: Win) -> CGFloat {
+        var dy = bounce?.win == w.id ? bounce!.dy : 0
+        if let s = smooth, s.win == w.id, let top = w.top {
+            // A frame behind the scroll slides at most a line, not off into nothing.
+            dy += min(cell.height, max(-cell.height, CGFloat(top) * cell.height - s.px))
+        }
+        return dy
     }
 
     private func springBack() {
@@ -250,10 +300,7 @@ final class EditorView: NSView {
         RunLoop.main.add(t, forMode: .common)
     }
 
-    private func redrawText(_ w: Win) {
-        let (l, r) = span(w.x, w.w)
-        setNeedsDisplay(NSRect(x: l, y: CGFloat(textY(w)) * cell.height, width: r - l, height: CGFloat(w.rows.count) * cell.height))
-    }
+    private func redrawText(_ w: Win) { setNeedsDisplay(textRect(w)) }
 
     // MARK: - Frames
 
@@ -269,6 +316,15 @@ final class EditorView: NSView {
         layoutTabStrips(f)
         layoutMinimaps(f)
         layoutPicker(f, was: old?.palette != nil)
+        // Scrolled some other way (keys, a click near the edge): the slide ends.
+        if let s = smooth, f.seq >= s.seq {
+            let w = f.windows.first { $0.id == s.win }
+            if w?.top != s.sent {
+                smooth = nil
+                if let w { redrawText(w) }
+            }
+        }
+        for w in f.windows where offset(w) != 0 { redrawText(w) }
         defer { if !needsDisplay { frameShown(f) } } // nothing to draw: the echo is already on screen
         guard let old, old.cols == f.cols, old.rows == f.rows, old.windows.count == f.windows.count,
               zip(old.windows, f.windows).allSatisfy({ sameRect($0, $1) })
@@ -325,7 +381,8 @@ final class EditorView: NSView {
             let w = f.windows[i]
             let (l, r) = span(w.x, w.w - (w.divider ? 1 : 0))
             b.frame = NSRect(x: l, y: CGFloat(w.y + w.h - 1) * cell.height, width: r - l, height: cell.height)
-            b.isHidden = false
+            // Draw mode's toolbar takes the status row: the core draws it.
+            b.isHidden = w.toolbar == true
             b.update(w.status, active: w.active)
         }
     }
@@ -351,8 +408,8 @@ final class EditorView: NSView {
                 continue
             }
             let (l, r) = span(w.x, w.w - (w.divider ? 1 : 0))
-            // The last header row is the breadcrumbs' (an older core's single row is all tabs).
-            let crumbRows = w.header! >= 3 ? 1 : 0
+            // A header of 2+ rows ends with the breadcrumbs; one row is all tabs.
+            let crumbRows = w.header! >= 2 ? 1 : 0
             let y = CGFloat(w.y) * cell.height, th = CGFloat(w.header! - crumbRows) * cell.height
             let f = NSRect(x: l, y: y, width: r - l, height: th)
             if s.frame != f { s.frame = f }
@@ -589,16 +646,13 @@ final class EditorView: NSView {
         guard let f = current else { return }
         ctx.textMatrix = CGAffineTransform(scaleX: 1, y: -1)
         for w in f.windows {
-            let y = textY(w)
-            // A stretched window: all its rows move, clipped to its text.
-            let stretch = bounce.flatMap { $0.win == w.id ? $0.dy : nil }
-            if let dy = stretch {
-                ctx.saveGState()
-                let (l, r) = span(w.x, w.w - (w.divider ? 1 : 0))
-                ctx.clip(to: CGRect(x: l, y: CGFloat(y) * cell.height, width: r - l, height: CGFloat(w.rows.count) * cell.height))
-                ctx.translateBy(x: 0, y: dy)
-            }
-            let dirty = stretch != nil ? Array(w.rows.indices) : w.rows.indices.filter { needsToDraw(rowRect(y + $0)) }
+            let y = textY(w), vis = visibleRows(w)
+            // Clipped to its text rows; a slid or stretched window moves all its rows.
+            let dy = offset(w)
+            ctx.saveGState()
+            ctx.clip(to: textRect(w))
+            if dy != 0 { ctx.translateBy(x: 0, y: dy) }
+            let dirty = dy != 0 ? Array(w.rows.indices) : w.rows.indices.filter { $0 < vis && needsToDraw(rowRect(y + $0)) }
             // VS Code's current line: a faint band in the active window, without a selection.
             if w.active, w.sel?.isEmpty ?? true, let c = f.cursor, case let r = c.y - y, dirty.contains(r) {
                 let (l, rr) = span(w.x, w.w - (w.divider ? 1 : 0))
@@ -608,10 +662,8 @@ final class EditorView: NSView {
             for r in dirty { drawBackgrounds(ctx, w.rows[r], col: w.x, row: y + r) }
             if let sel = w.sel, !sel.isEmpty { drawSelection(ctx, sel, w) }
             for r in dirty { drawText(ctx, w.rows[r], col: w.x, row: y + r) }
-            if stretch != nil {
-                if w.active, f.palette == nil, let c = f.cursor, c.y >= y, c.y < y + w.rows.count { drawCursor(ctx, c, f) }
-                ctx.restoreGState()
-            }
+            if dy != 0, w.active, f.palette == nil, let c = f.cursor, c.y >= y, c.y < y + vis { drawCursor(ctx, c, f) }
+            ctx.restoreGState()
             if w.divider {
                 let x = snap((CGFloat(w.x + w.w - 1) + 0.5) * cell.width, scale: scale)
                 ctx.setFillColor(NSColor.separatorColor.cgColor)
@@ -625,10 +677,10 @@ final class EditorView: NSView {
             drawText(ctx, runs, col: 0, row: top + r)
         }
         // With the palette open, its own caret is the cursor.
-        // A stretched window drew its own cursor.
+        // A slid or stretched window drew its own cursor.
         var stretched = false
-        if let b = bounce, let w = f.windows.first(where: { $0.id == b.win }), let c = f.cursor {
-            stretched = c.y >= textY(w) && c.y < textY(w) + w.rows.count
+        if let c = f.cursor, let w = f.windows.first(where: { c.y >= textY($0) && c.y < textY($0) + visibleRows($0) && c.x >= $0.x && c.x < $0.x + $0.w }) {
+            stretched = offset(w) != 0
         }
         if f.palette == nil, !stretched, let c = f.cursor, needsToDraw(rowRect(c.y)) { drawCursor(ctx, c, f) }
         frameShown(f)

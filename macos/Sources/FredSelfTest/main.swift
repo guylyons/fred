@@ -39,8 +39,10 @@ check("wide chars take 2 cells", cellWidth("日本語 wide") == 11)
 check("ascii 1 cell", cellWidth("abc") == 3)
 var acc: CGFloat = 0
 check("wheel notch is one line", scrollLines(-0.1, precise: false, acc: &acc) == -1 && scrollLines(5, precise: false, acc: &acc) == 1)
-check("trackpad adds up 3 per line", scrollLines(2, precise: true, acc: &acc) == 0 && scrollLines(2, precise: true, acc: &acc) == 1 && acc == 1)
+check("trackpad adds up 3 per step", scrollLines(2, precise: true, acc: &acc) == 0 && scrollLines(2, precise: true, acc: &acc) == 1 && acc == 1)
 check("trackpad turning starts over", scrollLines(-2, precise: true, acc: &acc) == 0 && acc == -2)
+acc = 0
+check("trackpad unit", scrollLines(30, precise: true, unit: 20, acc: &acc) == 1 && acc == 10)
 
 func n(_ c: String, _ ign: String? = nil, code: UInt16 = 0, ctrl: Bool = false, opt: Bool = false, shift: Bool = false, cmd: Bool = false) -> String? {
     notation(chars: c, charsIgnoringModifiers: ign ?? c, keyCode: code, control: ctrl, option: opt, shift: shift, command: cmd)

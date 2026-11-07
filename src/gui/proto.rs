@@ -72,6 +72,12 @@ pub struct Win {
     /// In display order, exactly one `current`.
     #[serde(default)]
     pub tabs: Vec<Tab>,
+    /// The last row is draw mode's toolbar, in place of the status bar.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub toolbar: bool,
+    /// A terminal: the wheel scrolls its shell, not lines.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub term: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]

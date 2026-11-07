@@ -1083,6 +1083,14 @@ pub fn pick_key(ed: &mut Editor, k: Key) {
         _ => {
             let before = p.query.text.clone();
             p.query.edit(k);
+            // VS Code's quick open: a leading `>` (or `:`) is the command palette.
+            if p.kind == Kind::Files
+                && let Some(rest) = p.query.text.strip_prefix(['>', ':'])
+            {
+                let rest = rest.to_string();
+                ed.help(&rest);
+                return;
+            }
             if p.kind == Kind::Browse
                 && let Some(q) = browse::restart(&p.query.text)
             {

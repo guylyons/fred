@@ -50,7 +50,8 @@ pub fn dashboard(buf: &mut Screen, area: Rect, ed: &crate::editor::Editor, icons
         .min((area.width as usize / 19).max(1));
     // Full size beats more recent files or one menu column: the half-size logo drops pixels.
     let full_logo = LOGO.lines().count().div_ceil(2) as u16 + 2;
-    let fits = |c: usize| area.height.saturating_sub(actions.len().div_ceil(c) as u16) >= full_logo + 3;
+    let fits =
+        |c: usize| area.height.saturating_sub(actions.len().div_ceil(c) as u16) >= full_logo + 3;
     if !fits(columns) && fits(2) && area.width >= 88 {
         columns = columns.max(2);
     }
@@ -91,7 +92,11 @@ pub fn dashboard(buf: &mut Screen, area: Rect, ed: &crate::editor::Editor, icons
         // Drop icons before sacrificing labels on narrow terminals.
         let inset = if column_width >= 19 { 3 } else { 0 };
         // Between columns: the key stays clear of the next column's icon.
-        let gap = if columns > 1 && column_width >= 30 { 4 } else { 0 };
+        let gap = if columns > 1 && column_width >= 30 {
+            4
+        } else {
+            0
+        };
         if inset > 0 {
             let icon = if icons { icon } else { fallback };
             buf.set_stringn(cx, y, icon.to_string(), 2, label_style);
@@ -103,7 +108,13 @@ pub fn dashboard(buf: &mut Screen, area: Rect, ed: &crate::editor::Editor, icons
             column_width.saturating_sub(inset + 2 + gap) as usize,
             label_style,
         );
-        buf.set_stringn(cx + column_width - 1 - gap, y, key.to_string(), 1, key_style);
+        buf.set_stringn(
+            cx + column_width - 1 - gap,
+            y,
+            key.to_string(),
+            1,
+            key_style,
+        );
     }
     let heading_y = area.y + logo_height + action_rows + 1;
     if recent_rows > 0 {
@@ -153,7 +164,14 @@ static CELL_ASPECT: std::sync::atomic::AtomicU16 = std::sync::atomic::AtomicU16:
 /// The GUI's cell height / width × 100, so the logo's pixels stay square in
 /// fonts taller than a terminal's 1:2 cell; 0 keeps the terminal's.
 pub fn set_cell_aspect(aspect: u16) {
-    CELL_ASPECT.store(if aspect == 0 { 200 } else { aspect.clamp(100, 400) }, std::sync::atomic::Ordering::Relaxed);
+    CELL_ASPECT.store(
+        if aspect == 0 {
+            200
+        } else {
+            aspect.clamp(100, 400)
+        },
+        std::sync::atomic::Ordering::Relaxed,
+    );
 }
 
 /// Draw the logo and its title centered in `area`: pixels twice the size
@@ -165,10 +183,13 @@ pub fn draw(buf: &mut Screen, area: Rect) {
     let a = CELL_ASPECT.load(std::sync::atomic::Ordering::Relaxed) as usize;
     let cols = |px: usize| (px * a).div_ceil(100);
     // Pixel dimensions, plus the original gap and title below.
-    let Some((cw, ph)) = [(cols(w), h * 2), (cols(w) / 2, h), (cols(w) / 4, h.div_ceil(2))]
-        .into_iter()
-        .find(|&(cw, ph)| cw <= area.width as usize && ph.div_ceil(2) + 2 <= area.height as usize)
-    else {
+    let Some((cw, ph)) = [
+        (cols(w), h * 2),
+        (cols(w) / 2, h),
+        (cols(w) / 4, h.div_ceil(2)),
+    ]
+    .into_iter()
+    .find(|&(cw, ph)| cw <= area.width as usize && ph.div_ceil(2) + 2 <= area.height as usize) else {
         if area.height > 0 {
             let width = area.width.min(TITLE.len() as u16);
             buf.set_stringn(

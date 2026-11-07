@@ -843,7 +843,11 @@ pub fn draw_window(
     if let Some(t) = &ed.term {
         // The GUI's terminal gets a column of padding, like VS Code's panel.
         let pad = u16::from(placed.header > 0 && area.width > 1);
-        let area = Rect { x: area.x + pad, width: area.width - pad, ..area };
+        let area = Rect {
+            x: area.x + pad,
+            width: area.width - pad,
+            ..area
+        };
         let cursor = t.borrow_mut().draw(buf, area);
         draw_status(buf, status, ed, hl, active);
         draw_divider(buf, rect, divider);
@@ -852,6 +856,10 @@ pub fn draw_window(
             .map(|(x, y, _)| (x, y));
     }
     let rows = area.height as usize;
+    // The GUI covers the status line with its own and scrolls by pixels:
+    // the next line goes under it, to slide into view.
+    let overscan = placed.header > 0 && ed.draw.is_none() && rect.bottom() > area.bottom();
+    let shown = rows + usize::from(overscan);
     ed.drawn_sel.borrow_mut().clear();
     let normal = Mode::Normal;
     let mode = if active { &ed.mode } else { &normal };
@@ -874,9 +882,9 @@ pub fn draw_window(
     let n = ed.line_count();
     // Hidden lines take no rows, so the screen can reach further.
     let last = if ed.folds.is_empty() {
-        (view.top + rows).min(n)
+        (view.top + shown).min(n)
     } else {
-        (ed.folds.down(view.top, rows, n) + 1).min(n)
+        (ed.folds.down(view.top, shown, n) + 1).min(n)
     };
     let org_settings = if ed.org.is_some() {
         crate::org::settings(ed)
@@ -920,7 +928,7 @@ pub fn draw_window(
     let mut ex_end = None;
     let mut y = 0usize;
     let mut l = view.top;
-    while y < rows && l < n {
+    while y < shown && l < n {
         if l != ed.cur.line && ed.folds.hidden(l) {
             l += 1;
             continue;
@@ -1004,7 +1012,7 @@ pub fn draw_window(
                 );
             }
             y += 1;
-            if y >= rows {
+            if y >= shown {
                 break;
             }
         }
@@ -1127,7 +1135,7 @@ pub fn draw_window(
                 if p.row != row {
                     if row >= skip {
                         emit(&mut y, row, std::mem::take(&mut spans));
-                        if y >= rows {
+                        if y >= shown {
                             break;
                         }
                     }
@@ -1139,13 +1147,13 @@ pub fn draw_window(
                     push_cell(&mut spans, &p, style);
                 }
             }
-            if y < rows && row >= skip {
+            if y < shown && row >= skip {
                 emit(&mut y, row, spans);
             }
             if l == ed.cur.line {
                 let (cr, cx) = wrap_cursor(&line, ed.cur.byte, ed.tabstop(), cols);
                 // The end of a full row puts the cursor on a row of its own.
-                if cr > row && y < rows {
+                if cr > row && y < shown {
                     emit(&mut y, cr, vec![]);
                 }
                 if cr >= skip && first_y + cr - skip < rows {
@@ -1199,7 +1207,7 @@ pub fn draw_window(
         }
         l += 1;
     }
-    while y < rows {
+    while y < shown {
         buf.set_stringn(ox, oy + y as u16, "~", 1, num_style);
         y += 1;
     }
@@ -1232,7 +1240,9 @@ pub fn draw_window(
             let text_area = Rect::new(ox, oy, area.width, rows as u16);
             draw_explain(buf, text_area, gutter, text, ex_top, ex_end)
         });
-    draw_status(buf, status, ed, hl, active);
+    if !overscan {
+        draw_status(buf, status, ed, hl, active);
+    }
     draw_divider(buf, rect, divider);
     let (cx, cy) = cursor.filter(|_| active && rows > 0)?;
     if cy < rows {

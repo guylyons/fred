@@ -210,6 +210,8 @@ impl Session {
                     let p = placed.iter().find(|p| p.rect.contains(at));
                     let status = p
                         .filter(|p| m.row + 1 == p.rect.bottom())
+                        // Drawing: that status line is the toolbar, to click.
+                        .filter(|p| !(p.id == self.active && self.ed.draw.is_some()))
                         .map(|p| (Dir::Col, p.rect.bottom(), m.column));
                     let divider = p
                         .filter(|p| p.divider && m.column + 1 == p.rect.right())

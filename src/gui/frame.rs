@@ -13,10 +13,18 @@ use unicode_width::UnicodeWidthStr;
 
 /// Render `s` into `term` (sized by the caller) and slice it into a frame.
 pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, seq: u64) -> Frame {
-    term.draw(|f| windows::draw_session(f, s, cfg, app::HIGHLIGHT_BUDGET))
-        .expect("in-memory terminal");
+    // This frame's own buffer: the backend's copy is patched by diffs, which
+    // leave stale cells behind after wide characters scroll past.
+    let buf = term
+        .draw(|f| windows::draw_session(f, s, cfg, app::HIGHLIGHT_BUDGET))
+        .expect("in-memory terminal")
+        .buffer
+        .clone();
+    let buf = &buf;
     app::drawn(s);
     let mut status = vec![];
+    let mut drawing = vec![];
+    let mut terms = vec![];
     let cwd = std::env::current_dir().ok();
     s.each_window(|ed, view, hl, p, _| {
         let name = render::special_title(ed).unwrap_or_else(|| match &ed.path {
@@ -31,6 +39,12 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
         let file = file_of(ed);
         let line = ed.buf.line(ed.cur.line);
         let col = crate::text::col_of_byte(&line, ed.cur.byte, ed.tabstop()) + 1;
+        if ed.draw.is_some() {
+            drawing.push(p.id);
+        }
+        if ed.term.is_some() {
+            terms.push(p.id);
+        }
         status.push((
             p.id,
             file,
@@ -60,7 +74,6 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
         ));
     });
     let be = term.backend();
-    let buf = be.buffer();
     let windows = s
         .placed()
         .into_iter()
@@ -81,6 +94,7 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
                     .find(|p| p.y == y - text.y)
                     .map(|p| r.x + p.x..r.x + p.x + p.w)
             };
+            let (toolbar, term) = (drawing.contains(&p.id), terms.contains(&p.id));
             Some(Win {
                 x: r.x,
                 y: r.y,
@@ -90,7 +104,9 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
                 active: p.id == s.active,
                 // Not the tab row, the minimap or the divider column:
                 // the app draws its own.
-                rows: (text.y..text.bottom())
+                // The status row comes too: draw mode's toolbar, or the
+                // next line for pixel scrolling (under the app's status bar).
+                rows: (text.y..text.bottom() + u16::from(toolbar || (p.header > 0 && !term)))
                     .map(|y| runs(buf, y, r.x, text.right(), row_sel(y)))
                     .collect(),
                 sel,
@@ -101,6 +117,8 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
                 top: status[i].2.0,
                 lines: status[i].2.1,
                 tabs: tabs(s, p.id),
+                toolbar,
+                term,
                 status: status.swap_remove(i).3,
             })
         })
@@ -128,8 +146,15 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
         // VS Code's order: the file, then the project.
         title: format!(
             "{} — {}",
-            s.ed.path.as_ref().and_then(|p| p.file_name()).map_or("[No Name]".into(), |n| n.to_string_lossy()),
-            std::env::current_dir().ok().as_deref().and_then(|d| d.file_name()).map_or("fred".into(), |n| n.to_string_lossy())
+            s.ed.path
+                .as_ref()
+                .and_then(|p| p.file_name())
+                .map_or("[No Name]".into(), |n| n.to_string_lossy()),
+            std::env::current_dir()
+                .ok()
+                .as_deref()
+                .and_then(|d| d.file_name())
+                .map_or("fred".into(), |n| n.to_string_lossy())
         )
         // No project yet (the app starts in home): no folder name to show.
         .trim_end_matches(&format!(" — {}", home_name()))
@@ -193,7 +218,8 @@ fn palette(s: &mut Session) -> Option<proto::Palette> {
         rows: p.rows[*top..(*top + PALETTE_ROWS).min(p.rows.len())]
             .iter()
             .map(|r| proto::PaletteRow {
-                text: r.text.clone(),
+                // macOS's `Icon\r` files: a control char would break the row.
+                text: r.text.replace(char::is_control, "?"),
                 hl: r
                     .hl
                     .iter()
@@ -359,6 +385,42 @@ mod tests {
     }
 
     #[test]
+    fn gui_windows_send_the_next_line_for_pixel_scrolling() {
+        let text: String = (1..=20).map(|i| format!("line {i}\n")).collect();
+        let (mut s, mut term, _d) = setup(30, 8, &text);
+        s.chrome = (1, 0);
+        let f = build(&mut s, &Config::default(), &mut term, 0);
+        let w = &f.windows[0];
+        let rows: Vec<String> = w
+            .rows
+            .iter()
+            .map(|r| r.iter().map(|x| x.s.as_str()).collect())
+            .collect();
+        // The tab row, the text rows, then the next line where the status line was.
+        assert_eq!(rows.len(), w.h as usize - 1);
+        assert_eq!(rows.last().unwrap(), &format!("line {}", rows.len()));
+    }
+
+    #[test]
+    fn drawing_sends_its_toolbar_row() {
+        let (mut s, mut term, _d) = setup(60, 8, "hello\n");
+        let f = build(&mut s, &Config::default(), &mut term, 0);
+        assert_eq!(f.windows[0].rows.len(), f.windows[0].h as usize - 1);
+        crate::draw::toggle(&mut s.ed);
+        let f = build(&mut s, &Config::default(), &mut term, 0);
+        let w = &f.windows[0];
+        assert_eq!(w.rows.len(), w.h as usize);
+        let last: String = w
+            .rows
+            .last()
+            .unwrap()
+            .iter()
+            .map(|r| r.s.as_str())
+            .collect();
+        assert!(last.contains("DRAW"), "{last:?}");
+    }
+
+    #[test]
     fn wide_chars_and_tabs_keep_columns() {
         let (mut s, mut term, _d) = setup(30, 6, "中x\ty\n");
         let f = build(&mut s, &Config::default(), &mut term, 0);
@@ -472,7 +534,8 @@ mod tests {
         let f = build(&mut s, &Config::default(), &mut term, 0);
         let w = &f.windows[0];
         assert_eq!((w.header, w.margin), (1, 8));
-        assert_eq!(w.rows.len(), w.h as usize - 2);
+        // The text rows, then the next line (under the app's status bar).
+        assert_eq!(w.rows.len(), w.h as usize - 1);
         let text: String = w.rows[0].iter().map(|r| r.s.as_str()).collect();
         assert_eq!(text, "hello");
         for row in &w.rows {
@@ -500,7 +563,9 @@ mod tests {
         let (mut s, mut term, _d) = setup(40, 8, "x\n");
         s.ed.path = Some("/state/magit-views/0123abcd".into());
         s.ed.magit = Some(Box::new(crate::magit::View::status(
-            crate::magit::repo::Repo { root: "/repo".into() },
+            crate::magit::repo::Repo {
+                root: "/repo".into(),
+            },
             Default::default(),
         )));
         s.chrome = (1, 0);
@@ -570,4 +635,51 @@ fn home_name() -> String {
         .filter(|h| std::env::current_dir().is_ok_and(|d| d == *h))
         .and_then(|h| h.file_name().map(|n| n.to_string_lossy().into_owned()))
         .unwrap_or_else(|| "\0".into())
+}
+#[cfg(test)]
+mod stale_cells {
+    use super::*;
+    use ratatui::crossterm::event::{KeyModifiers, MouseEvent, MouseEventKind};
+
+    #[test]
+    fn scrolling_past_wide_chars_leaves_no_stale_cells() {
+        // Real code: wide characters, then long lines, then the end of the file.
+        let text = include_str!("testdata/wide_chars.rs.txt");
+        let d = tempfile::tempdir().unwrap();
+        let path = d.path().join("f.rs");
+        std::fs::write(&path, text).unwrap();
+        let (mut s, _) =
+            Session::open(Some(path), &Config::default(), &d.path().join("swap")).unwrap();
+        let mut term = Terminal::new(TestBackend::new(100, 40)).unwrap();
+        let area = term.backend().buffer().area;
+        let t = |f: &Frame| {
+            f.windows[0]
+                .rows
+                .iter()
+                .map(|r| r.iter().map(|x| x.s.clone()).collect::<String>())
+                .collect::<Vec<_>>()
+        };
+        for i in 0..60 {
+            s.mouse(
+                area,
+                MouseEvent {
+                    kind: MouseEventKind::ScrollDown,
+                    column: 5,
+                    row: 3,
+                    modifiers: KeyModifiers::NONE,
+                },
+            );
+            if i % 7 != 0 {
+                continue;
+            }
+            let f = build(&mut s, &Config::default(), &mut term, i);
+            let g = build(
+                &mut s,
+                &Config::default(),
+                &mut Terminal::new(TestBackend::new(100, 40)).unwrap(),
+                i,
+            );
+            assert_eq!(t(&f), t(&g), "step {i}");
+        }
+    }
 }

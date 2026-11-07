@@ -54,7 +54,7 @@ impl Session {
     }
 
     /// The GUI's terminal panel, shown and focused: a full-width window
-    /// across the bottom, a third of the height, with the hidden panel's
+    /// across the bottom, 40% of the height, with the hidden panel's
     /// shell if it is still running, else a new one.
     pub fn show_panel(&mut self) {
         if let Some(w) = self
@@ -70,7 +70,7 @@ impl Session {
         }
         let hidden = self.panel_buf();
         let id = self.next_win_id;
-        let n = (self.area.height / 3).max(6);
+        let n = (self.area.height * 2 / 5).max(6);
         if let Err(e) = self.tree.split_bottom(self.area, id, n) {
             return self.ed.set_err(e);
         }
