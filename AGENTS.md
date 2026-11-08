@@ -14,6 +14,12 @@ satisfy the task. Use the pinned upstream source as the behavioral reference,
 track every incomplete feature explicitly, and continue implementation without
 repeated permission questions. Preserve the user's uncommitted `notes.md`.
 
+When working on the macOS app, input profiles, or anything that ties the
+Emacs-side and Neovim-side features together (commands, leader, menus,
+special buffers, help, options), read [docs/fred-roadmap.md](docs/fred-roadmap.md)
+first and keep its points, execution queue and log current in every
+implementation commit.
+
 When working on the Neovim core port, read
 [docs/nvim-core-roadmap.md](docs/nvim-core-roadmap.md) first and keep its
 points, execution queue and log, and the `docs/nvim-parity.csv` ledger,
