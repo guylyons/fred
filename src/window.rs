@@ -260,6 +260,21 @@ impl Node {
         Ok(())
     }
 
+    /// A new window `new`, `n` columns wide, right of all the others: the
+    /// GUI's chat panel, as VS Code's secondary sidebar.
+    pub fn split_right(&mut self, area: Rect, new: usize, n: u16) -> Result<(), &'static str> {
+        self.fit(area);
+        if n < 2 || area.width < n + 2 {
+            return Err(E36);
+        }
+        let old = std::mem::replace(self, Node::Leaf(new));
+        *self = Node::Split {
+            dir: Dir::Row,
+            kids: vec![(old, area.width - n), (Node::Leaf(new), n)],
+        };
+        Ok(())
+    }
+
     /// The top-level stacked sizes, when the bottom kid holds `id`: for
     /// maximizing the panel and putting it back. Set with `set_sizes`.
     pub fn bottom_sizes(&mut self, area: Rect, id: usize) -> Option<Vec<u16>> {

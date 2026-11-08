@@ -684,6 +684,27 @@ impl Session {
         }
     }
 
+    /// The app's File menu: `new` (an empty buffer), `save_as` (`path`
+    /// becomes this buffer's file), `save_all`, `revert` (reload, dropping
+    /// changes).
+    pub fn file_menu(&mut self, op: &str, path: Option<String>) {
+        match (op, path) {
+            ("new", _) => self.new_buffer(),
+            ("save_as", Some(p)) => {
+                // Written as if unnamed: the path moves and the swap lock with it.
+                let old = self.ed.path.take();
+                if !self.write(Some(p), true, None) {
+                    self.ed.path = old;
+                }
+            }
+            ("save_all", _) => {
+                self.write_all();
+            }
+            ("revert", _) => self.edit(None, true),
+            _ => {}
+        }
+    }
+
     fn write(&mut self, path: Option<String>, force: bool, range: Option<Range>) -> bool {
         if self.ed.generated() {
             self.ed.set_err("generated Git buffer is read-only");
@@ -1454,6 +1475,7 @@ impl Session {
         if chat != Some(self.cur) {
             match self.windows.iter().find(|w| Some(w.buf) == chat) {
                 Some(w) => self.focus(w.id),
+                None if self.gui => self.chat_split(),
                 None => self.split_at(false, true, crate::ex::SplitWhat::Same, None),
             }
         }
@@ -1487,9 +1509,61 @@ impl Session {
                 self.show(self.bufs.len() - 1);
             }
         }
+        self.win_mut().stand_in = None;
         let last = self.ed.line_count() - 1;
         self.ed.set_cursor(last, 0);
         self.handle_key(Key::ch('A'));
+    }
+
+    /// The GUI's chat panel: a window right of all the others, as VS
+    /// Code's secondary sidebar, standing in for this buffer until the
+    /// chat replaces it.
+    fn chat_split(&mut self) {
+        let id = self.next_win_id;
+        let n = (self.area.width * 3 / 10).max(40);
+        if let Err(e) = self.tree.split_right(self.area, id, n) {
+            return self.ed.set_err(e);
+        }
+        self.next_win_id += 1;
+        let mut w = self.win().clone();
+        w.id = id;
+        w.tabs = vec![w.buf];
+        w.preview = None;
+        w.prev = None;
+        w.stand_in = Some(w.buf);
+        let cur = self.ed.cur;
+        self.win_mut().cur = cur;
+        self.windows.push(w);
+        self.prev_win = Some(self.active);
+        self.active = id;
+    }
+
+    /// The chat panel's buttons: `toggle` (open or close it), `new`,
+    /// `resume` (conversation `arg`), `more` (all of them), `model`, `mode`.
+    pub fn chat_panel(&mut self, op: &str, arg: Option<String>) {
+        let chat = (0..self.bufs.len()).find(|&i| self.ed_at(i).claude.is_some());
+        let shown = self
+            .windows
+            .iter()
+            .find(|w| Some(w.buf) == chat)
+            .map(|w| w.id);
+        if op == "toggle" {
+            if let Some(w) = shown {
+                if let Err(e) = self.close_window(w) {
+                    self.ed.set_err(e);
+                }
+                return;
+            }
+        }
+        self.claude();
+        match (op, arg) {
+            ("new", _) => crate::claude::act(&mut self.ed, crate::claude::Action::New),
+            ("resume", Some(id)) => crate::claude::resume_id(&mut self.ed, &id),
+            ("more", _) => crate::claude::act(&mut self.ed, crate::claude::Action::Resume),
+            ("model", _) => crate::claude::act(&mut self.ed, crate::claude::Action::Model),
+            ("mode", _) => crate::claude::act(&mut self.ed, crate::claude::Action::Mode),
+            _ => {}
+        }
     }
 
     /// The other buffers' files, for the chat: `path:line`, the one used
@@ -2099,6 +2173,36 @@ mod tests {
                 other => panic!("no command line: {other:?}"),
             }
         }
+    }
+
+    #[test]
+    fn chat_panel_toggles_a_window_on_the_right() {
+        let mut t = T::open(Some("a"), Some("a\n"));
+        t.s.gui = true;
+        t.s.chat_panel("toggle", None);
+        assert_eq!(t.s.windows.len(), 2);
+        assert!(t.s.ed.claude.is_some());
+        let placed = t.s.placed();
+        let chat = placed.iter().find(|p| p.id == t.s.active).unwrap();
+        let other = placed.iter().find(|p| p.id != t.s.active).unwrap();
+        assert!(chat.rect.x > other.rect.x && chat.rect.y == other.rect.y);
+        t.s.chat_panel("toggle", None);
+        assert_eq!(t.s.windows.len(), 1);
+        assert!(t.s.ed.claude.is_none());
+    }
+
+    #[test]
+    fn file_menu_save_as_moves_the_buffer_to_the_new_file() {
+        let mut t = T::open(Some("a"), Some("a\n"));
+        t.keys("ix<Esc>");
+        let b = t.dir.path().join("b").to_string_lossy().into_owned();
+        t.s.file_menu("save_as", Some(b.clone()));
+        assert_eq!(t.file("b"), "xa\n");
+        assert_eq!(t.file("a"), "a\n");
+        assert_eq!(t.s.ed.path.as_deref(), Some(std::path::Path::new(&b)));
+        assert!(!t.s.ed.buf.modified);
+        t.s.file_menu("new", None);
+        assert!(t.s.ed.path.is_none() && t.s.ed.buf.text().is_empty());
     }
 
     #[test]

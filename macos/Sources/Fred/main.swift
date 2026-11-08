@@ -3,7 +3,7 @@ import FredKit
 import UniformTypeIdentifiers
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDelegate {
     var window: NSWindow!
     var core: Core!
     var view: EditorView!
@@ -17,6 +17,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let badge = NSTextField(labelWithString: " 0 ")
     var split: NSSplitViewController!
     var activity: ActivityBar!
+    /// VS Code's layout controls at the title bar's right: customize, then
+    /// the sidebar, panel and chat toggles, lit while showing.
+    private var layoutButtons: (custom: Pill, side: Pill, panel: Pill, chat: Pill)!
     private var minimapItem: NSMenuItem!
     private var glassItem: NSMenuItem!
     /// The window's backdrop and the editor's box (recolored by `applyTheme`).
@@ -65,11 +68,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 .separator(),
                 item("Quit Fred", #selector(quitCore), "q"),
             ]),
+            // VS Code's File menu, less workspaces, profiles, Share and Auto Save.
             menu("File", [
-                item("Open Folder…", #selector(chooseFolder), "o"),
+                item("New Text File", #selector(fileOp(_:)), "n", rep: "new"),
+                item("New File…", #selector(newFile), "n", [.command, .option, .control]),
+                item("New Window", #selector(newWindow), "n", [.command, .shift]),
+                .separator(),
+                item("Open…", #selector(openAny), "o"),
+                item("Open Folder…", #selector(chooseFolder)),
+                {
+                    let i = item("Open Recent", nil)
+                    i.submenu = NSMenu(title: "Open Recent")
+                    i.submenu!.delegate = self
+                    return i
+                }(),
+                .separator(),
                 item("Save", #selector(macKey(_:)), "s", rep: "s"),
-                item("Close Tab", #selector(macKey(_:)), "w", rep: "w"),
+                item("Save As…", #selector(saveAs), "s", [.command, .shift]),
+                item("Save All", #selector(fileOp(_:)), "s", [.command, .option], rep: "save_all"),
+                .separator(),
+                item("Revert File", #selector(fileOp(_:)), rep: "revert"),
+                item("Close Editor", #selector(macKey(_:)), "w", rep: "w"),
+                item("Close Window", #selector(quitCore), "w", [.command, .shift]),
             ]),
+            // VS Code's Edit and Selection menus, less what Fred has no
+            // counterpart for (multiple cursors, Replace in Files, Emmet,
+            // block comments, Expand/Shrink Selection).
             menu("Edit", [
                 item("Undo", #selector(macKey(_:)), "z", rep: "z"),
                 item("Redo", #selector(macKey(_:)), "z", [.command, .shift], rep: "z", tag: 1),
@@ -77,9 +101,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 item("Cut", #selector(macKey(_:)), "x", rep: "x"),
                 item("Copy", #selector(macKey(_:)), "c", rep: "c"),
                 item("Paste", #selector(paste), "v"),
-                item("Select All", #selector(macKey(_:)), "a", rep: "a"),
                 .separator(),
                 item("Find", #selector(macKey(_:)), "f", rep: "f"),
+                item("Replace", #selector(menuOp(_:)), "f", [.command, .option], rep: "replace"),
+                .separator(),
+                item("Find in Files", #selector(menuOp(_:)), "f", [.command, .shift], rep: "find_in_files"),
+                .separator(),
+                item("Toggle Line Comment", #selector(menuOp(_:)), "/", rep: "comment"),
+            ]),
+            menu("Selection", [
+                item("Select All", #selector(macKey(_:)), "a", rep: "a"),
+                .separator(),
+                item("Copy Line Up", #selector(menuOp(_:)), Self.up, [.option, .shift], rep: "copy_up"),
+                item("Copy Line Down", #selector(menuOp(_:)), Self.down, [.option, .shift], rep: "copy_down"),
+                item("Move Line Up", #selector(menuOp(_:)), Self.up, [.option], rep: "move_up"),
+                item("Move Line Down", #selector(menuOp(_:)), Self.down, [.option], rep: "move_down"),
+                item("Duplicate Selection", #selector(menuOp(_:)), rep: "duplicate"),
+                .separator(),
+                item("Column Selection Mode", #selector(menuOp(_:)), rep: "column"),
             ]),
             menu("View", [
                 {
@@ -92,6 +131,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 item("Smaller", #selector(zoom(_:)), "-", tag: -1),
                 item("Actual Size", #selector(zoom(_:)), "0"),
                 .separator(),
+                item("Toggle Chat", #selector(toggleChat), "i", [.command, .control]),
                 item("Toggle Terminal", #selector(panel(_:)), "`", [.control]),
                 item("Maximize Terminal", #selector(panel(_:)), "~", [.control, .shift], tag: 1),
                 .separator(),
@@ -127,6 +167,88 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         core.send(.quit)
         return .terminateCancel
     }
+
+    /// VS Code's Chat panel: Claude in a window on the right.
+    @objc private func toggleChat() {
+        view.transmit { .chat(seq: $0, op: "toggle", arg: nil) }
+        window.makeFirstResponder(view)
+    }
+
+    private static let up = String(Character(UnicodeScalar(NSUpArrowFunctionKey)!))
+    private static let down = String(Character(UnicodeScalar(NSDownArrowFunctionKey)!))
+
+    @objc private func menuOp(_ s: NSMenuItem) {
+        let op = s.representedObject as! String
+        view.transmit(at: CACurrentMediaTime()) { .menu(seq: $0, op: op) }
+    }
+
+    @objc private func fileOp(_ s: NSMenuItem) {
+        let op = s.representedObject as! String
+        view.transmit { .file(seq: $0, op: op, path: nil) }
+    }
+
+    /// New File…: name it first, then open it empty (saved on the first write).
+    @objc private func newFile() {
+        let panel = NSSavePanel()
+        panel.directoryURL = project
+        panel.prompt = "Create File"
+        panel.beginSheetModal(for: window) { [weak self] r in
+            guard r == .OK, let url = panel.url else { return }
+            MainActor.assumeIsolated { self?.view.transmit { .open(seq: $0, path: url.path, preview: false) } }
+        }
+    }
+
+    @objc private func saveAs() {
+        let panel = NSSavePanel()
+        let path = view.current?.windows.first(where: \.active)?.path
+        panel.directoryURL = path.map { URL(fileURLWithPath: $0).deletingLastPathComponent() } ?? project
+        panel.nameFieldStringValue = path.map { ($0 as NSString).lastPathComponent } ?? "Untitled"
+        panel.beginSheetModal(for: window) { [weak self] r in
+            guard r == .OK, let url = panel.url else { return }
+            MainActor.assumeIsolated { self?.view.transmit { .file(seq: $0, op: "save_as", path: url.path) } }
+        }
+    }
+
+    /// Another Fred, as VS Code's New Window: its own process and project.
+    @objc private func newWindow() {
+        let c = NSWorkspace.OpenConfiguration()
+        c.createsNewApplicationInstance = true
+        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: c)
+    }
+
+    /// Open…: a file opens in a tab, a folder becomes the project.
+    @objc private func openAny() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = true
+        panel.directoryURL = project
+        panel.beginSheetModal(for: window) { [weak self] r in
+            guard r == .OK else { return }
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                for url in panel.urls {
+                    if url.hasDirectoryPath { self.open(folder: url) } else { self.view.transmit { .open(seq: $0, path: url.path, preview: false) } }
+                }
+            }
+        }
+    }
+
+    /// Open Recent: the remembered project folders, newest first.
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        guard menu.title == "Open Recent" else { return }
+        menu.removeAllItems()
+        for url in recentFolders() {
+            let i = item((url.path as NSString).abbreviatingWithTildeInPath, #selector(openRecent(_:)), rep: url.path)
+            menu.addItem(i)
+        }
+        if menu.items.isEmpty { menu.addItem(item("No Recent Folders", nil)) }
+        menu.addItem(.separator())
+        menu.addItem(item("Clear Recently Opened", #selector(clearRecent)))
+    }
+
+    @objc private func openRecent(_ s: NSMenuItem) { open(folder: URL(fileURLWithPath: s.representedObject as! String)) }
+
+    @objc private func clearRecent() { UserDefaults.standard.removeObject(forKey: Self.recentKey) }
 
     @objc private func macKey(_ s: NSMenuItem) {
         let k = s.representedObject as! String, shift = s.tag == 1
@@ -316,6 +438,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if f.focus_nav == true { focusSidebar() }
         if f.open_folder == true { chooseFolder() }
         showBadge(f.picking == true && !split.splitViewItems[0].isCollapsed)
+        refreshLayoutButtons()
+    }
+
+    private func refreshLayoutButtons() {
+        guard let b = layoutButtons else { return }
+        b.side.lit = !split.splitViewItems[0].isCollapsed
+        b.panel.lit = view.current?.windows.contains { $0.term == true } ?? false
+        b.chat.lit = view.current?.windows.contains { $0.chat != nil } ?? false
+    }
+
+    /// Customize Layout: the parts to show, as VS Code's menu lists them.
+    private func customizeLayout(_ from: NSView) {
+        refreshLayoutButtons()
+        let m = NSMenu()
+        for (title, on, action) in [
+            ("Primary Side Bar", layoutButtons.side.lit, #selector(toggleExplorer)),
+            ("Panel", layoutButtons.panel.lit, #selector(panel(_:))),
+            ("Secondary Side Bar (Chat)", layoutButtons.chat.lit, #selector(toggleChat)),
+            ("Minimap", view.showMinimap, #selector(toggleMinimap)),
+            ("Glass Theme", glass, #selector(toggleGlass)),
+        ] {
+            let i = item(title, action)
+            i.state = on ? .on : .off
+            m.addItem(i)
+        }
+        m.popUp(positioning: nil, at: NSPoint(x: 0, y: from.bounds.maxY + 4), in: from)
     }
 
     /// Open Folder…: the chosen folder becomes the core's working directory
@@ -442,6 +590,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let side = split.splitViewItems[0]
         side.animator().isCollapsed.toggle()
         activity.refresh()
+        refreshLayoutButtons()
     }
 
     private func showSidebar() {
@@ -467,7 +616,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self.view.transmit { .panel(seq: $0, op: "toggle") }
                 self.window.makeFirstResponder(self.view)
             }),
-            .init(symbol: "sparkles", tip: "Claude (Space c c)", run: { [unowned self] in self.run("<Space>cc") }),
+            .init(symbol: "sparkles", tip: "Toggle Chat (⌃⌘I)", run: { [unowned self] in self.toggleChat() }),
         ], bottom: [
             .init(symbol: "map", tip: "Minimap (⌃⌘M)", run: { [unowned self] in self.toggleMinimap() },
                   on: { [unowned self] in self.view.showMinimap }),
@@ -484,6 +633,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             split.view.topAnchor.constraint(equalTo: glass.topAnchor),
             split.view.bottomAnchor.constraint(equalTo: glass.bottomAnchor),
             split.view.trailingAnchor.constraint(equalTo: glass.trailingAnchor),
+        ])
+        let icon = { (symbol: String, tip: String, run: @escaping () -> Void) -> Pill in
+            let p = Pill(title: "")
+            p.image = NSImage(systemSymbolName: symbol, accessibilityDescription: tip)
+            p.toolTip = tip
+            p.square = true
+            p.onClick = run
+            return p
+        }
+        let custom = icon("square.grid.2x2", "Customize Layout…", {})
+        custom.onClick = { [unowned self, unowned custom] in self.customizeLayout(custom) }
+        let side = icon("rectangle.lefthalf.inset.filled", "Toggle Primary Side Bar (⌃⌘S)") { [unowned self] in
+            self.toggleExplorer()
+        }
+        let panel = icon("rectangle.bottomhalf.inset.filled", "Toggle Panel (⌃`)") { [unowned self] in
+            self.view.transmit { .panel(seq: $0, op: "toggle") }
+            self.window.makeFirstResponder(self.view)
+        }
+        let chat = icon("rectangle.righthalf.inset.filled", "Toggle Secondary Side Bar (⌃⌘I)") { [unowned self] in self.toggleChat() }
+        layoutButtons = (custom, side, panel, chat)
+        let buttons = NSStackView(views: [custom, side, panel, chat])
+        buttons.spacing = 2
+        buttons.translatesAutoresizingMaskIntoConstraints = false
+        glass.addSubview(buttons) // over the editor's top strip
+        NSLayoutConstraint.activate([
+            buttons.topAnchor.constraint(equalTo: glass.topAnchor, constant: 5),
+            buttons.trailingAnchor.constraint(equalTo: glass.trailingAnchor, constant: -10),
         ])
         glass.frame = NSRect(x: 0, y: 0, width: 1140, height: 640)
         return c

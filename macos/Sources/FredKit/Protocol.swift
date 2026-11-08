@@ -79,6 +79,16 @@ public struct Win: Codable, Equatable, Sendable {
     public var term: Bool?
     /// The symbol the cursor is in: [name, kind].
     public var symbol: [String]?
+    /// The Claude chat: drawn as VS Code's Chat panel.
+    public var chat: ChatBar?
+}
+
+public struct ChatBar: Codable, Equatable, Sendable {
+    public var model: String?
+    public var mode: String?
+    public var busy: Bool
+    /// Past conversations [id, title, how long ago], while nothing is said yet.
+    public var sessions: [[String]]?
 }
 
 public struct Tab: Codable, Equatable, Sendable {
@@ -232,6 +242,12 @@ public enum Outgoing {
     case panel(seq: Int, op: String)
     /// Work in folder `path` (`:cd`): the chosen project.
     case cd(seq: Int, path: String)
+    /// The File menu: `op` new, save_as (to `path`), save_all or revert.
+    case file(seq: Int, op: String, path: String?)
+    /// The chat panel: `op` toggle, new, resume (conversation `arg`), model or mode.
+    case chat(seq: Int, op: String, arg: String?)
+    /// The Edit and Selection menus' editing commands.
+    case menu(seq: Int, op: String)
     /// The sidebar's visible rows (name, path), for zap.
     case nav(rows: [(name: String, path: String)])
     case quit
@@ -259,6 +275,9 @@ public enum Outgoing {
         case .scroll(let s, let w, let t): body = #""scroll","seq":\#(s),"win":\#(w),"top":\#(t)"#
         case .pick(let s, let i): body = #""pick","seq":\#(s),"index":\#(i)"#
         case .panel(let s, let op): body = #""panel","seq":\#(s),"op":\#(q(op))"#
+        case .file(let s, let op, let p): body = #""file","seq":\#(s),"op":\#(q(op))"# + (p.map { #","path":\#(q($0))"# } ?? "")
+        case .menu(let s, let op): body = #""menu","seq":\#(s),"op":\#(q(op))"#
+        case .chat(let s, let op, let a): body = #""chat","seq":\#(s),"op":\#(q(op))"# + (a.map { #","arg":\#(q($0))"# } ?? "")
         case .cd(let s, let p): body = #""cd","seq":\#(s),"path":\#(q(p))"#
         case .nav(let rows):
             body = #""nav","rows":["# + rows.map { #"{"name":\#(q($0.name)),"path":\#(q($0.path))}"# }.joined(separator: ",") + "]"

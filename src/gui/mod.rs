@@ -406,6 +406,9 @@ fn seq_of(m: &In) -> Option<u64> {
         | In::Scroll { seq, .. }
         | In::Pick { seq, .. }
         | In::Cd { seq, .. }
+        | In::File { seq, .. }
+        | In::Chat { seq, .. }
+        | In::Menu { seq, .. }
         | In::Panel { seq, .. } => Some(*seq),
         In::Resize { .. } | In::Quit | In::Nav { .. } => None,
     }
@@ -523,7 +526,10 @@ fn git_job(s: &mut Session, inv: GitInvocation) -> Job {
 
 /// One message from the app, as `step` handles a terminal event.
 fn input(s: &mut Session, term: &mut Terminal<TestBackend>, m: In) {
-    let keyboard = matches!(m, In::Keys { .. } | In::Paste { .. } | In::Mac { .. });
+    let keyboard = matches!(
+        m,
+        In::Keys { .. } | In::Paste { .. } | In::Mac { .. } | In::Menu { .. }
+    );
     let keep_view = s.ed.zap.is_some();
     if keyboard {
         s.win_mut().view.last_click = None;
@@ -574,6 +580,7 @@ fn input(s: &mut Session, term: &mut Terminal<TestBackend>, m: In) {
             );
         }
         In::Mac { key, shift, .. } => mac::mac_key(s, key, shift),
+        In::Menu { op, .. } => mac::menu(s, &op),
         // Canonical, so a path under the working directory shows relative to it.
         In::Open {
             path,
@@ -620,6 +627,8 @@ fn input(s: &mut Session, term: &mut Terminal<TestBackend>, m: In) {
         }
         In::Scroll { win, top, .. } => scroll(s, win, top),
         In::Cd { path, .. } => s.cd(Some(&path)),
+        In::File { op, path, .. } => s.file_menu(&op, path),
+        In::Chat { op, arg, .. } => s.chat_panel(&op, arg),
         In::Nav { rows } => {
             s.nav = rows
                 .into_iter()

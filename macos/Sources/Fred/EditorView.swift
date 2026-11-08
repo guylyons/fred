@@ -17,6 +17,8 @@ final class EditorView: NSView {
             statusBars.forEach { $0.editorBg = palette.bg }
             tabStrips.forEach { $0.editorBg = palette.bg }
             crumbs.forEach { $0.editorBg = palette.bg }
+            chatHeaders.forEach { $0.editorBg = palette.bg }
+            sessionLists.forEach { $0.editorBg = palette.bg }
             minimapViews.forEach { $0.palette = palette }
             needsDisplay = true
         }
@@ -34,6 +36,9 @@ final class EditorView: NSView {
     private var statusBars: [StatusBar] = []
     private var tabStrips: [TabStrip] = []
     private var crumbs: [Breadcrumbs] = []
+    /// The chat window's VS Code Chat header and Sessions list, per window.
+    private var chatHeaders: [ChatHeader] = []
+    private var sessionLists: [SessionsList] = []
     private let picker = PaletteView(frame: .zero)
     /// The cursor's blink: solid since this time (the last frame), then a smooth fade.
     private var blinkFrom = CACurrentMediaTime()
@@ -450,14 +455,51 @@ final class EditorView: NSView {
             c.reveal = { [weak self] in self?.reveal($0) }
             addSubview(c, positioned: .below, relativeTo: overlay)
             crumbs.append(c)
+            let send = { [weak self] (op: String, arg: String?) in
+                self?.transmit { .chat(seq: $0, op: op, arg: arg) }
+                if let self { self.window?.makeFirstResponder(self) }
+            }
+            let h = ChatHeader(frame: .zero)
+            h.editorBg = palette.bg
+            h.send = send
+            addSubview(h, positioned: .below, relativeTo: overlay)
+            chatHeaders.append(h)
+            let l = SessionsList(frame: .zero)
+            l.editorBg = palette.bg
+            l.send = send
+            addSubview(l, positioned: .below, relativeTo: overlay)
+            sessionLists.append(l)
         }
         for (i, s) in tabStrips.enumerated() {
             guard i < f.windows.count, case let w = f.windows[i], let id = w.id, let tabs = w.tabs, (w.header ?? 0) > 0 else {
                 s.isHidden = true
                 crumbs[i].isHidden = true
+                chatHeaders[i].isHidden = true
+                sessionLists[i].isHidden = true
                 continue
             }
             let (l, r) = span(w.x, w.w - (w.divider ? 1 : 0))
+            // The chat: VS Code's Chat panel header in place of tabs and
+            // breadcrumbs; before anything is said, the Sessions list
+            // under its prompt line.
+            if let chat = w.chat {
+                s.isHidden = true
+                crumbs[i].isHidden = true
+                let h = chatHeaders[i]
+                let hf = NSRect(x: l, y: CGFloat(w.y) * cell.height, width: r - l, height: CGFloat(w.header!) * cell.height)
+                if h.frame != hf { h.frame = hf }
+                h.isHidden = false
+                h.update(chat)
+                let list = sessionLists[i], sessions = chat.sessions ?? []
+                list.isHidden = sessions.isEmpty
+                let top = CGFloat(textY(w) + 2) * cell.height
+                let lf = NSRect(x: l, y: top, width: r - l, height: max(0, CGFloat(w.y + w.h - 1) * cell.height - top))
+                if list.frame != lf { list.frame = lf }
+                list.update(sessions)
+                continue
+            }
+            chatHeaders[i].isHidden = true
+            sessionLists[i].isHidden = true
             // A header of 2+ rows ends with the breadcrumbs; one row is all tabs.
             let crumbRows = w.header! >= 2 ? 1 : 0
             let y = CGFloat(w.y) * cell.height, th = CGFloat(w.header! - crumbRows) * cell.height

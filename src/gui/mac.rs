@@ -118,6 +118,121 @@ pub fn mac_key(s: &mut Session, key: char, shift: bool) {
     );
 }
 
+/// The Edit and Selection menus, VS Code's, as Vim keys: on the
+/// selection's lines in Visual, else the cursor's line. From Insert they
+/// run in Normal and go back to Insert.
+pub fn menu(s: &mut Session, op: &str) {
+    if op == "comment" {
+        return toggle_comment(s);
+    }
+    // Org and terminals have their own Alt-arrows (move subtree, the shell's).
+    if s.ed.org.is_some() || s.ed.term.is_some() {
+        let k = match op {
+            "move_up" => "<M-Up>",
+            "move_down" => "<M-Down>",
+            "copy_up" => "<M-S-Up>",
+            "copy_down" => "<M-S-Down>",
+            _ => "",
+        };
+        if !k.is_empty() {
+            return keys(s, k);
+        }
+    }
+    let visual = s.ed.visual_lines().is_some();
+    let insert = s.ed.mode == Mode::Insert;
+    let col = s.ed.cur.byte;
+    if !visual && s.ed.mode != Mode::Normal {
+        s.ed.vim.restart_insert = false;
+        keys(s, "<Esc>");
+    }
+    // In Visual, `:` starts with the selection's range.
+    let k = match (op, visual) {
+        ("replace", true) => return keys(s, ":s/"),
+        ("replace", false) => return keys(s, ":%s/"),
+        ("find_in_files", _) => {
+            if visual {
+                keys(s, "<Esc>");
+            }
+            return keys(s, "<Space>g");
+        }
+        ("column", _) => return keys(s, if visual { "<Esc><C-v>" } else { "<C-v>" }),
+        ("move_up", true) => ":m'<-2<Enter>gv",
+        ("move_down", true) => ":m'>+1<Enter>gv",
+        ("copy_up", true) => ":t'<-1<Enter>gv",
+        ("copy_down" | "duplicate", true) => ":t'><Enter>gv",
+        ("move_up", false) => ":m-2<Enter>",
+        ("move_down", false) => ":m+1<Enter>",
+        ("copy_up", false) => ":t-1<Enter>",
+        ("copy_down" | "duplicate", false) => ":t.<Enter>",
+        _ => return,
+    };
+    keys(s, k);
+    if visual {
+        return;
+    }
+    // As VS Code: the cursor keeps its column on the moved or copied line.
+    let line = s.ed.cur.line;
+    let len = s.ed.buf.line(line).len();
+    if insert && col >= len {
+        keys(s, "A");
+    } else {
+        s.ed.set_cursor(line, col.min(len.saturating_sub(1)));
+        if insert {
+            keys(s, "i");
+        }
+    }
+}
+
+/// A file type's line comment, by extension (or file name).
+fn line_comment(ed: &crate::editor::Editor) -> Option<&'static str> {
+    let p = ed.syntax_path.as_deref().or(ed.path.as_deref())?;
+    let ext = p
+        .extension()
+        .or(p.file_name())?
+        .to_str()?
+        .to_ascii_lowercase();
+    Some(match ext.as_str() {
+        "rs" | "c" | "h" | "cc" | "cpp" | "hpp" | "js" | "jsx" | "ts" | "tsx" | "mjs" | "go"
+        | "java" | "kt" | "swift" | "php" | "module" | "inc" | "theme" | "install" | "scss"
+        | "less" | "zig" | "dart" | "cs" | "scala" | "groovy" | "json5" | "jsonc" | "proto" => "//",
+        "py" | "rb" | "sh" | "bash" | "zsh" | "fish" | "toml" | "yaml" | "yml" | "pl" | "r"
+        | "ex" | "exs" | "nix" | "conf" | "mk" | "makefile" | "dockerfile" | "jl" | "tf"
+        | "cmake" | "ps1" | "gitignore" | "env" => "#",
+        "lua" | "sql" | "hs" | "elm" | "ada" => "--",
+        "el" | "lisp" | "clj" | "cljs" | "scm" | "rkt" | "ini" | "asm" => ";",
+        "tex" | "erl" | "m" | "mat" => "%",
+        "vim" => "\"",
+        _ => return None,
+    })
+}
+
+/// Toggle Line Comment (Cmd-/): the selection's lines, else the cursor's.
+/// All of them commented: uncomment; else comment each non-blank one.
+fn toggle_comment(s: &mut Session) {
+    let Some(tok) = line_comment(&s.ed) else {
+        return s.ed.set_err("no line comment for this file type");
+    };
+    let (a, b) =
+        s.ed.visual_lines()
+            .unwrap_or((s.ed.cur.line, s.ed.cur.line));
+    let commented = (a..=b)
+        .map(|l| s.ed.buf.line(l))
+        .filter(|t| !t.trim().is_empty())
+        .all(|t| t.trim_start().starts_with(tok));
+    let t = tok.replace('\\', "\\\\").replace('/', "\\/");
+    let cmd = if commented {
+        format!("{},{}s/^\\(\\s*\\){t} \\?/\\1/", a + 1, b + 1)
+    } else {
+        format!("{},{}s/^\\(\\s*\\)\\(\\S\\)/\\1{t} \\2/", a + 1, b + 1)
+    };
+    let (cur, mode) = (s.ed.cur, s.ed.mode.clone());
+    ex(s, &cmd);
+    // As VS Code: the cursor and the selection stay where they were.
+    s.ed.mode = mode;
+    s.ed.cur = cur;
+    s.ed.clamp_cursor();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -133,6 +248,48 @@ mod tests {
         )
         .unwrap();
         (s, d)
+    }
+
+    fn open_rs(text: &str) -> (Session, tempfile::TempDir) {
+        let d = tempfile::tempdir().unwrap();
+        std::fs::write(d.path().join("f.rs"), text).unwrap();
+        let (s, _) = Session::open(
+            Some(d.path().join("f.rs")),
+            &Config::default(),
+            &d.path().join("swap"),
+        )
+        .unwrap();
+        (s, d)
+    }
+
+    #[test]
+    fn toggle_comment_comments_the_selection_then_uncomments_it() {
+        let (mut s, _d) = open_rs("a\n  b\n\nc\n");
+        s.handle_keys("Vjjj");
+        menu(&mut s, "comment");
+        assert_eq!(s.ed.buf.text(), "// a\n  // b\n\n// c");
+        assert!(s.ed.visual_lines().is_some(), "the selection stays");
+        menu(&mut s, "comment");
+        assert_eq!(s.ed.buf.text(), "a\n  b\n\nc");
+        s.handle_keys("<Esc>gg");
+        menu(&mut s, "comment");
+        assert_eq!(s.ed.buf.text(), "// a\n  b\n\nc");
+        s.handle_keys("u");
+        assert_eq!(s.ed.buf.text(), "a\n  b\n\nc", "one undo step");
+    }
+
+    #[test]
+    fn move_and_copy_lines_from_normal_insert_and_visual() {
+        let (mut s, _d) = open("one\ntwo\nthree\n");
+        menu(&mut s, "move_down");
+        assert_eq!(s.ed.buf.text(), "two\none\nthree");
+        s.handle_keys("i");
+        menu(&mut s, "move_up");
+        assert_eq!(s.ed.buf.text(), "one\ntwo\nthree");
+        assert_eq!(s.ed.mode, Mode::Insert, "back to typing");
+        s.handle_keys("<Esc>Vj");
+        menu(&mut s, "copy_down");
+        assert_eq!(s.ed.buf.text(), "one\ntwo\none\ntwo\nthree");
     }
 
     #[test]

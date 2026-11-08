@@ -854,15 +854,10 @@ fn typed(prompt: &str) -> Option<&str> {
     (!p.starts_with('<') && !p.trim().is_empty()).then_some(p)
 }
 
-/// `Space c r`: this directory's conversations, newest first; the one
-/// picked is shown and the next prompt goes on with it.
-fn resume(ed: &mut Editor) {
-    if busy(ed) {
-        return ed.set_msg("Claude is working · C-c to interrupt");
-    }
-    let Some(dir) = sessions_dir() else {
-        return ed.set_err("no Claude Code conversations here");
-    };
+/// This directory's conversations, newest first: (how long ago, title,
+/// file). None when there is nowhere to look.
+fn conversations() -> Option<Vec<(String, String, std::path::PathBuf)>> {
+    let dir = sessions_dir()?;
     let mut files: Vec<(std::time::SystemTime, std::path::PathBuf)> = std::fs::read_dir(&dir)
         .into_iter()
         .flatten()
@@ -875,42 +870,100 @@ fn resume(ed: &mut Editor) {
     // ponytail: reads the 40 newest whole; an index if that gets slow.
     files.truncate(40);
     let now = std::time::SystemTime::now();
-    let found: Vec<(String, std::path::PathBuf)> = files
-        .into_iter()
-        .map(|(when, p)| {
-            let ago = now.duration_since(when).unwrap_or_default().as_secs();
-            let ago = match ago {
-                s if s < 3600 => format!("{}m ago", s / 60),
-                s if s < 86400 => format!("{}h ago", s / 3600),
-                s => format!("{}d ago", s / 86400),
-            };
-            let title = session_title(&std::fs::read_to_string(&p).unwrap_or_default());
-            (format!("{ago:>8}  {title}"), p)
-        })
-        .collect();
-    let rows = found.iter().map(|f| f.0.clone()).collect();
-    choose(ed, "conversation", rows, move |ed, i| {
-        let path = &found[i].1;
-        let Some(id) = path.file_stem().map(|s| s.to_string_lossy().into_owned()) else {
-            return;
-        };
-        let text = std::fs::read_to_string(path).unwrap_or_default();
-        let chat = ed.claude.as_mut().unwrap();
-        if let Some(job) = chat.job.take() {
-            job.end(true);
+    Some(
+        files
+            .into_iter()
+            .map(|(when, p)| {
+                let ago = now.duration_since(when).unwrap_or_default().as_secs();
+                let ago = match ago {
+                    s if s < 3600 => format!("{}m ago", s / 60),
+                    s if s < 86400 => format!("{}h ago", s / 3600),
+                    s => format!("{}d ago", s / 86400),
+                };
+                let title = session_title(&std::fs::read_to_string(&p).unwrap_or_default());
+                (ago, title, p)
+            })
+            .collect(),
+    )
+}
+
+/// The GUI chat panel's Sessions list: (id, title, how long ago), newest
+/// first, read again only when the folder changes.
+pub fn sessions() -> Vec<(String, String, String)> {
+    type Cache = Option<(Option<std::time::SystemTime>, Vec<(String, String, String)>)>;
+    thread_local!(static LAST: std::cell::RefCell<Cache> = const { std::cell::RefCell::new(None) });
+    let stamp = sessions_dir().and_then(|d| d.metadata().ok()?.modified().ok());
+    LAST.with_borrow_mut(|last| {
+        if last.as_ref().is_none_or(|(s, _)| *s != stamp) {
+            let list = conversations()
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(|(ago, title, p)| {
+                    Some((p.file_stem()?.to_string_lossy().into_owned(), title, ago))
+                })
+                .collect();
+            *last = Some((stamp, list));
         }
-        chat.session = Some(id);
-        let shown = history(&text) + "\n\n> ";
-        let end = ed.buf.len_chars();
-        ed.apply(Edit {
-            start: 0,
-            end,
-            text: shown.trim_start().into(),
-        });
-        let last = ed.line_count() - 1;
-        ed.set_cursor(last, 2);
-        ed.set_msg(format!("resumed: {}", session_title(&text)));
+        last.as_ref().map(|l| l.1.clone()).unwrap_or_default()
+    })
+}
+
+/// `Space c r`: this directory's conversations, newest first; the one
+/// picked is shown and the next prompt goes on with it.
+fn resume(ed: &mut Editor) {
+    if busy(ed) {
+        return ed.set_msg("Claude is working · C-c to interrupt");
+    }
+    let Some(found) = conversations() else {
+        return ed.set_err("no Claude Code conversations here");
+    };
+    let rows = found
+        .iter()
+        .map(|f| format!("{:>8}  {}", f.0, f.1))
+        .collect();
+    choose(ed, "conversation", rows, move |ed, i| load(ed, &found[i].2));
+}
+
+/// The GUI's Sessions list: go on with conversation `id`.
+pub fn resume_id(ed: &mut Editor, id: &str) {
+    if busy(ed) {
+        return ed.set_msg("Claude is working · C-c to interrupt");
+    }
+    match sessions_dir().map(|d| d.join(format!("{id}.jsonl"))) {
+        Some(p) if p.is_file() && !id.contains('/') => load(ed, &p),
+        _ => ed.set_err("no such conversation"),
+    }
+}
+
+/// Show conversation file `path`; the next prompt goes on with it.
+fn load(ed: &mut Editor, path: &std::path::Path) {
+    let Some(id) = path.file_stem().map(|s| s.to_string_lossy().into_owned()) else {
+        return;
+    };
+    let text = std::fs::read_to_string(path).unwrap_or_default();
+    let chat = ed.claude.as_mut().unwrap();
+    if let Some(job) = chat.job.take() {
+        job.end(true);
+    }
+    chat.session = Some(id);
+    let shown = history(&text) + "\n\n> ";
+    let end = ed.buf.len_chars();
+    ed.apply(Edit {
+        start: 0,
+        end,
+        text: shown.trim_start().into(),
     });
+    let last = ed.line_count() - 1;
+    ed.set_cursor(last, 2);
+    ed.set_msg(format!("resumed: {}", session_title(&text)));
+}
+
+/// The GUI chat panel's header: (model, permission mode, busy, nothing
+/// said yet).
+pub fn bar(ed: &Editor) -> Option<(Option<String>, Option<String>, bool, bool)> {
+    let chat = ed.claude.as_ref()?;
+    let empty = ed.line_count() == 1 && ed.buf.line(0).trim() == ">";
+    Some((chat.model.clone(), chat.mode.clone(), busy(ed), empty))
 }
 
 /// A saved conversation, laid out as the chat shows one.

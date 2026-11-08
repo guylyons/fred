@@ -86,6 +86,22 @@ pub struct Win {
     /// The symbol the cursor is in and its kind, for the breadcrumbs.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub symbol: Option<(String, String)>,
+    /// The Claude chat: the app draws it as VS Code's Chat panel.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chat: Option<ChatBar>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct ChatBar {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode: Option<String>,
+    pub busy: bool,
+    /// Past conversations (id, title, how long ago), sent while nothing
+    /// has been said yet.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sessions: Vec<(String, String, String)>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -313,6 +329,26 @@ pub enum In {
     Pick {
         seq: u64,
         index: usize,
+    },
+    /// The chat panel: `op` toggle, new, resume (conversation `arg`),
+    /// model or mode.
+    Chat {
+        seq: u64,
+        op: String,
+        #[serde(default)]
+        arg: Option<String>,
+    },
+    /// The Edit and Selection menus' editing commands (see `mac::menu`).
+    Menu {
+        seq: u64,
+        op: String,
+    },
+    /// The File menu: `op` new, save_as (to `path`), save_all or revert.
+    File {
+        seq: u64,
+        op: String,
+        #[serde(default)]
+        path: Option<String>,
     },
     /// Work in folder `path` (`:cd`): the chosen project.
     Cd {

@@ -118,6 +118,16 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
         if ed.term.is_some() {
             terms.push(p.id);
         }
+        let chat = crate::claude::bar(ed).map(|(model, mode, busy, empty)| proto::ChatBar {
+            model,
+            mode,
+            busy,
+            sessions: if empty {
+                crate::claude::sessions()
+            } else {
+                vec![]
+            },
+        });
         let symbol = file
             .is_some()
             .then(|| crate::pick::imenu::at(ed))
@@ -150,6 +160,7 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
                 enc: format!("UTF-8{}", if ed.buf.bom { " with BOM" } else { "" }),
             },
             symbol,
+            chat,
         ));
     });
     let be = term.backend();
@@ -204,6 +215,7 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
                 toolbar,
                 term,
                 symbol: status[i].4.take(),
+                chat: status[i].5.take(),
                 status: status.swap_remove(i).3,
             })
         })

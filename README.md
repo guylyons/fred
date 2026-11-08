@@ -49,7 +49,7 @@ completion, a Git client modeled on Emacs's Magit, and Org mode. It is one
   `Space m` opens Magit's status, staging, commits, branches, stashes, rebases,
   log and blame.
 - **Org mode.** Folding, TODO states, agenda, capture and clocking in `.org`
-  files.
+  files, with runnable source blocks.
 - **Careful with your files.** Atomic writes, a warning when the file changed
   on disk, crash recovery, and line endings and encodings kept as they were.
 - **Claude when you want it.** `Space c c` chats with Claude Code in a buffer, and `Space c` drives it like Magit drives git;
