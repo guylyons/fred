@@ -28,6 +28,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     /// The window's backdrop and the editor's box (recolored by `applyTheme`).
     private let backdrop = EditorBackground()
     private let editorBox = EditorBackground()
+    /// The title bar's strip: in Glass, the backdrop is clear, so this paints its tint.
+    private let titleStrip = EditorBackground()
     /// View ▸ Glass Theme: the Ghostty look, translucent over a blurred desktop.
     private var glass = UserDefaults.standard.string(forKey: "FredTheme") == "glass"
 
@@ -319,6 +321,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         backdrop.color = p.clear ? .clear : chrome
         backdrop.image = image
         activity?.tint = p.clear ? chrome : .clear
+        titleStrip.color = p.clear ? chrome : .clear
         (split?.splitView as? DividerSplit)?.color = chrome.blended(withFraction: 0.3, of: .black)!
         editorBox.color = p.bg
         window.isOpaque = !glass
@@ -628,8 +631,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             .init(symbol: "questionmark.circle", tip: "Help: Search Commands (Space h)", run: { [unowned self] in self.run("<Space>h") }),
         ])
         activity = bar
-        for v in [bar, split.view] { v.translatesAutoresizingMaskIntoConstraints = false; glass.addSubview(v) }
+        for v in [titleStrip, bar, split.view] { v.translatesAutoresizingMaskIntoConstraints = false; glass.addSubview(v) }
         NSLayoutConstraint.activate([
+            titleStrip.topAnchor.constraint(equalTo: glass.topAnchor),
+            titleStrip.leadingAnchor.constraint(equalTo: glass.leadingAnchor),
+            titleStrip.trailingAnchor.constraint(equalTo: glass.trailingAnchor),
+            titleStrip.bottomAnchor.constraint(equalTo: glass.safeAreaLayoutGuide.topAnchor),
             bar.leadingAnchor.constraint(equalTo: glass.leadingAnchor),
             bar.topAnchor.constraint(equalTo: glass.safeAreaLayoutGuide.topAnchor), // under the title bar
             bar.bottomAnchor.constraint(equalTo: glass.bottomAnchor),
