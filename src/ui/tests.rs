@@ -1315,6 +1315,95 @@ fn splash_reflows_in_small_windows() {
 }
 
 #[test]
+fn click_in_pad_on_heading_folds() {
+    // GUI_PAD is process-global; isolate it from parallel terminal tests.
+    if std::env::var_os("FRED_TEST_MAGIT_PAD").is_none() {
+        assert!(
+            std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "ui::tests::click_in_pad_on_heading_folds",
+                    "--nocapture"
+                ])
+                .env("FRED_TEST_MAGIT_PAD", "1")
+                .status()
+                .unwrap()
+                .success()
+        );
+        return;
+    }
+    use crate::magit::{RowAction, Section};
+    use ratatui::crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    super::render::GUI_PAD.store(true, std::sync::atomic::Ordering::Relaxed);
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("f");
+    std::fs::write(&path, "old\n").unwrap();
+    let git = |args: &[&str]| {
+        assert!(
+            std::process::Command::new("git")
+                .current_dir(d.path())
+                .args(args)
+                .output()
+                .unwrap()
+                .status
+                .success()
+        )
+    };
+    git(&["init", "-q"]);
+    git(&["add", "f"]);
+    std::fs::write(&path, "new\n").unwrap();
+    let cfg = Config::default();
+    let (mut s, _) =
+        crate::session::Session::open(Some(path), &cfg, &d.path().join("swap")).unwrap();
+    s.handle_keys("<Space>ms");
+    for _ in 0..200 {
+        s.tick_magit();
+        if s.ed.magit.is_some() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let mut term = Terminal::new(TestBackend::new(80, 40)).unwrap();
+    crate::gui::frame::build(&mut s, &cfg, &mut term, 0);
+    let row =
+        s.ed.magit
+            .as_ref()
+            .unwrap()
+            .rows
+            .iter()
+            .position(|r| r.action == Some(RowAction::Section(Section::Unstaged)))
+            .unwrap() as u16;
+    let area = ratatui::layout::Rect::new(0, 0, 80, 40);
+    let click = |col, row| MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: col,
+        row,
+        modifiers: KeyModifiers::NONE,
+    };
+    let send = |s: &mut crate::session::Session, col, row| {
+        s.mouse(area, click(col, row));
+        if let Some(eff) = s.ed.pending_effect.take() {
+            s.perform(eff);
+        }
+    };
+    send(&mut s, 4, row);
+    assert!(!s.ed.buf.line(row as usize).ends_with('…'));
+    send(&mut s, 0, row);
+    assert!(s.ed.buf.line(row as usize).ends_with('…'));
+    send(&mut s, 0, row);
+    assert!(!s.ed.buf.line(row as usize).ends_with('…'));
+    send(&mut s, 0, row + 1);
+    for _ in 0..200 {
+        s.tick_magit();
+        if String::from_utf8_lossy(&s.ed.buf.to_bytes()).contains("@@") {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(String::from_utf8_lossy(&s.ed.buf.to_bytes()).contains("@@"));
+}
+
+#[test]
 fn magit_status_uses_title_and_diff_colors() {
     use crate::magit::repo::{Repo, Snapshot};
     use crate::magit::{Kind, Row, View};

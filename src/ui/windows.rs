@@ -13,6 +13,17 @@ use std::time::{Duration, Instant};
 /// Lay the windows out above the command row, draw each, then the chrome.
 /// The highlighting `budget` is shared: the active window draws first.
 pub fn draw_session(f: &mut Frame, s: &mut Session, cfg: &Config, budget: Duration) {
+    draw_session_layers(f, s, cfg, budget, true);
+}
+
+/// The GUI draws which-key as a separate layer so it can animate independently.
+pub fn draw_session_layers(
+    f: &mut Frame,
+    s: &mut Session,
+    cfg: &Config,
+    budget: Duration,
+    inline_keys: bool,
+) {
     let area = f.area();
     if area.height == 0 || area.width == 0 {
         return;
@@ -63,7 +74,8 @@ pub fn draw_session(f: &mut Frame, s: &mut Session, cfg: &Config, budget: Durati
             }
         }
     }
-    if s.which_key
+    if inline_keys
+        && s.which_key
         && let Some((title, keys)) = crate::vim::which_key(&s.ed)
     {
         // Clear of the GUI's minimap.
@@ -101,7 +113,22 @@ fn number(buf: &mut Buffer, rect: Rect, n: usize) {
 }
 
 /// The keys that can follow `title`, in columns, along the bottom of `area`.
-fn which_key(buf: &mut Buffer, area: Rect, title: &str, keys: &[(String, &str)]) {
+pub(crate) fn which_key_rect(area: Rect, keys: &[(String, &str)]) -> Rect {
+    let width = keys
+        .iter()
+        .map(|(k, what)| k.len() + what.len() + 5)
+        .max()
+        .unwrap_or(1);
+    let cols = (area.width.saturating_sub(2) as usize / width).max(1);
+    let height = (keys.len().div_ceil(cols) as u16 + 2).min(area.height);
+    Rect {
+        y: area.bottom() - height,
+        height,
+        ..area
+    }
+}
+
+pub(crate) fn which_key(buf: &mut Buffer, area: Rect, title: &str, keys: &[(String, &str)]) {
     let width = keys
         .iter()
         .map(|(k, what)| k.len() + what.len() + 5)
@@ -110,12 +137,7 @@ fn which_key(buf: &mut Buffer, area: Rect, title: &str, keys: &[(String, &str)])
     let inner = area.width.saturating_sub(2) as usize;
     let cols = (inner / width).max(1);
     let rows = keys.len().div_ceil(cols);
-    let height = (rows as u16 + 2).min(area.height);
-    let rect = Rect {
-        y: area.bottom() - height,
-        height,
-        ..area
-    };
+    let rect = which_key_rect(area, keys);
     Clear.render(rect, buf);
     let block = Block::default()
         .borders(Borders::TOP)

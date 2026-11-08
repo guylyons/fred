@@ -16,17 +16,90 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
     // This frame's own buffer: the backend's copy is patched by diffs, which
     // leave stale cells behind after wide characters scroll past.
     let buf = term
-        .draw(|f| windows::draw_session(f, s, cfg, app::HIGHLIGHT_BUDGET))
+        .draw(|f| windows::draw_session_layers(f, s, cfg, app::HIGHLIGHT_BUDGET, false))
         .expect("in-memory terminal")
         .buffer
         .clone();
     let buf = &buf;
+    let leader = if s.which_key
+        && let Some((title, keys)) = crate::vim::which_key(&s.ed)
+    {
+        let area = ratatui::layout::Rect {
+            width: s.area.width.saturating_sub(s.chrome.1),
+            ..s.area
+        };
+        let rect = windows::which_key_rect(area, &keys);
+        let mut overlay = Buffer::empty(area);
+        windows::which_key(&mut overlay, area, title, &keys);
+        Some(proto::KeyMenu {
+            x: rect.x,
+            y: rect.y,
+            w: rect.width,
+            rows: (rect.y..rect.bottom())
+                .map(|y| runs(&overlay, y, rect.x, rect.right(), None))
+                .collect(),
+        })
+    } else {
+        None
+    };
     app::drawn(s);
     let mut status = vec![];
     let mut drawing = vec![];
     let mut terms = vec![];
+    let mut paints = std::collections::HashMap::new();
     let cwd = std::env::current_dir().ok();
     s.each_window(|ed, view, hl, p, _| {
+        if let Some(magit) = &ed.magit {
+            let count = p.text().height as usize + usize::from(p.header > 0);
+            let mut paint = crate::magit::paint::paint_rows(
+                |l| {
+                    magit.action_at(l).or_else(|| {
+                        magit.diff_files.get(&l).map(|path| {
+                            crate::magit::RowAction::File(
+                                path.into(),
+                                crate::magit::Section::Unstaged,
+                            )
+                        })
+                    })
+                },
+                |l| {
+                    if l < ed.line_count() {
+                        ed.buf.line(l).to_string()
+                    } else {
+                        String::new()
+                    }
+                },
+                view.top,
+                view.top + count,
+            );
+            let gutter = render::gutter_width(ed).min(p.text().width as usize / 2);
+            // Buffer character spans become visible cell spans, including scroll.
+            for (i, row) in paint.iter_mut().enumerate() {
+                let text = if view.top + i < ed.line_count() {
+                    ed.buf.line(view.top + i).to_string()
+                } else {
+                    String::new()
+                };
+                row.marks = row
+                    .marks
+                    .iter()
+                    .filter_map(|&(a, b, k)| {
+                        let col = |n| {
+                            let byte = text.char_indices().nth(n).map_or(text.len(), |(b, _)| b);
+                            crate::text::col_of_byte(&text, byte, ed.tabstop())
+                        };
+                        let (a, b) = (col(a as usize), col(b as usize));
+                        if b <= view.left {
+                            return None;
+                        }
+                        let a = gutter + a.saturating_sub(view.left);
+                        let b = (gutter + b.saturating_sub(view.left)).min(p.text().width as usize);
+                        (a < b).then_some((a as u16, b as u16, k))
+                    })
+                    .collect();
+            }
+            paints.insert(p.id, (paint, gutter as u16));
+        }
         let name = render::special_title(ed).unwrap_or_else(|| match &ed.path {
             Some(path) => cwd
                 .as_deref()
@@ -101,7 +174,12 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
                     .map(|p| r.x + p.x..r.x + p.x + p.w)
             };
             let (toolbar, term) = (drawing.contains(&p.id), terms.contains(&p.id));
+            let (paint, gutter) = paints
+                .remove(&p.id)
+                .map_or((vec![], None), |(p, g)| (p, Some(g)));
             Some(Win {
+                paint,
+                paint_gutter: gutter,
                 x: r.x,
                 y: r.y,
                 w: r.width,
@@ -130,9 +208,24 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
             })
         })
         .collect();
-    let bottom = (s.area.bottom()..buf.area.bottom())
+    let bottom: Vec<_> = (s.area.bottom()..buf.area.bottom())
         .map(|y| runs(buf, y, 0, buf.area.right(), None))
         .collect();
+    let bottom_paint = if let Mode::Pick(p) = &s.ed.mode
+        && p.kind == crate::pick::Kind::MagitMenu
+    {
+        let (_, hints) = render::transient_layout(&s.ed, p.sel, buf.area.width as usize);
+        let mut paint = vec![crate::magit::paint::Paint::default(); bottom.len()];
+        // The command row precedes the bottom-aligned transient panel.
+        let count = hints.len().min(bottom.len().saturating_sub(1));
+        let start = paint.len() - count;
+        for (dest, hint) in paint[start..].iter_mut().zip(hints) {
+            *dest = hint;
+        }
+        paint
+    } else {
+        vec![]
+    };
     // The splash screen has no cursor, nor the current-line band it brings.
     let splash = s.ed.mode == Mode::Normal && crate::ui::splash::active(&s.ed);
     let cursor = (be.cursor_visible() && !splash).then(|| {
@@ -168,6 +261,8 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
         .to_string(),
         windows,
         bottom,
+        bottom_paint,
+        leader,
         cursor,
         palette: palette(s, buf.area.height),
         zap_nav: zap_nav(s),
@@ -374,6 +469,129 @@ mod tests {
         term.draw(|f| windows::draw_session(f, &mut s, &Config::default(), app::HIGHLIGHT_BUDGET))
             .unwrap();
         (s, term, d)
+    }
+
+    #[test]
+    fn leader_menu_is_a_separate_layer() {
+        let (mut s, mut term, _d) = setup(100, 40, "hello\n");
+        s.handle_keys("<Space>");
+        let hidden = build(&mut s, &Config::default(), &mut term, 0);
+        assert!(hidden.leader.is_none());
+        assert!(
+            !serde_json::to_string(&hidden)
+                .unwrap()
+                .contains("\"leader\"")
+        );
+        s.which_key = true;
+        let shown = build(&mut s, &Config::default(), &mut term, 1);
+        let menu = shown.leader.as_ref().unwrap();
+        assert!(!menu.rows.is_empty());
+        assert_eq!(menu.y as usize + menu.rows.len(), s.area.bottom() as usize);
+        assert_eq!(hidden.windows[0].rows, shown.windows[0].rows);
+        assert!(menu.rows.iter().flatten().any(|r| r.s.contains("SPC")));
+        s.handle_keys("<Esc>");
+        assert!(
+            build(&mut s, &Config::default(), &mut term, 2)
+                .leader
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn commit_menu_paint() {
+        use crate::magit::paint::Mark;
+        let (mut s, mut term, _d) = setup(100, 60, "x\n");
+        s.handle_keys("<Space>mc");
+        let (lines, paint) = render::transient_layout(&s.ed, 0, 100);
+        let marked: Vec<_> = lines
+            .iter()
+            .zip(&paint)
+            .flat_map(|(l, p)| {
+                let text = l.to_string();
+                p.marks.iter().map(move |&(a, b, k)| {
+                    (
+                        text.chars()
+                            .skip(a as usize)
+                            .take((b - a) as usize)
+                            .collect::<String>(),
+                        k,
+                    )
+                })
+            })
+            .collect();
+        assert!(marked.contains(&("Arguments".into(), Mark::Group)));
+        assert!(marked.contains(&("-a".into(), Mark::Key)));
+        assert!(marked.contains(&("c".into(), Mark::Key)));
+        let f = build(&mut s, &Config::default(), &mut term, 0);
+        assert_eq!(f.bottom_paint.len(), f.bottom.len());
+        assert!(
+            f.bottom_paint
+                .iter()
+                .any(|p| p.marks.iter().any(|m| m.2 == Mark::Key))
+        );
+    }
+
+    #[test]
+    fn magit_window_sends_paint() {
+        let (mut s, mut term, d) = setup(80, 24, "x\n");
+        let f = build(&mut s, &Config::default(), &mut term, 0);
+        assert!(f.windows[0].paint.is_empty());
+        assert!(!serde_json::to_string(&f).unwrap().contains("\"paint\""));
+        let git = |args: &[&str]| {
+            assert!(
+                std::process::Command::new("git")
+                    .current_dir(d.path())
+                    .args(args)
+                    .output()
+                    .unwrap()
+                    .status
+                    .success()
+            );
+        };
+        git(&["init", "-q"]);
+        git(&["add", "f.txt"]);
+        std::fs::write(d.path().join("f.txt"), "changed\n").unwrap();
+        s.handle_keys("<Space>ms");
+        for _ in 0..200 {
+            s.tick_magit();
+            if s.ed.magit.is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(s.ed.magit.is_some());
+        let f = build(&mut s, &Config::default(), &mut term, 1);
+        let w = f.windows.iter().find(|w| !w.paint.is_empty()).unwrap();
+        assert_eq!(w.paint.len(), w.rows.len());
+        assert!(
+            w.paint
+                .iter()
+                .any(|p| matches!(p.role, Some(crate::magit::paint::Role::Heading { .. })))
+        );
+    }
+
+    #[test]
+    fn diff_file_headings_get_paint_without_row_actions() {
+        use crate::magit::{Kind, View, paint::Role, repo::Repo};
+        let (mut s, mut term, _d) = setup(80, 24, "");
+        let mut v = View::status(
+            Repo {
+                root: "/repo".into(),
+            },
+            Default::default(),
+        );
+        v.kind = Kind::Patch("abc123".into());
+        v.set_diff(b"diff --git a/f b/f\nindex 1234567..7654321 100644\n--- a/f\n+++ b/f\n@@ -1 +1 @@\n-old\n+new\n".to_vec());
+        assert!(!v.diff_files.is_empty());
+        s.ed.buf = crate::buffer::Buffer::from_text(&v.text());
+        s.ed.magit = Some(Box::new(v));
+        let f = build(&mut s, &Config::default(), &mut term, 0);
+        let paint = &f.windows[0].paint;
+        for i in s.ed.magit.as_ref().unwrap().diff_files.keys() {
+            assert_eq!(paint[*i].role, Some(Role::File));
+        }
+        assert!(paint.iter().any(|p| p.role == Some(Role::Added)));
+        assert!(paint.iter().any(|p| p.role == Some(Role::Removed)));
     }
 
     #[test]

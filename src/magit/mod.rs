@@ -23,6 +23,7 @@ pub mod names;
 pub mod network;
 pub mod notes;
 pub mod options;
+pub mod paint;
 pub mod patch;
 pub mod rebase;
 pub mod refs;

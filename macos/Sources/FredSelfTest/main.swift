@@ -14,6 +14,16 @@ if case .frame(let f) = try Incoming.decode(Data(line.utf8)) {
     check("run text", f.windows[0].rows[0][0].s == "hello")
     check("bold", f.windows[0].rows[0][0].f == 1)
 } else { check("decodes a frame", false) }
+let leaderLine = line.replacingOccurrences(of: #""bottom":[]"#, with: #""bottom":[],"leader":{"x":0,"y":2,"w":20,"rows":[[{"x":0,"s":" SPC "}]]}"#)
+if case .frame(let f) = try Incoming.decode(Data(leaderLine.utf8)) {
+    check("leader layer position", f.leader?.y == 2)
+    check("leader layer text", f.leader?.rows.first?.first?.s == " SPC ")
+}
+let hints = try JSONDecoder().decode([RowPaint].self, from: Data(#"[{"role":{"kind":"heading","open":false},"marks":[[17,20,"count"]]},{"role":{"kind":"added"}},{}]"#.utf8))
+check("heading hint", hints[0].role?.kind == "heading" && hints[0].role?.open == false)
+check("count hint", hints[0].marks?.first?.start == 17 && hints[0].marks?.first?.end == 20 && hints[0].marks?.first?.kind == "count")
+check("empty hint", hints[2].role == nil && hints[2].marks == nil)
+check("hint round trip", try JSONDecoder().decode([RowPaint].self, from: JSONEncoder().encode(hints)) == hints)
 check("exit", { if case .exit(let c) = try! Incoming.decode(Data(#"{"t":"exit","code":0}"#.utf8)) { return c == 0 }; return false }())
 check("keys line", String(decoding: Outgoing.keys(seq: 7, keys: "<C-w>j").line(), as: UTF8.self) == #"{"t":"keys","seq":7,"keys":"<C-w>j"}"# + "\n")
 let p = Palette(fg: .white, bg: .black)

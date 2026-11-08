@@ -55,6 +55,9 @@ final class EditorView: NSView {
 
     /// Sends a message to the core (wired by main.swift).
     var send: (Outgoing) -> Void = { _ in }
+    private var panelSlideFrom: CFTimeInterval?
+    private var panelSlideTimer: Timer?
+    private var paintTracking: NSTrackingArea?
     private var lastSeq = 0
     private var scrollAcc: CGFloat = 0
     /// Chrome's rubber band: a window's text pulled past its first or last
@@ -313,11 +316,46 @@ final class EditorView: NSView {
 
     private func redrawText(_ w: Win) { setNeedsDisplay(textRect(w)) }
 
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let paintTracking { removeTrackingArea(paintTracking) }
+        let tracking = NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect], owner: self)
+        addTrackingArea(tracking)
+        paintTracking = tracking
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        if current?.windows.contains(where: { $0.paint != nil }) == true { needsDisplay = true }
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        if current?.windows.contains(where: { $0.paint != nil }) == true { needsDisplay = true }
+    }
+
     // MARK: - Frames
 
     func apply(_ f: Frame) {
         let old = current
         current = f
+        let menuOpen = f.leader != nil || !(f.bottom_paint?.isEmpty ?? true)
+        let menuWasOpen = old?.leader != nil || !(old?.bottom_paint?.isEmpty ?? true)
+        if f.leader != old?.leader { needsDisplay = true }
+        if menuOpen && !menuWasOpen && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            panelSlideFrom = CACurrentMediaTime()
+            panelSlideTimer?.invalidate()
+            panelSlideTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { [weak self] timer in
+                guard self != nil else { timer.invalidate(); return }
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    guard let start = self.panelSlideFrom else { self.panelSlideTimer?.invalidate(); return }
+                    self.needsDisplay = true
+                    if CACurrentMediaTime() - start >= 0.12 {
+                        self.panelSlideFrom = nil; self.panelSlideTimer?.invalidate()
+                    }
+                }
+            }
+        }
+        if !menuOpen { panelSlideFrom = nil; panelSlideTimer?.invalidate() }
         blinkFrom = CACurrentMediaTime()
         blinkAlpha = 1
         layoutStatusBars(f)
@@ -341,6 +379,7 @@ final class EditorView: NSView {
               zip(old.windows, f.windows).allSatisfy({ sameRect($0, $1) })
         else { needsDisplay = true; return }
         for (o, n) in zip(old.windows, f.windows) {
+            if o.paint != n.paint || o.paint_gutter != n.paint_gutter { redrawText(n) }
             for r in 0..<n.rows.count where r >= o.rows.count || o.rows[r] != n.rows[r] {
                 setNeedsDisplay(rowRect(textY(n) + r))
             }
@@ -676,9 +715,23 @@ final class EditorView: NSView {
                 ctx.setFillColor(palette.fg.withAlphaComponent(0.045).cgColor)
                 ctx.fill(CGRect(x: l, y: CGFloat(c.y) * cell.height, width: rr - l, height: cell.height))
             }
-            for r in dirty { drawBackgrounds(ctx, w.rows[r], col: w.x, row: y + r) }
+            for r in dirty {
+                let role = w.paint?.indices.contains(r) == true ? w.paint?[r].role?.kind : nil
+                let runs = w.rows[r].map { run -> Run in
+                    var run = run
+                    // Replace only the diff base fills, keeping whitespace errors
+                    // and refined-word backgrounds visible.
+                    if (role == "added" && run.bg == 22) || (role == "removed" && run.bg == 52) { run.bg = nil }
+                    return run
+                }
+                drawBackgrounds(ctx, runs, col: w.x, row: y + r)
+            }
+            drawPaint(ctx, w)
             if let sel = w.sel, !sel.isEmpty { drawSelection(ctx, sel, w) }
-            for r in dirty { drawText(ctx, w.rows[r], col: w.x, row: y + r) }
+            for r in dirty {
+                let paint = w.paint?.indices.contains(r) == true ? w.paint?[r] : nil
+                drawText(ctx, paintedRuns(w.rows[r], paint), col: w.x, row: y + r)
+            }
             if dy != 0, w.active, f.palette == nil, let c = f.cursor, c.y >= y, c.y < y + vis { drawCursor(ctx, c, f) }
             ctx.restoreGState()
             if w.divider {
@@ -691,11 +744,37 @@ final class EditorView: NSView {
         let top = bottomTop(f)
         ctx.saveGState()
         ctx.translateBy(x: 0, y: slack)
+        if let start = panelSlideFrom, !(f.bottom_paint?.isEmpty ?? true) {
+            let progress = min(1, (CACurrentMediaTime() - start) / 0.12)
+            ctx.clip(to: CGRect(x: 0, y: CGFloat(top) * cell.height, width: bounds.width, height: CGFloat(f.bottom.count) * cell.height))
+            ctx.translateBy(x: 0, y: cell.height * 0.6 * CGFloat((1 - progress) * (1 - progress)))
+        }
         for (r, runs) in f.bottom.enumerated() where needsToDraw(rowRect(top + r)) {
             drawBackgrounds(ctx, runs, col: 0, row: top + r)
-            drawText(ctx, runs, col: 0, row: top + r)
+        }
+        drawPanelPaint(ctx, f)
+        for (r, runs) in f.bottom.enumerated() where needsToDraw(rowRect(top + r)) {
+            let paint = f.bottom_paint?.indices.contains(r) == true ? f.bottom_paint?[r] : nil
+            drawText(ctx, paintedRuns(runs, paint), col: 0, row: top + r)
         }
         ctx.restoreGState()
+        if let menu = f.leader {
+            ctx.saveGState()
+            let rect = CGRect(x: CGFloat(menu.x) * cell.width, y: CGFloat(menu.y) * cell.height,
+                              width: CGFloat(menu.w) * cell.width, height: CGFloat(menu.rows.count) * cell.height)
+            ctx.clip(to: rect)
+            if let start = panelSlideFrom {
+                let progress = min(1, (CACurrentMediaTime() - start) / 0.12)
+                ctx.translateBy(x: 0, y: cell.height * 0.6 * CGFloat((1 - progress) * (1 - progress)))
+            }
+            ctx.setFillColor(palette.bg.cgColor)
+            ctx.fill(rect)
+            for (r, runs) in menu.rows.enumerated() {
+                drawBackgrounds(ctx, runs, col: menu.x, row: menu.y + r)
+                drawText(ctx, runs, col: menu.x, row: menu.y + r)
+            }
+            ctx.restoreGState()
+        }
         // With the palette open, its own caret is the cursor.
         // A slid or stretched window drew its own cursor.
         var stretched = false

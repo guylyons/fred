@@ -48,6 +48,20 @@ additional behavior reopens its row and lowers the score until it is covered.
 
 ## Execution queue
 
+November 9 GUI-polish batch: implemented semantic row/mark hints, native bands,
+badges/chips/hunk boxes, transient styling/animation and pad-only folding.
+See [execution results](superpowers/plans/2026-11-08-magit-gui-polish.md).
+767 library tests and 135 Swift checks pass, including the follow-up leader-menu
+slide-up animation; release app built and installed. The leader overlay is a
+separate frame layer, leaving buffer text stationary and TUI rendering unchanged.
+No new full-family acceptance: **5/100 remains unchanged**. This side task's
+remaining queue is independent review; commit-row ref chips remain deferred.
+The implementation commit excludes pre-existing chat/native-menu changes;
+its isolated staged snapshot passes 763 library tests (10 ignored), the Swift
+build, and all 135 Swift checks.
+Then resume track 2 below. GUI integration padding assertions and the unrelated
+chat Clippy warning are recorded in the execution results, not counted as passing.
+
 The baseline is accepted (5/5). Next: per-track acceptance in roadmap order,
 starting with track 2 (menus and sections) and track 3 (status). For each
 track, close its "gap:" notes (docs/magit-key-map.md), its "none" and

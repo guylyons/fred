@@ -8,6 +8,31 @@ public struct Run: Codable, Equatable, Sendable {
     public var f: Int?
 }
 
+/// Optional semantic hints; old cores omit them and old apps ignore them.
+public struct RowPaint: Codable, Equatable, Sendable {
+    public struct Role: Codable, Equatable, Sendable {
+        public var kind: String
+        public var open: Bool?
+    }
+    public struct Mark: Codable, Equatable, Sendable {
+        public var start: Int
+        public var end: Int
+        public var kind: String
+        public init(from decoder: Decoder) throws {
+            var c = try decoder.unkeyedContainer()
+            start = try c.decode(Int.self)
+            end = try c.decode(Int.self)
+            kind = try c.decode(String.self)
+        }
+        public func encode(to encoder: Encoder) throws {
+            var c = encoder.unkeyedContainer()
+            try c.encode(start); try c.encode(end); try c.encode(kind)
+        }
+    }
+    public var role: Role?
+    public var marks: [Mark]?
+}
+
 public struct Status: Codable, Equatable, Sendable {
     public var mode: String
     public var name: String
@@ -29,6 +54,8 @@ public struct Win: Codable, Equatable, Sendable {
     public var divider: Bool
     public var active: Bool
     public var rows: [[Run]]
+    public var paint: [RowPaint]?
+    public var paint_gutter: Int?
     /// The selection, one span per text row; absent when there is none.
     public var sel: [Sel]?
     public var status: Status
@@ -91,6 +118,13 @@ public struct Cursor: Codable, Equatable, Sendable {
     public var shape: String
 }
 
+public struct KeyMenu: Codable, Equatable, Sendable {
+    public var x: Int
+    public var y: Int
+    public var w: Int
+    public var rows: [[Run]]
+}
+
 public struct Frame: Codable, Sendable {
     public var seq: Int
     public var cols: Int
@@ -98,6 +132,8 @@ public struct Frame: Codable, Sendable {
     public var title: String
     public var windows: [Win]
     public var bottom: [[Run]]
+    public var bottom_paint: [RowPaint]?
+    public var leader: KeyMenu?
     public var cursor: Cursor?
     /// An open picker, drawn as a floating palette; absent otherwise.
     public var palette: PickerFrame?

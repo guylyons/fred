@@ -29,7 +29,7 @@ user's Evil-collection overrides before accepting the Fred UI mapping gate.
 A percentage from these counts would not measure engineering effort.
 
 The user's requested percentage is maintained separately in the
-[completion roadmap](magit-roadmap.md): currently 3 / 100 accepted points.
+[completion roadmap](magit-roadmap.md): currently 5 / 100 accepted points.
 It measures verified roadmap deliverables and intentionally credits no
 full-family points for partial command wrappers.
 

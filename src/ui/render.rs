@@ -373,6 +373,26 @@ pub fn mouse(
             ed.set_cursor(line, byte);
             view.drag_from = Some((line, ed.cur.byte));
             let text = ed.buf.line(line);
+            // The native chevron lives only in the gutterless GUI pad.
+            // Text clicks still select/move, exactly as in the terminal.
+            if gui_pad(number_width(ed) + git_column(ed) + blame_column(ed)) == 1
+                && event.column == area.x
+                && ed.magit.as_ref().is_some_and(|m| {
+                    m.diff_files.contains_key(&line)
+                        || matches!(
+                            m.action_at(line),
+                            Some(
+                                crate::magit::RowAction::Section(_)
+                                    | crate::magit::RowAction::File(..)
+                            )
+                        )
+                })
+            {
+                view.drag_from = None;
+                view.last_click = None;
+                ed.handle_key(crate::key::Key::new(crate::key::KeyCode::Tab));
+                return;
+            }
             // magit-mouse-toggle-section: a click on a section's v/>.
             if ed.magit.is_some() {
                 let indicator = text.len() - text.trim_start().len();
@@ -1775,6 +1795,14 @@ type Group<'a> = (&'a str, Vec<(usize, Cells)>);
 /// per line, then action groups side by side in columns. Switches that are on
 /// are highlighted and show their argument; choices show their value.
 pub fn transient_lines(ed: &Editor, selected: usize, width: usize) -> Vec<Line<'static>> {
+    transient_layout(ed, selected, width).0
+}
+
+pub fn transient_layout(
+    ed: &Editor,
+    selected: usize,
+    width: usize,
+) -> (Vec<Line<'static>>, Vec<crate::magit::paint::Paint>) {
     use crate::magit::{Action, current_choice, shown_entries};
     let menu = ed.magit_menu.unwrap_or('*');
     let entries = shown_entries(ed, menu);
@@ -1896,7 +1924,36 @@ pub fn transient_lines(ed: &Editor, selected: usize, width: usize) -> Vec<Line<'
         used += w;
     }
     flush(&mut band, &mut lines);
-    lines
+    // These styles are assigned to semantic spans above, before column
+    // layout. Reversal for selection leaves the semantic foreground intact.
+    use crate::magit::paint::{Mark, Paint};
+    let paint = lines
+        .iter()
+        .map(|line| {
+            let mut p = Paint::default();
+            let mut col = 0;
+            for span in &line.spans {
+                let n = display_width(&span.content, 1, 0);
+                let kind = match span.style.fg {
+                    Some(Color::Blue) => Some(Mark::Group),
+                    Some(Color::Magenta) => Some(Mark::Key),
+                    Some(Color::Cyan) => Some(Mark::OptOn),
+                    Some(Color::DarkGray) => Some(Mark::OptOff),
+                    _ => None,
+                };
+                if let Some(kind) = kind {
+                    let start = col + span.content.len() - span.content.trim_start().len();
+                    let end = col + display_width(span.content.trim_end(), 1, 0);
+                    if start < end && start < width {
+                        p.marks.push((start as u16, end.min(width) as u16, kind));
+                    }
+                }
+                col += n;
+            }
+            p
+        })
+        .collect();
+    (lines, paint)
 }
 
 fn panel_rows(text_rows: usize, results: usize) -> usize {

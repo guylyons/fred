@@ -48,6 +48,11 @@ pub struct Win {
     pub divider: bool,
     pub active: bool,
     pub rows: Vec<Vec<Run>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub paint: Vec<crate::magit::paint::Paint>,
+    /// Text's gutter width, only for decorated windows.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub paint_gutter: Option<u16>,
     /// The selection: one span of cells per text row, window-relative.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sel: Vec<Sel>,
@@ -120,6 +125,10 @@ pub struct Frame {
     pub title: String,
     pub windows: Vec<Win>,
     pub bottom: Vec<Vec<Run>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bottom_paint: Vec<crate::magit::paint::Paint>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub leader: Option<KeyMenu>,
     pub cursor: Option<Cursor>,
     /// An open picker, for the app's floating palette.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -139,6 +148,15 @@ pub struct Frame {
     /// The working directory (the project), absolute.
     #[serde(default)]
     pub cwd: String,
+}
+
+/// The leader-key overlay, separate from editor rows for native animation.
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct KeyMenu {
+    pub x: u16,
+    pub y: u16,
+    pub w: u16,
+    pub rows: Vec<Vec<Run>>,
 }
 
 /// A zap label on sidebar row `row` (an index into the last `nav`), on
