@@ -96,6 +96,8 @@ pub enum ExEffect {
     Close {
         force: bool,
     },
+    /// `Space ;`: close the shown tab; on the splash, quit.
+    CloseEditor,
     /// `:only`: close every other window.
     Only,
     /// `:qall`, `:wqall` (`write`), `:xall`.

@@ -1627,7 +1627,7 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
                     then_quit: false,
                 })
             }
-            Some(';') => ed.pending_effect = Some(ExEffect::Quit { force: false }),
+            Some(';') => ed.pending_effect = Some(ExEffect::CloseEditor),
             // Number the windows; the next digit goes to one.
             Some('w') => {
                 ed.pending_effect = Some(ExEffect::Window {

@@ -132,6 +132,11 @@ check("canonical resolves /tmp", FileTree.canonical("/tmp") == "/private/tmp" &&
 check("canonical keeps a missing path", FileTree.canonical("/no/such/fred") == "/no/such/fred")
 check("folders first, case-insensitive", FileTree.sorted([("b.rs", false), ("Zed", true), ("A.md", false), ("apps", true), (".github", true)]).map(\.name)
       == [".github", "apps", "Zed", "A.md", "b.rs"])
+check("filter by name, with folders", FileTree.filter(["src/gui/mod.rs", "src/main.rs", "README.md"], query: "MOD", under: "/r")
+      == ["/r/src", "/r/src/gui", "/r/src/gui/mod.rs"])
+check("filter with a slash matches the path", FileTree.filter(["src/gui/mod.rs", "src/main.rs"], query: "gui/m", under: "/r/") == ["/r/src", "/r/src/gui", "/r/src/gui/mod.rs"]
+      && FileTree.filter(["src/gui/mod.rs"], query: "gui", under: "/r").isEmpty)
+check("filter limit", FileTree.filter(["a1", "a2", "a3"], query: "a", under: "/r", limit: 2).count == 2)
 check("ancestors", FileTree.ancestors(of: "/r/src/gui/mod.rs", under: "/r") == ["/r/src", "/r/src/gui"])
 check("ancestors top level", FileTree.ancestors(of: "/r/a.rs", under: "/r/") == [])
 check("ancestors outside", FileTree.ancestors(of: "/rx/a.rs", under: "/r") == nil && FileTree.ancestors(of: "/r", under: "/r") == nil)

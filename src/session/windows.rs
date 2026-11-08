@@ -161,6 +161,21 @@ impl Session {
         }
     }
 
+    /// `Space ;` and Cmd-W: close the shown tab (its buffer stays, hidden),
+    /// which leaves the splash once the last window has no tabs left; on
+    /// the splash, quit (as `:q`, so unsaved buffers still stop it).
+    pub(crate) fn close_editor(&mut self) {
+        let alone = self.windows.len() == 1;
+        if alone && crate::ui::splash::active(&self.ed) && self.win().tabs.len() <= 1 {
+            return self.quit_if_all_saved();
+        }
+        let (id, b) = (self.active, self.win().buf);
+        let i = self.win().tabs.iter().position(|&t| t == b).unwrap_or(0);
+        if let Err(e) = self.close_tab(id, i) {
+            self.ed.set_err(e);
+        }
+    }
+
     /// `:only`, `CTRL-W o`: every other window closes.
     pub fn only(&mut self) {
         let keep = self.active;

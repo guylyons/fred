@@ -369,7 +369,7 @@ fn space_enter_saves_and_space_semicolon_closes() {
     );
     assert_eq!(
         ed("abc", " ;").pending_effect,
-        Some(ExEffect::Quit { force: false })
+        Some(ExEffect::CloseEditor)
     );
     assert_eq!(ed("abc", " x").pending_effect, None);
 }

@@ -95,14 +95,9 @@ pub fn mac_key(s: &mut Session, key: char, shift: bool) {
         s.ed.vim.restart_insert = false;
         keys(s, "<Esc>");
     }
-    // Cmd-W closes the tab, as in Sublime.
+    // Cmd-W closes the tab, as in Sublime; on the splash it quits.
     if key == 'w' {
-        let (id, b) = (s.active, s.win().buf);
-        let i = s.win().tabs.iter().position(|&t| t == b).unwrap_or(0);
-        if let Err(e) = s.close_tab(id, i) {
-            s.ed.set_err(e);
-        }
-        return;
+        return s.close_editor();
     }
     keys(
         s,

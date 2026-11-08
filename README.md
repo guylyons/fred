@@ -305,7 +305,7 @@ clipboard alone.
 |---|---|
 | `Esc`, `Ctrl-G` | cancel: a picker, the `:` line, a half-typed command |
 | `ZZ`, `ZQ` | save (if changed) and quit; quit without saving |
-| `Space Enter`, `Space ;` | save (`:w`), close (`:q`) |
+| `Space Enter`, `Space ;` | save (`:w`), close the file (on the splash screen, quit) |
 | `Ctrl-^` | back to the buffer you were in before |
 | `Space`, then a short pause | show every `Space` key and what it does (as Emacs's which-key) |
 | `Space w` then `1`–`9` | jump to a split window: each one shows its number until you pick (or click the window) |

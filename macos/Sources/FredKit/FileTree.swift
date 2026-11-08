@@ -26,6 +26,26 @@ public enum FileTree {
         }
     }
 
+    /// The sidebar filter: of `files` (relative to `root`), those whose
+    /// name contains `query` (ignoring case; with a `/`, the relative path
+    /// must contain it), as absolute paths together with every folder
+    /// above them. At most `limit` matches.
+    public static func filter(_ files: [String], query: String, under root: String, limit: Int = 2000) -> Set<String> {
+        let q = query.lowercased(), base = root.hasSuffix("/") ? String(root.dropLast()) : root
+        var out = Set<String>(), found = 0
+        for f in files where found < limit {
+            let hay = q.contains("/") ? f : String(f[(f.lastIndex(of: "/").map { f.index(after: $0) } ?? f.startIndex)...])
+            guard hay.lowercased().contains(q) else { continue }
+            found += 1
+            var at = base
+            for part in f.split(separator: "/") {
+                at += "/" + part
+                out.insert(at)
+            }
+        }
+        return out
+    }
+
     /// The folders to expand to reveal `path`: from `root`'s child down to
     /// `path`'s parent (empty for a file directly in `root`); nil when
     /// `path` isn't under `root`. Both standardized absolute paths.

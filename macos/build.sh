@@ -13,6 +13,7 @@ cp "$here/.build/release/Fred" "$app/MacOS/Fred"
 cp "$root/target/release/fred" "$app/MacOS/fred-core"
 mkdir -p "$app/Resources"
 cp "$here/Fred.icns" "$app/Resources/Fred.icns"
+cp "$root/docs/dr-fred-head.png" "$app/Resources/dr-fred-head.png"
 cat > "$app/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

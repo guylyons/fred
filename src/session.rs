@@ -627,6 +627,7 @@ impl Session {
                 }
             }
             ExEffect::Close { .. } => self.close_active(),
+            ExEffect::CloseEditor => self.close_editor(),
             ExEffect::Only => self.only(),
             ExEffect::QuitAll { force, write } => {
                 if force {
@@ -2224,6 +2225,26 @@ mod tests {
         assert_eq!(t.msg(), "? E444: Cannot close last window");
         t.keys(":close<Enter>");
         assert_eq!(t.msg(), "? E444: Cannot close last window");
+    }
+
+    #[test]
+    fn space_semicolon_closes_the_buffer_then_quits_from_the_splash() {
+        let mut t = T::open(Some("a"), Some("a\n"));
+        t.keys("<Space>;");
+        assert!(!t.s.quit);
+        assert!(crate::ui::splash::active(&t.s.ed));
+        t.keys("<Space>;");
+        assert!(t.s.quit);
+    }
+
+    #[test]
+    fn space_semicolon_on_the_splash_keeps_unsaved_buffers() {
+        let mut t = T::open(Some("a"), Some("a\n"));
+        t.keys("ix<Esc><Space>;");
+        assert!(crate::ui::splash::active(&t.s.ed));
+        t.keys("<Space>;");
+        assert!(!t.s.quit);
+        assert!(t.msg().contains("unsaved changes"), "{}", t.msg());
     }
 
     #[test]

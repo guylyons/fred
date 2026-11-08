@@ -35,7 +35,7 @@ final class Node {
 /// The folder tree on the left (Sublime's sidebar), in the split view's
 /// glass sidebar item.
 @MainActor
-final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate, NSMenuDelegate, NSTextFieldDelegate {
+final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate, NSMenuDelegate, NSSearchFieldDelegate {
     let root: Node
     /// Opens a file in the active Fred window; `true` as a preview tab.
     var open: (URL, Bool) -> Void = { _, _ in }
@@ -46,6 +46,14 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
     /// Space and `:` in the tree: these keys, typed in the editor.
     var forward: (String) -> Void = { _ in }
     private let outline = SidebarOutline()
+    /// Xcode's navigator filter, under the tree: as you type, only files
+    /// whose names contain the text show, with the folders above them open.
+    private let filterField = NSSearchField()
+    /// With a filter: the paths that show (matches and their folders).
+    private var shown: Set<String>?
+    /// The project's files (relative), listed once a filter needs them.
+    private var files: [String]?
+    private var listing = 0
     private var stream: FSEventStreamRef?
     /// The active window's file, as last revealed.
     private var current: String?
@@ -93,6 +101,14 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         outline.leave = { [weak self] in self?.leave() }
         outline.close = { [weak self] in self?.close() }
         outline.forward = { [weak self] in self?.forward($0) }
+        outline.find = { [weak self] in _ = self.map { $0.view.window?.makeFirstResponder($0.filterField) } }
+        filterField.placeholderString = "Filter"
+        filterField.font = .systemFont(ofSize: 13)
+        filterField.controlSize = .large
+        filterField.sendsSearchStringImmediately = true
+        filterField.target = self
+        filterField.action = #selector(filterChanged)
+        filterField.delegate = self
         outline.menu = NSMenu()
         outline.menu!.delegate = self
         let scroll = NSScrollView()
@@ -101,7 +117,7 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         scroll.hasVerticalScroller = true
         scroll.autohidesScrollers = true
 
-        for s in [header, scroll] as [NSView] {
+        for s in [header, scroll, filterField] as [NSView] {
             s.translatesAutoresizingMaskIntoConstraints = false
             v.addSubview(s)
         }
@@ -112,7 +128,10 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
             scroll.topAnchor.constraint(equalTo: header.bottomAnchor, constant: 4),
             scroll.leadingAnchor.constraint(equalTo: v.leadingAnchor),
             scroll.trailingAnchor.constraint(equalTo: v.trailingAnchor),
-            scroll.bottomAnchor.constraint(equalTo: v.bottomAnchor),
+            scroll.bottomAnchor.constraint(equalTo: filterField.topAnchor, constant: -6),
+            filterField.leadingAnchor.constraint(equalTo: v.leadingAnchor, constant: 8),
+            filterField.trailingAnchor.constraint(equalTo: v.trailingAnchor, constant: -8),
+            filterField.bottomAnchor.constraint(equalTo: v.bottomAnchor, constant: -8),
         ])
         view = v
         watch()
@@ -123,7 +142,50 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
     private func kids(_ item: Any?) -> [Node] {
         let n = item as? Node ?? root
         if n.children == nil { load(n) }
-        return n.children ?? []
+        guard let shown else { return n.children ?? [] }
+        return (n.children ?? []).filter { $0.pending || shown.contains($0.url.path) }
+    }
+
+    // MARK: - Filter
+
+    @objc private func filterChanged() { applyFilter() }
+
+    private func applyFilter() {
+        let q = filterField.stringValue.trimmingCharacters(in: .whitespaces)
+        if q.isEmpty {
+            guard shown != nil else { return }
+            shown = nil
+            outline.reloadData()
+            select(current)
+            sendNav()
+            return
+        }
+        guard let files else { return listFiles() }
+        let set = FileTree.filter(files, query: q, under: root.url.path)
+        shown = set
+        outline.reloadData()
+        outline.expandItem(nil, expandChildren: true)
+        // The first match takes the selection, for Enter and arrows.
+        if let row = (0..<outline.numberOfRows).first(where: { (outline.item(atRow: $0) as? Node)?.isDir == false }) {
+            outline.selectRowIndexes([row], byExtendingSelection: false)
+            outline.scrollRowToVisible(row)
+        }
+        sendNav()
+    }
+
+    /// List the project's files in the background (Git's, when it's a
+    /// repository, so ignored ones stay out), then filter.
+    private func listFiles() {
+        listing += 1
+        let ticket = listing, dir = root.url
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let list = gitFiles(in: dir) ?? walkFiles(in: dir)
+            DispatchQueue.main.async {
+                guard let self, ticket == self.listing else { return }
+                self.files = list
+                self.applyFilter()
+            }
+        }
     }
 
     /// List `n`, then dim its gitignored entries once Git says which.
@@ -330,6 +392,10 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
     /// Reload the loaded folders FSEvents names (it names folders).
     private func changed(_ dirs: [String]) {
         guard editing == nil else { return } // don't pull the row out from under the name field
+        // Files came or went: list them again, now if a filter shows them.
+        files = nil
+        listing += 1
+        if shown != nil { return listFiles() }
         for d in Set(dirs.map { FileTree.canonical($0.hasSuffix("/") && $0.count > 1 ? String($0.dropLast()) : $0) }) {
             if let n = loaded(d) { reload(n) }
         }
@@ -417,8 +483,21 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         field.currentEditor()?.selectedRange = NSRange(location: 0, length: n.isDir || stem.isEmpty ? n.name.utf16.count : stem.utf16.count)
     }
 
-    /// Esc cancels New/Rename: nothing is created or renamed.
+    /// Esc cancels New/Rename: nothing is created or renamed. In the filter,
+    /// Esc clears it and Enter or Down goes to the matches.
     func control(_ c: NSControl, textView: NSTextView, doCommandBy sel: Selector) -> Bool {
+        if c === filterField {
+            switch sel {
+            case #selector(NSResponder.cancelOperation(_:)):
+                filterField.stringValue = ""
+                applyFilter()
+                focusTree()
+            case #selector(NSResponder.insertNewline(_:)), #selector(NSResponder.moveDown(_:)):
+                focusTree()
+            default: return false
+            }
+            return true
+        }
         guard sel == #selector(NSResponder.cancelOperation(_:)), let n = editing, let field = c as? NSTextField else { return false }
         editing = nil // controlTextDidEndEditing from the abort does nothing
         field.abortEditing()
@@ -432,7 +511,7 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
     }
 
     func controlTextDidEndEditing(_ note: Notification) {
-        guard let n = editing, let field = note.object as? NSTextField else { return }
+        guard note.object as? NSSearchField !== filterField, let n = editing, let field = note.object as? NSTextField else { return }
         editing = nil
         field.isEditable = false
         let name = field.stringValue.trimmingCharacters(in: .whitespaces)
@@ -506,6 +585,8 @@ final class SidebarOutline: NSOutlineView {
     var leave: () -> Void = {}
     var close: () -> Void = {}
     var forward: (String) -> Void = { _ in }
+    /// `/`: to the filter field.
+    var find: () -> Void = {}
     private var pending: Character?
 
     override func keyDown(with e: NSEvent) {
@@ -540,6 +621,7 @@ final class SidebarOutline: NSOutlineView {
         case "q": close()
         case " ": forward("<Space>")
         case ":": forward(":")
+        case "/": find()
         default: super.keyDown(with: e)
         }
     }
@@ -566,6 +648,40 @@ final class SidebarOutline: NSOutlineView {
         if isItemExpanded(n) { return collapseItem(n) }
         if let p = parent(forItem: n) { go(row(forItem: p)) }
     }
+}
+
+/// The files Git tracks or would (untracked, not ignored) under `dir`,
+/// relative to it; nil outside a repository.
+private func gitFiles(in dir: URL) -> [String]? {
+    let p = Process(), output = Pipe()
+    p.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+    p.arguments = ["ls-files", "-z", "--cached", "--others", "--exclude-standard"]
+    p.currentDirectoryURL = dir
+    p.standardOutput = output
+    p.standardError = FileHandle.nullDevice
+    guard (try? p.run()) != nil else { return nil }
+    let data = output.fileHandleForReading.readDataToEndOfFile()
+    p.waitUntilExit()
+    guard p.terminationStatus == 0 else { return nil }
+    return data.split(separator: 0).map { String(decoding: $0, as: UTF8.self) }
+}
+
+/// Outside a repository: every file under `dir` the tree would show, at
+/// most 50,000.
+private func walkFiles(in dir: URL) -> [String] {
+    guard let e = FileManager.default.enumerator(at: dir, includingPropertiesForKeys: [.isDirectoryKey]) else { return [] }
+    let base = dir.standardizedFileURL.path + "/"
+    var out: [String] = []
+    while let u = e.nextObject() as? URL, out.count < 50_000 {
+        let isDir = (try? u.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+        if FileTree.isHidden(u.lastPathComponent, isDir: isDir, cargo: false) || u.lastPathComponent == "node_modules" {
+            if isDir { e.skipDescendants() }
+            continue
+        }
+        let p = u.standardizedFileURL.path
+        if !isDir, p.hasPrefix(base) { out.append(String(p.dropFirst(base.count))) }
+    }
+    return out
 }
 
 /// Which of `names` (entries of `dir`) Git ignores; empty outside a repo.

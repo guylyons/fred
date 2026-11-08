@@ -3,7 +3,7 @@ import FredKit
 import UniformTypeIdentifiers
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDelegate, NSToolbarDelegate {
     var window: NSWindow!
     var core: Core!
     var view: EditorView!
@@ -20,6 +20,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     /// VS Code's layout controls at the title bar's right: customize, then
     /// the sidebar, panel and chat toggles, lit while showing.
     private var layoutButtons: (custom: Pill, side: Pill, panel: Pill, chat: Pill)!
+    private var layoutStack: NSStackView!
+    /// The title bar's left: Fred's face and the project, as Nova shows them.
+    private let projectTitle = ProjectTitle()
     private var minimapItem: NSMenuItem!
     private var glassItem: NSMenuItem!
     /// The window's backdrop and the editor's box (recolored by `applyTheme`).
@@ -398,6 +401,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         // Control and the Window menu) would sit over the plain sidebar pane.
         window.titleVisibility = .hidden
         let content = withActivityBar(split)
+        installToolbar()
         applyTheme()
         installSidebar(project)
         if let project { remember(project) }
@@ -428,6 +432,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     private func frame(_ f: Frame) {
         view.apply(f)
         if window.title != f.title { window.title = f.title }
+        projectTitle.update(project: project, branch: f.windows.first(where: \.active)?.status.branch)
         if let cwd = f.cwd, cwd != lastCwd {
             // The first frame is where we started; a later change is a new project.
             if lastCwd != nil { setProject(URL(fileURLWithPath: cwd)) }
@@ -626,11 +631,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         for v in [bar, split.view] { v.translatesAutoresizingMaskIntoConstraints = false; glass.addSubview(v) }
         NSLayoutConstraint.activate([
             bar.leadingAnchor.constraint(equalTo: glass.leadingAnchor),
-            bar.topAnchor.constraint(equalTo: glass.topAnchor), // under the traffic lights too: one shade
+            bar.topAnchor.constraint(equalTo: glass.safeAreaLayoutGuide.topAnchor), // under the title bar
             bar.bottomAnchor.constraint(equalTo: glass.bottomAnchor),
             bar.widthAnchor.constraint(equalToConstant: 48),
             split.view.leadingAnchor.constraint(equalTo: bar.trailingAnchor),
-            split.view.topAnchor.constraint(equalTo: glass.topAnchor),
+            split.view.topAnchor.constraint(equalTo: glass.safeAreaLayoutGuide.topAnchor),
             split.view.bottomAnchor.constraint(equalTo: glass.bottomAnchor),
             split.view.trailingAnchor.constraint(equalTo: glass.trailingAnchor),
         ])
@@ -655,14 +660,68 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         layoutButtons = (custom, side, panel, chat)
         let buttons = NSStackView(views: [custom, side, panel, chat])
         buttons.spacing = 2
-        buttons.translatesAutoresizingMaskIntoConstraints = false
-        glass.addSubview(buttons) // over the editor's top strip
-        NSLayoutConstraint.activate([
-            buttons.topAnchor.constraint(equalTo: glass.topAnchor, constant: 5),
-            buttons.trailingAnchor.constraint(equalTo: glass.trailingAnchor, constant: -10),
-        ])
+        layoutStack = buttons // the title bar's right (installToolbar)
         glass.frame = NSRect(x: 0, y: 0, width: 1140, height: 640)
         return c
+    }
+
+    // MARK: - Title bar
+
+    private static let projectItem = NSToolbarItem.Identifier("FredProject")
+    private static let layoutItem = NSToolbarItem.Identifier("FredLayout")
+
+    /// Nova's title bar: a unified toolbar strip with the traffic lights,
+    /// Fred's face and the project on the left, the layout buttons right.
+    private func installToolbar() {
+        let t = NSToolbar(identifier: "FredTitleBar")
+        t.delegate = self
+        t.displayMode = .iconOnly
+        t.allowsUserCustomization = false
+        window.toolbar = t
+        window.toolbarStyle = .unified
+        window.titlebarSeparatorStyle = .none
+        projectTitle.projectMenu = { [unowned self] in self.projectMenu() }
+        projectTitle.update(project: project, branch: nil)
+    }
+
+    func toolbarDefaultItemIdentifiers(_ t: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [Self.projectItem, .flexibleSpace, Self.layoutItem]
+    }
+
+    func toolbarAllowedItemIdentifiers(_ t: NSToolbar) -> [NSToolbarItem.Identifier] {
+        toolbarDefaultItemIdentifiers(t)
+    }
+
+    func toolbar(_ t: NSToolbar, itemForItemIdentifier id: NSToolbarItem.Identifier,
+                 willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+        let i = NSToolbarItem(itemIdentifier: id)
+        i.view = id == Self.projectItem ? projectTitle : layoutStack
+        i.isBordered = false
+        i.label = id == Self.projectItem ? "Project" : "Layout"
+        return i
+    }
+
+    /// A click on the project: recent folders, then Open Folder….
+    private func projectMenu() -> NSMenu {
+        let m = NSMenu()
+        for url in recentFolders() where url != project {
+            let i = item(url.lastPathComponent, #selector(openRecent(_:)), rep: url.path)
+            i.image = NSWorkspace.shared.icon(forFile: url.path)
+            i.image?.size = NSSize(width: 16, height: 16)
+            i.toolTip = url.path
+            m.addItem(i)
+        }
+        if !m.items.isEmpty { m.addItem(.separator()) }
+        m.addItem(item("Open Folder…", #selector(chooseFolder)))
+        if let project {
+            m.addItem(item("Reveal in Finder", #selector(revealProject(_:)), rep: project.path))
+        }
+        return m
+    }
+
+    @objc private func revealProject(_ s: NSMenuItem) {
+        guard let p = s.representedObject as? String else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: p)])
     }
 
     /// The editor, with room for the sidebar (`installSidebar`) beside it; its width is remembered.
@@ -675,9 +734,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         let box = editorBox
         editor.translatesAutoresizingMaskIntoConstraints = false
         box.addSubview(editor)
-        // A little under the window's top edge: the tabs are the first row.
+        // Under the title bar: the tabs are the first row.
         NSLayoutConstraint.activate([
-            editor.topAnchor.constraint(equalTo: box.topAnchor, constant: 33),
+            editor.topAnchor.constraint(equalTo: box.topAnchor),
             editor.leadingAnchor.constraint(equalTo: box.leadingAnchor),
             editor.trailingAnchor.constraint(equalTo: box.trailingAnchor),
             editor.bottomAnchor.constraint(equalTo: box.bottomAnchor),
