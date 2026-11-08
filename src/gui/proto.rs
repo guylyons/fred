@@ -78,6 +78,9 @@ pub struct Win {
     /// A terminal: the wheel scrolls its shell, not lines.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub term: bool,
+    /// The symbol the cursor is in and its kind, for the breadcrumbs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub symbol: Option<(String, String)>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]

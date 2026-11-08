@@ -37,8 +37,8 @@ use std::time::{Duration, Instant};
 
 /// A window's minimap is sent at most this often.
 const MINIMAP_EVERY: Duration = Duration::from_millis(250);
-/// Rows per window above its text: the tab strip.
-const TAB_ROWS: u16 = 1;
+/// Rows per window above its text: the tab strip, then the breadcrumbs.
+const TAB_ROWS: u16 = 2;
 /// Highlighting time per minimap; lines past it go uncolored.
 const MINIMAP_BUDGET: Duration = Duration::from_millis(4);
 

@@ -134,16 +134,35 @@ fn without_generics(head: &str) -> &str {
     head
 }
 
-/// `Space i`: pick from this buffer's entries.
-pub fn open(ed: &mut Editor) {
-    let headings = ed
-        .path
+/// Markdown and Org list their headings.
+fn headings(ed: &Editor) -> bool {
+    ed.path
         .as_deref()
         .and_then(|p| p.extension())
         .is_some_and(|e| matches!(e.to_str(), Some("md" | "markdown" | "org")))
-        || ed.org.is_some();
+        || ed.org.is_some()
+}
+
+/// The entry the cursor is in: the last one at or above its line, as the
+/// GUI's breadcrumbs show it with its kind.
+pub fn at(ed: &Editor) -> Option<(String, &'static str)> {
+    type Cache = Option<((u64, u64), Vec<Entry>)>;
+    thread_local!(static LAST: std::cell::RefCell<Cache> = const { std::cell::RefCell::new(None) });
+    let key = (ed.buf.id, ed.buf.version);
+    LAST.with_borrow_mut(|last| {
+        if last.as_ref().is_none_or(|(k, _)| *k != key) {
+            *last = Some((key, entries(ed.buf.text().lines(), headings(ed))));
+        }
+        let found = &last.as_ref()?.1;
+        let e = found.iter().take_while(|e| e.line <= ed.cur.line).last()?;
+        Some((e.name.trim().to_string(), e.kind))
+    })
+}
+
+/// `Space i`: pick from this buffer's entries.
+pub fn open(ed: &mut Editor) {
     let text = ed.buf.text();
-    let found = entries(text.lines(), headings);
+    let found = entries(text.lines(), headings(ed));
     if found.is_empty() {
         return ed.set_err("nothing to list here");
     }
@@ -179,6 +198,22 @@ mod tests {
             .into_iter()
             .map(|e| (e.line, e.name, e.kind))
             .collect()
+    }
+
+    #[test]
+    fn at_is_the_entry_above_the_cursor_and_follows_edits() {
+        let mut ed = Editor::new(crate::buffer::Buffer::from_text(
+            "use x;\nfn one() {\n    1\n}\nfn two() {}\n",
+        ));
+        assert_eq!(at(&ed), None);
+        ed.set_cursor(2, 0);
+        assert_eq!(at(&ed), Some(("one".into(), "function")));
+        ed.set_cursor(4, 0);
+        assert_eq!(at(&ed), Some(("two".into(), "function")));
+        for k in crate::key::parse_keys("wciwthree<Esc>") {
+            ed.handle_key(k);
+        }
+        assert_eq!(at(&ed), Some(("three".into(), "function")));
     }
 
     #[test]

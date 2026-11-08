@@ -50,6 +50,8 @@ public struct Win: Codable, Equatable, Sendable {
     public var toolbar: Bool?
     /// A terminal: the wheel scrolls its shell.
     public var term: Bool?
+    /// The symbol the cursor is in: [name, kind].
+    public var symbol: [String]?
 }
 
 public struct Tab: Codable, Equatable, Sendable {

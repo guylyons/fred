@@ -430,7 +430,8 @@ final class EditorView: NSView {
             let cf = NSRect(x: l, y: y + th, width: r - l, height: CGFloat(crumbRows) * cell.height)
             if c.frame != cf { c.frame = cf }
             c.open = { [weak self] p in self?.transmit { .dropFile(seq: $0, path: p, target: id, zone: "center") } }
-            c.update(path: w.path, root: root)
+            c.symbols = { [weak self] in self?.transmit { .mac(seq: $0, key: "@", shift: false) } }
+            c.update(path: w.path, root: root, symbol: w.symbol)
             s.op = { [weak self] op, index, to in self?.transmit { .tab(seq: $0, win: id, op: op, index: index, to: to) } }
             s.dragOut = { [weak self] index, p in
                 guard let self else { return }

@@ -27,6 +27,10 @@ fn ex(s: &mut Session, cmd: &str) {
 }
 
 pub fn mac_key(s: &mut Session, key: char, shift: bool) {
+    // The breadcrumbs' symbol: this buffer's symbols, from any mode.
+    if key == '@' {
+        return crate::pick::imenu::open(&mut s.ed);
+    }
     if !"szcxawf".contains(key) {
         return;
     }

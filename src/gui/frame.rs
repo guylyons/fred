@@ -45,6 +45,11 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
         if ed.term.is_some() {
             terms.push(p.id);
         }
+        let symbol = file
+            .is_some()
+            .then(|| crate::pick::imenu::at(ed))
+            .flatten()
+            .map(|(n, k)| (n, k.to_string()));
         status.push((
             p.id,
             file,
@@ -71,6 +76,7 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
                 .into(),
                 enc: format!("UTF-8{}", if ed.buf.bom { " with BOM" } else { "" }),
             },
+            symbol,
         ));
     });
     let be = term.backend();
@@ -119,6 +125,7 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
                 tabs: tabs(s, p.id),
                 toolbar,
                 term,
+                symbol: status[i].4.take(),
                 status: status.swap_remove(i).3,
             })
         })
