@@ -6,6 +6,9 @@ import FredKit
 /// the core; a click picks a row.
 final class PaletteView: NSView {
     var pick: (Int) -> Void = { _ in }
+    /// Wheel steps: positive moves the selection down.
+    var scroll: (Int) -> Void = { _ in }
+    private var scrollAcc: CGFloat = 0
     var editorBg = NSColor.black {
         didSet { layer?.backgroundColor = editorBg.blended(withFraction: 0.08, of: .white)!.cgColor }
     }
@@ -171,5 +174,8 @@ final class PaletteView: NSView {
     override func mouseUp(with e: NSEvent) {
         if let i = row(e), let p { pick(p.first + i) }
     }
-    override func scrollWheel(with e: NSEvent) {} // not the editor's
+    override func scrollWheel(with e: NSEvent) { // not the editor's
+        let n = scrollLines(e.scrollingDeltaY, precise: e.hasPreciseScrollingDeltas, unit: PaletteView.rowH, acc: &scrollAcc)
+        if n != 0 { scroll(-n) }
+    }
 }

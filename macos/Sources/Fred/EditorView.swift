@@ -127,7 +127,8 @@ final class EditorView: NSView {
         guard abs(a - blinkAlpha) > 0.02 || (a != blinkAlpha && (a == 1 || a == 0)), let c = current?.cursor else { return }
         blinkAlpha = a
         let (l, r) = span(max(0, c.x - 1), 3)
-        setNeedsDisplay(NSRect(x: l, y: CGFloat(c.y) * cell.height, width: r - l, height: cell.height))
+        let row = rowRect(c.y)
+        setNeedsDisplay(NSRect(x: l, y: row.minY, width: r - l, height: row.height))
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -198,6 +199,9 @@ final class EditorView: NSView {
 
     private func cellAt(_ e: NSEvent) -> (Int, Int) {
         var p = convert(e.locationInWindow, from: nil)
+        if let f = current, case let s = CGFloat(bottomTop(f) - 1) * cell.height, p.y >= s {
+            p.y = p.y >= s + slack ? p.y - slack : s - 1 // the slack is the last text row's
+        }
         // A slid window: the cell under the pointer is the one drawn there.
         if let w = current?.windows.first(where: { textRect($0).contains(p) }) { p.y -= offset(w) }
         let cols = current?.cols ?? Int.max, rows = current?.rows ?? Int.max
@@ -272,8 +276,15 @@ final class EditorView: NSView {
 
     private func textRect(_ w: Win) -> NSRect {
         let (l, r) = span(w.x, w.w - (w.divider ? 1 : 0))
-        return NSRect(x: l, y: CGFloat(textY(w)) * cell.height, width: r - l, height: CGFloat(visibleRows(w)) * cell.height)
+        return NSRect(x: l, y: CGFloat(textY(w)) * cell.height, width: r - l, height: CGFloat(visibleRows(w)) * cell.height + grow(w))
     }
+
+    /// Points left under the last whole row. The bottom status rows and the
+    /// command line drop by it to sit flush with the edge; the windows above
+    /// them grow into it, showing part of their next line.
+    private var slack: CGFloat { current.map { max(0, bounds.height - CGFloat($0.rows) * cell.height) } ?? 0 }
+    private func grow(_ w: Win) -> CGFloat { current.map { w.y + w.h == bottomTop($0) ? slack : 0 } ?? 0 }
+    private func lowered(_ y: Int) -> Bool { current.map { y >= bottomTop($0) - 1 } ?? false }
 
     /// How far window `w`'s text is drawn moved down: the rubber band plus the slide.
     private func offset(_ w: Win) -> CGFloat {
@@ -380,7 +391,7 @@ final class EditorView: NSView {
             guard i < f.windows.count else { b.isHidden = true; continue }
             let w = f.windows[i]
             let (l, r) = span(w.x, w.w - (w.divider ? 1 : 0))
-            b.frame = NSRect(x: l, y: CGFloat(w.y + w.h - 1) * cell.height, width: r - l, height: cell.height)
+            b.frame = NSRect(x: l, y: CGFloat(w.y + w.h - 1) * cell.height + grow(w), width: r - l, height: cell.height)
             // Draw mode's toolbar takes the status row: the core draws it.
             b.isHidden = w.toolbar == true
             b.update(w.status, active: w.active)
@@ -453,6 +464,10 @@ final class EditorView: NSView {
         if picker.superview == nil {
             picker.editorBg = palette.bg
             picker.pick = { [weak self] i in self?.transmit { .pick(seq: $0, index: i) } }
+            picker.scroll = { [weak self] n in
+                let k = String(repeating: n > 0 ? "<Down>" : "<Up>", count: abs(n))
+                self?.transmit { .keys(seq: $0, keys: k) }
+            }
             addSubview(picker)
         }
         let w = min(800, bounds.width - 40) // room for command descriptions
@@ -633,8 +648,9 @@ final class EditorView: NSView {
 
     private func bottomTop(_ f: Frame) -> Int { f.windows.map { $0.y + $0.h }.max() ?? 0 }
 
+    /// Row `y`'s band; a lowered row's also covers the slack above where it is drawn.
     private func rowRect(_ y: Int) -> NSRect {
-        NSRect(x: 0, y: CGFloat(y) * cell.height, width: bounds.width, height: cell.height)
+        NSRect(x: 0, y: CGFloat(y) * cell.height, width: bounds.width, height: cell.height + (lowered(y) ? slack : 0))
     }
 
     // MARK: - Drawing
@@ -652,7 +668,7 @@ final class EditorView: NSView {
             ctx.saveGState()
             ctx.clip(to: textRect(w))
             if dy != 0 { ctx.translateBy(x: 0, y: dy) }
-            let dirty = dy != 0 ? Array(w.rows.indices) : w.rows.indices.filter { $0 < vis && needsToDraw(rowRect(y + $0)) }
+            let dirty = dy != 0 ? Array(w.rows.indices) : w.rows.indices.filter { $0 < vis + (grow(w) > 0 ? 1 : 0) && needsToDraw(rowRect(y + $0)) }
             // VS Code's current line: a faint band in the active window, without a selection.
             if w.active, w.sel?.isEmpty ?? true, let c = f.cursor, case let r = c.y - y, dirty.contains(r) {
                 let (l, rr) = span(w.x, w.w - (w.divider ? 1 : 0))
@@ -668,14 +684,17 @@ final class EditorView: NSView {
                 let x = snap((CGFloat(w.x + w.w - 1) + 0.5) * cell.width, scale: scale)
                 ctx.setFillColor(NSColor.separatorColor.cgColor)
                 ctx.fill(CGRect(x: x, y: CGFloat(w.y) * cell.height, width: 1 / scale,
-                                height: CGFloat(w.h) * cell.height))
+                                height: CGFloat(w.h) * cell.height + grow(w)))
             }
         }
         let top = bottomTop(f)
+        ctx.saveGState()
+        ctx.translateBy(x: 0, y: slack)
         for (r, runs) in f.bottom.enumerated() where needsToDraw(rowRect(top + r)) {
             drawBackgrounds(ctx, runs, col: 0, row: top + r)
             drawText(ctx, runs, col: 0, row: top + r)
         }
+        ctx.restoreGState()
         // With the palette open, its own caret is the cursor.
         // A slid or stretched window drew its own cursor.
         var stretched = false
@@ -819,6 +838,7 @@ final class EditorView: NSView {
         ctx.saveGState()
         defer { ctx.restoreGState() }
         ctx.setAlpha(blinkAlpha)
+        if lowered(c.y) { ctx.translateBy(x: 0, y: slack) }
         let under = character(at: c.x, c.y, f)
         let (l, r) = span(under?.col ?? c.x, under?.width ?? 1)
         let y = CGFloat(c.y) * cell.height

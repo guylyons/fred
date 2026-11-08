@@ -3,7 +3,7 @@ import FredKit
 import UniformTypeIdentifiers
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSToolbarDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var window: NSWindow!
     var core: Core!
     var view: EditorView!
@@ -270,12 +270,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         }
         let split = split(editor: view)
         self.split = split
-        // After the split: its divider places the title, past the sidebar.
-        let bar = NSToolbar(identifier: "main")
-        bar.delegate = self
-        bar.displayMode = .iconOnly
-        window.toolbar = bar
-        window.toolbarStyle = .unified
         // The title strip shows the theme color under it, not tinted glass.
         window.titlebarAppearsTransparent = true
         // The tab and breadcrumbs name the file; the title (kept for Mission
@@ -505,9 +499,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         let box = editorBox
         editor.translatesAutoresizingMaskIntoConstraints = false
         box.addSubview(editor)
-        // Below the toolbar; the box keeps the theme color under it.
+        // A little under the window's top edge: the tabs are the first row.
         NSLayoutConstraint.activate([
-            editor.topAnchor.constraint(equalTo: box.safeAreaLayoutGuide.topAnchor),
+            editor.topAnchor.constraint(equalTo: box.topAnchor, constant: 33),
             editor.leadingAnchor.constraint(equalTo: box.leadingAnchor),
             editor.trailingAnchor.constraint(equalTo: box.trailingAnchor),
             editor.bottomAnchor.constraint(equalTo: box.bottomAnchor),
@@ -516,21 +510,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         split.addSplitViewItem(NSSplitViewItem(viewController: content))
         split.view.frame = NSRect(x: 0, y: 0, width: 1140, height: 640)
         return split
-    }
-
-    func toolbarDefaultItemIdentifiers(_ t: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [Self.track] // the activity bar's Explorer button toggles the sidebar
-    }
-
-    /// Keeps the title past the sidebar (the system one needs a sidebar item).
-    private static let track = NSToolbarItem.Identifier("FredTrack")
-
-    func toolbar(_ t: NSToolbar, itemForItemIdentifier id: NSToolbarItem.Identifier, willBeInsertedIntoToolbar: Bool) -> NSToolbarItem? {
-        id == Self.track ? NSTrackingSeparatorToolbarItem(identifier: id, splitView: split.splitView, dividerIndex: 0) : nil
-    }
-
-    func toolbarAllowedItemIdentifiers(_ t: NSToolbar) -> [NSToolbarItem.Identifier] {
-        toolbarDefaultItemIdentifiers(t)
     }
 
     /// The close button asks the core to `:qa`; its `exit` line closes us.

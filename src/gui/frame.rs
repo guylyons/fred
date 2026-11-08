@@ -162,7 +162,7 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
         windows,
         bottom,
         cursor,
-        palette: palette(s),
+        palette: palette(s, buf.area.height),
         zap_nav: zap_nav(s),
         focus_nav: std::mem::take(&mut s.focus_nav),
         open_folder: std::mem::take(&mut s.open_folder),
@@ -192,9 +192,14 @@ fn zap_nav(s: &Session) -> Vec<proto::NavLabel> {
 }
 
 /// Rows the app's palette shows at once.
-const PALETTE_ROWS: usize = 12;
+/// Rows the palette lists: as many as fit under its query in `height` rows.
+// shortcut: assumes the app's palette row is about a cell tall; pass the app's own count if fonts diverge.
+fn palette_rows(height: u16) -> usize {
+    usize::from(height).saturating_sub(5).max(5)
+}
 
-fn palette(s: &mut Session) -> Option<proto::Palette> {
+fn palette(s: &mut Session, height: u16) -> Option<proto::Palette> {
+    let rows = palette_rows(height);
     let Mode::Pick(p) = &s.ed.mode else {
         return None;
     };
@@ -203,11 +208,11 @@ fn palette(s: &mut Session) -> Option<proto::Palette> {
     }
     // Scrolled as little as keeps the selection in view.
     let top = &mut s.palette_top;
-    *top = (*top).min(p.rows.len().saturating_sub(PALETTE_ROWS));
+    *top = (*top).min(p.rows.len().saturating_sub(rows));
     if p.sel < *top {
         *top = p.sel;
-    } else if p.sel >= *top + PALETTE_ROWS {
-        *top = p.sel + 1 - PALETTE_ROWS;
+    } else if p.sel >= *top + rows {
+        *top = p.sel + 1 - rows;
     }
     let chars = |t: &str, b: usize| t[..b.min(t.len())].chars().count();
     Some(proto::Palette {
@@ -215,7 +220,7 @@ fn palette(s: &mut Session) -> Option<proto::Palette> {
         query: p.query.text.clone(),
         caret: chars(&p.query.text, p.query.cursor),
         all: p.query.all,
-        rows: p.rows[*top..(*top + PALETTE_ROWS).min(p.rows.len())]
+        rows: p.rows[*top..(*top + rows).min(p.rows.len())]
             .iter()
             .map(|r| proto::PaletteRow {
                 // macOS's `Icon\r` files: a control char would break the row.
@@ -231,7 +236,7 @@ fn palette(s: &mut Session) -> Option<proto::Palette> {
         total: p.rows.len(),
         sel: (!p.prompt && p.sel >= *top)
             .then(|| p.sel - *top)
-            .filter(|&i| i < PALETTE_ROWS),
+            .filter(|&i| i < rows),
         status: p.status.clone(),
         files: matches!(
             p.kind,

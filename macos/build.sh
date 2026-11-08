@@ -11,6 +11,8 @@ mkdir -p "$app/MacOS"
 rm -f "$app/MacOS/Fred" "$app/MacOS/fred-core"
 cp "$here/.build/release/Fred" "$app/MacOS/Fred"
 cp "$root/target/release/fred" "$app/MacOS/fred-core"
+mkdir -p "$app/Resources"
+cp "$here/Fred.icns" "$app/Resources/Fred.icns"
 cat > "$app/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -18,6 +20,7 @@ cat > "$app/Info.plist" <<PLIST
 <key>CFBundleName</key><string>Fred</string>
 <key>CFBundleIdentifier</key><string>dev.fred.editor</string>
 <key>CFBundleExecutable</key><string>Fred</string>
+<key>CFBundleIconFile</key><string>Fred</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>LSMinimumSystemVersion</key><string>26.0</string>
 <key>NSHighResolutionCapable</key><true/>
