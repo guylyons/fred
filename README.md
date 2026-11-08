@@ -17,11 +17,13 @@
 <p align="center">
   <a href="#install">Install</a> ·
   <a href="#quick-start">Quick start</a> ·
+  <a href="#your-first-five-minutes">First five minutes</a> ·
   <a href="#performance">Performance</a> ·
   <a href="#keys">Keys</a> ·
   <a href="#finding-files-and-text">Finding things</a> ·
   <a href="#git">Git</a> ·
   <a href="#configuration">Configuration</a> ·
+  <a href="#troubleshooting">Troubleshooting</a> ·
   <a href="#roadmap">Roadmap</a>
 </p>
 
@@ -82,6 +84,14 @@ cargo install --git https://github.com/guylyons/fred
 
 Or from a clone: `cargo install --path .`
 
+Cargo puts `fred` in `~/.cargo/bin`, which `rustup` adds to your `PATH`.
+Check that it worked:
+
+```sh
+fred --version
+fred --help
+```
+
 With the Ghostty terminal (`:terminal`, `Space t`), which needs
 [Zig](https://ziglang.org) 0.15 to build Ghostty's terminal library:
 
@@ -112,6 +122,45 @@ Inside, press `i` to type and `Esc` to stop. `:w` saves and `:q` quits (`ZZ`
 does both). `Space p` finds a file, `Space g` searches the project and
 `Space m s` shows Git status. Files you open again start where you left the
 cursor.
+
+## Your first five minutes
+
+If you've never used Vim, the one idea to learn is **modes**. When fred
+opens you're in **Normal** mode, where keys are commands, not text. Typing
+`dd` deletes a line; it doesn't type "dd". Press `i` to switch to **Insert**
+mode and type normally, then press `Esc` (or type `jj`) to go back. The
+status line at the bottom always shows the mode you're in.
+
+These keys are enough to get going:
+
+| Want to | Press |
+|---|---|
+| start typing | `i` (before the cursor) or `a` (after it) |
+| stop typing | `Esc` |
+| move | the arrow keys or `h j k l`, or click with the mouse |
+| undo, redo | `u`, `Ctrl-R` |
+| delete a line, copy it, paste it | `dd`, `yy`, `p` |
+| search the file | `/word` then `Enter`; `n` goes to the next match |
+| save, quit | `:w` then `Enter`; `:q` then `Enter` |
+| quit without saving | `:q!` then `Enter` |
+| get unstuck | `Esc`, a couple of times |
+
+To try it, run `fred hello.txt`, press `i`, type a line, press `Esc`, and
+type `:wq` then `Enter`. Now you have a file.
+
+**`Space` is the key to everything else.** In Normal mode, press `Space`
+and wait half a second. A menu lists every `Space` command and what it
+does. Press a letter to run one, or `Esc` to close the menu. The ones to
+learn first:
+
+- `Space p` opens a file in this project, by typing part of its name.
+- `Space g` searches every file in the project as you type.
+- `Space b` switches between files you have open.
+- `Space m s` shows what changed in Git (inside a repository).
+
+**When you want to know more**, type `:help` to search every `:` command,
+and read [Keys](#keys) below. fred follows Vim and Neovim closely, so Vim
+tutorials and cheat sheets apply too.
 
 ## Performance
 
@@ -503,6 +552,13 @@ background, as `Ctrl-B` does in the CLI, so the chat never sits on it; when
 it finishes, Claude picks the answer up and replies on its own
 (`CLAUDE_CODE_AUTO_BACKGROUND_TIMEOUT_MS` in your environment changes the
 30 seconds).
+> [!WARNING]
+> By default the chat runs Claude with `bypassPermissions`: it can run
+> any command and edit any file without asking. If that isn't what you want,
+> set `claude_permissions = "acceptEdits"` (or `"manual"`) in your
+> [config](#configuration) before your first chat, or press `Space c p` to
+> change it for a session.
+
 `claude_permissions` sets what Claude may do without asking: by default
 `bypassPermissions`, no restrictions at all (it can run any command and edit
 any file). `acceptEdits`, `plan`, `auto` and `manual` are stricter, and `""` leaves
@@ -577,7 +633,9 @@ press `Esc` or click its ✕. Both run the `claude` command line; see
 ## Configuration
 
 Settings live in `~/.config/fred/config.toml` (or under `$XDG_CONFIG_HOME`).
-Every key is optional; these are the defaults:
+You don't need a config file: fred works without one. To change a setting,
+create the file and add only the lines you want; every key is optional.
+These are the defaults:
 
 ```toml
 fullscreen = true        # false: inline; "auto": inline unless the file is
@@ -622,6 +680,37 @@ While editing, `:set` works as in Neovim: `:set ts=4`, `:set nowrap`,
 `:set` alone lists what you've changed. `:setlocal` changes only this buffer,
 `:setglobal` only what new buffers start with, and `Tab` completes option
 names.
+
+## Troubleshooting
+
+**`fred: command not found` after installing.** `~/.cargo/bin` isn't on
+your `PATH`. Add `export PATH="$HOME/.cargo/bin:$PATH"` to your shell's
+startup file and open a new terminal.
+
+**I'm stuck and can't quit.** Press `Esc` a couple of times, then type
+`:q!` and `Enter` to quit without saving, or `:wq` to save first.
+
+**`:terminal` or `Space t` says fred was built without Ghostty.** The
+terminal is an optional feature. Reinstall with `--features ghostty`, as
+shown under [Install](#install). It needs Zig 0.15 exactly: newer Zig
+releases won't build it.
+
+**Copy and paste don't reach other apps on Linux.** Install `wl-clipboard`
+(Wayland) or `xclip` (X11).
+
+**Pickers show boxes or question marks instead of icons.** Your terminal
+isn't using a [Nerd Font](https://www.nerdfonts.com). Switch your
+terminal's font to one, or set `icons = false`.
+
+**`Space m` does nothing useful.** Git commands need a Git repository and
+`git` on your `PATH`. Run `git init`, or press `Space m i`, to make one.
+
+**`:ai`, `K` or `Space c` fail.** They run the
+[Claude Code](https://claude.com/claude-code) CLI. Install it, run `claude`
+once to sign in, and check that `claude` works in your shell.
+
+**Colors look wrong.** The default `ansi` theme uses your terminal's
+palette. Try a fixed theme like `theme = "Nord"` in your config.
 
 ## Roadmap
 
