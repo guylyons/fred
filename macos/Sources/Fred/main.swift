@@ -30,6 +30,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     private let editorBox = EditorBackground()
     /// The title bar's strip: in Glass, the backdrop is clear, so this paints its tint.
     private let titleStrip = EditorBackground()
+    /// Glass's blur. A system view, unlike the window-server blur call, it follows
+    /// the window's rounded corners.
+    private let blur: NSVisualEffectView = {
+        let v = NSVisualEffectView()
+        v.blendingMode = .behindWindow
+        v.material = .hudWindow
+        v.state = .active
+        return v
+    }()
     /// View ▸ Glass Theme: the Ghostty look, translucent over a blurred desktop.
     private var glass = UserDefaults.standard.string(forKey: "FredTheme") == "glass"
 
@@ -326,7 +335,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         editorBox.color = p.bg
         window.isOpaque = !glass
         window.backgroundColor = glass ? .clear : .windowBackgroundColor
-        setBlur(window, radius: glass ? 20 : 0)
+        blur.isHidden = !glass
         func redraw(_ v: NSView) { v.needsDisplay = true; v.subviews.forEach(redraw) }
         window.contentView.map(redraw)
     }
@@ -631,8 +640,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             .init(symbol: "questionmark.circle", tip: "Help: Search Commands (Space h)", run: { [unowned self] in self.run("<Space>h") }),
         ])
         activity = bar
-        for v in [titleStrip, bar, split.view] { v.translatesAutoresizingMaskIntoConstraints = false; glass.addSubview(v) }
+        for v in [blur, titleStrip, bar, split.view] { v.translatesAutoresizingMaskIntoConstraints = false; glass.addSubview(v) }
         NSLayoutConstraint.activate([
+            blur.topAnchor.constraint(equalTo: glass.topAnchor),
+            blur.bottomAnchor.constraint(equalTo: glass.bottomAnchor),
+            blur.leadingAnchor.constraint(equalTo: glass.leadingAnchor),
+            blur.trailingAnchor.constraint(equalTo: glass.trailingAnchor),
             titleStrip.topAnchor.constraint(equalTo: glass.topAnchor),
             titleStrip.leadingAnchor.constraint(equalTo: glass.leadingAnchor),
             titleStrip.trailingAnchor.constraint(equalTo: glass.trailingAnchor),
@@ -797,15 +810,4 @@ class EditorBackground: NSView {
         color.setFill()
         r.fill(using: .sourceOver)
     }
-}
-
-/// Ghostty's background-blur: the private window-server call it uses (looked
-/// up at run time, so a missing symbol only loses the blur).
-@MainActor func setBlur(_ w: NSWindow, radius: Int) {
-    typealias Conn = @convention(c) () -> UnsafeMutableRawPointer?
-    typealias Set = @convention(c) (UnsafeMutableRawPointer?, Int, Int) -> Int32
-    guard let h = dlopen(nil, RTLD_NOW),
-          let c = dlsym(h, "CGSDefaultConnectionForThread"),
-          let f = dlsym(h, "CGSSetWindowBackgroundBlurRadius") else { return }
-    _ = unsafeBitCast(f, to: Set.self)(unsafeBitCast(c, to: Conn.self)(), w.windowNumber, radius)
 }
