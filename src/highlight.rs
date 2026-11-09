@@ -319,6 +319,19 @@ mod tests {
         );
     }
 
+    #[test]
+    fn material_dark_colors_comment_delimiters_as_comment() {
+        let h = Highlighter::new("Material-Dark", true).unwrap();
+        for (path, text) in [("x.rs", "// hi"), ("x.php", "<?php # hi"), ("x.c", "/* hi */")] {
+            let st = h.one_line(Path::new(path), text).unwrap();
+            let at = text.find(['/', '#']).unwrap();
+            let mut comment = st.iter().filter(|(_, r)| r.start >= at);
+            let grey = Some(Color::Rgb(0x61, 0x61, 0x61));
+            let n = comment.clone().count();
+            assert!(n > 0 && comment.all(|(s, _)| s.fg == grey), "{path}: {st:?}");
+        }
+    }
+
     const LONG: Duration = Duration::from_secs(5);
 
     fn hl() -> Highlighter {
