@@ -114,8 +114,8 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         let scroll = NSScrollView()
         scroll.documentView = outline
         scroll.drawsBackground = false
-        scroll.hasVerticalScroller = true
-        scroll.autohidesScrollers = true
+        // No scroller: the tree scrolls by trackpad and wheel, like the editor.
+        scroll.hasVerticalScroller = false
 
         for s in [header, scroll, filterField] as [NSView] {
             s.translatesAutoresizingMaskIntoConstraints = false
