@@ -318,3 +318,4 @@ the next time that roadmap is touched.
 
 - 2026-11-08: roadmap created from a code audit at `bc0ab89`. 0 / 100.
 - 2026-11-09: `Space ;` in the terminal acts as `:q` again; the GUI keeps close-tab-then-quit. No points change.
+- 2026-11-09: the GUI's trackpad scroll stops at line 1; the rubber band stays only past the last line. No points change.

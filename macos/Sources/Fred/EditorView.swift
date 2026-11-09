@@ -65,8 +65,9 @@ final class EditorView: NSView {
     private var paintTracking: NSTrackingArea?
     private var lastSeq = 0
     private var scrollAcc: CGFloat = 0
-    /// Chrome's rubber band: a window's text pulled past its first or last
-    /// line by `dy` points (down positive), springing back on release.
+    /// Chrome's rubber band: a window's text pulled past its last line by
+    /// `dy` points (up negative), springing back on release. The first line
+    /// is a hard stop: scrolling up halts where the text begins.
     private var bounce: (win: Int, dy: CGFloat)?
     private var spring: CADisplayLink?
     private var springAt: CFTimeInterval = 0
@@ -237,7 +238,7 @@ final class EditorView: NSView {
         for _ in 0..<abs(n) { mouse(n > 0 ? "scroll_up" : "scroll_down", e) }
     }
 
-    /// A trackpad scroll past either end stretches that window instead; true when it took the event.
+    /// A trackpad scroll past the end stretches that window instead; true when it took the event.
     private func rubberBand(_ e: NSEvent) -> Bool {
         let d = e.scrollingDeltaY
         let released = e.phase == .ended || e.phase == .cancelled
@@ -252,8 +253,8 @@ final class EditorView: NSView {
               let id = w.id, let top = w.top, let lines = w.lines else { return false }
         let over = bounce?.win == id ? bounce!.dy : 0
         let px = smooth?.win == id ? smooth!.px : CGFloat(top) * cell.height
-        let atTop = px <= 0 && d > 0, atEnd = px >= CGFloat(maxTop(w, top: top, lines: lines)) * cell.height && d < 0
-        guard over != 0 || atTop || atEnd || (released && bounce != nil) else { return false }
+        let atEnd = px >= CGFloat(maxTop(w, top: top, lines: lines)) * cell.height && d < 0
+        guard over != 0 || atEnd || (released && bounce != nil) else { return false }
         stopSpring()
         let dy = Rubber.pull(over, by: d)
         bounce = dy == 0 ? nil : (id, dy)
