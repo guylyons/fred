@@ -2,12 +2,12 @@ import AppKit
 import FredKit
 
 /// Nova's title bar, left of center: Fred's face, then the project folder
-/// (its Finder icon, its name, the Git branch under it), between slashes.
+/// (its Finder icon, its name in a gradient, the Git branch under it).
 /// Clicking the project lists recent folders and Open Folder….
 final class ProjectTitle: NSView {
     private let face = PixelImage()
     private let folder = NSImageView()
-    private let name = NSTextField(labelWithString: "")
+    private let name = GradientLabel(labelWithString: "")
     private let branch = NSTextField(labelWithString: "")
     private let project = NSStackView()
     /// The menu to show for a click on the project.
@@ -31,8 +31,8 @@ final class ProjectTitle: NSView {
         lines.spacing = 0
         project.setViews([folder, lines], in: .leading)
         project.spacing = 6
-        let row = NSStackView(views: [face, Slash(), project, Slash()])
-        row.spacing = 8
+        let row = NSStackView(views: [face, project])
+        row.spacing = 12
         row.translatesAutoresizingMaskIntoConstraints = false
         addSubview(row)
         NSLayoutConstraint.activate([
@@ -79,16 +79,26 @@ final class ProjectTitle: NSView {
     }()
 }
 
-/// Nova's separator: a thin slash, the bar's height.
-private final class Slash: NSView {
-    override var intrinsicContentSize: NSSize { NSSize(width: 10, height: 30) }
+/// A label whose glyphs are filled with a pink → violet → sky gradient.
+/// The text is drawn normally (so truncation and layout are NSTextField's),
+/// then the gradient is composited `sourceIn`, keeping only the glyphs.
+private final class GradientLabel: NSTextField {
+    static let gradient = NSGradient(colors: [
+        NSColor(srgbRed: 1.00, green: 0.43, blue: 0.70, alpha: 1),
+        NSColor(srgbRed: 0.66, green: 0.55, blue: 0.98, alpha: 1),
+        NSColor(srgbRed: 0.38, green: 0.78, blue: 0.98, alpha: 1),
+    ])!
+
     override func draw(_ r: NSRect) {
-        let p = NSBezierPath()
-        p.move(to: NSPoint(x: bounds.minX + 1, y: bounds.minY + 2))
-        p.line(to: NSPoint(x: bounds.maxX - 1, y: bounds.maxY - 2))
-        p.lineWidth = 1
-        NSColor.tertiaryLabelColor.setStroke()
-        p.stroke()
+        guard let cg = NSGraphicsContext.current?.cgContext else { return super.draw(r) }
+        cg.beginTransparencyLayer(auxiliaryInfo: nil)
+        super.draw(r)
+        cg.setBlendMode(.sourceIn)
+        // Span the gradient over the text itself, not the (wider) field.
+        let w = min(bounds.width, attributedStringValue.size().width + 4)
+        GradientLabel.gradient.draw(in: NSRect(x: 0, y: 0, width: max(w, 1), height: bounds.height),
+                                    angle: 0)
+        cg.endTransparencyLayer()
     }
 }
 

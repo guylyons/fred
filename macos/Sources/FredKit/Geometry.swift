@@ -66,9 +66,10 @@ public enum Rubber {
         return max(-limit, min(limit, next))
     }
 
-    /// One 60 Hz step of the spring back; 0 once it's under half a point.
-    public static func settle(_ offset: CGFloat) -> CGFloat {
-        let next = offset * 0.8
+    /// The spring back after `dt` seconds (one 60 Hz step by default);
+    /// 0 once it's under half a point. Frame-rate independent.
+    public static func settle(_ offset: CGFloat, dt: CGFloat = 1.0 / 60) -> CGFloat {
+        let next = offset * pow(0.8, dt * 60)
         return abs(next) < 0.5 ? 0 : next
     }
 }

@@ -68,7 +68,11 @@ final class EditorView: NSView {
     /// Chrome's rubber band: a window's text pulled past its first or last
     /// line by `dy` points (down positive), springing back on release.
     private var bounce: (win: Int, dy: CGFloat)?
-    private var spring: Timer?
+    private var spring: CADisplayLink?
+    private var springAt: CFTimeInterval = 0
+    /// A spring has begun for this gesture: its momentum tail is swallowed,
+    /// so it can't pull the text again once the spring lands.
+    private var coasting = false
     /// VS Code's smooth trackpad scroll: window `win` is wanted `px` points
     /// down its lines. The core shows whole lines from `sent` (asked for in
     /// message `seq`); the text slides by the rest.
@@ -237,7 +241,11 @@ final class EditorView: NSView {
     private func rubberBand(_ e: NSEvent) -> Bool {
         let d = e.scrollingDeltaY
         let released = e.phase == .ended || e.phase == .cancelled
-        if spring != nil, !e.momentumPhase.isEmpty { return true } // momentum into an edge already sprang back
+        if e.phase == .began || e.phase == .mayBegin { coasting = false }
+        if coasting, !e.momentumPhase.isEmpty {
+            if e.momentumPhase == .ended || e.momentumPhase == .cancelled { coasting = false }
+            return true // momentum into an edge already sprang back
+        }
         guard e.hasPreciseScrollingDeltas, let f = current else { return false }
         let (c, r) = cellAt(e)
         guard let w = f.windows.first(where: { c >= $0.x && c < $0.x + $0.w && r >= $0.y && r < $0.y + $0.h }),
@@ -246,12 +254,15 @@ final class EditorView: NSView {
         let px = smooth?.win == id ? smooth!.px : CGFloat(top) * cell.height
         let atTop = px <= 0 && d > 0, atEnd = px >= CGFloat(maxTop(w, top: top, lines: lines)) * cell.height && d < 0
         guard over != 0 || atTop || atEnd || (released && bounce != nil) else { return false }
-        spring?.invalidate()
-        spring = nil
+        stopSpring()
         let dy = Rubber.pull(over, by: d)
         bounce = dy == 0 ? nil : (id, dy)
         redrawText(w)
-        if released || e.momentumPhase == .ended || !e.momentumPhase.isEmpty { springBack() }
+        if released || !e.momentumPhase.isEmpty {
+            // Momentum still to come (it follows a release) is the bounce's, not a new pull.
+            coasting = e.momentumPhase != .ended && e.momentumPhase != .cancelled
+            springBack()
+        }
         return true
     }
 
@@ -306,17 +317,27 @@ final class EditorView: NSView {
 
     private func springBack() {
         guard bounce != nil, spring == nil else { return }
-        let t = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated {
-                guard let self, let b = self.bounce else { return }
-                let dy = Rubber.settle(b.dy)
-                self.bounce = dy == 0 ? nil : (b.win, dy)
-                if let w = self.current?.windows.first(where: { $0.id == b.win }) { self.redrawText(w) }
-                if dy == 0 { self.spring?.invalidate(); self.spring = nil }
-            }
-        }
-        spring = t
-        RunLoop.main.add(t, forMode: .common)
+        springAt = CACurrentMediaTime()
+        let link = displayLink(target: self, selector: #selector(springTick(_:)))
+        link.add(to: .main, forMode: .common)
+        spring = link
+    }
+
+    /// One display frame of the spring back, decayed by the real time elapsed.
+    @objc private func springTick(_ link: CADisplayLink) {
+        let now = link.targetTimestamp
+        let dt = CGFloat(max(0, min(0.1, now - springAt)))
+        springAt = now
+        guard let b = bounce else { stopSpring(); return }
+        let dy = Rubber.settle(b.dy, dt: dt)
+        bounce = dy == 0 ? nil : (b.win, dy)
+        if let w = current?.windows.first(where: { $0.id == b.win }) { redrawText(w) }
+        if dy == 0 { stopSpring() }
+    }
+
+    private func stopSpring() {
+        spring?.invalidate()
+        spring = nil
     }
 
     private func redrawText(_ w: Win) { setNeedsDisplay(textRect(w)) }
