@@ -1265,7 +1265,11 @@ impl Session {
             .layout(self.area)
             .into_iter()
             .map(|p| Placed {
-                header,
+                // A terminal has no breadcrumbs: just its tab row.
+                header: match self.windows.iter().find(|w| w.id == p.id) {
+                    Some(w) if header > 1 && self.ed_at(w.buf).term.is_some() => 1,
+                    _ => header,
+                },
                 // Too narrow for a minimap beside its text: none.
                 margin: if p.rect.width < 3 * margin { 0 } else { margin },
                 ..p
