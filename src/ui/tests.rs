@@ -2220,3 +2220,30 @@ fn visual_block_highlights_its_columns() {
     );
     assert!(s.row(3).contains("V-BLOCK"), "{}", s.row(3));
 }
+
+#[test]
+fn tree_sitter_folds_close_nested_code_and_z_keys_open_it() {
+    let body: String = (0..7).map(|i| format!("        x{i} = {i}\n")).collect();
+    let text = format!("class A:\n    def f(self):\n{body}    def g(self):\n        pass\n");
+    let (mut s, mut sc, _d) = session_screen(40, 14, &[("a.py", &text)]);
+    // As the app does after opening a file.
+    s.hl.set_file(s.ed.path.as_deref(), &s.ed.buf);
+    s.handle_keys("zx");
+    sc.draw_session(&mut s);
+    // 'foldlevel' 1: the class shows, its long method is closed.
+    assert_eq!(sc.row(0), "class A:");
+    assert_eq!(sc.row(1), format!("+---  8 lines: def f(self):{}", "·".repeat(13)));
+    assert_eq!(sc.row(2), "    def g(self):");
+    // `j` steps over the closed fold; `dd` on it would take all 8 lines.
+    s.handle_keys("jj");
+    assert_eq!(s.ed.cur.line, 9);
+    s.handle_keys("kzo");
+    sc.draw_session(&mut s);
+    assert_eq!(sc.row(2), "        x0 = 0");
+    s.handle_keys("zM");
+    sc.draw_session(&mut s);
+    assert!(sc.row(0).starts_with("+-- 11 lines: class A:"), "{}", sc.row(0));
+    s.handle_keys("zR");
+    sc.draw_session(&mut s);
+    assert_eq!(sc.row(9), "    def g(self):");
+}

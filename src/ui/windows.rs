@@ -38,6 +38,7 @@ pub fn draw_session_layers(
     let buf = f.buffer_mut();
     // Other windows' text areas, for zap's labels on their words.
     let mut zap_areas = vec![];
+    s.sync_folds(budget);
     let zapping = s.ed.zap.is_some();
     s.each_window(|ed, view, hl, p, active| {
         let left = budget.saturating_sub(start.elapsed());

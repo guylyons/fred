@@ -2,6 +2,7 @@
 
 pub mod block;
 pub mod excmd;
+pub mod fold;
 pub mod insert;
 pub mod mappings;
 pub mod marks;
@@ -1270,6 +1271,9 @@ pub(crate) fn execute(ed: &mut Editor, cmd: Cmd) {
                     if jump {
                         marks::checkpcmark(ed);
                     }
+                    if fold::opens(motion, from.0 == ed.cur.line) {
+                        ed.open_folds_here();
+                    }
                 }
                 None => ed.vim.failed = true,
             }
@@ -1449,7 +1453,11 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
         (KeyCode::Char('u'), false) => {
             for i in 0..n {
                 match ed.undo.undo(&mut ed.buf) {
-                    Some(p) => ed.set_cursor(p.0, p.1),
+                    Some(p) => {
+                        ed.set_cursor(p.0, p.1);
+                        // 'foldopen' undo: the change's folds open.
+                        ed.fold_typed = true;
+                    }
                     None => {
                         if i == 0 {
                             ed.set_err("already at oldest change");
@@ -1740,6 +1748,17 @@ fn simple(ed: &mut Editor, count: Option<usize>, key: Key, arg: Option<char>) {
             Some('Q') => ed.pending_effect = Some(ExEffect::Quit { force: true }),
             _ => {}
         },
+        (KeyCode::Char('z'), false) if arg.is_some_and(|a| fold::KEYS.contains(a)) => {
+            fold::key(ed, arg.unwrap(), count)
+        }
+        // `[z` and `]z`: the start and end of the open fold.
+        (KeyCode::Char(b @ ('[' | ']')), false) if arg == Some('z') => {
+            for _ in 0..n {
+                if let Some(l) = ed.code_folds.edge(ed.cur.line, b == ']') {
+                    ed.set_line_keep_col(l);
+                }
+            }
+        }
         // zz centres the cursor line in the window.
         (KeyCode::Char('z'), false)
             if matches!(arg, Some('t' | 'b' | 'z' | '.' | '-' | '\n' | '+' | '^')) =>

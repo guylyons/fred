@@ -955,7 +955,7 @@ pub fn draw_window(
         }
         let mut line = ed.buf.line(l);
         // org-ellipsis after a line whose following lines are folded.
-        if ed.folds.folded_after(l) {
+        if ed.folds.folded_after(l) && !ed.has_code_folds() {
             line.push_str("...");
         }
         let st = if ed.magit.is_some() {
@@ -1147,6 +1147,19 @@ pub fn draw_window(
             }
             *y += 1;
         };
+        // A closed fold: Vim's fold text, filled to the window's width.
+        if let Some((_, text)) = ed.closed_fold(l) {
+            let text: String = text.chars().chain(std::iter::repeat('·')).take(cols).collect();
+            let folded = Style::default()
+                .fg(Color::DarkGray)
+                .add_modifier(Modifier::ITALIC);
+            emit(&mut y, 0, vec![Span::styled(text, folded)]);
+            if l == ed.cur.line {
+                cursor = Some((gutter, first_y));
+            }
+            l += 1;
+            continue;
+        }
         if ed.opts.bool(Opt::Wrap) {
             let mut styler = Styler::new(&st);
             let mut row = 0;

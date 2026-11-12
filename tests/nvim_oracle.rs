@@ -1605,3 +1605,103 @@ fn fred_matches_neovim() {
         wrong.join("\n")
     );
 }
+
+/// Text indented by four columns, three levels deep.
+const FOLD_TEXT: &str = "a\n    b1\n    b2\n        c1\n        c2\n        c3\n    b3\nd\n    e1\n    e2\nf";
+
+/// Keys typed on [`FOLD_TEXT`] with 'foldmethod' indent, 'foldlevel' 1
+/// and 'foldminlines' 1. Known differences, not listed: `>>` on a
+/// closed fold leaves it open in Neovim and closed in Fred; `w` on a closed
+/// fold goes past it in Neovim and opens it in Fred.
+const FOLD_KEYS: &[&str] = &[
+    "", "jzc", "3jzo", "3jzozc", "3jzozczc", "3jza", "3jzaza", "jza", "zM", "zR", "zMzr", "zRzm",
+    "zRzmzm", "2zr", "zMjzO", "3jzO", "3jzC", "3jzCzo", "3jzCzO", "3jzCzA", "3jzozA", "zMjzv",
+    "3jzv", "3jzojzczx", "3jzojzczX", "zn", "zMzn", "zMznzN", "zMzi", "zj", "zjzj", "zjzjzj",
+    "Gzk", "Gzkzk", "3jzo[z", "3jzo]z", "3jzo[z[z", "3jzo]z]z", "jzcdd", "jzcyyGp", "jzcjk",
+    "jzcj", "3jdd", "jzckzcj", "zMjj", "zMGk", "8jzcjzo", "3jzozcu", "jzcx",
+    "3jzoccx<Esc>", "3jizz<Esc>", "3jo        c4<Esc>", "jzfj", "jzd", "zE", "8jza", "7jzc",
+    "3j2zc", "zM2zo", "zMj2zo",
+    "jzcl", "jzc$", "/c2<CR>", "/c2<CR>zcn", "zM/e2<CR>", "3jmajzc`a", "3jzo2jzcggG", "jzc}",
+    "jzcddu", "3jddu", "3jzoxjzcu", "zMG", "zM5G", "3jzozcl",
+];
+
+fn fold_setup(ed: &mut Editor) {
+    use fred::options::{Level, Opt, Value};
+    for (o, v) in [(Opt::Shiftwidth, 4), (Opt::Foldlevel, 1), (Opt::Foldminlines, 1), (Opt::Foldnestmax, 3)] {
+        ed.opts.put(o, Value::Num(v), Level::Local).unwrap();
+    }
+}
+
+fn fred_folds(keys: &str) -> (State, Vec<i64>) {
+    let mut ed = Editor::new(Buffer::from_text(FOLD_TEXT));
+    fold_setup(&mut ed);
+    ed.sync_indent_folds();
+    for k in parse_keys(keys) {
+        ed.handle_key(k);
+        ed.sync_indent_folds();
+    }
+    let mut closed = vec![-1; ed.line_count()];
+    for l in 0..ed.line_count() {
+        if let Some((e, _)) = ed.closed_fold(l) {
+            closed[l..=e].fill(l as i64);
+        }
+    }
+    let state = State {
+        text: ed.buf.text(),
+        // Vim's cursor stays where it was inside a closed fold.
+        line: ed.fold_cur.map_or(ed.cur.line, |(_, (l, _), _)| l),
+        col: ed.fold_cur.map_or(ed.cur.byte, |(_, (_, b), _)| b),
+        mode: if ed.mode == Mode::Normal { "n" } else { "?" }.into(),
+    };
+    (state, closed)
+}
+
+fn nvim_folds(keys: &str) -> Option<(State, Vec<i64>)> {
+    let script = concat!(env!("CARGO_MANIFEST_DIR"), "/tools/nvim-oracle.lua");
+    let out = Command::new("nvim")
+        .env("FRED_ORACLE_SETUP", "setlocal fdm=indent sw=4 fdl=1 fml=1 fdn=3 fen et")
+        .args(["--clean", "--headless", "-l", script, FOLD_TEXT, keys])
+        .output()
+        .ok()?;
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let last = stdout.lines().last().unwrap_or_default();
+    let v: serde_json::Value = serde_json::from_str(last)
+        .unwrap_or_else(|e| panic!("nvim oracle for {keys:?}: {e}: {stdout}"));
+    let state = State {
+        text: v["text"].as_str().unwrap_or_default().into(),
+        line: v["line"].as_u64().unwrap_or_default() as usize,
+        col: v["col"].as_u64().unwrap_or_default() as usize,
+        mode: v["mode"].as_str().unwrap_or_default().into(),
+    };
+    let closed = v["closed"].as_array()?.iter().map(|n| n.as_i64().unwrap()).collect();
+    Some((state, closed))
+}
+
+#[test]
+fn folds_match_neovim() {
+    let results: Vec<_> = std::thread::scope(|s| {
+        let jobs: Vec<_> = FOLD_KEYS
+            .iter()
+            .map(|&keys| s.spawn(move || (keys, nvim_folds(keys))))
+            .collect();
+        jobs.into_iter().map(|j| j.join().unwrap()).collect()
+    });
+    let mut wrong = vec![];
+    for (keys, want) in results {
+        let Some(want) = want else {
+            eprintln!("nvim not found; skipping the Neovim oracle");
+            return;
+        };
+        let got = fred_folds(keys);
+        if got != want {
+            wrong.push(format!("{keys:?}\n  fred: {got:?}\n  nvim: {want:?}"));
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "{} of {} fold cases differ from Neovim:\n{}",
+        wrong.len(),
+        FOLD_KEYS.len(),
+        wrong.join("\n")
+    );
+}

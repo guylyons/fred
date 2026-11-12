@@ -28,6 +28,7 @@ pub mod shell;
 pub mod swap;
 pub mod term;
 pub mod text;
+pub mod treesitter;
 pub mod ui;
 pub mod undo;
 pub mod vim;

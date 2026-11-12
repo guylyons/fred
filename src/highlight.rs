@@ -1,6 +1,9 @@
-//! Syntax highlighting with syntect, cached per line.
+//! Syntax highlighting: tree-sitter for the bundled languages
+//! (`crate::treesitter`), syntect, cached per line, for the rest.
 
 use crate::buffer::Buffer;
+use crate::treesitter::doc::TsDoc;
+use crate::treesitter::langs::{self, LangSpec};
 use ratatui::style::{Color, Modifier, Style};
 use std::ops::Range;
 use std::path::Path;
@@ -22,7 +25,7 @@ fn syntaxes() -> &'static SyntaxSet {
     SET.get_or_init(two_face::syntax::extra_newlines)
 }
 
-fn find_theme(name: &str) -> Option<Theme> {
+pub(crate) fn find_theme(name: &str) -> Option<Theme> {
     let own = [
         ("material-dark", include_str!("../assets/themes/material-dark.tmTheme")),
         ("material-deep-ocean", include_str!("../assets/themes/material-deep-ocean.tmTheme")),
@@ -48,6 +51,8 @@ pub struct Highlighter {
     pub disabled: Option<String>,
     /// The last `styles` call ran out of time before the visible lines.
     incomplete: bool,
+    /// The file's tree, when its language is bundled; syntect is not used then.
+    ts: Option<TsDoc>,
 }
 
 impl Highlighter {
@@ -60,6 +65,7 @@ impl Highlighter {
             states: vec![],
             disabled: None,
             incomplete: false,
+            ts: None,
         })
     }
 
@@ -72,6 +78,7 @@ impl Highlighter {
             states: vec![],
             disabled: None,
             incomplete: false,
+            ts: None,
         }
     }
 
@@ -107,7 +114,8 @@ impl Highlighter {
         let syn = by_path
             .or_else(|| ss.find_syntax_by_first_line(&first))
             .unwrap_or_else(|| ss.find_syntax_plain_text());
-        self.syntax = syn.name.clone();
+        let spec = langs::for_file(path, &first);
+        self.syntax = spec.map_or_else(|| syn.name.clone(), |s| s.name.into());
         self.disabled = if buf.len_bytes() > MAX_FILE {
             Some("file too large to highlight".into())
         } else if buf.rope().lines().any(|l| l.len_bytes() > MAX_LINE) {
@@ -116,6 +124,27 @@ impl Highlighter {
             None
         };
         self.states.clear();
+        self.ts = spec
+            .filter(|_| self.disabled.is_none())
+            .map(|spec| TsDoc::new(spec, Arc::clone(&self.theme), self.truecolor));
+    }
+
+    /// The file's bundled language; None on the syntect path.
+    pub fn ts_spec(&self) -> Option<&'static LangSpec> {
+        self.ts.as_ref().map(TsDoc::spec)
+    }
+
+    /// The file's syntax tree and its language, brought up to date with
+    /// `buf` within `budget`; None for languages syntect highlights, and
+    /// while the parse isn't finished.
+    pub fn ts_tree(
+        &mut self,
+        buf: &Buffer,
+        budget: Duration,
+    ) -> Option<(&'static LangSpec, &tree_sitter::Tree)> {
+        let ts = self.ts.as_mut()?;
+        let spec = ts.spec();
+        ts.tree(buf, budget).map(|tree| (spec, tree))
     }
 
     /// Text from `line` on has changed.
@@ -153,7 +182,7 @@ impl Highlighter {
         let spans = RangedHighlightIterator::new(&mut hs, &ops, &line, hl)
             .filter_map(|(st, _, r)| {
                 let r = r.start.min(end)..r.end.min(end);
-                (!r.is_empty()).then(|| (self.convert(st), r))
+                (!r.is_empty()).then(|| (to_style(st, self.truecolor), r))
             })
             .collect();
         Ok((spans, (ps, hs)))
@@ -170,6 +199,18 @@ impl Highlighter {
         let mut out = vec![None; lines.len()];
         self.incomplete = false;
         if self.disabled.is_some() {
+            return out;
+        }
+        if let Some(ts) = &mut self.ts {
+            let rope = buf.rope();
+            let long = |l| rope.line_to_byte(l + 1) - rope.line_to_byte(l) > MAX_LINE + 1;
+            if (lines.start..lines.end.min(rope.len_lines())).any(long) {
+                self.disabled = Some("line too long to highlight".into());
+                self.ts = None;
+                return out;
+            }
+            let (out, incomplete) = ts.styles(buf, lines, budget);
+            self.incomplete = incomplete;
             return out;
         }
         let started = Instant::now();
@@ -242,28 +283,29 @@ impl Highlighter {
             RangedHighlightIterator::new(&mut hs, &ops, &line, &hl)
                 .filter_map(|(st, _, r)| {
                     let r = r.start.min(end)..r.end.min(end);
-                    (!r.is_empty()).then(|| (self.convert(st), r))
+                    (!r.is_empty()).then(|| (to_style(st, self.truecolor), r))
                 })
                 .collect(),
         )
     }
 
-    fn convert(&self, st: sh::Style) -> Style {
-        let mut s = Style::default();
-        if let Some(c) = to_color(st.foreground, self.truecolor) {
-            s = s.fg(c);
-        }
-        if st.font_style.contains(FontStyle::BOLD) {
-            s = s.add_modifier(Modifier::BOLD);
-        }
-        if st.font_style.contains(FontStyle::ITALIC) {
-            s = s.add_modifier(Modifier::ITALIC);
-        }
-        if st.font_style.contains(FontStyle::UNDERLINE) {
-            s = s.add_modifier(Modifier::UNDERLINED);
-        }
-        s
+}
+
+pub(crate) fn to_style(st: sh::Style, truecolor: bool) -> Style {
+    let mut s = Style::default();
+    if let Some(c) = to_color(st.foreground, truecolor) {
+        s = s.fg(c);
     }
+    if st.font_style.contains(FontStyle::BOLD) {
+        s = s.add_modifier(Modifier::BOLD);
+    }
+    if st.font_style.contains(FontStyle::ITALIC) {
+        s = s.add_modifier(Modifier::ITALIC);
+    }
+    if st.font_style.contains(FontStyle::UNDERLINE) {
+        s = s.add_modifier(Modifier::UNDERLINED);
+    }
+    s
 }
 
 /// syntect color → terminal color. bat's `ansi` theme stores palette indexes
@@ -424,6 +466,73 @@ mod tests {
         h.set_file(Some(Path::new("a.rs")), &b);
         assert!(h.disabled.is_some());
         assert!(h.styles(&b, 0..1, LONG)[0].is_none());
+    }
+
+    #[test]
+    fn unbundled_languages_still_use_syntect() {
+        let mut h = Highlighter::new("material-dark", true).unwrap();
+        let b = Buffer::from_text("main :: IO ()\nmain = pure ()");
+        h.set_file(Some(Path::new("x.hs")), &b);
+        assert_eq!(h.syntax_name(), "Haskell");
+        assert!(h.ts.is_none());
+        assert!(h.styles(&b, 0..1, LONG)[0].as_ref().unwrap().iter().any(|(s, _)| s.fg.is_some()));
+    }
+
+    #[test]
+    fn every_theme_colours_every_bundled_language() {
+        // One sample per LangSpec (markdown-inline is reached through Markdown).
+        // Markdown's is a fence, not a heading: GitHub and Sublime Snazzy leave headings
+        // plain (with syntect too), and colour only a fence's language name.
+        let samples: &[(&str, &str)] = &[("a.rs", "fn main() {}"), ("a.ts", "const x: number = 1;"), ("a.tsx", "const x = <div/>;"),
+            ("a.js", "const x = 1;"), ("a.py", "def f(): pass"), ("a.go", "package main"), ("a.c", "int main(void) { return 0; }"),
+            ("a.cpp", "class A {};"), ("a.swift", "func f() {}"), ("a.lua", "local x = 1"), ("a.rb", "def f; end"),
+            ("A.java", "class A {}"), ("a.sh", "if true; then echo; fi"), ("a.html", "<p class=\"x\">hi</p>"), ("a.css", "a { color: red; }"),
+            ("a.json", "{\"a\": 1}"), ("a.toml", "a = 1"), ("a.yaml", "a: 1"), ("a.md", "```rust"), ("a.ex", "defmodule A do end"),
+            ("a.php", "<?php function f() {}"), ("a.sql", "SELECT 1;"), ("a.zig", "const x = 1;"), ("Makefile", "all:\n\techo"),
+            ("Dockerfile", "FROM alpine")];
+        let names: Vec<String> = two_face::theme::EmbeddedLazyThemeSet::theme_names().iter().map(|t| t.as_name().to_string())
+            .chain(["material-dark".to_string(), "material-deep-ocean".to_string()]).collect();
+        for theme in &names {
+            for (path, text) in samples {
+                let mut h = Highlighter::new(theme, true).unwrap();
+                let b = Buffer::from_text(text);
+                h.set_file(Some(Path::new(path)), &b);
+                assert!(h.ts.is_some(), "{path} is a bundled language");
+                let st = h.styles(&b, 0..1, LONG);
+                assert!(st[0].as_ref().is_some_and(|l| l.iter().any(|(s, _)| s.fg.is_some() || !s.add_modifier.is_empty())), "{theme} {path}");
+                // Stronger than "has a colour": the theme's plain-text colour alone doesn't count.
+                let plain = to_style(sh::Highlighter::new(&h.theme).get_default(), true);
+                assert!(st[0].as_ref().unwrap().iter().any(|(s, _)| *s != plain), "{theme} {path}: nothing but plain text");
+            }
+        }
+        assert_eq!(samples.len(), langs::LANGS.len() - 1, "a sample per language but markdown-inline");
+    }
+
+    #[test]
+    fn deep_ocean_styles_hold_with_tree_sitter() {
+        let mut h = Highlighter::new("material-deep-ocean", true).unwrap();
+        let b = Buffer::from_text("fn main() { a + 1 } // hi");
+        h.set_file(Some(Path::new("x.rs")), &b);
+        let st = h.styles(&b, 0..1, LONG)[0].clone().unwrap();
+        let has = |at: usize, rgb: (u8, u8, u8), m: Modifier| {
+            st.iter().any(|(s, r)| {
+                r.contains(&at) && s.fg == Some(Color::Rgb(rgb.0, rgb.1, rgb.2)) && s.add_modifier == m
+            })
+        };
+        assert!(has(0, (0xc7, 0x92, 0xea), Modifier::BOLD), "{st:?}");
+        assert!(has(3, (0x82, 0xaa, 0xff), Modifier::BOLD | Modifier::ITALIC), "{st:?}");
+        assert!(has(22, (0x46, 0x4b, 0x5d), Modifier::ITALIC), "{st:?}");
+    }
+
+    #[test]
+    fn ts_tree_is_for_bundled_languages_only() {
+        let mut h = hl();
+        let b = Buffer::from_text("fn main() {}");
+        h.set_file(Some(Path::new("a.rs")), &b);
+        let (spec, tree) = h.ts_tree(&b, LONG).unwrap();
+        assert_eq!((spec.name, tree.root_node().kind()), ("Rust", "source_file"));
+        h.set_file(Some(Path::new("a.hs")), &b);
+        assert!(h.ts_tree(&b, LONG).is_none());
     }
 
     #[test]

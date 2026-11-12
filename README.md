@@ -250,6 +250,10 @@ Counts work as in Vim: `3w`, `5j`, `2dd`.
 | `m{a-z}`, `'{a-z}` | set a mark, go to it |
 | `Ctrl-D Ctrl-U`, `Ctrl-F Ctrl-B` | half a window, a whole window |
 | `zz` | put the cursor's line in the middle of the window |
+| `zo` `zc` `za` | open, close, toggle the fold under the cursor (`zO` `zC` `zA`: every level) |
+| `zR` `zM` `zr` `zm` | open all folds, close all, one level more, one level less |
+| `zv` `zx` `zi` | show the cursor's line, compute the folds again, folding on/off |
+| `zj` `zk` `[z` `]z` | to the next fold, the previous one, this fold's start and end |
 | `gd` | go to the definition of the word under the cursor |
 
 ### Editing
@@ -658,9 +662,16 @@ ai_rules = ""            # added to every :ai, e.g. "Smallest change that works.
 ```
 
 The default `ansi` theme uses your terminal's own colors, so it matches your
-terminal. Highlighting uses [syntect](https://github.com/trishume/syntect)
-with [bat](https://github.com/sharkdp/bat)'s language definitions, and turns
-off for files over 10 MB or lines over 20,000 characters.
+terminal. Highlighting uses [tree-sitter](https://tree-sitter.github.io)
+grammars built into the binary for Rust, TypeScript, TSX, JavaScript, Python,
+Go, C, C++, Swift, Lua, Ruby, Java, Bash, HTML, CSS, JSON, TOML, YAML,
+Markdown, Elixir, PHP, SQL, Zig, Make and Dockerfile. A keystroke reparses
+only what it changed, and embedded languages get their own colors: a code
+fence in Markdown, `<script>` and `<style>` in HTML. Every other language
+uses [syntect](https://github.com/trishume/syntect) with
+[bat](https://github.com/sharkdp/bat)'s language definitions, as do grep
+previews. The theme colors both the same way. Highlighting turns off for
+files over 10 MB or lines over 20,000 bytes.
 
 ### Options and `:set`
 

@@ -117,6 +117,16 @@ options! {
     Keymodel => opt("keymodel", "km", Global, Str(""))
         .list()
         .check(|v| items(v, &["startsel", "stopsel"])),
+    /// Closed folds show closed (`zi` toggles it).
+    Foldenable => opt("foldenable", "fen", Window, Bool(true)),
+    /// Folds nested deeper than this are closed. Fred's default is the
+    /// user's Neovim 'foldlevelstart' (Neovim: 0).
+    Foldlevel => opt("foldlevel", "fdl", Window, Num(1)).check(nonneg),
+    /// A fold shows closed only when it has more lines than this, and
+    /// tree-sitter makes no smaller fold (Neovim: 1).
+    Foldminlines => opt("foldminlines", "fml", Window, Num(6)).check(nonneg),
+    /// The deepest fold level (Neovim: 20).
+    Foldnestmax => opt("foldnestmax", "fdn", Window, Num(3)).check(nonneg),
     /// The number formats CTRL-A and CTRL-X recognise.
     Nrformats => opt("nrformats", "nf", Buffer, Str("bin,hex"))
         .list()

@@ -62,6 +62,17 @@ pub struct Edit {
 /// a macro doesn't send the word index back to a full rebuild.
 const SPLICES: usize = 1024;
 
+/// One edit in tree-sitter's terms: byte offsets, and (row, byte column) points.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ByteEdit {
+    pub start_byte: usize,
+    pub old_end_byte: usize,
+    pub new_end_byte: usize,
+    pub start: (usize, usize),
+    pub old_end: (usize, usize),
+    pub new_end: (usize, usize),
+}
+
 /// Lines `at..at + removed` were replaced by `inserted` lines.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LineChange {
@@ -94,6 +105,8 @@ pub struct Buffer {
     /// lines inserted): lines `first..=first+removed` became
     /// `first..=first+inserted`. Lets indexes update just those lines.
     splices: std::collections::VecDeque<(usize, usize, usize)>,
+    /// The same edits in bytes, for incremental parsers.
+    byte_edits: std::collections::VecDeque<ByteEdit>,
 }
 
 impl Default for Buffer {
@@ -140,6 +153,7 @@ impl Buffer {
             dirty_from: None,
             line_changes: vec![],
             splices: Default::default(),
+            byte_edits: Default::default(),
         }
     }
 
@@ -168,8 +182,15 @@ impl Buffer {
         let removed = self.rope.slice(e.start..e.end).to_string();
         let first = self.rope.char_to_line(e.start);
         let at_line_start = e.start == self.rope.line_to_char(first);
+        let point = |rope: &Rope, ch: usize| {
+            let (byte, row) = (rope.char_to_byte(ch), rope.char_to_line(ch));
+            (byte, (row, byte - rope.line_to_byte(row)))
+        };
+        let (start_byte, start) = point(&self.rope, e.start);
+        let (old_end_byte, old_end) = point(&self.rope, e.end);
         self.rope.remove(e.start..e.end);
         self.rope.insert(e.start, &e.text);
+        let (new_end_byte, new_end) = point(&self.rope, e.start + e.text.chars().count());
         if self.zero_byte {
             // A zero-byte file that gains text gets a final newline, like vim.
             self.final_newline = self.rope.len_chars() > 0;
@@ -197,6 +218,17 @@ impl Buffer {
             self.splices.pop_front();
         }
         self.splices.push_back((first, r, i));
+        if self.byte_edits.len() == SPLICES {
+            self.byte_edits.pop_front();
+        }
+        self.byte_edits.push_back(ByteEdit {
+            start_byte,
+            old_end_byte,
+            new_end_byte,
+            start,
+            old_end,
+            new_end,
+        });
         Edit {
             start: e.start,
             end: e.start + e.text.chars().count(),
@@ -212,6 +244,12 @@ impl Buffer {
     ) -> Option<impl Iterator<Item = &(usize, usize, usize)>> {
         let n = usize::try_from(self.version.checked_sub(version)?).ok()?;
         Some(self.splices.iter().skip(self.splices.len().checked_sub(n)?))
+    }
+
+    /// The edits since `version`, oldest first; None if they're no longer all remembered.
+    pub fn byte_edits_since(&self, version: u64) -> Option<impl Iterator<Item = &ByteEdit>> {
+        let n = usize::try_from(self.version.checked_sub(version)?).ok()?;
+        Some(self.byte_edits.iter().skip(self.byte_edits.len().checked_sub(n)?))
     }
 
     /// After applying `splice_edit(at, remove, [])` (which made `inserted`
@@ -374,6 +412,28 @@ impl Buffer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn byte_edits_count_bytes_not_chars() {
+        let mut b = Buffer::from_text("é\nab");
+        let v = b.version;
+        // Replace "b" (char 3, byte 4) with "xy\nz".
+        b.apply(Edit { start: 3, end: 4, text: "xy\nz".into() });
+        let e: Vec<_> = b.byte_edits_since(v).unwrap().copied().collect();
+        assert_eq!(e, [ByteEdit {
+            start_byte: 4, old_end_byte: 5, new_end_byte: 8,
+            start: (1, 1), old_end: (1, 2), new_end: (2, 1),
+        }]);
+    }
+
+    #[test]
+    fn byte_edits_forget_past_capacity() {
+        let mut b = Buffer::from_text("");
+        for _ in 0..1025 { b.apply(Edit { start: 0, end: 0, text: "a".into() }); }
+        assert!(b.byte_edits_since(0).is_none());
+        assert_eq!(b.byte_edits_since(1).unwrap().count(), 1024);
+        assert_eq!(b.byte_edits_since(b.version).unwrap().count(), 0);
+    }
 
     #[test]
     fn crlf_and_final_newline_roundtrip() {

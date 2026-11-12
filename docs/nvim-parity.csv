@@ -411,7 +411,7 @@ key,bracket,[i,,missing,,show first line found in current and
 key,bracket,[m,motion,missing,,cursor N times back to start of member
 key,bracket,[p,change,done,oracle cases,"like ""P"", but adjust indent to current line"
 key,bracket,[s,motion,missing,,move to the previous misspelled word
-key,bracket,[z,motion,missing,,move to start of open fold
+key,bracket,[z,motion,partial,moves the cursor; not a motion for operators,move to start of open fold
 key,bracket,[{,motion,done,oracle cases,cursor N times back to unmatched '{'
 key,bracket,] CTRL-D,,missing,,jump to first #define found in current and
 key,bracket,] CTRL-I,,missing,,jump to first line in current and included
@@ -433,7 +433,7 @@ key,bracket,]i,,missing,,show first line found in current and
 key,bracket,]m,motion,missing,,cursor N times forward to end of member
 key,bracket,]p,change,done,oracle cases,"like ""p"", but adjust indent to current line"
 key,bracket,]s,motion,missing,,move to next misspelled word
-key,bracket,]z,motion,missing,,move to end of open fold
+key,bracket,]z,motion,partial,moves the cursor; not a motion for operators,move to end of open fold
 key,bracket,]},motion,done,oracle cases,cursor N times forward to unmatched '}'
 key,g,g CTRL-G,,missing,,show information about current cursor
 key,g,g CTRL-H,,missing,,start Select block mode
@@ -507,48 +507,48 @@ key,z,z+,,done,lines that don't wrap or fold; oracle cases,cursor on line N (def
 key,z,z-,,done,lines that don't wrap or fold; oracle cases,"redraw, cursor line at bottom of window,"
 key,z,z.,,done,lines that don't wrap or fold; oracle cases,"redraw, cursor line to center of window,"
 key,z,z=,,missing,,give spelling suggestions
-key,z,zA,,missing,,open a closed fold or close an open fold
-key,z,zC,,missing,,close folds recursively
-key,z,zD,,missing,,delete folds recursively
-key,z,zE,,missing,,eliminate all folds
-key,z,zF,,missing,,create a fold for N lines
+key,z,zA,,done,"folds from tree-sitter fold queries, else from indent; fold oracle cases",open a closed fold or close an open fold
+key,z,zC,,done,"folds from tree-sitter fold queries, else from indent; fold oracle cases",close folds recursively
+key,z,zD,,partial,"E351: no manual or marker folds, as Neovim under 'foldmethod' expr and indent",delete folds recursively
+key,z,zE,,partial,"E352: no manual or marker folds, as Neovim under 'foldmethod' expr and indent",eliminate all folds
+key,z,zF,,partial,"E350: no manual or marker folds, as Neovim under 'foldmethod' expr and indent",create a fold for N lines
 key,z,zG,,deferred,spell checking,temporarily mark word as correctly spelled
 key,z,zH,,missing,,when 'wrap' off scroll half a screenwidth
 key,z,zL,,missing,,when 'wrap' off scroll half a screenwidth
-key,z,zM,,missing,,set 'foldlevel' to zero
-key,z,zN,,missing,,set 'foldenable'
-key,z,zO,,missing,,open folds recursively
-key,z,zR,,missing,,set 'foldlevel' to the deepest fold
+key,z,zM,,done,"folds from tree-sitter fold queries, else from indent; fold oracle cases",set 'foldlevel' to zero
+key,z,zN,,done,"folds from tree-sitter fold queries, else from indent; fold oracle cases",set 'foldenable'
+key,z,zO,,done,"folds from tree-sitter fold queries, else from indent; fold oracle cases",open folds recursively
+key,z,zR,,done,"folds from tree-sitter fold queries, else from indent; fold oracle cases",set 'foldlevel' to the deepest fold
 key,z,zW,,deferred,spell checking,temporarily mark word as incorrectly spelled
-key,z,zX,,missing,,re-apply 'foldlevel'
+key,z,zX,,done,"folds from tree-sitter fold queries, else from indent; fold oracle cases",re-apply 'foldlevel'
 key,z,z^,,done,lines that don't wrap or fold; oracle cases,cursor on line N (default line above
-key,z,za,,missing,,"open a closed fold, close an open fold"
+key,z,za,,done,"folds from tree-sitter fold queries, else from indent; fold oracle cases","open a closed fold, close an open fold"
 key,z,zb,,done,lines that don't wrap or fold; oracle cases,"redraw, cursor line at bottom of window"
-key,z,zc,,missing,,close a fold
-key,z,zd,,missing,,delete a fold
+key,z,zc,,done,"folds from tree-sitter fold queries, else from indent; fold oracle cases",close a fold
+key,z,zd,,partial,"E351: no manual or marker folds, as Neovim under 'foldmethod' expr and indent",delete a fold
 key,z,ze,,missing,,when 'wrap' off scroll horizontally to
-key,z,zf{motion},,missing,,create a fold for Nmove text
+key,z,zf{motion},,partial,"E350: no manual or marker folds, as Neovim under 'foldmethod' expr and indent",create a fold for Nmove text
 key,z,zg,,deferred,spell checking,permanently mark word as correctly spelled
 key,z,zh,,missing,,when 'wrap' off scroll screen N characters
-key,z,zi,,missing,,toggle 'foldenable'
-key,z,zj,motion,missing,,move to the start of the next fold
-key,z,zk,motion,missing,,move to the end of the previous fold
+key,z,zi,,done,"folds from tree-sitter fold queries, else from indent; fold oracle cases",toggle 'foldenable'
+key,z,zj,motion,partial,moves the cursor; not a motion for operators,move to the start of the next fold
+key,z,zk,motion,partial,moves the cursor; not a motion for operators,move to the end of the previous fold
 key,z,zl,,missing,,when 'wrap' off scroll screen N characters
-key,z,zm,,missing,,subtract one from 'foldlevel'
-key,z,zn,,missing,,reset 'foldenable'
-key,z,zo,,missing,,open fold
+key,z,zm,,done,"folds from tree-sitter fold queries, else from indent; fold oracle cases",subtract one from 'foldlevel'
+key,z,zn,,done,"folds from tree-sitter fold queries, else from indent; fold oracle cases",reset 'foldenable'
+key,z,zo,,done,"folds from tree-sitter fold queries, else from indent; fold oracle cases",open fold
 key,z,zp,,missing,,paste in block-mode without trailing spaces
 key,z,zP,,missing,,paste in block-mode without trailing spaces
-key,z,zr,,missing,,add one to 'foldlevel'
+key,z,zr,,done,"folds from tree-sitter fold queries, else from indent; fold oracle cases",add one to 'foldlevel'
 key,z,zs,,missing,,when 'wrap' off scroll horizontally to
 key,z,zt,,done,lines that don't wrap or fold; oracle cases,"redraw, cursor line at top of window"
 key,z,zuw,,deferred,spell checking,undo |zw|
 key,z,zug,,deferred,spell checking,undo |zg|
 key,z,zuW,,deferred,spell checking,undo |zW|
 key,z,zuG,,deferred,spell checking,undo |zG|
-key,z,zv,,missing,,open enough folds to view the cursor line
+key,z,zv,,done,"folds from tree-sitter fold queries, else from indent; fold oracle cases",open enough folds to view the cursor line
 key,z,zw,,deferred,spell checking,permanently mark word as incorrectly spelled
-key,z,zx,,missing,,"re-apply 'foldlevel' and do ""zv"""
+key,z,zx,,done,"folds from tree-sitter fold queries, else from indent; fold oracle cases","re-apply 'foldlevel' and do ""zv"""
 key,z,zy,,missing,,yank without trailing spaces
 key,z,zz,,done,lines that don't wrap or fold; oracle cases,"redraw, cursor line at center of window"
 key,z,z<Left>,,missing,,"same as ""zh"""
@@ -1346,17 +1346,17 @@ option,,findfunc,ffu global+buf string,missing,,function called for :find
 option,,fixendofline,fixeol buf boolean,missing,,make sure last line in file has <EOL>
 option,,foldclose,fcl global string,missing,,close a fold when the cursor leaves it
 option,,foldcolumn,fdc win string,missing,,width of the column used to indicate folds
-option,,foldenable,fen win boolean,missing,,set to display all folds open
+option,,foldenable,fen win boolean,done,,set to display all folds open
 option,,foldexpr,fde win string,missing,,"expression used when 'foldmethod' is \""expr\"""
 option,,foldignore,fdi win string,missing,,"ignore lines when 'foldmethod' is \""indent\"""
-option,,foldlevel,fdl win number,missing,,close folds with a level higher than this
+option,,foldlevel,fdl win number,done,"default 1, the user's 'foldlevelstart' (Neovim: 0)",close folds with a level higher than this
 option,,foldlevelstart,fdls global number,missing,,'foldlevel' when starting to edit a file
 option,,foldmarker,fmr win string,missing,,"markers used when 'foldmethod' is \""marker\"""
-option,,foldmethod,fdm win string,missing,,folding type
-option,,foldminlines,fml win number,missing,,minimum number of lines for a fold to be closed
-option,,foldnestmax,fdn win number,missing,,maximum fold depth
+option,,foldmethod,fdm win string,partial,"not an option: tree-sitter folds (as 'foldexpr' vim.treesitter.foldexpr()) where the language has a fold query, else indent",folding type
+option,,foldminlines,fml win number,done,default 6 (Neovim: 1),minimum number of lines for a fold to be closed
+option,,foldnestmax,fdn win number,done,default 3 (Neovim: 20),maximum fold depth
 option,,foldopen,fdo global string,missing,,for which commands a fold will be opened
-option,,foldtext,fdt win string,missing,,expression used to display for a closed fold
+option,,foldtext,fdt win string,partial,"not an option: always foldtext()'s text, filled with fillchars' default fold character",expression used to display for a closed fold
 option,,formatexpr,fex buf string,missing,,"expression used with \""gq\"" command"
 option,,formatlistpat,flp buf string,missing,,pattern used to recognize a list header
 option,,formatoptions,fo buf string,missing,,how automatic formatting is to be done

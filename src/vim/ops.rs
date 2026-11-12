@@ -269,7 +269,20 @@ fn word_class(g: &str, big: bool) -> u8 {
 
 /// Apply operator `op` (d, c, y) to a span.
 pub fn apply_op(ed: &mut Editor, op: char, sp: Span) {
+    // A closed fold is operated on as a whole, by lines.
+    let (a, b) = match sp {
+        Span::Lines(a, b) => (a, b),
+        // The end is exclusive: column 0 leaves its line out.
+        Span::Chars(a, b) => (a.0, if b.1 == 0 && b.0 > a.0 { b.0 - 1 } else { b.0 }),
+    };
+    let (lo, hi) = (ed.fold_span(a), ed.fold_span(b));
+    let folded = lo.0 != lo.1 || hi.0 != hi.1;
+    let sp = if folded { Span::Lines(lo.0, hi.1) } else { sp };
     apply(ed, op, sp, true);
+    // Neovim leaves the cursor in column 0 after deleting a closed fold.
+    if folded && op == 'd' {
+        ed.cur.byte = 0;
+    }
 }
 
 /// `"_d`: delete into the black hole register, leaving the others alone.
@@ -427,7 +440,9 @@ pub fn put_with(ed: &mut Editor, count: usize, after: bool, past: bool) {
     if reg.linewise {
         let one: Vec<String> = reg.text.split('\n').map(String::from).collect();
         let lines: Vec<String> = std::iter::repeat_n(one, count).flatten().collect();
-        let at = if after { ed.cur.line + 1 } else { ed.cur.line };
+        // After or before the whole of a closed fold.
+        let (first, last) = ed.fold_span(ed.cur.line);
+        let at = if after { last + 1 } else { first };
         let n = lines.len();
         splice_lines(ed, at, 0, &lines);
         if past {
@@ -511,8 +526,11 @@ pub fn replace_chars(ed: &mut Editor, count: usize, c: char) -> bool {
 
 /// Open a line below (or above) with the current indentation and enter Insert.
 pub fn open_line(ed: &mut Editor, below: bool) {
-    let indent = indent_of(&ed.buf.line(ed.cur.line)).to_string();
-    let at = if below { ed.cur.line + 1 } else { ed.cur.line };
+    // Below or above the whole of a closed fold.
+    let (first, last) = ed.fold_span(ed.cur.line);
+    let from = if below { last } else { first };
+    let indent = indent_of(&ed.buf.line(from)).to_string();
+    let at = if below { from + 1 } else { from };
     splice_lines(ed, at, 0, std::slice::from_ref(&indent));
     ed.mode = Mode::Insert;
     ed.cur.line = at;

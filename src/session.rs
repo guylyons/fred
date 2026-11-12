@@ -1214,6 +1214,33 @@ impl Session {
         }
     }
 
+    /// Bring the current buffer's folds up to date with its text: from its
+    /// language's tree-sitter fold query, as Neovim's
+    /// `vim.treesitter.foldexpr()`, else from its indent.
+    pub fn sync_folds(&mut self, budget: std::time::Duration) {
+        use crate::options::Opt;
+        let ed = &mut self.ed;
+        let query = self
+            .hl
+            .ts_spec()
+            .and_then(|spec| crate::treesitter::langs::compiled(spec).folds.as_ref());
+        if let Some(query) = query.filter(|_| ed.folds_stale()) {
+            // shortcut: every line's level is computed again after a change;
+            // Neovim updates only the changed lines'.
+            match self.hl.ts_tree(&ed.buf, budget) {
+                Some((_, tree)) => {
+                    let (min, max) = (ed.opts.num(Opt::Foldminlines), ed.opts.num(Opt::Foldnestmax));
+                    let levels =
+                        crate::treesitter::folds::levels(tree, query, &ed.buf, min as usize, max as usize);
+                    ed.set_fold_levels(&levels);
+                }
+                // Still parsing: the folds stay as they were for this draw.
+                None => return ed.apply_code_folds(),
+            }
+        }
+        ed.sync_indent_folds();
+    }
+
     /// Each window on screen, the active one first: its buffer's editor
     /// (with the window's cursor in it, clamped to the text), its view, its
     /// buffer's highlighting, where it is, and whether it is active.

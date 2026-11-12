@@ -314,6 +314,25 @@ table are stale. Track 17 says "none", but splits and `:wincmd` exist, and
 track 3 says "14 global settings", but `src/options/` exists. Fix these
 the next time that roadmap is touched.
 
+## Language intelligence (outside the 100 points)
+
+Spec: `docs/superpowers/specs/2026-11-09-treesitter-lsp-design.md`. These
+stages earn no points; each ships on its own.
+
+1. **Done: tree-sitter highlighting.** 25 grammars compiled in
+   (`src/treesitter/`), coloured by the syntect theme, incremental, with
+   injections; syntect for every other language and for grep previews.
+   Plan: `docs/superpowers/plans/2026-11-09-treesitter-highlighting.md`.
+   Still open from it: the release binary (with `ghostty`) grew from
+   13.7 MB to 49.4 MB, over the spec's 25–35 MB (the SQL grammar alone is
+   about 12.8 MB), so decide which grammars stay; measure keystroke latency
+   (`FRED_LATENCY=1`, `tools/bench.py`); then update the README's size and
+   performance numbers.
+2. LSP client using servers from `PATH`: semantic tokens, diagnostics,
+   go-to-definition, hover, completion.
+3. Installer for language servers, a private Node, the job panel (GUI) and
+   status-line progress (TUI).
+
 ## Log
 
 - 2026-11-08: roadmap created from a code audit at `bc0ab89`. 0 / 100.
@@ -322,3 +341,5 @@ the next time that roadmap is touched.
 - 2026-11-09: the sidebar tree has no scroll bar; it scrolls by trackpad and wheel. No points change.
 - 2026-11-09: Material Dark colours comment delimiters (`//`, `#`, `/* */`) as the comment, not as punctuation. No points change.
 - 2026-11-11: the GUI default theme is Material Deep Ocean (`material-deep-ocean`), matching the user's Neovim: bold keywords, bold italic functions, purple types, black 90% Glass. `material-dark` stays selectable. No points change.
+- 2026-11-12: Language intelligence stage 1. Tree-sitter highlights 25 bundled languages, incrementally and with injections (Markdown fences, HTML `<script>`/`<style>`), coloured by the current syntect theme; other languages and grep previews stay on syntect. `Buffer` keeps a byte-level edit log for it. The release binary grew from 13.7 MB to 49.4 MB (over the 25–35 MB target); latency not yet measured. No points change.
+- 2026-11-12: code folding as in the user's Neovim (see `docs/nvim-core-roadmap.md`, track 21): folds come from tree-sitter fold queries (nvim-treesitter's, vendored in `queries/*/folds.scm`, 24 languages), computed as `vim.treesitter.foldexpr()` does, else from indent; Vim's `z` fold keys; 'foldlevel' 1, 'foldminlines' 6, 'foldnestmax' 3. Folds inside injected languages (a Markdown fence's code) are not computed. No points change.

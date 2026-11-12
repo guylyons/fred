@@ -2,7 +2,9 @@
 --
 --   nvim --clean --headless -l tools/nvim-oracle.lua TEXT KEYS
 -- KEYS uses Fred's (and Vim's) notation: <Esc>, <C-r>, <CR>, <BS>….
--- The last line printed is JSON: {"text", "line" (0-based), "col" (byte), "mode"}.
+-- The last line printed is JSON: {"text", "line" (0-based), "col" (byte), "mode",
+-- "closed"}; "closed" lists, per line, the first line (0-based) of the closed
+-- fold it is in, or -1. $FRED_ORACLE_SETUP is an Ex command run first.
 -- (Neovim may echo `:` commands on lines before it.)
 
 local text, keys = arg[1] or '', arg[2] or ''
@@ -13,6 +15,9 @@ vim.o.undolevels = -1
 vim.api.nvim_buf_set_lines(0, 0, -1, false, vim.split(text, '\n', { plain = true }))
 vim.o.undolevels = 1000
 vim.api.nvim_win_set_cursor(0, { 1, 0 })
+if vim.env.FRED_ORACLE_SETUP then
+  vim.cmd(vim.env.FRED_ORACLE_SETUP)
+end
 
 -- Runs as the last key (<Cmd> keeps the mode), so it sees where KEYS left off.
 function _G.FredOracleReport()
@@ -22,6 +27,9 @@ function _G.FredOracleReport()
     line = pos[1] - 1,
     col = pos[2],
     mode = vim.api.nvim_get_mode().mode,
+    closed = vim.tbl_map(function(l)
+      return math.max(vim.fn.foldclosed(l), 0) - 1
+    end, vim.fn.range(1, vim.fn.line('$'))),
   }), '\n')
 end
 

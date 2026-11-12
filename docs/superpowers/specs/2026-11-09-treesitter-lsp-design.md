@@ -131,9 +131,15 @@ at run time, Windows.
 
 Each stage ships on its own and leaves Fred better than before:
 
-1. Tree-sitter highlighting (bundled grammars, theme mapping, incremental
+1. **Done (2026-11-12), with two acceptance items open:** keystroke
+   latency is not yet measured, and the release binary (with `ghostty`)
+   grew from 13.7 MB to 49.4 MB, over the 25–35 MB constraint above. The
+   SQL grammar alone is about 12.8 MB, Swift 4.0, C++ 3.3, TypeScript + TSX
+   2.8.
+   Tree-sitter highlighting (bundled grammars, theme mapping, incremental
    parsing, injections). Acceptance: latency unchanged, every bundled theme
-   colours each bundled language.
+   colours each bundled language (tested:
+   `highlight::tests::every_theme_colours_every_bundled_language`).
 2. LSP client using servers from `PATH`, with all phase-1 features.
 3. Installer, private Node, job panel (GUI) and status-line progress (TUI).
 

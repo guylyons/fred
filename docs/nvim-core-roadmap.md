@@ -46,7 +46,7 @@ track.
 | 18 | Mappings, abbreviations, user commands | 5 | 0 | mappings and abbreviations (`src/vim/mappings.rs`), `:source`; no 'timeout', `:command` |
 | 19 | Autocommands | 3 | 0 | none |
 | 20 | Undo tree, `:earlier`/`:later`, undofile | 3 | 3 | undo tree (`src/undo.rs`): `g-` `g+`, `:undo N`/`:undo!`, `:earlier`/`:later` (count, time, writes), `:undojoin`, `:undolist`, `:wundo`/`:rundo`, 'undolevels' 'undofile' 'undodir' 'undoreload'; accepted 2026-10-26 (no `:{N}undo`) |
-| 21 | Folding (`z` commands, foldmethods) | 3 | 0 | Org-only hidden ranges |
+| 21 | Folding (`z` commands, foldmethods) | 3 | 0 | folds from tree-sitter fold queries or indent (`src/fold.rs`, `src/vim/fold.rs`): `zo zO zc zC za zA zv zx zX zm zM zr zR zn zN zi zj zk [z ]z`, closed folds as one line for `j`/`k` and operators, 'foldenable' 'foldlevel' 'foldminlines' 'foldnestmax'; no manual/marker/syntax methods, `:fold*`, 'foldopen', 'foldcolumn' |
 | 22 | Quickfix, location lists, `:grep`, `:make`, tags | 5 | 0 | pickers stand in |
 | 23 | Option behaviors (statusline, listchars, scrolloff, textwidth…) | 5 | 0 | a few |
 | | Total | 100 | 6 | |
@@ -362,3 +362,22 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
   rather than going to column 0 (Neovim's default `filetype indent on`
   would use 'indentexpr' there). Ledger: `={motion}`, `==`, Visual `=`
   partial. Oracle: 1190 cases.
+- 2026-11-12: folding (track 21, not yet accepted): Vim's fold model in
+  `src/fold.rs` (`CodeFolds`: nested folds from line levels, opened or
+  closed by hand or by 'foldlevel'), the `z` fold commands in
+  `src/vim/fold.rs`, closed folds drawn with `foldtext()`'s text. Levels
+  come from a language's tree-sitter fold query, computed as Neovim's
+  `vim.treesitter.foldexpr()` does, else from indent ('foldmethod'
+  indent). Defaults follow the user's Neovim: 'foldlevel' 1,
+  'foldminlines' 6, 'foldnestmax' 3. `j`/`k`, linewise and charwise
+  operators, `o`/`O` and `p`/`P` treat a closed fold as one line; typing
+  opens the cursor's folds. A second oracle test (`folds_match_neovim`,
+  74 cases, 'foldmethod' indent) compares closed folds, text and cursor.
+  'foldopen' is fixed at Neovim's default: search, marks, `%`, block
+  motions, moves along the line and undo open the folds they land in.
+  Known differences: `zj` `zk` `[z` `]z` are not operator motions;
+  `>>` on a closed fold leaves it closed; `w` on a closed fold opens it
+  rather than going past it; folds of a buffer shown in a
+  second window are those it had when last current; a closed fold's
+  first line counts its wrapped rows when scrolling. Ledger: 16 `z`
+  keys done, 9 partial, 4 options done.

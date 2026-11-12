@@ -173,6 +173,15 @@ pub struct Editor {
     pub magit: Option<Box<crate::magit::View>>,
     /// Hidden line ranges (Org visibility).
     pub folds: crate::fold::Folds,
+    /// Vim's folds, for a buffer [`Editor::has_code_folds`]: their closed
+    /// lines are `folds`' hidden ranges.
+    pub code_folds: crate::fold::CodeFolds,
+    /// The cursor waits on a closed fold's first line: that line, where the
+    /// cursor was inside the fold (line, byte), and the buffer's version.
+    /// Opening the fold puts it back, as Vim keeps the cursor in the fold.
+    pub fold_cur: Option<(usize, (usize, usize), u64)>,
+    /// Text was typed since the folds were last computed.
+    pub fold_typed: bool,
     /// Org-mode state when this buffer visits an Org file.
     pub org: Option<Box<crate::org::Org>>,
     /// A generated Org buffer (agenda and other views).
@@ -288,6 +297,9 @@ impl Editor {
             term: None,
             magit: None,
             folds: crate::fold::Folds::default(),
+            code_folds: crate::fold::CodeFolds::default(),
+            fold_cur: None,
+            fold_typed: false,
             org: None,
             org_view: None,
             org_then: None,
@@ -605,7 +617,9 @@ impl Editor {
             self.popup = None;
         }
         self.sync_marks();
-        if self.folds.hidden(self.cur.line) {
+        if self.has_code_folds() {
+            self.apply_code_folds();
+        } else if self.folds.hidden(self.cur.line) {
             self.reveal_cursor();
         }
         if !self.undo.in_group() {
@@ -660,6 +674,124 @@ impl Editor {
     /// Yanks and puts share the system clipboard ('clipboard').
     pub fn clipboard(&self) -> bool {
         !self.opts.str(Opt::Clipboard).is_empty()
+    }
+
+    /// Vim's folds apply: a file's text, not Org (which folds by its own
+    /// rules) or a special buffer.
+    pub fn has_code_folds(&self) -> bool {
+        self.org.is_none()
+            && self.magit.is_none()
+            && self.blob.is_none()
+            && self.dired.is_none()
+            && self.occur.is_none()
+            && self.claude.is_none()
+            && self.term.is_none()
+            && self.draw.is_none()
+    }
+
+    pub fn fold_opts(&self) -> crate::fold::FoldOpts {
+        crate::fold::FoldOpts {
+            enable: self.opts.bool(Opt::Foldenable),
+            level: self.opts.num(Opt::Foldlevel) as usize,
+            minlines: self.opts.num(Opt::Foldminlines) as usize,
+        }
+    }
+
+    /// The folds' levels are out of date with the text. As in Neovim, they
+    /// wait for Insert mode to end.
+    pub fn folds_stale(&self) -> bool {
+        self.has_code_folds()
+            && self.mode != Mode::Insert
+            && self.code_folds.synced != Some((self.buf.id, self.buf.version))
+    }
+
+    /// New line levels for the text as it is now.
+    pub fn set_fold_levels(&mut self, levels: &[crate::fold::Level]) {
+        self.code_folds.set_levels(levels);
+        self.code_folds.synced = Some((self.buf.id, self.buf.version));
+    }
+
+    /// 'foldmethod' indent: bring the folds up to date and show them.
+    pub fn sync_indent_folds(&mut self) {
+        if self.folds_stale() {
+            // shortcut: every line's level is computed again after a change;
+            // update only the changed lines' if huge files get slow.
+            let levels = crate::fold::indent_levels(
+                (0..self.line_count()).map(|l| self.buf.line(l)),
+                self.shiftwidth(),
+                self.tabstop(),
+                self.opts.num(Opt::Foldnestmax) as usize,
+            );
+            self.set_fold_levels(&levels);
+        }
+        self.apply_code_folds();
+    }
+
+    /// 'foldopen': the cursor's folds open (after a search, a mark, `%`, a
+    /// move along the line, undo).
+    pub fn open_folds_here(&mut self) {
+        if self.has_code_folds() {
+            let o = self.fold_opts();
+            // A cursor waiting on the fold goes back into it.
+            self.code_folds.view(self.cur.line, o);
+            self.apply_code_folds();
+        }
+    }
+
+    /// The lines of the closed fold showing at `l`, else `l` alone.
+    pub fn fold_span(&self, l: usize) -> (usize, usize) {
+        let hidden = || self.folds.range_at(l).or_else(|| self.folds.range_at(l + 1));
+        match hidden().filter(|_| self.has_code_folds()) {
+            Some((s, e)) => (s - 1, e),
+            None => (l, l),
+        }
+    }
+
+    /// Hide the lines of closed folds. A cursor inside one waits on its
+    /// first line; typing opens the cursor's folds.
+    pub fn apply_code_folds(&mut self) {
+        if !self.has_code_folds() {
+            return;
+        }
+        let o = self.fold_opts();
+        let waiting = self.fold_cur.take();
+        // Typing keeps the cursor's folds open, also the ones its text made.
+        if self.mode == Mode::Insert {
+            self.fold_typed = true;
+        }
+        if self.fold_typed {
+            self.code_folds.view(self.cur.line, o);
+            self.fold_typed = self.mode == Mode::Insert || self.folds_stale();
+        }
+        match (self.code_folds.closed_at(self.cur.line, o), waiting) {
+            // Still on the closed fold.
+            (Some((s, _)), Some(w)) if w.0 == s && self.cur.line == s => self.fold_cur = Some(w),
+            (Some((s, _)), _) if s != self.cur.line => {
+                self.fold_cur = Some((s, self.cur.pos(), self.buf.version));
+                self.set_cursor(s, 0);
+            }
+            // The fold opened: back to where the cursor was in it.
+            (None, Some((s, (l, b), v))) if s == self.cur.line && v == self.buf.version => {
+                self.set_cursor(l, b);
+            }
+            _ => {}
+        }
+        self.folds.clear();
+        for (s, e) in self.code_folds.closed_ranges(o) {
+            self.folds.hide(s + 1, e);
+        }
+    }
+
+    /// The closed fold shown on line `l`: its last line and Vim's
+    /// `foldtext()`.
+    pub fn closed_fold(&self, l: usize) -> Option<(usize, String)> {
+        if !self.has_code_folds() || !self.folds.folded_after(l) {
+            return None;
+        }
+        let (_, e) = self.folds.range_at(l + 1)?;
+        let text = self.buf.line(l).trim_start().replace('\t', " ");
+        let dashes = "-".repeat(self.code_folds.level(l));
+        Some((e, format!("+-{dashes}{:3} lines: {text}", e - l + 1)))
     }
 
     /// Generated Git text (status/log/diff views and blobs) is never edited or saved.
@@ -733,6 +865,8 @@ impl Editor {
     pub fn reveal_cursor(&mut self) {
         if self.org.is_some() {
             crate::org::fold::show_context(self, self.cur.line);
+        } else if self.has_code_folds() {
+            self.open_folds_here();
         } else if let Some((s, e)) = self.folds.range_at(self.cur.line) {
             self.folds.show(s, e);
         }
@@ -793,6 +927,7 @@ impl Editor {
     /// what follows lines.
     fn line_change(&mut self, at: usize, removed: usize, inserted: usize) {
         self.folds.line_change(at, removed, inserted);
+        self.code_folds.line_change(at, removed, inserted);
         if let Some(o) = &mut self.org {
             o.specs.line_change(at, removed, inserted);
         }
@@ -1189,6 +1324,7 @@ impl Editor {
                         vim::marks::setpcmark(self);
                         self.search_next(false);
                         vim::marks::checkpcmark(self);
+                        self.open_folds_here();
                     }
                 }
             }
