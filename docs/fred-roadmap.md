@@ -321,3 +321,4 @@ the next time that roadmap is touched.
 - 2026-11-09: the GUI's trackpad scroll stops at line 1; the rubber band stays only past the last line. No points change.
 - 2026-11-09: the sidebar tree has no scroll bar; it scrolls by trackpad and wheel. No points change.
 - 2026-11-09: Material Dark colours comment delimiters (`//`, `#`, `/* */`) as the comment, not as punctuation. No points change.
+- 2026-11-11: the GUI default theme is Material Deep Ocean (`material-deep-ocean`), matching the user's Neovim: bold keywords, bold italic functions, purple types, black 90% Glass. `material-dark` stays selectable. No points change.

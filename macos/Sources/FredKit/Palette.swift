@@ -4,34 +4,29 @@ public struct Palette: Sendable {
     public var fg: NSColor
     public var bg: NSColor
     /// The selection: a fill a little lighter than `bg`, and its border.
-    public var selFill = rgb(0x404040)
-    public var selBorder = rgb(0x5a5a5a)
+    public var selFill = rgb(0x1f2233)
+    public var selBorder = rgb(0x2d3450)
 
     public init(fg: NSColor, bg: NSColor) {
         self.fg = fg
         self.bg = bg
     }
 
-    /// The default: Material Theme Darker, matching the core's `material-dark` syntax theme.
-    public static var materialDark: Palette { Palette(fg: rgb(0xeeffff), bg: rgb(0x212121)) }
+    /// The default: Material Deep Ocean, matching the core's `material-deep-ocean` syntax theme.
+    public static var deepOcean: Palette { Palette(fg: rgb(0xa6accd), bg: rgb(0x0f111a)) }
 
-    /// Glass: the user's Ghostty look (Material Ocean, their overrides), 90%
-    /// opaque so the blurred desktop shows through.
-    public static var glass: Palette {
-        var p = Palette(fg: rgb(0xc9cedc), bg: rgb(0x101521).withAlphaComponent(0.9))
-        p.selFill = rgb(0x2d3450)
-        p.selBorder = rgb(0x3d4566)
-        return p
-    }
+    /// Glass: Deep Ocean over the user's Ghostty background, black at 90%, so
+    /// the blurred desktop shows through as it does behind their Neovim.
+    public static var glass: Palette { Palette(fg: rgb(0xa6accd), bg: rgb(0x000000).withAlphaComponent(0.9)) }
 
     /// True when the background lets the desktop show through.
     public var clear: Bool { bg.alphaComponent < 1 }
 
-    // Material Dark ANSI set, ratatui order: black, red, green, yellow, blue,
+    // Material ANSI set (dark gray is Deep Ocean's comment color), ratatui order: black, red, green, yellow, blue,
     // magenta, cyan, gray, then the dark gray and bright variants.
     static let ansi: [Int] = [
         0x000000, 0xf07178, 0xc3e88d, 0xffcb6b, 0x82aaff, 0xc792ea, 0x89ddff, 0xeeffff,
-        0x545454, 0xff5370, 0xc3e88d, 0xffcb6b, 0x82aaff, 0xc792ea, 0x89ddff, 0xffffff,
+        0x464b5d, 0xff5370, 0xc3e88d, 0xffcb6b, 0x82aaff, 0xc792ea, 0x89ddff, 0xffffff,
     ]
 
     static func rgb(_ v: Int) -> NSColor {

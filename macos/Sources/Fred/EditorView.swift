@@ -10,7 +10,7 @@ final class EditorView: NSView {
     }
     static let defaultSize: CGFloat = 15
     var font = EditorView.editorFont(EditorView.defaultSize) { didSet { metricsChanged() } }
-    var palette = Palette.materialDark {
+    var palette = Palette.deepOcean {
         didSet {
             lines.removeAll()
             layer?.isOpaque = !palette.clear

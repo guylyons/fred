@@ -9,7 +9,7 @@ import QuartzCore
 final class MinimapView: NSView {
     /// Sends `scroll` with a new top for this view's window.
     var onScroll: (Int) -> Void = { _ in }
-    var palette = Palette.materialDark
+    var palette = Palette.deepOcean
 
     private var map: MapImage?
     /// The window's own line count (the frame's), so the box and clicks are

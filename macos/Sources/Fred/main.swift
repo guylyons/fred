@@ -319,11 +319,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         installSidebar(project) // the sidebar takes its color when built
     }
 
-    /// The two themes: solid Material Darker, or Glass, where only the
+    /// The two themes: solid Material Deep Ocean, or Glass, where only the
     /// bottom layer of each region paints the 90% tint so it isn't doubled.
     private func applyTheme() {
         let image = backgroundImage
-        var p = glass || image != nil ? Palette.glass : .materialDark
+        var p = glass || image != nil ? Palette.glass : .deepOcean
         if image != nil { p.bg = p.bg.withAlphaComponent(0.88) }
         view.palette = p
         let chrome = p.bg.blended(withFraction: 0.12, of: .black)!

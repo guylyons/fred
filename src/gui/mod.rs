@@ -127,9 +127,9 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
         Some(LineArg::Last) => s.goto_line(None),
         None => {}
     }
-    // The terminal's "ansi" default follows the terminal's colors; the GUI has none, so it gets Material Dark.
+    // The terminal's "ansi" default follows the terminal's colors; the GUI has none, so it gets Material Deep Ocean.
     let theme = if cfg.theme == "ansi" {
-        "material-dark"
+        "material-deep-ocean"
     } else {
         &cfg.theme
     };

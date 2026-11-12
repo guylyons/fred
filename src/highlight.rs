@@ -23,8 +23,11 @@ fn syntaxes() -> &'static SyntaxSet {
 }
 
 fn find_theme(name: &str) -> Option<Theme> {
-    if name.eq_ignore_ascii_case("material-dark") {
-        let src = include_str!("../assets/themes/material-dark.tmTheme");
+    let own = [
+        ("material-dark", include_str!("../assets/themes/material-dark.tmTheme")),
+        ("material-deep-ocean", include_str!("../assets/themes/material-deep-ocean.tmTheme")),
+    ];
+    if let Some((_, src)) = own.iter().find(|(n, _)| name.eq_ignore_ascii_case(n)) {
         return ThemeSet::load_from_reader(&mut std::io::Cursor::new(src)).ok();
     }
     let set = two_face::theme::extra();
@@ -317,6 +320,21 @@ mod tests {
             st.iter().any(|(s, r)| r.start == 0 && s.fg == purple),
             "{st:?}"
         );
+    }
+
+    #[test]
+    fn deep_ocean_matches_nvim_styles() {
+        let h = Highlighter::new("material-deep-ocean", true).unwrap();
+        let st = h.one_line(Path::new("x.rs"), "fn main() { a + 1 } // hi").unwrap();
+        let has = |at: usize, rgb: (u8, u8, u8), m: Modifier| {
+            st.iter().any(|(s, r)| {
+                r.contains(&at) && s.fg == Some(Color::Rgb(rgb.0, rgb.1, rgb.2)) && s.add_modifier == m
+            })
+        };
+        assert!(has(0, (0xc7, 0x92, 0xea), Modifier::BOLD), "{st:?}");
+        assert!(has(3, (0x82, 0xaa, 0xff), Modifier::BOLD | Modifier::ITALIC), "{st:?}");
+        assert!(has(14, (0x89, 0xdd, 0xff), Modifier::empty()), "{st:?}"); // an operator is not a bold keyword
+        assert!(has(22, (0x46, 0x4b, 0x5d), Modifier::ITALIC), "{st:?}");
     }
 
     #[test]

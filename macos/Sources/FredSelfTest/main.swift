@@ -33,12 +33,12 @@ func hex(_ c: NSColor) -> Int {
     let s = c.usingColorSpace(.sRGB)!
     return Int((s.redComponent * 255).rounded()) << 16 | Int((s.greenComponent * 255).rounded()) << 8 | Int((s.blueComponent * 255).rounded())
 }
-let md = Palette.materialDark
-check("material dark bg", hex(md.bg) == 0x212121)
-check("material dark fg", hex(md.fg) == 0xeeffff)
-check("material dark ansi", (0..<16).map { hex(md.color($0, default: .clear)) } == [
+let md = Palette.deepOcean
+check("deep ocean bg", hex(md.bg) == 0x0f111a)
+check("deep ocean fg", hex(md.fg) == 0xa6accd)
+check("ansi", (0..<16).map { hex(md.color($0, default: .clear)) } == [
     0x000000, 0xf07178, 0xc3e88d, 0xffcb6b, 0x82aaff, 0xc792ea, 0x89ddff, 0xeeffff,
-    0x545454, 0xff5370, 0xc3e88d, 0xffcb6b, 0x82aaff, 0xc792ea, 0x89ddff, 0xffffff,
+    0x464b5d, 0xff5370, 0xc3e88d, 0xffcb6b, 0x82aaff, 0xc792ea, 0x89ddff, 0xffffff,
 ])
 check("snap 2x", snap(10.3, scale: 2) == 10.5)
 check("snap 1x", snap(10.3, scale: 1) == 10.0)
