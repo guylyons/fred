@@ -48,6 +48,8 @@ pub struct Config {
     /// `[set]`: Neovim options by name (`tabstop = 4`, `wrap = true`), as
     /// `:set` would set them.
     pub set: SetTable,
+    /// `[[package]]`: the packages `fred pack sync` installs.
+    pub package: Vec<crate::pack::manifest::PackageEntry>,
 }
 
 /// The `[set]` table.
@@ -96,6 +98,7 @@ impl Default for Config {
             org: OrgTable::default(),
             magit: MagitOptions::default(),
             set: SetTable::default(),
+            package: vec![],
         }
     }
 }
@@ -150,7 +153,7 @@ impl Config {
                 Config::default(),
                 Some("config: height must be at least 1".into()),
             ),
-            Ok(c) => match c.options() {
+            Ok(c) => match c.package.iter().try_for_each(|p| p.check()).and_then(|_| c.options()) {
                 Ok(_) => (c, None),
                 Err(e) => (Config::default(), Some(format!("config: {e}"))),
             },
@@ -212,6 +215,14 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn package_entries_parse_and_are_checked() {
+        let (c, err) = Config::parse("[[package]]\ngit = \"https://x/y\"\npath = \"lang/rust\"\n");
+        assert_eq!((c.package.len(), err), (1, None));
+        let (c, err) = Config::parse("[[package]]\npath = \"lang/rust\"\n");
+        assert!(c.package.is_empty() && err.unwrap().contains("one of"));
+    }
 
     #[test]
     fn defaults() {

@@ -19,6 +19,7 @@ pub mod magit;
 pub mod menu;
 pub mod occur;
 pub mod options;
+pub mod pack;
 pub mod org;
 pub mod pick;
 pub mod remote;

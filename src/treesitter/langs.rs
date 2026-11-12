@@ -1,7 +1,9 @@
-//! The bundled grammars and their queries.
+//! The languages: bundled grammars and installed packages', with their queries.
 
-use std::path::Path;
-use std::sync::OnceLock;
+use crate::pack::installed::Installed;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
 use tree_sitter::{Language, Query};
 
 pub struct LangSpec {
@@ -14,7 +16,7 @@ pub struct LangSpec {
     pub file_names: &'static [&'static str],
     /// Interpreter names: "python3", "bash", "node", …
     pub shebangs: &'static [&'static str],
-    pub language: fn() -> Language,
+    pub language: Source,
     /// Concatenated in order (TypeScript = JavaScript's + TypeScript's; C++ = C's + C++'s).
     pub highlights: &'static [&'static str],
     pub injections: &'static [&'static str],
@@ -24,6 +26,20 @@ pub struct LangSpec {
     /// Most queries are written for the later one to win (generic
     /// `(identifier) @variable` first); Go's is written the other way round.
     pub earlier_wins: bool,
+}
+
+/// Where a language's grammar comes from.
+#[derive(Clone, Copy)]
+pub enum Source {
+    Bundled(fn() -> Language),
+    /// A package's compiled grammar and the directories of its query
+    /// files, read in order.
+    Library {
+        package: &'static str,
+        path: &'static Path,
+        symbol: &'static str,
+        queries: &'static [PathBuf],
+    },
 }
 
 pub struct Compiled {
@@ -44,7 +60,7 @@ const fn lang(
         extensions: &[],
         file_names: &[],
         shebangs: &[],
-        language,
+        language: Source::Bundled(language),
         highlights,
         injections: &[],
         folds: &[],
@@ -264,13 +280,91 @@ pub static LANGS: &[LangSpec] = &[
     },
 ];
 
+/// The grammars of installed packages, set once at startup. A package's
+/// language comes before a bundled one for the same file.
+static PACKAGES: OnceLock<Vec<LangSpec>> = OnceLock::new();
+/// Why packages aren't used, and how many of them [`new_errors`] has given.
+static ERRORS: Mutex<(Vec<String>, usize)> = Mutex::new((vec![], 0));
+
+/// A package can't be used: "name: why".
+pub fn report(error: String) {
+    ERRORS.lock().unwrap().0.push(error);
+}
+
+fn leak(s: &str) -> &'static str {
+    Box::leak(s.to_string().into_boxed_str())
+}
+
+fn leak_all(v: &[String]) -> &'static [&'static str] {
+    Box::leak(v.iter().map(|s| leak(s)).collect::<Vec<_>>().into_boxed_slice())
+}
+
+/// Add the installed packages' grammars. Call once, before the first file
+/// is opened; nothing is loaded or compiled until a file needs it.
+pub fn add_packages(installed: &[Installed]) {
+    let specs = installed
+        .iter()
+        .filter_map(|p| {
+            let g = p.manifest.grammar.as_ref()?;
+            // Inherited packages' queries first, then its own.
+            let mut dirs = vec![];
+            for name in &g.inherits {
+                match installed.iter().find(|i| &i.manifest.name == name) {
+                    Some(i) => dirs.push(i.dir.join("queries")),
+                    None => {
+                        report(format!("{}: inherits {name}, which is not installed", p.manifest.name));
+                        return None;
+                    }
+                }
+            }
+            dirs.push(p.dir.join("queries"));
+            Some(LangSpec {
+                injection_names: leak_all(&g.injection_names),
+                extensions: leak_all(&g.extensions),
+                file_names: leak_all(&g.file_names),
+                shebangs: leak_all(&g.shebangs),
+                language: Source::Library {
+                    package: leak(&p.manifest.name),
+                    path: Box::leak(p.dir.join(crate::pack::sync::library_name()).into_boxed_path()),
+                    symbol: leak(&format!("tree_sitter_{}", g.name)),
+                    queries: Box::leak(dirs.into_boxed_slice()),
+                },
+                ..lang(leak(&g.status_name), || unreachable!(), &[])
+            })
+        })
+        .collect();
+    let _ = PACKAGES.set(specs);
+}
+
+/// Package errors not given before (the message line shows each once).
+pub fn new_errors() -> Vec<String> {
+    let mut e = ERRORS.lock().unwrap();
+    let len = e.0.len();
+    let from = std::mem::replace(&mut e.1, len);
+    e.0[from..].to_vec()
+}
+
+/// Every package error so far (`:pack list`).
+pub fn errors() -> Vec<String> {
+    ERRORS.lock().unwrap().0.clone()
+}
+
+/// Every language: the packages', then the bundled ones.
+pub fn all() -> impl Iterator<Item = &'static LangSpec> {
+    PACKAGES.get().into_iter().flatten().chain(LANGS)
+}
+
+/// The first language `f` picks whose grammar loads.
+fn find(f: &dyn Fn(&LangSpec) -> bool) -> Option<&'static LangSpec> {
+    all().find(|s| f(s) && try_compiled(s).is_ok())
+}
+
 /// File name, then extension, then a `#!` first line.
 pub fn for_file(path: Option<&Path>, first_line: &str) -> Option<&'static LangSpec> {
     let name = path.and_then(|p| p.file_name()).and_then(|n| n.to_str());
     let ext = path.and_then(|p| p.extension()).and_then(|e| e.to_str());
-    let by = |f: &dyn Fn(&LangSpec) -> bool| LANGS.iter().find(|s| f(s));
-    name.and_then(|n| by(&|s| s.file_names.contains(&n)))
-        .or_else(|| ext.and_then(|e| by(&|s| s.extensions.iter().any(|x| x.eq_ignore_ascii_case(e)))))
+    name.and_then(|n| find(&|s| s.file_names.contains(&n)))
+        .or_else(|| ext.and_then(|e| find(&|s| s.extensions.iter().any(|x| x.eq_ignore_ascii_case(e)))))
         .or_else(|| {
             // "#!/usr/bin/env -S python3 -u" → "python3"
             let mut words = first_line.strip_prefix("#!")?.split_whitespace();
@@ -278,44 +372,139 @@ pub fn for_file(path: Option<&Path>, first_line: &str) -> Option<&'static LangSp
             if prog == "env" {
                 prog = words.find(|w| !w.starts_with('-'))?;
             }
-            by(&|s| s.shebangs.contains(&prog))
+            find(&|s| s.shebangs.contains(&prog))
         })
 }
 
 /// Case-insensitive.
 pub fn by_injection_name(name: &str) -> Option<&'static LangSpec> {
-    LANGS
-        .iter()
-        .find(|s| s.injection_names.iter().any(|n| n.eq_ignore_ascii_case(name)))
+    find(&|s| s.injection_names.iter().any(|n| n.eq_ignore_ascii_case(name)))
 }
 
-/// Queries compiled once per language.
-pub fn compiled(spec: &'static LangSpec) -> &'static Compiled {
-    static CELLS: OnceLock<Vec<OnceLock<Compiled>>> = OnceLock::new();
-    let cells = CELLS.get_or_init(|| LANGS.iter().map(|_| OnceLock::new()).collect());
-    let i = LANGS
-        .iter()
-        .position(|s| std::ptr::eq(s, spec))
-        .expect("a LangSpec from LANGS");
-    cells[i].get_or_init(|| {
-        let language = (spec.language)();
-        let query = |parts: &[&str], what: &str| {
-            Query::new(&language, &parts.join("\n"))
-                .unwrap_or_else(|err| panic!("{} ({what}): {err}", spec.name))
-        };
-        let optional = |parts: &[&str], what: &str| (!parts.is_empty()).then(|| query(parts, what));
-        Compiled {
-            highlights: query(spec.highlights, "highlights"),
-            injections: optional(spec.injections, "injections"),
-            folds: optional(spec.folds, "folds"),
-            language,
-        }
+/// A package's grammar from its library, and its query files' text.
+fn load(path: &Path, symbol: &str, dirs: &[PathBuf]) -> Result<(Language, [String; 3]), String> {
+    // The library stays loaded for the life of the process: trees and
+    // queries point into it.
+    let lib = unsafe { libloading::Library::new(path) }.map_err(|e| format!("{}: {e}", path.display()))?;
+    let lib = Box::leak(Box::new(lib));
+    let f = unsafe { lib.get::<unsafe extern "C" fn() -> *const ()>(symbol.as_bytes()) }
+        .map_err(|_| format!("no {symbol} in {}", path.display()))?;
+    let language = Language::new(unsafe { tree_sitter_language::LanguageFn::from_raw(*f) });
+    let abi = language.abi_version();
+    if !(tree_sitter::MIN_COMPATIBLE_LANGUAGE_VERSION..=tree_sitter::LANGUAGE_VERSION).contains(&abi) {
+        return Err(format!(
+            "grammar ABI {abi}, Fred reads {} to {}",
+            tree_sitter::MIN_COMPATIBLE_LANGUAGE_VERSION,
+            tree_sitter::LANGUAGE_VERSION
+        ));
+    }
+    let read = |what: &str| -> String {
+        let files = dirs.iter().map(|d| d.join(format!("{what}.scm")));
+        files.filter_map(|f| std::fs::read_to_string(f).ok()).collect::<Vec<_>>().join("\n")
+    };
+    Ok((language, [read("highlights"), read("injections"), read("folds")]))
+}
+
+fn compile(spec: &LangSpec) -> Result<Compiled, String> {
+    let (language, [highlights, injections, folds]) = match spec.language {
+        Source::Bundled(f) => (f(), [spec.highlights, spec.injections, spec.folds].map(|p| p.join("\n"))),
+        Source::Library { path, symbol, queries, .. } => load(path, symbol, queries)?,
+    };
+    let query = |text: &str, what: &str| {
+        Query::new(&language, text).map_err(|err| format!("{what} query: {err}"))
+    };
+    let optional = |text: &str, what: &str| (!text.trim().is_empty()).then(|| query(text, what)).transpose();
+    Ok(Compiled {
+        highlights: query(&highlights, "highlights")?,
+        injections: optional(&injections, "injections")?,
+        folds: optional(&folds, "folds")?,
+        language,
     })
+}
+
+/// The language's grammar and queries, loaded and compiled once. A
+/// package's failure is kept, and reported through [`new_errors`].
+pub fn try_compiled(spec: &'static LangSpec) -> Result<&'static Compiled, &'static str> {
+    static CELLS: Mutex<Option<HashMap<usize, &'static Result<Compiled, String>>>> = Mutex::new(None);
+    let key = spec as *const LangSpec as usize;
+    let mut cells = CELLS.lock().unwrap();
+    let cell = cells.get_or_insert_with(HashMap::new).entry(key).or_insert_with(|| {
+        let result = compile(spec);
+        if let (Err(e), Source::Library { package, .. }) = (&result, &spec.language) {
+            report(format!("{package}: {e}"));
+        }
+        Box::leak(Box::new(result))
+    });
+    cell.as_ref().map_err(String::as_str)
+}
+
+/// As [`try_compiled`], for a language [`for_file`] or
+/// [`by_injection_name`] gave (they skip a package that fails), or a
+/// bundled one (a bad bundled query is a bug: tests compile them all).
+pub fn compiled(spec: &'static LangSpec) -> &'static Compiled {
+    try_compiled(spec).unwrap_or_else(|err| panic!("{}: {err}", spec.name))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The fixture JSON grammar as an installed package claiming `exts`,
+    /// with `highlights` as its highlight query.
+    fn package(dir: &Path, name: &str, c_source: Option<&str>, symbol: &str, exts: &[&str], highlights: &str) -> Installed {
+        use crate::pack::sync::{compile, library_name, tests::FIXTURE};
+        let pkg = dir.join(name);
+        std::fs::create_dir_all(pkg.join("queries")).unwrap();
+        let src = match c_source {
+            Some(c) => {
+                std::fs::create_dir_all(pkg.join("src")).unwrap();
+                std::fs::write(pkg.join("src/parser.c"), c).unwrap();
+                pkg.join("src")
+            }
+            None => Path::new(FIXTURE).join("src"),
+        };
+        compile(&src, &pkg.join(library_name())).unwrap();
+        std::fs::write(pkg.join("queries/highlights.scm"), highlights).unwrap();
+        std::fs::write(pkg.join("queries/folds.scm"), "[(object) (array)] @fold").unwrap();
+        let exts: Vec<String> = exts.iter().map(|e| format!("{e:?}")).collect();
+        let manifest = format!(
+            "name = {name:?}\n[grammar]\nname = {symbol:?}\nsource = \"x\"\nrev = \"x\"\nstatus_name = {name:?}\nextensions = [{}]\n",
+            exts.join(",")
+        );
+        Installed { manifest: crate::pack::manifest::Manifest::parse(&manifest).unwrap(), dir: pkg }
+    }
+
+    // One test: the package table is set once per process.
+    #[test]
+    fn packages_add_languages_override_bundled_ones_and_fail_alone() {
+        let d = tempfile::tempdir().unwrap();
+        let abi1 = format!(
+            "#include \"{}/src/tree_sitter/parser.h\"\nstatic const TSLanguage l = {{ .version = 1 }};\nconst TSLanguage *tree_sitter_old(void) {{ return &l; }}\n",
+            crate::pack::sync::tests::FIXTURE
+        );
+        add_packages(&[
+            package(d.path(), "good", None, "json", &["jsonx", "json"], "(string) @string"),
+            package(d.path(), "wrong-abi", Some(&abi1), "old", &["oldabi"], ""),
+            package(d.path(), "bad-query", None, "json", &["badq"], "(no_such_node) @string"),
+            package(d.path(), "no-symbol", None, "missing", &["nosym"], "(string) @string"),
+        ]);
+        let f = |p: &str| for_file(Some(Path::new(p)), "").map(|s| s.name);
+        // A new extension, and a bundled one the package takes over.
+        assert_eq!((f("a.jsonx"), f("a.json")), (Some("good"), Some("good")));
+        let c = compiled(for_file(Some(Path::new("a.jsonx")), "").unwrap());
+        assert!(c.folds.is_some() && c.highlights.capture_names() == ["string"]);
+        // Each broken package is skipped (syntect takes the file) and named once.
+        assert_eq!((f("a.oldabi"), f("a.badq"), f("a.nosym"), f("a.oldabi")), (None, None, None, None));
+        let errors = super::errors();
+        assert_eq!(errors.len(), 3, "{errors:?}");
+        assert!(errors[0].starts_with("wrong-abi: grammar ABI 1, Fred reads "), "{errors:?}");
+        assert!(errors[1].starts_with("bad-query: highlights query: "), "{errors:?}");
+        assert!(errors[2].starts_with("no-symbol: no tree_sitter_missing in "), "{errors:?}");
+        assert_eq!(new_errors(), errors, "each is new once");
+        assert!(new_errors().is_empty());
+        // Bundled languages are still there.
+        assert_eq!(f("x.rs"), Some("Rust"));
+    }
 
     #[test]
     fn picks_language_by_name_extension_and_shebang() {

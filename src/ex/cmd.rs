@@ -744,6 +744,9 @@ pub const COMMANDS: &[Command] = &[
     .takes("[N]"),
     cmd("undojoin", 5, EDITOR, |_, a| on_editor("undojoin", a))
         .about("join the next change to the last one's undo block"),
+    cmd("pack", 4, EXTRA | EDITOR, |_, a| on_editor("pack", a))
+        .about("packages: install config.toml's, update them, or list them")
+        .takes("sync | update [NAME] | list"),
     cmd("undolist", 5, EDITOR, |_, a| on_editor("undolist", a))
         .about("list the undo tree's leaves; pick one to go there"),
     cmd("earlier", 2, EXTRA | EDITOR, |_, a| on_editor("earlier", a))

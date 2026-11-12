@@ -1214,6 +1214,13 @@ impl Session {
         }
     }
 
+    /// A package that failed to load says so, once, in the message line.
+    pub fn show_package_errors(&mut self) {
+        if let Some(e) = crate::treesitter::langs::new_errors().pop() {
+            self.ed.msg = Some((format!("package {e} (:pack list)"), true));
+        }
+    }
+
     /// Bring the current buffer's folds up to date with its text: from its
     /// language's tree-sitter fold query, as Neovim's
     /// `vim.treesitter.foldexpr()`, else from its indent.

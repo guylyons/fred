@@ -692,6 +692,50 @@ While editing, `:set` works as in Neovim: `:set ts=4`, `:set nowrap`,
 `:setglobal` only what new buffers start with, and `Tab` completes option
 names.
 
+## Packages
+
+A package is a directory that adds to Fred from outside the binary. Today a
+package can hold a tree-sitter grammar with its highlight, injection and
+fold queries. List packages in `config.toml`, by git URL or local
+directory:
+
+```toml
+[[package]]
+git = "https://github.com/guylyons/fred"
+path = "packages/lang/twig"     # a package can be a subdirectory
+
+[[package]]
+local = "~/code/my-package"
+```
+
+| Command | Does |
+| --- | --- |
+| `fred pack sync` (`:pack sync`) | installs what the config lists and compiles each grammar; removes packages no longer listed |
+| `fred pack update [NAME]` | moves all packages, or one, to their newest commit |
+| `fred pack list` | shows installed packages, their commit and any error |
+
+Syncing needs `git` and a C compiler (`cc`, or `$CC`). Packages stay at
+the commit recorded in `~/.config/fred/packages.lock` until you update
+them. They are installed in `~/.local/share/fred/packages/`, and a grammar
+is loaded the first time you open a file of its language. A package's
+language wins over a built-in one for the same file. A package that fails
+to load is skipped with a message, and `fred --no-packages` starts without
+any. A grammar is native code that runs inside Fred: install only packages
+you trust.
+
+A package is a `package.toml` beside a `queries/` directory:
+
+```toml
+name = "lang-twig"
+
+[grammar]
+name = "twig"                 # the library exports tree_sitter_twig
+source = "https://github.com/gbprod/tree-sitter-twig"
+rev = "7195ee573ab5c3b3bb0e91b042e6f83ac1b11104"
+status_name = "Twig"
+extensions = ["twig"]
+```
+
 ## Troubleshooting
 
 **`fred: command not found` after installing.** `~/.cargo/bin` isn't on

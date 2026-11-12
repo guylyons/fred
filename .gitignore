@@ -31,3 +31,9 @@
 .env.*
 !.env.example
 *.log
+
+# A local package's fetched grammar source and compiled library (`fred pack sync`)
+/packages/**/.grammar/
+/packages/**/.grammar-rev
+/packages/**/grammar.dylib
+/packages/**/grammar.so

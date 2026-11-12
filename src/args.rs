@@ -11,11 +11,16 @@ pub const USAGE: &str = "usage: fred [-i | -f] [--height N] [+LINE] [FILE | DIR]
   -f, --fullscreen  take over the terminal (the default, unless the
                     config says otherwise)
   --height N        inline, showing N lines of text, or `max` (default 12)
+  --no-packages     start without the installed packages
   --gui             speak the native app's protocol on stdin/stdout
   --mcp             be the MCP server that lets Claude Code drive the
                     running fred (claude mcp add fred -- fred --mcp)
   -h, --help        show this help
   -V, --version     show the version
+
+  fred pack sync            install the [[package]] entries of the config
+  fred pack update [NAME]   move packages (or one) to their newest commit
+  fred pack list            installed packages and their errors
 
 Config: ~/.config/fred/config.toml (fullscreen, height, wrap, numbers,
 relative_numbers, theme, tabstop, autocomplete, icons, clipboard, and
@@ -35,6 +40,8 @@ pub struct Args {
     pub line: Option<LineArg>,
     pub file: Option<PathBuf>,
     pub gui: bool,
+    /// Start without the installed packages.
+    pub no_packages: bool,
 }
 
 #[derive(Debug)]
@@ -74,6 +81,10 @@ pub fn parse(args: Vec<String>) -> Result<ArgsOrInfo, String> {
                 }
                 "--gui" => {
                     out.gui = true;
+                    continue;
+                }
+                "--no-packages" => {
+                    out.no_packages = true;
                     continue;
                 }
                 "-f" | "--fullscreen" => {
@@ -123,6 +134,14 @@ mod tests {
     }
 
     #[test]
+    fn no_packages_flag() {
+        let Ok(ArgsOrInfo::Run(a)) = parse(v(&["--no-packages", "f"])) else {
+            panic!()
+        };
+        assert!(a.no_packages && a.file.is_some());
+    }
+
+    #[test]
     fn parse_args() {
         assert!(matches!(
             parse(v(&["--height", "5", "+3", "f"])),
@@ -132,7 +151,8 @@ mod tests {
                 height: Some(5),
                 line: Some(LineArg::N(3)),
                 file: Some(_),
-                gui: false
+                gui: false,
+                no_packages: false
             }))
         ));
         assert!(matches!(

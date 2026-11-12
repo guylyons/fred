@@ -147,6 +147,7 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
     if let Some(r) = &s.hl.disabled {
         s.ed.set_msg(r.clone());
     }
+    s.show_package_errors();
     if let Some(e) = cfg_err {
         s.ed.set_err(e);
     }
@@ -662,6 +663,7 @@ fn input(s: &mut Session, term: &mut Terminal<TestBackend>, m: In) {
     if let Some(d) = s.ed.buf.take_dirty_from() {
         s.hl.invalidate(d);
     }
+    s.show_package_errors();
 }
 
 /// Show window `win` from line `top`, clamped to its last screenful. As

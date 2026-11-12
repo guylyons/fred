@@ -1311,3 +1311,66 @@ fn magit_stash_pop_restores_index_and_drop_cancel_in_both_modes() {
         assert!(git(&["stash", "list"]).is_empty());
     }
 }
+
+#[test]
+fn pack_sync_installs_a_grammar_package_and_fred_uses_it() {
+    let env = Env::new();
+    let fixture = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/grammar-json");
+    // The grammar's source repository and a local package naming it.
+    let sh = |script: &str| {
+        let out = std::process::Command::new("sh")
+            .arg("-c")
+            .arg(script)
+            .current_dir(env.dir.path())
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+        String::from_utf8_lossy(&out.stdout).trim().to_string()
+    };
+    let rev = sh(&format!(
+        "git init -q grammar && cp -R {fixture}/src grammar/ && cd grammar && git add -A && \
+         git -c user.name=t -c user.email=t@t commit -qm x && git rev-parse HEAD"
+    ));
+    fs::create_dir_all(env.path("pkg/queries")).unwrap();
+    env.write(
+        "pkg/package.toml",
+        &format!(
+            "name = \"lang-jsonx\"\n[grammar]\nname = \"json\"\nsource = \"{}\"\nrev = \"{rev}\"\n\
+             status_name = \"JsonPackage\"\nextensions = [\"jsonx\"]\n",
+            env.path("grammar").display()
+        ),
+    );
+    env.write("pkg/queries/highlights.scm", "(string) @string\n");
+    env.write("pkg/queries/folds.scm", "[(object) (array)] @fold\n");
+    env.write(
+        "config/fred/config.toml",
+        &format!("clipboard = false\n[[package]]\nlocal = \"{}\"\n", env.path("pkg").display()),
+    );
+    let run = |args: &[&str]| {
+        let mut c = std::process::Command::new(BIN);
+        c.env_clear()
+            .env("PATH", std::env::var("PATH").unwrap_or_default())
+            .env("HOME", env.path("home"))
+            .env("XDG_CONFIG_HOME", env.path("config"))
+            .args(args);
+        String::from_utf8_lossy(&c.output().unwrap().stdout).to_string()
+    };
+    assert_eq!(run(&["pack", "sync"]), "lang-jsonx: linked, grammar compiled\n");
+    assert_eq!(run(&["pack", "list"]), "lang-jsonx local\n");
+
+    let body: String = (0..8).map(|i| format!("  \"k{i}\": {i},\n")).collect();
+    env.write("a.jsonx", &format!("{{\n{body}  \"z\": 0\n}}\n"));
+    let mut p = env.fred(&["-f", "a.jsonx"]);
+    // The status line names the package's language; its fold query folds.
+    p.wait_text("JsonPackage");
+    p.keys(&["zM"]);
+    p.wait_text("+-- 11 lines: {");
+    p.keys(&[":q\r"]);
+    assert_eq!(p.wait_exit(), 0);
+
+    // Without packages the file is plain text again.
+    let mut p = env.fred(&["-f", "--no-packages", "a.jsonx"]);
+    p.wait_for("editor", |s| s.contains("NORMAL") && !s.contains("JsonPackage"));
+    p.keys(&[":q\r"]);
+    assert_eq!(p.wait_exit(), 0);
+}

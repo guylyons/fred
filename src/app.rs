@@ -401,6 +401,7 @@ fn step(s: &mut Session, ev: Event, resized: &mut bool) {
     if let Some(d) = s.ed.buf.take_dirty_from() {
         s.hl.invalidate(d);
     }
+    s.show_package_errors();
 }
 
 /// Give the terminal to something else (`away`), then take it back. The
@@ -649,6 +650,7 @@ pub fn run(args: Args, mut cfg: Config, cfg_err: Option<String>) -> Result<i32> 
     if let Some(r) = &s.hl.disabled {
         s.ed.set_msg(r.clone());
     }
+    s.show_package_errors();
     if let Some(e) = cfg_err {
         s.ed.set_err(e);
     }

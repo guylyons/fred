@@ -13,6 +13,12 @@ fn main() {
     if argv == ["--mcp"] {
         std::process::exit(fred::remote::mcp());
     }
+    // `fred pack …` manages packages; a file named pack is `fred ./pack`.
+    if argv.first().is_some_and(|a| a == "pack") {
+        let (lines, ok) = fred::pack::command(&argv[1..].join(" "));
+        println!("{}", lines.join("\n"));
+        std::process::exit(if ok { 0 } else { 1 });
+    }
     let code = match args::parse(argv) {
         Ok(ArgsOrInfo::Help) => {
             println!("{}", args::USAGE);
@@ -24,6 +30,9 @@ fn main() {
         }
         Ok(ArgsOrInfo::Run(a)) => {
             let (cfg, err) = Config::load();
+            if !a.no_packages {
+                fred::pack::load();
+            }
             let run = if a.gui {
                 fred::gui::run
             } else {

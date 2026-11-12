@@ -82,6 +82,7 @@ const READ_ONLY: &[&str] = &[
     "clearjumps",
     "undolist",
     "wundo",
+    "pack",
 ];
 
 pub fn run(ed: &mut Editor, c: Call) {
@@ -103,6 +104,17 @@ pub fn run(ed: &mut Editor, c: Call) {
         "undojoin" => ed.undo.join_next(),
         "undolist" => {
             undolist(ed);
+            Ok(())
+        }
+        "pack" => {
+            // shortcut: git and the compiler run while Fred waits, and new
+            // grammars load at the next start; make it a job if that hurts.
+            let (lines, ok) = crate::pack::command(&c.arg);
+            let text = lines.join("; ");
+            if !ok {
+                return ed.set_err(text);
+            }
+            ed.set_msg(text);
             Ok(())
         }
         "wundo" => wundo(ed, &c),

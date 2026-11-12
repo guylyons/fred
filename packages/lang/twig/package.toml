@@ -1,0 +1,10 @@
+name = "lang-twig"
+
+[grammar]
+name = "twig"
+# The grammar and commit nvim-treesitter installs for Twig.
+source = "https://github.com/gbprod/tree-sitter-twig"
+rev = "7195ee573ab5c3b3bb0e91b042e6f83ac1b11104"
+status_name = "Twig"
+extensions = ["twig"]
+injection_names = ["twig"]
