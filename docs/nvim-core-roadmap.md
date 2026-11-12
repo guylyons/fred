@@ -362,6 +362,13 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
   rather than going to column 0 (Neovim's default `filetype indent on`
   would use 'indentexpr' there). Ledger: `={motion}`, `==`, Visual `=`
   partial. Oracle: 1190 cases.
+- 2026-11-12: smart indent on new lines, as Neovim's filetype indent
+  gives: `<CR>`, `o` and `O` go one 'shiftwidth' past the line above when
+  it leaves `{ ( [` open (`} else {` counts), in the file's detected
+  indent style; `<CR>` before a closer and lines outside brackets keep
+  the indent; `O` on a closer goes inside its block; a `} ) ]` typed
+  first on a line lines up with its opener ('cinkeys' `0} 0) 0]`).
+  Not per-filetype: no Python `:` or continuation lines.
 - 2026-11-12: folding (track 21, not yet accepted): Vim's fold model in
   `src/fold.rs` (`CodeFolds`: nested folds from line levels, opened or
   closed by hand or by 'foldlevel'), the `z` fold commands in

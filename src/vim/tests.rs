@@ -550,3 +550,20 @@ fn source_runs_a_file_of_ex_commands() {
     std::fs::write(&f, "dd").unwrap();
     assert_eq!(txt("a\nb", &format!(":so! {}<CR>", f.display())), "b");
 }
+
+#[test]
+fn smart_indent_after_opener() {
+    // Detected 2-space indent: Enter after `{` goes one level in.
+    let t = "x {\n  y\n}\nfunction() {";
+    assert_eq!(txt(t, "GA<CR>a<Esc>"), "x {\n  y\n}\nfunction() {\n  a");
+    assert_eq!(txt(t, "Goa<Esc>"), "x {\n  y\n}\nfunction() {\n  a");
+    // A typed `}` lines up with its opener; `} else {` opens again.
+    assert_eq!(
+        txt(t, "GA<CR>a<CR>} else {<CR>b<Esc>"),
+        "x {\n  y\n}\nfunction() {\n  a\n} else {\n  b"
+    );
+    // Enter between `{` and `}` leaves the closer out; `O` on it goes in.
+    assert_eq!(txt("f() {}", "$i<CR><Esc>Oa<Esc>"), "f() {\n\ta\n}");
+    // No opener: same indent as before.
+    assert_eq!(txt("  a", "A<CR>b<Esc>"), "  a\n  b");
+}

@@ -525,7 +525,7 @@ fn edit_key(ed: &mut Editor, k: Key) {
     match k.code {
         KeyCode::Esc | KeyCode::Char('c') if k.code == KeyCode::Esc || k.ctrl => leave(ed),
         KeyCode::Enter => {
-            let indent = indent_of(&line[..b]).to_string();
+            let indent = super::ops::smart_indent(ed, &line[..b], &line[b..]);
             insert_text(ed, &format!("\n{indent}"));
             // The line left behind loses an unused indent; the new one
             // holds one.
@@ -596,6 +596,13 @@ fn edit_key(ed: &mut Editor, k: Key) {
         KeyCode::Char(c) if !k.ctrl && !k.alt => {
             let mut s = [0u8; 4];
             insert_text(ed, c.encode_utf8(&mut s));
+            // 'cinkeys' 0} 0) 0]: a closer typed first on the line lines
+            // up with its opener.
+            if matches!(c, '}' | ')' | ']') && line[..b].trim_start().is_empty() {
+                super::ops::reindent(ed, l, l);
+                let ind = indent_of(&ed.buf.line(l)).len();
+                ed.cur.byte = ind + 1;
+            }
             if !c.is_whitespace() {
                 auto_wrap(ed);
             }

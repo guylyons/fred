@@ -524,12 +524,39 @@ pub fn replace_chars(ed: &mut Editor, count: usize, c: char) -> bool {
     true
 }
 
+/// Indent for a new line after `prev` (the text left above it), as
+/// Neovim's C/treesitter indent does: one 'shiftwidth' past `prev`'s
+/// indent when `prev` leaves a `{ ( [` open, else the same indent.
+/// `next` is the text the new line starts with: a closer keeps it out.
+pub fn smart_indent(ed: &Editor, prev: &str, next: &str) -> String {
+    let base = indent_of(prev);
+    // Openers left unclosed; a leading `}` in `} else {` doesn't cancel.
+    let mut open = 0usize;
+    Scan::default().line(prev, |o| {
+        open = if o { open + 1 } else { open.saturating_sub(1) }
+    });
+    if open == 0 || next.trim_start().starts_with([')', ']', '}']) {
+        return base.to_string();
+    }
+    let ts = ed.tabstop();
+    let et = ed.opts.bool(crate::options::Opt::Expandtab);
+    make_indent(crate::text::display_width(base, ts, 0) + ed.shiftwidth(), et, ts)
+}
+
 /// Open a line below (or above) with the current indentation and enter Insert.
 pub fn open_line(ed: &mut Editor, below: bool) {
     // Below or above the whole of a closed fold.
     let (first, last) = ed.fold_span(ed.cur.line);
     let from = if below { last } else { first };
-    let indent = indent_of(&ed.buf.line(from)).to_string();
+    let cur = ed.buf.line(from);
+    let indent = if below {
+        smart_indent(ed, &cur, "")
+    } else if from > 0 && cur.trim_start().starts_with([')', ']', '}']) {
+        // `O` on a closer: inside the block it ends.
+        smart_indent(ed, &ed.buf.line(from - 1), "")
+    } else {
+        indent_of(&cur).to_string()
+    };
     let at = if below { from + 1 } else { from };
     splice_lines(ed, at, 0, std::slice::from_ref(&indent));
     ed.mode = Mode::Insert;

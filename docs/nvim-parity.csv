@@ -20,7 +20,7 @@ key,insert,CTRL-I,,done,oracle cases,same as <Tab>
 key,insert,<NL>,,partial,same as CTRL-J,same as <CR>
 key,insert,CTRL-J,,done,oracle cases,same as <CR>
 key,insert,CTRL-K {char1} {char2},,missing,,
-key,insert,<CR>,,done,copies the indent; an unused indent left behind goes (did_ai); oracle cases,begin new line
+key,insert,<CR>,,done,copies the indent, one shiftwidth deeper after an open bracket; an unused indent left behind goes (did_ai); oracle cases,begin new line
 key,insert,CTRL-M,,done,oracle cases,same as <CR>
 key,insert,CTRL-N,,partial,present; not yet verified against nvim,find next match for keyword in front of the
 key,insert,CTRL-O,,done,returns after the last character as Neovim does; oracle cases,execute a single command and return to insert
