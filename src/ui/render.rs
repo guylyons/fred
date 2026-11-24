@@ -1149,7 +1149,11 @@ pub fn draw_window(
         };
         // A closed fold: Vim's fold text, filled to the window's width.
         if let Some((_, text)) = ed.closed_fold(l) {
-            let text: String = text.chars().chain(std::iter::repeat('·')).take(cols).collect();
+            let text: String = text
+                .chars()
+                .chain(std::iter::repeat('·'))
+                .take(cols)
+                .collect();
             let folded = Style::default()
                 .fg(Color::DarkGray)
                 .add_modifier(Modifier::ITALIC);
@@ -1240,7 +1244,8 @@ pub fn draw_window(
         }
         l += 1;
     }
-    while y < shown {
+    // The chat has no `~` past its end: it's a panel, not a file.
+    while y < shown && ed.claude.is_none() {
         buf.set_stringn(ox, oy + y as u16, "~", 1, num_style);
         y += 1;
     }

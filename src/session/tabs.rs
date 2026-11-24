@@ -79,6 +79,34 @@ impl Session {
         Ok(())
     }
 
+    /// The app's "Save" / "Don't Save" for closing a modified tab: write it
+    /// (`:w`) or drop its changes (`:e!`), then close it. A failed write
+    /// (no file name) leaves it open, its error shown.
+    pub fn save_or_discard_tab(
+        &mut self,
+        win: usize,
+        index: usize,
+        save: bool,
+    ) -> Result<(), String> {
+        self.select_tab(win, index)?;
+        if save {
+            self.ed.run_ex("w");
+        } else if self.ed.path.is_some() {
+            self.ed.run_ex("e!");
+        } else {
+            // No file to go back to: empty, into the black hole, as a new buffer.
+            self.ed.run_ex("%d _");
+            self.ed.buf.modified = false;
+        }
+        if let Some(eff) = self.ed.pending_effect.take() {
+            self.perform(eff);
+        }
+        if self.ed.buf.modified {
+            return Ok(());
+        }
+        self.close_tab(win, index)
+    }
+
     /// Drag tab `index` to `to` (past the end means last).
     pub fn move_tab(&mut self, win: usize, index: usize, to: usize) -> Result<(), String> {
         let b = self.tab(win, index)?;

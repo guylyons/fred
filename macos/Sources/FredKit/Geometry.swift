@@ -30,11 +30,12 @@ public func cellWidth(_ s: String) -> Int {
     }
 }
 
-/// Wheel steps for one scroll event: up positive. A notched wheel sends one
-/// per notch; a trackpad's points add up in `acc`, `unit` per step, starting
-/// over when the direction turns.
+/// Wheel steps for one scroll event: up positive. A notched wheel sends at
+/// least one a notch, more as macOS accelerates a fast (free-spinning) wheel;
+/// a trackpad's points add up in `acc`, `unit` per step, starting over when
+/// the direction turns.
 public func scrollLines(_ dy: CGFloat, precise: Bool, unit: CGFloat = 3, acc: inout CGFloat) -> Int {
-    guard precise else { return dy > 0 ? 1 : dy < 0 ? -1 : 0 }
+    guard precise else { return Int(dy.rounded(.awayFromZero)) }
     if dy * acc < 0 { acc = 0 }
     acc += dy
     let n = Int(acc / unit)

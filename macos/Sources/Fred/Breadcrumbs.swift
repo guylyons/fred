@@ -42,7 +42,7 @@ final class Breadcrumbs: NSView, NSMenuDelegate {
         editorBg.setFill()
         bounds.fill()
         frames = []
-        var x: CGFloat = 12
+        var x: CGFloat = 16
         let names = crumbs.map(\.name) + (symbol.map { [$0[0]] } ?? [])
         for (i, name) in names.enumerated() {
             let last = i == names.count - 1

@@ -1236,9 +1236,17 @@ impl Session {
             // Neovim updates only the changed lines'.
             match self.hl.ts_tree(&ed.buf, budget) {
                 Some((_, tree)) => {
-                    let (min, max) = (ed.opts.num(Opt::Foldminlines), ed.opts.num(Opt::Foldnestmax));
-                    let levels =
-                        crate::treesitter::folds::levels(tree, query, &ed.buf, min as usize, max as usize);
+                    let (min, max) = (
+                        ed.opts.num(Opt::Foldminlines),
+                        ed.opts.num(Opt::Foldnestmax),
+                    );
+                    let levels = crate::treesitter::folds::levels(
+                        tree,
+                        query,
+                        &ed.buf,
+                        min as usize,
+                        max as usize,
+                    );
                     ed.set_fold_levels(&levels);
                 }
                 // Still parsing: the folds stay as they were for this draw.
@@ -1300,15 +1308,28 @@ impl Session {
         self.tree
             .layout(self.area)
             .into_iter()
-            .map(|p| Placed {
-                // A terminal has no breadcrumbs: just its tab row.
-                header: match self.windows.iter().find(|w| w.id == p.id) {
-                    Some(w) if header > 1 && self.ed_at(w.buf).term.is_some() => 1,
+            .map(|p| {
+                let p = Placed {
+                    header,
+                    // Too narrow for a minimap beside its text: none.
+                    margin: if p.rect.width < 3 * margin { 0 } else { margin },
+                    ..p
+                };
+                let ed = (self.windows.iter())
+                    .find(|w| w.id == p.id)
+                    .map(|w| self.ed_at(w.buf));
+                let header = match ed {
+                    // A terminal has no breadcrumbs: just its tab row.
+                    Some(ed) if header > 1 && ed.term.is_some() => 1,
+                    // The GUI's chat starts at the bottom, by its composer.
+                    Some(ed) if self.gui && ed.claude.is_some() => {
+                        let t = p.text();
+                        let pad = crate::claude::pad(ed, t.width.into(), t.height.into());
+                        header + pad as u16
+                    }
                     _ => header,
-                },
-                // Too narrow for a minimap beside its text: none.
-                margin: if p.rect.width < 3 * margin { 0 } else { margin },
-                ..p
+                };
+                Placed { header, ..p }
             })
             .collect()
     }
@@ -1534,6 +1555,18 @@ impl Session {
                     mode => format!("{} --permission-mode {mode}", self.cfg.claude_command),
                 };
                 ed.claude = Some(Box::new(crate::claude::Chat::new(&cmd)));
+                // A conversation reads as prose: wrapped, no line numbers.
+                for (o, on) in [
+                    (Opt::Number, false),
+                    (Opt::Relativenumber, false),
+                    (Opt::Wrap, true),
+                ] {
+                    let _ = ed.opts.put(
+                        o,
+                        crate::options::Value::Bool(on),
+                        crate::options::Level::Local,
+                    );
+                }
                 ed.syntax_path = Some(PathBuf::from("claude.md"));
                 let swap = self.swap_dir.join(format!("claude-{}", self.bufs.len()));
                 self.bufs.push(Some(Parked {
@@ -1552,8 +1585,13 @@ impl Session {
         }
         self.win_mut().stand_in = None;
         let last = self.ed.line_count() - 1;
-        self.ed.set_cursor(last, 0);
-        self.handle_key(Key::ch('A'));
+        // Typing at the prompt's end: `A`, unless already typing (where `A` is text).
+        if self.ed.mode == Mode::Insert {
+            self.ed.set_cursor(last, self.ed.buf.line(last).len());
+        } else {
+            self.ed.set_cursor(last, 0);
+            self.handle_key(Key::ch('A'));
+        }
     }
 
     /// The GUI's chat panel: a window right of all the others, as VS
@@ -1603,6 +1641,10 @@ impl Session {
             ("more", _) => crate::claude::act(&mut self.ed, crate::claude::Action::Resume),
             ("model", _) => crate::claude::act(&mut self.ed, crate::claude::Action::Model),
             ("mode", _) => crate::claude::act(&mut self.ed, crate::claude::Action::Mode),
+            ("send", _) => crate::claude::send(&mut self.ed),
+            ("stop", _) => crate::claude::act(&mut self.ed, crate::claude::Action::Interrupt),
+            ("allow", _) => _ = crate::claude::answer(&mut self.ed, crate::key::Key::ch('y')),
+            ("deny", _) => _ = crate::claude::answer(&mut self.ed, crate::key::Key::ch('n')),
             _ => {}
         }
     }
@@ -1919,9 +1961,12 @@ impl Session {
             let (line, byte) = b.char_to_pos(b.len_chars().saturating_sub(back));
             (self.windows[i].cur.line, self.windows[i].cur.byte) = (line, byte);
         }
-        // The turn is over: back to the chat, where it says how it went.
+        // The turn is over: back to the chat, where it says how it went,
+        // unless a window shows it (the GUI's panel): you may be working
+        // elsewhere, or reading the reply in Normal mode.
+        let shown = (self.windows.iter()).any(|w| self.ed_at(w.buf).claude.is_some());
         if let Some(msg) = finished
-            && self.ed.claude.is_none()
+            && !shown
         {
             self.claude();
             self.ed.msg = msg;
@@ -2230,6 +2275,78 @@ mod tests {
         t.s.chat_panel("toggle", None);
         assert_eq!(t.s.windows.len(), 1);
         assert!(t.s.ed.claude.is_none());
+    }
+
+    #[test]
+    fn a_short_chat_sits_at_the_bottom_of_its_panel() {
+        let mut t = T::open(Some("a"), Some("a\n"));
+        t.s.gui = true;
+        t.s.chat_panel("toggle", None);
+        let placed = t.s.placed();
+        let chat = placed.iter().find(|p| p.id == t.s.active).unwrap();
+        let text = chat.text();
+        // The prompt, the one line, is the text area's last row.
+        assert_eq!(text.height, 1);
+        assert_eq!(text.y + 1, chat.rect.y + chat.rect.height - 1);
+    }
+
+    #[test]
+    fn closing_a_modified_tab_saves_or_discards_it() {
+        let mut t = T::open(Some("a"), Some("a\n"));
+        t.keys("ix<Esc>");
+        let win = t.s.active;
+        t.s.save_or_discard_tab(win, 0, false).unwrap();
+        assert!(!t.s.ed_at(0).buf.modified);
+        assert_eq!(t.s.ed_at(0).buf.text(), "a");
+        let mut t = T::open(Some("a"), Some("a\n"));
+        t.keys("iy<Esc>");
+        let win = t.s.active;
+        t.s.save_or_discard_tab(win, 0, true).unwrap();
+        assert_eq!(t.file("a"), "ya\n");
+        // Unnamed: its text goes, and the unnamed register keeps what it had.
+        let mut t = T::open(None, None);
+        t.keys("yyiz<Esc>");
+        let win = t.s.active;
+        t.s.save_or_discard_tab(win, 0, false).unwrap();
+        assert!(!t.s.ed_at(0).buf.modified);
+        assert_eq!(t.s.ed_at(0).buf.text(), "");
+        t.keys("p");
+        assert!(!t.s.ed.buf.text().contains('z'));
+    }
+
+    #[test]
+    fn chat_panel_send_drops_the_completion_popup() {
+        let mut t = T::open(Some("a"), Some("a\n"));
+        t.s.gui = true;
+        t.s.chat_panel("toggle", None);
+        t.keys("hi");
+        t.s.ed.popup = Some(crate::complete::Popup {
+            items: vec!["highlights".into()],
+            sel: Some(0),
+            start: 2,
+            typed: "hi".into(),
+        });
+        t.s.chat_panel("send", None);
+        assert!(t.s.ed.buf.text().ends_with("> hi\n\n> "));
+        assert!(t.s.ed.popup.is_none());
+    }
+
+    #[test]
+    fn chat_panel_allow_answers_the_question() {
+        let mut t = T::open(Some("a"), Some("a\n"));
+        t.s.gui = true;
+        t.s.chat_panel("toggle", None);
+        t.keys("go");
+        let (tx, rx) = std::sync::mpsc::channel();
+        let args = serde_json::json!({ "tool_name": "Bash", "input": { "command": "ls" } });
+        crate::claude::ask(&mut t.s.ed, &args, tx);
+        t.s.chat_panel("allow", None);
+        assert!(rx.try_recv().is_ok());
+        // Not yet sent, so the question goes above it.
+        assert_eq!(
+            t.s.ed.buf.text(),
+            "⏺ Allow Bash(ls)? y/n\n  ⎿  Allowed\n\n> go"
+        );
     }
 
     #[test]

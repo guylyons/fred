@@ -87,8 +87,13 @@ public struct ChatBar: Codable, Equatable, Sendable {
     public var model: String?
     public var mode: String?
     public var busy: Bool
-    /// Past conversations [id, title, how long ago], while nothing is said yet.
+    /// Past conversations [id, title, how long ago].
     public var sessions: [[String]]?
+    /// One letter per text row: u your message, p the prompt being typed,
+    /// t a tool call, r its result.
+    public var rows: String?
+    /// Of the window's header rows, the blank ones that put a short chat at the bottom.
+    public var pad: Int?
 }
 
 public struct Tab: Codable, Equatable, Sendable {
@@ -235,7 +240,8 @@ public enum Outgoing {
     case tab(seq: Int, win: Int, op: String, index: Int, to: Int?)
     /// A tab dragged out of window `win` onto window `target`'s `zone`.
     case drop(seq: Int, win: Int, index: Int, target: Int, zone: String, to: Int)
-    case scroll(seq: Int, win: Int, top: Int)
+    /// `up`: which way the slide heads, for a top inside a closed fold (absent: from the shown top).
+    case scroll(seq: Int, win: Int, top: Int, up: Bool? = nil)
     /// A click on picker row `index` (absolute).
     case pick(seq: Int, index: Int)
     /// The terminal panel: `op` toggle or maximize.
@@ -272,7 +278,7 @@ public enum Outgoing {
             body = #""tab","seq":\#(s),"win":\#(w),"op":\#(q(op)),"index":\#(i)"# + (to.map { #","to":\#($0)"# } ?? "")
         case .drop(let s, let w, let i, let tg, let z, let to):
             body = #""tab","seq":\#(s),"win":\#(w),"op":"drop","index":\#(i),"to":\#(to),"target":\#(tg),"zone":\#(q(z))"#
-        case .scroll(let s, let w, let t): body = #""scroll","seq":\#(s),"win":\#(w),"top":\#(t)"#
+        case .scroll(let s, let w, let t, let u): body = #""scroll","seq":\#(s),"win":\#(w),"top":\#(t)"# + (u.map { #","up":\#($0)"# } ?? "")
         case .pick(let s, let i): body = #""pick","seq":\#(s),"index":\#(i)"#
         case .panel(let s, let op): body = #""panel","seq":\#(s),"op":\#(q(op))"#
         case .file(let s, let op, let p): body = #""file","seq":\#(s),"op":\#(q(op))"# + (p.map { #","path":\#(q($0))"# } ?? "")

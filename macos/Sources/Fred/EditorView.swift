@@ -39,6 +39,10 @@ final class EditorView: NSView {
     /// The chat window's VS Code Chat header and Sessions list, per window.
     private var chatHeaders: [ChatHeader] = []
     private var sessionLists: [SessionsList] = []
+    private var sendButtons: [Pill] = []
+    private var spinners: [NSProgressIndicator] = []
+    /// Allow / Deny under the chat's question.
+    private var answerButtons: [(Pill, Pill)] = []
     private let picker = PaletteView(frame: .zero)
     /// The cursor's blink: solid since this time (the last frame), then a smooth fade.
     private var blinkFrom = CACurrentMediaTime()
@@ -247,7 +251,9 @@ final class EditorView: NSView {
             if e.momentumPhase == .ended || e.momentumPhase == .cancelled { coasting = false }
             return true // momentum into an edge already sprang back
         }
-        guard e.hasPreciseScrollingDeltas, let f = current else { return false }
+        // A smooth-scrolling mouse (Logi Options+) sends precise deltas with no
+        // phases: no release would ever spring it back, so it just stops at the end.
+        guard e.hasPreciseScrollingDeltas, !(e.phase.isEmpty && e.momentumPhase.isEmpty), let f = current else { return false }
         let (c, r) = cellAt(e)
         guard let w = f.windows.first(where: { c >= $0.x && c < $0.x + $0.w && r >= $0.y && r < $0.y + $0.h }),
               let id = w.id, let top = w.top, let lines = w.lines else { return false }
@@ -278,16 +284,17 @@ final class EditorView: NSView {
         s.px = min(max(0, s.px - e.scrollingDeltaY), CGFloat(maxTop(w, top: top, lines: lines)) * cell.height)
         let want = Int(s.px / cell.height)
         if want != s.sent {
+            let up = want < s.sent
             s.sent = want
-            s.seq = transmit { .scroll(seq: $0, win: id, top: want) }
+            s.seq = transmit { .scroll(seq: $0, win: id, top: want, up: up) }
         }
         smooth = s
         redrawText(w)
         return true
     }
 
-    /// The last top the core takes (its `scroll` clamp); one already past it stays.
-    private func maxTop(_ w: Win, top: Int, lines: Int) -> Int { max(top, lines - visibleRows(w)) }
+    /// The last top the core takes (its `scroll` clamp: the last line at the top).
+    private func maxTop(_ w: Win, top: Int, lines: Int) -> Int { max(top, lines - 1) }
 
     /// Text rows on screen: the frame's last row is the next line, under the status bar, unless it is draw mode's toolbar.
     private func visibleRows(_ w: Win) -> Int {
@@ -406,7 +413,8 @@ final class EditorView: NSView {
               zip(old.windows, f.windows).allSatisfy({ sameRect($0, $1) })
         else { needsDisplay = true; return }
         for (o, n) in zip(old.windows, f.windows) {
-            if o.paint != n.paint || o.paint_gutter != n.paint_gutter { redrawText(n) }
+            // The chat's boxes reach past their rows: a moved one redraws the window.
+            if o.paint != n.paint || o.paint_gutter != n.paint_gutter || o.chat?.rows != n.chat?.rows || (n.chat != nil && o.active != n.active) { redrawText(n) }
             for r in 0..<n.rows.count where r >= o.rows.count || o.rows[r] != n.rows[r] {
                 setNeedsDisplay(rowRect(textY(n) + r))
             }
@@ -491,6 +499,25 @@ final class EditorView: NSView {
             l.send = send
             addSubview(l, positioned: .below, relativeTo: overlay)
             sessionLists.append(l)
+            let b = Pill(title: "")
+            b.square = true
+            addSubview(b, positioned: .below, relativeTo: overlay)
+            b.accent = true
+            sendButtons.append(b)
+            let spin = NSProgressIndicator()
+            spin.style = .spinning
+            spin.controlSize = .small
+            spin.isDisplayedWhenStopped = false
+            addSubview(spin, positioned: .below, relativeTo: overlay)
+            spinners.append(spin)
+            let yes = Pill(title: "Allow"), no = Pill(title: "Deny")
+            yes.accent = true
+            yes.toolTip = "Allow (y)"
+            no.toolTip = "Deny (n)"
+            yes.onClick = { send("allow", nil) }
+            no.onClick = { send("deny", nil) }
+            for p in [yes, no] { addSubview(p, positioned: .below, relativeTo: overlay) }
+            answerButtons.append((yes, no))
         }
         for (i, s) in tabStrips.enumerated() {
             guard i < f.windows.count, case let w = f.windows[i], let id = w.id, let tabs = w.tabs, (w.header ?? 0) > 0 else {
@@ -498,6 +525,10 @@ final class EditorView: NSView {
                 crumbs[i].isHidden = true
                 chatHeaders[i].isHidden = true
                 sessionLists[i].isHidden = true
+                sendButtons[i].isHidden = true
+                spinners[i].stopAnimation(nil)
+                answerButtons[i].0.isHidden = true
+                answerButtons[i].1.isHidden = true
                 continue
             }
             let (l, r) = span(w.x, w.w - (w.divider ? 1 : 0))
@@ -508,20 +539,70 @@ final class EditorView: NSView {
                 s.isHidden = true
                 crumbs[i].isHidden = true
                 let h = chatHeaders[i]
-                let hf = NSRect(x: l, y: CGFloat(w.y) * cell.height, width: r - l, height: CGFloat(w.header!) * cell.height)
+                let hf = NSRect(x: l, y: CGFloat(w.y) * cell.height, width: r - l, height: CGFloat(w.header! - (chat.pad ?? 0)) * cell.height)
                 if h.frame != hf { h.frame = hf }
                 h.isHidden = false
                 h.update(chat)
-                let list = sessionLists[i], sessions = chat.sessions ?? []
-                list.isHidden = sessions.isEmpty
-                let top = CGFloat(textY(w) + 2) * cell.height
-                let lf = NSRect(x: l, y: top, width: r - l, height: max(0, CGFloat(w.y + w.h - 1) * cell.height - top))
-                if list.frame != lf { list.frame = lf }
+                // Sessions: a heading row on the blank line over the composer,
+                // opening upward over the chat.
+                let list = sessionLists[i], sessions = chat.sessions ?? [], rows = Array(chat.rows ?? "")
+                let below = CGFloat(textY(w) + (rows.firstIndex(of: "p") ?? 0)) * cell.height
+                let room = below - CGFloat(w.y + w.header! - (chat.pad ?? 0)) * cell.height
+                list.headH = cell.height
                 list.update(sessions)
+                list.onToggle = { [weak self] in if let f = self?.current { self?.layoutTabStrips(f) } }
+                let lh = list.open ? min(list.openHeight, room) : cell.height
+                list.isHidden = sessions.isEmpty || !rows.contains("p") || room < cell.height
+                let lf = NSRect(x: l, y: below - lh, width: r - l, height: lh)
+                if list.frame != lf { list.frame = lf; list.needsDisplay = true }
+                // Send, or Stop while Claude works: the composer's corner.
+                let b = sendButtons[i]
+                if let last = rows.lastIndex(of: "p") {
+                    let empty = rows.filter { $0 == "p" }.count == 1 && w.rows[last].map(\.s).joined().trimmingCharacters(in: .whitespaces) == ">"
+                    let tip = chat.busy ? "Stop (C-c)" : "Send (Enter)"
+                    if b.toolTip != tip {
+                        b.image = NSImage(systemSymbolName: chat.busy ? "stop.circle.fill" : "arrow.up.circle.fill", accessibilityDescription: chat.busy ? "Stop" : "Send")
+                        b.toolTip = tip
+                        b.needsDisplay = true
+                    }
+                    b.lit = chat.busy || !empty
+                    b.onClick = { [weak self] in
+                        self?.transmit { .chat(seq: $0, op: chat.busy ? "stop" : "send", arg: nil) }
+                        if let self { self.window?.makeFirstResponder(self) }
+                    }
+                    let bf = NSRect(x: r - 26 - cell.width / 2, y: CGFloat(textY(w) + last) * cell.height + (cell.height - 22) / 2, width: 22, height: 22)
+                    if b.frame != bf { b.frame = bf }
+                    b.isHidden = false
+                    b.needsDisplay = true
+                    // Working: a spinner beside Stop, in the composer.
+                    let sf = NSRect(x: bf.minX - 22, y: bf.midY - 8, width: 16, height: 16)
+                    if spinners[i].frame != sf { spinners[i].frame = sf }
+                    if chat.busy { spinners[i].startAnimation(nil) } else { spinners[i].stopAnimation(nil) }
+                } else {
+                    b.isHidden = true
+                    spinners[i].stopAnimation(nil)
+                }
+                let (yes, no) = answerButtons[i]
+                if let q = rows.lastIndex(of: "a"), q + 1 < rows.count {
+                    let y = CGFloat(textY(w) + q + 1) * cell.height + (cell.height - 20) / 2
+                    let yf = NSRect(x: l + cell.width * 2.5, y: y, width: yes.intrinsicContentSize.width, height: 20)
+                    let nf = NSRect(x: yf.maxX + 6, y: y, width: no.intrinsicContentSize.width, height: 20)
+                    if yes.frame != yf { yes.frame = yf }
+                    if no.frame != nf { no.frame = nf }
+                    yes.isHidden = false
+                    no.isHidden = false
+                } else {
+                    yes.isHidden = true
+                    no.isHidden = true
+                }
                 continue
             }
             chatHeaders[i].isHidden = true
             sessionLists[i].isHidden = true
+            sendButtons[i].isHidden = true
+            spinners[i].stopAnimation(nil)
+            answerButtons[i].0.isHidden = true
+            answerButtons[i].1.isHidden = true
             // A header of 2+ rows ends with the breadcrumbs; one row is all tabs.
             let crumbRows = w.header! >= 2 ? 1 : 0
             let y = CGFloat(w.y) * cell.height, th = CGFloat(w.header! - crumbRows) * cell.height
@@ -535,7 +616,11 @@ final class EditorView: NSView {
             c.open = { [weak self] p in self?.transmit { .dropFile(seq: $0, path: p, target: id, zone: "center") } }
             c.symbols = { [weak self] in self?.transmit { .mac(seq: $0, key: "@", shift: false) } }
             c.update(path: w.path, root: root, symbol: w.symbol)
-            s.op = { [weak self] op, index, to in self?.transmit { .tab(seq: $0, win: id, op: op, index: index, to: to) } }
+            s.op = { [weak self] op, index, to in
+                guard let self else { return }
+                if op == "close", index < tabs.count, tabs[index].modified { return self.askToClose(win: id, index: index, name: tabs[index].name) }
+                self.transmit { .tab(seq: $0, win: id, op: op, index: index, to: to) }
+            }
             s.dragOut = { [weak self] index, p in
                 guard let self else { return }
                 let at = p.map { self.convert($0, from: nil) }
@@ -734,6 +819,28 @@ final class EditorView: NSView {
     /// The window's first text row: below its tab strip.
     private func textY(_ w: Win) -> Int { w.y + (w.header ?? 0) }
 
+    /// VS Code's question on closing a tab with unsaved changes.
+    func askToClose(win: Int, index: Int, name: String) {
+        let a = NSAlert()
+        a.messageText = "Do you want to save the changes you made to \(name)?"
+        a.informativeText = "Your changes will be lost if you don't save them."
+        a.addButton(withTitle: "Save")
+        a.addButton(withTitle: "Cancel")
+        a.addButton(withTitle: "Don't Save").hasDestructiveAction = true
+        let r = a.runModal()
+        guard r != .alertSecondButtonReturn else { return }
+        let op = r == .alertFirstButtonReturn ? "save" : "discard"
+        transmit { .tab(seq: $0, win: win, op: op, index: index, to: nil) }
+    }
+
+    /// Cmd-W: the active window's shown tab, asking first if it's modified.
+    func closeEditor() -> Bool {
+        guard let w = current?.windows.first(where: \.active), let id = w.id, let tabs = w.tabs,
+              let i = tabs.firstIndex(where: \.current), tabs[i].modified else { return false }
+        askToClose(win: id, index: i, name: tabs[i].name)
+        return true
+    }
+
     private func frameShown(_ f: Frame) {
         guard latency.shown(seq: f.seq, at: CACurrentMediaTime()), showLatency else { return }
         if latency.total / 100 > printed {
@@ -791,6 +898,7 @@ final class EditorView: NSView {
                 drawBackgrounds(ctx, runs, col: w.x, row: y + r)
             }
             drawPaint(ctx, w)
+            drawChat(ctx, w)
             if let sel = w.sel, !sel.isEmpty { drawSelection(ctx, sel, w) }
             for r in dirty {
                 let paint = w.paint?.indices.contains(r) == true ? w.paint?[r] : nil

@@ -48,7 +48,7 @@ check("cell width positive", c.width > 7 && c.width < 9)
 check("wide chars take 2 cells", cellWidth("日本語 wide") == 11)
 check("ascii 1 cell", cellWidth("abc") == 3)
 var acc: CGFloat = 0
-check("wheel notch is one line", scrollLines(-0.1, precise: false, acc: &acc) == -1 && scrollLines(5, precise: false, acc: &acc) == 1)
+check("wheel notch is a step, an accelerated one more", scrollLines(-0.1, precise: false, acc: &acc) == -1 && scrollLines(5, precise: false, acc: &acc) == 5)
 check("trackpad adds up 3 per step", scrollLines(2, precise: true, acc: &acc) == 0 && scrollLines(2, precise: true, acc: &acc) == 1 && acc == 1)
 check("trackpad turning starts over", scrollLines(-2, precise: true, acc: &acc) == 0 && acc == -2)
 acc = 0
@@ -129,6 +129,9 @@ check("hidden", hid(".git", true, false) && hid(".git", false, false) && hid(".D
 check("dotfiles shown", !hid(".gitignore", false, false) && !hid(".github", true, false) && !hid("node_modules", true, false))
 check("target only beside Cargo.toml", hid("target", true, true) && !hid("target", true, false) && !hid("target", false, true))
 check("canonical resolves /tmp", FileTree.canonical("/tmp") == "/private/tmp" && FileTree.canonical("/var/../tmp") == "/private/tmp")
+let gm = FileTree.gitMarks(" M src/a.rs\0A  new.txt\0?? tmp/\0R  b.rs\0old.rs\0 D gone.md\0", top: "/r")
+check("git marks", gm["/r/src/a.rs"] == "M" && gm["/r/src"] == "•" && gm["/r/new.txt"] == "A" && gm["/r/tmp"] == "U"
+      && gm["/r/b.rs"] == "R" && gm["/r/old.rs"] == nil && gm["/r/gone.md"] == "D" && gm["/r"] == nil)
 check("canonical keeps a missing path", FileTree.canonical("/no/such/fred") == "/no/such/fred")
 check("folders first, case-insensitive", FileTree.sorted([("b.rs", false), ("Zed", true), ("A.md", false), ("apps", true), (".github", true)]).map(\.name)
       == [".github", "apps", "Zed", "A.md", "b.rs"])

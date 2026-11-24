@@ -614,6 +614,7 @@ fn input(s: &mut Session, term: &mut Terminal<TestBackend>, m: In) {
             let done = match op.as_str() {
                 "select" => s.select_tab(win, index),
                 "close" => s.close_tab(win, index),
+                "save" | "discard" => s.save_or_discard_tab(win, index, op == "save"),
                 "move" => s.move_tab(win, index, to),
                 "keep" => s.keep_tab(win, index),
                 "drop" => s.drop_tab(win, index, target, &zone, to),
@@ -626,7 +627,7 @@ fn input(s: &mut Session, term: &mut Terminal<TestBackend>, m: In) {
                 s.ed.set_err(e);
             }
         }
-        In::Scroll { win, top, .. } => scroll(s, win, top),
+        In::Scroll { win, top, up, .. } => scroll(s, win, top, up),
         In::Cd { path, .. } => s.cd(Some(&path)),
         In::File { op, path, .. } => s.file_menu(&op, path),
         In::Chat { op, arg, .. } => s.chat_panel(&op, arg),
@@ -668,16 +669,31 @@ fn input(s: &mut Session, term: &mut Terminal<TestBackend>, m: In) {
 
 /// Show window `win` from line `top`, clamped to its last screenful. As
 /// with the wheel, the cursor stays put until the next key.
-fn scroll(s: &mut Session, win: usize, top: usize) {
+fn scroll(s: &mut Session, win: usize, requested: usize, up: Option<bool>) {
     let Some(p) = s.placed().into_iter().find(|p| p.id == win) else {
         return;
     };
     let Some(k) = s.windows.iter().position(|w| w.id == win) else {
         return;
     };
-    let lines = s.ed_at(s.windows[k].buf).line_count();
+    let ed = s.ed_at(s.windows[k].buf);
+    let lines = ed.line_count();
+    // As the wheel and CTRL-E: down until the last line is at the top.
+    let mut top = requested.min(lines.saturating_sub(1));
+    // A top inside a closed fold would be drawn from the fold's line, and the
+    // app would slide back to it: step over the fold the way the scroll heads
+    // (the app says; requests queued behind a jump can't tell from the top).
+    if let Some((first, last)) = ed.folds.range_at(top) {
+        let down = up.map_or(top > s.windows[k].view.top, |u| !u);
+        top = if down && last + 1 < lines {
+            last + 1
+        } else {
+            first.saturating_sub(1)
+        };
+    }
     let view = &mut s.windows[k].view;
-    view.top = top.min(lines.saturating_sub(usize::from(p.text().height)));
+    view.top = top;
+    view.free_top = view.top > lines.saturating_sub(usize::from(p.text().height));
     view.top_row = 0;
     view.detached = true;
 }
@@ -853,6 +869,39 @@ mod tests {
         // Claude's keys all ran (and were answered); `:qa` didn't cut in.
         assert_eq!(s.ed.cur.line, 2);
         assert!(answered.try_recv().unwrap().is_ok());
+    }
+
+    #[test]
+    fn a_trackpad_scroll_takes_the_last_line_to_the_top() {
+        let text: String = (0..50).map(|i| format!("{i}\n")).collect();
+        let (mut s, _d) = session(&text);
+        let win = s.windows[0].id;
+        scroll(&mut s, win, 999, None);
+        let v = s.windows[0].view;
+        assert_eq!(v.top, s.ed.line_count() - 1);
+        assert!(v.free_top && v.detached);
+    }
+
+    #[test]
+    fn a_trackpad_scroll_steps_over_a_closed_fold_either_way() {
+        let text: String = (0..50).map(|i| format!("{i}\n")).collect();
+        let (mut s, _d) = session(&text);
+        s.ed.folds.hide(10, 20);
+        let win = s.windows[0].id;
+        scroll(&mut s, win, 9, Some(false));
+        // Downward requests queued before the app saw the jump all stay past it.
+        for top in 10..=20 {
+            scroll(&mut s, win, top, Some(false));
+            assert_eq!(s.windows[0].view.top, 21, "down to {top}");
+        }
+        // Upward ones, however they're queued, land above it.
+        for top in (10..=20).rev() {
+            scroll(&mut s, win, top, Some(true));
+            assert_eq!(s.windows[0].view.top, 9, "up to {top}");
+        }
+        // The minimap says no direction: from the shown top.
+        scroll(&mut s, win, 15, None);
+        assert_eq!(s.windows[0].view.top, 21);
     }
 
     #[test]

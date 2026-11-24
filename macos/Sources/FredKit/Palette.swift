@@ -15,9 +15,14 @@ public struct Palette: Sendable {
     /// The default: Material Deep Ocean, matching the core's `material-deep-ocean` syntax theme.
     public static var deepOcean: Palette { Palette(fg: rgb(0xa6accd), bg: rgb(0x0f111a)) }
 
-    /// Glass: Deep Ocean over the user's Ghostty background, black at 90%, so
-    /// the blurred desktop shows through as it does behind their Neovim.
-    public static var glass: Palette { Palette(fg: rgb(0xa6accd), bg: rgb(0x000000).withAlphaComponent(0.9)) }
+    /// Glass: Material Ocean navy at 90%, so the blurred desktop shows through.
+    /// Black (Ghostty's override) read as flat black over the blur.
+    public static var glass: Palette {
+        var p = Palette(fg: rgb(0xc9cedc), bg: rgb(0x101521).withAlphaComponent(0.9))
+        p.selFill = rgb(0x2d3450)
+        p.selBorder = rgb(0x3d4566)
+        return p
+    }
 
     /// True when the background lets the desktop show through.
     public var clear: Bool { bg.alphaComponent < 1 }

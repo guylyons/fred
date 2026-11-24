@@ -326,7 +326,11 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
         return true;
     }
     let plain_enter = k.code == KeyCode::Enter && !k.ctrl && !k.alt && !k.shift;
-    if plain_enter && ed.popup.is_none() && prompt_line(ed).is_some_and(|p| ed.cur.line >= p) {
+    // An item picked in the completion popup is Enter's to accept; an
+    // unpicked popup (it opens as you type) doesn't stop the send.
+    let picked = ed.popup.as_ref().is_some_and(|p| p.sel.is_some());
+    if plain_enter && !picked && prompt_line(ed).is_some_and(|p| ed.cur.line >= p) {
+        ed.popup = None;
         // `\` then Enter breaks the line, as in the CLI, where Shift-Enter can't.
         let line = ed.buf.line(ed.cur.line);
         if insert && line[..ed.cur.byte.min(line.len())].ends_with('\\') {
@@ -346,6 +350,73 @@ pub fn key(ed: &mut Editor, k: Key) -> bool {
     false
 }
 
+/// Blank rows above a chat too short to fill its `rows` by `cols` text
+/// area, so the prompt sits at the bottom, as VS Code's composer.
+pub fn pad(ed: &Editor, cols: usize, rows: usize) -> usize {
+    let cols = cols
+        .saturating_sub(crate::ui::render::gutter_width(ed))
+        .max(1);
+    let mut used = 0;
+    for l in 0..ed.line_count() {
+        used += crate::ui::layout::wrap_rows(&ed.buf.line(l), ed.tabstop(), cols);
+        if used >= rows {
+            return 0;
+        }
+    }
+    rows - used
+}
+
+/// What each buffer line is, for the app to draw it as VS Code's chat:
+/// `u` a message you sent, `p` the prompt being typed, `t` a tool call,
+/// `r` a tool's result, ` ` anything else.
+pub fn kinds(ed: &Editor) -> Vec<u8> {
+    let prompt = prompt_line(ed).unwrap_or(usize::MAX);
+    let mut out = Vec::with_capacity(ed.line_count());
+    let mut user = false;
+    for l in 0..ed.line_count() {
+        let line = ed.buf.line(l);
+        if line.starts_with('>') || line.starts_with('⏺') {
+            user = line.starts_with('>');
+        }
+        out.push(if l >= prompt {
+            b'p'
+        } else if user {
+            b'u'
+        } else if line.starts_with("  ⎿") {
+            b'r'
+        } else if is_tool(&line) || line.starts_with("⏺ Allow ") {
+            b't'
+        } else {
+            b' '
+        });
+    }
+    // The question waiting for y/n: the app shows Allow and Deny.
+    if ed.claude.as_ref().is_some_and(|c| c.ask.is_some())
+        && let Some(l) = (0..out.len())
+            .rev()
+            .find(|&l| ed.buf.line(l).starts_with("⏺ Allow "))
+    {
+        out[l] = b'a';
+    }
+    // A message's blank lines before the reply aren't part of it.
+    for l in (0..out.len()).rev() {
+        if out[l] == b'u' && out.get(l + 1) != Some(&b'u') && ed.buf.line(l).trim().is_empty() {
+            out[l] = b' ';
+        }
+    }
+    out
+}
+
+/// `⏺ Name(…)`: the line `tick` writes for a tool call.
+fn is_tool(line: &str) -> bool {
+    line.strip_prefix("⏺ ").is_some_and(|t| {
+        let name = t.split('(').next().unwrap_or("");
+        t.len() > name.len()
+            && !name.is_empty()
+            && name.chars().all(|c| c.is_alphanumeric() || c == '_')
+    })
+}
+
 /// `line` is on the prompt of a chat, where the view follows the reply.
 pub fn at_prompt(ed: &Editor, line: usize) -> bool {
     ed.claude.is_some() && prompt_line(ed).is_some_and(|p| line >= p)
@@ -358,7 +429,7 @@ fn prompt_line(ed: &Editor) -> Option<usize> {
         .find(|&l| ed.buf.line(l).starts_with('>'))
 }
 
-fn send(ed: &mut Editor) {
+pub(crate) fn send(ed: &mut Editor) {
     let Some(p) = prompt_line(ed) else { return };
     let start = ed.buf.line_to_char(p);
     let text = ed.buf.slice(start, ed.buf.len_chars());
@@ -372,6 +443,8 @@ fn send(ed: &mut Editor) {
     if prompt == "/clear" {
         return new_conversation(ed);
     }
+    // Its completions were for the prompt just sent: Enter's or the Send button's.
+    ed.popup = None;
     let end = ed.buf.len_chars();
     ed.apply(Edit {
         start: end,
@@ -1397,6 +1470,64 @@ mod tests {
         assert_eq!(asked("Allow Bash(ls -l)? y/n"), Some(("Bash", "ls -l")));
         assert_eq!(asked("⏺ Allow Bash(ls)? y/n"), None);
         assert!(styles("  ⎿  ok").is_none() && styles("say Allow x? y/n").is_none());
+    }
+
+    #[test]
+    fn enter_sends_past_the_completion_popup() {
+        let mut ed = Editor::new(Buffer::from_text("> highlights then hi"));
+        ed.claude = Some(Box::new(Chat::new("cat >/dev/null")));
+        ed.mode = Mode::Insert;
+        ed.set_cursor(0, 20);
+        ed.popup = Some(crate::complete::Popup {
+            items: vec!["highlights".into()],
+            sel: None,
+            start: 18,
+            typed: "hi".into(),
+        });
+        assert!(key(&mut ed, Key::new(KeyCode::Enter)));
+        assert_eq!(ed.buf.text(), "> highlights then hi\n\n> ");
+        assert!(ed.popup.is_none());
+    }
+
+    #[test]
+    fn the_send_button_drops_the_completion_popup_too() {
+        let mut ed = Editor::new(Buffer::from_text("> highlights then hi"));
+        ed.claude = Some(Box::new(Chat::new("cat >/dev/null")));
+        ed.mode = Mode::Insert;
+        ed.set_cursor(0, 20);
+        ed.popup = Some(crate::complete::Popup {
+            items: vec!["highlights".into()],
+            sel: Some(0),
+            start: 18,
+            typed: "hi".into(),
+        });
+        send(&mut ed); // what chat_panel("send") calls
+        assert_eq!(ed.buf.text(), "> highlights then hi\n\n> ");
+        assert!(ed.popup.is_none());
+    }
+
+    #[test]
+    fn lines_have_kinds_for_the_app() {
+        let mut ed = Editor::new(Buffer::from_text(
+            "> fix it\nplease\n\n⏺ Read(a.rs)\n  ⎿  12 lines\n\n⏺ Done.\n  more\n\n> next",
+        ));
+        ed.claude = Some(Box::new(Chat::new("true")));
+        assert_eq!(kinds(&ed), b"uu tr    p");
+    }
+
+    #[test]
+    fn a_question_is_its_own_kind_until_answered() {
+        let mut ed = Editor::new(Buffer::from_text("> go\n\n> "));
+        ed.claude = Some(Box::new(Chat::new("true")));
+        let (tx, _rx) = mpsc::channel();
+        ask(
+            &mut ed,
+            &json!({ "tool_name": "Bash", "input": { "command": "ls" } }),
+            tx,
+        );
+        assert_eq!(kinds(&ed), b"u a p");
+        assert!(answer(&mut ed, Key::ch('y')));
+        assert_eq!(kinds(&ed), b"u tr p");
     }
 
     #[test]

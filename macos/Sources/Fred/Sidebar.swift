@@ -63,6 +63,10 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
     private var navRows: [Int] = []
     private var navSent: [String] = []
     private var zapViews: [NSView] = []
+    /// Git's decorations (`FileTree.gitMarks`) and the files open with unsaved changes.
+    private var git: [String: String] = [:]
+    private var unsaved: Set<String> = []
+    private var gitTicket = 0
 
     init(root: URL) {
         self.root = Node(URL(fileURLWithPath: FileTree.canonical(root.path)), isDir: true)
@@ -104,7 +108,17 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         outline.find = { [weak self] in _ = self.map { $0.view.window?.makeFirstResponder($0.filterField) } }
         filterField.placeholderString = "Filter"
         filterField.font = .systemFont(ofSize: 13)
-        filterField.controlSize = .large
+        // A plain field, no magnifying glass, padded in a 6pt-rounded box: not macOS 26's capsule.
+        filterField.isBezeled = false
+        filterField.drawsBackground = false
+        filterField.focusRingType = .none
+        (filterField.cell as? NSSearchFieldCell)?.searchButtonCell = nil
+        let filterBox = NSView()
+        filterBox.wantsLayer = true
+        filterBox.layer?.cornerRadius = 6
+        filterBox.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.07).cgColor
+        filterField.translatesAutoresizingMaskIntoConstraints = false
+        filterBox.addSubview(filterField)
         filterField.sendsSearchStringImmediately = true
         filterField.target = self
         filterField.action = #selector(filterChanged)
@@ -117,7 +131,7 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         // No scroller: the tree scrolls by trackpad and wheel, like the editor.
         scroll.hasVerticalScroller = false
 
-        for s in [header, scroll, filterField] as [NSView] {
+        for s in [header, scroll, filterBox] as [NSView] {
             s.translatesAutoresizingMaskIntoConstraints = false
             v.addSubview(s)
         }
@@ -128,13 +142,18 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
             scroll.topAnchor.constraint(equalTo: header.bottomAnchor, constant: 4),
             scroll.leadingAnchor.constraint(equalTo: v.leadingAnchor),
             scroll.trailingAnchor.constraint(equalTo: v.trailingAnchor),
-            scroll.bottomAnchor.constraint(equalTo: filterField.topAnchor, constant: -6),
-            filterField.leadingAnchor.constraint(equalTo: v.leadingAnchor, constant: 8),
-            filterField.trailingAnchor.constraint(equalTo: v.trailingAnchor, constant: -8),
-            filterField.bottomAnchor.constraint(equalTo: v.bottomAnchor, constant: -8),
+            scroll.bottomAnchor.constraint(equalTo: filterBox.topAnchor, constant: -6),
+            filterBox.leadingAnchor.constraint(equalTo: v.leadingAnchor, constant: 8),
+            filterBox.trailingAnchor.constraint(equalTo: v.trailingAnchor, constant: -8),
+            filterBox.bottomAnchor.constraint(equalTo: v.bottomAnchor, constant: -8),
+            filterBox.heightAnchor.constraint(equalToConstant: 30),
+            filterField.leadingAnchor.constraint(equalTo: filterBox.leadingAnchor, constant: 10),
+            filterField.trailingAnchor.constraint(equalTo: filterBox.trailingAnchor, constant: -6),
+            filterField.centerYAnchor.constraint(equalTo: filterBox.centerYAnchor),
         ])
         view = v
         watch()
+        refreshGit()
     }
 
     // MARK: - Data
@@ -188,6 +207,33 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         }
     }
 
+    /// Ask Git what changed, in the background, and redecorate the rows.
+    private func refreshGit() {
+        gitTicket += 1
+        let ticket = gitTicket, dir = root.url
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let marks = gitStatus(in: dir)
+            DispatchQueue.main.async {
+                guard let self, ticket == self.gitTicket, marks != self.git else { return }
+                self.git = marks
+                self.redecorate()
+            }
+        }
+    }
+
+    /// The open files with unsaved changes (absolute paths), from the frame.
+    func setUnsaved(_ paths: Set<String>) {
+        let p = Set(paths.map(FileTree.canonical))
+        guard p != unsaved else { return }
+        unsaved = p
+        redecorate()
+    }
+
+    private func redecorate() {
+        guard outline.numberOfRows > 0, editing == nil else { return }
+        outline.reloadData(forRowIndexes: IndexSet(0..<outline.numberOfRows), columnIndexes: [0])
+    }
+
     /// List `n`, then dim its gitignored entries once Git says which.
     private func load(_ n: Node) {
         n.load()
@@ -223,11 +269,15 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         let cell = o.makeView(withIdentifier: id, owner: nil) as? NSTableCellView ?? {
             let c = NSTableCellView()
             c.identifier = id
-            let image = NSImageView(), text = NSTextField(labelWithString: "")
+            let image = NSImageView(), text = NSTextField(labelWithString: ""), mark = NSTextField(labelWithString: "")
             text.font = .systemFont(ofSize: 13)
             text.lineBreakMode = .byTruncatingMiddle
             text.delegate = self
-            for s in [image, text] as [NSView] {
+            mark.font = .systemFont(ofSize: 11, weight: .semibold)
+            mark.alignment = .right
+            mark.tag = Sidebar.markTag
+            mark.setContentCompressionResistancePriority(.required, for: .horizontal)
+            for s in [image, text, mark] as [NSView] {
                 s.translatesAutoresizingMaskIntoConstraints = false
                 c.addSubview(s)
             }
@@ -236,8 +286,10 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
                 image.centerYAnchor.constraint(equalTo: c.centerYAnchor),
                 image.widthAnchor.constraint(equalToConstant: 16),
                 text.leadingAnchor.constraint(equalTo: image.trailingAnchor, constant: 5),
-                text.trailingAnchor.constraint(equalTo: c.trailingAnchor, constant: -2),
+                text.trailingAnchor.constraint(equalTo: mark.leadingAnchor, constant: -4),
                 text.centerYAnchor.constraint(equalTo: c.centerYAnchor),
+                mark.trailingAnchor.constraint(equalTo: c.trailingAnchor, constant: -10),
+                mark.centerYAnchor.constraint(equalTo: c.centerYAnchor),
             ])
             c.imageView = image
             c.textField = text
@@ -245,10 +297,24 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         }()
         cell.imageView!.image = FileIcon.image(for: n.name, isDir: n.isDir, size: 16)
         cell.textField!.stringValue = n.name
-        cell.textField!.textColor = n.ignored ? .secondaryLabelColor : .labelColor // dimmed, still readable
+        // VS Code's colours: yellow modified, green new, red deleted; ● unsaved in an editor.
+        let path = n.url.path, g = git[path]
+        let color: NSColor? = switch g {
+        case "M", "R": .systemYellow
+        case "A", "U": .systemGreen
+        case "D": .systemRed
+        case "•": .systemYellow.withAlphaComponent(0.8)
+        default: nil
+        }
+        cell.textField!.textColor = n.ignored ? .secondaryLabelColor : color ?? .labelColor // dimmed, still readable
+        let mark = cell.viewWithTag(Sidebar.markTag) as? NSTextField
+        mark?.stringValue = unsaved.contains(path) ? "●" : g ?? ""
+        mark?.textColor = unsaved.contains(path) ? .labelColor : color ?? .secondaryLabelColor
         cell.textField!.isEditable = false
         return cell
     }
+
+    private static let markTag = 7
 
     // MARK: - Opening
 
@@ -391,6 +457,7 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
 
     /// Reload the loaded folders FSEvents names (it names folders).
     private func changed(_ dirs: [String]) {
+        refreshGit() // a save, a stage or a commit (.git changes) all land here
         guard editing == nil else { return } // don't pull the row out from under the name field
         // Files came or went: list them again, now if a filter shows them.
         files = nil
@@ -682,6 +749,25 @@ private func walkFiles(in dir: URL) -> [String] {
         if !isDir, p.hasPrefix(base) { out.append(String(p.dropFirst(base.count))) }
     }
     return out
+}
+
+/// `git status` for the repository holding `dir`, as `FileTree.gitMarks`; empty outside one.
+private func gitStatus(in dir: URL) -> [String: String] {
+    func git(_ args: [String]) -> String? {
+        let p = Process(), output = Pipe()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        p.arguments = args
+        p.currentDirectoryURL = dir
+        p.standardOutput = output
+        p.standardError = FileHandle.nullDevice
+        guard (try? p.run()) != nil else { return nil }
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        p.waitUntilExit()
+        return p.terminationStatus == 0 ? String(decoding: data, as: UTF8.self) : nil
+    }
+    guard let top = git(["rev-parse", "--show-toplevel"])?.trimmingCharacters(in: .whitespacesAndNewlines),
+          let status = git(["status", "--porcelain", "-z"]) else { return [:] }
+    return FileTree.gitMarks(status, top: FileTree.canonical(top))
 }
 
 /// Which of `names` (entries of `dir`) Git ignores; empty outside a repo.

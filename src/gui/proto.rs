@@ -2,8 +2,8 @@
 use ratatui::style::Color;
 use serde::{Deserialize, Serialize};
 
-fn is_zero(f: &u8) -> bool {
-    *f == 0
+fn is_zero<T: Default + PartialEq>(f: &T) -> bool {
+    *f == T::default()
 }
 
 /// Text at column `x` in one style. `fg`/`bg`: 0-255 palette, `1<<24 | rgb`.
@@ -98,10 +98,17 @@ pub struct ChatBar {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mode: Option<String>,
     pub busy: bool,
-    /// Past conversations (id, title, how long ago), sent while nothing
-    /// has been said yet.
+    /// Past conversations (id, title, how long ago).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sessions: Vec<(String, String, String)>,
+    /// One `claude::kinds` letter per text row: `u` your message, `p` the
+    /// prompt being typed, `t` a tool call, `r` its result.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub rows: String,
+    /// Of the window's header rows, the blank ones that put a short chat
+    /// at the bottom.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub pad: u16,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -360,6 +367,9 @@ pub enum In {
         seq: u64,
         win: usize,
         top: usize,
+        /// Which way the app's slide heads: past a closed fold, that way.
+        #[serde(default)]
+        up: Option<bool>,
     },
     Quit,
 }

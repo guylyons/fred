@@ -1,5 +1,6 @@
 import AppKit
 import FredKit
+import CoreImage
 import UniformTypeIdentifiers
 
 @MainActor
@@ -30,15 +31,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     private let editorBox = EditorBackground()
     /// The title bar's strip: in Glass, the backdrop is clear, so this paints its tint.
     private let titleStrip = EditorBackground()
-    /// Glass's blur. A system view, unlike the window-server blur call, it follows
-    /// the window's rounded corners.
-    private let blur: NSVisualEffectView = {
-        let v = NSVisualEffectView()
-        v.blendingMode = .behindWindow
-        v.material = .hudWindow
-        v.state = .active
-        return v
-    }()
+    /// Glass: macOS's Liquid Glass behind the whole window. (The old
+    /// .hudWindow material was so dark the panes read as solid.)
+    private let blur = NSGlassEffectView()
+    /// The background image, over the glass and under the tinted panes.
+    private let picture = EditorBackground()
     /// View ▸ Glass Theme: the Ghostty look, translucent over a blurred desktop.
     private var glass = UserDefaults.standard.string(forKey: "FredTheme") == "glass"
 
@@ -154,6 +151,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
                 { glassItem = item("Glass Theme", #selector(toggleGlass), "t", [.command, .control]); glassItem.state = glass ? .on : .off; return glassItem }(),
                 item("Background Image…", #selector(chooseBackground)),
                 item("Remove Background Image", #selector(removeBackground)),
+                item("Adjust Background…", #selector(showBackgroundPanel)),
             ]),
             windowMenu,
         ].forEach(bar.addItem)
@@ -264,8 +262,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
 
     @objc private func clearRecent() { UserDefaults.standard.removeObject(forKey: Self.recentKey) }
 
+    /// A text field being typed in (the sidebar's filter, a rename) takes the Edit menu's keys itself.
+    private var fieldEditor: NSText? { NSApp.keyWindow?.firstResponder as? NSText }
+
     @objc private func macKey(_ s: NSMenuItem) {
         let k = s.representedObject as! String, shift = s.tag == 1
+        if k == "w", fieldEditor == nil, view.closeEditor() { return }
+        if let t = fieldEditor, let sel = ["a": #selector(NSText.selectAll(_:)), "c": #selector(NSText.copy(_:)), "x": #selector(NSText.cut(_:))][k] {
+            t.perform(sel, with: s)
+            return
+        }
         view.transmit(at: CACurrentMediaTime()) { .mac(seq: $0, key: k, shift: shift) }
     }
 
@@ -279,6 +285,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     }
 
     @objc private func paste() {
+        if let f = fieldEditor { return f.paste(nil) }
         guard let t = NSPasteboard.general.string(forType: .string) else { return }
         view.transmit { .paste(seq: $0, text: t) }
     }
@@ -292,16 +299,71 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
 
     /// View ▸ Background Image…: a picture behind the whole window, seen
     /// through translucent panes (Ghostty's background-image).
-    private var backgroundImage = UserDefaults.standard.string(forKey: "FredBackgroundImage").flatMap(NSImage.init(contentsOfFile:))
+    private var backgroundImage = UserDefaults.standard.string(forKey: "FredBackgroundImage").flatMap { CIImage(contentsOf: URL(fileURLWithPath: $0)) }
+    private let imageContext = CIContext()
 
     @objc private func chooseBackground() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.image]
-        guard panel.runModal() == .OK, let url = panel.url, let image = NSImage(contentsOf: url) else { return }
-        UserDefaults.standard.set(url.path, forKey: "FredBackgroundImage")
+        guard panel.runModal() == .OK, let url = panel.url, let image = CIImage(contentsOf: url) else { return }
+        // A copy Fred owns: a picture left on the Desktop needs a permission at every launch.
+        let fm = FileManager.default
+        let dir = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Fred")
+        let copy = dir.appendingPathComponent("background." + url.pathExtension)
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        try? fm.removeItem(at: copy)
+        let kept = (try? fm.copyItem(at: url, to: copy)) != nil ? copy : url
+        UserDefaults.standard.set(kept.path, forKey: "FredBackgroundImage")
         backgroundImage = image
         applyTheme()
         installSidebar(project)
+    }
+
+    /// The image through View ▸ Adjust Background's blur and brightness.
+    private func filtered(_ source: CIImage) -> NSImage? {
+        let d = UserDefaults.standard
+        let extent = source.extent
+        var ci = source
+        if d.double(forKey: "FredImageBlur") > 0 {
+            ci = ci.clampedToExtent().applyingGaussianBlur(sigma: d.double(forKey: "FredImageBlur")).cropped(to: extent)
+        }
+        ci = ci.applyingFilter("CIColorControls", parameters: [kCIInputBrightnessKey: d.double(forKey: "FredImageBrightness")])
+        return imageContext.createCGImage(ci, from: extent).map { NSImage(cgImage: $0, size: extent.size) }
+    }
+
+    /// View ▸ Adjust Background…: the panes' opacity and the image's filter, live.
+    private lazy var backgroundPanel: NSPanel = {
+        let p = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 360, height: 130),
+                        styleMask: [.titled, .closable, .utilityWindow], backing: .buffered, defer: true)
+        p.title = "Adjust Background"
+        let rows = [("Opacity", "FredOpacity", 0.0, 1.0), ("Image Blur", "FredImageBlur", 0, 60),
+                    ("Image Brightness", "FredImageBrightness", -0.5, 0.5)].map { label, key, lo, hi -> [NSView] in
+            let s = NSSlider(value: UserDefaults.standard.double(forKey: key), minValue: lo, maxValue: hi,
+                             target: self, action: #selector(adjustBackground(_:)))
+            s.identifier = NSUserInterfaceItemIdentifier(key)
+            s.widthAnchor.constraint(equalToConstant: 220).isActive = true
+            return [NSTextField(labelWithString: label), s]
+        }
+        let grid = NSGridView(views: rows)
+        grid.column(at: 0).xPlacement = .trailing
+        grid.rowSpacing = 10
+        grid.translatesAutoresizingMaskIntoConstraints = false
+        p.contentView!.addSubview(grid)
+        NSLayoutConstraint.activate([
+            grid.centerXAnchor.constraint(equalTo: p.contentView!.centerXAnchor),
+            grid.centerYAnchor.constraint(equalTo: p.contentView!.centerYAnchor),
+        ])
+        p.center()
+        return p
+    }()
+
+    @objc private func showBackgroundPanel() { backgroundPanel.makeKeyAndOrderFront(nil) }
+
+    @objc private func adjustBackground(_ s: NSSlider) {
+        UserDefaults.standard.set(s.doubleValue, forKey: s.identifier!.rawValue)
+        applyTheme()
+        // The sidebar takes its color when built: rebuild it once, on release.
+        if s.identifier!.rawValue == "FredOpacity", NSApp.currentEvent?.type == .leftMouseUp { installSidebar(project) }
     }
 
     @objc private func removeBackground() {
@@ -324,11 +386,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     private func applyTheme() {
         let image = backgroundImage
         var p = glass || image != nil ? Palette.glass : .deepOcean
-        if image != nil { p.bg = p.bg.withAlphaComponent(0.88) }
+        if p.clear { p.bg = p.bg.withAlphaComponent(UserDefaults.standard.double(forKey: "FredOpacity")) }
         view.palette = p
         let chrome = p.bg.blended(withFraction: 0.12, of: .black)!
         backdrop.color = p.clear ? .clear : chrome
-        backdrop.image = image
+        picture.color = .clear
+        picture.image = image.flatMap(filtered)
         activity?.tint = p.clear ? chrome : .clear
         titleStrip.color = p.clear ? chrome : .clear
         (split?.splitView as? DividerSplit)?.color = chrome.blended(withFraction: 0.3, of: .black)!
@@ -451,6 +514,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             lastCwd = cwd
         }
         sidebar?.follow(f.windows.first(where: \.active)?.path)
+        sidebar?.setUnsaved(Set(f.windows.flatMap { $0.tabs ?? [] }.filter(\.modified).compactMap(\.path)))
         sidebar?.showZap(f.zap_nav ?? [])
         if f.focus_nav == true { focusSidebar() }
         if f.open_folder == true { chooseFolder() }
@@ -640,12 +704,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             .init(symbol: "questionmark.circle", tip: "Help: Search Commands (Space h)", run: { [unowned self] in self.run("<Space>h") }),
         ])
         activity = bar
-        for v in [blur, titleStrip, bar, split.view] { v.translatesAutoresizingMaskIntoConstraints = false; glass.addSubview(v) }
+        for v in [blur, picture, titleStrip, bar, split.view] { v.translatesAutoresizingMaskIntoConstraints = false; glass.addSubview(v) }
         NSLayoutConstraint.activate([
             blur.topAnchor.constraint(equalTo: glass.topAnchor),
             blur.bottomAnchor.constraint(equalTo: glass.bottomAnchor),
             blur.leadingAnchor.constraint(equalTo: glass.leadingAnchor),
             blur.trailingAnchor.constraint(equalTo: glass.trailingAnchor),
+            picture.topAnchor.constraint(equalTo: glass.topAnchor),
+            picture.bottomAnchor.constraint(equalTo: glass.bottomAnchor),
+            picture.leadingAnchor.constraint(equalTo: glass.leadingAnchor),
+            picture.trailingAnchor.constraint(equalTo: glass.trailingAnchor),
             titleStrip.topAnchor.constraint(equalTo: glass.topAnchor),
             titleStrip.leadingAnchor.constraint(equalTo: glass.leadingAnchor),
             titleStrip.trailingAnchor.constraint(equalTo: glass.trailingAnchor),
@@ -781,6 +849,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
 }
 
 let app = NSApplication.shared
+// Glass and image panes at 75%: enough of the glass shows to read as glass.
+UserDefaults.standard.register(defaults: ["FredOpacity": 0.75])
 app.setActivationPolicy(.regular)
 app.appearance = NSAppearance(named: .darkAqua) // dark materials and label colors over the dark theme
 let delegate = AppDelegate()

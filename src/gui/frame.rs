@@ -48,6 +48,7 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
     let mut terms = vec![];
     let mut paints = std::collections::HashMap::new();
     let cwd = std::env::current_dir().ok();
+    let header = s.chrome.0;
     s.each_window(|ed, view, hl, p, _| {
         if let Some(magit) = &ed.magit {
             let count = p.text().height as usize + usize::from(p.header > 0);
@@ -118,15 +119,13 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
         if ed.term.is_some() {
             terms.push(p.id);
         }
-        let chat = crate::claude::bar(ed).map(|(model, mode, busy, empty)| proto::ChatBar {
+        let chat = crate::claude::bar(ed).map(|(model, mode, busy, _)| proto::ChatBar {
             model,
             mode,
             busy,
-            sessions: if empty {
-                crate::claude::sessions()
-            } else {
-                vec![]
-            },
+            sessions: crate::claude::sessions(),
+            rows: chat_rows(ed, view, p.text().width, p.text().height),
+            pad: p.header.saturating_sub(header),
         });
         let symbol = file
             .is_some()
@@ -924,4 +923,35 @@ mod stale_cells {
             assert_eq!(t(&f), t(&g), "step {i}");
         }
     }
+}
+
+/// The chat's line kinds (`claude::kinds`), one per text row on screen.
+fn chat_rows(
+    ed: &crate::editor::Editor,
+    view: &crate::ui::View,
+    width: u16,
+    height: u16,
+) -> String {
+    let kinds = crate::claude::kinds(ed);
+    let cols = (width as usize)
+        .saturating_sub(render::gutter_width(ed))
+        .max(1);
+    let wrap = ed.opts.bool(crate::options::Opt::Wrap);
+    let mut rows = String::new();
+    let mut skip = view.top_row;
+    // shortcut: a closed fold counts its whole height; chats don't fold.
+    for (l, &k) in kinds.iter().enumerate().skip(view.top) {
+        let n = if wrap {
+            crate::ui::layout::wrap_rows(&ed.buf.line(l), ed.tabstop(), cols)
+        } else {
+            1
+        };
+        rows.extend(std::iter::repeat_n(k as char, n.saturating_sub(skip)));
+        skip = 0;
+        if rows.len() >= height as usize {
+            break;
+        }
+    }
+    rows.truncate(height as usize);
+    rows
 }

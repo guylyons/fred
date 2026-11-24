@@ -17,6 +17,29 @@ public enum FileTree {
         return String(cString: p)
     }
 
+    /// VS Code's Git decorations from `git status --porcelain -z` run in the
+    /// repository `top`: absolute path → letter (M modified, A added, D
+    /// deleted, U untracked, R renamed), and every folder above one → "•".
+    public static func gitMarks(_ porcelain: String, top: String) -> [String: String] {
+        var out: [String: String] = [:]
+        var parts = porcelain.split(separator: "\0", omittingEmptySubsequences: true)[...]
+        while let e = parts.popFirst(), e.count > 3 {
+            let x = e.first!, y = e[e.index(after: e.startIndex)]
+            if x == "R" || x == "C" { _ = parts.popFirst() } // the old name follows
+            var rel = String(e.dropFirst(3))
+            if rel.hasSuffix("/") { rel.removeLast() } // an untracked folder, whole
+            let mark = x == "?" ? "U" : y == "D" || x == "D" ? "D" : x == "A" ? "A" : x == "R" ? "R" : "M"
+            var path = top + "/" + rel
+            out[path] = mark
+            while let slash = path.lastIndex(of: "/"), path.count > top.count {
+                path = String(path[..<slash])
+                if path.count <= top.count || out[path] != nil { break }
+                out[path] = "•"
+            }
+        }
+        return out
+    }
+
     /// Folders first, then files, each case-insensitively by name.
     public static func sorted(_ entries: [(name: String, isDir: Bool)]) -> [(name: String, isDir: Bool)] {
         entries.sorted { a, b in
