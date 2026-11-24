@@ -407,6 +407,7 @@ fn seq_of(m: &In) -> Option<u64> {
         | In::Scroll { seq, .. }
         | In::Pick { seq, .. }
         | In::Cd { seq, .. }
+        | In::Font { seq, .. }
         | In::File { seq, .. }
         | In::Chat { seq, .. }
         | In::Menu { seq, .. }
@@ -629,6 +630,18 @@ fn input(s: &mut Session, term: &mut Terminal<TestBackend>, m: In) {
         }
         In::Scroll { win, top, up, .. } => scroll(s, win, top, up),
         In::Cd { path, .. } => s.cd(Some(&path)),
+        In::Font { name, size, .. } => {
+            let value = toml::Value::String(name.clone()).to_string();
+            let saved = Config::save_key("font", &value)
+                .and_then(|()| Config::save_key("font_size", &size.to_string()));
+            match saved {
+                Ok(()) => {
+                    s.ed.set_msg(format!("Font: {name} {size}pt, saved to config.toml"))
+                }
+                Err(e) => s.ed.set_err(e),
+            }
+            (s.cfg.font, s.cfg.font_size) = (name, size);
+        }
         In::File { op, path, .. } => s.file_menu(&op, path),
         In::Chat { op, arg, .. } => s.chat_panel(&op, arg),
         In::Nav { rows } => {

@@ -283,6 +283,8 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
         cwd: std::env::current_dir()
             .map(|d| d.display().to_string())
             .unwrap_or_default(),
+        font: s.cfg.font.clone(),
+        font_size: s.cfg.font_size,
     }
 }
 

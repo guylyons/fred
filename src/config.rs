@@ -20,6 +20,11 @@ pub struct Config {
     /// Highlight the current buffer line across the text area.
     pub hl_line: bool,
     pub theme: String,
+    /// The macOS app's editor font (a PostScript name, so it picks the
+    /// weight too) and size in points; "" and 0 are its defaults. Set
+    /// from View ▸ Font…, which saves them here.
+    pub font: String,
+    pub font_size: u16,
     pub tabstop: usize,
     pub autocomplete: bool,
     /// File-type icons in the file pickers (needs a Nerd Font).
@@ -81,6 +86,8 @@ impl Default for Config {
             relative_numbers: false,
             hl_line: false,
             theme: "ansi".into(),
+            font: String::new(),
+            font_size: 0,
             tabstop: 8,
             autocomplete: true,
             icons: false,
@@ -153,7 +160,12 @@ impl Config {
                 Config::default(),
                 Some("config: height must be at least 1".into()),
             ),
-            Ok(c) => match c.package.iter().try_for_each(|p| p.check()).and_then(|_| c.options()) {
+            Ok(c) => match c
+                .package
+                .iter()
+                .try_for_each(|p| p.check())
+                .and_then(|_| c.options())
+            {
                 Ok(_) => (c, None),
                 Err(e) => (Config::default(), Some(format!("config: {e}"))),
             },
@@ -202,6 +214,21 @@ impl Config {
         Ok(o)
     }
 
+    /// Save top-level `key = value` (`value` already TOML) into the config
+    /// file, keeping everything else in it as written.
+    pub fn save_key(key: &str, value: &str) -> Result<(), String> {
+        let path = config_path();
+        let text = match std::fs::read_to_string(&path) {
+            Ok(t) => t,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+            Err(e) => return Err(format!("config: {e}")),
+        };
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir).map_err(|e| format!("config: {e}"))?;
+        }
+        std::fs::write(&path, with_key(&text, key, value)).map_err(|e| format!("config: {e}"))
+    }
+
     /// Load the user's config file (missing file = defaults).
     pub fn load() -> (Config, Option<String>) {
         match std::fs::read_to_string(config_path()) {
@@ -212,9 +239,51 @@ impl Config {
     }
 }
 
+/// `text` with top-level `key = value`: its line replaced, else added
+/// before the first `[table]`.
+fn with_key(text: &str, key: &str, value: &str) -> String {
+    let line = format!("{key} = {value}");
+    let mut out: Vec<String> = text.lines().map(str::to_string).collect();
+    let table = out
+        .iter()
+        .position(|l| l.trim_start().starts_with('['))
+        .unwrap_or(out.len());
+    let at = out[..table].iter().position(|l| {
+        l.trim_start()
+            .strip_prefix(key)
+            .is_some_and(|r| r.trim_start().starts_with('='))
+    });
+    match at {
+        Some(i) => out[i] = line,
+        None => {
+            // After the last top-level setting, not below a table's comment.
+            let end = out[..table]
+                .iter()
+                .rposition(|l| !l.trim().is_empty() && !l.trim_start().starts_with('#'));
+            out.insert(end.map_or(0, |e| e + 1), line);
+        }
+    }
+    out.join("\n") + "\n"
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_saved_key_replaces_its_line_or_joins_the_top_level() {
+        let t = "icons = true\nfont_size = 12\n\n# Same as nvim\n[set]\ntabstop = 2\n";
+        let t = with_key(t, "font", "\"Menlo\"");
+        assert_eq!(
+            t,
+            "icons = true\nfont_size = 12\nfont = \"Menlo\"\n\n# Same as nvim\n[set]\ntabstop = 2\n"
+        );
+        let t = with_key(&t, "font_size", "14");
+        assert!(t.contains("font_size = 14\nfont = \"Menlo\"") && !t.contains("12"));
+        assert_eq!(with_key("", "font_size", "14"), "font_size = 14\n");
+        let (c, err) = Config::parse(&t);
+        assert_eq!((c.font.as_str(), c.font_size, err), ("Menlo", 14, None));
+    }
 
     #[test]
     fn package_entries_parse_and_are_checked() {

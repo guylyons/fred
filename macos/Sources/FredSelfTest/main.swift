@@ -205,6 +205,7 @@ do {
     check("drop slots", TabMath.slot(atX: 10, frames: f, offset: 0) == 0 && TabMath.slot(atX: 60, frames: f, offset: 0) == 1 && TabMath.slot(atX: 190, frames: f, offset: 0) == 2)
 }
 check("tab line without to", out(.tab(seq: 6, win: 3, op: "select", index: 2, to: nil)) == #"{"t":"tab","seq":6,"win":3,"op":"select","index":2}"# + "\n")
+check("font line", out(.font(seq: 2, name: "Menlo-Regular", size: 14)) == #"{"t":"font","seq":2,"name":"Menlo-Regular","size":14}"# + "\n")
 check("scroll line", out(.scroll(seq: 10, win: 3, top: 400)) == #"{"t":"scroll","seq":10,"win":3,"top":400}"# + "\n")
 check("open preview line", out(.open(seq: 5, path: "/f", preview: true)) == #"{"t":"open","seq":5,"path":"/f","preview":true}"# + "\n")
 check("open line omits preview false", out(.open(seq: 5, path: "/f", preview: false)) == #"{"t":"open","seq":5,"path":"/f"}"# + "\n")

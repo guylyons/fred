@@ -14,6 +14,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     private var project: URL?
     /// The last frame's cwd: a change (a chosen folder, `:cd`) is a new project.
     private var lastCwd: String?
+    /// The font config.toml names, as last applied: (name, size), ("", 0) for the default.
+    private var configFont = ("", 0)
     /// `Space w`'s number on the sidebar.
     private let badge = NSTextField(labelWithString: " 0 ")
     var split: NSSplitViewController!
@@ -141,6 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
                 item("Bigger", #selector(zoom(_:)), "=", tag: 1),
                 item("Smaller", #selector(zoom(_:)), "-", tag: -1),
                 item("Actual Size", #selector(zoom(_:)), "0"),
+                item("Font…", #selector(showFonts), "t"),
                 .separator(),
                 item("Toggle Chat", #selector(toggleChat), "i", [.command, .control]),
                 item("Toggle Terminal", #selector(panel(_:)), "`", [.control]),
@@ -393,7 +396,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         picture.color = .clear
         picture.image = image.flatMap(filtered)
         activity?.tint = p.clear ? chrome : .clear
-        titleStrip.color = p.clear ? chrome : .clear
+        titleStrip.color = p.clear ? chrome.withAlphaComponent(1) : .clear // opaque: the title bar hides the picture
         (split?.splitView as? DividerSplit)?.color = chrome.blended(withFraction: 0.3, of: .black)!
         editorBox.color = p.bg
         window.isOpaque = !glass
@@ -419,7 +422,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     /// tag 1 bigger, -1 smaller, 0 actual size; 9–36 pt.
     @objc private func zoom(_ s: NSMenuItem) {
         let size = s.tag == 0 ? EditorView.defaultSize : min(36, max(9, view.font.pointSize + CGFloat(s.tag)))
-        view.font = EditorView.editorFont(size)
+        setFont(NSFont(descriptor: view.font.fontDescriptor, size: size) ?? EditorView.editorFont(size))
+    }
+
+    /// View ▸ Font…: the system font panel, its choices going to the editor.
+    @objc private func showFonts() {
+        let m = NSFontManager.shared
+        m.target = self
+        m.setSelectedFont(view.font, isMultiple: false)
+        m.orderFrontFontPanel(self)
+    }
+
+    @objc func changeFont(_ sender: NSFontManager?) {
+        guard let m = sender else { return }
+        setFont(m.convert(view.font))
+    }
+
+    /// Use `f` and have the core save it to config.toml (which the next frames echo).
+    private func setFont(_ f: NSFont) {
+        let size = min(72, max(6, f.pointSize.rounded()))
+        view.font = NSFont(descriptor: f.fontDescriptor, size: size) ?? f
+        configFont = (view.font.fontName, Int(size))
+        view.transmit { .font(seq: $0, name: self.view.font.fontName, size: Int(size)) }
     }
 
     func applicationDidFinishLaunching(_ n: Notification) {
@@ -505,6 +529,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     }
 
     private func frame(_ f: Frame) {
+        // config.toml's font, at start and after an edit to it (`:source` aside, as it's read once).
+        let cf = (f.font ?? "", f.font_size ?? 0)
+        if cf != configFont {
+            configFont = cf
+            let size = cf.1 > 0 ? CGFloat(cf.1) : EditorView.defaultSize
+            view.font = EditorView.editorFont(size, name: cf.0.isEmpty ? nil : cf.0)
+        }
         view.apply(f)
         if window.title != f.title { window.title = f.title }
         projectTitle.update(project: project, branch: f.windows.first(where: \.active)?.status.branch)

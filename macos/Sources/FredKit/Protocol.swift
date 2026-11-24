@@ -162,6 +162,9 @@ public struct Frame: Codable, Sendable {
     public var picking: Bool?
     /// The core's working directory: the project.
     public var cwd: String?
+    /// config.toml's editor font (PostScript name) and size; absent: the app's default.
+    public var font: String?
+    public var font_size: Int?
 }
 
 /// A zap label on sidebar row `row`, at character `at` of its name.
@@ -248,6 +251,8 @@ public enum Outgoing {
     case panel(seq: Int, op: String)
     /// Work in folder `path` (`:cd`): the chosen project.
     case cd(seq: Int, path: String)
+    /// The editor font chosen in the app, for the core to save to config.toml.
+    case font(seq: Int, name: String, size: Int)
     /// The File menu: `op` new, save_as (to `path`), save_all or revert.
     case file(seq: Int, op: String, path: String?)
     /// The chat panel: `op` toggle, new, resume (conversation `arg`), model or mode.
@@ -285,6 +290,7 @@ public enum Outgoing {
         case .menu(let s, let op): body = #""menu","seq":\#(s),"op":\#(q(op))"#
         case .chat(let s, let op, let a): body = #""chat","seq":\#(s),"op":\#(q(op))"# + (a.map { #","arg":\#(q($0))"# } ?? "")
         case .cd(let s, let p): body = #""cd","seq":\#(s),"path":\#(q(p))"#
+        case .font(let s, let n, let z): body = #""font","seq":\#(s),"name":\#(q(n)),"size":\#(z)"#
         case .nav(let rows):
             body = #""nav","rows":["# + rows.map { #"{"name":\#(q($0.name)),"path":\#(q($0.path))}"# }.joined(separator: ",") + "]"
         case .quit: body = #""quit""#

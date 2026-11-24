@@ -171,6 +171,11 @@ pub struct Frame {
     /// The working directory (the project), absolute.
     #[serde(default)]
     pub cwd: String,
+    /// config.toml's `font` and `font_size`: the editor font ("", 0: the app's default).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub font: String,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub font_size: u16,
 }
 
 /// The leader-key overlay, separate from editor rows for native animation.
@@ -361,6 +366,12 @@ pub enum In {
     Cd {
         seq: u64,
         path: String,
+    },
+    /// View ▸ Font… or zoom: the editor font, saved to config.toml.
+    Font {
+        seq: u64,
+        name: String,
+        size: u16,
     },
     /// The minimap: show window `win` from line `top`.
     Scroll {

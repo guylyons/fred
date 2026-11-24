@@ -119,7 +119,9 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         filterBox.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.07).cgColor
         filterField.translatesAutoresizingMaskIntoConstraints = false
         filterBox.addSubview(filterField)
-        filterField.sendsSearchStringImmediately = true
+        // Filters on Enter (or the clear button), not every keystroke.
+        filterField.sendsSearchStringImmediately = false
+        filterField.sendsWholeSearchString = true
         filterField.target = self
         filterField.action = #selector(filterChanged)
         filterField.delegate = self
@@ -512,9 +514,29 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
             add("Delete", #selector(delete))
         }
         m.addItem(.separator())
+        add("Expand All", #selector(expandAll))
+        add("Collapse All", #selector(collapseAll))
+        m.addItem(.separator())
         add("Reveal in Finder", #selector(reveal))
         add("Copy Path", #selector(copyPath))
         add("Copy Relative Path", #selector(copyRelativePath))
+    }
+
+    /// The clicked folder (the whole tree from empty space) and every folder in it.
+    @objc private func expandAll() {
+        var budget = 500 // shortcut: stops after 500 folders, so a huge tree can't hang the app
+        func open(_ n: Node) {
+            guard budget > 0 else { return }
+            budget -= 1
+            if n !== root { outline.expandItem(n) }
+            for c in kids(n === root ? nil : n) where c.isDir && !c.ignored { open(c) }
+        }
+        open(target.isDir ? target : root)
+    }
+
+    @objc private func collapseAll() {
+        if target.isDir, target !== root { return outline.collapseItem(target, collapseChildren: true) }
+        for n in kids(nil) { outline.collapseItem(n, collapseChildren: true) }
     }
 
     @objc private func newFile() { create(dir: false) }

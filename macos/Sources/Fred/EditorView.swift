@@ -4,9 +4,10 @@ import FredKit
 /// Draws core frames with Core Text: opaque layer, pixel-snapped glyphs,
 /// only changed rows redrawn.
 final class EditorView: NSView {
-    /// Source Code Pro when installed, else the system monospace.
-    static func editorFont(_ size: CGFloat) -> NSFont {
-        NSFont(name: "SourceCodePro-Regular", size: size) ?? .monospacedSystemFont(ofSize: size, weight: .regular)
+    /// `name` (config.toml's `font`) when installed, else Source Code Pro, else the system monospace.
+    static func editorFont(_ size: CGFloat, name: String? = nil) -> NSFont {
+        name.flatMap { NSFont(name: $0, size: size) } ?? NSFont(name: "SourceCodePro-Regular", size: size)
+            ?? .monospacedSystemFont(ofSize: size, weight: .regular)
     }
     static let defaultSize: CGFloat = 15
     var font = EditorView.editorFont(EditorView.defaultSize) { didSet { metricsChanged() } }

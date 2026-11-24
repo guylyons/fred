@@ -149,7 +149,7 @@ pub struct Session {
     /// `:ai` / `:explain`: the lines, the prompt and whether it explains.
     pub pending_ai: Option<(crate::ex::addr::Range, String, bool)>,
     lossy: bool,
-    cfg: Config,
+    pub(crate) cfg: Config,
     seen_version: u64,
     last_change: Option<Instant>,
     swap_state: SwapState,
