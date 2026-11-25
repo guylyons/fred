@@ -14,6 +14,9 @@ pub fn project_root(dir: &Path, cwd: &Path) -> PathBuf {
 /// Paths relative to `root`, in walk order, growing until `done`.
 #[derive(Debug)]
 pub struct Files {
+    /// The folders walked, and the deepest directory holding them all
+    /// (paths are relative to it, so a single folder is its own root).
+    pub dirs: Vec<PathBuf>,
     pub root: PathBuf,
     /// Ignore files (`.gitignore` and the like) are not honored.
     pub all: bool,
@@ -33,7 +36,20 @@ impl Eq for Files {}
 
 impl Files {
     pub fn spawn(root: PathBuf, all: bool) -> Arc<Files> {
+        Files::spawn_in(vec![root], all)
+    }
+
+    /// Walk several folders (a multi-folder project); ones inside another
+    /// are dropped as already covered.
+    pub fn spawn_in(mut dirs: Vec<PathBuf>, all: bool) -> Arc<Files> {
+        dirs.sort();
+        dirs.dedup();
+        let all_dirs = dirs.clone();
+        dirs.retain(|d| !all_dirs.iter().any(|o| o != d && d.starts_with(o)));
+        let mut root = dirs[0].clone();
+        while !dirs.iter().all(|d| d.starts_with(&root)) && root.pop() {}
         let files = Arc::new(Files {
+            dirs,
             root,
             all,
             list: Mutex::default(),
@@ -49,7 +65,11 @@ impl Files {
     fn walk(self: &Arc<Self>) {
         let mut batch = vec![];
         let mut total = 0;
-        let walk = ignore::WalkBuilder::new(&self.root)
+        let mut walk = ignore::WalkBuilder::new(&self.dirs[0]);
+        for d in &self.dirs[1..] {
+            walk.add(d);
+        }
+        let walk = walk
             .require_git(false)
             .standard_filters(!self.all)
             .hidden(true)
@@ -155,6 +175,23 @@ mod tests {
             assert!(t.elapsed() < std::time::Duration::from_secs(5));
             std::thread::sleep(std::time::Duration::from_millis(2));
         }
+    }
+
+    #[test]
+    fn walks_several_folders_relative_to_their_common_parent() {
+        let dir = tempfile::tempdir().unwrap();
+        let r = dir.path();
+        fs::create_dir_all(r.join("a/sub")).unwrap();
+        fs::create_dir_all(r.join("b")).unwrap();
+        fs::write(r.join("a/x"), "").unwrap();
+        fs::write(r.join("a/sub/y"), "").unwrap();
+        fs::write(r.join("b/z"), "").unwrap();
+        fs::write(r.join("outside"), "").unwrap();
+        let f = Files::spawn_in(vec![r.join("b"), r.join("a"), r.join("a/sub")], false);
+        f.wait();
+        assert_eq!(f.root, r);
+        assert_eq!(f.dirs, [r.join("a"), r.join("b")]);
+        assert_eq!(f.with(<[String]>::to_vec), ["a/sub/y", "a/x", "b/z"]);
     }
 
     #[test]

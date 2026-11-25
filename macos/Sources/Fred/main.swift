@@ -1,6 +1,7 @@
 import AppKit
 import FredKit
 import CoreImage
+import SwiftUI
 import UniformTypeIdentifiers
 
 @MainActor
@@ -26,8 +27,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     private var layoutStack: NSStackView!
     /// The title bar's left: Fred's face and the project, as Nova shows them.
     private let projectTitle = ProjectTitle()
-    private var minimapItem: NSMenuItem!
-    private var glassItem: NSMenuItem!
     /// The window's backdrop and the editor's box (recolored by `applyTheme`).
     private let backdrop = EditorBackground()
     private let editorBox = EditorBackground()
@@ -53,6 +52,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         return i
     }
 
+    private func hidden(_ i: NSMenuItem) -> NSMenuItem {
+        i.isHidden = true
+        i.allowsKeyEquivalentWhenHidden = true
+        return i
+    }
+
+    /// Settings (or any other panel) in front: Cmd-W closes it, not an editor tab.
+    private var auxiliary: NSWindow? { NSApp.keyWindow.flatMap { $0 === window ? nil : $0 } }
+
+    @objc private func closeWindow() {
+        if let w = auxiliary { w.performClose(nil) } else { quitCore() }
+    }
+
     private func menu(_ title: String, _ items: [NSMenuItem]) -> NSMenuItem {
         let m = NSMenu(title: title)
         items.forEach(m.addItem)
@@ -75,7 +87,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             menu("Fred", [
                 item("About Fred", #selector(NSApplication.orderFrontStandardAboutPanel(_:))),
                 .separator(),
-                item("Settings…", nil, ","), // disabled in Phase 1
+                item("Settings…", #selector(showSettings), ","), // disabled in Phase 1
                 .separator(),
                 item("Hide Fred", #selector(NSApplication.hide(_:)), "h"),
                 .separator(),
@@ -102,7 +114,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
                 .separator(),
                 item("Revert File", #selector(fileOp(_:)), rep: "revert"),
                 item("Close Editor", #selector(macKey(_:)), "w", rep: "w"),
-                item("Close Window", #selector(quitCore), "w", [.command, .shift]),
+                item("Close Window", #selector(closeWindow), "w", [.command, .shift]),
             ]),
             // VS Code's Edit and Selection menus, less what Fred has no
             // counterpart for (multiple cursors, Replace in Files, Emmet,
@@ -143,18 +155,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
                 item("Bigger", #selector(zoom(_:)), "=", tag: 1),
                 item("Smaller", #selector(zoom(_:)), "-", tag: -1),
                 item("Actual Size", #selector(zoom(_:)), "0"),
-                item("Font…", #selector(showFonts), "t"),
                 .separator(),
                 item("Toggle Chat", #selector(toggleChat), "i", [.command, .control]),
+                // The settings moved to Settings…; their keys stay (the minimap button advertises one).
+                hidden(item("Minimap", #selector(toggleMinimap), "m", [.command, .control])),
+                hidden(item("Glass Theme", #selector(toggleGlass), "t", [.command, .control])),
                 item("Toggle Terminal", #selector(panel(_:)), "`", [.control]),
                 item("Maximize Terminal", #selector(panel(_:)), "~", [.control, .shift], tag: 1),
-                .separator(),
-                { minimapItem = item(view.showMinimap ? "Hide Minimap" : "Show Minimap", #selector(toggleMinimap), "m", [.command, .control]); return minimapItem }(),
-                .separator(),
-                { glassItem = item("Glass Theme", #selector(toggleGlass), "t", [.command, .control]); glassItem.state = glass ? .on : .off; return glassItem }(),
-                item("Background Image…", #selector(chooseBackground)),
-                item("Remove Background Image", #selector(removeBackground)),
-                item("Adjust Background…", #selector(showBackgroundPanel)),
             ]),
             windowMenu,
         ].forEach(bar.addItem)
@@ -162,8 +169,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         NSApp.windowsMenu = windowMenu.submenu
     }
 
-    /// Cmd-Q asks the core to `:qa`, as the close button does: with unsaved
-    /// changes the core stays and says so, however often it is pressed.
+    /// Cmd-Q asks the core to quit, as the close button does: with unsaved
+    /// changes it names them and the app asks (`askQuit`).
     @objc private func quitCore() {
         guard let core, !core.exited else { NSApp.terminate(nil); return }
         core.send(.quit)
@@ -181,6 +188,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         quitAsked = Date()
         core.send(.quit)
         return .terminateCancel
+    }
+
+    /// A sheet like TextEdit's on quitting with unsaved buffers; the core saves or drops them.
+    private func askQuit(_ names: [String]) {
+        guard window.attachedSheet == nil else { return }
+        quitAsked = nil // answered here, not by a second quit
+        let a = NSAlert()
+        a.messageText = names.count == 1
+            ? "Do you want to save the changes you made to \(names[0])?"
+            : "You have \(names.count) files with unsaved changes. Save them before quitting?"
+        a.informativeText = (names.count == 1 ? "" : names.prefix(8).joined(separator: ", ") + (names.count > 8 ? ", …" : "") + "\n\n")
+            + "Your changes will be lost if you don't save them."
+        a.addButton(withTitle: names.count == 1 ? "Save" : "Save All")
+        a.addButton(withTitle: "Cancel")
+        a.addButton(withTitle: "Don't Save").hasDestructiveAction = true
+        NSApp.activate()
+        a.beginSheetModal(for: window) { [weak self] r in
+            guard let self, r != .alertSecondButtonReturn else { return }
+            let op = r == .alertFirstButtonReturn ? "quit_save" : "quit_discard"
+            self.view.transmit { .file(seq: $0, op: op, path: nil) }
+        }
     }
 
     /// VS Code's Chat panel: Claude in a window on the right.
@@ -270,6 +298,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
 
     @objc private func macKey(_ s: NSMenuItem) {
         let k = s.representedObject as! String, shift = s.tag == 1
+        if k == "w", let w = auxiliary { return w.performClose(nil) }
         if k == "w", fieldEditor == nil, view.closeEditor() { return }
         if let t = fieldEditor, let sel = ["a": #selector(NSText.selectAll(_:)), "c": #selector(NSText.copy(_:)), "x": #selector(NSText.cut(_:))][k] {
             t.perform(sel, with: s)
@@ -296,8 +325,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     @objc private func toggleMinimap() {
         view.showMinimap.toggle()
         UserDefaults.standard.set(view.showMinimap, forKey: "FredMinimap")
-        minimapItem.title = view.showMinimap ? "Hide Minimap" : "Show Minimap"
         activity.refresh()
+        syncSettings()
     }
 
     /// View ▸ Background Image…: a picture behind the whole window, seen
@@ -320,6 +349,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         backgroundImage = image
         applyTheme()
         installSidebar(project)
+        syncSettings()
     }
 
     /// The image through View ▸ Adjust Background's blur and brightness.
@@ -334,39 +364,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         return imageContext.createCGImage(ci, from: extent).map { NSImage(cgImage: $0, size: extent.size) }
     }
 
-    /// View ▸ Adjust Background…: the panes' opacity and the image's filter, live.
-    private lazy var backgroundPanel: NSPanel = {
-        let p = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 360, height: 130),
-                        styleMask: [.titled, .closable, .utilityWindow], backing: .buffered, defer: true)
-        p.title = "Adjust Background"
-        let rows = [("Opacity", "FredOpacity", 0.0, 1.0), ("Image Blur", "FredImageBlur", 0, 60),
-                    ("Image Brightness", "FredImageBrightness", -0.5, 0.5)].map { label, key, lo, hi -> [NSView] in
-            let s = NSSlider(value: UserDefaults.standard.double(forKey: key), minValue: lo, maxValue: hi,
-                             target: self, action: #selector(adjustBackground(_:)))
-            s.identifier = NSUserInterfaceItemIdentifier(key)
-            s.widthAnchor.constraint(equalToConstant: 220).isActive = true
-            return [NSTextField(labelWithString: label), s]
-        }
-        let grid = NSGridView(views: rows)
-        grid.column(at: 0).xPlacement = .trailing
-        grid.rowSpacing = 10
-        grid.translatesAutoresizingMaskIntoConstraints = false
-        p.contentView!.addSubview(grid)
-        NSLayoutConstraint.activate([
-            grid.centerXAnchor.constraint(equalTo: p.contentView!.centerXAnchor),
-            grid.centerYAnchor.constraint(equalTo: p.contentView!.centerYAnchor),
-        ])
-        p.center()
-        return p
+    /// Fred ▸ Settings…: theme, background and font (Settings.swift).
+    private lazy var settings: (model: SettingsModel, window: NSWindow) = {
+        let m = SettingsModel()
+        m.hooks = .init(
+            glass: { [unowned self] on in if on != glass { toggleGlass() } },
+            minimap: { [unowned self] on in if on != view.showMinimap { toggleMinimap() } },
+            background: { [unowned self] key, v, done in
+                UserDefaults.standard.set(v, forKey: key)
+                applyTheme()
+                // The sidebar takes its color when built: rebuild it once, on release.
+                if done, key == "FredOpacity" { installSidebar(project) }
+            },
+            chooseImage: { [unowned self] in chooseBackground() },
+            removeImage: { [unowned self] in removeBackground() },
+            font: { [unowned self] name, size in if let f = NSFont(name: name, size: size) { setFont(f) } },
+            moreFonts: { [unowned self] in showFonts() })
+        let w = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(m: m)))
+        w.title = "Settings"
+        w.styleMask = [.titled, .closable]
+        w.isReleasedWhenClosed = false
+        w.center()
+        return (m, w)
     }()
 
-    @objc private func showBackgroundPanel() { backgroundPanel.makeKeyAndOrderFront(nil) }
+    @objc private func showSettings() {
+        settings.window.makeKeyAndOrderFront(nil)
+        syncSettings()
+    }
 
-    @objc private func adjustBackground(_ s: NSSlider) {
-        UserDefaults.standard.set(s.doubleValue, forKey: s.identifier!.rawValue)
-        applyTheme()
-        // The sidebar takes its color when built: rebuild it once, on release.
-        if s.identifier!.rawValue == "FredOpacity", NSApp.currentEvent?.type == .leftMouseUp { installSidebar(project) }
+    /// Settings shows what changed elsewhere (menus, zoom, the font panel).
+    private func syncSettings() {
+        guard settings.window.isVisible else { return }
+        let path = UserDefaults.standard.string(forKey: "FredBackgroundImage")
+        settings.model.sync(glass: glass, minimap: view.showMinimap,
+                            image: backgroundImage == nil ? nil : path.flatMap(NSImage.init(contentsOfFile:)), font: view.font)
     }
 
     @objc private func removeBackground() {
@@ -374,13 +406,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         backgroundImage = nil
         applyTheme()
         installSidebar(project)
+        syncSettings()
     }
 
     @objc private func toggleGlass() {
         glass.toggle()
         UserDefaults.standard.set(glass ? "glass" : "default", forKey: "FredTheme")
-        glassItem.state = glass ? .on : .off
         applyTheme()
+        syncSettings()
         installSidebar(project) // the sidebar takes its color when built
     }
 
@@ -444,6 +477,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         view.font = NSFont(descriptor: f.fontDescriptor, size: size) ?? f
         configFont = (view.font.fontName, Int(size))
         view.transmit { .font(seq: $0, name: self.view.font.fontName, size: Int(size)) }
+        syncSettings()
     }
 
     func applicationDidFinishLaunching(_ n: Notification) {
@@ -519,6 +553,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         self.view = view
         buildMenus()
         window.center()
+        // The size and place it last had (once saved, this replaces the default above).
+        window.setFrameAutosaveName("FredMain")
         // FRED_BACKGROUND=1: open behind (for screenshots while you work).
         if ProcessInfo.processInfo.environment["FRED_BACKGROUND"] == "1" {
             window.orderFront(nil)
@@ -549,6 +585,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         sidebar?.showZap(f.zap_nav ?? [])
         if f.focus_nav == true { focusSidebar() }
         if f.open_folder == true { chooseFolder() }
+        if let names = f.ask_quit, !names.isEmpty { askQuit(names) }
         showBadge(f.picking == true && !split.splitViewItems[0].isCollapsed)
         refreshLayoutButtons()
     }
@@ -909,6 +946,7 @@ class EditorBackground: NSView {
                                   width: size.width, height: size.height))
         }
         color.setFill()
-        r.fill(using: .sourceOver)
+        // The dirty rect can run past an opaque view's bounds: the title strip painted over the picture.
+        r.intersection(bounds).fill(using: .sourceOver)
     }
 }

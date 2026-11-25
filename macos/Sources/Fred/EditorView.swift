@@ -40,6 +40,7 @@ final class EditorView: NSView {
     /// The chat window's VS Code Chat header and Sessions list, per window.
     private var chatHeaders: [ChatHeader] = []
     private var sessionLists: [SessionsList] = []
+    private var welcomes: [ChatWelcome] = []
     private var sendButtons: [Pill] = []
     private var spinners: [NSProgressIndicator] = []
     /// Allow / Deny under the chat's question.
@@ -495,6 +496,10 @@ final class EditorView: NSView {
             h.send = send
             addSubview(h, positioned: .below, relativeTo: overlay)
             chatHeaders.append(h)
+            let welcome = ChatWelcome(frame: .zero)
+            welcome.send = send
+            addSubview(welcome, positioned: .below, relativeTo: overlay)
+            welcomes.append(welcome)
             let l = SessionsList(frame: .zero)
             l.editorBg = palette.bg
             l.send = send
@@ -526,6 +531,7 @@ final class EditorView: NSView {
                 crumbs[i].isHidden = true
                 chatHeaders[i].isHidden = true
                 sessionLists[i].isHidden = true
+                welcomes[i].isHidden = true
                 sendButtons[i].isHidden = true
                 spinners[i].stopAnimation(nil)
                 answerButtons[i].0.isHidden = true
@@ -556,6 +562,19 @@ final class EditorView: NSView {
                 list.isHidden = sessions.isEmpty || !rows.contains("p") || room < cell.height
                 let lf = NSRect(x: l, y: below - lh, width: r - l, height: lh)
                 if list.frame != lf { list.frame = lf; list.needsDisplay = true }
+                h.history.lit = list.open && !list.isHidden
+                h.history.isHidden = list.isHidden
+                h.onHistory = { [weak self] in
+                    list.open.toggle()
+                    list.needsDisplay = true
+                    list.onToggle()
+                }
+                // Nothing said yet: the welcome between the header and Sessions.
+                let top = CGFloat(w.y + w.header! - (chat.pad ?? 0)) * cell.height
+                let bottom = below - (list.isHidden ? 0 : cell.height)
+                let wf = NSRect(x: l, y: top, width: r - l, height: bottom - top)
+                welcomes[i].isHidden = rows.contains { "uta".contains($0) } || wf.height < 100
+                if welcomes[i].frame != wf { welcomes[i].frame = wf }
                 // Send, or Stop while Claude works: the composer's corner.
                 let b = sendButtons[i]
                 if let last = rows.lastIndex(of: "p") {
@@ -600,6 +619,7 @@ final class EditorView: NSView {
             }
             chatHeaders[i].isHidden = true
             sessionLists[i].isHidden = true
+            welcomes[i].isHidden = true
             sendButtons[i].isHidden = true
             spinners[i].stopAnimation(nil)
             answerButtons[i].0.isHidden = true

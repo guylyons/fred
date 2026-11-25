@@ -214,19 +214,20 @@ impl Config {
         Ok(o)
     }
 
-    /// Save top-level `key = value` (`value` already TOML) into the config
-    /// file, keeping everything else in it as written.
-    pub fn save_key(key: &str, value: &str) -> Result<(), String> {
+    /// Save top-level `key = value`s into the config file in one replace,
+    /// keeping everything else in it as written.
+    pub fn save_keys(keys: &[(&str, toml::Value)]) -> Result<(), String> {
         let path = config_path();
         let text = match std::fs::read_to_string(&path) {
             Ok(t) => t,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
             Err(e) => return Err(format!("config: {e}")),
         };
+        let new = with_keys(&text, keys)?;
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir).map_err(|e| format!("config: {e}"))?;
         }
-        std::fs::write(&path, with_key(&text, key, value)).map_err(|e| format!("config: {e}"))
+        replace_file(&path, &new).map_err(|e| format!("config: {e}"))
     }
 
     /// Load the user's config file (missing file = defaults).
@@ -236,6 +237,41 @@ impl Config {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => (Config::default(), None),
             Err(e) => (Config::default(), Some(format!("config: {e}"))),
         }
+    }
+}
+
+/// Write `text` beside `path` then rename over it: a crash leaves the old
+/// file or the new one. A symlink (dotfiles) stays one, its target replaced,
+/// and the file keeps its permissions.
+fn replace_file(path: &std::path::Path, text: &str) -> std::io::Result<()> {
+    let real = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let tmp = real.with_extension("toml.new");
+    std::fs::write(&tmp, text)?;
+    if let Ok(m) = std::fs::metadata(&real) {
+        std::fs::set_permissions(&tmp, m.permissions())?;
+    }
+    std::fs::rename(&tmp, &real)
+}
+
+/// `text` with each top-level `key = value`, checked: the result must parse
+/// to the same table with just those keys set. Line editing keeps comments,
+/// but can't see quoted keys or multi-line strings; those files are left alone.
+fn with_keys(text: &str, keys: &[(&str, toml::Value)]) -> Result<String, String> {
+    let mut want: toml::Table = toml::from_str(text).map_err(|e| format!("config: {e}"))?;
+    let mut out = text.to_string();
+    for (k, v) in keys {
+        want.insert(k.to_string(), v.clone());
+        out = with_key(&out, k, &v.to_string());
+    }
+    match toml::from_str::<toml::Table>(&out) {
+        Ok(got) if got == want => Ok(out),
+        _ => Err(format!(
+            "config: couldn't save {} without changing other settings; set it in config.toml",
+            keys.iter()
+                .map(|(k, _)| *k)
+                .collect::<Vec<_>>()
+                .join(" and ")
+        )),
     }
 }
 
@@ -283,6 +319,62 @@ mod tests {
         assert_eq!(with_key("", "font_size", "14"), "font_size = 14\n");
         let (c, err) = Config::parse(&t);
         assert_eq!((c.font.as_str(), c.font_size, err), ("Menlo", 14, None));
+    }
+
+    #[test]
+    fn replacing_a_symlinked_config_keeps_the_link() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("fred-cfg-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let (target, link) = (dir.join("dot.toml"), dir.join("config.toml"));
+        std::fs::write(&target, "icons = true\n").unwrap();
+        std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o600)).unwrap();
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+        replace_file(&link, "font_size = 18\n").unwrap();
+        assert!(
+            std::fs::symlink_metadata(&link)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+        assert_eq!(
+            std::fs::read_to_string(&target).unwrap(),
+            "font_size = 18\n"
+        );
+        assert_eq!(
+            std::fs::metadata(&target).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        replace_file(&dir.join("new.toml"), "x = 1\n").unwrap();
+        assert_eq!(
+            std::fs::read_to_string(dir.join("new.toml")).unwrap(),
+            "x = 1\n"
+        );
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn saving_keys_never_changes_other_settings() {
+        let font = |n: i64| {
+            [
+                ("font", toml::Value::from("Menlo")),
+                ("font_size", toml::Value::from(n)),
+            ]
+        };
+        let t = with_keys("icons = true\n[set]\ntabstop = 2\n", &font(18)).unwrap();
+        assert_eq!(Config::parse(&t).0.font_size, 18);
+        // Line editing can't see these (Codex review 2026-11-25): refused, not corrupted.
+        assert!(with_keys("\"font_size\" = 12\nicons = true\n", &font(18)).is_err());
+        assert!(
+            with_keys(
+                "claude_command = '''\nfont_size = 12\nclaude\n'''\n",
+                &font(18)
+            )
+            .is_err()
+        );
+        assert!(with_keys("x = \"\"\"\n[set]\n\"\"\"\n", &font(18)).is_err());
+        assert!(with_keys("not toml [", &font(18)).is_err());
     }
 
     #[test]

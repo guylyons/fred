@@ -123,6 +123,7 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
             model,
             mode,
             busy,
+            title: crate::claude::topic(ed),
             sessions: crate::claude::sessions(),
             rows: chat_rows(ed, view, p.text().width, p.text().height),
             pad: p.header.saturating_sub(header),
@@ -279,6 +280,7 @@ pub fn build(s: &mut Session, cfg: &Config, term: &mut Terminal<TestBackend>, se
         zap_nav: zap_nav(s),
         focus_nav: std::mem::take(&mut s.focus_nav),
         open_folder: std::mem::take(&mut s.open_folder),
+        ask_quit: std::mem::take(&mut s.ask_quit),
         picking: s.picking_window,
         cwd: std::env::current_dir()
             .map(|d| d.display().to_string())

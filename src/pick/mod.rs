@@ -38,6 +38,8 @@ pub struct Project {
     /// Where to look for the repo: the edited file's directory.
     dir: Option<PathBuf>,
     pub recent_file: Option<PathBuf>,
+    /// More folders searched with the project's (the app's added folders).
+    pub folders: Vec<PathBuf>,
     files: Mutex<Option<Arc<Files>>>,
     pub grep: Arc<Grep>,
     /// `git status` per repository root, loading in the background (for
@@ -63,14 +65,16 @@ impl Project {
         Arc::clone(f.get_or_insert_with(|| {
             let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
             let dir = self.dir.clone().unwrap_or_else(|| cwd.clone());
-            Files::spawn(files::project_root(&dir, &cwd), false)
+            let mut dirs = vec![files::project_root(&dir, &cwd)];
+            dirs.extend(self.folders.iter().cloned());
+            Files::spawn_in(dirs, false)
         }))
     }
 
     /// Walk again, honoring ignore files or (`all`) not.
     fn set_all(&self, all: bool) {
-        let root = self.files().root.clone();
-        *self.files.lock().unwrap() = Some(Files::spawn(root, all));
+        let dirs = self.files().dirs.clone();
+        *self.files.lock().unwrap() = Some(Files::spawn_in(dirs, all));
     }
 
     /// `path`'s state in `git status` (for a directory: of anything inside

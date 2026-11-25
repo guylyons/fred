@@ -58,7 +58,9 @@ public enum FileTree {
         var out = Set<String>(), found = 0
         for f in files where found < limit {
             let hay = q.contains("/") ? f : String(f[(f.lastIndex(of: "/").map { f.index(after: $0) } ?? f.startIndex)...])
-            guard hay.lowercased().contains(q) else { continue }
+            // `*` or `?` makes it a glob over the whole name (or path), like `*.rs`.
+            let glob = q.contains("*") || q.contains("?")
+            guard glob ? fnmatch(q, hay.lowercased(), 0) == 0 : hay.lowercased().contains(q) else { continue }
             found += 1
             var at = base
             for part in f.split(separator: "/") {

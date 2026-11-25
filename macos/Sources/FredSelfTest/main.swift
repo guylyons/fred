@@ -139,6 +139,8 @@ check("filter by name, with folders", FileTree.filter(["src/gui/mod.rs", "src/ma
       == ["/r/src", "/r/src/gui", "/r/src/gui/mod.rs"])
 check("filter with a slash matches the path", FileTree.filter(["src/gui/mod.rs", "src/main.rs"], query: "gui/m", under: "/r/") == ["/r/src", "/r/src/gui", "/r/src/gui/mod.rs"]
       && FileTree.filter(["src/gui/mod.rs"], query: "gui", under: "/r").isEmpty)
+check("filter by glob", FileTree.filter(["a/x.ecs", "b.ECS", "c.ecs.bak"], query: "*.ecs", under: "/r") == ["/r/a", "/r/a/x.ecs", "/r/b.ECS"]
+      && FileTree.filter(["src/a.rs", "lib/a.rs"], query: "src/*.rs", under: "/r") == ["/r/src", "/r/src/a.rs"])
 check("filter limit", FileTree.filter(["a1", "a2", "a3"], query: "a", under: "/r", limit: 2).count == 2)
 check("ancestors", FileTree.ancestors(of: "/r/src/gui/mod.rs", under: "/r") == ["/r/src", "/r/src/gui"])
 check("ancestors top level", FileTree.ancestors(of: "/r/a.rs", under: "/r/") == [])
@@ -153,6 +155,8 @@ check("pick line", String(decoding: Outgoing.pick(seq: 3, index: 7).line(), as: 
 check("rubber band resists, comes back to 0, and settles", Rubber.pull(0, by: 20) == 10 && Rubber.pull(100, by: 20) < 10 + 100
       && Rubber.pull(10, by: -30) == 0 && Rubber.settle(0.4) == 0 && Rubber.settle(10) == 8)
 check("panel line", String(decoding: Outgoing.panel(seq: 4, op: "toggle").line(), as: UTF8.self) == #"{"t":"panel","seq":4,"op":"toggle"}"# + "\n")
+check("cd line", String(decoding: Outgoing.cd(seq: 5, path: "/a", folders: ["/b", "/c"]).line(), as: UTF8.self) == #"{"t":"cd","seq":5,"path":"/a","folders":["/b","/c"]}"# + "\n")
+check("cd line, no folders", String(decoding: Outgoing.cd(seq: 6, path: "/a").line(), as: UTF8.self) == #"{"t":"cd","seq":6,"path":"/a"}"# + "\n")
 check("nav line", String(decoding: Outgoing.nav(rows: [("a b", "/x/a b")]).line(), as: UTF8.self) == #"{"t":"nav","rows":[{"name":"a b","path":"/x/a b"}]}"# + "\n")
 check("badges", FileTree.badge(for: "x.PHP")?.text == "php" && FileTree.badge(for: "Cargo.toml")?.text == "RS"
       && FileTree.badge(for: "a.bin") == nil)

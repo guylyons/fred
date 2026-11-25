@@ -104,6 +104,12 @@ read from it. The ex `COMMANDS` table in `src/ex/cmd.rs` is the model.
 
 ## Execution queue
 
+0. **Next (chosen 2026-11-14):** quickfix and location lists (track 22:
+   `:copen`/`:lopen`, `:make`, `:grep`, `:vimgrep`, `:cnext`/`:cprev`,
+   `:cdo`), then 'hlsearch', 'incsearch' and 'inccommand' (track 14).
+   After that, LSP (definition, hover, rename, code actions, diagnostics
+   into quickfix, completion) — outside this roadmap's core scope, so it
+   needs its own plan first.
 1. Track 3 continued: multi-line display for `:set` / `:set all`,
    global-local options, then each new option arrives with its behavior
    (track 23). Done so far: the table (`src/options/`), `:set`,

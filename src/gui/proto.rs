@@ -98,6 +98,9 @@ pub struct ChatBar {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mode: Option<String>,
     pub busy: bool,
+    /// The conversation's first message, for the panel's title.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
     /// Past conversations (id, title, how long ago).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sessions: Vec<(String, String, String)>,
@@ -165,6 +168,9 @@ pub struct Frame {
     /// Ask for a project folder (then send `cd`).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub open_folder: bool,
+    /// Quit met these unsaved buffers: ask Save / Don't Save / Cancel.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ask_quit: Vec<String>,
     /// `Space w` is numbering the windows: the sidebar shows its 0.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub picking: bool,
@@ -362,10 +368,13 @@ pub enum In {
         #[serde(default)]
         path: Option<String>,
     },
-    /// Work in folder `path` (`:cd`): the chosen project.
+    /// Work in folder `path` (`:cd`): the chosen project, searching the
+    /// added `folders` too.
     Cd {
         seq: u64,
         path: String,
+        #[serde(default)]
+        folders: Vec<String>,
     },
     /// View ▸ Font… or zoom: the editor font, saved to config.toml.
     Font {

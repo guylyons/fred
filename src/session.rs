@@ -174,6 +174,9 @@ pub struct Session {
     pub focus_nav: bool,
     /// The GUI asks for a project folder (the splash's `o`); once, like `focus_nav`.
     pub open_folder: bool,
+    /// The app's Quit met unsaved buffers: their names, for its Save / Don't
+    /// Save dialog (answered with the file ops "quit_save" / "quit_discard"); once.
+    pub ask_quit: Vec<String>,
     /// A window edge being dragged with the mouse: its direction, where it
     /// is now, and the row or column it was grabbed at.
     grab: Option<(crate::window::Dir, u16, u16)>,
@@ -409,6 +412,7 @@ impl Session {
             picking_window: false,
             focus_nav: false,
             open_folder: false,
+            ask_quit: vec![],
             grab: None,
             grid_pending: false,
             which_key: false,
@@ -704,6 +708,26 @@ impl Session {
                 self.write_all();
             }
             ("revert", _) => self.edit(None, true),
+            ("quit", _) => {
+                self.ask_quit = (0..self.bufs.len())
+                    .filter(|&i| self.ed_at(i).buf.modified)
+                    .map(|i| {
+                        let n = buf_name(self.ed_at(i));
+                        let file = Path::new(&n).file_name().map(|f| f.to_string_lossy());
+                        file.map_or_else(|| n.clone(), |f| f.into_owned())
+                    })
+                    .collect();
+                if self.ask_quit.is_empty() {
+                    self.quit = true;
+                }
+            }
+            // An unnamed buffer can't be written: it still stops the quit, with its error.
+            ("quit_save", _) => {
+                if self.write_all() {
+                    self.quit_if_all_saved();
+                }
+            }
+            ("quit_discard", _) => self.quit = true,
             _ => {}
         }
     }
@@ -882,6 +906,11 @@ impl Session {
     /// `:cd [dir]`: change directory (home without one). Relative paths,
     /// `Space p` and `Space g` follow.
     pub fn cd(&mut self, dir: Option<&str>) {
+        self.cd_with(dir, vec![]);
+    }
+
+    /// `cd`, searching `folders` too (the app's multi-folder project).
+    pub fn cd_with(&mut self, dir: Option<&str>, folders: Vec<PathBuf>) {
         let to = dir.map_or_else(|| expand_tilde("~/"), expand_tilde);
         // Pin the files' paths first: `src/x.rs` must not come to mean a
         // file in the new directory.
@@ -900,10 +929,9 @@ impl Session {
                 ed.path = Some(f.strip_prefix(&cwd).map(Path::to_path_buf).unwrap_or(f));
             }
         }
-        self.ed.project = std::sync::Arc::new(crate::pick::Project::new(
-            Some(cwd.clone()),
-            Some(self.recent_file()),
-        ));
+        let mut project = crate::pick::Project::new(Some(cwd.clone()), Some(self.recent_file()));
+        project.folders = folders;
+        self.ed.project = std::sync::Arc::new(project);
         self.ed.set_msg(cwd.display().to_string());
     }
 
@@ -1618,7 +1646,8 @@ impl Session {
     }
 
     /// The chat panel's buttons: `toggle` (open or close it), `new`,
-    /// `resume` (conversation `arg`), `more` (all of them), `model`, `mode`.
+    /// `resume` (conversation `arg`), `more` (all of them), `model`, `mode`,
+    /// `ask` (send prompt `arg`, a suggestion).
     pub fn chat_panel(&mut self, op: &str, arg: Option<String>) {
         let chat = (0..self.bufs.len()).find(|&i| self.ed_at(i).claude.is_some());
         let shown = self
@@ -1642,6 +1671,7 @@ impl Session {
             ("model", _) => crate::claude::act(&mut self.ed, crate::claude::Action::Model),
             ("mode", _) => crate::claude::act(&mut self.ed, crate::claude::Action::Mode),
             ("send", _) => crate::claude::send(&mut self.ed),
+            ("ask", Some(p)) => crate::claude::submit(&mut self.ed, &p),
             ("stop", _) => crate::claude::act(&mut self.ed, crate::claude::Action::Interrupt),
             ("allow", _) => _ = crate::claude::answer(&mut self.ed, crate::key::Key::ch('y')),
             ("deny", _) => _ = crate::claude::answer(&mut self.ed, crate::key::Key::ch('n')),
@@ -2332,6 +2362,14 @@ mod tests {
     }
 
     #[test]
+    fn chat_panel_ask_sends_a_suggestion_above_the_prompt() {
+        let mut t = T::open(Some("a"), Some("a\n"));
+        t.s.gui = true;
+        t.s.chat_panel("ask", Some("Explain the current file".into()));
+        assert_eq!(t.s.ed.buf.text(), "> Explain the current file\n\n> ");
+    }
+
+    #[test]
     fn chat_panel_allow_answers_the_question() {
         let mut t = T::open(Some("a"), Some("a\n"));
         t.s.gui = true;
@@ -2684,6 +2722,26 @@ mod tests {
         assert_eq!(t.file("f"), "theirs\n");
         t.keys(":w!<Enter>");
         assert_eq!(t.file("f"), "\n");
+    }
+
+    #[test]
+    fn the_apps_quit_asks_about_unsaved_buffers() {
+        let mut t = T::open(Some("f"), Some("abc\n"));
+        t.s.file_menu("quit", None);
+        assert!(t.s.quit && t.s.ask_quit.is_empty());
+        let mut t = T::open(Some("f"), Some("abc\n"));
+        t.keys("x");
+        t.s.file_menu("quit", None);
+        assert!(!t.s.quit);
+        assert_eq!(t.s.ask_quit, ["f"]);
+        t.s.file_menu("quit_save", None);
+        assert!(t.s.quit);
+        assert_eq!(t.file("f"), "bc\n");
+        let mut t = T::open(Some("f"), Some("abc\n"));
+        t.keys("x");
+        t.s.file_menu("quit_discard", None);
+        assert!(t.s.quit);
+        assert_eq!(t.file("f"), "abc\n");
     }
 
     #[test]

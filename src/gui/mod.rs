@@ -629,11 +629,14 @@ fn input(s: &mut Session, term: &mut Terminal<TestBackend>, m: In) {
             }
         }
         In::Scroll { win, top, up, .. } => scroll(s, win, top, up),
-        In::Cd { path, .. } => s.cd(Some(&path)),
+        In::Cd { path, folders, .. } => {
+            s.cd_with(Some(&path), folders.into_iter().map(std::path::PathBuf::from).collect())
+        }
         In::Font { name, size, .. } => {
-            let value = toml::Value::String(name.clone()).to_string();
-            let saved = Config::save_key("font", &value)
-                .and_then(|()| Config::save_key("font_size", &size.to_string()));
+            let saved = Config::save_keys(&[
+                ("font", toml::Value::from(name.as_str())),
+                ("font_size", toml::Value::from(i64::from(size))),
+            ]);
             match saved {
                 Ok(()) => {
                     s.ed.set_msg(format!("Font: {name} {size}pt, saved to config.toml"))
@@ -664,12 +667,9 @@ fn input(s: &mut Session, term: &mut Terminal<TestBackend>, m: In) {
                 handle_keys(s, "<Enter>");
             }
         }
-        // A focused terminal would hand `:qa` to its shell.
-        In::Quit if s.ed.term.is_some() => s.perform(crate::ex::ExEffect::QuitAll {
-            force: false,
-            write: false,
-        }),
-        In::Quit => handle_keys(s, "<Esc>:qa<Enter>"),
+        // Not typed as `:qa` (a focused terminal would hand it to its shell).
+        // Unsaved buffers: the app asks Save / Don't Save (see `Session::ask_quit`).
+        In::Quit => s.file_menu("quit", None),
     }
     if keyboard && !keep_view && s.ed.zap.is_none() && s.ed.vim.pending != [Key::ch(' ')] {
         s.win_mut().view.detached = false;
@@ -834,6 +834,14 @@ mod tests {
                 rows: 2,
                 margin: 8,
                 aspect: 0
+            }
+        );
+        assert_eq!(
+            p(r#"{"t":"cd","seq":4,"path":"/a","folders":["/b"]}"#),
+            In::Cd {
+                seq: 4,
+                path: "/a".into(),
+                folders: vec!["/b".into()]
             }
         );
         assert!(serde_json::from_str::<In>(r#"{"t":"bogus"}"#).is_err());

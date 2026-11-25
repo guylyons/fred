@@ -87,6 +87,8 @@ public struct ChatBar: Codable, Equatable, Sendable {
     public var model: String?
     public var mode: String?
     public var busy: Bool
+    /// The conversation's first message, for the panel's title.
+    public var title: String?
     /// Past conversations [id, title, how long ago].
     public var sessions: [[String]]?
     /// One letter per text row: u your message, p the prompt being typed,
@@ -158,6 +160,8 @@ public struct Frame: Codable, Sendable {
     public var focus_nav: Bool?
     /// Ask for a project folder (the splash's `o`), then send `cd`.
     public var open_folder: Bool?
+    /// Quit met these unsaved buffers: ask Save / Don't Save / Cancel.
+    public var ask_quit: [String]?
     /// `Space w` is numbering the windows: the sidebar shows its 0.
     public var picking: Bool?
     /// The core's working directory: the project.
@@ -249,8 +253,8 @@ public enum Outgoing {
     case pick(seq: Int, index: Int)
     /// The terminal panel: `op` toggle or maximize.
     case panel(seq: Int, op: String)
-    /// Work in folder `path` (`:cd`): the chosen project.
-    case cd(seq: Int, path: String)
+    /// Work in folder `path` (`:cd`): the chosen project, searching the added `folders` too.
+    case cd(seq: Int, path: String, folders: [String] = [])
     /// The editor font chosen in the app, for the core to save to config.toml.
     case font(seq: Int, name: String, size: Int)
     /// The File menu: `op` new, save_as (to `path`), save_all or revert.
@@ -289,7 +293,8 @@ public enum Outgoing {
         case .file(let s, let op, let p): body = #""file","seq":\#(s),"op":\#(q(op))"# + (p.map { #","path":\#(q($0))"# } ?? "")
         case .menu(let s, let op): body = #""menu","seq":\#(s),"op":\#(q(op))"#
         case .chat(let s, let op, let a): body = #""chat","seq":\#(s),"op":\#(q(op))"# + (a.map { #","arg":\#(q($0))"# } ?? "")
-        case .cd(let s, let p): body = #""cd","seq":\#(s),"path":\#(q(p))"#
+        case .cd(let s, let p, let fs):
+            body = #""cd","seq":\#(s),"path":\#(q(p))"# + (fs.isEmpty ? "" : #","folders":["# + fs.map(q).joined(separator: ",") + "]")
         case .font(let s, let n, let z): body = #""font","seq":\#(s),"name":\#(q(n)),"size":\#(z)"#
         case .nav(let rows):
             body = #""nav","rows":["# + rows.map { #"{"name":\#(q($0.name)),"path":\#(q($0.path))}"# }.joined(separator: ",") + "]"

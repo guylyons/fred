@@ -456,9 +456,9 @@ pub(crate) fn send(ed: &mut Editor) {
     dispatch(ed, prompt);
 }
 
-/// Send `prompt` from a `Space c` key, as if typed: it shows above the
-/// prompt being typed, which stays as it was.
-fn submit(ed: &mut Editor, prompt: &str) {
+/// Send `prompt` from a `Space c` key or the chat panel's suggestions, as
+/// if typed: it shows above the prompt being typed, which stays as it was.
+pub fn submit(ed: &mut Editor, prompt: &str) {
     if busy(ed) {
         return ed.set_msg("Claude is working · C-c to interrupt");
     }
@@ -1039,6 +1039,15 @@ pub fn bar(ed: &Editor) -> Option<(Option<String>, Option<String>, bool, bool)> 
     Some((chat.model.clone(), chat.mode.clone(), busy(ed), empty))
 }
 
+/// The chat panel's title: the conversation's first message.
+pub fn topic(ed: &Editor) -> Option<String> {
+    let prompt = prompt_line(ed)?;
+    (0..prompt)
+        .map(|l| ed.buf.line(l))
+        .find_map(|l| l.strip_prefix("> ").map(|t| clip(t.trim())))
+        .filter(|t| !t.is_empty())
+}
+
 /// A saved conversation, laid out as the chat shows one.
 fn history(jsonl: &str) -> String {
     let mut out = String::new();
@@ -1513,6 +1522,14 @@ mod tests {
         ));
         ed.claude = Some(Box::new(Chat::new("true")));
         assert_eq!(kinds(&ed), b"uu tr    p");
+    }
+
+    #[test]
+    fn the_topic_is_the_first_message() {
+        let mut ed = Editor::new(Buffer::from_text("> fix the build\n\nok\n\n> and test it\n\n> "));
+        assert_eq!(topic(&ed).as_deref(), Some("fix the build"));
+        ed = Editor::new(Buffer::from_text("> "));
+        assert_eq!(topic(&ed), None);
     }
 
     #[test]

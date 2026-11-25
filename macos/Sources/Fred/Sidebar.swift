@@ -36,7 +36,16 @@ final class Node {
 /// glass sidebar item.
 @MainActor
 final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate, NSMenuDelegate, NSSearchFieldDelegate {
+    /// The project folder; with added folders, a stand-in for the folder
+    /// holding them all, whose children are the folders (never listed).
     let root: Node
+    /// The top folders: the project, then the added ones.
+    let tops: [Node]
+    private var multi: Bool { tops.count > 1 }
+    /// The big + in the header: add a folder to the project.
+    var addFolder: () -> Void = {}
+    /// An added folder's "Remove Folder from Project".
+    var removeFolder: (URL) -> Void = { _ in }
     /// Opens a file in the active Fred window; `true` as a preview tab.
     var open: (URL, Bool) -> Void = { _, _ in }
     /// Esc in the tree: back to the editor.
@@ -68,8 +77,20 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
     private var unsaved: Set<String> = []
     private var gitTicket = 0
 
-    init(root: URL) {
-        self.root = Node(URL(fileURLWithPath: FileTree.canonical(root.path)), isDir: true)
+    init(root: URL, folders: [URL] = []) {
+        let tops = ([root] + folders).map { Node(URL(fileURLWithPath: FileTree.canonical($0.path)), isDir: true) }
+        self.tops = tops
+        if tops.count == 1 {
+            self.root = tops[0]
+        } else {
+            // The deepest folder holding them all: paths under it stay unique.
+            var common = tops[0].url.pathComponents
+            for t in tops.dropFirst() {
+                common = Array(zip(common, t.url.pathComponents).prefix { $0 == $1 }.map(\.0))
+            }
+            self.root = Node(URL(fileURLWithPath: NSString.path(withComponents: common)), isDir: true)
+            self.root.children = tops
+        }
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -81,7 +102,7 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
     override func loadView() {
         let v = EditorBackground(frame: NSRect(x: 0, y: 0, width: 240, height: 600))
         v.color = background
-        let header = NSTextField(labelWithString: root.name.uppercased())
+        let header = NSTextField(labelWithString: tops[0].name.uppercased())
         header.font = .systemFont(ofSize: 12, weight: .semibold)
         header.textColor = .secondaryLabelColor
         header.lineBreakMode = .byTruncatingTail
@@ -133,14 +154,26 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         // No scroller: the tree scrolls by trackpad and wheel, like the editor.
         scroll.hasVerticalScroller = false
 
-        for s in [header, scroll, filterBox] as [NSView] {
+        let add = Pill(title: "")
+        add.image = NSImage(systemSymbolName: "plus", accessibilityDescription: "Add Folder to Project")
+        add.toolTip = "Add Folder to Project…"
+        add.square = true
+        add.pointSize = 18
+        add.weight = .heavy
+        add.onClick = { [weak self] in self?.addFolder() }
+        add.setAccessibilityRole(.button)
+        add.setAccessibilityLabel("Add Folder to Project")
+
+        for s in [header, add, scroll, filterBox] as [NSView] {
             s.translatesAutoresizingMaskIntoConstraints = false
             v.addSubview(s)
         }
         NSLayoutConstraint.activate([
             header.topAnchor.constraint(equalTo: v.safeAreaLayoutGuide.topAnchor, constant: 6),
             header.leadingAnchor.constraint(equalTo: v.leadingAnchor, constant: 16),
-            header.trailingAnchor.constraint(lessThanOrEqualTo: v.trailingAnchor, constant: -8),
+            header.trailingAnchor.constraint(lessThanOrEqualTo: add.leadingAnchor, constant: -4),
+            add.centerYAnchor.constraint(equalTo: header.centerYAnchor),
+            add.trailingAnchor.constraint(equalTo: v.trailingAnchor, constant: -8),
             scroll.topAnchor.constraint(equalTo: header.bottomAnchor, constant: 4),
             scroll.leadingAnchor.constraint(equalTo: v.leadingAnchor),
             scroll.trailingAnchor.constraint(equalTo: v.trailingAnchor),
@@ -169,10 +202,23 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
 
     // MARK: - Filter
 
-    @objc private func filterChanged() { applyFilter() }
+    @objc private func filterChanged() { commitFilter() }
+
+    /// The filter as of the last Enter (or clear): a draft still being typed
+    /// doesn't apply when files change underneath it.
+    private var query = ""
+
+    /// A committed query jumps to its first match; a re-filter after files change doesn't.
+    private var jump = false
+
+    private func commitFilter() {
+        query = filterField.stringValue.trimmingCharacters(in: .whitespaces)
+        jump = true
+        applyFilter()
+    }
 
     private func applyFilter() {
-        let q = filterField.stringValue.trimmingCharacters(in: .whitespaces)
+        let q = query
         if q.isEmpty {
             guard shown != nil else { return }
             shown = nil
@@ -183,13 +229,24 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         }
         guard let files else { return listFiles() }
         let set = FileTree.filter(files, query: q, under: root.url.path)
+        // Files changing (a save, Git, a build) re-filter: the same matches leave
+        // the tree alone; new ones keep the selection and scroll, not jump to the top.
+        guard jump || set != shown else { return }
         shown = set
+        let kept = outline.item(atRow: outline.selectedRow), at = outline.visibleRect.origin
         outline.reloadData()
         outline.expandItem(nil, expandChildren: true)
-        // The first match takes the selection, for Enter and arrows.
-        if let row = (0..<outline.numberOfRows).first(where: { (outline.item(atRow: $0) as? Node)?.isDir == false }) {
-            outline.selectRowIndexes([row], byExtendingSelection: false)
-            outline.scrollRowToVisible(row)
+        if jump {
+            jump = false
+            // The first match takes the selection, for Enter and arrows.
+            if let row = (0..<outline.numberOfRows).first(where: { (outline.item(atRow: $0) as? Node)?.isDir == false }) {
+                outline.selectRowIndexes([row], byExtendingSelection: false)
+                outline.scrollRowToVisible(row)
+            }
+        } else {
+            let row = kept.map(outline.row(forItem:)) ?? -1
+            if row >= 0 { outline.selectRowIndexes([row], byExtendingSelection: false) } else { outline.deselectAll(nil) }
+            outline.scroll(at)
         }
         sendNav()
     }
@@ -198,9 +255,11 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
     /// repository, so ignored ones stay out), then filter.
     private func listFiles() {
         listing += 1
-        let ticket = listing, dir = root.url
+        let ticket = listing, base = root.url.path
+        let dirs = tops.map { ($0.url, multi ? String($0.url.path.dropFirst(base.count).drop { $0 == "/" }) + "/" : "") }
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let list = gitFiles(in: dir) ?? walkFiles(in: dir)
+            // Relative to `root`: each added folder's files under its path.
+            let list = dirs.flatMap { dir, prefix in (gitFiles(in: dir) ?? walkFiles(in: dir)).map { prefix + $0 } }
             DispatchQueue.main.async {
                 guard let self, ticket == self.listing else { return }
                 self.files = list
@@ -212,9 +271,9 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
     /// Ask Git what changed, in the background, and redecorate the rows.
     private func refreshGit() {
         gitTicket += 1
-        let ticket = gitTicket, dir = root.url
+        let ticket = gitTicket, dirs = tops.map(\.url)
         DispatchQueue.global(qos: .utility).async { [weak self] in
-            let marks = gitStatus(in: dir)
+            let marks = dirs.reduce(into: [String: String]()) { m, d in m.merge(gitStatus(in: d)) { a, _ in a } }
             DispatchQueue.main.async {
                 guard let self, ticket == self.gitTicket, marks != self.git else { return }
                 self.git = marks
@@ -238,6 +297,7 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
 
     /// List `n`, then dim its gitignored entries once Git says which.
     private func load(_ n: Node) {
+        if multi && n === root { return } // its children are the folders
         n.load()
         let names = (n.children ?? []).filter { !$0.pending }.map(\.name)
         let dir = n.url
@@ -299,6 +359,8 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         }()
         cell.imageView!.image = FileIcon.image(for: n.name, isDir: n.isDir, size: 16)
         cell.textField!.stringValue = n.name
+        // A project's top folders stand out, as VS Code's workspace folders do.
+        cell.textField!.font = .systemFont(ofSize: 13, weight: multi && tops.contains { $0 === n } ? .semibold : .regular)
         // VS Code's colours: yellow modified, green new, red deleted; ● unsaved in an editor.
         let path = n.url.path, g = git[path]
         let color: NSColor? = switch g {
@@ -412,18 +474,31 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         view.window?.makeFirstResponder(outline)
     }
 
+    /// The rows from the top down to `path` (listing folders when `list`,
+    /// else only those already listed); nil outside the project.
+    private func trail(_ path: String, list: Bool) -> [Node]? {
+        for t in tops {
+            if multi && path == t.url.path { return [t] }
+            guard let dirs = FileTree.ancestors(of: path, under: t.url.path) else { continue }
+            var at = t, out = multi ? [t] : []
+            for d in dirs + [path] {
+                let kids = list ? kids(at === root ? nil : at) : at.children ?? []
+                guard let n = kids.first(where: { $0.url.path == d }) else { return nil }
+                out.append(n)
+                at = n
+            }
+            return out
+        }
+        return nil
+    }
+
     private func select(_ path: String?) {
-        guard let raw = path, case let path = FileTree.canonical(raw),
-              let dirs = FileTree.ancestors(of: path, under: root.url.path) else {
+        guard let raw = path, case let path = FileTree.canonical(raw), path != root.url.path else {
             outline.deselectAll(nil)
             return
         }
-        var at = root
-        for d in dirs + [path] {
-            guard let n = kids(at === root ? nil : at).first(where: { $0.url.path == d }) else { return }
-            if n.isDir { outline.expandItem(n) }
-            at = n
-        }
+        guard let nodes = trail(path, list: true), let at = nodes.last else { return outline.deselectAll(nil) }
+        for n in nodes where n.isDir { outline.expandItem(n) }
         let row = outline.row(forItem: at)
         guard row >= 0 else { return }
         outline.selectRowIndexes([row], byExtendingSelection: false)
@@ -449,7 +524,7 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
             let dirs = unsafeBitCast(paths, to: NSArray.self) as! [String]
             MainActor.assumeIsolated { me.changed(Array(dirs.prefix(count))) }
         }
-        guard let s = FSEventStreamCreate(nil, cb, &ctx, [root.url.path] as CFArray,
+        guard let s = FSEventStreamCreate(nil, cb, &ctx, tops.map(\.url.path) as CFArray,
                                           FSEventStreamEventId(kFSEventStreamEventIdSinceNow), 0.3,
                                           FSEventStreamCreateFlags(kFSEventStreamCreateFlagUseCFTypes)) else { return }
         FSEventStreamSetDispatchQueue(s, .main)
@@ -464,10 +539,12 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         // Files came or went: list them again, now if a filter shows them.
         files = nil
         listing += 1
-        if shown != nil { return listFiles() }
+        // Loaded folders take the change either way; a filter then shows it.
         for d in Set(dirs.map { FileTree.canonical($0.hasSuffix("/") && $0.count > 1 ? String($0.dropLast()) : $0) }) {
-            if let n = loaded(d) { reload(n) }
+            if let n = loaded(d) { query.isEmpty ? reload(n) : load(n) }
         }
+        // `query`, not `shown`: a first listing still pending was just dropped.
+        if !query.isEmpty { listFiles() }
     }
 
     /// The loaded folder at `path`.
@@ -479,13 +556,7 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
     /// The node at `path` among those already listed (nothing is loaded).
     private func existing(_ path: String) -> Node? {
         if path == root.url.path { return root }
-        guard let dirs = FileTree.ancestors(of: path, under: root.url.path) else { return nil }
-        var at = root
-        for d in dirs + [path] {
-            guard let n = at.children?.first(where: { $0.url.path == d }) else { return nil }
-            at = n
-        }
-        return at
+        return trail(path, list: false)?.last
     }
 
     private func reload(_ n: Node) {
@@ -508,7 +579,11 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         func add(_ t: String, _ a: Selector) { m.addItem(withTitle: t, action: a, keyEquivalent: "").target = self }
         add("New File…", #selector(newFile))
         add("New Folder…", #selector(newFolder))
-        if target !== root {
+        if multi, let i = tops.firstIndex(where: { $0 === target }), i > 0 {
+            m.addItem(.separator())
+            add("Remove Folder from Project", #selector(remove))
+        }
+        if target !== root, !(multi && tops.contains { $0 === target }) {
             m.addItem(.separator())
             add("Rename…", #selector(rename))
             add("Delete", #selector(delete))
@@ -539,6 +614,8 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
         for n in kids(nil) { outline.collapseItem(n, collapseChildren: true) }
     }
 
+    @objc private func remove() { removeFolder(target.url) }
+
     @objc private func newFile() { create(dir: false) }
     @objc private func newFolder() { create(dir: true) }
 
@@ -546,6 +623,7 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
     private func create(dir: Bool) {
         var parent = target
         if !parent.isDir { parent = outline.parent(forItem: parent) as? Node ?? root }
+        if multi && parent === root { parent = tops[0] } // empty space: the project folder
         if parent !== root { outline.expandItem(parent) }
         let n = Node(parent.url.appendingPathComponent(dir ? "untitled folder" : "untitled"), isDir: dir)
         n.pending = true
@@ -573,15 +651,19 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
     }
 
     /// Esc cancels New/Rename: nothing is created or renamed. In the filter,
-    /// Esc clears it and Enter or Down goes to the matches.
+    /// Esc clears it, Enter filters and goes to the matches, Down just goes.
     func control(_ c: NSControl, textView: NSTextView, doCommandBy sel: Selector) -> Bool {
         if c === filterField {
             switch sel {
             case #selector(NSResponder.cancelOperation(_:)):
                 filterField.stringValue = ""
-                applyFilter()
+                commitFilter()
                 focusTree()
-            case #selector(NSResponder.insertNewline(_:)), #selector(NSResponder.moveDown(_:)):
+            case #selector(NSResponder.insertNewline(_:)):
+                // Handled here, so the field's own Enter action never runs: filter now.
+                commitFilter()
+                focusTree()
+            case #selector(NSResponder.moveDown(_:)):
                 focusTree()
             default: return false
             }
@@ -656,7 +738,8 @@ final class Sidebar: NSViewController, NSOutlineViewDataSource, NSOutlineViewDel
     @objc private func copyPath() { copy(target.url.path) }
 
     @objc private func copyRelativePath() {
-        let p = target.url.path, r = root.url.path + "/"
+        let p = target.url.path
+        let r = (tops.first { p.hasPrefix($0.url.path + "/") } ?? root).url.path + "/"
         copy(p.hasPrefix(r) ? String(p.dropFirst(r.count)) : ".")
     }
 
